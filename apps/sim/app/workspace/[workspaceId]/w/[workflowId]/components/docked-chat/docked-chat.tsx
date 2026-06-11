@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
 import { getMothershipUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
@@ -22,6 +22,11 @@ interface DockedChatProps {
   onSelectChat: (chatId: string) => void
   /** A new chat resolved its server id — host reflects it into the URL. */
   onChatResolved: (chatId: string) => void
+  /**
+   * A non-workflow resource needs the stage: the host stacks the resource
+   * card in front of the editor instead of navigating away.
+   */
+  onStageResource: (resource: MothershipResource) => void
 }
 
 /**
@@ -38,8 +43,11 @@ export function DockedChat({
   onClose,
   onSelectChat,
   onChatResolved,
+  onStageResource,
 }: DockedChatProps) {
   const router = useRouter()
+  /** Readable from stream callbacks before the hook's return is in scope. */
+  const activeChatIdRef = useRef<string | undefined>(chatId)
   const {
     messages,
     isSending,
@@ -54,13 +62,32 @@ export function DockedChat({
     cancelQueueEdit,
     editingQueuedId,
     dispatchingHeadId,
-  } = useChat(workspaceId, chatId, getMothershipUseChatOptions({}))
+  } = useChat(
+    workspaceId,
+    chatId,
+    getMothershipUseChatOptions({
+      // The stage follows the conversation: another workflow swaps the
+      // editor; anything else stacks the resource card in front of it.
+      onResourceTouched: (resource) => {
+        if (resource.type === 'workflow') {
+          if (resource.id === workflowId) return
+          const chatParam = activeChatIdRef.current
+          router.push(
+            `/workspace/${workspaceId}/w/${resource.id}${chatParam ? `?chat=${chatParam}` : ''}`
+          )
+          return
+        }
+        onStageResource(resource)
+      },
+    })
+  )
 
   useEffect(() => {
     if (resolvedChatId && resolvedChatId !== chatId) onChatResolved(resolvedChatId)
   }, [resolvedChatId, chatId, onChatResolved])
 
   const activeChatId = resolvedChatId ?? chatId
+  activeChatIdRef.current = activeChatId
   const { isPending: isHistoryPending } = useMothershipChatHistory(activeChatId)
   const showSkeleton = Boolean(activeChatId) && messages.length === 0 && isHistoryPending
 
@@ -81,8 +108,7 @@ export function DockedChat({
       router.push(`/workspace/${workspaceId}/w/${resource.id}${chatParam}`)
       return
     }
-    if (!activeChatId) return
-    router.push(`/workspace/${workspaceId}/chat/${activeChatId}?resource=${resource.id}`)
+    onStageResource(resource)
   }
 
   return (

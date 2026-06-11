@@ -1,8 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { Tooltip } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
+import { isMothershipPageId, MOTHERSHIP_PAGES } from '@/lib/copilot/resources/types'
+import {
+  MothershipResourcesProvider,
+  MothershipView,
+} from '@/app/workspace/[workspaceId]/home/components'
+import type {
+  MothershipResource,
+  MothershipResourceType,
+} from '@/app/workspace/[workspaceId]/home/types'
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
 import { DockedChat } from './docked-chat'
 
 /** Sentinel `?chat=` value for a docked chat that hasn't been created yet. */
@@ -37,33 +49,160 @@ export function WorkflowWithChat() {
   )
 
   /** URL is a mirror, not a router concern — replaceState avoids remounts. */
-  const reflectChatParam = useCallback((value: string | null) => {
+  const reflectParam = useCallback((key: string, value: string | null) => {
     const url = new URL(window.location.href)
-    if (value) url.searchParams.set('chat', value)
-    else url.searchParams.delete('chat')
+    if (value) url.searchParams.set(key, value)
+    else url.searchParams.delete(key)
     window.history.replaceState(null, '', url.toString())
   }, [])
+
+  /** The chat actually in the pane (server id once a new chat resolves). */
+  const activeChatIdRef = useRef<string | undefined>(dock.chatId)
 
   const openChat = useCallback(
     (chatId?: string) => {
       setDock({ open: true, chatId })
-      reflectChatParam(chatId ?? NEW_CHAT_PARAM)
+      activeChatIdRef.current = chatId
+      reflectParam('chat', chatId ?? NEW_CHAT_PARAM)
     },
-    [reflectChatParam]
+    [reflectParam]
   )
 
   const closeChat = useCallback(() => {
     setDock({ open: false })
-    reflectChatParam(null)
-  }, [reflectChatParam])
+    reflectParam('chat', null)
+  }, [reflectParam])
 
   /**
    * A new docked chat got its server id mid-conversation. Only the URL
    * updates — re-keying the pane here would remount the hook mid-stream.
    */
   const handleChatResolved = useCallback(
-    (chatId: string) => reflectChatParam(chatId),
-    [reflectChatParam]
+    (chatId: string) => {
+      activeChatIdRef.current = chatId
+      reflectParam('chat', chatId)
+    },
+    [reflectParam]
+  )
+
+  // ── Stage stack ──────────────────────────────────────────────────────────
+  // Non-workflow resources never replace the editor: they slide in as a card
+  // IN FRONT of it (toast-stack depth), with the workflow's title strip
+  // peeking above. Clicking the peek, the ×, or pressing Escape brings the
+  // workflow forward. Tabs are the same workspace-owned strip as everywhere.
+  const [stackOpen, setStackOpen] = useState<boolean>(() => Boolean(searchParams.get('resource')))
+  const initialStageIdRef = useRef(searchParams.get('resource'))
+
+  const workspaceTabs = useMothershipTabsStore((s) =>
+    workspaceId ? s.byWorkspace[workspaceId] : undefined
+  )
+  const openTabs = useMothershipTabsStore((s) => s.openTabs)
+  const closeTab = useMothershipTabsStore((s) => s.closeTab)
+  const reorderTabs = useMothershipTabsStore((s) => s.reorderTabs)
+  const setActiveTab = useMothershipTabsStore((s) => s.setActiveTab)
+  const stageTabs = useMemo(
+    () => (workspaceTabs?.tabs ?? []).filter((tab) => tab.type !== 'workflow'),
+    [workspaceTabs]
+  )
+  const stageActiveId = workspaceTabs?.activeTabId ?? null
+
+  const stageResource = useCallback(
+    (resource: MothershipResource) => {
+      if (!workspaceId) return
+      openTabs(workspaceId, [resource], { focusId: resource.id })
+      setStackOpen(true)
+      reflectParam('resource', resource.id)
+    },
+    [openTabs, workspaceId, reflectParam]
+  )
+
+  const collapseStack = useCallback(() => {
+    setStackOpen(false)
+    reflectParam('resource', null)
+  }, [reflectParam])
+
+  /**
+   * Deep-link restore: focus the URL-pinned tab if the strip still has it.
+   * The tabs store rehydrates asynchronously, so wait for hydration before
+   * deciding the tab doesn't exist.
+   */
+  useEffect(() => {
+    const id = initialStageIdRef.current
+    if (!id || !workspaceId) return
+    const apply = () => {
+      initialStageIdRef.current = null
+      const tabs = useMothershipTabsStore.getState().byWorkspace[workspaceId]?.tabs ?? []
+      if (tabs.some((tab) => tab.id === id)) {
+        setActiveTab(workspaceId, id)
+        return
+      }
+      // The strip doesn't have it, but page ids are self-describing — a deep
+      // link to a workspace page reconstructs its tab instead of collapsing.
+      if (isMothershipPageId(id)) {
+        openTabs(workspaceId, [{ type: 'page', id, title: MOTHERSHIP_PAGES[id] }], {
+          focusId: id,
+        })
+      }
+    }
+    if (useMothershipTabsStore.persist.hasHydrated()) {
+      apply()
+      return
+    }
+    return useMothershipTabsStore.persist.onFinishHydration(apply)
+  }, [workspaceId, setActiveTab, openTabs])
+
+  useEffect(() => {
+    if (!stackOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') collapseStack()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [stackOpen, collapseStack])
+
+  /**
+   * Closing the last tab leaves nothing to show — the editor comes forward.
+   * Reads the live store (the render closure lags one commit behind the
+   * deep-link restore) and stays out until hydration and restore both ran,
+   * since the strip is transiently empty before them.
+   */
+  useEffect(() => {
+    if (!stackOpen || stageTabs.length > 0) return
+    if (!workspaceId) return
+    if (!useMothershipTabsStore.persist.hasHydrated()) return
+    if (initialStageIdRef.current) return
+    const live = useMothershipTabsStore.getState().byWorkspace[workspaceId]?.tabs ?? []
+    if (live.some((tab) => tab.type !== 'workflow')) return
+    collapseStack()
+  }, [stackOpen, stageTabs, collapseStack, workspaceId])
+
+  const selectStageTab = useCallback(
+    (id: string) => {
+      if (workspaceId) setActiveTab(workspaceId, id)
+    },
+    [setActiveTab, workspaceId]
+  )
+
+  const addStageTab = useCallback(
+    (resource: MothershipResource) => {
+      if (resource.type === 'workflow') return
+      stageResource(resource)
+    },
+    [stageResource]
+  )
+
+  const removeStageTab = useCallback(
+    (resourceType: MothershipResourceType, resourceId: string) => {
+      if (workspaceId) closeTab(workspaceId, resourceType, resourceId)
+    },
+    [closeTab, workspaceId]
+  )
+
+  const reorderStageTabs = useCallback(
+    (tabs: MothershipResource[]) => {
+      if (workspaceId) reorderTabs(workspaceId, tabs)
+    },
+    [reorderTabs, workspaceId]
   )
 
   // Divider drag mirrors useMothershipResize (imperative width, pointer
@@ -146,6 +285,7 @@ export function WorkflowWithChat() {
               onClose={closeChat}
               onSelectChat={openChat}
               onChatResolved={handleChatResolved}
+              onStageResource={stageResource}
             />
           </div>
           {/* Zero-width flex child whose absolute child straddles the border. */}
@@ -160,12 +300,59 @@ export function WorkflowWithChat() {
           </div>
         </>
       )}
-      <div className='h-full min-w-0 flex-1'>
+      <div className='relative h-full min-w-0 flex-1'>
         <Workflow
           workspaceId={workspaceId}
           workflowId={workflowId}
           chatDock={{ isOpen: dock.open, onSelectChat: openChat }}
         />
+        {stackOpen && (
+          <>
+            {/* The peek: the editor's own title strip shows through this
+                transparent band — clicking it brings the workflow forward. */}
+            <button
+              type='button'
+              aria-label='Back to workflow'
+              onClick={collapseStack}
+              className='absolute inset-x-0 top-0 z-30 h-[44px] cursor-pointer'
+            />
+            {/* The front card: the workspace resource tabs + active content,
+                stacked over the editor with toast-stack depth. */}
+            <div className='absolute inset-x-2 top-[44px] bottom-0 z-30 flex animate-slide-in-bottom flex-col overflow-hidden rounded-t-xl border border-[var(--border-1)] border-b-0 bg-[var(--bg)] shadow-sm'>
+              <MothershipResourcesProvider
+                selectResource={selectStageTab}
+                addResource={addStageTab}
+                removeResource={removeStageTab}
+                reorderResources={reorderStageTabs}
+                collapseResource={collapseStack}
+              >
+                <MothershipView
+                  workspaceId={workspaceId}
+                  chatId={activeChatIdRef.current}
+                  resources={stageTabs}
+                  activeResourceId={stageActiveId}
+                  isCollapsed={false}
+                  className='h-full w-full border-l-0'
+                />
+              </MothershipResourcesProvider>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <button
+                    type='button'
+                    onClick={collapseStack}
+                    aria-label='Close resource view'
+                    className='absolute top-[7px] right-[9px] z-20 flex size-[30px] flex-shrink-0 items-center justify-center rounded-lg transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <X className='size-[14px] text-[var(--text-icon)]' />
+                  </button>
+                </Tooltip.Trigger>
+                <Tooltip.Content side='bottom'>
+                  <p>Back to workflow</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
