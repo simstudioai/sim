@@ -31,9 +31,10 @@ function buildReceiptMultipartBody(
   const parts: Buffer[] = []
 
   for (const [name, value] of Object.entries(fields)) {
+    const safeValue = value.replace(/[\r\n]/g, '')
     parts.push(
       Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${value}\r\n`
+        `--${boundary}\r\nContent-Disposition: form-data; name="${name}"\r\n\r\n${safeValue}\r\n`
       )
     )
   }
