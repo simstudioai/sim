@@ -65,12 +65,20 @@ export const personaGenerateInquiryLinkTool: ToolConfig<
     const data = await parsePersonaResponse(response)
     const oneTimeLink = data.meta?.['one-time-link']
     const oneTimeLinkShort = data.meta?.['one-time-link-short']
+    if (typeof oneTimeLink !== 'string' || oneTimeLink.length === 0) {
+      throw new Error(
+        'Persona did not return a one-time link; check the inquiry status and template settings'
+      )
+    }
     return {
       success: true,
       output: {
         inquiry: mapInquiry(asResource(data.data)),
-        oneTimeLink: typeof oneTimeLink === 'string' ? oneTimeLink : '',
-        oneTimeLinkShort: typeof oneTimeLinkShort === 'string' ? oneTimeLinkShort : '',
+        oneTimeLink,
+        oneTimeLinkShort:
+          typeof oneTimeLinkShort === 'string' && oneTimeLinkShort.length > 0
+            ? oneTimeLinkShort
+            : oneTimeLink,
       },
     }
   },

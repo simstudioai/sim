@@ -8,7 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
+import { assertToolFileAccess, FileAccessDeniedError } from '@/app/api/files/authorization'
 import {
   buildPersonaHeaders,
   extractPersonaErrorMessage,
@@ -52,12 +52,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const userFile = userFiles[0]
-    if (userFile.key) {
-      const hasAccess = await verifyFileAccess(userFile.key, userId)
-      if (!hasAccess) {
-        throw new FileAccessDeniedError()
-      }
-    }
+    const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+    if (denied) return denied
 
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 
