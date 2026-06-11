@@ -779,6 +779,12 @@ export interface SlackGetThreadParams extends SlackBaseParams {
   limit?: number
 }
 
+export interface SlackGetThreadFilesParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  oldest?: string
+}
+
 export interface SlackSetStatusParams extends SlackBaseParams {
   channel: string
   threadTs: string
@@ -1194,6 +1200,22 @@ export interface SlackGetThreadResponse extends ToolResponse {
   }
 }
 
+export interface SlackThreadFile {
+  name: string
+  mimeType: string
+  data: string
+  size: number
+}
+
+export interface SlackGetThreadFilesResponse extends ToolResponse {
+  output: {
+    files: SlackThreadFile[]
+    fileCount: number
+    scannedMessages: number
+    truncated: boolean
+  }
+}
+
 export interface SlackGetChannelInfoResponse extends ToolResponse {
   output: {
     channelInfo: SlackChannel
@@ -1414,6 +1436,7 @@ export type SlackResponse =
   | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse
+  | SlackGetThreadFilesResponse
   | SlackSetStatusResponse
   | SlackSetTitleResponse
   | SlackSetSuggestedPromptsResponse

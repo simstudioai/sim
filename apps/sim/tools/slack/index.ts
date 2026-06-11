@@ -13,6 +13,7 @@ import { slackGetChannelInfoTool } from '@/tools/slack/get_channel_info'
 import { slackGetMessageTool } from '@/tools/slack/get_message'
 import { slackGetPermalinkTool } from '@/tools/slack/get_permalink'
 import { slackGetThreadTool } from '@/tools/slack/get_thread'
+import { slackGetThreadFilesTool } from '@/tools/slack/get_thread_files'
 import { slackGetThreadRepliesTool } from '@/tools/slack/get_thread_replies'
 import { slackGetUserTool } from '@/tools/slack/get_user'
 import { slackGetUserPresenceTool } from '@/tools/slack/get_user_presence'
@@ -63,6 +64,7 @@ export {
   slackPublishViewTool,
   slackGetMessageTool,
   slackGetThreadTool,
+  slackGetThreadFilesTool,
   slackGetThreadRepliesTool,
   slackGetChannelHistoryTool,
   slackGetPermalinkTool,

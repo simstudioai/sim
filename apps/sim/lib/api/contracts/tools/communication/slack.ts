@@ -74,6 +74,13 @@ export const slackDownloadBodySchema = z.object({
   fileName: z.string().optional().nullable(),
 })
 
+export const slackThreadFilesBodySchema = z.object({
+  accessToken: z.string().min(1, 'Access token is required'),
+  channel: z.string().min(1, 'Channel is required'),
+  threadTs: z.string().min(1, 'Thread timestamp is required'),
+  oldest: z.string().optional().nullable(),
+})
+
 export const slackSendMessageContract = defineCommunicationToolContract(
   '/api/tools/slack/send-message',
   slackSendMessageBodySchema
@@ -106,6 +113,10 @@ export const slackDownloadContract = defineCommunicationToolContract(
   '/api/tools/slack/download',
   slackDownloadBodySchema
 )
+export const slackThreadFilesContract = defineCommunicationToolContract(
+  '/api/tools/slack/thread-files',
+  slackThreadFilesBodySchema
+)
 
 export type SlackSendMessageBody = ContractBodyInput<typeof slackSendMessageContract>
 export type SlackReadMessagesBody = ContractBodyInput<typeof slackReadMessagesContract>
@@ -114,6 +125,7 @@ export type SlackDeleteMessageBody = ContractBodyInput<typeof slackDeleteMessage
 export type SlackUpdateMessageBody = ContractBodyInput<typeof slackUpdateMessageContract>
 export type SlackSendEphemeralBody = ContractBodyInput<typeof slackSendEphemeralContract>
 export type SlackDownloadBody = ContractBodyInput<typeof slackDownloadContract>
+export type SlackThreadFilesBody = ContractBodyInput<typeof slackThreadFilesContract>
 
 export type SlackSendMessageResponse = ContractJsonResponse<typeof slackSendMessageContract>
 export type SlackReadMessagesResponse = ContractJsonResponse<typeof slackReadMessagesContract>
@@ -122,3 +134,4 @@ export type SlackDeleteMessageResponse = ContractJsonResponse<typeof slackDelete
 export type SlackUpdateMessageResponse = ContractJsonResponse<typeof slackUpdateMessageContract>
 export type SlackSendEphemeralResponse = ContractJsonResponse<typeof slackSendEphemeralContract>
 export type SlackDownloadResponse = ContractJsonResponse<typeof slackDownloadContract>
+export type SlackThreadFilesApiResponse = ContractJsonResponse<typeof slackThreadFilesContract>

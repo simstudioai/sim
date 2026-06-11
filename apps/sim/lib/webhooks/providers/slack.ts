@@ -9,12 +9,19 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import type {
   AuthContext,
+  EventMatchContext,
   FormatInputContext,
   FormatInputResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProvider:Slack')
+
+const SLACK_TRIGGER_V2_ID = 'slack_webhook_v2'
+
+function isV2Config(providerConfig: Record<string, unknown>): boolean {
+  return providerConfig.triggerId === SLACK_TRIGGER_V2_ID
+}
 
 const SLACK_MAX_FILE_SIZE = 50 * 1024 * 1024 // 50 MB
 const SLACK_MAX_FILES = 15
@@ -376,6 +383,269 @@ async function fetchSlackMessageText(
   }
 }
 
+/**
+ * Bounded TTL cache for Slack API lookups (auth.test identity, channel info).
+ * Module-level: persists across webhook deliveries within a process.
+ */
+class SlackLookupCache<T> {
+  private entries = new Map<string, { value: T; expiresAt: number }>()
+  constructor(
+    private ttlMs: number,
+    private maxEntries = 1000
+  ) {}
+
+  get(key: string): T | undefined {
+    const entry = this.entries.get(key)
+    if (!entry) return undefined
+    if (Date.now() > entry.expiresAt) {
+      this.entries.delete(key)
+      return undefined
+    }
+    return entry.value
+  }
+
+  set(key: string, value: T): void {
+    if (this.entries.size >= this.maxEntries) {
+      const oldest = this.entries.keys().next().value
+      if (oldest !== undefined) this.entries.delete(oldest)
+    }
+    this.entries.set(key, { value, expiresAt: Date.now() + this.ttlMs })
+  }
+}
+
+interface SlackBotIdentity {
+  botUserId: string
+  botId: string
+}
+
+const identityCache = new SlackLookupCache<SlackBotIdentity>(60 * 60 * 1000)
+
+interface SlackChannelInfo {
+  name: string
+  type: string
+}
+
+const channelInfoCache = new SlackLookupCache<SlackChannelInfo>(10 * 60 * 1000)
+
+/**
+ * Resolves the app's own bot identity via `auth.test`, cached per token.
+ * Used for self-suppression and the `bot_user_id` output on payload families
+ * whose envelope carries no `authorizations` block (interactivity, slash).
+ */
+async function resolveBotIdentity(botToken: string): Promise<SlackBotIdentity | null> {
+  const cached = identityCache.get(botToken)
+  if (cached) return cached
+  try {
+    const response = await fetch('https://slack.com/api/auth.test', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${botToken}` },
+    })
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      user_id?: string
+      bot_id?: string
+    }
+    if (!data.ok) {
+      logger.warn('Slack auth.test failed — self-identity unavailable', { error: data.error })
+      return null
+    }
+    const identity = { botUserId: data.user_id ?? '', botId: data.bot_id ?? '' }
+    identityCache.set(botToken, identity)
+    return identity
+  } catch (error) {
+    logger.warn('Error calling Slack auth.test', { error: toError(error).message })
+    return null
+  }
+}
+
+/**
+ * Resolves channel name/type via `conversations.info`, cached per
+ * token+channel. DMs resolve to an empty name with type `im`.
+ */
+async function resolveChannelInfo(
+  channelId: string,
+  botToken: string
+): Promise<SlackChannelInfo | null> {
+  const cacheKey = `${botToken.slice(-8)}:${channelId}`
+  const cached = channelInfoCache.get(cacheKey)
+  if (cached) return cached
+  try {
+    const params = new URLSearchParams({ channel: channelId })
+    const response = await fetch(`https://slack.com/api/conversations.info?${params}`, {
+      headers: { Authorization: `Bearer ${botToken}` },
+    })
+    const data = (await response.json()) as {
+      ok: boolean
+      error?: string
+      channel?: {
+        name?: string
+        is_im?: boolean
+        is_mpim?: boolean
+        is_group?: boolean
+        is_private?: boolean
+      }
+    }
+    if (!data.ok || !data.channel) {
+      logger.warn('Slack conversations.info failed — channel name unavailable', {
+        channelId,
+        error: data.error,
+      })
+      return null
+    }
+    const ch = data.channel
+    const type = ch.is_im
+      ? 'im'
+      : ch.is_mpim
+        ? 'mpim'
+        : ch.is_group || ch.is_private
+          ? 'group'
+          : 'channel'
+    const info = { name: ch.name ?? '', type }
+    channelInfoCache.set(cacheKey, info)
+    return info
+  } catch (error) {
+    logger.warn('Error calling Slack conversations.info', {
+      channelId,
+      error: toError(error).message,
+    })
+    return null
+  }
+}
+
+/**
+ * v2 trigger output: the v1 shape plus the kind discriminator, resolved
+ * thread anchor, the app's own identity, and the raw payload escape hatch.
+ */
+interface SlackTriggerEventV2 extends SlackTriggerEvent {
+  kind: string
+  reaction_action: string
+  bot_user_id: string
+  app_id: string
+  raw: unknown
+}
+
+function createSlackEventV2(): SlackTriggerEventV2 {
+  return {
+    ...createSlackEvent(),
+    kind: 'unknown',
+    reaction_action: '',
+    bot_user_id: '',
+    app_id: '',
+    raw: null,
+  }
+}
+
+/**
+ * Builds the normalized v2 event. Reuses the v1 family formatters, then
+ * layers on the v2 contract: `kind`, resolved `thread_ts`, reliable
+ * `channel_name`/`channel_type`, identity outputs, and `raw`.
+ */
+async function formatSlackInputV2(
+  body: Record<string, unknown>,
+  providerConfig: Record<string, unknown>
+): Promise<FormatInputResult> {
+  const { classifySlackPayload, selfIdentityFromEnvelope } = await import('@/triggers/slack/utils')
+  const classification = classifySlackPayload(body)
+  const botToken = providerConfig.botToken as string | undefined
+  const includeFiles = Boolean(providerConfig.includeFiles)
+
+  const event = createSlackEventV2()
+  event.kind = classification.kind
+  event.raw = body
+
+  if (classification.family === 'slash') {
+    Object.assign(event, formatSlackSlashCommand(body), {
+      kind: classification.kind,
+      raw: body,
+    })
+  } else if (classification.family === 'interactive') {
+    Object.assign(event, formatSlackInteractive(body), {
+      kind: classification.kind,
+      raw: body,
+    })
+    // Resolved thread anchor: replies thread when present, else source message.
+    event.thread_ts = event.thread_ts || event.message_ts
+  } else {
+    const rawEvent = classification.rawEvent ?? {}
+    const eventType = asString(rawEvent.type) || asString(body.type) || 'unknown'
+    event.event_type = eventType
+    event.subtype = classification.subtype
+    event.team_id = asString(body.team_id) || asString(rawEvent.team)
+    event.event_id = asString(body.event_id)
+
+    if (
+      classification.kind === 'assistant_thread_started' ||
+      classification.kind === 'assistant_thread_context_changed'
+    ) {
+      const assistantThread = (rawEvent.assistant_thread ?? {}) as Record<string, unknown>
+      event.channel = asString(assistantThread.channel_id)
+      event.channel_type = 'im'
+      event.user = asString(assistantThread.user_id)
+      event.thread_ts = asString(assistantThread.thread_ts)
+      event.timestamp = asString(rawEvent.event_ts)
+      event.message_ts = event.thread_ts
+    } else if (classification.kind === 'reaction') {
+      const item = (rawEvent.item ?? {}) as Record<string, unknown>
+      event.channel = asString(item.channel)
+      event.channel_type = classification.channelType
+      event.user = asString(rawEvent.user)
+      event.reaction = asString(rawEvent.reaction)
+      event.reaction_action = eventType === 'reaction_added' ? 'added' : 'removed'
+      event.item_user = asString(rawEvent.item_user)
+      event.message_ts = asString(item.ts)
+      event.timestamp = event.message_ts
+      // The reacted-to message is the thread anchor.
+      event.thread_ts = event.message_ts
+      if (event.channel && event.message_ts && botToken) {
+        event.text = await fetchSlackMessageText(event.channel, event.message_ts, botToken)
+      }
+    } else {
+      event.channel = classification.channelId
+      event.channel_type = classification.channelType
+      event.user = asString(rawEvent.user)
+      event.bot_id = asString(rawEvent.bot_id)
+      event.text = asString(rawEvent.text)
+      const ts = asString(rawEvent.ts) || asString(rawEvent.event_ts)
+      event.timestamp = ts
+      event.message_ts = ts
+      event.thread_ts = asString(rawEvent.thread_ts) || ts
+
+      const rawFiles: unknown[] = (rawEvent.files as unknown[]) ?? []
+      event.hasFiles = rawFiles.length > 0
+      if (event.hasFiles && includeFiles && botToken) {
+        event.files = await downloadSlackFiles(rawFiles, botToken)
+      } else if (event.hasFiles && includeFiles && !botToken) {
+        logger.warn(
+          'Slack message has files and includeFiles is enabled, but no bot token provided'
+        )
+      }
+    }
+  }
+
+  // Identity outputs: envelope first (authoritative, free), auth.test fallback.
+  const envelopeIdentity = selfIdentityFromEnvelope(body)
+  event.app_id = envelopeIdentity.appId ?? event.api_app_id
+  event.api_app_id = event.api_app_id || event.app_id
+  if (envelopeIdentity.botUserId) {
+    event.bot_user_id = envelopeIdentity.botUserId
+  } else if (botToken) {
+    const identity = await resolveBotIdentity(botToken)
+    event.bot_user_id = identity?.botUserId ?? ''
+  }
+
+  // Reliable channel name/type, resolved and cached when the payload omits it.
+  if (event.channel && botToken && (!event.channel_name || !event.channel_type)) {
+    const info = await resolveChannelInfo(event.channel, botToken)
+    if (info) {
+      event.channel_name = event.channel_name || info.name
+      event.channel_type = event.channel_type || info.type
+    }
+  }
+
+  return { input: { event } }
+}
+
 /** Maximum allowed timestamp skew (5 minutes) per Slack docs. */
 const SLACK_TIMESTAMP_MAX_SKEW = 300
 
@@ -466,6 +736,42 @@ export const slackHandler: WebhookProviderHandler = {
     return handleSlackChallenge(body)
   },
 
+  /**
+   * Runtime event filtering for the v2 trigger: opt-in event types, bot/self
+   * suppression, subtype noise filter, channel scoping, mention-overlap
+   * guard, and slash-command allowlist. Dropped events get the empty 200
+   * Slack expects, without invoking the workflow. v1 webhooks are untouched.
+   */
+  async matchEvent({ body, requestId, providerConfig }: EventMatchContext) {
+    if (!isV2Config(providerConfig)) {
+      return true
+    }
+
+    const { evaluateSlackV2Match, selfIdentityFromEnvelope } = await import(
+      '@/triggers/slack/utils'
+    )
+
+    const self: { botUserId?: string; botId?: string; appId?: string } =
+      selfIdentityFromEnvelope(body)
+    const botToken = providerConfig.botToken as string | undefined
+    if (!self.botUserId && botToken) {
+      const identity = await resolveBotIdentity(botToken)
+      if (identity) {
+        self.botUserId = identity.botUserId
+        self.botId = identity.botId
+      }
+    }
+
+    const result = evaluateSlackV2Match(body, providerConfig, self)
+    if (!result.pass) {
+      logger.debug(`[${requestId}] Slack v2 event skipped: ${result.reason}`)
+      // Empty 200 so Slack neither retries nor counts a delivery failure.
+      return new NextResponse(null, { status: 200 })
+    }
+
+    return true
+  },
+
   extractIdempotencyId(body: unknown) {
     const obj = body as Record<string, unknown>
     if (obj.event_id) {
@@ -497,6 +803,11 @@ export const slackHandler: WebhookProviderHandler = {
   async formatInput({ body, webhook }: FormatInputContext): Promise<FormatInputResult> {
     const b = body as Record<string, unknown>
     const providerConfig = (webhook.providerConfig as Record<string, unknown>) || {}
+
+    if (isV2Config(providerConfig)) {
+      return formatSlackInputV2(b, providerConfig)
+    }
+
     const botToken = providerConfig.botToken as string | undefined
     const includeFiles = Boolean(providerConfig.includeFiles)
 

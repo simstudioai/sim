@@ -14,6 +14,9 @@ import {
   SLACK_CAPABILITIES,
   type SlackCapability,
   type SlackCapabilityGroup,
+  type SlackShortcutConfig,
+  type SlackSlashCommandConfig,
+  shortcutCallbackId,
 } from '@/triggers/slack/capabilities'
 
 const DEFAULT_APP_NAME = 'Sim Workflow Bot'
@@ -89,12 +92,25 @@ interface WizardModalProps {
   disabled: boolean
 }
 
+interface TableRowValue {
+  cells?: Record<string, string>
+}
+
+function tableRows(value: unknown): TableRowValue[] {
+  return Array.isArray(value) ? (value as TableRowValue[]) : []
+}
+
 function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: WizardModalProps) {
   const [step, setStep] = useState<number>(0)
 
+  // Legacy blocks stay pinned to the v1 trigger; new blocks default to v2.
+  const storedTriggerId = useSubBlockStore.getState().getValue(blockId, 'triggerId')
+  const effectiveTriggerId =
+    storedTriggerId === 'slack_webhook' ? 'slack_webhook' : 'slack_webhook_v2'
+
   const { webhookUrl, isLoading } = useWebhookManagement({
     blockId,
-    triggerId: 'slack_webhook',
+    triggerId: effectiveTriggerId,
     useWebhookUrl: true,
     isPreview,
   })
@@ -102,6 +118,8 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
   const [appName, setAppName] = useSubBlockValue<string>(blockId, 'botDisplayName')
   const [signingSecret, setSigningSecret] = useSubBlockValue<string>(blockId, 'signingSecret')
   const [botToken, setBotToken] = useSubBlockValue<string>(blockId, 'botToken')
+  const [slashCommandRows] = useSubBlockValue<TableRowValue[]>(blockId, 'slashCommands')
+  const [shortcutRows] = useSubBlockValue<TableRowValue[]>(blockId, 'shortcuts')
   const selected = useCapabilitySelection(blockId)
 
   const displayAppName = appName ?? DEFAULT_APP_NAME
@@ -110,12 +128,23 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
   const controlsDisabled = isPreview || disabled
 
   const manifestJson = useMemo(() => {
+    const slashCommands: SlackSlashCommandConfig[] = tableRows(slashCommandRows).map((row) => ({
+      command: row.cells?.Command ?? '',
+      description: row.cells?.Description ?? '',
+    }))
+    const shortcuts: SlackShortcutConfig[] = tableRows(shortcutRows).map((row) => ({
+      name: row.cells?.Name ?? '',
+      description: row.cells?.Description ?? '',
+      callbackId: shortcutCallbackId(row.cells?.Name ?? ''),
+    }))
     const manifest = buildSlackManifest(selected, {
       appName: displayAppName.trim() || DEFAULT_APP_NAME,
       webhookUrl: effectiveWebhookUrl,
+      slashCommands,
+      shortcuts,
     })
     return JSON.stringify(manifest, null, 2)
-  }, [selected, displayAppName, effectiveWebhookUrl])
+  }, [selected, displayAppName, effectiveWebhookUrl, slashCommandRows, shortcutRows])
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
@@ -214,12 +243,26 @@ function StepConfigure({
   selected,
   disabled,
 }: StepConfigureProps) {
+  const hasMentionOverlap =
+    selected.has('trigger_mention') &&
+    (selected.has('trigger_public_channel') || selected.has('trigger_private_channel'))
+
   return (
     <div className='space-y-4'>
       <p className='text-[var(--text-secondary)] text-sm leading-relaxed'>
         Pick a name and choose what events should trigger your workflow and what actions your bot
         can take.
       </p>
+      {hasMentionOverlap && (
+        <p className='flex items-start gap-1.5 text-[var(--text-muted)] text-xs leading-relaxed'>
+          <Info className='mt-0.5 size-[12px] shrink-0' />
+          <span>
+            @mention + channel messages: Slack delivers a mention in a watched channel twice (as
+            app_mention and as a message). The trigger drops the duplicate message copy by default —
+            see the &quot;Deduplicate @mention deliveries&quot; toggle.
+          </span>
+        </p>
+      )}
       <div className='space-y-1.5'>
         <Label
           htmlFor={`${blockId}-wizard-bot-name`}

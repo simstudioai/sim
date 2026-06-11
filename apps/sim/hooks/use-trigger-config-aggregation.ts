@@ -126,6 +126,22 @@ export function populateTriggerFieldsFromConfig(
         !SYSTEM_SUBBLOCK_IDS.includes(sb.id)
     )
     .forEach((subBlock) => {
+      // Checkbox lists store one boolean per option id, so hydrate each
+      // option directly from its providerConfig key.
+      if (subBlock.type === 'checkbox-list') {
+        const options =
+          typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+        for (const option of options ?? []) {
+          const optionValue = triggerConfig[option.id]
+          if (typeof optionValue !== 'boolean') continue
+          const currentValue = subBlockStore.getValue(blockId, option.id)
+          if (currentValue === null || currentValue === undefined) {
+            subBlockStore.setValue(blockId, option.id, optionValue)
+          }
+        }
+        return
+      }
+
       let configValue: any
 
       if (subBlock.id in triggerConfig) {

@@ -7,6 +7,10 @@
  * is also used as the sub-block storage key (shape: `trigger_*` / `action_*`)
  * so the same object serves as both a checkbox-list option and a manifest
  * builder entry. See https://api.slack.com/reference/manifests.
+ *
+ * For the v2 trigger (`slack_webhook_v2`) the trigger capabilities are also
+ * the runtime event filter: events whose capability is unchecked are dropped
+ * before the workflow is invoked (see `triggers/slack/utils.ts`).
  */
 
 export type SlackCapabilityGroup = 'trigger' | 'action'
@@ -78,6 +82,46 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     events: ['reaction_added', 'reaction_removed'],
   },
   {
+    id: 'trigger_slash_command',
+    label: 'Slash command',
+    description:
+      'Trigger when a user runs one of your slash commands (e.g. /mybot). Define the commands below — they are added to the app manifest automatically.',
+    defaultChecked: false,
+    group: 'trigger',
+    scopes: ['commands'],
+    events: [],
+  },
+  {
+    id: 'trigger_interactivity',
+    label: 'Buttons & menus',
+    description:
+      'Trigger when a user clicks a button or picks from a select menu on a message your bot posted (block_actions payloads).',
+    defaultChecked: false,
+    group: 'trigger',
+    scopes: [],
+    events: [],
+  },
+  {
+    id: 'trigger_shortcut',
+    label: 'Message shortcut',
+    description:
+      'Trigger from the message context menu (message shortcuts). Define the shortcut below — it is added to the app manifest automatically.',
+    defaultChecked: false,
+    group: 'trigger',
+    scopes: ['commands'],
+    events: [],
+  },
+  {
+    id: 'trigger_assistant',
+    label: 'AI assistant threads',
+    description:
+      "Turn the app into a Slack AI assistant: adds the assistant split-view, enables the bot's Messages tab, and triggers when a user opens an assistant thread or changes its context.",
+    defaultChecked: false,
+    group: 'trigger',
+    scopes: ['assistant:write'],
+    events: ['assistant_thread_started', 'assistant_thread_context_changed'],
+  },
+  {
     id: 'action_send',
     label: 'Send messages',
     description: 'Let the bot post messages into channels it is a member of.',
@@ -135,11 +179,55 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
   },
 ] as const
 
+export const SLACK_TRIGGER_CAPABILITY_IDS = SLACK_CAPABILITIES.filter(
+  (c) => c.group === 'trigger'
+).map((c) => c.id)
+
+/** Capabilities that route payloads through the interactivity request URL. */
+const INTERACTIVITY_CAPABILITY_IDS = ['trigger_interactivity', 'trigger_shortcut'] as const
+
 const WEBHOOK_URL_PLACEHOLDER = '<deploy workflow to generate webhook URL>'
+
+export interface SlackSlashCommandConfig {
+  command: string
+  description: string
+}
+
+export interface SlackShortcutConfig {
+  name: string
+  description: string
+  callbackId: string
+}
+
+/**
+ * Derives a Slack-safe callback_id from a shortcut name
+ * (e.g. "Ask The Elder about this" → "ask_the_elder_about_this").
+ * Deterministic so workflows can route on it.
+ */
+export function shortcutCallbackId(name: string): string {
+  return (
+    name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 255) || 'shortcut'
+  )
+}
+
+/** Normalizes a user-entered slash command to `/name` form. */
+export function normalizeSlashCommand(command: string): string {
+  const trimmed = command.trim().toLowerCase()
+  if (!trimmed) return ''
+  const body = trimmed.replace(/^\/+/, '').replace(/\s+.*$/, '')
+  return body ? `/${body}` : ''
+}
 
 export interface BuildManifestOptions {
   appName: string
   webhookUrl: string | null
+  slashCommands?: readonly SlackSlashCommandConfig[]
+  shortcuts?: readonly SlackShortcutConfig[]
 }
 
 /**
@@ -149,23 +237,74 @@ export interface BuildManifestOptions {
  * - Deduplicates scopes and events across overlapping capabilities.
  * - Omits `settings.event_subscriptions` entirely when no events are selected —
  *   Slack's manifest validator rejects an empty `bot_events` array.
+ * - Enables the App Home messages tab when DMs or assistant threads are on;
+ *   without it a wizard-generated bot cannot be messaged at all.
+ * - Emits `settings.interactivity` for button/menu and shortcut payloads, and
+ *   `features.slash_commands` / `features.shortcuts` from the provided configs.
  * - When `webhookUrl` is null, embeds a human-readable placeholder so the
  *   shape is visible before the workflow is deployed.
  */
 export function buildSlackManifest(
   enabled: ReadonlySet<string>,
-  { appName, webhookUrl }: BuildManifestOptions
+  { appName, webhookUrl, slashCommands = [], shortcuts = [] }: BuildManifestOptions
 ): Record<string, unknown> {
   const active = SLACK_CAPABILITIES.filter((c) => enabled.has(c.id))
   const scopes = [...new Set(active.flatMap((c) => c.scopes))].sort()
   const events = [...new Set(active.flatMap((c) => c.events))].sort()
   const displayName = appName.trim() || 'Sim Workflow Bot'
+  const requestUrl = webhookUrl ?? WEBHOOK_URL_PLACEHOLDER
+
+  const assistantEnabled = enabled.has('trigger_assistant')
+  const dmEnabled = enabled.has('trigger_dm') || enabled.has('trigger_group_dm')
+
+  const validSlashCommands = enabled.has('trigger_slash_command')
+    ? slashCommands
+        .map((c) => ({ ...c, command: normalizeSlashCommand(c.command) }))
+        .filter((c) => c.command)
+    : []
+  const validShortcuts = enabled.has('trigger_shortcut')
+    ? shortcuts.filter((s) => s.name.trim())
+    : []
+
+  const features: Record<string, unknown> = {
+    bot_user: { display_name: displayName, always_online: true },
+  }
+
+  if (dmEnabled || assistantEnabled) {
+    features.app_home = {
+      home_tab_enabled: false,
+      messages_tab_enabled: true,
+      messages_tab_read_only_enabled: false,
+    }
+  }
+
+  if (assistantEnabled) {
+    features.assistant_view = {
+      assistant_description: `Ask ${displayName} anything`,
+    }
+  }
+
+  if (validShortcuts.length > 0) {
+    features.shortcuts = validShortcuts.map((s) => ({
+      name: s.name.trim(),
+      type: 'message',
+      callback_id: s.callbackId || shortcutCallbackId(s.name),
+      description: s.description.trim() || s.name.trim(),
+    }))
+  }
+
+  if (validSlashCommands.length > 0) {
+    features.slash_commands = validSlashCommands.map((c) => ({
+      command: c.command,
+      url: requestUrl,
+      description: c.description.trim() || c.command,
+      should_escape: false,
+    }))
+  }
 
   const manifest: Record<string, unknown> = {
     display_information: { name: displayName },
-    features: {
-      bot_user: { display_name: displayName, always_online: true },
-    },
+    features,
     oauth_config: {
       scopes: { bot: scopes },
     },
@@ -176,11 +315,21 @@ export function buildSlackManifest(
     },
   }
 
+  const settings = manifest.settings as Record<string, unknown>
+
   if (events.length > 0) {
-    const settings = manifest.settings as Record<string, unknown>
     settings.event_subscriptions = {
-      request_url: webhookUrl ?? WEBHOOK_URL_PLACEHOLDER,
+      request_url: requestUrl,
       bot_events: events,
+    }
+  }
+
+  const needsInteractivity =
+    INTERACTIVITY_CAPABILITY_IDS.some((id) => enabled.has(id)) || assistantEnabled
+  if (needsInteractivity) {
+    settings.interactivity = {
+      is_enabled: true,
+      request_url: requestUrl,
     }
   }
 

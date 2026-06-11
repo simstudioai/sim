@@ -34,6 +34,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Get Message', id: 'get_message' },
         { label: 'Get Thread', id: 'get_thread' },
         { label: 'Get Thread Replies', id: 'get_thread_replies' },
+        { label: 'Get Thread Files', id: 'get_thread_files' },
         { label: 'Get Channel History', id: 'get_channel_history' },
         { label: 'Get Message Permalink', id: 'get_permalink' },
         { label: 'Set Assistant Status', id: 'set_status' },
@@ -583,6 +584,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         value: [
           'get_thread',
           'get_thread_replies',
+          'get_thread_files',
           'set_status',
           'set_title',
           'set_suggested_prompts',
@@ -695,7 +697,7 @@ Return ONLY the JSON array - no explanations, no quotes around the array, no ext
       placeholder: 'Unix seconds, e.g., 1700000000 (only messages after)',
       condition: {
         field: 'operation',
-        value: ['get_channel_history', 'get_thread_replies'],
+        value: ['get_channel_history', 'get_thread_replies', 'get_thread_files'],
       },
       required: false,
     },
@@ -1344,7 +1346,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
         placeholder: 'Describe the view/modal you want to create...',
       },
     },
-    ...getTrigger('slack_webhook').subBlocks,
+    ...getTrigger('slack_webhook_v2').subBlocks,
   ],
   tools: {
     access: [
@@ -1355,6 +1357,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       'slack_get_message',
       'slack_get_thread',
       'slack_get_thread_replies',
+      'slack_get_thread_files',
       'slack_get_channel_history',
       'slack_get_permalink',
       'slack_set_status',
@@ -1401,6 +1404,8 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'slack_get_thread'
           case 'get_thread_replies':
             return 'slack_get_thread_replies'
+          case 'get_thread_files':
+            return 'slack_get_thread_files'
           case 'get_channel_history':
             return 'slack_get_channel_history'
           case 'get_permalink':
@@ -1621,6 +1626,14 @@ Do not include any explanations, markdown formatting, or other text outside the 
               if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
                 baseParams.limit = Math.min(parsedLimit, 200)
               }
+            }
+            break
+          }
+
+          case 'get_thread_files': {
+            baseParams.threadTs = getThreadTimestamp
+            if (historyOldest) {
+              baseParams.oldest = String(historyOldest).trim()
             }
             break
           }
@@ -2141,6 +2154,17 @@ Do not include any explanations, markdown formatting, or other text outside the 
       description: 'Downloaded file stored in execution files',
     },
 
+    // slack_get_thread_files outputs (get_thread_files operation)
+    // `files` and `fileCount` are shared with message outputs above.
+    scannedMessages: {
+      type: 'number',
+      description: 'Number of thread messages scanned for files',
+    },
+    truncated: {
+      type: 'boolean',
+      description: 'True when the thread had more files or pages than the per-call limits allowed',
+    },
+
     // slack_update_message outputs (update operation)
     content: { type: 'string', description: 'Success message for update operation' },
     metadata: {
@@ -2200,11 +2224,16 @@ Do not include any explanations, markdown formatting, or other text outside the 
     },
 
     // Trigger outputs (when used as webhook trigger)
+    kind: {
+      type: 'string',
+      description:
+        'Normalized event discriminator: message | app_mention | reaction | slash_command | block_action | shortcut | view_submission | view_closed | assistant_thread_started | assistant_thread_context_changed',
+    },
     event_type: { type: 'string', description: 'Type of Slack event that triggered the workflow' },
     subtype: {
       type: 'string',
       description:
-        'Message subtype (e.g., channel_join, channel_leave, bot_message). Null for regular user messages',
+        'Message subtype (e.g., file_share, thread_broadcast). Empty for regular user messages',
     },
     channel_name: { type: 'string', description: 'Human-readable channel name' },
     channel_type: {
@@ -2216,18 +2245,31 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'string',
       description: 'Bot ID if the message was sent by a bot. Null for human users',
     },
+    bot_user_id: {
+      type: 'string',
+      description: "This app's own bot user ID — use it to detect mentions of your bot",
+    },
+    reaction_action: {
+      type: 'string',
+      description: 'Whether a reaction was added or removed (reaction events)',
+    },
     timestamp: { type: 'string', description: 'Message timestamp from the triggering event' },
     thread_ts: {
       type: 'string',
-      description: 'Parent thread timestamp (if message is in a thread)',
+      description:
+        'Resolved thread anchor: the parent thread for replies, otherwise the message ts',
     },
     team_id: { type: 'string', description: 'Slack workspace/team ID' },
     event_id: { type: 'string', description: 'Unique event identifier for the trigger' },
+    raw: {
+      type: 'json',
+      description: 'The complete, unmodified Slack payload (trigger escape hatch)',
+    },
   },
   // New: Trigger capabilities
   triggers: {
     enabled: true,
-    available: ['slack_webhook'],
+    available: ['slack_webhook_v2'],
   },
 }
 

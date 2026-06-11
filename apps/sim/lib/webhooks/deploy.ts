@@ -282,6 +282,19 @@ function buildProviderConfig(
   // First pass: populate providerConfig, clear stale baseConfig entries, and track which
   // subblocks and canonical groups have a value.
   for (const subBlock of relevantSubBlocks) {
+    // Checkbox lists store one boolean per option id (not under the list's own
+    // id), so collect each option with its defaultChecked fallback.
+    if (subBlock.type === 'checkbox-list') {
+      const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
+      for (const option of options ?? []) {
+        const stored = getSubBlockValue(block, option.id)
+        providerConfig[option.id] =
+          typeof stored === 'boolean' ? stored : (option.defaultChecked ?? false)
+        filledSubBlockIds.add(option.id)
+      }
+      continue
+    }
+
     const valueToUse = getConfigValue(block, subBlock)
     if (valueToUse !== null && valueToUse !== undefined && valueToUse !== '') {
       providerConfig[subBlock.id] = valueToUse
