@@ -1,4 +1,4 @@
-import { db, dbReplica } from '@sim/db'
+import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -655,7 +655,7 @@ export async function getTagUsage(
       whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
     }
 
-    const documentsWithTag = await dbReplica
+    const documentsWithTag = await db
       .select({
         id: document.id,
         filename: document.filename,
@@ -703,7 +703,7 @@ export async function getTagUsageStats(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    const docCountResult = await dbReplica
+    const docCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(document)
       .where(
@@ -716,7 +716,7 @@ export async function getTagUsageStats(
         )
       )
 
-    const chunkCountResult = await dbReplica
+    const chunkCountResult = await db
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))

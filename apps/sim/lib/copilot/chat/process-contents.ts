@@ -562,7 +562,6 @@ async function processExecutionLogFromDb(
 ): Promise<AgentContext | null> {
   try {
     const { workflowExecutionLogs, workflow } = await import('@sim/db/schema')
-    const { dbReplica } = await import('@sim/db')
     const rows = await dbReplica
       .select({
         id: workflowExecutionLogs.id,
