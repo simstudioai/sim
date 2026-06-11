@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  SecretInput,
 } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
@@ -355,19 +356,22 @@ function AtlassianServiceAccountModal({
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='input'
-          inputType='password'
-          title='API token'
-          value={apiToken}
-          onChange={(value) => {
-            setApiToken(value)
-            if (error) setError(null)
-          }}
-          placeholder='Paste API token'
-          autoComplete='off'
-          required
-        />
+        <ChipModalField type='custom' title='API token' required>
+          <SecretInput
+            value={apiToken}
+            onChange={(value) => {
+              setApiToken(value)
+              if (error) setError(null)
+            }}
+            placeholder='Paste API token'
+            name='atlassian_service_account_api_token'
+            autoComplete='new-password'
+            autoCorrect='off'
+            autoCapitalize='off'
+            data-lpignore='true'
+            data-form-type='other'
+          />
+        </ChipModalField>
 
         <ChipModalField
           type='input'
