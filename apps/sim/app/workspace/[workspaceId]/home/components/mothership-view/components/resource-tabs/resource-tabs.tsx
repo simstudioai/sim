@@ -387,19 +387,21 @@ export function ResourceTabs({
     [nameLookup]
   )
 
-  const switcherItems = useMemo(
+  // Only the tabs that didn't fit inline — the dropdown never duplicates
+  // what the strip already shows.
+  const overflowItems = useMemo(
     () =>
-      resources.map((resource) => {
+      overflowTabs.map((resource) => {
         const key = `${resource.type}:${resource.id}`
         return {
           resource,
           name: resolveName(resource),
-          isActive: resource === activeResource,
+          isActive: false,
           isChatArtifact: chatArtifactKeys?.has(key) ?? false,
           isUpdated: updatedTabKeys?.has(key) ?? false,
         }
       }),
-    [resources, activeResource, resolveName, chatArtifactKeys, updatedTabKeys]
+    [overflowTabs, resolveName, chatArtifactKeys, updatedTabKeys]
   )
 
   const existingKeys = useMemo(
@@ -614,48 +616,27 @@ export function ResourceTabs({
         onDrop={handleDrop}
       >
         {activeResource && (
-          <Popover size='md' open={switcherOpen} onOpenChange={setSwitcherOpen}>
-            <PopoverAnchor asChild>
-              <button
-                ref={activeChipRef}
-                type='button'
-                draggable
-                data-resource-tab-id={activeResource.id}
-                onDragStart={handleActiveDragStart}
-                onClick={() => setSwitcherOpen((prev) => !prev)}
-                aria-label='Switch resource'
-                className={cn(
-                  chipVariants({ variant: 'ghost', active: true, flush: true }),
-                  'min-w-0 shrink-0 text-[var(--text-body)]'
-                )}
-              >
-                {getResourceConfig(activeResource.type).renderTabIcon(
-                  activeResource,
-                  'size-[16px] shrink-0'
-                )}
-                <span className='max-w-[220px] truncate font-medium text-[var(--text-primary)]'>
-                  {resolveName(activeResource)}
-                </span>
-                <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
-              </button>
-            </PopoverAnchor>
-            {/* Anchored 6px below the 44px bar, matching the chat switcher. */}
-            <PopoverContent
-              side='bottom'
-              align='start'
-              sideOffset={13}
-              minWidth={240}
-              maxWidth={320}
-              border
-              className={cn(POPOVER_ANIMATION_CLASSES, 'bg-[var(--bg)] p-0 dark:bg-[var(--bg)]')}
-            >
-              <ResourceSwitcherList
-                items={switcherItems}
-                onSelect={handleSwitcherSelect}
-                onClose={handleSwitcherClose}
-              />
-            </PopoverContent>
-          </Popover>
+          /* The title chip is just the active tab — the inline tabs are the
+             switcher, so it carries no dropdown of its own. */
+          <button
+            ref={activeChipRef}
+            type='button'
+            draggable
+            data-resource-tab-id={activeResource.id}
+            onDragStart={handleActiveDragStart}
+            className={cn(
+              chipVariants({ variant: 'ghost', active: true, flush: true }),
+              'min-w-0 shrink-0 cursor-default text-[var(--text-body)]'
+            )}
+          >
+            {getResourceConfig(activeResource.type).renderTabIcon(
+              activeResource,
+              'size-[16px] shrink-0'
+            )}
+            <span className='max-w-[220px] truncate font-medium text-[var(--text-primary)]'>
+              {resolveName(activeResource)}
+            </span>
+          </button>
         )}
         {inlineTabs.map((resource, idx) => (
           <ResourceTabItem
@@ -689,18 +670,39 @@ export function ResourceTabs({
           />
         ))}
         {overflowTabs.length > 0 && (
-          <button
-            type='button'
-            onClick={() => setSwitcherOpen(true)}
-            aria-label={`${overflowTabs.length} more tabs`}
-            className={cn(
-              chipVariants({ variant: 'ghost', flush: true }),
-              'shrink-0 text-[var(--text-muted)]'
-            )}
-          >
-            +{overflowTabs.length}
-            <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
-          </button>
+          <Popover size='md' open={switcherOpen} onOpenChange={setSwitcherOpen}>
+            <PopoverAnchor asChild>
+              <button
+                type='button'
+                onClick={() => setSwitcherOpen((prev) => !prev)}
+                aria-label={`${overflowTabs.length} more tabs`}
+                className={cn(
+                  chipVariants({ variant: 'ghost', flush: true }),
+                  'shrink-0 text-[var(--text-muted)]',
+                  switcherOpen && 'bg-[var(--surface-active)]'
+                )}
+              >
+                +{overflowTabs.length}
+                <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+              </button>
+            </PopoverAnchor>
+            {/* Anchored 6px below the 44px bar, matching the chat switcher. */}
+            <PopoverContent
+              side='bottom'
+              align='start'
+              sideOffset={13}
+              minWidth={240}
+              maxWidth={320}
+              border
+              className={cn(POPOVER_ANIMATION_CLASSES, 'bg-[var(--bg)] p-0 dark:bg-[var(--bg)]')}
+            >
+              <ResourceSwitcherList
+                items={overflowItems}
+                onSelect={handleSwitcherSelect}
+                onClose={handleSwitcherClose}
+              />
+            </PopoverContent>
+          </Popover>
         )}
         {chatId && (
           <AddResourceDropdown
