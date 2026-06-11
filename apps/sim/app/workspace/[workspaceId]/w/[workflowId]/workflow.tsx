@@ -62,6 +62,7 @@ import {
   isBlockProtected,
   isEdgeProtected,
   isInEditableElement,
+  isPositionalTriggerBlock,
   resolveSelectionConflicts,
   validateTriggerPaste,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
@@ -4176,7 +4177,7 @@ const WorkflowContent = React.memo(
                       isExecuting={isExecuting}
                       isPositionalTrigger={
                         contextMenuBlocks.length === 1 &&
-                        edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
+                        isPositionalTriggerBlock(contextMenuBlocks[0], edges)
                       }
                       onToggleLocked={handleContextToggleLocked}
                       canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
