@@ -1,0 +1,58 @@
+---
+title: LaTeX
+description: Compile LaTeX documents into PDFs
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="latex"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[LaTeX](https://www.latex-project.org/) is a typesetting system that is the de facto standard for producing high-quality scientific and technical documents. Unlike word processors, LaTeX uses plain-text markup to describe a document's structure and lets the compiler handle layout, which makes it ideal for documents with mathematical notation, citations, cross-references, and consistent professional formatting.
+
+With LaTeX, you can:
+
+- **Compile documents to PDF**: Turn LaTeX source into a polished, print-ready PDF
+- **Typeset mathematics**: Render equations, theorems, and scientific notation with precision
+- **Choose your compiler**: Build with pdfLaTeX, XeLaTeX, LuaLaTeX, pLaTeX, upLaTeX, or ConTeXt
+- **Include supporting files**: Add images, included `.tex` files, bibliographies, and custom classes or styles to the build
+- **Automate document production**: Generate reports, invoices, certificates, and papers from templates
+
+In Sim, the LaTeX integration enables your agents to compile LaTeX source into PDF files as part of any workflow — no OAuth or API key required. Agents can draft documents in LaTeX, attach supporting resources such as images or BibTeX bibliographies, and produce a finished PDF that downstream blocks can email, upload, or store. This makes it easy to build agents that generate reports, typeset research digests, or produce templated documents like invoices and certificates.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Does not require OAuth or an API key.
+
+
+
+## Actions
+
+### `latex_compile`
+
+Compile a LaTeX document into a PDF. Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `content` | string | Yes | LaTeX source of the main document, from \\documentclass to \\end\{document\} |
+| `compiler` | string | No | LaTeX compiler: pdflatex \(default\), xelatex, lualatex, platex, uplatex, or context |
+| `fileName` | string | No | Name for the generated PDF file \(default: document.pdf\) |
+| `resources` | array | No | Supporting files for the compilation. Each entry has a "path" plus exactly one of "content" \(plain text\), "file" \(base64\), or "url" \(remote file\), e.g. \[\{"path": "refs.bib", "content": "..."\}, \{"path": "logo.png", "url": "https://..."\}\] |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pdf` | file | Compiled PDF file |
+| `pdfUrl` | string | URL of the compiled PDF |
+| `fileName` | string | Name of the compiled PDF file |
+| `compiler` | string | LaTeX compiler used for the build |
+
+

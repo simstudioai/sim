@@ -8240,6 +8240,24 @@
     "tags": ["monitoring", "llm"]
   },
   {
+    "type": "latex",
+    "slug": "latex",
+    "name": "LaTeX",
+    "description": "Compile LaTeX documents into PDFs",
+    "longDescription": "Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with pdflatex, xelatex, lualatex, platex, uplatex, or context, and supports additional resources such as images, included .tex files, and bibliographies. Does not require OAuth or an API key.",
+    "bgColor": "#FFFFFF",
+    "iconName": "LatexIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/latex",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "documents",
+    "tags": ["document-processing"]
+  },
+  {
     "type": "launchdarkly",
     "slug": "launchdarkly",
     "name": "LaunchDarkly",

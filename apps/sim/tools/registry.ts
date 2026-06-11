@@ -1694,6 +1694,7 @@ import {
   knowledgeUpsertDocumentTool,
 } from '@/tools/knowledge'
 import { langsmithCreateRunsBatchTool, langsmithCreateRunTool } from '@/tools/langsmith'
+import { latexCompileTool } from '@/tools/latex'
 import {
   launchDarklyCreateFlagTool,
   launchDarklyDeleteFlagTool,
@@ -5792,6 +5793,7 @@ export const tools: Record<string, ToolConfig> = {
   linear_list_project_statuses: linearListProjectStatusesTool,
   langsmith_create_run: langsmithCreateRunTool,
   langsmith_create_runs_batch: langsmithCreateRunsBatchTool,
+  latex_compile: latexCompileTool,
   launchdarkly_create_flag: launchDarklyCreateFlagTool,
   launchdarkly_delete_flag: launchDarklyDeleteFlagTool,
   launchdarkly_get_audit_log: launchDarklyGetAuditLogTool,
