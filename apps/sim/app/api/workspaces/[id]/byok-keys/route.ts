@@ -4,9 +4,13 @@ import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, count, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { deleteByokKeyContract, upsertByokKeyContract } from '@/lib/api/contracts/byok-keys'
+import {
+  deleteByokKeyContract,
+  MAX_BYOK_KEYS_PER_PROVIDER,
+  upsertByokKeyContract,
+} from '@/lib/api/contracts/byok-keys'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -56,13 +60,18 @@ export const GET = withRouteHandler(
           id: workspaceBYOKKeys.id,
           providerId: workspaceBYOKKeys.providerId,
           encryptedApiKey: workspaceBYOKKeys.encryptedApiKey,
+          name: workspaceBYOKKeys.name,
           createdBy: workspaceBYOKKeys.createdBy,
           createdAt: workspaceBYOKKeys.createdAt,
           updatedAt: workspaceBYOKKeys.updatedAt,
         })
         .from(workspaceBYOKKeys)
         .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
-        .orderBy(workspaceBYOKKeys.providerId)
+        .orderBy(
+          asc(workspaceBYOKKeys.providerId),
+          asc(workspaceBYOKKeys.createdAt),
+          asc(workspaceBYOKKeys.id)
+        )
 
       const formattedKeys = await Promise.all(
         byokKeys.map(async (key) => {
@@ -71,6 +80,7 @@ export const GET = withRouteHandler(
             return {
               id: key.id,
               providerId: key.providerId,
+              name: key.name,
               maskedKey: maskApiKey(decrypted),
               createdBy: key.createdBy,
               createdAt: key.createdAt,
@@ -86,6 +96,7 @@ export const GET = withRouteHandler(
             return {
               id: key.id,
               providerId: key.providerId,
+              name: key.name,
               maskedKey: '••••••••',
               createdBy: key.createdBy,
               createdAt: key.createdAt,
@@ -130,29 +141,38 @@ export const POST = withRouteHandler(
 
       const parsed = await parseRequest(upsertByokKeyContract, request, context)
       if (!parsed.success) return parsed.response
-      const { providerId, apiKey } = parsed.data.body
+      const { providerId, apiKey, keyId, name } = parsed.data.body
 
       const { encrypted } = await encryptSecret(apiKey)
 
-      const existingKey = await db
-        .select()
-        .from(workspaceBYOKKeys)
-        .where(
-          and(
-            eq(workspaceBYOKKeys.workspaceId, workspaceId),
-            eq(workspaceBYOKKeys.providerId, providerId)
+      if (keyId) {
+        const [existingKey] = await db
+          .select({ id: workspaceBYOKKeys.id, name: workspaceBYOKKeys.name })
+          .from(workspaceBYOKKeys)
+          .where(
+            and(
+              eq(workspaceBYOKKeys.id, keyId),
+              eq(workspaceBYOKKeys.workspaceId, workspaceId),
+              eq(workspaceBYOKKeys.providerId, providerId)
+            )
           )
-        )
-        .limit(1)
+          .limit(1)
 
-      if (existingKey.length > 0) {
+        if (!existingKey) {
+          return NextResponse.json({ error: 'BYOK key not found' }, { status: 404 })
+        }
+
+        const updatedName = name === undefined ? existingKey.name : name || null
+        const updatedAt = new Date()
+
         await db
           .update(workspaceBYOKKeys)
           .set({
             encryptedApiKey: encrypted,
-            updatedAt: new Date(),
+            name: updatedName,
+            updatedAt,
           })
-          .where(eq(workspaceBYOKKeys.id, existingKey[0].id))
+          .where(eq(workspaceBYOKKeys.id, existingKey.id))
 
         logger.info(`[${requestId}] Updated BYOK key for ${providerId} in workspace ${workspaceId}`)
 
@@ -163,22 +183,42 @@ export const POST = withRouteHandler(
           actorEmail: session?.user?.email,
           action: AuditAction.BYOK_KEY_UPDATED,
           resourceType: AuditResourceType.BYOK_KEY,
-          resourceId: existingKey[0].id,
+          resourceId: existingKey.id,
           resourceName: providerId,
           description: `Updated BYOK key for ${providerId}`,
-          metadata: { providerId },
+          metadata: { providerId, keyId: existingKey.id },
           request,
         })
 
         return NextResponse.json({
           success: true,
           key: {
-            id: existingKey[0].id,
+            id: existingKey.id,
             providerId,
+            name: updatedName,
             maskedKey: maskApiKey(apiKey),
-            updatedAt: new Date(),
+            updatedAt,
           },
         })
+      }
+
+      const [{ keyCount }] = await db
+        .select({ keyCount: count() })
+        .from(workspaceBYOKKeys)
+        .where(
+          and(
+            eq(workspaceBYOKKeys.workspaceId, workspaceId),
+            eq(workspaceBYOKKeys.providerId, providerId)
+          )
+        )
+
+      if (keyCount >= MAX_BYOK_KEYS_PER_PROVIDER) {
+        return NextResponse.json(
+          {
+            error: `A workspace can store at most ${MAX_BYOK_KEYS_PER_PROVIDER} keys per provider`,
+          },
+          { status: 400 }
+        )
       }
 
       const [newKey] = await db
@@ -188,6 +228,7 @@ export const POST = withRouteHandler(
           workspaceId,
           providerId,
           encryptedApiKey: encrypted,
+          name: name || null,
           createdBy: userId,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -195,6 +236,7 @@ export const POST = withRouteHandler(
         .returning({
           id: workspaceBYOKKeys.id,
           providerId: workspaceBYOKKeys.providerId,
+          name: workspaceBYOKKeys.name,
           createdAt: workspaceBYOKKeys.createdAt,
         })
 
@@ -220,7 +262,7 @@ export const POST = withRouteHandler(
         resourceId: newKey.id,
         resourceName: providerId,
         description: `Added BYOK key for ${providerId}`,
-        metadata: { providerId },
+        metadata: { providerId, keyId: newKey.id },
         request,
       })
 
@@ -265,16 +307,21 @@ export const DELETE = withRouteHandler(
 
       const parsed = await parseRequest(deleteByokKeyContract, request, context)
       if (!parsed.success) return parsed.response
-      const { providerId } = parsed.data.body
+      const { providerId, keyId } = parsed.data.body
 
-      const result = await db
+      const providerScope = and(
+        eq(workspaceBYOKKeys.workspaceId, workspaceId),
+        eq(workspaceBYOKKeys.providerId, providerId)
+      )
+
+      const deletedKeys = await db
         .delete(workspaceBYOKKeys)
-        .where(
-          and(
-            eq(workspaceBYOKKeys.workspaceId, workspaceId),
-            eq(workspaceBYOKKeys.providerId, providerId)
-          )
-        )
+        .where(keyId ? and(providerScope, eq(workspaceBYOKKeys.id, keyId)) : providerScope)
+        .returning({ id: workspaceBYOKKeys.id })
+
+      if (keyId && deletedKeys.length === 0) {
+        return NextResponse.json({ error: 'BYOK key not found' }, { status: 404 })
+      }
 
       logger.info(`[${requestId}] Deleted BYOK key for ${providerId} from workspace ${workspaceId}`)
 
@@ -294,7 +341,7 @@ export const DELETE = withRouteHandler(
         resourceType: AuditResourceType.BYOK_KEY,
         resourceName: providerId,
         description: `Removed BYOK key for ${providerId}`,
-        metadata: { providerId },
+        metadata: { providerId, deletedKeyIds: deletedKeys.map((key) => key.id) },
         request,
       })
 
