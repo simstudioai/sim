@@ -75,27 +75,33 @@ interface SocketContextType {
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
   retryConnection: () => void
+  /**
+   * Emit functions return whether the payload was actually sent over the socket.
+   * `false` means the emit was skipped because the target room is not currently
+   * joined/visible; the operation queue keeps such operations pending instead of
+   * waiting on a confirmation that will never arrive.
+   */
   emitWorkflowOperation: (
     workflowId: string,
     operation: string,
     target: string,
     payload: any,
     operationId?: string
-  ) => void
+  ) => boolean
   emitSubblockUpdate: (
     blockId: string,
     subblockId: string,
     value: any,
     operationId: string | undefined,
     workflowId: string
-  ) => void
+  ) => boolean
   emitVariableUpdate: (
     variableId: string,
     field: string,
     value: any,
     operationId: string | undefined,
     workflowId: string
-  ) => void
+  ) => boolean
 
   emitCursorUpdate: (cursor: { x: number; y: number } | null) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
@@ -126,9 +132,9 @@ const SocketContext = createContext<SocketContextType>({
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
   retryConnection: () => {},
-  emitWorkflowOperation: () => {},
-  emitSubblockUpdate: () => {},
-  emitVariableUpdate: () => {},
+  emitWorkflowOperation: () => false,
+  emitSubblockUpdate: () => false,
+  emitVariableUpdate: () => false,
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
   onWorkflowOperation: () => {},
@@ -519,6 +525,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             setIsRetryingWorkflowJoin(false)
             setVisibleWorkflowId(workflowId)
             setPresenceUsers(presenceUsers || [])
+            // A successful join is always followed by a workflow-state push that
+            // rehydrates local stores from server truth, so a previously tripped
+            // offline mode is safe to clear here.
+            useOperationQueueStore.getState().clearError()
             logger.info(`Successfully joined workflow room: ${workflowId}`, {
               presenceCount: presenceUsers?.length || 0,
             })
@@ -847,7 +857,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   }, [authFailed])
 
   const emitWorkflowOperation = useCallback(
-    (workflowId: string, operation: string, target: string, payload: any, operationId?: string) => {
+    (
+      workflowId: string,
+      operation: string,
+      target: string,
+      payload: any,
+      operationId?: string
+    ): boolean => {
       if (
         !socket ||
         !currentWorkflowId ||
@@ -861,7 +877,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           operation,
           target,
         })
-        return
+        return false
       }
 
       const isPositionUpdate = operation === 'update-position' && target === 'block'
@@ -885,7 +901,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             clearTimeout(timeoutId)
             positionUpdateTimeouts.current.delete(blockId)
           }
-          return
+          return true
         }
 
         pendingPositionUpdates.current.set(blockId, {
@@ -909,16 +925,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           positionUpdateTimeouts.current.set(blockId, timeoutId)
         }
-      } else {
-        socket.emit('workflow-operation', {
-          workflowId,
-          operation,
-          target,
-          payload,
-          timestamp: Date.now(),
-          operationId,
-        })
+        return true
       }
+
+      socket.emit('workflow-operation', {
+        workflowId,
+        operation,
+        target,
+        payload,
+        timestamp: Date.now(),
+        operationId,
+      })
+      return true
     },
     [socket, currentWorkflowId, isWorkflowVisible]
   )
@@ -930,7 +948,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => {
+    ): boolean => {
       if (
         !socket ||
         workflowId !== currentWorkflowIdRef.current ||
@@ -949,7 +967,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reason,
           currentWorkflowId: currentWorkflowIdRef.current,
         })
-        return
+        return false
       }
       socket.emit('subblock-update', {
         workflowId,
@@ -959,6 +977,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         timestamp: Date.now(),
         operationId,
       })
+      return true
     },
     [socket]
   )
@@ -970,7 +989,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => {
+    ): boolean => {
       if (
         !socket ||
         workflowId !== currentWorkflowIdRef.current ||
@@ -989,7 +1008,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reason,
           currentWorkflowId: currentWorkflowIdRef.current,
         })
-        return
+        return false
       }
       socket.emit('variable-update', {
         workflowId,
@@ -999,6 +1018,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         timestamp: Date.now(),
         operationId,
       })
+      return true
     },
     [socket]
   )

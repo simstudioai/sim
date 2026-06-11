@@ -63,6 +63,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const { isReconnecting, isRetryingWorkflowJoin } = useSocket()
   const realtimeStatusNotificationIdRef = useRef<string | null>(null)
   const realtimeStatusNotificationMessageRef = useRef<string | null>(null)
+  const offlineNotificationIdRef = useRef<string | null>(null)
 
   const isOfflineMode = hasOperationError
   const realtimeStatusMessage = isReconnecting
@@ -79,6 +80,13 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     toast.dismiss(realtimeStatusNotificationIdRef.current)
     realtimeStatusNotificationIdRef.current = null
     realtimeStatusNotificationMessageRef.current = null
+  }, [])
+
+  const clearOfflineNotification = useCallback(() => {
+    if (offlineNotificationIdRef.current) {
+      toast.dismiss(offlineNotificationIdRef.current)
+      offlineNotificationIdRef.current = null
+    }
   }, [])
 
   useEffect(() => {
@@ -103,8 +111,11 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   }, [clearRealtimeStatusNotification, isOfflineMode, realtimeStatusMessage])
 
   useEffect(() => {
-    return clearRealtimeStatusNotification
-  }, [clearRealtimeStatusNotification])
+    return () => {
+      clearRealtimeStatusNotification()
+      clearOfflineNotification()
+    }
+  }, [clearRealtimeStatusNotification, clearOfflineNotification])
 
   useRegisterGlobalCommands(() =>
     createCommands([
@@ -121,14 +132,25 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   )
 
   useEffect(() => {
-    if (!isOfflineMode || hasShownOfflineNotification) {
+    if (!isOfflineMode) {
+      // Offline mode can recover (successful room rejoin or workspace switch);
+      // dismiss the persistent toast and re-arm the notification for any future
+      // offline transition.
+      clearOfflineNotification()
+      if (hasShownOfflineNotification) {
+        setHasShownOfflineNotification(false)
+      }
+      return
+    }
+
+    if (hasShownOfflineNotification) {
       return
     }
 
     clearRealtimeStatusNotification()
 
     try {
-      toast.error('Connection unavailable', {
+      offlineNotificationIdRef.current = toast.error('Connection unavailable', {
         duration: 0,
         persistAcrossRoutes: true,
         action: { label: 'Refresh', onClick: () => window.location.reload() },
@@ -137,7 +159,12 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     } catch (error) {
       logger.error('Failed to add offline notification', { error })
     }
-  }, [clearRealtimeStatusNotification, hasShownOfflineNotification, isOfflineMode])
+  }, [
+    clearOfflineNotification,
+    clearRealtimeStatusNotification,
+    hasShownOfflineNotification,
+    isOfflineMode,
+  ])
 
   const {
     data: workspacePermissions,

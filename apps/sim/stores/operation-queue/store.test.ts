@@ -74,6 +74,124 @@ describe('operation queue room gating', () => {
     useOperationQueueStore.getState().confirmOperation('op-1')
   })
 
+  it('reverts the operation to pending without retrying when the emit is skipped', () => {
+    const skippingEmit = vi.fn(() => false)
+    registerEmitFunctions(skippingEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    expect(skippingEmit).toHaveBeenCalledTimes(1)
+
+    const state = useOperationQueueStore.getState()
+    expect(state.isProcessing).toBe(false)
+    expect(state.hasOperationError).toBe(false)
+    expect(state.operations).toEqual([
+      expect.objectContaining({ id: 'op-1', status: 'pending', retryCount: 0 }),
+    ])
+  })
+
+  it('emits a previously skipped operation once the room becomes joinable', () => {
+    const skippingEmit = vi.fn(() => false)
+    registerEmitFunctions(skippingEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    expect(skippingEmit).toHaveBeenCalledTimes(1)
+
+    const sendingEmit = vi.fn(() => true)
+    registerEmitFunctions(sendingEmit, vi.fn(), vi.fn(), 'workflow-a')
+
+    expect(sendingEmit).toHaveBeenCalledWith(
+      'workflow-a',
+      'replace-state',
+      'workflow',
+      { state: {} },
+      'op-1'
+    )
+    expect(useOperationQueueStore.getState().operations).toEqual([
+      expect.objectContaining({ id: 'op-1', status: 'processing' }),
+    ])
+
+    useOperationQueueStore.getState().confirmOperation('op-1')
+  })
+
+  it('triggers offline mode for a non-retryable failure and recovers via clearError', () => {
+    registerEmitFunctions(
+      vi.fn(() => true),
+      vi.fn(),
+      vi.fn(),
+      'workflow-a'
+    )
+
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    useOperationQueueStore.getState().failOperation('op-1', false)
+
+    expect(useOperationQueueStore.getState().hasOperationError).toBe(true)
+    expect(useOperationQueueStore.getState().operations).toEqual([])
+
+    useOperationQueueStore.getState().clearError()
+
+    expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
+  })
+
+  it('triggers offline mode once retries exhaust for retryable failures', () => {
+    registerEmitFunctions(
+      vi.fn(() => true),
+      vi.fn(),
+      vi.fn(),
+      'workflow-a'
+    )
+
+    useOperationQueueStore.getState().addToQueue({
+      id: 'op-1',
+      workflowId: 'workflow-a',
+      userId: 'user-1',
+      operation: {
+        operation: 'replace-state',
+        target: 'workflow',
+        payload: { state: {} },
+      },
+    })
+
+    useOperationQueueStore.getState().failOperation('op-1', true)
+    useOperationQueueStore.getState().failOperation('op-1', true)
+    useOperationQueueStore.getState().failOperation('op-1', true)
+    expect(useOperationQueueStore.getState().hasOperationError).toBe(false)
+
+    useOperationQueueStore.getState().failOperation('op-1', true)
+
+    expect(useOperationQueueStore.getState().hasOperationError).toBe(true)
+    expect(useOperationQueueStore.getState().operations).toEqual([])
+  })
+
   it('reports pending operations per workflow', () => {
     useOperationQueueStore.getState().addToQueue({
       id: 'op-1',

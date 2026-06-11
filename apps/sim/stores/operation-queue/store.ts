@@ -12,6 +12,16 @@ function isBlockStillPresent(blockId: string | undefined): boolean {
   }
 }
 
+function isVariableStillPresent(variableId: string | undefined): boolean {
+  if (!variableId) return true
+  try {
+    const { useVariablesStore } = require('@/stores/variables/store')
+    return Boolean(useVariablesStore.getState().variables[variableId])
+  } catch {
+    return true
+  }
+}
+
 const logger = createLogger('OperationQueue')
 
 /** Timeout for subblock/variable operations before considering them failed */
@@ -31,6 +41,11 @@ const retryTimeouts = new Map<string, NodeJS.Timeout>()
 const operationTimeouts = new Map<string, NodeJS.Timeout>()
 const DEFAULT_WORKFLOW_DRAIN_TIMEOUT_MS = 20000
 
+/**
+ * Emit functions return whether the operation was actually sent over the socket.
+ * A `false` return means the emit was skipped (room not joined/visible) and the
+ * operation should stay pending instead of waiting on a confirmation timeout.
+ */
 let emitWorkflowOperation:
   | ((
       workflowId: string,
@@ -38,7 +53,7 @@ let emitWorkflowOperation:
       target: string,
       payload: any,
       operationId?: string
-    ) => void)
+    ) => boolean)
   | null = null
 let emitSubblockUpdate:
   | ((
@@ -47,7 +62,7 @@ let emitSubblockUpdate:
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => void)
+    ) => boolean)
   | null = null
 let emitVariableUpdate:
   | ((
@@ -56,7 +71,7 @@ let emitVariableUpdate:
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => void)
+    ) => boolean)
   | null = null
 
 export function registerEmitFunctions(
@@ -66,21 +81,21 @@ export function registerEmitFunctions(
     target: string,
     payload: any,
     operationId?: string
-  ) => void,
+  ) => boolean,
   subblockEmit: (
     blockId: string,
     subblockId: string,
     value: any,
     operationId: string | undefined,
     workflowId: string
-  ) => void,
+  ) => boolean,
   variableEmit: (
     variableId: string,
     field: string,
     value: any,
     operationId: string | undefined,
     workflowId: string
-  ) => void,
+  ) => boolean,
   workflowId: string | null
 ) {
   emitWorkflowOperation = workflowEmit
@@ -93,6 +108,44 @@ export function registerEmitFunctions(
 }
 
 let currentRegisteredWorkflowId: string | null = null
+
+/**
+ * Drops a failed operation whose target block or variable no longer exists
+ * locally (e.g. it was removed by a remote collaborator while the operation
+ * was in flight). Returns true when the operation was dropped, in which case
+ * offline mode must not be triggered.
+ */
+function dropOperationForMissingTarget(operation: QueuedOperation): boolean {
+  const { target, payload } = operation.operation
+
+  const isVariableOperation = target === 'variable'
+  const targetId = isVariableOperation
+    ? payload?.variableId || payload?.id
+    : payload?.blockId || payload?.id
+  const targetStillPresent = isVariableOperation
+    ? isVariableStillPresent(targetId)
+    : isBlockStillPresent(targetId)
+
+  if (!targetId || targetStillPresent) {
+    return false
+  }
+
+  logger.debug(
+    isVariableOperation
+      ? 'Dropping failed operation for deleted variable'
+      : 'Dropping failed operation for deleted block',
+    {
+      operationId: operation.id,
+      targetId,
+    }
+  )
+  useOperationQueueStore.setState((s) => ({
+    operations: s.operations.filter((op) => op.id !== operation.id),
+    isProcessing: false,
+  }))
+  useOperationQueueStore.getState().processNextOperation()
+  return true
+}
 
 export const useOperationQueueStore = create<OperationQueueState>((set, get) => ({
   operations: [],
@@ -240,17 +293,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     }
 
     if (!retryable) {
-      const targetBlockId = operation.operation.payload?.blockId || operation.operation.payload?.id
-      if (targetBlockId && !isBlockStillPresent(targetBlockId)) {
-        logger.debug('Dropping failed operation for deleted block', {
-          operationId,
-          blockId: targetBlockId,
-        })
-        set((s) => ({
-          operations: s.operations.filter((op) => op.id !== operationId),
-          isProcessing: false,
-        }))
-        get().processNextOperation()
+      if (dropOperationForMissingTarget(operation)) {
         return
       }
 
@@ -307,6 +350,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
 
       retryTimeouts.set(operationId, timeout)
     } else {
+      if (dropOperationForMissingTarget(operation)) {
+        return
+      }
+
       logger.error('Operation failed after max retries, triggering offline mode', {
         operationId,
         operation: operation.operation.operation,
@@ -363,9 +410,10 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
     })
 
     const { operation: op, target, payload } = nextOperation.operation
+    let emitted = false
     if (op === 'subblock-update' && target === 'subblock') {
       if (emitSubblockUpdate) {
-        emitSubblockUpdate(
+        emitted = emitSubblockUpdate(
           payload.blockId,
           payload.subblockId,
           payload.value,
@@ -375,7 +423,7 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     } else if (op === 'variable-update' && target === 'variable') {
       if (emitVariableUpdate) {
-        emitVariableUpdate(
+        emitted = emitVariableUpdate(
           payload.variableId,
           payload.field,
           payload.value,
@@ -385,8 +433,29 @@ export const useOperationQueueStore = create<OperationQueueState>((set, get) => 
       }
     } else {
       if (emitWorkflowOperation) {
-        emitWorkflowOperation(nextOperation.workflowId, op, target, payload, nextOperation.id)
+        emitted = emitWorkflowOperation(
+          nextOperation.workflowId,
+          op,
+          target,
+          payload,
+          nextOperation.id
+        )
       }
+    }
+
+    if (!emitted) {
+      logger.debug('Emit skipped for operation - leaving it pending until the room is joinable', {
+        operationId: nextOperation.id,
+        operation: nextOperation.operation.operation,
+        workflowId: nextOperation.workflowId,
+      })
+      set((state) => ({
+        operations: state.operations.map((o) =>
+          o.id === nextOperation.id ? { ...o, status: 'pending' as const } : o
+        ),
+        isProcessing: false,
+      }))
+      return
     }
 
     const isSubblockOrVariable =
