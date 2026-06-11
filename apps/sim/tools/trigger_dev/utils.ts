@@ -55,6 +55,24 @@ export function parseJsonInput(value: unknown, paramName: string): unknown {
 }
 
 /**
+ * Derives operation success from a response that may have an empty body.
+ * Uses the body's boolean `success` field when present, otherwise falls back
+ * to the HTTP status.
+ */
+export async function resolveTriggerDevSuccess(response: Response): Promise<boolean> {
+  const text = await response.text()
+  if (text) {
+    try {
+      const data = JSON.parse(text)
+      if (typeof data.success === 'boolean') return data.success
+    } catch {
+      return response.ok
+    }
+  }
+  return response.ok
+}
+
+/**
  * Builds the URL for the environment variable endpoints of a project environment.
  */
 export function buildTriggerDevEnvVarsUrl(

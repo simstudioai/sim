@@ -839,20 +839,52 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     config: {
       tool: (params) => params.operation,
       params: (params) => {
+        const operation = params.operation as string
         const result: Record<string, unknown> = {}
-        if (params.filterTaskIdentifier) result.taskIdentifier = params.filterTaskIdentifier
-        if (params.rescheduleDelay) result.delay = params.rescheduleDelay
-        if (params.runTags) result.tags = params.runTags
-        if (params.deploymentVersion) result.version = params.deploymentVersion
-        if (params.deploymentStatus) result.status = params.deploymentStatus
-        if (params.waitpointData) result.data = params.waitpointData
-        if (params.waitpointStatus) result.status = params.waitpointStatus
-        if (params.filterIdempotencyKey) result.idempotencyKey = params.filterIdempotencyKey
-        if (params.waitpointTags) result.tags = params.waitpointTags
-        if (params.concurrencyLimit) result.concurrencyLimit = Number(params.concurrencyLimit)
-        if (params.pageSize) result.pageSize = Number(params.pageSize)
-        if (params.page) result.page = Number(params.page)
-        if (params.perPage) result.perPage = Number(params.perPage)
+
+        const scoped = (value: unknown, operations: string[]) =>
+          operations.includes(operation) && value !== undefined && value !== null && value !== ''
+            ? value
+            : undefined
+
+        result.taskIdentifier =
+          scoped(params.taskIdentifier, TASK_IDENTIFIER_OPERATIONS) ??
+          scoped(params.filterTaskIdentifier, ['trigger_dev_list_runs'])
+        result.delay =
+          scoped(params.delay, ['trigger_dev_trigger_task']) ??
+          scoped(params.rescheduleDelay, ['trigger_dev_reschedule_run'])
+        result.tags =
+          scoped(params.tags, TAGS_OPERATIONS) ??
+          scoped(params.runTags, ['trigger_dev_add_run_tags']) ??
+          scoped(params.waitpointTags, ['trigger_dev_list_waitpoint_tokens'])
+        result.idempotencyKey =
+          scoped(params.idempotencyKey, IDEMPOTENCY_KEY_OPERATIONS) ??
+          scoped(params.filterIdempotencyKey, ['trigger_dev_list_waitpoint_tokens'])
+        result.status =
+          scoped(params.status, ['trigger_dev_list_runs']) ??
+          scoped(params.deploymentStatus, ['trigger_dev_list_deployments']) ??
+          scoped(params.waitpointStatus, ['trigger_dev_list_waitpoint_tokens'])
+        result.version =
+          scoped(params.version, ['trigger_dev_list_runs']) ??
+          scoped(params.deploymentVersion, ['trigger_dev_promote_deployment'])
+        result.data = scoped(params.waitpointData, ['trigger_dev_complete_waitpoint_token'])
+        result.period = scoped(params.period, CREATED_AT_FILTER_OPERATIONS)
+        result.from = scoped(params.from, CREATED_AT_FILTER_OPERATIONS)
+        result.to = scoped(params.to, CREATED_AT_FILTER_OPERATIONS)
+
+        const scopedNumber = (value: unknown, operations: string[]) => {
+          const raw = scoped(value, operations)
+          return raw === undefined ? undefined : Number(raw)
+        }
+        result.concurrencyLimit = scopedNumber(params.concurrencyLimit, [
+          'trigger_dev_override_queue_concurrency',
+        ])
+        result.pageSize = scopedNumber(params.pageSize, CURSOR_PAGE_OPERATIONS)
+        result.pageAfter = scoped(params.pageAfter, CURSOR_PAGE_OPERATIONS)
+        result.pageBefore = scoped(params.pageBefore, PAGE_BEFORE_OPERATIONS)
+        result.page = scopedNumber(params.page, NUMBERED_PAGE_OPERATIONS)
+        result.perPage = scopedNumber(params.perPage, NUMBERED_PAGE_OPERATIONS)
+
         return result
       },
     },

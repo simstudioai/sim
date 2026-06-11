@@ -2,7 +2,11 @@ import type {
   TriggerDevEnvVarActionResponse,
   TriggerDevEnvVarNameParams,
 } from '@/tools/trigger_dev/types'
-import { buildTriggerDevEnvVarsUrl, buildTriggerDevHeaders } from '@/tools/trigger_dev/utils'
+import {
+  buildTriggerDevEnvVarsUrl,
+  buildTriggerDevHeaders,
+  resolveTriggerDevSuccess,
+} from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const triggerDevDeleteEnvVarTool: ToolConfig<
@@ -48,11 +52,11 @@ export const triggerDevDeleteEnvVarTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
-    const data = await response.json()
+    const deleted = await resolveTriggerDevSuccess(response)
     return {
-      success: true,
+      success: deleted,
       output: {
-        success: data.success ?? true,
+        success: deleted,
         name: params?.name ?? '',
       },
     }

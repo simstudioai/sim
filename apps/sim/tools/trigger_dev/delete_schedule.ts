@@ -2,7 +2,11 @@ import type {
   TriggerDevDeleteScheduleResponse,
   TriggerDevScheduleIdParams,
 } from '@/tools/trigger_dev/types'
-import { buildTriggerDevHeaders, TRIGGER_DEV_API_BASE } from '@/tools/trigger_dev/utils'
+import {
+  buildTriggerDevHeaders,
+  resolveTriggerDevSuccess,
+  TRIGGER_DEV_API_BASE,
+} from '@/tools/trigger_dev/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const triggerDevDeleteScheduleTool: ToolConfig<
@@ -37,16 +41,7 @@ export const triggerDevDeleteScheduleTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
-    const text = await response.text()
-    let deleted = response.ok
-    if (text) {
-      try {
-        const data = JSON.parse(text)
-        if (typeof data.success === 'boolean') deleted = data.success
-      } catch {
-        deleted = response.ok
-      }
-    }
+    const deleted = await resolveTriggerDevSuccess(response)
     return {
       success: deleted,
       output: {
