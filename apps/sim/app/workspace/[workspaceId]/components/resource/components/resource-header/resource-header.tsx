@@ -116,9 +116,12 @@ export const ResourceHeader = memo(function ResourceHeader({
     >
       {/* Chrome controls live outside the overflow-hidden breadcrumb group so
           the toggle's 9px pull-out (7px edge inset, matching the chat title
-          bar) isn't clipped. */}
-      <SidebarToggle className='-ml-[9px]' />
-      <ChatSwitcher iconOnly />
+          bar) isn't clipped. The gap-1 cluster matches the chat title bar's
+          toggle+switcher rhythm so the pair never shifts between pages. */}
+      <div className='flex flex-shrink-0 items-center gap-1'>
+        <SidebarToggle className='-ml-[9px]' />
+        <ChatSwitcher iconOnly />
+      </div>
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (

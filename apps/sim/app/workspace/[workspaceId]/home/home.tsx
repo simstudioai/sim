@@ -541,12 +541,13 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           genericResourceData={genericResourceData ?? undefined}
           tabsLeading={
             isChatCollapsed ? (
-              <>
-                {/* With the chat pane hidden, the tabs bar doubles as the title
-                    bar: sidebar toggle + compact chat switcher, no second row. */}
+              /* With the chat pane hidden, the tabs bar doubles as the title
+                 bar. The gap-1 cluster mirrors the chat title bar exactly so
+                 the toggle and switcher never shift when the pane closes. */
+              <div className='flex flex-shrink-0 items-center gap-1'>
                 <SidebarToggle className='-ml-[9px]' />
                 <ChatSwitcher chatId={activeChatId} onSelectChat={reopenChatPane} />
-              </>
+              </div>
             ) : undefined
           }
           className={cn(
