@@ -161,7 +161,7 @@ export const HUGEICONS_MAP: Record<string, string | null> = {
   Sparkles: 'SparklesIcon',
   Bot: 'BotIcon',
   Webhook: 'WebhookIcon',
-  Workflow: 'WorkflowSquare04Icon',
+  Workflow: 'WorkflowSquare08Icon',
   WorkflowX: 'WorkflowSquare01Icon',
   Connections: 'ConnectIcon',
   Integration: 'Plug02Icon',
