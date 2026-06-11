@@ -3,7 +3,6 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
   Connections,
@@ -12,7 +11,6 @@ import {
   Folder as FolderIcon,
   Library,
   Square,
-  SquareArrowUpRight,
   Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
@@ -348,143 +346,29 @@ interface ResourceActionsProps {
   resource: MothershipResource
 }
 
+/**
+ * Per-type panel actions. Open-in-page controls were retired: collapsing the
+ * chat pane gives the same full-page view without losing context, so only
+ * genuinely additive actions (run, export, download) remain.
+ */
 export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
   switch (resource.type) {
     case 'workflow':
-      return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
+      return <EmbeddedWorkflowActions workflowId={resource.id} />
     case 'file':
       return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
-    case 'knowledgebase':
-      return (
-        <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
-      )
     case 'table':
-      return (
-        <EmbeddedTableActions
-          workspaceId={workspaceId}
-          tableId={resource.id}
-          tableName={resource.title}
-        />
-      )
-    case 'log':
-      return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
-    case 'page':
-      return <EmbeddedPageActions workspaceId={workspaceId} pageId={resource.id} />
-    case 'filefolder':
-      return <EmbeddedFileFolderActions workspaceId={workspaceId} folderId={resource.id} />
-    case 'integration':
-      return <EmbeddedIntegrationActions workspaceId={workspaceId} blockType={resource.id} />
-    case 'folder':
-    case 'generic':
-      return null
+      return <EmbeddedTableActions tableId={resource.id} tableName={resource.title} />
     default:
       return null
   }
 }
 
-interface EmbeddedFileFolderActionsProps {
-  workspaceId: string
-  folderId: string
-}
-
-function EmbeddedFileFolderActions({ workspaceId, folderId }: EmbeddedFileFolderActionsProps) {
-  const router = useRouter()
-
-  const handleOpenInFiles = () => {
-    router.push(`/workspace/${workspaceId}/files?folderId=${encodeURIComponent(folderId)}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenInFiles}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in files'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in files</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
-interface EmbeddedIntegrationActionsProps {
-  workspaceId: string
-  blockType: string
-}
-
-function EmbeddedIntegrationActions({ workspaceId, blockType }: EmbeddedIntegrationActionsProps) {
-  const router = useRouter()
-  const integration = useMemo(() => findIntegrationByBlockType(blockType), [blockType])
-
-  if (!integration) return null
-
-  const handleOpenIntegration = () => {
-    router.push(`/workspace/${workspaceId}/integrations/${integration.slug}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenIntegration}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open integration'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open integration</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
-interface EmbeddedPageActionsProps {
-  workspaceId: string
-  pageId: string
-}
-
-function EmbeddedPageActions({ workspaceId, pageId }: EmbeddedPageActionsProps) {
-  const router = useRouter()
-
-  const handleOpenPage = () => {
-    router.push(`/workspace/${workspaceId}/${pageId}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenPage}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open full page'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open full page</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
 interface EmbeddedWorkflowActionsProps {
-  workspaceId: string
   workflowId: string
 }
 
-export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
-  const router = useRouter()
+function EmbeddedWorkflowActions({ workflowId }: EmbeddedWorkflowActionsProps) {
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
@@ -520,80 +404,25 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     await handleRunWorkflow()
   }
 
-  const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
-  }
-
-  return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenWorkflow}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open workflow'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open workflow</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleRun()}
-            disabled={isRunButtonDisabled}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
-          >
-            {isExecuting ? (
-              <Square className={RESOURCE_TAB_ICON_CLASS} />
-            ) : (
-              <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
-            )}
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
-  )
-}
-
-interface EmbeddedKnowledgeBaseActionsProps {
-  workspaceId: string
-  knowledgeBaseId: string
-}
-
-export function EmbeddedKnowledgeBaseActions({
-  workspaceId,
-  knowledgeBaseId,
-}: EmbeddedKnowledgeBaseActionsProps) {
-  const router = useRouter()
-
-  const handleOpenKnowledgeBase = () => {
-    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }
-
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <Button
           variant='subtle'
-          onClick={handleOpenKnowledgeBase}
+          onClick={() => void handleRun()}
+          disabled={isRunButtonDisabled}
           className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open knowledge base'
+          aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
         >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+          {isExecuting ? (
+            <Square className={RESOURCE_TAB_ICON_CLASS} />
+          ) : (
+            <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
+          )}
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
-        <p>Open knowledge base</p>
+        <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
       </Tooltip.Content>
     </Tooltip.Root>
   )
@@ -602,18 +431,11 @@ export function EmbeddedKnowledgeBaseActions({
 const tableLogger = createLogger('EmbeddedTableActions')
 
 interface EmbeddedTableActionsProps {
-  workspaceId: string
   tableId: string
   tableName: string
 }
 
-function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTableActionsProps) {
-  const router = useRouter()
-
-  const handleOpenTable = () => {
-    router.push(`/workspace/${workspaceId}/tables/${tableId}`)
-  }
-
+function EmbeddedTableActions({ tableId, tableName }: EmbeddedTableActionsProps) {
   const handleExport = async () => {
     try {
       await downloadTableExport(tableId, tableName)
@@ -623,38 +445,21 @@ function EmbeddedTableActions({ workspaceId, tableId, tableName }: EmbeddedTable
   }
 
   return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenTable}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open table'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open table</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleExport()}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Export table as CSV'
-          >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Export CSV</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={() => void handleExport()}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Export table as CSV'
+        >
+          <Download className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Export CSV</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 
@@ -666,7 +471,6 @@ interface EmbeddedFileActionsProps {
 }
 
 function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) {
-  const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
   const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
 
@@ -679,44 +483,23 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
     }
   }
 
-  const handleOpenInFiles = () => {
-    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
-  }
-
   return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={handleOpenInFiles}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Open in files'
-          >
-            <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open in files</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={() => void handleDownload()}
-            disabled={!file}
-            className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-            aria-label='Download file'
-          >
-            <Download className={RESOURCE_TAB_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Download</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={() => void handleDownload()}
+          disabled={!file}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Download file'
+        >
+          <Download className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Download</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 
@@ -1009,38 +792,5 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
     <div className='flex h-full flex-col overflow-hidden px-3.5 pt-3'>
       <LogDetailsContent log={log} />
     </div>
-  )
-}
-
-interface EmbeddedLogActionsProps {
-  workspaceId: string
-  logId: string
-}
-
-export function EmbeddedLogActions({ workspaceId, logId }: EmbeddedLogActionsProps) {
-  const router = useRouter()
-  const { data: log } = useLogDetail(logId, workspaceId)
-
-  const handleOpenInLogs = () => {
-    const param = log?.executionId ? `?executionId=${log.executionId}` : ''
-    router.push(`/workspace/${workspaceId}/logs${param}`)
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={handleOpenInLogs}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
-          aria-label='Open in logs'
-        >
-          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>Open in logs</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
   )
 }
