@@ -213,25 +213,29 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
           chipVariants({ variant: 'ghost', active: isActive, flush: true }),
-          'relative max-w-[240px] shrink-0 pr-[20px] text-[var(--text-body)]',
+          'relative max-w-[240px] shrink-0 text-[var(--text-body)]',
           isSelected && !isActive && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
         )}
       >
         {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
         <span className='min-w-0 truncate'>{displayName}</span>
+        {/* The close control overlays the label's tail on a gradient fade of
+            the hover fill, so tabs reserve no width for it when idle. */}
         {isHovered && (
-          <span
-            role='button'
-            tabIndex={-1}
-            onClick={(e) => onRemove(e, resource)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') onRemove(e, resource)
-            }}
-            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[2px] hover-hover:bg-[var(--surface-6)]'
-            aria-label={`Close ${displayName}`}
-          >
-            <X strokeWidth={2.5} className='size-[10px] text-[var(--text-icon)]' />
+          <span className='absolute inset-y-0 right-0 flex items-center rounded-r-lg bg-gradient-to-l from-65% from-[var(--surface-active)] to-transparent pr-[5px] pl-[16px]'>
+            <span
+              role='button'
+              tabIndex={-1}
+              onClick={(e) => onRemove(e, resource)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onRemove(e, resource)
+              }}
+              className='flex items-center justify-center rounded-sm p-[2px] hover-hover:bg-[var(--surface-6)]'
+              aria-label={`Close ${displayName}`}
+            >
+              <X strokeWidth={2.5} className='size-[10px] text-[var(--text-icon)]' />
+            </span>
           </span>
         )}
       </button>
@@ -629,7 +633,7 @@ export function ResourceTabs({
               key={resource.id}
               className={cn(
                 chipVariants({ variant: 'ghost', flush: true }),
-                'whitespace-nowrap pr-[20px] text-[var(--text-body)]'
+                'whitespace-nowrap text-[var(--text-body)]'
               )}
             >
               {getResourceConfig(resource.type).renderTabIcon(resource, 'size-[16px] shrink-0')}
