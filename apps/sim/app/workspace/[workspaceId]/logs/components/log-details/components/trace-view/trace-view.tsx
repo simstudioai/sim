@@ -429,7 +429,7 @@ function DetailCodeSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const contentRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -460,9 +460,7 @@ function DetailCodeSection({
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(jsonString)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    copy(jsonString)
     setIsContextMenuOpen(false)
   }
 
