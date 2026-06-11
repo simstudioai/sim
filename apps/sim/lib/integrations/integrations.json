@@ -10637,7 +10637,7 @@
     "longDescription": "Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.",
     "bgColor": "#FFFFFF",
     "iconName": "PersonaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/persona",
+    "docsUrl": "https://docs.sim.ai/integrations/persona",
     "operations": [
       {
         "name": "Create Inquiry",
