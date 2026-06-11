@@ -275,10 +275,13 @@ export function ResourceTabs({
     const node = scrollNodeRef.current
     if (!node) return
     const handler = (e: WheelEvent) => {
-      if (e.deltaY !== 0) {
-        node.scrollLeft += e.deltaY
-        e.preventDefault()
-      }
+      // Follow the dominant axis: trackpad horizontal swipes carry a small
+      // deltaY, so keying off deltaY alone hijacked (and killed) native
+      // horizontal panning. Vertical wheels still translate to horizontal.
+      const dominant = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+      if (dominant === 0) return
+      node.scrollLeft += dominant
+      e.preventDefault()
     }
     node.addEventListener('wheel', handler, { passive: false })
     return () => node.removeEventListener('wheel', handler)
