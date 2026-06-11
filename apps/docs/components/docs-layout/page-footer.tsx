@@ -33,19 +33,17 @@ const SOCIAL_LINKS = [
 export function PageFooter({ previous, next }: PageFooterProps) {
   return (
     <div className='mt-12'>
-      <div className='h-px w-full bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)]' />
+      <div className='h-px w-full bg-[var(--border)]' />
 
       {(previous || next) && (
-        <div className='flex'>
+        <div className='flex gap-2 py-3'>
           {previous ? (
             <Link
               href={previous.url}
-              className='group flex flex-1 flex-col gap-1 px-6 py-5 transition-colors hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.03)]'
+              className='group flex flex-1 flex-col gap-1 rounded-lg px-3 py-3 transition-colors hover:bg-[var(--surface-3)]'
             >
-              <span className='text-[rgba(0,0,0,0.4)] text-xs dark:text-[rgba(255,255,255,0.35)]'>
-                Previous
-              </span>
-              <span className='flex items-center gap-1.5 font-[470] text-[rgba(0,0,0,0.7)] text-sm transition-colors group-hover:text-[rgba(0,0,0,0.88)] dark:text-[rgba(255,255,255,0.7)] dark:group-hover:text-[rgba(255,255,255,0.92)]'>
+              <span className='text-[var(--text-muted)] text-xs'>Previous</span>
+              <span className='flex items-center gap-1.5 text-[var(--text-body)] text-sm transition-colors group-hover:text-[var(--text-primary)]'>
                 <ChevronLeft className='size-3.5 shrink-0' />
                 {previous.name}
               </span>
@@ -54,19 +52,13 @@ export function PageFooter({ previous, next }: PageFooterProps) {
             <div className='flex-1' />
           )}
 
-          {previous && next && (
-            <div className='w-px bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)]' />
-          )}
-
           {next ? (
             <Link
               href={next.url}
-              className='group flex flex-1 flex-col items-end gap-1 px-6 py-5 transition-colors hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.03)]'
+              className='group flex flex-1 flex-col items-end gap-1 rounded-lg px-3 py-3 transition-colors hover:bg-[var(--surface-3)]'
             >
-              <span className='text-[rgba(0,0,0,0.4)] text-xs dark:text-[rgba(255,255,255,0.35)]'>
-                Next
-              </span>
-              <span className='flex items-center gap-1.5 font-[470] text-[rgba(0,0,0,0.7)] text-sm transition-colors group-hover:text-[rgba(0,0,0,0.88)] dark:text-[rgba(255,255,255,0.7)] dark:group-hover:text-[rgba(255,255,255,0.92)]'>
+              <span className='text-[var(--text-muted)] text-xs'>Next</span>
+              <span className='flex items-center gap-1.5 text-[var(--text-body)] text-sm transition-colors group-hover:text-[var(--text-primary)]'>
                 {next.name}
                 <ChevronRight className='size-3.5 shrink-0' />
               </span>
@@ -77,9 +69,7 @@ export function PageFooter({ previous, next }: PageFooterProps) {
         </div>
       )}
 
-      <div className='h-px w-full bg-[rgba(0,0,0,0.08)] dark:bg-[rgba(255,255,255,0.08)]' />
-
-      <div className='flex items-center gap-4 pt-10 pb-6'>
+      <div className='flex items-center gap-4 pt-4 pb-6'>
         {SOCIAL_LINKS.map((link) => (
           <Link
             key={link.label}
@@ -90,7 +80,7 @@ export function PageFooter({ previous, next }: PageFooterProps) {
           >
             <svg
               viewBox='0 0 24 24'
-              className='size-5 fill-neutral-400 transition-colors hover:fill-neutral-500 dark:fill-neutral-500 dark:hover:fill-neutral-400'
+              className='size-[16px] fill-[var(--text-muted)] transition-colors hover:fill-[var(--text-icon)]'
             >
               <path d={link.icon} />
             </svg>
