@@ -155,8 +155,6 @@ interface ResourceTabItemProps {
   showGapBefore: boolean
   showGapAfter: boolean
   displayName: string
-  /** The artifact changed while this tab wasn't focused. */
-  showDot: boolean
   onDragStart: (e: React.DragEvent, idx: number) => void
   onDragOver: (e: React.DragEvent, idx: number) => void
   onDragLeave: () => void
@@ -181,7 +179,6 @@ const ResourceTabItem = memo(function ResourceTabItem({
   showGapBefore,
   showGapAfter,
   displayName,
-  showDot,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -222,12 +219,6 @@ const ResourceTabItem = memo(function ResourceTabItem({
       >
         {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
         <span className='min-w-0 truncate'>{displayName}</span>
-        {showDot && !isHovered && (
-          <span
-            aria-hidden='true'
-            className='-translate-y-1/2 absolute top-1/2 right-[8px] size-[5px] rounded-full bg-[var(--brand-accent)]'
-          />
-        )}
         {isHovered && (
           <span
             role='button'
@@ -272,11 +263,6 @@ interface ResourceTabsProps {
    * group the switcher dropdown by provenance.
    */
   chatArtifactKeys?: ReadonlySet<string>
-  /**
-   * `type:id` keys of tabs whose artifact changed while unfocused — these
-   * carry the update dot.
-   */
-  updatedTabKeys?: ReadonlySet<string>
 }
 
 export function ResourceTabs({
@@ -293,7 +279,6 @@ export function ResourceTabs({
   actions,
   leading,
   chatArtifactKeys,
-  updatedTabKeys,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
@@ -348,7 +333,9 @@ export function ResourceTabs({
   const inactiveCount = inactiveTabs.length
   // Names participate in fitting (tabs render at natural width), so capacity
   // must recompute when any label changes — not just when counts do.
-  const namesKey = inactiveTabs.map((r) => nameLookup.get(`${r.type}:${r.id}`) ?? r.title).join(' ')
+  const namesKey = inactiveTabs
+    .map((r) => nameLookup.get(`${r.type}:${r.id}`) ?? r.title)
+    .join('\u0000')
   useEffect(() => {
     if (!stripNode) return
     const compute = () => {
@@ -414,10 +401,9 @@ export function ResourceTabs({
           name: resolveName(resource),
           isActive: false,
           isChatArtifact: chatArtifactKeys?.has(key) ?? false,
-          isUpdated: updatedTabKeys?.has(key) ?? false,
         }
       }),
-    [overflowTabs, resolveName, chatArtifactKeys, updatedTabKeys]
+    [overflowTabs, resolveName, chatArtifactKeys]
   )
 
   const existingKeys = useMemo(
@@ -698,7 +684,6 @@ export function ResourceTabs({
               draggedIdx !== idx
             }
             displayName={resolveName(resource)}
-            showDot={updatedTabKeys?.has(`${resource.type}:${resource.id}`) ?? false}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}

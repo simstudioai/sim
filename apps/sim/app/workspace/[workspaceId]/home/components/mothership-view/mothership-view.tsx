@@ -60,11 +60,6 @@ interface MothershipViewProps {
    * group the resource switcher dropdown by provenance.
    */
   chatArtifactKeys?: ReadonlySet<string>
-  /**
-   * `type:id` keys of tabs whose artifact changed while unfocused — these
-   * carry the update dot in the strip.
-   */
-  updatedTabKeys?: ReadonlySet<string>
 }
 
 export const MothershipView = memo(
@@ -84,7 +79,6 @@ export const MothershipView = memo(
       genericResourceData,
       tabsLeading,
       chatArtifactKeys,
-      updatedTabKeys,
     }: MothershipViewProps,
     ref
   ) {
@@ -125,7 +119,6 @@ export const MothershipView = memo(
             chatId={chatId}
             leading={tabsLeading}
             chatArtifactKeys={chatArtifactKeys}
-            updatedTabKeys={updatedTabKeys}
             resources={resources}
             activeId={active?.id ?? null}
             onSelect={onSelectResource}

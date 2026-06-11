@@ -212,16 +212,11 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     [resources]
   )
 
-  // Tabs whose artifact the chat touched while they weren't focused — they
-  // carry the update dot until viewed.
-  const [updatedTabKeys, setUpdatedTabKeys] = useState<Set<string>>(new Set())
-
   // Merge the active chat's artifacts into the strip. Tracking merged keys per
   // chat means a tab the user closed mid-chat isn't resurrected by the next
   // render, while re-entering the chat later re-opens its artifacts. The last
   // fresh artifact gets focus (on switch that's the chat's most recent one; on
-  // a live stream it's the resource the agent just touched); the rest are
-  // marked updated until viewed.
+  // a live stream it's the resource the agent just touched).
   const mergedChatKeyRef = useRef<string | null>(null)
   const mergedKeysRef = useRef<Set<string>>(new Set())
   const initialResourceIdRef = useRef(initialResourceId)
@@ -241,42 +236,20 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     const focusId =
       urlFocus && fresh.some((r) => r.id === urlFocus) ? urlFocus : fresh[fresh.length - 1].id
     openTabs(workspaceId, fresh, { focusId })
-    const unfocused = fresh.filter((r) => r.id !== focusId)
-    if (unfocused.length > 0) {
-      setUpdatedTabKeys((prev) => {
-        const next = new Set(prev)
-        for (const r of unfocused) next.add(`${r.type}:${r.id}`)
-        return next
-      })
-    }
   }, [resources, resolvedChatId, chatId, workspaceId, openTabs])
-
-  const clearUpdatedKey = useCallback((key: string) => {
-    setUpdatedTabKeys((prev) => {
-      if (!prev.has(key)) return prev
-      const next = new Set(prev)
-      next.delete(key)
-      return next
-    })
-  }, [])
 
   const handleSelectTab = useCallback(
     (id: string) => {
       setActiveTab(workspaceId, id)
-      const tab = useMothershipTabsStore
-        .getState()
-        .byWorkspace[workspaceId]?.tabs.find((t) => t.id === id)
-      if (tab) clearUpdatedKey(`${tab.type}:${tab.id}`)
     },
-    [setActiveTab, workspaceId, clearUpdatedKey]
+    [setActiveTab, workspaceId]
   )
 
   const handleCloseTab = useCallback(
     (resourceType: MothershipResourceType, resourceId: string) => {
       closeTab(workspaceId, resourceType, resourceId)
-      clearUpdatedKey(`${resourceType}:${resourceId}`)
     },
-    [closeTab, workspaceId, clearUpdatedKey]
+    [closeTab, workspaceId]
   )
 
   // Focus newly-appearing ephemeral resources (e.g. a streaming file preview),
@@ -559,7 +532,6 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           resources={panelTabs}
           activeResourceId={storeActiveTabId}
           chatArtifactKeys={chatArtifactKeys}
-          updatedTabKeys={updatedTabKeys}
           onSelectResource={handleSelectTab}
           onAddResource={openResourceTab}
           onRemoveResource={handleCloseTab}

@@ -11,8 +11,6 @@ export interface ResourceSwitcherItem {
   isActive: boolean
   /** Surfaced by the active chat — grouped under "From this chat". */
   isChatArtifact: boolean
-  /** Changed while the tab wasn't focused. */
-  isUpdated: boolean
 }
 
 interface ResourceSwitcherListProps {
@@ -46,12 +44,6 @@ function SwitcherRow({
         {config.renderTabIcon(item.resource, 'size-[14px] shrink-0')}
         <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{item.name}</span>
       </button>
-      {item.isUpdated && (
-        <span
-          aria-hidden='true'
-          className='-translate-y-1/2 absolute top-1/2 right-[11px] size-[5px] rounded-full bg-[var(--brand-accent)] group-hover:opacity-0'
-        />
-      )}
       <button
         type='button'
         onClick={() => onClose(item.resource)}
