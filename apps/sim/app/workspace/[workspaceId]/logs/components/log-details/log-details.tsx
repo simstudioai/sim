@@ -42,6 +42,7 @@ import {
   TriggerBadge,
 } from '@/app/workspace/[workspaceId]/logs/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
@@ -60,8 +61,7 @@ function creditLabel(credits: number, dollars: number): string {
 export const WorkflowOutputSection = memo(
   function WorkflowOutputSection({ output }: { output: Record<string, unknown> }) {
     const contentRef = useRef<HTMLDivElement>(null)
-    const [copied, setCopied] = useState(false)
-    const copyTimerRef = useRef<number | null>(null)
+    const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
 
     const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
@@ -90,18 +90,9 @@ export const WorkflowOutputSection = memo(
     }
 
     function handleCopy() {
-      navigator.clipboard.writeText(jsonString)
-      setCopied(true)
-      if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
-      copyTimerRef.current = window.setTimeout(() => setCopied(false), 1500)
+      copy(jsonString)
       setIsContextMenuOpen(false)
     }
-
-    useEffect(() => {
-      return () => {
-        if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current)
-      }
-    }, [])
 
     function handleSearch() {
       activateSearch()
@@ -273,21 +264,14 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
   const [isExecutionSnapshotOpen, setIsExecutionSnapshotOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<LogDetailsTab>('overview')
   const [prevLogId, setPrevLogId] = useState(log.id)
-  const [copiedRunId, setCopiedRunId] = useState(false)
+  const { copied: copiedRunId, copy: copyRunId } = useCopyToClipboard({ resetMs: 1500 })
 
   if (prevLogId !== log.id) {
     setPrevLogId(log.id)
     setActiveTab('overview')
   }
 
-  const copiedRunIdTimerRef = useRef<number | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    return () => {
-      if (copiedRunIdTimerRef.current !== null) window.clearTimeout(copiedRunIdTimerRef.current)
-    }
-  }, [])
 
   const { config: permissionConfig } = usePermissionConfig()
 
@@ -394,11 +378,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
             ...(showTraceTab ? [{ value: 'trace', label: 'Trace' }] : []),
           ]}
           value={resolvedTab}
-          onChange={(v) => {
-            const tab = v as LogDetailsTab
-            setActiveTab(tab)
-            onActiveTabChange?.(tab)
-          }}
+          onChange={(v) => setActiveTab(v as LogDetailsTab)}
         />
 
         {/* Overview Tab */}
@@ -442,25 +422,9 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
                     tabIndex={0}
                     aria-label='Copy run ID'
                     className='flex h-10 min-w-0 cursor-pointer items-center justify-between gap-4 px-3 transition-colors hover-hover:bg-[var(--surface-2)]'
-                    onClick={() => {
-                      navigator.clipboard.writeText(log.executionId!)
-                      if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
-                      setCopiedRunId(true)
-                      copiedRunIdTimerRef.current = window.setTimeout(
-                        () => setCopiedRunId(false),
-                        1500
-                      )
-                    }}
+                    onClick={() => copyRunId(log.executionId!)}
                     onKeyDown={(event) =>
-                      handleKeyboardActivation(event, () => {
-                        navigator.clipboard.writeText(log.executionId!)
-                        if (copiedRunIdTimerRef.current) clearTimeout(copiedRunIdTimerRef.current)
-                        setCopiedRunId(true)
-                        copiedRunIdTimerRef.current = window.setTimeout(
-                          () => setCopiedRunId(false),
-                          1500
-                        )
-                      })
+                      handleKeyboardActivation(event, () => copyRunId(log.executionId!))
                     }
                   >
                     <span className='flex-shrink-0 font-medium text-[var(--text-tertiary)] text-caption'>
