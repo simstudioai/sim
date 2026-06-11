@@ -13,8 +13,9 @@ import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/ser
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
+import { rowWireTranslators } from '@/app/api/table/row-wire'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
@@ -72,12 +73,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
 
     logger.info(`[${requestId}] Retrieved row ${rowId} from table ${tableId}`)
 
+    const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: row.data,
+          data: wire.dataOut(row.data as RowData),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -123,11 +126,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: validated.data as RowData,
+        data: wire.dataIn(validated.data as RowData),
         workspaceId: validated.workspaceId,
         actorUserId: authResult.userId,
       },
@@ -148,7 +152,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: updatedRow.data,
+          data: wire.dataOut(updatedRow.data),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
