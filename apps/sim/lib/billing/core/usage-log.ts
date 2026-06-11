@@ -169,7 +169,8 @@ async function resolveBillingContext(
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -183,7 +184,7 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await db
+  const [row] = await executor
     .select({
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
@@ -196,7 +197,8 @@ export async function getBillingPeriodUsageCost(
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -210,7 +212,7 @@ export async function getBillingPeriodUsageCostByUser(
     )
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       userId: usageLog.userId,
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,

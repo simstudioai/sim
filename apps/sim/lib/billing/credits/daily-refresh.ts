@@ -16,6 +16,7 @@ import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
 
@@ -41,15 +42,18 @@ export interface PerUserBounds {
  *
  * @returns Total dollars of refresh consumed across all days (to subtract from usage)
  */
-export async function computeDailyRefreshConsumed(params: {
-  userIds: string[]
-  periodStart: Date
-  periodEnd?: Date | null
-  planDollars: number
-  seats?: number
-  userBounds?: Record<string, PerUserBounds>
-  billingEntity?: { type: 'user' | 'organization'; id: string }
-}): Promise<number> {
+export async function computeDailyRefreshConsumed(
+  params: {
+    userIds: string[]
+    periodStart: Date
+    periodEnd?: Date | null
+    planDollars: number
+    seats?: number
+    userBounds?: Record<string, PerUserBounds>
+    billingEntity?: { type: 'user' | 'organization'; id: string }
+  },
+  executor: DbOrTx = db
+): Promise<number> {
   const {
     userIds,
     periodStart,
@@ -114,7 +118,7 @@ export async function computeDailyRefreshConsumed(params: {
 
   if (rowFilters.length === 0) return 0
 
-  const rows = await db
+  const rows = await executor
     .select({
       dayIndex:
         sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(

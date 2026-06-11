@@ -1,3 +1,4 @@
+import { dbReplica } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -43,7 +44,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const [usageCheck, effectiveCost, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
-      getEffectiveCurrentPeriodCost(authenticatedUserId),
+      getEffectiveCurrentPeriodCost(authenticatedUserId, dbReplica),
       getUserStorageUsage(authenticatedUserId),
       getUserStorageLimit(authenticatedUserId),
     ])

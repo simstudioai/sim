@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { member } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
@@ -65,7 +65,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       const [billingResult, billingStatus] = await Promise.all([
-        getSimplifiedBillingSummary(session.user.id, contextId || undefined),
+        getSimplifiedBillingSummary(session.user.id, contextId || undefined, dbReplica),
         getEffectiveBillingStatus(session.user.id),
       ])
       billingData = billingResult
@@ -114,7 +114,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       }
 
       // Get organization-specific billing
-      const rawBillingData = await getOrganizationBillingData(contextId!)
+      const rawBillingData = await getOrganizationBillingData(contextId!, dbReplica)
 
       if (!rawBillingData) {
         return NextResponse.json(
