@@ -95,14 +95,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const importer = mapImporter(personaData?.data ?? {})
+    if (!importer.id) {
+      logger.error(`[${requestId}] Persona import accounts returned an unexpected response body`, {
+        status: personaResponse.status,
+      })
+      return NextResponse.json(
+        { success: false, error: 'Persona returned an unexpected response for the account import' },
+        { status: 502 }
+      )
+    }
+
     logger.info(`[${requestId}] Persona account import created`, {
-      importerId: personaData?.data?.id,
+      importerId: importer.id,
     })
 
     return NextResponse.json({
       success: true,
       output: {
-        importer: mapImporter(personaData?.data ?? {}),
+        importer,
       },
     })
   } catch (error) {
