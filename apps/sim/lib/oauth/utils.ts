@@ -380,6 +380,21 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'sharing.read': 'View shared files and folders',
   'sharing.write': 'Share files and folders with others',
 
+  // Ramp scopes (users:read and offline_access are defined above)
+  'business:read': 'View business information',
+  'transactions:read': 'View card transactions',
+  'cards:read': 'View corporate cards',
+  'limits:read': 'View spend limits',
+  'reimbursements:read': 'View reimbursements',
+  'bills:read': 'View bills',
+  'departments:read': 'View departments',
+  'departments:write': 'Create and manage departments',
+  'vendors:read': 'View vendors',
+  'entities:read': 'View business entities',
+  'spend_programs:read': 'View spend programs',
+  'receipts:read': 'View receipts',
+  'receipts:write': 'Upload receipts',
+
   // WordPress.com scopes
   global: 'Full access to manage WordPress.com sites, posts, pages, media, and settings',
 

@@ -11595,6 +11595,125 @@
     "tags": ["cloud", "ci-cd"]
   },
   {
+    "type": "ramp",
+    "slug": "ramp",
+    "name": "Ramp",
+    "description": "Manage spend, transactions, reimbursements, bills, and receipts in Ramp",
+    "longDescription": "Integrate Ramp into your workflow to automate corporate spend operations. List and inspect card transactions, users, cards, spend limits, reimbursements, bills, departments, and vendors, and upload receipts directly to transactions.",
+    "bgColor": "#E4F222",
+    "iconName": "RampIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/ramp",
+    "operations": [
+      {
+        "name": "List Transactions",
+        "description": "List card transactions in Ramp with optional filters"
+      },
+      {
+        "name": "Get Transaction",
+        "description": "Retrieve a single Ramp card transaction by ID"
+      },
+      {
+        "name": "List Users",
+        "description": "List users in the Ramp business with optional filters"
+      },
+      {
+        "name": "Get User",
+        "description": "Retrieve a single Ramp user by ID"
+      },
+      {
+        "name": "List Cards",
+        "description": "List corporate cards in Ramp with optional filters"
+      },
+      {
+        "name": "Get Card",
+        "description": "Retrieve a single Ramp corporate card by ID"
+      },
+      {
+        "name": "List Limits",
+        "description": "List spend limits in Ramp with optional filters"
+      },
+      {
+        "name": "Get Limit",
+        "description": "Retrieve a single Ramp spend limit by ID"
+      },
+      {
+        "name": "List Reimbursements",
+        "description": "List reimbursements in Ramp with optional filters"
+      },
+      {
+        "name": "Get Reimbursement",
+        "description": "Retrieve a single Ramp reimbursement by ID"
+      },
+      {
+        "name": "List Bills",
+        "description": "List bills in Ramp with optional filters"
+      },
+      {
+        "name": "Get Bill",
+        "description": "Retrieve a single Ramp bill by ID"
+      },
+      {
+        "name": "List Departments",
+        "description": "List departments in the Ramp business"
+      },
+      {
+        "name": "Get Department",
+        "description": "Retrieve a single Ramp department by ID"
+      },
+      {
+        "name": "Create Department",
+        "description": "Create a new department in the Ramp business"
+      },
+      {
+        "name": "List Vendors",
+        "description": "List vendors in Ramp with optional filters"
+      },
+      {
+        "name": "Get Vendor",
+        "description": "Retrieve a single Ramp vendor by ID"
+      },
+      {
+        "name": "List Entities",
+        "description": "List business entities in Ramp with optional filters"
+      },
+      {
+        "name": "List Spend Programs",
+        "description": "List spend programs in the Ramp business"
+      },
+      {
+        "name": "Get Spend Program",
+        "description": "Retrieve a single Ramp spend program by ID"
+      },
+      {
+        "name": "Get Business",
+        "description": "Retrieve information about the authorized Ramp business"
+      },
+      {
+        "name": "Get Business Balance",
+        "description": "Retrieve the current balance and limits of the authorized Ramp business"
+      },
+      {
+        "name": "List Receipts",
+        "description": "List receipts in Ramp with optional filters"
+      },
+      {
+        "name": "Get Receipt",
+        "description": "Retrieve a single Ramp receipt by ID"
+      },
+      {
+        "name": "Upload Receipt",
+        "description": "Upload a receipt image to Ramp and optionally attach it to a transaction. When no transaction is provided, Ramp matches the receipt to the most relevant transaction automatically."
+      }
+    ],
+    "operationCount": 25,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "oauth",
+    "category": "tools",
+    "integrationType": "commerce",
+    "tags": ["payments", "automation"]
+  },
+  {
     "type": "rb2b",
     "slug": "rb2b",
     "name": "RB2B",
