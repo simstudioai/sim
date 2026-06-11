@@ -151,6 +151,7 @@ export function Document({
     goToPage: initialGoToPage,
     error: initialError,
     updateChunk: initialUpdateChunk,
+    isLoading: isLoadingChunks,
     isFetching: isFetchingChunks,
   } = useDocumentChunks(
     knowledgeBaseId,
@@ -271,8 +272,14 @@ export function Document({
   const combinedError = documentError || searchError || initialError
 
   const isConnectorDocument = Boolean(documentData?.connectorId)
-  const effectiveKnowledgeBaseName = knowledgeBase?.name || knowledgeBaseName || 'Knowledge Base'
   const effectiveDocumentName = documentData?.filename || documentName || 'Document'
+  /**
+   * Breadcrumb labels. Fall back to the canonical '…' placeholder while names
+   * load (mirroring loading.tsx) instead of the generic "Knowledge Base" /
+   * "Document" labels used elsewhere.
+   */
+  const knowledgeBaseCrumbLabel = knowledgeBase?.name || knowledgeBaseName || '…'
+  const documentCrumbLabel = documentData?.filename || documentName || '…'
   const ConnectorIcon = documentData?.connectorType
     ? CONNECTOR_REGISTRY[documentData.connectorType]?.icon
     : null
@@ -449,7 +456,7 @@ export function Document({
         ? [
             { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
             {
-              label: effectiveKnowledgeBaseName,
+              label: knowledgeBaseCrumbLabel,
               icon: Database,
               onClick: handleNavToKBDetail,
             },
@@ -458,12 +465,12 @@ export function Document({
         : [
             { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
             {
-              label: effectiveKnowledgeBaseName,
+              label: knowledgeBaseCrumbLabel,
               icon: Database,
               onClick: handleNavToKBDetail,
             },
             {
-              label: effectiveDocumentName,
+              label: documentCrumbLabel,
               icon: DocumentIcon,
               editing: docRename.editingId
                 ? {
@@ -490,8 +497,8 @@ export function Document({
       combinedError,
       handleNavToKB,
       handleNavToKBDetail,
-      effectiveKnowledgeBaseName,
-      effectiveDocumentName,
+      knowledgeBaseCrumbLabel,
+      documentCrumbLabel,
       DocumentIcon,
       docRename.editingId,
       docRename.editValue,
@@ -922,8 +929,6 @@ export function Document({
     })
   }, [isCompleted, documentData?.processingStatus, displayChunks, searchQuery])
 
-  const emptyMessage = combinedError ? 'Error loading document' : undefined
-
   const saveLabel =
     saveStatus === 'saving'
       ? isCreatingNewChunk
@@ -945,17 +950,17 @@ export function Document({
     () => [
       { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
       {
-        label: effectiveKnowledgeBaseName,
+        label: knowledgeBaseCrumbLabel,
         icon: Database,
         onClick: handleNavToKBDetail,
       },
-      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleBackAttempt },
+      { label: documentCrumbLabel, icon: DocumentIcon, onClick: handleBackAttempt },
     ],
     [
       handleNavToKB,
       handleNavToKBDetail,
-      effectiveKnowledgeBaseName,
-      effectiveDocumentName,
+      knowledgeBaseCrumbLabel,
+      documentCrumbLabel,
       DocumentIcon,
       handleBackAttempt,
     ]
@@ -978,18 +983,18 @@ export function Document({
     () => [
       { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
       {
-        label: effectiveKnowledgeBaseName,
+        label: knowledgeBaseCrumbLabel,
         icon: Database,
         onClick: handleNavToKBDetail,
       },
-      { label: effectiveDocumentName, icon: DocumentIcon, onClick: handleClearSelectedChunk },
-      { label: 'Loading...', terminal: true },
+      { label: documentCrumbLabel, icon: DocumentIcon, onClick: handleClearSelectedChunk },
+      { label: '…', terminal: true },
     ],
     [
       handleNavToKB,
       handleNavToKBDetail,
-      effectiveKnowledgeBaseName,
-      effectiveDocumentName,
+      knowledgeBaseCrumbLabel,
+      documentCrumbLabel,
       DocumentIcon,
       handleClearSelectedChunk,
     ]
@@ -1056,7 +1061,7 @@ export function Document({
   if (isCreatingNewChunk && documentData) {
     return (
       <>
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <Resource>
           <Resource.Header
             icon={FileText}
             breadcrumbs={newChunkBreadcrumbs}
@@ -1074,7 +1079,7 @@ export function Document({
             saveRef={saveRef}
             onCreated={handleChunkCreated}
           />
-        </div>
+        </Resource>
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
@@ -1088,18 +1093,18 @@ export function Document({
   if (selectedChunkId) {
     if (!selectedChunk || !documentData) {
       return (
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <Resource>
           <Resource.Header icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
             <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
           </div>
-        </div>
+        </Resource>
       )
     }
 
     return (
       <>
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <Resource>
           <Resource.Header
             icon={FileText}
             breadcrumbs={editChunkBreadcrumbs}
@@ -1116,7 +1121,7 @@ export function Document({
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
           />
-        </div>
+        </Resource>
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
@@ -1157,9 +1162,8 @@ export function Document({
           selectable={combinedError ? undefined : selectableConfig}
           onRowClick={isCompleted ? handleChunkClick : undefined}
           onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-          isLoading={isLoadingDocument || isFetchingNewDoc}
+          isLoading={isLoadingDocument || isFetchingNewDoc || (isCompleted && isLoadingChunks)}
           pagination={paginationConfig}
-          emptyMessage={emptyMessage}
         />
       </Resource>
 

@@ -27,7 +27,7 @@ const ACTIONS: ChromeActionSpec[] = [
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Knowledge Base', icon: Database, onClick: noop },
-  { label: '…', terminal: true },
+  { label: '…', icon: Database, terminal: true },
 ]
 
 export default function KnowledgeBaseLoading() {

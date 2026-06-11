@@ -178,17 +178,21 @@ export const ResourceHeader = memo(function ResourceHeader({
               )
             })
           ) : (
-            <span
-              className={cn(
-                chipGeometryClass,
-                'inline-flex min-w-0 max-w-full cursor-default justify-start'
-              )}
-            >
+            /**
+             * Root titles are short static labels ("Tables", "Files"), so the
+             * span is non-shrinkable and the label never truncates — matching
+             * the `shrink-0` guarantee the breadcrumb root crumb gets from
+             * {@link getBreadcrumbSegmentClassName}. Without this, the
+             * `flex-1` left column collapses during transient initial-load
+             * layout (the JS-driven `--sidebar-width` settling) and the title
+             * CSS-truncates to "T…" while the `shrink-0` actions hold width.
+             */
+            <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
               {TitleIcon && <TitleIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
               {titleLabel && (
                 <FloatingOverflowText
                   label={titleLabel}
-                  className='block min-w-0 truncate text-[var(--text-body)] text-sm'
+                  className='block whitespace-nowrap text-[var(--text-body)] text-sm'
                 />
               )}
             </span>
@@ -488,6 +492,18 @@ function LocationFocusVeil({
   boundaryRef: React.RefObject<HTMLDivElement | null>
 }) {
   const [bounds, setBounds] = useState({ top: 0, left: 0 })
+  /**
+   * Portal-mount gate. The veil must render `null` on BOTH the server render
+   * and the first client (hydration) render — branching on
+   * `typeof document === 'undefined'` made the two renders diverge, which
+   * failed hydration and forced React to regenerate the whole page tree on
+   * the client (a visible header flash during load).
+   */
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!visible) return
@@ -510,7 +526,7 @@ function LocationFocusVeil({
     }
   }, [boundaryRef, visible])
 
-  if (typeof document === 'undefined') return null
+  if (!mounted) return null
 
   return createPortal(
     <div

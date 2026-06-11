@@ -610,7 +610,7 @@ export function Table({
   )
 
   return (
-    <div className='relative flex h-full flex-col overflow-hidden'>
+    <Resource>
       {!embedded && (
         <Resource.Header
           icon={TableIcon}
@@ -920,6 +920,6 @@ export function Table({
           }}
         />
       )}
-    </div>
+    </Resource>
   )
 }

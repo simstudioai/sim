@@ -1137,7 +1137,6 @@ export default function Logs() {
             onLoadMore={loadMoreLogs}
             hasMore={logsQuery.hasNextPage ?? false}
             isLoadingMore={logsQuery.isFetchingNextPage}
-            emptyMessage='No logs found'
             overlay={sidebarOverlay}
           />
         )}

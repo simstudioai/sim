@@ -371,6 +371,12 @@ export function KnowledgeBase({
   }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
+  /**
+   * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
+   * the name loads (mirroring loading.tsx) instead of duplicating the root
+   * "Knowledge Base" crumb.
+   */
+  const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
@@ -803,7 +809,7 @@ export function KnowledgeBase({
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
     {
-      label: knowledgeBaseName,
+      label: knowledgeBaseCrumbLabel,
       icon: Database,
       editing: kbRename.editingId
         ? {
@@ -1116,12 +1122,6 @@ export function KnowledgeBase({
     [documents, tagDefinitions, searchQuery]
   )
 
-  const emptyMessage = searchQuery
-    ? 'No documents found'
-    : enabledFilter !== 'all' || activeTagFilters.length > 0
-      ? 'Nothing matches your filter'
-      : undefined
-
   if (error && !knowledgeBase) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -1182,7 +1182,6 @@ export function KnowledgeBase({
             totalPages,
             onPageChange: (page) => setCurrentPage(page),
           }}
-          emptyMessage={emptyMessage}
           overlay={
             <ActionBar
               className={totalPages > 1 ? 'bottom-[72px]' : undefined}
