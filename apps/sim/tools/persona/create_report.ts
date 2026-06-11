@@ -96,6 +96,11 @@ export const personaCreateReportTool: ToolConfig<PersonaCreateReportParams, Pers
           throw new Error(`Report type must be one of: ${SUPPORTED_REPORT_TYPES.join(', ')}`)
         }
 
+        const reportTemplateId = params.reportTemplateId?.trim()
+        if (!reportTemplateId) {
+          throw new Error('Report template ID is required (starts with rptp_)')
+        }
+
         const query: Record<string, unknown> = {}
         if (params.term?.trim()) query.term = params.term.trim()
         if (params.nameFirst?.trim()) query['name-first'] = params.nameFirst.trim()
@@ -114,7 +119,7 @@ export const personaCreateReportTool: ToolConfig<PersonaCreateReportParams, Pers
         }
 
         const attributes: Record<string, unknown> = {
-          'report-template-id': params.reportTemplateId?.trim(),
+          'report-template-id': reportTemplateId,
           query,
         }
         if (params.accountId?.trim()) {
