@@ -2436,6 +2436,12 @@ import {
 } from '@/tools/redis'
 import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto'
 import {
+  detectTool as resembleDetectTool,
+  intelligenceTool as resembleIntelligenceTool,
+  watermarkApplyTool as resembleWatermarkApplyTool,
+  watermarkDetectTool as resembleWatermarkDetectTool,
+} from '@/tools/resemble'
+import {
   resendCreateContactTool,
   resendDeleteContactTool,
   resendGetContactTool,
@@ -2792,12 +2798,6 @@ import {
   updateIssueTool,
   updateProjectTool,
 } from '@/tools/sentry'
-import {
-  detectTool as resembleDetectTool,
-  intelligenceTool as resembleIntelligenceTool,
-  watermarkApplyTool as resembleWatermarkApplyTool,
-  watermarkDetectTool as resembleWatermarkDetectTool,
-} from '@/tools/resemble'
 import { serperSearchTool } from '@/tools/serper'
 import {
   servicenowAggregateTool,

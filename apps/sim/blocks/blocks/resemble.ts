@@ -12,7 +12,6 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
   docsLink: 'https://docs.resemble.ai',
   category: 'tools',
   integrationType: IntegrationType.Security,
-  tags: ['deepfake-detection', 'media-safety'],
   bgColor: '#2E1AC4',
   icon: ResembleIcon,
   authMode: AuthMode.ApiKey,
@@ -38,12 +37,42 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
       required: true,
     },
     // Detection toggles
-    { id: 'runIntelligence', title: 'Run Intelligence', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
-    { id: 'audioSourceTracing', title: 'Audio Source Tracing', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
-    { id: 'visualize', title: 'Visualize', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
-    { id: 'useReverseSearch', title: 'Reverse Image Search', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
-    { id: 'useOodDetector', title: 'OOD Detector', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
-    { id: 'zeroRetentionMode', title: 'Zero-Retention Mode', type: 'switch', condition: { field: 'operation', value: 'resemble_detect' } },
+    {
+      id: 'runIntelligence',
+      title: 'Run Intelligence',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
+    {
+      id: 'audioSourceTracing',
+      title: 'Audio Source Tracing',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
+    {
+      id: 'visualize',
+      title: 'Visualize',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
+    {
+      id: 'useReverseSearch',
+      title: 'Reverse Image Search',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
+    {
+      id: 'useOodDetector',
+      title: 'OOD Detector',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
+    {
+      id: 'zeroRetentionMode',
+      title: 'Zero-Retention Mode',
+      type: 'switch',
+      condition: { field: 'operation', value: 'resemble_detect' },
+    },
     {
       id: 'modelTypes',
       title: 'Model Type',
@@ -58,6 +87,13 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
     },
     // Intelligence options
     {
+      id: 'structuredJson',
+      title: 'Structured JSON',
+      type: 'switch',
+      defaultValue: true,
+      condition: { field: 'operation', value: 'resemble_intelligence' },
+    },
+    {
       id: 'mediaType',
       title: 'Media Type',
       type: 'dropdown',
@@ -71,8 +107,20 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
       condition: { field: 'operation', value: 'resemble_intelligence' },
     },
     // Apply-watermark options
-    { id: 'strength', title: 'Strength (0–1)', type: 'short-input', placeholder: '0.2', condition: { field: 'operation', value: 'resemble_watermark_apply' } },
-    { id: 'customMessage', title: 'Custom Message', type: 'short-input', placeholder: 'resembleai', condition: { field: 'operation', value: 'resemble_watermark_apply' } },
+    {
+      id: 'strength',
+      title: 'Strength (0–1)',
+      type: 'short-input',
+      placeholder: '0.2',
+      condition: { field: 'operation', value: 'resemble_watermark_apply' },
+    },
+    {
+      id: 'customMessage',
+      title: 'Custom Message',
+      type: 'short-input',
+      placeholder: 'resembleai',
+      condition: { field: 'operation', value: 'resemble_watermark_apply' },
+    },
     {
       id: 'apiKey',
       title: 'API Key',
@@ -84,7 +132,12 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
   ],
 
   tools: {
-    access: ['resemble_detect', 'resemble_intelligence', 'resemble_watermark_detect', 'resemble_watermark_apply'],
+    access: [
+      'resemble_detect',
+      'resemble_intelligence',
+      'resemble_watermark_detect',
+      'resemble_watermark_apply',
+    ],
     config: {
       tool: (params) => {
         switch (params.operation) {
@@ -111,6 +164,7 @@ export const ResembleBlock: BlockConfig<ResembleResponse> = {
     useOodDetector: { type: 'boolean', description: 'Out-of-distribution detection' },
     zeroRetentionMode: { type: 'boolean', description: 'Auto-delete media after analysis' },
     modelTypes: { type: 'string', description: 'auto | image | talking_head' },
+    structuredJson: { type: 'boolean', description: 'Return structured JSON fields' },
     mediaType: { type: 'string', description: 'auto | audio | video | image' },
     strength: { type: 'number', description: 'Watermark strength 0–1' },
     customMessage: { type: 'string', description: 'Watermark message' },

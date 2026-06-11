@@ -8,9 +8,24 @@ export const watermarkDetectTool: ToolConfig<ResembleWatermarkParams, ResembleRe
   description: 'Check whether media contains a Resemble watermark.',
   version: '1.0.0',
   params: {
-    apiKey: { type: 'string', required: true, visibility: 'user-only', description: 'Resemble API key' },
-    url: { type: 'string', required: true, visibility: 'user-or-llm', description: 'Public HTTPS URL to the media' },
-    baseUrl: { type: 'string', required: false, visibility: 'user-only', description: 'API base URL override' },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Resemble API key',
+    },
+    url: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Public HTTPS URL to the media',
+    },
+    baseUrl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'API base URL override',
+    },
   },
   request: {
     url: (p) => `${baseOf(p)}/watermark/detect`,
@@ -19,13 +34,15 @@ export const watermarkDetectTool: ToolConfig<ResembleWatermarkParams, ResembleRe
     body: (p) => ({ url: p.url }),
   },
   transformResponse: async (response: Response) => {
+    const text = await response.text()
     let data: any
     try {
-      data = await response.json()
+      data = JSON.parse(text)
     } catch {
-      data = { raw: await response.text() }
+      data = { raw: text }
     }
-    if (!response.ok) throw new Error((data && data.message) || `Resemble API error: HTTP ${response.status}`)
+    if (!response.ok)
+      throw new Error((data && data.message) || `Resemble API error: HTTP ${response.status}`)
     return { success: true, output: { result: sanitize(data) } }
   },
   outputs: { result: { type: 'json', description: 'Watermark detection result.' } },

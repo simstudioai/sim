@@ -1,5 +1,5 @@
 export const DEFAULT_BASE_URL = 'https://app.resemble.ai/api/v2'
-const TERMINAL = new Set(['completed', 'failed', 'error', 'cancelled', 'success'])
+export const TERMINAL = new Set(['completed', 'failed', 'error', 'cancelled', 'success'])
 
 export function baseOf(params: any): string {
   return (params?.baseUrl || DEFAULT_BASE_URL).replace(/\/+$/, '')
@@ -33,29 +33,37 @@ export function sanitize(d: any, n = 200): any {
 
 export async function getJson(url: string, headers: Record<string, string>): Promise<any> {
   const r = await fetch(url, { headers })
+  const text = await r.text()
   let j: any
   try {
-    j = await r.json()
+    j = JSON.parse(text)
   } catch {
-    j = { raw: await r.text() }
+    j = { raw: text }
   }
   if (r.status >= 400) throw new Error((j && j.message) || `Resemble API error: HTTP ${r.status}`)
   return j
+}
+
+export function statusDone(d: any): boolean {
+  return TERMINAL.has((rItem(d).status || '').toString().toLowerCase())
 }
 
 export async function pollResource(
   base: string,
   path: string,
   headers: Record<string, string>,
-  maxWaitSeconds = 120
+  maxWaitSeconds = 120,
+  isDone: (d: any) => boolean = statusDone
 ): Promise<any> {
-  const deadline = Date.now() + Math.max(1, maxWaitSeconds) * 1000
+  const wait = Math.max(1, maxWaitSeconds)
+  const deadline = Date.now() + wait * 1000
   let delay = 2000
   let last = await getJson(`${base}${path}`, headers)
   while (true) {
-    const s = (rItem(last).status || '').toString().toLowerCase()
-    if (!s || TERMINAL.has(s)) return last
-    if (Date.now() >= deadline) return last
+    if (isDone(last)) return last
+    if (Date.now() >= deadline) {
+      throw new Error(`Resemble job did not complete within ${wait}s (GET ${path})`)
+    }
     await new Promise((r) => setTimeout(r, delay))
     delay = Math.min(10000, delay + 1000)
     last = await getJson(`${base}${path}`, headers)
