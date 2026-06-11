@@ -9,7 +9,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
   description: 'Send emails and manage templates with AWS Simple Email Service',
   longDescription:
     'Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.',
-  docsLink: 'https://docs.sim.ai/tools/ses',
+  docsLink: 'https://docs.sim.ai/integrations/ses',
   category: 'tools',
   integrationType: IntegrationType.Email,
   authMode: AuthMode.ApiKey,
@@ -565,6 +565,36 @@ export const SESBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['marketing', 'automation', 'content'],
+    },
+  ],
+  skills: [
+    {
+      name: 'send-notification-email',
+      description:
+        'Send a transactional email through AWS SES to one or more recipients. Use for alerts, confirmations, and one-off notifications from a workflow.',
+      content:
+        '# Send Notification Email\n\nSend a transactional email via SES.\n\n## Steps\n1. Determine the verified sender identity, the recipients, subject, and body.\n2. Choose a plain-text or HTML body to match the message.\n3. Send the email, including reply-to or CC recipients if needed.\n4. Confirm the send succeeded and capture the message ID.\n\n## Output\nReport the SES message ID and the recipients. If the send was rejected, surface the SES error (for example, an unverified sender or sandbox restriction).',
+    },
+    {
+      name: 'send-templated-campaign',
+      description:
+        'Send a templated SES email to many recipients with per-recipient personalization. Use for newsletters, onboarding sequences, and bulk notifications.',
+      content:
+        "# Send Templated Campaign\n\nSend personalized emails using an SES template.\n\n## Steps\n1. Confirm the template exists with get template, or create it first.\n2. Assemble the recipient list with each recipient's template data for personalization.\n3. Use send bulk email for many recipients, or send templated email for a single message.\n4. Collect per-recipient send status.\n\n## Output\nReport how many messages were accepted versus failed, with message IDs and the reason for any failures.",
+    },
+    {
+      name: 'manage-email-templates',
+      description:
+        'Create, fetch, list, and delete reusable email templates in AWS SES. Use to maintain a consistent, version-controlled template library.',
+      content:
+        '# Manage Email Templates\n\nMaintain the SES template library.\n\n## Steps\n1. To add a template, create it with a name, subject, and HTML and text parts using placeholder variables.\n2. To review, get a template by name or list templates.\n3. To retire one, delete the template by name.\n4. Keep template names descriptive so they are easy to reference when sending.\n\n## Output\nReport the template name affected and the action taken, or the template contents for a fetch.',
+    },
+    {
+      name: 'check-sending-health',
+      description:
+        'Inspect AWS SES account sending limits, quota usage, and verified identities. Use to confirm capacity and deliverability readiness before a send.',
+      content:
+        '# Check Sending Health\n\nVerify SES is ready to send.\n\n## Steps\n1. Get the account to read the sending quota, send rate, and whether the account is out of the sandbox.\n2. List identities to confirm the intended sender domain or address is verified.\n3. Compare planned volume against the remaining 24-hour quota.\n4. Flag any blockers — sandbox mode, unverified senders, or quota nearly exhausted.\n\n## Output\nReport sending enabled status, quota used versus max, and any unverified identities that would block the send.',
     },
   ],
 } as const satisfies BlockMeta

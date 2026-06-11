@@ -97,13 +97,11 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
       }
       const limit = Math.min(Math.max(1, params.limit ?? 10), 100)
 
-      // Build URL with appropriate parameters using OAuth endpoint
       const urlParams = new URLSearchParams({
         limit: limit.toString(),
         raw_json: '1',
       })
 
-      // Add time parameter for 'top' and 'controversial' sorting
       if (
         (sort === 'top' || sort === 'controversial') &&
         params.time !== undefined &&
@@ -112,7 +110,6 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
         urlParams.append('t', params.time)
       }
 
-      // Add pagination parameters if provided
       if (params.after !== undefined && params.after !== null && params.after !== '')
         urlParams.append('after', params.after)
       if (params.before !== undefined && params.before !== null && params.before !== '')
@@ -144,11 +141,9 @@ export const getPostsTool: ToolConfig<RedditPostsParams, RedditPostsResponse> = 
   transformResponse: async (response: Response, requestParams?: RedditPostsParams) => {
     const data = await response.json()
 
-    // Extract subreddit name from response (with fallback)
     const subredditName =
       data.data?.children?.[0]?.data?.subreddit || requestParams?.subreddit || 'unknown'
 
-    // Transform posts data
     const posts =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}

@@ -9,7 +9,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
   description: 'Manage temporary elevated access in AWS IAM Identity Center',
   longDescription:
     'Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.',
-  docsLink: 'https://docs.sim.ai/tools/identity_center',
+  docsLink: 'https://docs.sim.ai/integrations/identity_center',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
@@ -507,6 +507,29 @@ export const IdentityCenterBlockMeta = {
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
+    },
+  ],
+  skills: [
+    {
+      name: 'grant-temporary-access',
+      description:
+        'Assign a permission set to a user or group on an AWS account through Identity Center and confirm the assignment completes. Use for just-in-time elevated access.',
+      content:
+        '# Grant Temporary Access\n\nProvision elevated access via an Identity Center account assignment.\n\n## Steps\n1. Resolve the Identity Center instance, target account, and permission set.\n2. Resolve the principal — get the user or group to confirm the correct ID and type.\n3. Create the account assignment for that principal, permission set, and account.\n4. Poll check assignment status until it reports SUCCEEDED.\n\n## Output\nConfirm the principal, account, permission set, and final assignment status. If it failed, surface the failure reason.',
+    },
+    {
+      name: 'revoke-access',
+      description:
+        'Remove a permission set assignment from a user or group in Identity Center and confirm deletion. Use to wind down temporary or expired access.',
+      content:
+        '# Revoke Access\n\nRemove an account assignment to revoke access.\n\n## Steps\n1. List account assignments to confirm the principal currently holds the permission set on the account.\n2. Delete the account assignment for that principal, permission set, and account.\n3. Poll check assignment deletion status until it reports SUCCEEDED.\n4. Re-list assignments to verify the grant is gone.\n\n## Output\nConfirm what was revoked and the final deletion status. Note if the assignment did not exist.',
+    },
+    {
+      name: 'access-audit-report',
+      description:
+        'Enumerate permission sets, group memberships, and account assignments in Identity Center to produce an access report. Use for compliance and periodic reviews.',
+      content:
+        '# Access Audit Report\n\nReport who has access to what across accounts.\n\n## Steps\n1. List instances and accounts to scope the report.\n2. List permission sets and, per account, list account assignments.\n3. Resolve users and groups behind each assignment with get user and get group.\n4. Compile assignments grouped by account and permission set.\n\n## Output\nAn access report: per account, which principals hold which permission sets, with anything unexpected flagged for review.',
     },
   ],
 } as const satisfies BlockMeta

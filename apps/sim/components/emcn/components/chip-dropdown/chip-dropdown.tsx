@@ -291,7 +291,6 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
           align={align}
           onOpenAutoFocus={searchable ? (event) => event.preventDefault() : undefined}
           className={cn(
-            'z-[var(--z-popover)]',
             matchTriggerWidth && 'w-[var(--radix-dropdown-menu-trigger-width)] max-w-none',
             contentClassName
           )}

@@ -16,7 +16,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
-  docsLink: 'https://docs.sim.ai/tools/textract',
+  docsLink: 'https://docs.sim.ai/integrations/textract',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',
@@ -361,6 +361,29 @@ export const TextractBlockMeta = {
       category: 'operations',
       tags: ['ocr', 'automation', 'enterprise'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'extract-invoice-fields',
+      description:
+        'Run an invoice or receipt through AWS Textract and return clean structured fields (vendor, date, totals, line items). Use when you need to digitize finance documents.',
+      content:
+        '# Extract Invoice Fields\n\nUse AWS Textract to pull structured data from an invoice or receipt image/PDF.\n\n## Steps\n1. Choose the processing mode: Single Page for JPEG, PNG, or one-page PDF; Multi-Page for multi-page PDF/TIFF staged in S3.\n2. Provide the document (upload, file reference, or S3 URI) and enable Extract Forms and Extract Tables so key-value pairs and line items are captured.\n3. Run the extraction and read the returned blocks (KEY_VALUE_SET, TABLE, CELL, LINE).\n4. Map key-value pairs to fields: vendor, invoice number, invoice date, due date, subtotal, tax, and total.\n5. Reconstruct line items from the TABLE/CELL blocks into rows with description, quantity, unit price, and amount.\n\n## Output\nReturn a clean JSON record with the header fields and a line-items array. Flag any field where Textract confidence is low or the totals do not reconcile so a human can review.',
+    },
+    {
+      name: 'extract-form-key-values',
+      description:
+        'Turn a scanned form into structured key-value pairs and tables using AWS Textract. Use for intake forms, applications, and contracts.',
+      content:
+        '# Extract Form Key-Values\n\nDigitize a scanned form into structured data.\n\n## Steps\n1. Select Single Page mode for an image or one-page PDF, or Multi-Page mode with an S3 URI for longer documents.\n2. Enable Extract Forms (key-value pairs) and, if the form has tables, Extract Tables. Enable Analyze Document Layout for complex multi-column forms.\n3. Run the extraction and parse the KEY_VALUE_SET blocks into field-name to field-value pairs.\n4. Normalize field names (trim labels, lowercase keys) and coerce values like dates and numbers.\n\n## Output\nReturn a flat object of normalized field names to values, plus any extracted tables as arrays of rows. Note pages or fields with low confidence for review.',
+    },
+    {
+      name: 'ocr-document-to-text',
+      description:
+        'Convert a scanned document or image into plain readable text with AWS Textract OCR. Use to digitize handwritten notes, faxes, or image-only PDFs for indexing or search.',
+      content:
+        '# OCR Document To Text\n\nExtract readable text from a scanned or image-only document.\n\n## Steps\n1. Pick the processing mode that matches the file: Single Page for an image or one-page PDF, Multi-Page (S3) for multi-page documents.\n2. Provide the document and run the extraction. Plain OCR does not require the Forms or Tables features.\n3. Read the LINE and WORD blocks and join LINE blocks in reading order to reconstruct the text.\n4. Preserve paragraph and page breaks using the PAGE blocks.\n\n## Output\nReturn the full extracted text as clean Markdown, grouped by page. Include the page count from document metadata and surface any low-confidence lines so they can be reviewed before indexing.',
     },
   ],
 } as const satisfies BlockMeta

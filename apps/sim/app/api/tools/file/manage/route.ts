@@ -1,3 +1,4 @@
+import { Buffer, isUtf8 } from 'buffer'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
@@ -7,8 +8,10 @@ import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { splitWorkspaceFilePath } from '@/lib/copilot/tools/server/files/workspace-file'
 import { acquireLock, releaseLock } from '@/lib/core/config/redis'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { ensureAbsoluteUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -18,11 +21,14 @@ import {
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { performMoveWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
+import type { UserFile } from '@/executor/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -120,6 +126,46 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
       return []
     })
     .filter((id) => id.length > 0)
+}
+
+/** Per-file download cap for the content operation. Aligned with the durable large-value ceiling. */
+const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
+/** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
+const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
+
+const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
+
+/**
+ * Download a stored file and extract its text content. Parseable types (PDF, DOCX,
+ * CSV, etc.) go through the shared file-parsers; other UTF-8 files are returned as
+ * raw text; binary files yield a short placeholder rather than corrupt bytes.
+ */
+const extractUserFileTextContent = async (
+  userFile: UserFile,
+  requestId: string
+): Promise<string> => {
+  const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+    maxBytes: MAX_GET_CONTENT_FILE_BYTES,
+  })
+
+  const extension = getFileExtension(userFile.name)
+  if (extension && isSupportedFileType(extension)) {
+    try {
+      const result = await parseBuffer(buffer, extension)
+      return result.content ?? ''
+    } catch (error) {
+      logger.warn('Falling back to raw text after parser failure', {
+        name: userFile.name,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+    }
+  }
+
+  if (isLikelyTextBuffer(buffer)) {
+    return buffer.toString('utf-8')
+  }
+
+  return `[Binary file: ${userFile.name} (${userFile.type || 'application/octet-stream'}, ${buffer.length} bytes). Cannot extract text content.]`
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -228,6 +274,69 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             file: userFiles[0],
             files: userFiles,
           },
+        })
+      }
+
+      case 'content': {
+        const { fileId, fileInput } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = Array.isArray(fileId)
+          ? fileId.map((id) => id.trim()).filter(Boolean)
+          : fileId
+            ? normalizeFileIdList(fileId)
+            : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const userFiles: UserFile[] = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)
+
+        const contents: string[] = []
+        let totalBytes = 0
+        for (const userFile of userFiles) {
+          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+          if (denied) return denied
+
+          const content = await extractUserFileTextContent(userFile, requestId)
+          totalBytes += Buffer.byteLength(content, 'utf8')
+          if (totalBytes > MAX_GET_CONTENT_TOTAL_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Combined file content is too large to return safely. Maximum is ${
+                  MAX_GET_CONTENT_TOTAL_BYTES / (1024 * 1024)
+                } MB.`,
+              },
+              { status: 413 }
+            )
+          }
+          contents.push(content)
+        }
+
+        logger.info('File content extracted', { count: contents.length })
+
+        return NextResponse.json({
+          success: true,
+          data: { contents },
         })
       }
 

@@ -12,7 +12,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.',
-  docsLink: 'https://docs.sim.ai/tools/wordpress',
+  docsLink: 'https://docs.sim.ai/integrations/wordpress',
   category: 'tools',
   integrationType: IntegrationType.Marketing,
   bgColor: '#21759B',
@@ -1083,6 +1083,35 @@ export const WordPressBlockMeta = {
       modules: ['agent', 'files', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'content', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'publish-blog-post',
+      description:
+        'Create a WordPress post from a draft, assign categories and tags, and set its publish state.',
+      content:
+        '# Publish a WordPress Post\n\nTurn a finished draft into a WordPress post.\n\n## Steps\n1. Prepare the title, body HTML, and excerpt for the post.\n2. Resolve or create the categories and tags by listing existing ones and matching by name.\n3. Decide the status: draft for review or publish to go live.\n4. Call the create-post operation with the content, taxonomy, and status.\n\n## Output\nReport the new post ID, status, and the post URL. List the categories and tags applied. If publishing directly, confirm the live link.',
+    },
+    {
+      name: 'update-existing-post',
+      description:
+        'Find a WordPress post and update its content, status, or taxonomy without overwriting the rest.',
+      content:
+        '# Update a WordPress Post\n\nApply targeted edits to a published or draft post.\n\n## Steps\n1. Locate the post by ID, or list or search posts and match on title.\n2. Get the current post to know its existing content and metadata.\n3. Build an update containing only the fields that change, such as body, status, or tags.\n4. Call the update-post operation and confirm the change.\n\n## Output\nState which fields changed and the post ID. Confirm the resulting status and URL.',
+    },
+    {
+      name: 'upload-and-attach-media',
+      description: 'Upload an image or file to the WordPress media library for use in a post.',
+      content:
+        '# Upload Media to WordPress\n\nAdd an image or file to the media library.\n\n## Steps\n1. Provide the file to upload along with a descriptive title and alt text.\n2. Call the upload-media operation.\n3. Capture the returned media ID and source URL.\n4. If the media is for a specific post, reference the media ID or URL when creating or updating that post.\n\n## Output\nReturn the media ID, the file URL, and the alt text set. Note whether it was attached to a post.',
+    },
+    {
+      name: 'moderate-comments',
+      description:
+        'List recent WordPress comments and approve, hold, spam, or trash them by policy.',
+      content:
+        '# Moderate WordPress Comments\n\nKeep the comment queue clean and on-policy.\n\n## Steps\n1. List comments, optionally filtering by status such as hold.\n2. For each comment, judge it against the moderation policy: legitimate, spam, or abusive.\n3. Update each comment to the right status: approved, hold, spam, or trash.\n\n## Output\nReturn a summary of how many comments were approved, held, marked spam, or trashed, with the comment IDs grouped by action taken.',
     },
   ],
 } as const satisfies BlockMeta

@@ -5,14 +5,12 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
   Button,
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  Label,
   Loader,
 } from '@/components/emcn'
 import { RotateCcw, X } from '@/components/emcn/icons'
@@ -22,10 +20,6 @@ import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('AddDocumentsModal')
-
-interface FileWithPreview extends File {
-  preview: string
-}
 
 interface AddDocumentsModalProps {
   open: boolean
@@ -46,23 +40,13 @@ export function AddDocumentsModal({
 }: AddDocumentsModalProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const [files, setFiles] = useState<FileWithPreview[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
 
   const { isUploading, uploadProgress, uploadFiles, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
   })
-
-  useEffect(() => {
-    return () => {
-      files.forEach((file) => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview)
-        }
-      })
-    }
-  }, [files])
 
   useEffect(() => {
     if (open) {
@@ -98,7 +82,7 @@ export function AddDocumentsModal({
     if (!selectedFiles || selectedFiles.length === 0) return
 
     try {
-      const newFiles: FileWithPreview[] = []
+      const newFiles: File[] = []
       let hasError = false
 
       for (const file of selectedFiles) {
@@ -109,11 +93,7 @@ export function AddDocumentsModal({
           continue
         }
 
-        const fileWithPreview = Object.assign(file, {
-          preview: URL.createObjectURL(file),
-        }) as FileWithPreview
-
-        newFiles.push(fileWithPreview)
+        newFiles.push(file)
       }
 
       if (!hasError && newFiles.length > 0) {
@@ -126,10 +106,7 @@ export function AddDocumentsModal({
   }
 
   const removeFile = (index: number) => {
-    setFiles((prev) => {
-      URL.revokeObjectURL(prev[index].preview)
-      return prev.filter((_, i) => i !== index)
-    })
+    setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleRetryFile = async (index: number) => {
@@ -173,110 +150,98 @@ export function AddDocumentsModal({
       <ChipModalHeader onClose={() => handleOpenChange(false)}>New Documents</ChipModalHeader>
 
       <ChipModalBody>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='space-y-3'>
-            {fileError && (
-              <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
-            )}
+        <ChipModalField
+          type='file'
+          title='Upload Documents'
+          accept={ACCEPT_ATTRIBUTE}
+          multiple
+          onChange={processFiles}
+          description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
+          error={fileError}
+        />
 
-            <ChipModalField
-              type='file'
-              title='Upload Documents'
-              accept={ACCEPT_ATTRIBUTE}
-              multiple
-              onChange={processFiles}
-              description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
-              flush
-            />
+        {files.length > 0 && (
+          <ChipModalField type='custom' title='Selected Files'>
+            <div className='flex flex-col gap-2'>
+              {files.map((file, index) => {
+                const fileStatus = uploadProgress.fileStatuses?.[index]
+                const isFailed = fileStatus?.status === 'failed'
+                const isRetrying = retryingIndexes.has(index)
+                const isProcessing = fileStatus?.status === 'uploading' || isRetrying
 
-            {files.length > 0 && (
-              <div className='space-y-2'>
-                <Label>Selected Files</Label>
-                <div className='space-y-2'>
-                  {files.map((file, index) => {
-                    const fileStatus = uploadProgress.fileStatuses?.[index]
-                    const isFailed = fileStatus?.status === 'failed'
-                    const isRetrying = retryingIndexes.has(index)
-                    const isProcessing = fileStatus?.status === 'uploading' || isRetrying
-
-                    return (
-                      <div
-                        key={`${file.name}-${file.size}`}
-                        className={cn(
-                          'flex items-center gap-2 rounded-sm border p-2',
-                          isFailed && !isRetrying && 'border-[var(--text-error)]'
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            'min-w-0 flex-1 truncate text-caption',
-                            isFailed && !isRetrying && 'text-[var(--text-error)]'
+                return (
+                  <div
+                    key={`${file.name}-${file.size}`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-sm border p-2',
+                      isFailed && !isRetrying && 'border-[var(--text-error)]'
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        'min-w-0 flex-1 truncate text-caption',
+                        isFailed && !isRetrying && 'text-[var(--text-error)]'
+                      )}
+                      title={file.name}
+                    >
+                      {file.name}
+                    </span>
+                    <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                      {formatFileSize(file.size)}
+                    </span>
+                    <div className='flex flex-shrink-0 items-center gap-1'>
+                      {isProcessing ? (
+                        <Loader className='size-4 text-[var(--text-muted)]' animate />
+                      ) : (
+                        <>
+                          {isFailed && (
+                            <Button
+                              type='button'
+                              variant='ghost'
+                              className='size-4 p-0'
+                              onClick={() => handleRetryFile(index)}
+                              disabled={isUploading}
+                            >
+                              <RotateCcw className='size-3' />
+                            </Button>
                           )}
-                          title={file.name}
-                        >
-                          {file.name}
-                        </span>
-                        <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                          {formatFileSize(file.size)}
-                        </span>
-                        <div className='flex flex-shrink-0 items-center gap-1'>
-                          {isProcessing ? (
-                            <Loader className='size-4 text-[var(--text-muted)]' animate />
-                          ) : (
-                            <>
-                              {isFailed && (
-                                <Button
-                                  type='button'
-                                  variant='ghost'
-                                  className='size-4 p-0'
-                                  onClick={() => handleRetryFile(index)}
-                                  disabled={isUploading}
-                                >
-                                  <RotateCcw className='size-3' />
-                                </Button>
-                              )}
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                className='size-4 p-0'
-                                onClick={() => removeFile(index)}
-                                disabled={isUploading}
-                              >
-                                <X className='size-3.5' />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            className='size-4 p-0'
+                            onClick={() => removeFile(index)}
+                            disabled={isUploading}
+                          >
+                            <X className='size-3.5' />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </ChipModalField>
+        )}
+
         {uploadError && <ChipModalError>{uploadError.message}</ChipModalError>}
       </ChipModalBody>
 
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isUploading}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleUpload}
-          disabled={files.length === 0 || isUploading}
-        >
-          {isUploading
+      <ChipModalFooter
+        onCancel={handleClose}
+        cancelDisabled={isUploading}
+        primaryAction={{
+          label: isUploading
             ? uploadProgress.stage === 'uploading'
               ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
               : uploadProgress.stage === 'processing'
                 ? 'Processing...'
                 : 'Uploading...'
-            : 'Upload'}
-        </Chip>
-      </ChipModalFooter>
+            : 'Upload',
+          onClick: handleUpload,
+          disabled: files.length === 0 || isUploading,
+        }}
+      />
     </ChipModal>
   )
 }

@@ -10,7 +10,7 @@ export const WizaBlock: BlockConfig<WizaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.',
-  docsLink: 'https://docs.sim.ai/tools/wiza',
+  docsLink: 'https://docs.sim.ai/integrations/wiza',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#9284BC',
@@ -695,6 +695,28 @@ export const WizaBlockMeta = {
       category: 'sales',
       tags: ['sales', 'crm', 'enrichment'],
       alsoIntegrations: ['hubspot'],
+    },
+  ],
+  skills: [
+    {
+      name: 'find-prospects',
+      description:
+        'Run a Wiza prospect search with filters to build a list of verified B2B contacts.',
+      content:
+        '# Find B2B Prospects with Wiza\n\nBuild a targeted list of verified prospects from an ideal-customer profile.\n\n## Steps\n1. Translate the ideal-customer profile into Wiza filters: job title, seniority, company size, industry, and location.\n2. Run the prospect-search operation with those filters and a sensible result limit.\n3. Choose how much contact data to reveal (email only, phone, or full) based on the outreach plan and credit budget.\n4. Collect the returned prospects with their verified contact fields.\n\n## Output\nReturn the matched prospects with name, title, company, and verified email or phone. Note the total matches and how many credits the reveal consumed.',
+    },
+    {
+      name: 'enrich-company',
+      description: 'Enrich a company by domain or name to retrieve firmographic data from Wiza.',
+      content:
+        '# Enrich a Company with Wiza\n\nFill in firmographic detail for a target account.\n\n## Steps\n1. Gather the company identifier you have, typically a domain or company name.\n2. Call the company-enrichment operation.\n3. Extract the returned firmographics: industry, size, location, revenue band, and website.\n\n## Output\nReturn the enriched company record as structured fields. If the company could not be matched, say so and report the input used.',
+    },
+    {
+      name: 'reveal-contact-details',
+      description:
+        'Reveal verified email and phone for a known individual using Wiza individual reveal.',
+      content:
+        '# Reveal a Contact with Wiza\n\nGet verified contact details for a specific person.\n\n## Steps\n1. Provide the person identifiers you have, such as name and company or a LinkedIn profile.\n2. Decide the reveal level needed: email only, phone, or full contact.\n3. Call the individual-reveal operation.\n4. Capture the verified email, phone, and current role returned.\n\n## Output\nReturn the verified contact fields with a note on validation status. If credits are low, check the get-credits operation first and warn before spending.',
     },
   ],
 } as const satisfies BlockMeta

@@ -8,7 +8,7 @@ export const AlgoliaBlock: BlockConfig = {
   description: 'Search and manage Algolia indices',
   longDescription:
     'Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.',
-  docsLink: 'https://docs.sim.ai/tools/algolia',
+  docsLink: 'https://docs.sim.ai/integrations/algolia',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#003DFF',
@@ -714,6 +714,29 @@ export const AlgoliaBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'answer-from-search-index',
+      description:
+        'Search an Algolia index for a user question and return a grounded answer with the matching records.',
+      content:
+        '# Answer From Search Index\n\nUse Algolia retrieval to answer questions over indexed content (docs, products, knowledge base).\n\n## Steps\n1. Take the user question and run a search against the relevant Algolia index.\n2. Apply filters or facets to narrow results (category, status, language) when appropriate.\n3. Read the top hits and synthesize an answer grounded only in the returned records.\n4. If no relevant hits are returned, say so rather than guessing.\n\n## Output\nA concise answer plus the titles and IDs of the records used. Do not invent content not present in the hits.',
+    },
+    {
+      name: 'index-new-records',
+      description:
+        'Take new or updated content and push it into an Algolia index as searchable records.',
+      content:
+        '# Index New Records\n\nKeep an Algolia index in sync with new content.\n\n## Steps\n1. Collect the source items to index (products, articles, entries).\n2. Map each item to a record object with a stable objectID and the searchable/filterable attributes.\n3. Save the records to the target index, updating existing objectIDs in place.\n4. Verify by running a quick search for one of the new records.\n\n## Output\nReport how many records were added or updated and confirm one is retrievable via search.',
+    },
+    {
+      name: 'audit-search-relevance',
+      description:
+        'Run a set of test queries against an Algolia index and report which return weak or empty results.',
+      content:
+        '# Audit Search Relevance\n\nCheck that important queries return good results from an Algolia index.\n\n## Steps\n1. Run each query in the provided test set against the index.\n2. Record the top results, total hit count, and whether the expected record appears.\n3. Flag queries that return zero hits, too many hits, or miss the expected record.\n\n## Output\nA table of queries with result counts and pass/fail, plus suggestions for synonyms or ranking tweaks where relevance is weak.',
     },
   ],
 } as const satisfies BlockMeta

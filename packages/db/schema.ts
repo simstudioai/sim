@@ -767,91 +767,27 @@ export const webhook = pgTable(
   }
 )
 
-export const notificationTypeEnum = pgEnum('notification_type', ['webhook', 'email', 'slack'])
-
-export const notificationDeliveryStatusEnum = pgEnum('notification_delivery_status', [
-  'pending',
-  'in_progress',
-  'success',
-  'failed',
-])
-
-export const workspaceNotificationSubscription = pgTable(
-  'workspace_notification_subscription',
+/**
+ * Cooldown state for Sim workspace-event trigger subscriptions.
+ *
+ * Keyed by (workflowId, blockId, scopeKey) rather than the webhook row because
+ * webhook rows are recreated per deployment version — state stored there would
+ * reset on every redeploy. `scopeKey` is '' for subscription-level cooldowns
+ * and the source workflow ID for per-source-workflow rules (no_activity).
+ */
+export const simTriggerState = pgTable(
+  'sim_trigger_state',
   {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    notificationType: notificationTypeEnum('notification_type').notNull(),
-    workflowIds: text('workflow_ids').array().notNull().default(sql`'{}'::text[]`),
-    allWorkflows: boolean('all_workflows').notNull().default(false),
-    levelFilter: text('level_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['info', 'error']::text[]`),
-    triggerFilter: text('trigger_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
-    includeFinalOutput: boolean('include_final_output').notNull().default(false),
-    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
-    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
-    includeUsageData: boolean('include_usage_data').notNull().default(false),
-
-    // Channel-specific configuration
-    webhookConfig: jsonb('webhook_config'),
-    emailRecipients: text('email_recipients').array(),
-    slackConfig: jsonb('slack_config'),
-
-    // Alert rule configuration (if null, sends on every execution)
-    alertConfig: jsonb('alert_config'),
-    lastAlertAt: timestamp('last_alert_at'),
-
-    active: boolean('active').notNull().default(true),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('workspace_notification_workspace_id_idx').on(table.workspaceId),
-    activeIdx: index('workspace_notification_active_idx').on(table.active),
-    typeIdx: index('workspace_notification_type_idx').on(table.notificationType),
-  })
-)
-
-export const workspaceNotificationDelivery = pgTable(
-  'workspace_notification_delivery',
-  {
-    id: text('id').primaryKey(),
-    subscriptionId: text('subscription_id')
-      .notNull()
-      .references(() => workspaceNotificationSubscription.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    executionId: text('execution_id').notNull(),
-    status: notificationDeliveryStatusEnum('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    lastAttemptAt: timestamp('last_attempt_at'),
-    nextAttemptAt: timestamp('next_attempt_at'),
-    responseStatus: integer('response_status'),
-    responseBody: text('response_body'),
-    errorMessage: text('error_message'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    blockId: text('block_id').notNull(),
+    scopeKey: text('scope_key').notNull().default(''),
+    lastFiredAt: timestamp('last_fired_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    subscriptionIdIdx: index('workspace_notification_delivery_subscription_id_idx').on(
-      table.subscriptionId
-    ),
-    executionIdIdx: index('workspace_notification_delivery_execution_id_idx').on(table.executionId),
-    statusIdx: index('workspace_notification_delivery_status_idx').on(table.status),
-    nextAttemptIdx: index('workspace_notification_delivery_next_attempt_idx').on(
-      table.nextAttemptAt
-    ),
+    pk: primaryKey({ columns: [table.workflowId, table.blockId, table.scopeKey] }),
   })
 )
 
@@ -1176,6 +1112,43 @@ export const member = pgTable(
   (table) => ({
     userIdUnique: uniqueIndex('member_user_id_unique').on(table.userId), // Users can only belong to one org
     organizationIdIdx: index('member_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/**
+ * Per-member usage limit (in dollars) scoped to a single organization.
+ *
+ * Keyed by `(organizationId, userId)` so it covers both organization members
+ * (rows in `member`) and external members (users with workspace permissions in
+ * org-owned workspaces but no `member` row). Independent of
+ * `user_stats.current_usage_limit`, which is the user's personal subscription
+ * cap and is nulled for org-scoped members. An absent row means "no per-member
+ * cap" (only the pooled org limit applies). Enforced for usage in org-owned
+ * workspaces; hosted-only.
+ */
+export const organizationMemberUsageLimit = pgTable(
+  'organization_member_usage_limit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    usageLimit: decimal('usage_limit').notNull(),
+    /** Admin who set the cap (audit only). Soft FK: nulled if that user is
+     *  deleted so the member's limit row survives — never cascade-deleted. */
+    setBy: text('set_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    orgUserUnique: uniqueIndex('org_member_usage_limit_org_user_unique').on(
+      table.organizationId,
+      table.userId
+    ),
+    organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
   })
 )
 
@@ -1617,6 +1590,11 @@ export const document = pgTable(
     externalId: text('external_id'),
     contentHash: text('content_hash'),
     sourceUrl: text('source_url'),
+
+    /** User who uploaded the document, for usage attribution. Null for
+     *  connector/cron-synced docs (and pre-migration rows) → indexing billing
+     *  falls back to the workspace billed account. */
+    uploadedBy: text('uploaded_by').references(() => user.id, { onDelete: 'set null' }),
 
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
@@ -3172,6 +3150,10 @@ export const userTableRows = pgTable(
      * Fractional order key (base-62 string). Authoritative row order when the
      * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
      * window. Ordered with `id` as a deterministic tiebreaker.
+     *
+     * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
+     * matching the fractional-indexing library's ASCII ordering. drizzle can't
+     * express column collation, so the collation lives only in the migration.
      */
     orderKey: text('order_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -3278,6 +3260,12 @@ export const tableRunDispatches = pgTable(
      *  CSV import, addWorkflowGroup) set this to false so the dispatch
      *  honors the autoRun toggle. */
     isManualRun: boolean('is_manual_run').notNull().default(true),
+    /** User who triggered the run, for per-member usage attribution. Null for
+     *  auto-fire (row insert/update, CSV import) with no human initiator —
+     *  those fall back to the workspace billed account. */
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),

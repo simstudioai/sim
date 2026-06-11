@@ -4,17 +4,7 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
-import {
-  Chip,
-  ChipInput,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Search,
-  Switch,
-  Tooltip,
-} from '@/components/emcn'
+import { Chip, ChipConfirmModal, ChipInput, Search, Switch, Tooltip } from '@/components/emcn'
 import { Info, Plus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -339,44 +329,33 @@ export function ApiKeys() {
       />
 
       {/* Delete Confirmation Dialog */}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDialog}
-        onOpenChange={setShowDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowDeleteDialog(false)
+            setDeleteKey(null)
+          }
+        }}
         srTitle='Delete API key'
-      >
-        <ChipModalHeader showDivider={false}>Delete API key</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete API key'
+        description={
+          <>
             Deleting{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>{' '}
             <span className='text-[var(--text-error)]'>
               will immediately revoke access for any integrations using it.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => {
-              setShowDeleteDialog(false)
-              setDeleteKey(null)
-            }}
-            disabled={deleteApiKeyMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteKey}
-            disabled={deleteApiKeyMutation.isPending}
-          >
-            {deleteApiKeyMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteKey,
+          pending: deleteApiKeyMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </div>
   )
 }

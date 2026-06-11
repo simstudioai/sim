@@ -9,7 +9,7 @@ export const BrowserUseBlock: BlockConfig<BrowserUseResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.',
-  docsLink: 'https://docs.sim.ai/tools/browser_use',
+  docsLink: 'https://docs.sim.ai/integrations/browser_use',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
@@ -281,6 +281,29 @@ export const BrowserUseBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'monitoring'],
+    },
+  ],
+  skills: [
+    {
+      name: 'automate-web-task',
+      description:
+        'Drive a browser agent to complete a multi-step task on a website, like navigating, clicking, and submitting. Use when a site has no API and a human would normally do the clicks.',
+      content:
+        '# Automate Web Task\n\nHave the browser agent perform a goal-oriented task on the web.\n\n## Steps\n1. Write a clear, step-by-step Task describing the goal and any success condition (e.g. "log in, open Billing, download the latest invoice").\n2. Set the Start URL so the agent begins on the right page.\n3. Put any credentials or sensitive inputs in Variables (Secrets) and reference them in the task by name rather than pasting them inline.\n4. Restrict Allowed Domains to keep the agent on the intended site, and raise Max Steps for longer flows.\n\n## Output\nReturn whether the task succeeded, the final output, and the share URL for the recorded session so the run can be audited. If the agent gets stuck, report the last step and what blocked it.',
+    },
+    {
+      name: 'extract-structured-data-from-site',
+      description:
+        'Use a browser agent to navigate a site and return data in a defined JSON schema. Use to pull structured records (prices, listings, table rows) from pages without an API.',
+      content:
+        '# Extract Structured Data From Site\n\nNavigate a website and return structured data.\n\n## Steps\n1. Write a Task that tells the agent what to find and where (e.g. "go to the pricing page and collect every plan name and monthly price").\n2. Set the Start URL and limit Allowed Domains to the target site.\n3. Provide a Structured Output Schema (stringified JSON schema) describing the exact fields you want back.\n4. Run it; the agent fills the schema from what it observes on the page.\n\n## Output\nReturn the data as objects matching the provided schema. Confirm each field was actually found on the page; if a field could not be located, leave it null and note it rather than fabricating a value.',
+    },
+    {
+      name: 'fill-and-submit-form',
+      description:
+        'Have a browser agent fill out and submit a web form using supplied field values. Use for vendor portals, questionnaires, or applications that have no API.',
+      content:
+        '# Fill And Submit Form\n\nComplete a web form end to end.\n\n## Steps\n1. Describe the form and the mapping of values to fields in the Task (e.g. "fill the contact form: name, company, message, then submit").\n2. Set the Start URL to the form page and constrain Allowed Domains.\n3. Pass any private values through Variables (Secrets) so they are injected securely.\n4. Ask the agent to confirm the submission succeeded (look for a success message or confirmation page) before finishing.\n\n## Output\nReturn whether the form submitted successfully, any confirmation text or reference number shown, and the session share URL as an audit trail. If a required field was missing or validation failed, report which field and why.',
     },
   ],
 } as const satisfies BlockMeta

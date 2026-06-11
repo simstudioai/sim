@@ -39,6 +39,7 @@ import {
   useEditorBlockProperties,
   useEditorSubblockLayout,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks'
+import { ActiveSearchTargetProvider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getSubBlockStableKey } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
@@ -368,110 +369,111 @@ export function Editor() {
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
   return (
-    <div className='flex h-full flex-col'>
-      {/* Header */}
-      <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
-          {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-            <div
-              className='flex size-[18px] items-center justify-center rounded-sm'
-              style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
-            >
-              <IconComponent
-                icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                className='size-[12px] text-[var(--white)]'
+    <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
+      <div className='flex h-full flex-col'>
+        {/* Header */}
+        <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
+          <div className='flex min-w-0 flex-1 items-center gap-2'>
+            {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
+              <div
+                className='flex size-[18px] items-center justify-center rounded-sm'
+                style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
+              >
+                <IconComponent
+                  icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
+                  className='size-[12px] text-[var(--white)]'
+                />
+              </div>
+            )}
+            {isRenaming ? (
+              <input
+                ref={nameInputRefCallback}
+                type='text'
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onBlur={handleSaveRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveRename()
+                  } else if (e.key === 'Escape') {
+                    handleCancelRename()
+                  }
+                }}
+                className='min-w-0 flex-1 truncate bg-transparent pr-2 font-medium text-[var(--text-primary)] text-sm outline-none'
               />
-            </div>
-          )}
-          {isRenaming ? (
-            <input
-              ref={nameInputRefCallback}
-              type='text'
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onBlur={handleSaveRename}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleSaveRename()
-                } else if (e.key === 'Escape') {
-                  handleCancelRename()
-                }
-              }}
-              className='min-w-0 flex-1 truncate bg-transparent pr-2 font-medium text-[var(--text-primary)] text-sm outline-none'
-            />
-          ) : (
-            <h2
-              className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
-              title={title}
-              onDoubleClick={handleStartRename}
-              onMouseDown={(e) => {
-                if (e.detail === 2) {
-                  e.preventDefault()
-                }
-              }}
-            >
-              {blockNameSearchHighlight
-                ? formatDisplayText(title, { workflowSearchHighlight: blockNameSearchHighlight })
-                : title}
-            </h2>
-          )}
-        </div>
-        <div className='flex shrink-0 items-center gap-2'>
-          {/* Locked indicator - clickable to unlock if user has admin permissions, block is locked directly, and not locked by an ancestor */}
-          {isLocked && currentBlock && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                {userPermissions.canAdmin && currentBlock.locked && !isAncestorLocked ? (
+            ) : (
+              <h2
+                className='min-w-0 flex-1 cursor-pointer select-none text-ellipsis whitespace-nowrap pr-2 font-medium text-[var(--text-primary)] text-sm [overflow-clip-margin:3px] [overflow:clip]'
+                title={title}
+                onDoubleClick={handleStartRename}
+                onMouseDown={(e) => {
+                  if (e.detail === 2) {
+                    e.preventDefault()
+                  }
+                }}
+              >
+                {blockNameSearchHighlight
+                  ? formatDisplayText(title, { workflowSearchHighlight: blockNameSearchHighlight })
+                  : title}
+              </h2>
+            )}
+          </div>
+          <div className='flex shrink-0 items-center gap-2'>
+            {/* Locked indicator - clickable to unlock if user has admin permissions, block is locked directly, and not locked by an ancestor */}
+            {isLocked && currentBlock && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  {userPermissions.canAdmin && currentBlock.locked && !isAncestorLocked ? (
+                    <Button
+                      variant='ghost'
+                      className='p-0'
+                      onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
+                      aria-label='Unlock block'
+                    >
+                      <Unlock className='size-[14px] text-[var(--text-secondary)]' />
+                    </Button>
+                  ) : (
+                    <div className='flex items-center justify-center'>
+                      <Lock className='size-[14px] text-[var(--text-secondary)]' />
+                    </div>
+                  )}
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  <p>
+                    {isAncestorLocked
+                      ? 'Ancestor container is locked'
+                      : userPermissions.canAdmin && currentBlock.locked
+                        ? 'Unlock block'
+                        : 'Block is locked'}
+                  </p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+            {/* Rename button */}
+            {currentBlock && (
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
                   <Button
                     variant='ghost'
                     className='p-0'
-                    onClick={() => collaborativeBatchToggleLocked([currentBlockId!])}
-                    aria-label='Unlock block'
+                    onClick={isRenaming ? handleSaveRename : handleStartRename}
+                    disabled={!canEditBlock}
+                    aria-label={isRenaming ? 'Save name' : 'Rename block'}
                   >
-                    <Unlock className='size-[14px] text-[var(--text-secondary)]' />
+                    {isRenaming ? (
+                      <Check className='size-[14px]' />
+                    ) : (
+                      <Pencil className='size-[14px]' />
+                    )}
                   </Button>
-                ) : (
-                  <div className='flex items-center justify-center'>
-                    <Lock className='size-[14px] text-[var(--text-secondary)]' />
-                  </div>
-                )}
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>
-                  {isAncestorLocked
-                    ? 'Ancestor container is locked'
-                    : userPermissions.canAdmin && currentBlock.locked
-                      ? 'Unlock block'
-                      : 'Block is locked'}
-                </p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-          {/* Rename button */}
-          {currentBlock && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <Button
-                  variant='ghost'
-                  className='p-0'
-                  onClick={isRenaming ? handleSaveRename : handleStartRename}
-                  disabled={!canEditBlock}
-                  aria-label={isRenaming ? 'Save name' : 'Rename block'}
-                >
-                  {isRenaming ? (
-                    <Check className='size-[14px]' />
-                  ) : (
-                    <Pencil className='size-[14px]' />
-                  )}
-                </Button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>{isRenaming ? 'Save name' : 'Rename block'}</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-          {/* Focus on block button */}
-          {/* {currentBlock && (
+                </Tooltip.Trigger>
+                <Tooltip.Content side='top'>
+                  <p>{isRenaming ? 'Save name' : 'Rename block'}</p>
+                </Tooltip.Content>
+              </Tooltip.Root>
+            )}
+            {/* Focus on block button */}
+            {/* {currentBlock && (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Button
@@ -488,291 +490,291 @@ export function Editor() {
               </Tooltip.Content>
             </Tooltip.Root>
           )} */}
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Button
-                variant='ghost'
-                className='p-0'
-                onClick={handleOpenDocs}
-                aria-label='Open documentation'
-              >
-                <BookOpen className='size-[14px]' />
-              </Button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>Open docs</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Button
+                  variant='ghost'
+                  className='p-0'
+                  onClick={handleOpenDocs}
+                  aria-label='Open documentation'
+                >
+                  <BookOpen className='size-[14px]' />
+                </Button>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>
+                <p>Open docs</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </div>
         </div>
-      </div>
 
-      {!currentBlockId || !currentBlock ? (
-        <div className='flex flex-1 items-center justify-center text-[var(--text-placeholder)] text-small'>
-          Select a block to edit
-        </div>
-      ) : isSubflow ? (
-        <SubflowEditor
-          currentBlock={currentBlock}
-          currentBlockId={currentBlockId}
-          subBlocksRef={subBlocksRef}
-          connectionsHeight={connectionsHeight}
-          isResizing={isResizing}
-          hasIncomingConnections={hasIncomingConnections}
-          incomingConnections={incomingConnections}
-          handleConnectionsResizeMouseDown={handleConnectionsResizeMouseDown}
-          toggleConnectionsCollapsed={toggleConnectionsCollapsed}
-          userCanEdit={canEditBlock}
-          isConnectionsAtMinHeight={isConnectionsAtMinHeight}
-          activeSearchTarget={activeSearchTargetForCurrentBlock}
-        />
-      ) : (
-        <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
-          {/* Subblocks Section */}
-          <div
-            ref={subBlocksRef}
-            className='subblocks-section flex flex-1 flex-col overflow-hidden'
-          >
-            <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
-              {/* Workflow Preview - only for workflow blocks with a selected child workflow */}
-              {isWorkflowBlock && childWorkflowId && (
-                <>
-                  <div className='subblock-content flex flex-col gap-[9.5px]'>
-                    <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
-                      Workflow Preview
-                    </div>
-                    <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
-                      {isLoadingChildWorkflow ? (
-                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                          <Loader className='size-5 text-[var(--text-tertiary)]' animate />
-                        </div>
-                      ) : childWorkflowState ? (
-                        <>
-                          <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
-                            <PreviewWorkflow
-                              workflowState={childWorkflowState}
-                              height={160}
-                              width='100%'
-                              isPannable={true}
-                              defaultZoom={0.6}
-                              fitPadding={0.15}
-                              cursorStyle='grab'
-                              lightweight
-                            />
-                          </div>
-                          <Tooltip.Root>
-                            <Tooltip.Trigger asChild>
-                              <Button
-                                type='button'
-                                variant='ghost'
-                                onClick={handleOpenChildWorkflow}
-                                className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
-                              >
-                                <ExternalLink className='size-[12px]' />
-                              </Button>
-                            </Tooltip.Trigger>
-                            <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
-                          </Tooltip.Root>
-                        </>
-                      ) : (
-                        <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
-                          <span className='text-[var(--text-tertiary)] text-small'>
-                            Unable to load preview
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <FieldDivider subblockMarker />
-                </>
-              )}
-              {subBlocks.length === 0 && !isWorkflowBlock ? (
-                <div className='flex h-full items-center justify-center text-center text-[var(--text-placeholder)] text-small'>
-                  This block has no subblocks
-                </div>
-              ) : (
-                <div className='flex flex-col'>
-                  {regularSubBlocks.map((subBlock, index) => {
-                    const stableKey = getSubBlockStableKey(
-                      currentBlockId || '',
-                      subBlock,
-                      subBlockState
-                    )
-                    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
-                    const canonicalGroup = canonicalId
-                      ? canonicalIndex.groupsById[canonicalId]
-                      : undefined
-                    const isCanonicalSwap = isCanonicalPair(canonicalGroup)
-                    const canonicalMode =
-                      canonicalGroup && isCanonicalSwap
-                        ? resolveCanonicalMode(
-                            canonicalGroup,
-                            blockSubBlockValues,
-                            canonicalModeOverrides
-                          )
-                        : undefined
-
-                    const showDivider =
-                      index < regularSubBlocks.length - 1 ||
-                      (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
-
-                    return (
-                      <div key={stableKey} className='subblock-row'>
-                        <SubBlock
-                          blockId={currentBlockId}
-                          config={subBlock}
-                          isPreview={false}
-                          subBlockValues={subBlockState}
-                          disabled={!canEditBlock}
-                          allowExpandInPreview={false}
-                          isSearchHighlighted={
-                            activeSearchTarget?.blockId === currentBlockId &&
-                            (activeSearchTarget.subBlockId === subBlock.id ||
-                              activeSearchTarget.canonicalSubBlockId ===
-                                (subBlock.canonicalParamId ?? subBlock.id))
-                          }
-                          activeSearchTarget={activeSearchTargetForCurrentBlock}
-                          canonicalToggle={
-                            isCanonicalSwap && canonicalMode && canonicalId
-                              ? {
-                                  mode: canonicalMode,
-                                  disabled: !canEditBlock,
-                                  onToggle: () => {
-                                    if (!currentBlockId) return
-                                    const nextMode =
-                                      canonicalMode === 'advanced' ? 'basic' : 'advanced'
-                                    collaborativeSetBlockCanonicalMode(
-                                      currentBlockId,
-                                      canonicalId,
-                                      nextMode
-                                    )
-                                  },
-                                }
-                              : undefined
-                          }
-                        />
-                        {showDivider && <FieldDivider subblockMarker />}
+        {!currentBlockId || !currentBlock ? (
+          <div className='flex flex-1 items-center justify-center text-[var(--text-placeholder)] text-small'>
+            Select a block to edit
+          </div>
+        ) : isSubflow ? (
+          <SubflowEditor
+            currentBlock={currentBlock}
+            currentBlockId={currentBlockId}
+            subBlocksRef={subBlocksRef}
+            connectionsHeight={connectionsHeight}
+            isResizing={isResizing}
+            hasIncomingConnections={hasIncomingConnections}
+            incomingConnections={incomingConnections}
+            handleConnectionsResizeMouseDown={handleConnectionsResizeMouseDown}
+            toggleConnectionsCollapsed={toggleConnectionsCollapsed}
+            userCanEdit={canEditBlock}
+            isConnectionsAtMinHeight={isConnectionsAtMinHeight}
+          />
+        ) : (
+          <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
+            {/* Subblocks Section */}
+            <div
+              ref={subBlocksRef}
+              className='subblocks-section flex flex-1 flex-col overflow-hidden'
+            >
+              <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
+                {/* Workflow Preview - only for workflow blocks with a selected child workflow */}
+                {isWorkflowBlock && childWorkflowId && (
+                  <>
+                    <div className='subblock-content flex flex-col gap-[9.5px]'>
+                      <div className='pl-0.5 font-medium text-[var(--text-primary)] text-small leading-none'>
+                        Workflow Preview
                       </div>
-                    )
-                  })}
-
-                  {hasAdvancedOnlyFields && canEditBlock && (
-                    <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
-                      <button
-                        type='button'
-                        onClick={handleToggleAdvancedMode}
-                        className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
-                      >
-                        {displayAdvancedOptions
-                          ? 'Hide additional fields'
-                          : 'Show additional fields'}
-                        <ChevronDown
-                          className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
-                    </div>
-                  )}
-                  {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
-                    <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
-                      <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
-                        Additional fields
-                      </span>
-                      <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
-                    </div>
-                  )}
-
-                  {advancedOnlySubBlocks.map((subBlock, index) => {
-                    const stableKey = getSubBlockStableKey(
-                      currentBlockId || '',
-                      subBlock,
-                      subBlockState
-                    )
-
-                    return (
-                      <div key={stableKey} className='subblock-row'>
-                        <SubBlock
-                          blockId={currentBlockId}
-                          config={subBlock}
-                          isPreview={false}
-                          subBlockValues={subBlockState}
-                          disabled={!canEditBlock}
-                          allowExpandInPreview={false}
-                          isSearchHighlighted={
-                            activeSearchTarget?.blockId === currentBlockId &&
-                            (activeSearchTarget.subBlockId === subBlock.id ||
-                              activeSearchTarget.canonicalSubBlockId ===
-                                (subBlock.canonicalParamId ?? subBlock.id))
-                          }
-                          activeSearchTarget={activeSearchTargetForCurrentBlock}
-                        />
-                        {index < advancedOnlySubBlocks.length - 1 && (
-                          <FieldDivider subblockMarker />
+                      <div className='relative h-[160px] overflow-hidden rounded-sm border border-[var(--border)]'>
+                        {isLoadingChildWorkflow ? (
+                          <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                            <Loader className='size-5 text-[var(--text-tertiary)]' animate />
+                          </div>
+                        ) : childWorkflowState ? (
+                          <>
+                            <div className='[&_*:active]:!cursor-grabbing [&_*]:!cursor-grab [&_.react-flow__handle]:!hidden h-full w-full'>
+                              <PreviewWorkflow
+                                workflowState={childWorkflowState}
+                                height={160}
+                                width='100%'
+                                isPannable={true}
+                                defaultZoom={0.6}
+                                fitPadding={0.15}
+                                cursorStyle='grab'
+                                lightweight
+                              />
+                            </div>
+                            <Tooltip.Root>
+                              <Tooltip.Trigger asChild>
+                                <Button
+                                  type='button'
+                                  variant='ghost'
+                                  onClick={handleOpenChildWorkflow}
+                                  className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
+                                >
+                                  <ExternalLink className='size-[12px]' />
+                                </Button>
+                              </Tooltip.Trigger>
+                              <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
+                            </Tooltip.Root>
+                          </>
+                        ) : (
+                          <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
+                            <span className='text-[var(--text-tertiary)] text-small'>
+                              Unable to load preview
+                            </span>
+                          </div>
                         )}
                       </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+                    </div>
+                    <FieldDivider subblockMarker />
+                  </>
+                )}
+                {subBlocks.length === 0 && !isWorkflowBlock ? (
+                  <div className='flex h-full items-center justify-center text-center text-[var(--text-placeholder)] text-small'>
+                    This block has no subblocks
+                  </div>
+                ) : (
+                  <div className='flex flex-col'>
+                    {regularSubBlocks.map((subBlock, index) => {
+                      const stableKey = getSubBlockStableKey(
+                        currentBlockId || '',
+                        subBlock,
+                        subBlockState
+                      )
+                      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+                      const canonicalGroup = canonicalId
+                        ? canonicalIndex.groupsById[canonicalId]
+                        : undefined
+                      const isCanonicalSwap = isCanonicalPair(canonicalGroup)
+                      const canonicalMode =
+                        canonicalGroup && isCanonicalSwap
+                          ? resolveCanonicalMode(
+                              canonicalGroup,
+                              blockSubBlockValues,
+                              canonicalModeOverrides
+                            )
+                          : undefined
 
-          {/* Connections Section - Only show when there are connections */}
-          {hasIncomingConnections && (
-            <div
-              className={
-                'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
-                (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
-              }
-              style={{ height: `${connectionsHeight}px` }}
-            >
-              {/* Resize Handle */}
-              <div className='relative'>
-                <div
-                  role='separator'
-                  aria-orientation='horizontal'
-                  className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
-                  onMouseDown={handleConnectionsResizeMouseDown}
-                />
+                      const showDivider =
+                        index < regularSubBlocks.length - 1 ||
+                        (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
+
+                      return (
+                        <div key={stableKey} className='subblock-row'>
+                          <SubBlock
+                            blockId={currentBlockId}
+                            config={subBlock}
+                            isPreview={false}
+                            subBlockValues={subBlockState}
+                            disabled={!canEditBlock}
+                            allowExpandInPreview={false}
+                            isSearchHighlighted={
+                              activeSearchTarget?.blockId === currentBlockId &&
+                              (activeSearchTarget.subBlockId === subBlock.id ||
+                                activeSearchTarget.canonicalSubBlockId ===
+                                  (subBlock.canonicalParamId ?? subBlock.id))
+                            }
+                            canonicalToggle={
+                              isCanonicalSwap && canonicalMode && canonicalId
+                                ? {
+                                    mode: canonicalMode,
+                                    disabled: !canEditBlock,
+                                    onToggle: () => {
+                                      if (!currentBlockId) return
+                                      const nextMode =
+                                        canonicalMode === 'advanced' ? 'basic' : 'advanced'
+                                      collaborativeSetBlockCanonicalMode(
+                                        currentBlockId,
+                                        canonicalId,
+                                        nextMode
+                                      )
+                                    },
+                                  }
+                                : undefined
+                            }
+                          />
+                          {showDivider && <FieldDivider subblockMarker />}
+                        </div>
+                      )
+                    })}
+
+                    {hasAdvancedOnlyFields && canEditBlock && (
+                      <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
+                        <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                        <button
+                          type='button'
+                          onClick={handleToggleAdvancedMode}
+                          className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                        >
+                          {displayAdvancedOptions
+                            ? 'Hide additional fields'
+                            : 'Show additional fields'}
+                          <ChevronDown
+                            className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                        <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                      </div>
+                    )}
+                    {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                      <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
+                        <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                        <span className='whitespace-nowrap font-medium text-[var(--text-secondary)] text-small'>
+                          Additional fields
+                        </span>
+                        <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                      </div>
+                    )}
+
+                    {advancedOnlySubBlocks.map((subBlock, index) => {
+                      const stableKey = getSubBlockStableKey(
+                        currentBlockId || '',
+                        subBlock,
+                        subBlockState
+                      )
+
+                      return (
+                        <div key={stableKey} className='subblock-row'>
+                          <SubBlock
+                            blockId={currentBlockId}
+                            config={subBlock}
+                            isPreview={false}
+                            subBlockValues={subBlockState}
+                            disabled={!canEditBlock}
+                            allowExpandInPreview={false}
+                            isSearchHighlighted={
+                              activeSearchTarget?.blockId === currentBlockId &&
+                              (activeSearchTarget.subBlockId === subBlock.id ||
+                                activeSearchTarget.canonicalSubBlockId ===
+                                  (subBlock.canonicalParamId ?? subBlock.id))
+                            }
+                          />
+                          {index < advancedOnlySubBlocks.length - 1 && (
+                            <FieldDivider subblockMarker />
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
+            </div>
 
-              {/* Connections Header with Chevron */}
+            {/* Connections Section - Only show when there are connections */}
+            {hasIncomingConnections && (
               <div
-                className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
-                onClick={toggleConnectionsCollapsed}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    toggleConnectionsCollapsed()
-                  }
-                }}
-                role='button'
-                tabIndex={0}
-                aria-label={
-                  isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'
+                className={
+                  'connections-section flex flex-shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+                  (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
                 }
+                style={{ height: `${connectionsHeight}px` }}
               >
-                <ChevronUp
-                  className={
-                    'size-[14px] transition-transform' +
-                    (!isConnectionsAtMinHeight ? ' rotate-180' : '')
-                  }
-                />
-                <div className='font-medium text-[var(--text-primary)] text-small'>Connections</div>
-              </div>
+                {/* Resize Handle */}
+                <div className='relative'>
+                  <div
+                    role='separator'
+                    aria-orientation='horizontal'
+                    className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
+                    onMouseDown={handleConnectionsResizeMouseDown}
+                  />
+                </div>
 
-              {/* Connections Content - Always visible */}
-              <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
-                <ConnectionBlocks
-                  connections={incomingConnections}
-                  currentBlockId={currentBlock.id}
-                />
+                {/* Connections Header with Chevron */}
+                <div
+                  className='flex flex-shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+                  onClick={toggleConnectionsCollapsed}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      toggleConnectionsCollapsed()
+                    }
+                  }}
+                  role='button'
+                  tabIndex={0}
+                  aria-label={
+                    isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'
+                  }
+                >
+                  <ChevronUp
+                    className={
+                      'size-[14px] transition-transform' +
+                      (!isConnectionsAtMinHeight ? ' rotate-180' : '')
+                    }
+                  />
+                  <div className='font-medium text-[var(--text-primary)] text-small'>
+                    Connections
+                  </div>
+                </div>
+
+                {/* Connections Content - Always visible */}
+                <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
+                  <ConnectionBlocks
+                    connections={incomingConnections}
+                    currentBlockId={currentBlock.id}
+                  />
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+            )}
+          </div>
+        )}
+      </div>
+    </ActiveSearchTargetProvider>
   )
 }

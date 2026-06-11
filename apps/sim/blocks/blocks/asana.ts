@@ -10,7 +10,7 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
   description: 'Interact with Asana',
   authMode: AuthMode.OAuth,
   longDescription: 'Integrate Asana into the workflow. Can read, write, and update tasks.',
-  docsLink: 'https://docs.sim.ai/tools/asana',
+  docsLink: 'https://docs.sim.ai/integrations/asana',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
@@ -439,6 +439,29 @@ export const AsanaBlockMeta = {
       category: 'engineering',
       tags: ['engineering', 'automation'],
       alsoIntegrations: ['github'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-task-from-request',
+      description:
+        'Turn an incoming request or message into a well-formed Asana task in the right project with assignee and due date. Use for intake and ticket creation.',
+      content:
+        '# Create Task from Request\n\nConvert an incoming request into a structured Asana task.\n\n## Steps\n1. Extract the work to be done, the relevant project, an assignee if named, and any due date.\n2. If the project is referenced by name, list projects to resolve its ID.\n3. Create the task with a clear name, a description capturing the request details, the project, assignee, and due date.\n4. Add a comment with any links or source context if helpful.\n\n## Output\nReport the created task name, its URL or ID, project, assignee, and due date.',
+    },
+    {
+      name: 'summarize-project-tasks',
+      description:
+        'Search tasks in an Asana project and summarize status, overdue items, and who owns what. Use for standups and project status checks.',
+      content:
+        '# Summarize Project Tasks\n\nProduce a status snapshot of an Asana project.\n\n## Steps\n1. Resolve the project, then search its tasks.\n2. For each task capture name, assignee, due date, and completion state.\n3. Group into completed, in progress, and overdue or due soon.\n4. Note any unassigned tasks or tasks with no due date.\n\n## Output\nA concise status summary: counts per group, overdue tasks called out by name and owner, and any gaps to address.',
+    },
+    {
+      name: 'update-task-status',
+      description:
+        'Find an Asana task and update its fields — assignee, due date, completion, or add a progress comment. Use to keep tasks current from other systems.',
+      content:
+        '# Update Task Status\n\nKeep an Asana task in sync with the latest state.\n\n## Steps\n1. Identify the target task by ID, or search to find it by name.\n2. Read the current task to confirm it is the right one.\n3. Update the relevant fields — completion, assignee, or due date.\n4. Add a comment summarizing what changed and why.\n\n## Output\nReport which fields changed and confirm the task ID. If no matching task was found, say so.',
     },
   ],
 } as const satisfies BlockMeta

@@ -20,10 +20,10 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 import type { SubBlockConfig } from '@/blocks/types'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 const MIN_TEXTAREA_HEIGHT_PX = 80
 const MAX_TEXTAREA_HEIGHT_PX = 320
@@ -70,7 +70,6 @@ interface MessagesInputProps {
   disabled?: boolean
   /** Ref to expose wand control handlers to parent */
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -89,8 +88,8 @@ export function MessagesInput({
   previewValue,
   disabled = false,
   wandControlRef,
-  activeSearchTarget,
 }: MessagesInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [messages, setMessages] = useSubBlockValue<Message[]>(blockId, subBlockId, false)
   const [localMessages, setLocalMessages] = useState<Message[]>([{ role: 'user', content: '' }])
   const messageIdsRef = useRef<string[]>([generateShortId()])

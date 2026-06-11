@@ -11,7 +11,7 @@ export const S3Block: BlockConfig<S3Response> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.',
-  docsLink: 'https://docs.sim.ai/tools/s3',
+  docsLink: 'https://docs.sim.ai/integrations/s3',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: 'linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)',
@@ -481,6 +481,32 @@ export const S3BlockMeta = {
       modules: ['files', 'tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['content', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'upload-and-share-asset',
+      description: 'Upload a generated file to an S3 bucket and return its object URL.',
+      content:
+        '# Upload And Share Asset\n\nPublish a file to S3 and hand back a usable link.\n\n## Steps\n1. Take the generated image or document as the object body.\n2. Run put_object with the bucket, key, and content type.\n3. Construct or capture the resulting object URL.\n4. Write the link back to the originating record (for example a table row).\n\n## Output\nReturn the object key and URL. Note the bucket and whether the object is publicly accessible.',
+    },
+    {
+      name: 'fetch-object-contents',
+      description: 'Download an object from S3 and pass its contents to downstream steps.',
+      content:
+        '# Fetch Object Contents\n\nRetrieve a file from S3 for processing.\n\n## Steps\n1. Identify the bucket and object key.\n2. Run get_object to download the file.\n3. Pass the contents downstream for parsing, summarizing, or transformation.\n\n## Output\nReturn the object contents (or a file reference) and confirm the source key.',
+    },
+    {
+      name: 'list-bucket-objects',
+      description: 'List objects in an S3 bucket under a prefix for inventory or cleanup.',
+      content:
+        '# List Bucket Objects\n\nEnumerate what lives under an S3 prefix.\n\n## Steps\n1. Run list_objects with the bucket and an optional prefix to scope the listing.\n2. Page through results if the listing is truncated.\n3. Filter the keys by name, date, or size as needed.\n\n## Output\nReturn the matching object keys with sizes and last-modified dates.',
+    },
+    {
+      name: 'archive-object',
+      description: 'Copy an S3 object to an archive location and delete the original.',
+      content:
+        '# Archive Object\n\nMove an object to an archive prefix or bucket.\n\n## Steps\n1. Run copy_object from the source key to the archive destination key.\n2. Verify the copy succeeded.\n3. Run delete_object on the original to complete the move.\n\n## Output\nConfirm the archived destination key and that the original was removed.',
     },
   ],
 } as const satisfies BlockMeta

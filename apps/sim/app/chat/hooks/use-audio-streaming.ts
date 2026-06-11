@@ -79,7 +79,7 @@ export function useAudioStreaming(sharedAudioContextRef?: RefObject<AudioContext
     const { text, options } = item
     const {
       voiceId,
-      modelId = 'eleven_turbo_v2_5',
+      modelId = 'eleven_flash_v2_5',
       chatId,
       onAudioStart,
       onAudioEnd,

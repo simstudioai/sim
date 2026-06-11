@@ -10,7 +10,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
@@ -39,7 +39,6 @@ interface SubflowEditorProps {
   toggleConnectionsCollapsed: () => void
   userCanEdit: boolean
   isConnectionsAtMinHeight: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -60,8 +59,8 @@ export function SubflowEditor({
   toggleConnectionsCollapsed,
   userCanEdit,
   isConnectionsAtMinHeight,
-  activeSearchTarget,
 }: SubflowEditorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const {
     subflowConfig,
     currentType,

@@ -9,7 +9,6 @@ import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -255,124 +254,110 @@ export function HelpModal({ open, onOpenChange, workflowId, workspaceId }: HelpM
       <ChipModalHeader onClose={() => onOpenChange(false)}>Help &amp; support</ChipModalHeader>
 
       <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-        <ChipModalBody className='min-h-0'>
-          <div
-            ref={scrollContainerRef}
-            className='flex max-h-[60vh] min-h-0 flex-1 flex-col gap-4 overflow-y-auto'
-          >
-            <Controller
-              name='type'
-              control={control}
-              render={({ field, fieldState }) => (
-                <ChipModalField
-                  type='dropdown'
-                  title='Request'
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={REQUEST_TYPE_OPTIONS}
-                  placeholder='Select a request type'
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-            <Controller
-              name='subject'
-              control={control}
-              render={({ field, fieldState }) => (
-                <ChipModalField
-                  type='input'
-                  title='Subject'
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder='Brief description of your request'
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-            <Controller
-              name='message'
-              control={control}
-              render={({ field, fieldState }) => (
-                <ChipModalField
-                  type='textarea'
-                  title='Message'
-                  value={field.value}
-                  onChange={field.onChange}
-                  placeholder='Please provide details about your request...'
-                  rows={6}
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-            <ChipModalField
-              type='file'
-              title='Attach images (optional)'
-              label='Drop images here or click to browse'
-              description='PNG, JPEG, WebP, GIF (max 20MB each)'
-              accept={ACCEPTED_IMAGE_TYPES.join(',')}
-              multiple
-              onChange={processFiles}
-            />
-
-            {images.length > 0 && (
-              <ChipModalField type='custom' title='Uploaded images'>
-                <div className='grid grid-cols-2 gap-3'>
-                  {images.map((image, index) => (
-                    <div
-                      className='group relative overflow-hidden rounded-sm border'
-                      key={image.preview}
-                    >
-                      <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
-                        <Image
-                          src={image.preview}
-                          alt={`Preview ${index + 1}`}
-                          fill
-                          unoptimized
-                          sizes='(max-width: 768px) 100vw, 50vw'
-                          className='object-contain'
-                        />
-                        <button
-                          type='button'
-                          className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
-                          onClick={() => removeImage(index)}
-                        >
-                          <X className='size-[18px] text-white' />
-                        </button>
-                      </div>
-                      <div className='truncate p-1.5 text-caption'>{image.name}</div>
-                    </div>
-                  ))}
-                </div>
-              </ChipModalField>
+        <button type='submit' hidden disabled={helpMutation.isPending || isProcessing} />
+        <ChipModalBody ref={scrollContainerRef} className='max-h-[60vh]'>
+          <Controller
+            name='type'
+            control={control}
+            render={({ field, fieldState }) => (
+              <ChipModalField
+                type='dropdown'
+                title='Request'
+                value={field.value}
+                onChange={field.onChange}
+                options={REQUEST_TYPE_OPTIONS}
+                placeholder='Select a request type'
+                error={fieldState.error?.message}
+              />
             )}
-          </div>
+          />
+          <Controller
+            name='subject'
+            control={control}
+            render={({ field, fieldState }) => (
+              <ChipModalField
+                type='input'
+                title='Subject'
+                value={field.value}
+                onChange={field.onChange}
+                placeholder='Brief description of your request'
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+          <Controller
+            name='message'
+            control={control}
+            render={({ field, fieldState }) => (
+              <ChipModalField
+                type='textarea'
+                title='Message'
+                value={field.value}
+                onChange={field.onChange}
+                placeholder='Please provide details about your request...'
+                rows={6}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+          <ChipModalField
+            type='file'
+            title='Attach images (optional)'
+            label='Drop images here or click to browse'
+            description='PNG, JPEG, WebP, GIF (max 20MB each)'
+            accept={ACCEPTED_IMAGE_TYPES.join(',')}
+            multiple
+            onChange={processFiles}
+          />
+
+          {images.length > 0 && (
+            <ChipModalField type='custom' title='Uploaded images'>
+              <div className='grid grid-cols-2 gap-3'>
+                {images.map((image, index) => (
+                  <div
+                    className='group relative overflow-hidden rounded-sm border'
+                    key={image.preview}
+                  >
+                    <div className='relative flex max-h-[120px] min-h-[80px] w-full items-center justify-center'>
+                      <Image
+                        src={image.preview}
+                        alt={`Preview ${index + 1}`}
+                        fill
+                        unoptimized
+                        sizes='(max-width: 768px) 100vw, 50vw'
+                        className='object-contain'
+                      />
+                      <button
+                        type='button'
+                        className='absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100'
+                        onClick={() => removeImage(index)}
+                      >
+                        <X className='size-[18px] text-white' />
+                      </button>
+                    </div>
+                    <div className='truncate p-1.5 text-caption'>{image.name}</div>
+                  </div>
+                ))}
+              </div>
+            </ChipModalField>
+          )}
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => onOpenChange(false)}
-            type='button'
-            disabled={helpMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            type='submit'
-            variant='primary'
-            flush
-            disabled={helpMutation.isPending || isProcessing}
-          >
-            {helpMutation.isPending
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={helpMutation.isPending}
+          primaryAction={{
+            label: helpMutation.isPending
               ? 'Submitting...'
               : submitStatus === 'error'
                 ? 'Error'
                 : submitStatus === 'success'
                   ? 'Success'
-                  : 'Submit'}
-          </Chip>
-        </ChipModalFooter>
+                  : 'Submit',
+            onClick: () => void handleSubmit(onSubmit)(),
+            disabled: helpMutation.isPending || isProcessing,
+          }}
+        />
       </form>
     </ChipModal>
   )

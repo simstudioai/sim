@@ -13,7 +13,7 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
   icon: ZepIcon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/tools/zep',
+  docsLink: 'https://docs.sim.ai/integrations/zep',
   subBlocks: [
     {
       id: 'operation',
@@ -369,6 +369,29 @@ export const ZepBlockMeta = {
       category: 'productivity',
       tags: ['team', 'communication', 'automation'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'persist-conversation-turn',
+      description:
+        'Record the latest user and agent messages into a Zep thread so memory builds over time.',
+      content:
+        '# Persist a Conversation Turn in Zep\n\nSave each exchange so the agent remembers it later.\n\n## Steps\n1. Ensure a user exists for the person, adding the user if this is their first interaction.\n2. Ensure a thread exists for this conversation, creating one if needed and tying it to the user.\n3. Add the latest messages to the thread, tagging roles as user or assistant.\n4. Confirm the messages were stored.\n\n## Output\nReturn the thread ID and user ID used, and confirm how many messages were added. These IDs are reused on the next turn.',
+    },
+    {
+      name: 'recall-user-context',
+      description:
+        'Fetch the assembled memory context for a Zep thread to ground the next agent response.',
+      content:
+        '# Recall User Context from Zep\n\nPull relevant long-term memory before the agent replies.\n\n## Steps\n1. Identify the thread for the current conversation, and the user behind it.\n2. Call get-context for the thread, choosing summary mode for natural language or basic mode for raw facts.\n3. Use the returned context block to inform the next response, since it spans all of this user prior threads.\n\n## Output\nReturn the context block as relevant facts and history about the user. Note the thread and user it was drawn from, and feed it into the agent prompt rather than echoing it to the user.',
+    },
+    {
+      name: 'review-user-memory',
+      description:
+        'List a user threads and messages in Zep to inspect what the agent remembers about them.',
+      content:
+        '# Review What Zep Remembers\n\nInspect the stored memory for a user.\n\n## Steps\n1. Get the user to confirm they exist and read their profile.\n2. Get the user threads to see every conversation tied to them.\n3. Get messages from a thread of interest to read the stored history.\n\n## Output\nReturn a summary of the user threads with counts and key facts surfaced, plus the messages from any thread inspected. Cite the user ID and thread IDs.',
     },
   ],
 } as const satisfies BlockMeta

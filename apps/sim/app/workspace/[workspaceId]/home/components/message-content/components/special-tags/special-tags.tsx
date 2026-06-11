@@ -9,6 +9,7 @@ import {
   ExpandableContent,
   SecretReveal,
 } from '@/components/emcn'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { cn } from '@/lib/core/utils/cn'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
@@ -77,7 +78,8 @@ export type WorkspaceResourceTagType = (typeof WORKSPACE_RESOURCE_TAG_TYPES)[num
 
 export interface WorkspaceResourceTagData {
   type: WorkspaceResourceTagType
-  id: string
+  id?: string
+  path?: string
   title?: string
 }
 
@@ -169,12 +171,20 @@ function isMothershipErrorTagData(value: unknown): value is MothershipErrorTagDa
 
 function isWorkspaceResourceTagData(value: unknown): value is WorkspaceResourceTagData {
   if (!isRecord(value)) return false
-  return (
-    typeof value.type === 'string' &&
-    (WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type) &&
-    typeof value.id === 'string' &&
-    value.id.trim().length > 0
-  )
+  if (
+    typeof value.type !== 'string' ||
+    !(WORKSPACE_RESOURCE_TAG_TYPES as readonly string[]).includes(value.type)
+  ) {
+    return false
+  }
+  if (value.title !== undefined && typeof value.title !== 'string') return false
+  if (value.path !== undefined && typeof value.path !== 'string') return false
+  if (value.id !== undefined && typeof value.id !== 'string') return false
+
+  const id = typeof value.id === 'string' ? value.id.trim() : ''
+  const path = typeof value.path === 'string' ? value.path.trim() : ''
+  if (value.type === 'file') return id.length > 0 || path.length > 0
+  return id.length > 0
 }
 
 export function parseJsonTagBody<T>(
@@ -491,11 +501,11 @@ function toMothershipResourceType(type: WorkspaceResourceTagType): MothershipRes
 function toChatMessageContext(data: WorkspaceResourceTagData, label: string): ChatMessageContext {
   switch (data.type) {
     case 'workflow':
-      return { kind: 'workflow', label, workflowId: data.id }
+      return { kind: 'workflow', label, workflowId: data.id ?? '' }
     case 'table':
-      return { kind: 'table', label, tableId: data.id }
+      return { kind: 'table', label, tableId: data.id ?? '' }
     case 'file':
-      return { kind: 'file', label, fileId: data.id }
+      return { kind: 'file', label, fileId: data.id ?? data.path ?? '' }
   }
 }
 
@@ -513,6 +523,14 @@ export function WorkspaceResourceDisplay({
   const { data: knowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
 
   const resource = useMemo<MothershipResource>(() => {
+    const fileFromPath =
+      data.type === 'file' && data.path
+        ? files.find(
+            (file) =>
+              canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name }) ===
+              data.path
+          )
+        : undefined
     const title =
       data.type === 'workflow'
         ? (workflows.find((workflow) => workflow.id === data.id)?.name ??
@@ -522,16 +540,19 @@ export function WorkspaceResourceDisplay({
             fallbackWorkspaceResourceTitle(data.type))
           : data.type === 'file'
             ? (files.find((file) => file.id === data.id)?.name ??
+              fileFromPath?.name ??
+              data.title ??
               fallbackWorkspaceResourceTitle(data.type))
             : (knowledgeBases.find((knowledgeBase) => knowledgeBase.id === data.id)?.name ??
               fallbackWorkspaceResourceTitle(data.type))
 
     return {
       type: toMothershipResourceType(data.type),
-      id: data.id,
+      id: data.id ?? fileFromPath?.id ?? data.path ?? '',
       title,
+      ...(data.type === 'file' && data.path ? { path: data.path } : {}),
     }
-  }, [data.id, data.type, files, knowledgeBases, tables, workflows])
+  }, [data.id, data.path, data.title, data.type, files, knowledgeBases, tables, workflows])
 
   const context = toChatMessageContext(data, resource.title)
 

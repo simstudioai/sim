@@ -15,7 +15,7 @@ export const FirefliesBlock: BlockConfig<FirefliesResponse> = {
   triggerAllowed: true,
   longDescription:
     'Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.',
-  docsLink: 'https://docs.sim.ai/tools/fireflies',
+  docsLink: 'https://docs.sim.ai/integrations/fireflies',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   icon: FirefliesIcon,
@@ -172,6 +172,18 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Max 50 (default: 50)',
+      required: false,
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['fireflies_list_transcripts', 'fireflies_list_bites'],
+      },
+    },
+    {
+      id: 'skip',
+      title: 'Skip',
+      type: 'short-input',
+      placeholder: 'Number of results to skip (default: 0)',
       required: false,
       mode: 'advanced',
       condition: {
@@ -381,6 +393,21 @@ Return ONLY the valid JSON array - no explanations, no markdown code blocks.`,
       },
     },
     {
+      id: 'mediaType',
+      title: 'Media Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Video', id: 'video' },
+        { label: 'Audio', id: 'audio' },
+      ],
+      required: false,
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'fireflies_create_bite',
+      },
+    },
+    {
       id: 'biteName',
       title: 'Bite Name',
       type: 'short-input',
@@ -453,6 +480,7 @@ Return ONLY the summary text - no quotes, no labels.`,
               hostEmail: params.hostEmail || undefined,
               participants: params.participants || undefined,
               limit: params.limit ? Number(params.limit) : undefined,
+              skip: params.skip ? Number(params.skip) : undefined,
             }
 
           case 'fireflies_get_transcript':
@@ -528,6 +556,7 @@ Return ONLY the summary text - no quotes, no labels.`,
               startTime: Number(params.startTime),
               endTime: Number(params.endTime),
               name: params.biteName?.trim() || undefined,
+              mediaType: params.mediaType?.trim() || undefined,
               summary: params.biteSummary?.trim() || undefined,
             }
 
@@ -537,6 +566,7 @@ Return ONLY the summary text - no quotes, no labels.`,
               transcriptId: params.transcriptId?.trim() || undefined,
               mine: true,
               limit: params.limit ? Number(params.limit) : undefined,
+              skip: params.skip ? Number(params.skip) : undefined,
             }
 
           case 'fireflies_list_contacts':
@@ -559,6 +589,7 @@ Return ONLY the summary text - no quotes, no labels.`,
     hostEmail: { type: 'string', description: 'Filter by host email' },
     participants: { type: 'string', description: 'Filter by participants (comma-separated)' },
     limit: { type: 'number', description: 'Maximum results to return' },
+    skip: { type: 'number', description: 'Number of results to skip for pagination' },
     audioFile: { type: 'json', description: 'Audio/video file (canonical param)' },
     audioUrl: { type: 'string', description: 'Public URL to audio file' },
     title: { type: 'string', description: 'Meeting title' },
@@ -570,6 +601,7 @@ Return ONLY the summary text - no quotes, no labels.`,
     duration: { type: 'number', description: 'Meeting duration in minutes (15-120)' },
     startTime: { type: 'number', description: 'Bite start time in seconds' },
     endTime: { type: 'number', description: 'Bite end time in seconds' },
+    mediaType: { type: 'string', description: 'Bite media type (video or audio)' },
     biteName: { type: 'string', description: 'Name for the bite/highlight' },
     biteSummary: { type: 'string', description: 'Summary for the bite' },
   },
@@ -730,6 +762,29 @@ export const FirefliesBlockMeta = {
       category: 'sales',
       tags: ['sales', 'research'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'summarize-meeting-transcript',
+      description:
+        'Fetch a Fireflies transcript and produce a structured recap with decisions, action items, and owners.',
+      content:
+        '# Summarize Meeting Transcript\n\nUse Fireflies to turn a recorded meeting into a clean recap.\n\n## Steps\n1. Get the transcript for the given transcript ID (or pick the latest from List Transcripts).\n2. Read the sentences and any provided summary to identify the main topics discussed.\n3. Extract key decisions, action items with owners, and notable questions or risks.\n\n## Output\nReturn a structured recap: a short overview, a bulleted list of decisions, and an action-item table (task, owner, due date). Keep it grounded in the transcript content.',
+    },
+    {
+      name: 'extract-action-items',
+      description:
+        'Pull a Fireflies transcript and extract a clean list of action items with owners and due dates.',
+      content:
+        '# Extract Action Items\n\nUse Fireflies to capture follow-ups from a meeting.\n\n## Steps\n1. Get the transcript for the meeting by its transcript ID.\n2. Scan the sentences for commitments, assignments, and next steps.\n3. Attribute each item to the speaker who owns it and capture any stated deadline.\n\n## Output\nReturn a list of action items, each with the task, owner, and due date (or null). Add a one-line meeting summary at the top for context.',
+    },
+    {
+      name: 'create-meeting-soundbite',
+      description:
+        'Create a Fireflies soundbite (bite) clipping a key moment from a transcript for sharing.',
+      content:
+        '# Create Meeting Soundbite\n\nUse Fireflies to clip and share a highlight from a recorded meeting.\n\n## Steps\n1. Get the transcript and find the start and end timestamps of the moment to clip.\n2. Use Create Bite with the transcript ID and the chosen time range.\n3. Confirm the bite was created and capture its identifier or link.\n\n## Output\nReturn the soundbite identifier or shareable link plus a short caption describing the clipped moment.',
     },
   ],
 } as const satisfies BlockMeta

@@ -4,6 +4,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { workspaceFileCompiledCheckContract } from '@/lib/api/contracts/workspace-files'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
+import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
+import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
@@ -51,11 +54,15 @@ export const GET = withRouteHandler(
     }
 
     const ext = fileRecord.name.split('.').pop()?.toLowerCase() ?? ''
+    // In the E2B regime ALL four formats compile in the doc sandbox (Node for
+    // pptx/docx, Python for pdf/xlsx). Gate on the flag (not the stored MIME) so
+    // a stale file can't trigger an E2B compile when the sandbox is disabled.
+    const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileRecord.name) : null
     const taskId = BINARY_DOC_TASKS[ext]
     const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
-    if (!taskId && !isMermaidFile) {
+    if (!e2bFmt && !taskId && !isMermaidFile) {
       return NextResponse.json(
-        { error: `Compiled check only supports .docx, .pptx, .pdf, and .mmd files` },
+        { error: `Compiled check only supports .docx, .pptx, .pdf, .xlsx, and .mmd files` },
         { status: 422 }
       )
     }
@@ -79,6 +86,20 @@ export const GET = withRouteHandler(
 
     if (isMermaidFile) {
       return NextResponse.json(await validateMermaidSource(code))
+    }
+
+    if (e2bFmt) {
+      // Loads the compile-once artifact if present, else compiles via E2B once
+      // (and recalc-scans xlsx formulas). Only a script error is { ok: false };
+      // infra failures rethrow → 500, so the agent isn't told to "fix its script"
+      // during an E2B/S3 outage.
+      const result = await runE2BCompiledCheck({
+        source: code,
+        fileName: fileRecord.name,
+        workspaceId,
+        ext,
+      })
+      return NextResponse.json(result)
     }
 
     try {

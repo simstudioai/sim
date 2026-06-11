@@ -10,7 +10,7 @@ export const OpenAIBlock: BlockConfig = {
   longDescription: 'Integrate Embeddings into the workflow. Can generate embeddings from text.',
   category: 'tools',
   integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/tools/openai',
+  docsLink: 'https://docs.sim.ai/integrations/openai',
   bgColor: '#000000',
   icon: OpenAIIcon,
   subBlocks: [
@@ -125,6 +125,29 @@ export const OpenAIBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['analysis', 'automation', 'vector-search'],
+    },
+  ],
+  skills: [
+    {
+      name: 'embed-text',
+      description:
+        'Generate an OpenAI embedding vector for a piece of text to use in semantic search or similarity.',
+      content:
+        '# Embed Text\n\nConvert text into an OpenAI embedding vector.\n\n## Steps\n1. Take the input text. If it is long, ensure it fits the model context; otherwise chunk it first.\n2. Choose the model — text-embedding-3-small for cost-efficient general use or text-embedding-3-large for higher accuracy. Keep the model consistent with any existing vectors it will be compared against.\n3. Generate the embedding.\n\n## Output\nReturn the embedding vector, the model used, and token usage. Note the vector dimensionality so it can be matched to the destination vector index.',
+    },
+    {
+      name: 'embed-documents-for-retrieval',
+      description:
+        'Chunk and embed a set of documents so they can be upserted into a vector store for retrieval.',
+      content:
+        '# Embed Documents for Retrieval\n\nPrepare documents for semantic retrieval by chunking and embedding them.\n\n## Steps\n1. Split each document into reasonably sized chunks with light overlap so context is preserved.\n2. Embed each chunk with a single consistent OpenAI model (e.g., text-embedding-3-small).\n3. Pair each vector with its source metadata (document ID, chunk index, title) ready for upsert into the vector store.\n\n## Output\nReturn the embeddings with their associated metadata and the model used. Report how many chunks were produced and flag any chunk that failed to embed.',
+    },
+    {
+      name: 'find-semantic-duplicates',
+      description:
+        'Embed items and compare vectors by cosine similarity to flag near-duplicate content.',
+      content:
+        '# Find Semantic Duplicates\n\nDetect items that mean the same thing even when worded differently.\n\n## Steps\n1. Embed each candidate item with the same OpenAI model used for the existing set.\n2. Compare each new vector against existing vectors using cosine similarity.\n3. Flag pairs above a similarity threshold (e.g., 0.9) as likely duplicates; treat lower scores as distinct.\n\n## Output\nReturn the flagged duplicate pairs with their similarity scores, sorted highest first, so they can be merged or deduplicated.',
     },
   ],
 } as const satisfies BlockMeta

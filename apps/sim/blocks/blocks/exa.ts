@@ -10,7 +10,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
-  docsLink: 'https://docs.sim.ai/tools/exa',
+  docsLink: 'https://docs.sim.ai/integrations/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#1F40ED',
@@ -512,6 +512,33 @@ export const ExaBlockMeta = {
       category: 'marketing',
       tags: ['marketing', 'research', 'monitoring'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'search-the-web-with-exa',
+      description:
+        'Run an Exa neural or keyword search to find high-quality web sources on a topic.',
+      content:
+        '# Search the Web with Exa\n\nFind authoritative web pages on a topic using Exa AI search.\n\n## Steps\n1. Use the Search operation with a clear query. Pick the search type — neural for meaning-based discovery, keyword for exact terms, or auto to let Exa decide.\n2. Narrow results with include/exclude domains, a category filter (research paper, news article, company, GitHub), and published-date bounds for recency.\n3. Enable include-text or include-summary so each result comes back with usable content rather than just a link.\n\n## Output\nReturn the top results with title, URL, published date, and the text or summary. Note which filters were applied so the search can be tightened or broadened.',
+    },
+    {
+      name: 'answer-question-with-citations',
+      description: 'Use Exa Answer to get a direct, sourced answer to a factual question.',
+      content:
+        '# Answer Question with Citations\n\nGet a grounded answer to a question with supporting sources via Exa.\n\n## Steps\n1. Use the Answer operation and pass the question in natural language.\n2. Enable include-text when you want the supporting passages, not just the citation URLs.\n3. Review the citations to confirm the answer is well-supported before relying on it.\n\n## Output\nReturn the answer text plus its citations (titles and URLs). If the citations are weak or conflicting, say so and recommend a follow-up search.',
+    },
+    {
+      name: 'extract-page-contents',
+      description: 'Use Exa Get Contents to pull clean text and summaries from a set of URLs.',
+      content:
+        '# Extract Page Contents\n\nRetrieve readable content from specific web pages using Exa.\n\n## Steps\n1. Use the Get Contents operation with the target URLs (comma-separated).\n2. Enable include-text for full content, and supply a summary query to get a focused summary tailored to what you need.\n3. To pull deeper context from a site, set a subpage count and target keywords (e.g., docs, pricing, about).\n\n## Output\nReturn each URL with its extracted text or summary and any highlights. Flag any URL that could not be crawled.',
+    },
+    {
+      name: 'find-similar-pages',
+      description: 'Use Exa Find Similar Links to discover pages related to a known URL.',
+      content:
+        '# Find Similar Pages\n\nDiscover sources similar to a reference page using Exa.\n\n## Steps\n1. Use the Find Similar Links operation with the source URL.\n2. Set the number of results and enable exclude-source-domain so you get genuinely new sources, not more pages from the same site.\n3. Apply a category filter or include/exclude domains to keep the discovery on-target, and enable include-text or include-summary for context.\n\n## Output\nReturn the similar pages with title, URL, and a snippet or summary, ordered by relevance. Note the filters used.',
     },
   ],
 } as const satisfies BlockMeta

@@ -16,7 +16,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   hideFromToolbar: true,
   longDescription:
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -354,7 +354,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   hideFromToolbar: false,
   longDescription:
     'Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -745,6 +745,35 @@ export const MicrosoftExcelBlockMeta = {
       category: 'operations',
       tags: ['reporting', 'enterprise'],
       alsoIntegrations: ['microsoft_teams'],
+    },
+  ],
+  skills: [
+    {
+      name: 'read-sheet-range',
+      description: 'Read data from a Microsoft Excel worksheet range and return the rows.',
+      content:
+        '# Read Sheet Range\n\nPull data out of an Excel workbook for analysis or downstream steps.\n\n## Steps\n1. Identify the workbook and the worksheet and range to read.\n2. Use Read Data with the spreadsheet ID and range.\n3. Parse the returned rows into a structured form for the next step.\n\n## Output\nThe values from the range as rows, plus the sheet and range they came from.',
+    },
+    {
+      name: 'write-sheet-data',
+      description:
+        'Write or update values in a Microsoft Excel worksheet range, with formula parsing control.',
+      content:
+        '# Write Sheet Data\n\nUpdate cells in an Excel workbook.\n\n## Steps\n1. Identify the workbook, worksheet, and target range.\n2. Prepare the values as rows matching the range shape.\n3. Use Write/Update Data, choosing User Entered to parse formulas or Raw to write values literally.\n\n## Output\nConfirmation of the cells updated and the range that was written.',
+    },
+    {
+      name: 'append-table-row',
+      description:
+        'Append a new row to a Microsoft Excel table so it stays structured and formatted.',
+      content:
+        '# Append Table Row\n\nAdd a record to an existing Excel table.\n\n## Steps\n1. Identify the workbook and the table to append to.\n2. Build the row values in the table column order.\n3. Use Add to Table to append the row so table formatting and references update automatically.\n\n## Output\nConfirmation the row was appended and the table it was added to.',
+    },
+    {
+      name: 'add-worksheet',
+      description:
+        'Add a new worksheet to a Microsoft Excel workbook to hold a new dataset or report.',
+      content:
+        '# Add Worksheet\n\nCreate a fresh worksheet inside a workbook.\n\n## Steps\n1. Identify the workbook to add the sheet to.\n2. Choose a name for the new worksheet.\n3. Use Add Worksheet to create it, then write headers or data with Write/Update Data if needed.\n\n## Output\nThe new worksheet name and confirmation it was created in the workbook.',
     },
   ],
 } as const satisfies BlockMeta

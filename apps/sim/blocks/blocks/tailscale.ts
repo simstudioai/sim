@@ -8,7 +8,7 @@ export const TailscaleBlock: BlockConfig = {
   description: 'Manage devices and network settings in your Tailscale tailnet',
   longDescription:
     'Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.',
-  docsLink: 'https://docs.sim.ai/tools/tailscale',
+  docsLink: 'https://docs.sim.ai/integrations/tailscale',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#2E2D2D',
@@ -409,6 +409,28 @@ export const TailscaleBlockMeta = {
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
+    },
+  ],
+  skills: [
+    {
+      name: 'audit-tailnet-devices',
+      description:
+        'List every device in the tailnet and flag stale, unauthorized, or update-pending nodes.',
+      content:
+        '# Audit Tailnet Devices\n\nProduce a clean inventory of the devices on your tailnet and surface the ones that need attention.\n\n## Steps\n1. Use the List Devices operation with your API key and tailnet (use "-" for the default tailnet).\n2. For each device review lastSeen, authorized, updateAvailable, and the assigned tags.\n3. Flag nodes not seen in 30+ days, devices still pending authorization, and any with an update available.\n4. Use Get Device with a deviceId to pull full detail on anything suspicious.\n\n## Output\nReturn a table of devices with hostname, user, OS, last seen, and authorization status, plus a short list of nodes that need review.',
+    },
+    {
+      name: 'provision-auth-key',
+      description:
+        'Create a scoped Tailscale auth key with the right tags, reusability, and expiry for onboarding.',
+      content:
+        '# Provision a Tailscale Auth Key\n\nGenerate an auth key so a new device or user can join the tailnet with the correct access.\n\n## Steps\n1. Use the Create Auth Key operation with your API key and tailnet.\n2. Set Tags (for example tag:server,tag:production) so devices joining with the key get the intended ACL access.\n3. Choose Reusable, Ephemeral, and Preauthorized values to match the use case (ephemeral for short-lived CI nodes).\n4. Set an Expiry in seconds (for example 7776000 for 90 days) and a clear Description.\n\n## Output\nReturn the generated key value once (it is only shown at creation), the key ID, its tags, and the expiry timestamp.',
+    },
+    {
+      name: 'offboard-device',
+      description: 'Deauthorize or remove a departing user device and revoke its auth keys.',
+      content:
+        '# Offboard a Tailscale Device\n\nRemove a device from the tailnet during offboarding so access is cut cleanly.\n\n## Steps\n1. Use List Devices to find the deviceId tied to the departing user.\n2. To immediately cut access use Authorize Device set to Deauthorize, or Delete Device to remove it entirely.\n3. Use List Auth Keys to find any keys the user created, then Delete Auth Key for each.\n4. Capture the device detail with Get Device before deletion if you need an audit record.\n\n## Output\nConfirm the device was deauthorized or deleted and list the revoked auth keys for the offboarding audit log.',
     },
   ],
 } as const satisfies BlockMeta

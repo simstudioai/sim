@@ -17,7 +17,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   hideFromToolbar: true,
   longDescription:
     'Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.',
-  docsLink: 'https://docs.sim.ai/tools/sharepoint',
+  docsLink: 'https://docs.sim.ai/integrations/sharepoint',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -1122,6 +1122,33 @@ export const SharepointBlockMeta = {
       category: 'operations',
       tags: ['enterprise', 'sync'],
       alsoIntegrations: ['confluence'],
+    },
+  ],
+  skills: [
+    {
+      name: 'publish-site-page',
+      description: 'Create a new SharePoint page on a site with a title and content body.',
+      content:
+        '# Publish Site Page\n\nCreate a new page on a SharePoint site, for example an announcement or knowledge article.\n\n## Steps\n1. Run List Sites to find the target site and note its identifier.\n2. Run Create Page on that site with a clear title and the page content body.\n3. Optionally run Read Page afterward to confirm the page was created as intended.\n\n## Output\nReturn the created page title and its URL or identifier so the page can be shared.',
+    },
+    {
+      name: 'append-list-items',
+      description:
+        'Add rows to a SharePoint list, creating the list first if it does not yet exist.',
+      content:
+        '# Append List Items\n\nWrite structured rows into a SharePoint list.\n\n## Steps\n1. Run List Sites to locate the site, then Read List to confirm the target list and its column schema.\n2. If the list does not exist, run Create List with the needed columns.\n3. Run Add List Items with the field values mapped to the list columns.\n\n## Output\nReturn the list name and the number of items added, and confirm the field values matched the list schema.',
+    },
+    {
+      name: 'read-list-data',
+      description: 'Read items from a SharePoint list and summarize the rows for downstream use.',
+      content:
+        '# Read List Data\n\nPull the contents of a SharePoint list into the workflow.\n\n## Steps\n1. Run List Sites to find the site, then Read List against the target list.\n2. Inspect the returned items and their column values.\n3. Filter or summarize the rows as needed for the task.\n\n## Output\nReturn the list items with their relevant column values and a count of rows read.',
+    },
+    {
+      name: 'upload-file-to-site',
+      description: 'Upload a file to a SharePoint site document library from a previous block.',
+      content:
+        '# Upload File to Site\n\nStore a file in a SharePoint document library.\n\n## Steps\n1. Run List Sites to identify the destination site.\n2. Provide the file from a previous block and run Upload File to the target site library.\n3. Confirm the upload completed.\n\n## Output\nReturn the uploaded file name and its location on the SharePoint site.',
     },
   ],
 } as const satisfies BlockMeta

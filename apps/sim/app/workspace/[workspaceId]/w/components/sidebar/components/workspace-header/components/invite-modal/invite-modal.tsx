@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalField,
@@ -159,6 +158,7 @@ export function InviteModal({
           onChange={handleEmailsChange}
           validate={validateEmail}
           error={errorMessage}
+          hint={fieldHint}
           placeholder={
             !canInviteMembers
               ? inviteDisabledReason || 'Only administrators can invite new teammates'
@@ -166,9 +166,6 @@ export function InviteModal({
           }
           disabled={isSubmitting || !canInviteMembers}
         />
-        {fieldHint && (
-          <p className='-mt-1 px-2 text-[var(--text-muted)] text-caption'>{fieldHint}</p>
-        )}
         <ChipModalField
           type='dropdown'
           title='Invite as'
@@ -179,11 +176,15 @@ export function InviteModal({
           onChange={(role) => setInviteRole(role as PermissionType)}
         />
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='primary' onClick={handleSendInvites} disabled={isSendDisabled}>
-          {isSubmitting ? 'Sending...' : 'Send invites'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleOpenChange(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Sending...' : 'Send invites',
+          onClick: handleSendInvites,
+          disabled: isSendDisabled,
+        }}
+      />
     </ChipModal>
   )
 }

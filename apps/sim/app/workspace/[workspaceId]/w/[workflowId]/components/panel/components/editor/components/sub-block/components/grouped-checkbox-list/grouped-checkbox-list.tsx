@@ -1,13 +1,20 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Checkbox, ChipModal, ChipModalBody, ChipModalHeader } from '@/components/emcn'
+import {
+  Button,
+  Checkbox,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalHeader,
+} from '@/components/emcn'
 import { Settings2 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface SelectedCountDisplayProps {
   noneSelected: boolean
@@ -42,7 +49,6 @@ interface GroupedCheckboxListProps {
   subBlockValues: Record<string, any>
   disabled?: boolean
   maxHeight?: number
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function GroupedCheckboxList({
@@ -54,8 +60,8 @@ export function GroupedCheckboxList({
   subBlockValues,
   disabled = false,
   maxHeight = 400,
-  activeSearchTarget,
 }: GroupedCheckboxListProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const optionRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -138,61 +144,49 @@ export function GroupedCheckboxList({
           count={selectedValues.length}
         />
       </Button>
-      <ChipModal
-        open={open}
-        onOpenChange={setOpen}
-        srTitle='Select PII Types to Detect'
-        size='lg'
-        className='flex max-h-[80vh] flex-col'
-      >
+      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
         <ChipModalHeader onClose={() => setOpen(false)}>Select PII Types to Detect</ChipModalHeader>
-        <ChipModalBody className='min-h-0 flex-1 px-4' onWheel={(e) => e.stopPropagation()}>
-          <p className='text-[var(--text-muted)] text-sm'>
-            Choose which types of personally identifiable information to detect and block.
-          </p>
-
-          {/* Header with Select All and Clear */}
-          <div className='flex items-center justify-between border-b pb-3'>
-            <div className='flex items-center gap-2'>
-              <Checkbox
-                id='select-all'
-                checked={allSelected}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    handleSelectAll()
-                  } else {
-                    handleClear()
-                  }
-                }}
-                disabled={disabled}
-              />
-              <label
-                htmlFor='select-all'
-                className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-              >
-                Select all entities
-              </label>
-            </div>
-            <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
-              <span className='flex items-center gap-1'>
-                Clear{!noneSelected && <span>({selectedValues.length})</span>}
-              </span>
-            </Button>
-          </div>
-
-          {/* Scrollable grouped checkboxes */}
-          <div
-            className='flex-1 overflow-y-auto pr-4'
-            onWheel={(e) => e.stopPropagation()}
-            style={{ maxHeight: '60vh' }}
+        <ChipModalBody onWheel={(e) => e.stopPropagation()}>
+          <ChipModalField
+            type='custom'
+            title='PII types'
+            hint='Choose which types of personally identifiable information to detect and block.'
           >
-            <div className='space-y-6'>
+            <div className='flex items-center justify-between border-[var(--border)] border-b pb-3'>
+              <div className='flex items-center gap-2'>
+                <Checkbox
+                  id='select-all'
+                  checked={allSelected}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      handleSelectAll()
+                    } else {
+                      handleClear()
+                    }
+                  }}
+                  disabled={disabled}
+                />
+                <label
+                  htmlFor='select-all'
+                  className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                >
+                  Select all entities
+                </label>
+              </div>
+              <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
+                <span className='flex items-center gap-1'>
+                  Clear{!noneSelected && <span>({selectedValues.length})</span>}
+                </span>
+              </Button>
+            </div>
+
+            <div className='flex flex-col gap-6'>
               {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                 <div key={groupName}>
                   <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
                     {groupName}
                   </h3>
-                  <div className='space-y-3'>
+                  <div className='flex flex-col gap-3'>
                     {groupOptions.map((option) => {
                       const optionIndex = options.findIndex(
                         (candidate) => candidate.id === option.id
@@ -231,7 +225,7 @@ export function GroupedCheckboxList({
                 </div>
               ))}
             </div>
-          </div>
+          </ChipModalField>
         </ChipModalBody>
       </ChipModal>
     </>

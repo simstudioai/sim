@@ -6,11 +6,12 @@ import { toError } from '@sim/utils/errors'
 import {
   Badge,
   Button,
-  Callout,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
@@ -36,6 +37,7 @@ import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import { CADENCE_TYPES, DESTINATION_TYPES, SOURCE_TYPES } from '@/lib/data-drains/types'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { InfoNote } from '@/ee/components/info-note'
 import { DESTINATION_FORM_REGISTRY } from '@/ee/data-drains/destinations/registry'
 import {
   useCreateDataDrain,
@@ -142,10 +144,10 @@ export function DataDrainsSettings() {
 
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-          <Callout>
+          <InfoNote>
             Drains continuously export Sim data to your own storage on a schedule. Combine with Data
             Retention to satisfy long-term compliance archives.
-          </Callout>
+          </InfoNote>
 
           <ChipInput
             icon={Search}
@@ -196,7 +198,7 @@ export function DataDrainsSettings() {
               )
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "New drain" above to get started
+                Click "New Drain" above to get started
               </div>
             )}
           </div>
@@ -290,7 +292,7 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           <Badge>{DESTINATION_LABELS[drain.destinationType]}</Badge>
         </TableCell>
         <TableCell>{CADENCE_LABELS[drain.scheduleCadence]}</TableCell>
-        <TableCell className='text-[13px] text-[var(--text-muted)]' suppressHydrationWarning>
+        <TableCell className='text-[var(--text-muted)] text-small' suppressHydrationWarning>
           {drain.lastRunAt ? new Date(drain.lastRunAt).toLocaleString() : 'Never'}
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -326,38 +328,25 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
           </TableCell>
         </TableRow>
       )}
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
-      >
-        <ChipModalHeader showDivider={false}>Delete Drain</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Drain'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
             action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteConfirm(false)}
-            disabled={deleteMutation.isPending}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleConfirmDelete}
-            disabled={deleteMutation.isPending}
-          >
-            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDelete,
+          pending: deleteMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }
@@ -371,15 +360,15 @@ function DrainRunsPanel({ organizationId, drainId }: DrainRunsPanelProps) {
   const { data: runs, isLoading } = useDataDrainRuns(organizationId, drainId, 10)
 
   if (isLoading) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>Loading runs...</div>
+    return <div className='text-[var(--text-muted)] text-small'>Loading runs...</div>
   }
   if (!runs || runs.length === 0) {
-    return <div className='text-[13px] text-[var(--text-muted)]'>No runs yet.</div>
+    return <div className='text-[var(--text-muted)] text-small'>No runs yet.</div>
   }
 
   return (
     <div className='flex flex-col gap-2'>
-      <div className='font-medium text-[13px] text-[var(--text-primary)]'>Recent runs</div>
+      <div className='font-medium text-[var(--text-primary)] text-small'>Recent runs</div>
       {runs.map((run) => (
         <RunRow key={run.id} run={run} />
       ))}
@@ -395,7 +384,7 @@ function RunRow({ run }: { run: DataDrainRun }) {
         ? 'text-[var(--text-error)]'
         : 'text-[var(--text-muted)]'
   return (
-    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-[12px]'>
+    <div className='flex items-start justify-between gap-4 rounded-lg border border-[var(--border)] px-3 py-2 text-caption'>
       <div className='flex flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
           <span className={cn('font-medium', statusColor)}>{run.status}</span>
@@ -431,6 +420,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
   const [destState, setDestState] = useState<unknown>(
     () => DESTINATION_FORM_REGISTRY[DESTINATION_TYPES[0]].initialState
   )
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const spec = DESTINATION_FORM_REGISTRY[destinationType]
   const canSubmit = name.trim().length > 0 && spec.isComplete(destState)
@@ -442,6 +432,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
 
   async function handleSubmit() {
     if (!canSubmit) return
+    setSubmitError(null)
     try {
       const body = {
         name: name.trim(),
@@ -455,7 +446,7 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
     } catch (error) {
       const msg = toError(error).message
       logger.error('Failed to create data drain', { error: msg })
-      toast.error(msg)
+      setSubmitError(msg)
     }
   }
 
@@ -497,23 +488,20 @@ function CreateDrainModal({ organizationId, onClose }: CreateDrainModalProps) {
           />
         </ChipModalField>
 
-        <section className='flex flex-col gap-3 px-2'>
+        <section className='flex flex-col gap-4 px-2'>
           <spec.FormFields state={destState} setState={setDestState} />
         </section>
+        <ChipModalError>{submitError}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onClose} disabled={createMutation.isPending}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSubmit}
-          disabled={!canSubmit || createMutation.isPending}
-        >
-          {createMutation.isPending ? 'Creating...' : 'Create drain'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={onClose}
+        cancelDisabled={createMutation.isPending}
+        primaryAction={{
+          label: createMutation.isPending ? 'Creating...' : 'Create drain',
+          onClick: handleSubmit,
+          disabled: !canSubmit || createMutation.isPending,
+        }}
+      />
     </ChipModal>
   )
 }

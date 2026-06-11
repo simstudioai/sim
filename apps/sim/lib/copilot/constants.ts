@@ -25,8 +25,6 @@ export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 
-/** POST — forward diff-accepted/rejected stats to the copilot backend. */
-export const COPILOT_STATS_API_PATH = '/api/copilot/stats'
 /** Maximum entries in the in-memory SSE tool-event dedup cache. */
 export const STREAM_BUFFER_MAX_DEDUP_ENTRIES = 1_000
 

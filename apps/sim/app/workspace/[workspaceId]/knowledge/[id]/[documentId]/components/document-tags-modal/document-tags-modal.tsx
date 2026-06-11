@@ -5,18 +5,17 @@ import { createLogger } from '@sim/logger'
 import {
   Badge,
   Button,
-  Chip,
   ChipCombobox,
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   DatePicker,
   Label,
   Trash,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
@@ -391,10 +390,8 @@ export function DocumentTagsModal({
       </ChipModalHeader>
 
       <ChipModalBody>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
+        <ChipModalField type='custom' title='Tags'>
           <div className='space-y-2'>
-            <Label>Tags</Label>
-
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
                 <div
@@ -459,7 +456,6 @@ export function DocumentTagsModal({
                           }}
                           placeholder='Enter or select tag name'
                           editable={true}
-                          className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                         />
                       ) : (
                         <ChipInput
@@ -612,7 +608,6 @@ export function DocumentTagsModal({
                       }}
                       placeholder='Enter or select tag name'
                       editable={true}
-                      className={cn(tagNameConflict && 'border-[var(--text-error)]')}
                     />
                   ) : (
                     <ChipInput
@@ -742,14 +737,13 @@ export function DocumentTagsModal({
               </div>
             )}
           </div>
-        </div>
+        </ChipModalField>
       </ChipModalBody>
 
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => handleClose(false)}>
-          Close
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => handleClose(false)}
+        primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+      />
     </ChipModal>
   )
 }

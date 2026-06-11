@@ -3,23 +3,16 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import {
-  Badge,
-  Chip,
-  ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Trash,
-} from '@/components/emcn'
+import { Badge, ChipCombobox, ChipConfirmModal } from '@/components/emcn'
 import {
   ChevronDown,
   ChevronUp,
   Database,
   FileText,
   Pencil,
+  Plus,
   TagIcon,
+  Trash,
 } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
@@ -27,19 +20,15 @@ import { formatTokenCount } from '@/lib/tokenization'
 import type {
   BreadcrumbItem,
   FilterTag,
-  HeaderAction,
   PaginationConfig,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-  ResourceHeader,
-} from '@/app/workspace/[workspaceId]/components'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import {
   ChunkContextMenu,
@@ -70,33 +59,20 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 interface UnsavedChangesModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onKeepEditing: () => void
   onDiscard: () => void
 }
 
-function UnsavedChangesModal({
-  open,
-  onOpenChange,
-  onKeepEditing,
-  onDiscard,
-}: UnsavedChangesModalProps) {
+function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesModalProps) {
   return (
-    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Unsaved Changes'>
-      <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
-          You have unsaved changes. Are you sure you want to discard them?
-        </p>
-      </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={onKeepEditing}>
-          Keep Editing
-        </Chip>
-        <Chip variant='destructive' flush onClick={onDiscard}>
-          Discard Changes
-        </Chip>
-      </ChipModalFooter>
-    </ChipModal>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle='Unsaved Changes'
+      title='Unsaved Changes'
+      description='You have unsaved changes. Are you sure you want to discard them?'
+      dismissLabel='Keep editing'
+      confirm={{ label: 'Discard Changes', onClick: onDiscard }}
+    />
   )
 }
 
@@ -286,7 +262,7 @@ export function Document({
   const { mutate: updateChunkMutation } = useUpdateChunk()
   const { mutate: deleteDocumentMutation, isPending: isDeletingDocument } = useDeleteDocument()
   const { mutate: bulkChunkMutation, isPending: isBulkOperating } = useBulkChunkOperation()
-  const { mutate: updateDocumentMutation } = useUpdateDocument()
+  const { mutateAsync: updateDocumentMutation } = useUpdateDocument()
 
   const docRename = useInlineRename({
     onSave: (docId, filename) =>
@@ -365,6 +341,13 @@ export function Document({
       await saveRef.current()
     }
   }, [isDirty, isCreatingNewChunk])
+
+  const handleUnsavedChangesOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setShowUnsavedChangesAlert(false)
+      setPendingAction(null)
+    }
+  }, [])
 
   const handleDiscardChanges = useCallback(() => {
     setShowUnsavedChangesAlert(false)
@@ -497,6 +480,7 @@ export function Document({
                     onChange: docRename.setEditValue,
                     onSubmit: docRename.submitRename,
                     onCancel: docRename.cancelRename,
+                    disabled: docRename.isSaving,
                   }
                 : undefined,
               dropdownItems: [
@@ -522,6 +506,7 @@ export function Document({
       docRename.setEditValue,
       docRename.submitRename,
       docRename.cancelRename,
+      docRename.isSaving,
       userPermissions.canEdit,
       handleStartDocRename,
       handleShowTags,
@@ -1029,36 +1014,36 @@ export function Document({
     [handleNavigateChunk]
   )
 
-  const createActions = useMemo<HeaderAction[]>(
+  const createActions = useMemo<ResourceAction[]>(
     () => [
       {
-        label: saveLabel,
-        onClick: handleSaveClick,
+        text: saveLabel,
+        onSelect: handleSaveClick,
         disabled: !isDirty || saveStatus === 'saving',
       },
     ],
     [saveLabel, handleSaveClick, isDirty, saveStatus]
   )
 
-  const editorActions = useMemo<HeaderAction[]>(() => {
-    const actions: HeaderAction[] = [
+  const editorActions = useMemo<ResourceAction[]>(() => {
+    const actions: ResourceAction[] = [
       {
-        label: 'Previous chunk',
+        text: 'Previous chunk',
         icon: ChevronUp,
-        onClick: handleNavigatePrev,
+        onSelect: handleNavigatePrev,
         disabled: !canNavigatePrev,
       },
       {
-        label: 'Next chunk',
+        text: 'Next chunk',
         icon: ChevronDown,
-        onClick: handleNavigateNextChunk,
+        onSelect: handleNavigateNextChunk,
         disabled: !canNavigateNext,
       },
     ]
     if (canEdit && !isConnectorDocument) {
       actions.push({
-        label: saveLabel,
-        onClick: handleSaveClick,
+        text: saveLabel,
+        onSelect: handleSaveClick,
         disabled: !isDirty || saveStatus === 'saving',
       })
     }
@@ -1080,7 +1065,7 @@ export function Document({
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
+          <Resource.Header
             icon={FileText}
             breadcrumbs={newChunkBreadcrumbs}
             actions={createActions}
@@ -1101,11 +1086,7 @@ export function Document({
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
-          onOpenChange={setShowUnsavedChangesAlert}
-          onKeepEditing={() => {
-            setShowUnsavedChangesAlert(false)
-            setPendingAction(null)
-          }}
+          onOpenChange={handleUnsavedChangesOpenChange}
           onDiscard={handleDiscardChanges}
         />
       </>
@@ -1116,7 +1097,7 @@ export function Document({
     if (!selectedChunk || !documentData) {
       return (
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader icon={FileText} breadcrumbs={loadingBreadcrumbs} />
+          <Resource.Header icon={FileText} breadcrumbs={loadingBreadcrumbs} />
           <div className='flex flex-1 items-center justify-center'>
             <span className='text-[var(--text-muted)] text-sm'>Loading chunk…</span>
           </div>
@@ -1127,7 +1108,7 @@ export function Document({
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
+          <Resource.Header
             icon={FileText}
             breadcrumbs={editChunkBreadcrumbs}
             actions={editorActions}
@@ -1147,11 +1128,7 @@ export function Document({
 
         <UnsavedChangesModal
           open={showUnsavedChangesAlert}
-          onOpenChange={setShowUnsavedChangesAlert}
-          onKeepEditing={() => {
-            setShowUnsavedChangesAlert(false)
-            setPendingAction(null)
-          }}
+          onOpenChange={handleUnsavedChangesOpenChange}
           onDiscard={handleDiscardChanges}
         />
       </>
@@ -1160,25 +1137,39 @@ export function Document({
 
   return (
     <>
-      <Resource
-        icon={FileText}
-        title={effectiveDocumentName}
-        breadcrumbs={breadcrumbs}
-        create={createAction}
-        search={combinedError ? undefined : searchConfig}
-        columns={CHUNK_COLUMNS}
-        rows={combinedError ? [] : chunkRows}
-        selectable={combinedError ? undefined : selectableConfig}
-        onRowClick={isCompleted ? handleChunkClick : undefined}
-        onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
-        onContextMenu={handleEmptyContextMenu}
-        isLoading={isLoadingDocument || isFetchingNewDoc}
-        pagination={paginationConfig}
-        emptyMessage={emptyMessage}
-        filter={combinedError ? undefined : filterContent}
-        filterTags={combinedError ? undefined : filterTags}
-        sort={combinedError ? undefined : sortConfig}
-      />
+      <Resource onContextMenu={handleEmptyContextMenu}>
+        <Resource.Header
+          icon={FileText}
+          title={effectiveDocumentName}
+          breadcrumbs={breadcrumbs}
+          actions={[
+            {
+              text: createAction.label,
+              icon: Plus,
+              onSelect: createAction.onClick,
+              disabled: createAction.disabled,
+              variant: 'primary',
+            },
+          ]}
+        />
+        <Resource.Options
+          search={combinedError ? undefined : searchConfig}
+          sort={combinedError ? undefined : sortConfig}
+          filterTags={combinedError ? undefined : filterTags}
+          filter={combinedError ? undefined : { content: filterContent }}
+        />
+        <Resource.Table
+          columns={CHUNK_COLUMNS}
+          rows={combinedError ? [] : chunkRows}
+          sort={combinedError ? undefined : sortConfig}
+          selectable={combinedError ? undefined : selectableConfig}
+          onRowClick={isCompleted ? handleChunkClick : undefined}
+          onRowContextMenu={isCompleted ? handleChunkContextMenu : undefined}
+          isLoading={isLoadingDocument || isFetchingNewDoc}
+          pagination={paginationConfig}
+          emptyMessage={emptyMessage}
+        />
+      </Resource>
 
       <DocumentTagsModal
         open={showTagsModal}
@@ -1207,14 +1198,13 @@ export function Document({
         isLoading={isBulkOperating}
       />
 
-      <ChipModal
+      <ChipConfirmModal
         open={showDeleteDocumentDialog}
         onOpenChange={setShowDeleteDocumentDialog}
         srTitle='Delete Document'
-      >
-        <ChipModalHeader showDivider={false}>Delete Document</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Document'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{effectiveDocumentName}</span>?{' '}
             <span className='text-[var(--text-error)]'>
@@ -1230,27 +1220,15 @@ export function Document({
             ) : (
               <>This action cannot be undone.</>
             )}
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setShowDeleteDocumentDialog(false)}
-            disabled={isDeletingDocument}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={handleDeleteDocument}
-            disabled={isDeletingDocument}
-          >
-            {isDeletingDocument ? 'Deleting...' : 'Delete Document'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete Document',
+          onClick: handleDeleteDocument,
+          pending: isDeletingDocument,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
       <ChunkContextMenu
         isOpen={isContextMenuOpen}

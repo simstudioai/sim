@@ -11,7 +11,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
   description: 'Send documents for e-signature via DocuSign',
   longDescription:
     'Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.',
-  docsLink: 'https://docs.sim.ai/tools/docusign',
+  docsLink: 'https://docs.sim.ai/integrations/docusign',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -444,6 +444,35 @@ export const DocuSignBlockMeta = {
       category: 'sales',
       tags: ['sales', 'reporting'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'send-contract-for-signature',
+      description:
+        'Send a document to one or more signers for e-signature, using a DocuSign template or an uploaded file.',
+      content:
+        '# Send Contract for Signature\n\nSend a document out for e-signature through DocuSign and confirm it was delivered.\n\n## Steps\n1. Determine whether to send from a template (preferred for standard agreements) or from an uploaded document. If a template is named, use List Templates to resolve its ID.\n2. For a template, call Send from Template with the template ID and a template-roles JSON array mapping each role name to a signer name and email. For an ad-hoc document, call Send Envelope with the email subject, signer name, signer email, and the document file.\n3. Add any CC recipients and set the email subject to something the signer will recognize.\n4. Send immediately unless asked to save as a draft.\n\n## Output\nReport the envelope ID and status. List each signer and CC recipient with their email so the requester can confirm the right people were addressed.',
+    },
+    {
+      name: 'track-pending-envelopes',
+      description:
+        'List envelopes awaiting signature, identify ones stalled past a threshold, and surface who still needs to sign.',
+      content:
+        '# Track Pending Envelopes\n\nFind DocuSign envelopes that are sent but not yet completed so stalled signatures can be chased.\n\n## Steps\n1. Call List Envelopes filtered to sent and delivered status over a recent date window.\n2. For each envelope, use List Recipients to see which signers have signed and which are still outstanding.\n3. Compute how long each envelope has been waiting and flag any past the requested threshold (default 48 hours).\n\n## Output\nReturn a table of stalled envelopes: envelope ID, subject, days waiting, and the outstanding signer name and email. Sort by longest waiting first.',
+    },
+    {
+      name: 'archive-completed-documents',
+      description:
+        'Find completed envelopes, download the signed PDFs, and extract key metadata for archiving.',
+      content:
+        '# Archive Completed Documents\n\nCollect signed documents once an envelope is complete and capture their metadata.\n\n## Steps\n1. Call List Envelopes filtered to completed status over the requested date window.\n2. For each completed envelope, call Download Document with "combined" to get the full signed PDF.\n3. Record the envelope ID, subject, completed date, and signer list for each document.\n\n## Output\nReturn each completed envelope with its downloaded file, signers, and completed date. Note any envelope where the download failed so it can be retried.',
+    },
+    {
+      name: 'void-stale-envelope',
+      description: 'Void an envelope that should no longer be signed and record the reason.',
+      content:
+        '# Void Stale Envelope\n\nCancel a DocuSign envelope that is no longer valid — wrong recipient, superseded terms, or expired offer.\n\n## Steps\n1. Confirm the envelope ID. If only a subject or signer is known, use List Envelopes to resolve it, and verify it is not already completed.\n2. Call Get Envelope to confirm the current status is still voidable (created, sent, or delivered).\n3. Call Void Envelope with a clear void reason describing why it is being cancelled.\n\n## Output\nConfirm the envelope ID, its new voided status, and the recorded reason. If the envelope was already completed or voided, report that instead of attempting to void it.',
     },
   ],
 } as const satisfies BlockMeta

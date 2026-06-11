@@ -1,10 +1,11 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
+import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
@@ -16,7 +17,7 @@ export const revalidate = 0
 
 function escapeCsv(value: any): string {
   if (value === null || value === undefined) return ''
-  const str = String(value)
+  const str = typeof value === 'string' ? neutralizeCsvFormula(value) : String(value)
   if (/[",\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`
   }
@@ -79,7 +80,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         let offset = 0
         try {
           while (true) {
-            const rows = await db
+            const rows = await dbReplica
               .select(selectColumns)
               .from(workflowExecutionLogs)
               .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))

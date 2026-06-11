@@ -70,7 +70,7 @@ import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useCreateMothershipChat, useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useTablesList } from '@/hooks/queries/tables'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -80,7 +80,6 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSidebarStore } from '@/stores/sidebar/store'
 
@@ -397,10 +396,6 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
       }
     }
   }, [activeNavItemHref])
-
-  const createChatMutation = useCreateMothershipChat(workspaceId)
-
-  const isCreatingChatRef = useRef(false)
 
   const searchModalWorkflows = useMemo(
     () =>
@@ -726,20 +721,6 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
     [workspaces, handleLeaveWorkspace]
   )
 
-  const handleNewChat = useCallback(async () => {
-    if (!workspaceId || isCreatingChatRef.current) return
-    isCreatingChatRef.current = true
-    try {
-      const { id } = await createChatMutation.mutateAsync()
-      useMothershipDraftsStore.getState().clearDraft(`${workspaceId}:new`)
-      navigateToPage(`/workspace/${workspaceId}/chat/${id}`)
-    } catch {
-      navigateToPage(`/workspace/${workspaceId}/home`)
-    } finally {
-      isCreatingChatRef.current = false
-    }
-  }, [workspaceId, navigateToPage])
-
   const handleOpenHelpFromMenu = useCallback(() => setIsHelpModalOpen(true), [])
 
   const handleOpenDocs = useCallback(() => {
@@ -803,12 +784,6 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
           handleCreateWorkflow()
         },
       },
-      {
-        id: 'add-task',
-        handler: () => {
-          handleNewChat()
-        },
-      },
     ])
   )
 
@@ -820,6 +795,14 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         accept='image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'
         className='hidden'
         onChange={handleLogoFileChange}
+      />
+      <input
+        ref={fileInputRef}
+        type='file'
+        accept='.json,.zip'
+        multiple
+        className='hidden'
+        onChange={handleImportFileChange}
       />
       <div className={cn('relative', isFlyout ? 'flex max-h-full min-h-0 flex-col' : 'h-full')}>
         <aside
@@ -982,8 +965,6 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
                             regularWorkflows={regularWorkflows}
                             isLoading={isLoading}
                             canReorder={canEdit}
-                            handleFileChange={handleImportFileChange}
-                            fileInputRef={fileInputRef}
                             scrollContainerRef={scrollContainerRef}
                             onCreateWorkflow={handleCreateWorkflow}
                             onCreateFolder={handleCreateFolder}

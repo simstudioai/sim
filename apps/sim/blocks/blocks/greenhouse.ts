@@ -9,7 +9,7 @@ export const GreenhouseBlock: BlockConfig<GreenhouseResponse> = {
   description: 'Manage candidates, jobs, and applications in Greenhouse',
   longDescription:
     'Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.',
-  docsLink: 'https://docs.sim.ai/tools/greenhouse',
+  docsLink: 'https://docs.sim.ai/integrations/greenhouse',
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#469776',
@@ -493,6 +493,28 @@ export const GreenhouseBlockMeta = {
       category: 'operations',
       tags: ['hr', 'recruiting', 'team'],
       alsoIntegrations: ['gmail', 'slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'build-pipeline-report',
+      description:
+        'Summarize Greenhouse applications per job by stage to produce a hiring pipeline report.',
+      content:
+        '# Build Pipeline Report\n\nReport how candidates are progressing through each open job.\n\n## Steps\n1. List jobs and filter to open requisitions, capturing job IDs and titles.\n2. List job stages so application counts can be bucketed correctly.\n3. List applications, optionally filtered by status, and group them by job and current stage.\n4. Compute counts per stage and flag jobs with no recent movement.\n\n## Output\nReturn a per-job breakdown showing candidate counts by stage, total active candidates, and a flagged list of stalled requisitions. Suitable for a weekly recruiting standup.',
+    },
+    {
+      name: 'assemble-candidate-brief',
+      description:
+        'Pull a Greenhouse candidate and their application details into a one-page interviewer brief.',
+      content:
+        '# Assemble Candidate Brief\n\nCompile everything an interviewer needs about a candidate.\n\n## Steps\n1. Find the candidate by listing candidates and matching name, or use a known candidate ID.\n2. Get the candidate to retrieve profile details and attachments.\n3. Get the application to read the job applied for, current stage, and source.\n4. Get the job for the role context and requirements.\n\n## Output\nReturn a one-page brief: candidate summary, role and current stage, key background points, and any notes. Ready to email or DM to the interviewer before the slot.',
+    },
+    {
+      name: 'audit-open-roles',
+      description: 'List open Greenhouse jobs with their departments, offices, and hiring teams.',
+      content:
+        '# Audit Open Roles\n\nInventory active requisitions and who owns them.\n\n## Steps\n1. List jobs and filter to open status.\n2. List departments and offices to resolve the names referenced on each job.\n3. List users to map hiring team members and recruiters to each role.\n4. Assemble each job with its department, office, and owning team.\n\n## Output\nReturn an inventory of open roles, each with title, department, office, and hiring team. Flag any role missing a recruiter or hiring manager.',
     },
   ],
 } as const satisfies BlockMeta

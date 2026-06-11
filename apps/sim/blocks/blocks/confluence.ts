@@ -15,7 +15,7 @@ export const ConfluenceBlock: BlockConfig<ConfluenceResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.',
-  docsLink: 'https://docs.sim.ai/tools/confluence',
+  docsLink: 'https://docs.sim.ai/integrations/confluence',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -1673,6 +1673,36 @@ export const ConfluenceBlockMeta = {
       category: 'productivity',
       tags: ['team', 'research', 'communication'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'publish-meeting-notes',
+      description:
+        'Create a Confluence page with structured meeting notes including attendees, decisions, and action items in the right space.',
+      content:
+        '# Publish Meeting Notes to Confluence\n\nTurn raw meeting notes into a clean, structured Confluence page.\n\n## Steps\n1. Confirm the target space and any parent page.\n2. Structure the notes into sections: attendees, agenda, decisions, and action items with owners.\n3. Create the page with a clear, dated title.\n4. Return the page URL.\n\n## Output\nA confirmation with the new page title and link, plus the list of action items captured.',
+    },
+    {
+      name: 'update-doc-page',
+      description:
+        'Read an existing Confluence page, apply updates, and save it back, respecting version control to avoid conflicts.',
+      content:
+        '# Update a Confluence Page\n\nSafely edit an existing documentation page.\n\n## Steps\n1. Read the target page to get its current content and version number.\n2. Apply the requested changes to the body, preserving existing structure and formatting.\n3. Update the page, incrementing the version number by one to avoid optimistic-locking conflicts.\n4. If the update fails on a version conflict, re-read and retry.\n\n## Output\nA confirmation of the updated page with its new version number and link.',
+    },
+    {
+      name: 'search-knowledge',
+      description:
+        'Search Confluence content for a topic and summarize the most relevant pages with links for quick reference.',
+      content:
+        '# Search Confluence Knowledge\n\nFind and summarize documentation on a topic.\n\n## Steps\n1. Search content using the topic keywords, optionally scoped to a space.\n2. Read the top matching pages.\n3. Summarize what each page covers and how it relates to the question.\n\n## Output\nA short briefing answering the question, with links to the source pages cited.',
+    },
+    {
+      name: 'collect-page-feedback',
+      description:
+        'List and summarize comments on a Confluence page so you can triage feedback and open questions.',
+      content:
+        '# Collect Confluence Page Feedback\n\nGather and organize comments left on a page.\n\n## Steps\n1. Read the target page to confirm its identity.\n2. List all comments on the page.\n3. Group comments into themes: questions, corrections, and approvals.\n\n## Output\nA digest of comment themes with any unresolved questions flagged for follow-up.',
     },
   ],
 } as const satisfies BlockMeta

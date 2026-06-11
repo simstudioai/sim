@@ -53,11 +53,46 @@ vi.mock('@/tools/utils', () => ({
   stripVersionSuffix: vi.fn((toolId: string) => toolId),
 }))
 
+vi.mock('@/lib/copilot/integration-tools', () => ({
+  getExposedIntegrationTools: vi.fn(() => [
+    {
+      toolId: 'gmail_send',
+      config: { id: 'gmail_send', name: 'Gmail Send', description: 'Send emails using Gmail' },
+      service: 'gmail',
+      operation: 'send',
+    },
+    {
+      toolId: 'brandfetch_search',
+      config: {
+        id: 'brandfetch_search',
+        name: 'Brandfetch Search',
+        description: 'Search for brands by company name',
+      },
+      service: 'brandfetch',
+      operation: 'search',
+    },
+    {
+      toolId: 'run_workflow',
+      config: {
+        id: 'run_workflow',
+        name: 'Run Workflow',
+        description: 'Run a workflow from the client',
+      },
+      service: 'run',
+      operation: 'workflow',
+    },
+  ]),
+}))
+
 vi.mock('@/tools/params', () => ({
   createUserToolSchema: mockCreateUserToolSchema,
 }))
 
-import { buildIntegrationToolSchemas, clearIntegrationToolSchemaCacheForTests } from './payload'
+import {
+  buildCopilotRequestPayload,
+  buildIntegrationToolSchemas,
+  clearIntegrationToolSchemaCacheForTests,
+} from './payload'
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
@@ -134,5 +169,62 @@ describe('buildIntegrationToolSchemas', () => {
     expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
     expect(mockCreateUserToolSchema).toHaveBeenCalledTimes(3)
     expect(second[0].input_schema).not.toHaveProperty('mutated')
+  })
+})
+
+describe('buildCopilotRequestPayload', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('passes workspaceContext through to the Go request payload', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'debug workspace',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        workspaceContext: 'workspace inventory',
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+        workspaceContext: 'workspace inventory',
+      })
+    )
+  })
+
+  it('passes user metadata through to the Go request payload', async () => {
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'what time is it',
+        userId: 'user-1',
+        userMessageId: 'msg-1',
+        mode: 'agent',
+        model: 'claude-opus-4-8',
+        workspaceId: 'ws-1',
+        userTimezone: 'America/Los_Angeles',
+        userMetadata: {
+          name: 'Sid',
+          timezone: 'America/Los_Angeles',
+        },
+      },
+      { selectedModel: 'claude-opus-4-8' }
+    )
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        userTimezone: 'America/Los_Angeles',
+        userMetadata: {
+          name: 'Sid',
+          timezone: 'America/Los_Angeles',
+        },
+      })
+    )
   })
 })

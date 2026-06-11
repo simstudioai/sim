@@ -6,6 +6,7 @@ import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {
@@ -13,7 +14,6 @@ import {
   useSelectorOptionMap,
   useSelectorOptions,
 } from '@/hooks/selectors/use-selector-query'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface SelectorComboboxProps {
   blockId: string
@@ -28,7 +28,6 @@ interface SelectorComboboxProps {
   onOptionChange?: (value: string) => void
   allowSearch?: boolean
   missingOptionLabel?: string
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SelectorCombobox({
@@ -44,8 +43,8 @@ export function SelectorCombobox({
   onOptionChange,
   allowSearch = true,
   missingOptionLabel,
-  activeSearchTarget,
 }: SelectorComboboxProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValueRaw, setStoreValue] = useSubBlockValue<string | null | undefined>(
     blockId,
     subBlock.id

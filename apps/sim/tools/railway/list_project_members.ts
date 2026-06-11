@@ -34,7 +34,8 @@ export const railwayListProjectMembersTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     projectId: {
       type: 'string',
@@ -54,11 +55,9 @@ export const railwayListProjectMembersTool: ToolConfig<
           projectMembers(projectId: $projectId) {
             id
             role
-            user {
-              id
-              name
-              email
-            }
+            name
+            email
+            avatar
           }
         }
       `,
@@ -76,13 +75,9 @@ export const railwayListProjectMembersTool: ToolConfig<
     const members = projectMembers.map((member) => ({
       id: member.id,
       role: member.role,
-      user: member.user
-        ? {
-            id: member.user.id,
-            name: member.user.name ?? null,
-            email: member.user.email ?? null,
-          }
-        : null,
+      name: member.name ?? null,
+      email: member.email ?? null,
+      avatar: member.avatar ?? null,
     }))
 
     return {
@@ -101,17 +96,11 @@ export const railwayListProjectMembersTool: ToolConfig<
       items: {
         type: 'object',
         properties: {
-          id: { type: 'string', description: 'Project membership ID' },
+          id: { type: 'string', description: 'Member user ID' },
           role: { type: 'string', description: 'Project role' },
-          user: {
-            type: 'object',
-            description: 'Railway user',
-            properties: {
-              id: { type: 'string', description: 'User ID' },
-              name: { type: 'string', description: 'User name', optional: true },
-              email: { type: 'string', description: 'User email', optional: true },
-            },
-          },
+          name: { type: 'string', description: 'Member name', optional: true },
+          email: { type: 'string', description: 'Member email', optional: true },
+          avatar: { type: 'string', description: 'Member avatar URL', optional: true },
         },
       },
     },

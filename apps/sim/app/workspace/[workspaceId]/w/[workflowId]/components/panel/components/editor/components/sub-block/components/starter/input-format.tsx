@@ -26,8 +26,8 @@ import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface Field {
   id: string
@@ -52,7 +52,6 @@ interface FieldFormatProps {
   valuePlaceholder?: string
   descriptionPlaceholder?: string
   config?: any
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -107,8 +106,8 @@ export function FieldFormat({
   showDescription = false,
   valuePlaceholder = 'Enter default value',
   descriptionPlaceholder = 'Describe this field',
-  activeSearchTarget,
 }: FieldFormatProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})

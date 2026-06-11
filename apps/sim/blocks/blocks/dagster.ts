@@ -16,7 +16,7 @@ export const DagsterBlock: BlockConfig<DagsterResponse> = {
   description: 'Orchestrate data pipelines and manage job runs with Dagster',
   longDescription:
     'Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.',
-  docsLink: 'https://docs.sim.ai/tools/dagster',
+  docsLink: 'https://docs.sim.ai/integrations/dagster',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#ffffff',
@@ -739,6 +739,36 @@ export const DagsterBlockMeta = {
       category: 'engineering',
       tags: ['devops', 'sync'],
       alsoIntegrations: ['databricks'],
+    },
+  ],
+  skills: [
+    {
+      name: 'launch-pipeline-run',
+      description:
+        'Launch a Dagster job run with the right config and report the run id and starting status.',
+      content:
+        '# Launch a Dagster Pipeline Run\n\nKick off a data pipeline job.\n\n## Steps\n1. List jobs to confirm the target job name.\n2. Assemble the run config (partitions, tags, resources) for the run.\n3. Launch the run and capture the run id.\n4. Confirm the run entered the queue or started.\n\n## Output\nA confirmation with the run id, job name, and initial status.',
+    },
+    {
+      name: 'monitor-failed-runs',
+      description:
+        'List recent Dagster runs, surface failures, and pull logs to diagnose why a run failed.',
+      content:
+        '# Monitor Failed Dagster Runs\n\nFind and diagnose pipeline failures.\n\n## Steps\n1. List recent runs and filter to those in a failed state.\n2. For each failed run, get the run details and pull its logs.\n3. Identify the failing step/op and the error message.\n4. Decide whether a re-execute of the failed steps is appropriate.\n\n## Output\nA per-run failure summary with the failing op, error, and a recommendation (retry or investigate).',
+    },
+    {
+      name: 'reexecute-failed-run',
+      description:
+        'Re-execute a failed Dagster run from the point of failure and confirm the new run started.',
+      content:
+        '# Re-execute a Failed Dagster Run\n\nRetry a pipeline from where it broke.\n\n## Steps\n1. Get the failed run to confirm its id and failure point.\n2. Re-execute the run, scoping to the failed and downstream steps when supported.\n3. Capture the new run id and status.\n\n## Output\nA confirmation with the original run id, the new run id, and the re-execution scope.',
+    },
+    {
+      name: 'manage-schedules',
+      description:
+        'List Dagster schedules and sensors and start or stop them to control automated pipeline execution.',
+      content:
+        '# Manage Dagster Schedules\n\nControl which automated triggers are running.\n\n## Steps\n1. List schedules and sensors with their current running state.\n2. Identify the schedule or sensor to change.\n3. Start or stop it as requested.\n4. Confirm the new state.\n\n## Output\nA confirmation of which schedules/sensors were started or stopped and their resulting state.',
     },
   ],
 } as const satisfies BlockMeta

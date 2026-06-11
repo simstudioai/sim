@@ -8,7 +8,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
   description: 'Convert text to speech with ElevenLabs',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate ElevenLabs into the workflow. Can convert text to speech.',
-  docsLink: 'https://docs.sim.ai/tools/elevenlabs',
+  docsLink: 'https://docs.sim.ai/integrations/elevenlabs',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
@@ -173,6 +173,28 @@ export const ElevenLabsBlockMeta = {
       modules: ['agent', 'files', 'workflows'],
       category: 'support',
       tags: ['support', 'communication', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'narrate-text-to-speech',
+      description:
+        'Convert a block of text into natural-sounding speech audio with a chosen ElevenLabs voice.',
+      content:
+        '# Narrate Text to Speech\n\nGenerate spoken audio from text using ElevenLabs.\n\n## Steps\n1. Take the text to narrate and confirm the target voice ID (ask for one if not provided).\n2. Pick a model — use a multilingual model for non-English or mixed-language text, or a turbo/flash model when low latency matters.\n3. For consistent delivery, set stability higher; for more expressive variation, set it lower. Raise similarity boost to stay closer to the reference voice.\n\n## Output\nReturn the generated audio file and its URL. Confirm the voice and model used so the requester can adjust if the delivery is not right.',
+    },
+    {
+      name: 'narrate-article-as-audio',
+      description: 'Turn a long article or blog post into a podcast-style audio narration.',
+      content:
+        '# Narrate Article as Audio\n\nProduce a listenable audio version of written content.\n\n## Steps\n1. Clean the source text — strip markdown, navigation, and boilerplate so only the readable prose remains. Expand abbreviations the voice should speak in full.\n2. Choose a voice ID suited to the content and a high-quality multilingual model for natural delivery.\n3. Convert the cleaned text to speech, keeping stability moderate so the narration sounds engaging but consistent.\n\n## Output\nReturn the audio file and a player-ready URL, along with the voice used. If the text is very long, note any truncation and suggest splitting it into parts.',
+    },
+    {
+      name: 'generate-voice-prompt',
+      description:
+        'Generate a short branded voice clip such as an IVR prompt, greeting, or notification.',
+      content:
+        '# Generate Voice Prompt\n\nCreate a short, polished voice clip for things like phone menus, greetings, or alerts.\n\n## Steps\n1. Take the exact script for the prompt. Keep it concise and confirm pronunciation of any names or numbers.\n2. Select a consistent brand voice ID so every prompt sounds the same.\n3. Set stability high for a steady, professional delivery and convert the script to speech.\n\n## Output\nReturn the audio file and its URL. When generating a set of prompts, list each clip with its script so they can be wired into the phone tree or app.',
     },
   ],
 } as const satisfies BlockMeta

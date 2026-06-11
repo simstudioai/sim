@@ -9,7 +9,7 @@ export const WikipediaBlock: BlockConfig<WikipediaResponse> = {
   description: 'Search and retrieve content from Wikipedia',
   longDescription:
     'Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.',
-  docsLink: 'https://docs.sim.ai/tools/wikipedia',
+  docsLink: 'https://docs.sim.ai/integrations/wikipedia',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#000000',
@@ -174,6 +174,28 @@ export const WikipediaBlockMeta = {
       category: 'operations',
       tags: ['monitoring', 'research'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'research-topic-brief',
+      description: 'Search Wikipedia for a topic and assemble a concise, sourced background brief.',
+      content:
+        '# Build a Wikipedia Topic Brief\n\nProduce a quick, reliable background brief on a subject.\n\n## Steps\n1. Search pages for the topic to find the best-matching article title.\n2. Get the page summary for a fast overview, then get full page content if more depth is needed.\n3. Extract the key facts, dates, and definitions, ignoring tangential detail.\n4. Assemble a short brief in your own words.\n\n## Output\nReturn a brief with a one-line definition, three to five key points, and the Wikipedia page title used as the source.',
+    },
+    {
+      name: 'disambiguate-entity',
+      description:
+        'Resolve an ambiguous name to the correct Wikipedia entity using surrounding context.',
+      content:
+        '# Disambiguate an Entity via Wikipedia\n\nPick the right Wikipedia entity for an ambiguous name.\n\n## Steps\n1. Search pages for the name to retrieve candidate matches.\n2. For the top candidates, get the page summary.\n3. Compare each summary against the context provided (industry, location, role) and choose the best fit.\n4. If nothing matches confidently, say so rather than forcing a choice.\n\n## Output\nReturn the chosen canonical page title with a one-line justification, plus a confidence note and any close alternatives.',
+    },
+    {
+      name: 'verify-claim',
+      description:
+        'Check whether a stated claim is supported by Wikipedia content and flag unsupported claims.',
+      content:
+        '# Verify a Claim Against Wikipedia\n\nFact-check a claim using Wikipedia as a reference source.\n\n## Steps\n1. Identify the entity or topic the claim is about and search for its page.\n2. Get the page summary or content covering the relevant section.\n3. Compare the claim against the article text and decide if it is supported, contradicted, or not addressed.\n\n## Output\nReturn a verdict of supported, contradicted, or unverified, with the supporting sentence quoted and the page title cited. Do not treat absence of mention as proof either way.',
     },
   ],
 } as const satisfies BlockMeta

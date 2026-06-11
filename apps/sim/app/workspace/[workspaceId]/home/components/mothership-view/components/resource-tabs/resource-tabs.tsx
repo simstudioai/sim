@@ -23,6 +23,7 @@ import { ChevronDown, Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-panel-toggle'
@@ -212,7 +213,7 @@ const ResourceTabItem = memo(function ResourceTabItem({
         onMouseEnter={() => setHoveredTabId(resource.id)}
         onMouseLeave={() => setHoveredTabId(null)}
         className={cn(
-          chipVariants({ variant: 'ghost', active: isActive, flush: true }),
+          chipVariants({ active: isActive, flush: true }),
           'relative max-w-[240px] shrink-0 text-[var(--text-body)]',
           isSelected && !isActive && 'bg-[var(--surface-active)]',
           isDragging && 'opacity-30'
@@ -251,10 +252,6 @@ interface ResourceTabsProps {
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
-  onSelect: (id: string) => void
-  onAddResource: (resource: MothershipResource) => void
-  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  onReorderResources: (resources: MothershipResource[]) => void
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -275,10 +272,6 @@ export function ResourceTabs({
   chatId,
   resources,
   activeId,
-  onSelect,
-  onAddResource,
-  onRemoveResource,
-  onReorderResources,
   previewMode,
   onCyclePreviewMode,
   actions,
@@ -287,6 +280,12 @@ export function ResourceTabs({
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
+  const {
+    selectResource,
+    addResource: onAddResource,
+    removeResource: onRemoveResource,
+    reorderResources: onReorderResources,
+  } = useMothershipResources()
   // Callback ref held in state so the capacity effect re-runs exactly when
   // the strip node attaches — a plain ref can be null on the effect's first
   // pass (hydration/transition commits), which would leave no observer behind
@@ -442,9 +441,9 @@ export function ResourceTabs({
   const handleSwitcherSelect = useCallback(
     (id: string) => {
       setSwitcherOpen(false)
-      onSelect(id)
+      selectResource(id)
     },
-    [onSelect]
+    [selectResource]
   )
 
   const handleSwitcherClose = useCallback(
@@ -469,7 +468,7 @@ export function ResourceTabs({
           const next = new Set<string>()
           for (let i = start; i <= end; i++) next.add(inlineTabs[i].id)
           setSelectedIds(next)
-          onSelect(resource.id)
+          selectResource(resource.id)
           return
         }
       }
@@ -484,11 +483,11 @@ export function ResourceTabs({
           if (activeId === resource.id) {
             const fallback =
               findNearestId(inlineTabs, idx, next) ?? findNearestId(inlineTabs, idx, null)
-            if (fallback) onSelect(fallback)
+            if (fallback) selectResource(fallback)
           }
         } else {
           setSelectedIds((prev) => new Set(prev).add(resource.id))
-          onSelect(resource.id)
+          selectResource(resource.id)
         }
         if (!anchorIdRef.current) anchorIdRef.current = resource.id
         return
@@ -497,9 +496,9 @@ export function ResourceTabs({
       // Plain click: single-select
       anchorIdRef.current = resource.id
       setSelectedIds(new Set([resource.id]))
-      onSelect(resource.id)
+      selectResource(resource.id)
     },
-    [inlineTabs, onSelect, selectedIds, activeId]
+    [inlineTabs, selectResource, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -632,7 +631,7 @@ export function ResourceTabs({
             <span
               key={resource.id}
               className={cn(
-                chipVariants({ variant: 'ghost', flush: true }),
+                chipVariants({ flush: true }),
                 'whitespace-nowrap text-[var(--text-body)]'
               )}
             >
@@ -680,7 +679,7 @@ export function ResourceTabs({
                 onClick={() => setSwitcherOpen((prev) => !prev)}
                 aria-label={`${overflowTabs.length} more tabs`}
                 className={cn(
-                  chipVariants({ variant: 'ghost', flush: true }),
+                  chipVariants({ flush: true }),
                   'shrink-0 text-[var(--text-muted)]',
                   switcherOpen && 'bg-[var(--surface-active)]'
                 )}
@@ -714,7 +713,7 @@ export function ResourceTabs({
             workspaceId={workspaceId}
             existingKeys={existingKeys}
             onAdd={handleAdd}
-            onSwitch={onSelect}
+            onSwitch={selectResource}
             excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
           />
         )}

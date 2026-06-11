@@ -10,7 +10,7 @@ export const SendGridBlock: BlockConfig<SendMailResult> = {
   description: 'Send emails and manage contacts, lists, and templates with SendGrid',
   longDescription:
     'Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.',
-  docsLink: 'https://docs.sim.ai/tools/sendgrid',
+  docsLink: 'https://docs.sim.ai/integrations/sendgrid',
   category: 'tools',
   integrationType: IntegrationType.Email,
   bgColor: '#1A82E2',
@@ -754,6 +754,36 @@ export const SendGridBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'marketing',
       tags: ['marketing', 'automation', 'sync'],
+    },
+  ],
+  skills: [
+    {
+      name: 'send-transactional-email',
+      description:
+        'Send a transactional email through SendGrid, optionally using a dynamic template and variables.',
+      content:
+        '# Send Transactional Email\n\nSend a single transactional email (receipt, confirmation, password reset) through SendGrid.\n\n## Steps\n1. Set the verified From address and the recipient To address.\n2. For a one-off message, set the Subject and Content (choose HTML or plain text). For a templated message, set the Template ID and provide Dynamic Template Data as a JSON object whose keys match the template variables.\n3. Add CC, BCC, or Reply-To addresses if needed, and attach files via Attachments.\n4. Run the Send Mail operation and capture the returned message ID.\n\n## Output\nReport whether the send succeeded and include the SendGrid message ID for later delivery tracking and audit.',
+    },
+    {
+      name: 'sync-contacts-to-list',
+      description:
+        'Add or update marketing contacts and place them on a specific SendGrid list for a campaign segment.',
+      content:
+        '# Sync Contacts to List\n\nUpsert marketing contacts and assign them to a SendGrid list so a segment is ready to receive a campaign.\n\n## Steps\n1. If the target list does not exist, run Create List with a descriptive name and keep the returned list ID.\n2. Build a JSON array of contacts, each with at least an email plus optional first name, last name, and custom fields.\n3. Run Add Contacts to List with the list ID and the contacts array.\n4. Optionally run Remove Contacts from List to drop addresses that no longer qualify for the segment.\n\n## Output\nReport the list ID, the count of contacts added, and the job ID returned for the async upsert.',
+    },
+    {
+      name: 'clean-contact-list',
+      description:
+        'Search SendGrid marketing contacts for invalid or unwanted addresses and remove them.',
+      content:
+        '# Clean Contact List\n\nFind and remove low-quality marketing contacts using SendGrid Query Language.\n\n## Steps\n1. Run Search Contacts with an SGQL query that targets the unwanted records (for example addresses matching a bad domain or stale by created date).\n2. Collect the contact IDs from the results.\n3. Run Delete Contacts with the comma-separated contact IDs, or Remove Contacts from List to drop them only from a specific segment.\n4. Record what was removed for a cleanup report.\n\n## Output\nReport the search criteria used, the number of contacts found, and how many were deleted or removed from the list.',
+    },
+    {
+      name: 'create-dynamic-template',
+      description:
+        'Create a SendGrid dynamic template and an active version with HTML and a subject line.',
+      content:
+        '# Create Dynamic Template\n\nStand up a reusable SendGrid dynamic template for a recurring transactional message.\n\n## Steps\n1. Run Create Template with a descriptive name and the dynamic generation.\n2. Keep the returned template ID.\n3. Run Create Template Version against that template ID, supplying a version name, the Template Subject (Handlebars variables allowed), and the HTML content. Set the version active so it is used on send.\n4. Optionally supply plain text content as a fallback.\n\n## Output\nReport the template ID and version, and confirm the active version is ready to reference from Send Mail operations.',
     },
   ],
 } as const satisfies BlockMeta

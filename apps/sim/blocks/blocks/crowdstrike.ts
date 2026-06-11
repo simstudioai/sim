@@ -10,7 +10,7 @@ export const CrowdStrikeBlock: BlockConfig<CrowdStrikeResponse> = {
   description: 'Query CrowdStrike Identity Protection sensors and documented aggregates',
   longDescription:
     'Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.',
-  docsLink: 'https://docs.sim.ai/tools/crowdstrike',
+  docsLink: 'https://docs.sim.ai/integrations/crowdstrike',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#E01F3D',
@@ -279,6 +279,22 @@ export const CrowdStrikeBlockMeta = {
       modules: ['scheduled', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enterprise', 'analysis'],
+    },
+  ],
+  skills: [
+    {
+      name: 'audit-identity-sensors',
+      description:
+        'Query CrowdStrike Identity Protection sensors and report on coverage, status, and devices missing protection.',
+      content:
+        '# Audit CrowdStrike Identity Sensors\n\nReview Identity Protection sensor coverage across the fleet.\n\n## Steps\n1. Query sensors, optionally filtered by status or hostname.\n2. For sensors of interest, pull detailed attributes (version, last seen, assigned policy).\n3. Flag sensors that are offline, stale, or out of policy.\n\n## Output\nA coverage report listing healthy sensors, plus any that are offline, stale, or misconfigured for SOC review.',
+    },
+    {
+      name: 'summarize-sensor-aggregates',
+      description:
+        'Pull documented CrowdStrike sensor aggregates and summarize the fleet distribution by version, status, or platform.',
+      content:
+        '# Summarize CrowdStrike Sensor Aggregates\n\nBuild a high-level picture of the sensor fleet.\n\n## Steps\n1. Request the documented sensor aggregates (e.g. counts by version, status, or platform).\n2. Compute the distribution and identify outliers, such as a large share of outdated versions.\n3. Compare against the expected baseline.\n\n## Output\nA fleet summary with key counts and any segments that need attention (outdated, offline).',
     },
   ],
 } as const satisfies BlockMeta

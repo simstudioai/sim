@@ -67,7 +67,7 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
   description: 'Connect to a ClickHouse database',
   longDescription:
     'Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.',
-  docsLink: 'https://docs.sim.ai/tools/clickhouse',
+  docsLink: 'https://docs.sim.ai/integrations/clickhouse',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#f9ff69',
@@ -495,6 +495,29 @@ export const ClickHouseBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['data-analytics', 'data-warehouse'],
+    },
+  ],
+  skills: [
+    {
+      name: 'answer-question-with-sql',
+      description:
+        'Translate a plain-English analytics question into ClickHouse SQL, run it, and return the answer. Use for ad-hoc data questions over a ClickHouse table.',
+      content:
+        '# Answer Question With SQL\n\nTurn a natural-language question into a ClickHouse query and report the result.\n\n## Steps\n1. If you do not know the schema, use Introspect Schema or Describe Table to learn the columns and types.\n2. Write a ClickHouse SELECT using ClickHouse functions (toDate, uniqExact, quantile, etc.). Filter on primary/sorting keys and add a LIMIT for exploratory queries.\n3. Run it with the Query (SELECT) operation against the connection (host, port, database, credentials).\n4. Inspect the returned rows and row count.\n\n## Output\nReturn the result as a small table plus a one-sentence answer to the original question. Include the SQL you ran so it is reproducible. If the query errors, report the message and adjust the SQL rather than guessing blindly.',
+    },
+    {
+      name: 'summarize-metrics',
+      description:
+        'Run aggregation queries against ClickHouse and summarize key metrics and trends. Use for a recurring metrics digest or dashboard refresh.',
+      content:
+        '# Summarize Metrics\n\nCompute and summarize metrics from ClickHouse.\n\n## Steps\n1. Confirm the relevant table and time column with Describe Table if needed.\n2. Write aggregation queries (e.g. daily uniqExact users, counts, quantiles over a time window) using Query (SELECT).\n3. Run each query against the connection and collect the results.\n4. Compare against the prior period to spot increases, drops, or anomalies.\n\n## Output\nReturn a concise digest: the headline numbers, period-over-period change, and any notable anomalies. Keep it readable, lead with the most important metric, and note the time window covered.',
+    },
+    {
+      name: 'bulk-insert-events',
+      description:
+        'Insert a batch of rows into a ClickHouse table after mapping them to the right columns. Use to ingest event or record payloads into ClickHouse.',
+      content:
+        '# Bulk Insert Events\n\nLoad a batch of records into a ClickHouse table.\n\n## Steps\n1. Use Describe Table to confirm the target column names and types.\n2. Map each incoming payload to those columns, coercing types (e.g. timestamps to DateTime format, numbers to the right width).\n3. Build a JSON array of row objects with consistent keys, then use Insert Rows (Bulk) against the table.\n4. Verify with Count Rows or a small SELECT.\n\n## Output\nReturn the number of rows inserted and any rows that were skipped or failed validation, with the reason. Confirm the new total row count so the caller knows ingestion succeeded.',
     },
   ],
 } as const satisfies BlockMeta

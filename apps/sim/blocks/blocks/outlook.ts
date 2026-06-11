@@ -13,7 +13,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.',
-  docsLink: 'https://docs.sim.ai/tools/outlook',
+  docsLink: 'https://docs.sim.ai/integrations/outlook',
   category: 'tools',
   integrationType: IntegrationType.Email,
   triggerAllowed: true,
@@ -535,6 +535,32 @@ export const OutlookBlockMeta = {
       modules: ['files', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'analysis', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'send-email',
+      description: 'Compose and send an Outlook email to one or more recipients.',
+      content:
+        '# Send Email\n\nSend a message from the connected Outlook account.\n\n## Steps\n1. Gather the recipients, subject, and the body content.\n2. Write a clear subject and a concise, well-structured body.\n3. Run Send Email with the recipients, subject, and body. Use Draft Email instead when the message should be reviewed before sending.\n\n## Output\nConfirm the email was sent, listing recipients and subject. If drafted, note that it awaits review.',
+    },
+    {
+      name: 'triage-inbox',
+      description: 'Read recent Outlook emails and summarize which ones need a reply or action.',
+      content:
+        '# Triage Inbox\n\nTurn a noisy Outlook inbox into a short action list.\n\n## Steps\n1. Run Read Email to pull recent unread messages.\n2. Classify each as needs reply, needs action, FYI, or ignore.\n3. For handled messages, run Mark as Read; leave items that still need a reply unread.\n\n## Output\nA prioritized list of emails that need attention, each with sender, subject, and the suggested next action.',
+    },
+    {
+      name: 'forward-with-context',
+      description: 'Forward an Outlook email to the right person with an added note.',
+      content:
+        '# Forward with Context\n\nRoute an email to the correct owner with a short explanation.\n\n## Steps\n1. Read the target email to capture its content with Read Email.\n2. Identify the correct recipient for the topic.\n3. Run Forward Email to that recipient, adding a brief note on why it is being forwarded and what is needed.\n\n## Output\nConfirm the email was forwarded, to whom, and the note that was added.',
+    },
+    {
+      name: 'file-email-to-folder',
+      description: 'Move an Outlook email to the appropriate folder to keep the inbox clean.',
+      content:
+        '# File Email to Folder\n\nOrganize the inbox by moving a message into the right folder.\n\n## Steps\n1. Identify the email and the destination folder.\n2. Run Move Email to relocate the message.\n3. Optionally run Mark as Read so it does not linger as unread.\n\n## Output\nConfirm the email moved, naming the source and destination folders.',
     },
   ],
 } as const satisfies BlockMeta

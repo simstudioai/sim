@@ -6,10 +6,7 @@ import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, ChipInput, ChipModalTabs } from '@/components/emcn'
 import { Folder, Search, Workflow } from '@/components/emcn/icons'
-import {
-  type ColumnOption,
-  SortDropdown,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options-bar'
+import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'

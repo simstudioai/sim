@@ -1,14 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalField,
-  ChipModalFooter,
-  ChipModalHeader,
-} from '@/components/emcn'
+import { ChipConfirmModal, ChipModalField } from '@/components/emcn'
 
 interface DeleteModalProps {
   /**
@@ -252,38 +245,42 @@ export function DeleteModal({
   }
 
   return (
-    <ChipModal open={isOpen} onOpenChange={handleClose} srTitle={title}>
-      <ChipModalHeader showDivider={false}>{title}</ChipModalHeader>
-      <ChipModalBody>
-        <p className='px-2 text-[var(--text-secondary)] text-sm'>
+    <ChipConfirmModal
+      open={isOpen}
+      onOpenChange={handleClose}
+      srTitle={title}
+      title={title}
+      description={
+        <>
           {renderDescription()}{' '}
           {restorableTypes.has(itemType)
             ? 'You can restore it from Recently deleted in Settings.'
             : 'This action cannot be undone.'}
-        </p>
-        {isWorkspace && workspaceName && (
-          <ChipModalField
-            type='input'
-            title={
-              <>
-                Type <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>{' '}
-                to confirm
-              </>
-            }
-            value={confirmationText}
-            onChange={setConfirmationText}
-            placeholder={workspaceName}
-          />
-        )}
-      </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={handleClose} disabled={isDeleting}>
-          Cancel
-        </Chip>
-        <Chip variant='destructive' flush onClick={onConfirm} disabled={isDeleting || !isConfirmed}>
-          {isDeleting ? 'Deleting...' : 'Delete'}
-        </Chip>
-      </ChipModalFooter>
-    </ChipModal>
+        </>
+      }
+      confirm={{
+        label: 'Delete',
+        onClick: onConfirm,
+        pending: isDeleting,
+        pendingLabel: 'Deleting...',
+        disabled: !isConfirmed,
+      }}
+    >
+      {isWorkspace && workspaceName && (
+        <ChipModalField
+          type='input'
+          title={
+            <span>
+              Type&nbsp;
+              <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
+              &nbsp;to confirm
+            </span>
+          }
+          value={confirmationText}
+          onChange={setConfirmationText}
+          placeholder={workspaceName}
+        />
+      )}
+    </ChipConfirmModal>
   )
 }

@@ -9,7 +9,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.',
-  docsLink: 'https://docs.sim.ai/tools/jina',
+  docsLink: 'https://docs.sim.ai/integrations/jina',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#333333',
@@ -263,6 +263,26 @@ export const JinaBlockMeta = {
       category: 'productivity',
       tags: ['research', 'content'],
       alsoIntegrations: ['notion'],
+    },
+  ],
+  skills: [
+    {
+      name: 'extract-article-content',
+      description: 'Read a URL and return clean, LLM-ready text stripped of navigation and ads.',
+      content:
+        '# Extract Article Content\n\nTurn a messy web page into clean, readable text an agent can reason over.\n\n## Steps\n1. Take the target URL.\n2. Read the URL to get the parsed main content as markdown or text.\n3. Strip boilerplate (nav, footers, ads) if any remains and keep the core article body.\n\n## Output\nReturn the page title and the cleaned content, plus the source URL. Note if the page could not be fully extracted.',
+    },
+    {
+      name: 'research-topic-from-web',
+      description: 'Search the web for a topic and summarize the top results into a briefing.',
+      content:
+        '# Research a Topic From the Web\n\nGather and condense current web information on a topic.\n\n## Steps\n1. Run a web search for the topic with a focused query.\n2. Take the top results and read the most relevant URLs for full content.\n3. Synthesize the findings, noting points of agreement and disagreement across sources.\n\n## Output\nReturn a short briefing with key findings, each backed by the source URL it came from.',
+    },
+    {
+      name: 'summarize-url',
+      description: 'Fetch a single URL and produce a concise summary with the main takeaways.',
+      content:
+        '# Summarize a URL\n\nGive a quick, faithful summary of a single web page.\n\n## Steps\n1. Read the URL to extract its main content.\n2. Identify the core thesis and the most important supporting points.\n3. Condense into a short summary without adding outside information.\n\n## Output\nReturn the page title, a 3-5 bullet summary of the key takeaways, and the source URL.',
     },
   ],
 } as const satisfies BlockMeta

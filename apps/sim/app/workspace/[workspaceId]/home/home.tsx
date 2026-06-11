@@ -7,6 +7,12 @@ import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import {
+  buildWorkflowAliasWorkflowEntries,
+  resolveWorkflowAliasPath,
+  resolveWorkspacePlanAliasPath,
+} from '@/lib/copilot/vfs/workflow-aliases'
 import {
   LandingPromptStorage,
   type LandingWorkflowSeed,
@@ -21,17 +27,22 @@ import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
 import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
+import { useFolders } from '@/hooks/queries/folders'
 import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
+import { useWorkflows } from '@/hooks/queries/workflows'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
 import type { ChatContext } from '@/stores/panel'
 import {
   ChatHistory,
+  ChatSurfaceProvider,
   CreditsChip,
   MothershipChat,
+  MothershipResourcesProvider,
   MothershipView,
   SuggestedActions,
   UserInput,
@@ -56,6 +67,9 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const firstName = userName?.split(' ')[0] ?? ''
+  const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
+  const { data: workflows = [] } = useWorkflows(workspaceId)
+  const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
@@ -421,8 +435,58 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     removeResource(resolved.type, resolved.id)
   }
 
+  const workflowAliasEntries = useMemo(
+    () =>
+      buildWorkflowAliasWorkflowEntries(
+        workflows.map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          folderId: workflow.folderId ?? null,
+        })),
+        folders.map((folder) => ({
+          folderId: folder.id,
+          folderName: folder.name,
+          parentId: folder.parentId ?? null,
+        }))
+      ),
+    [folders, workflows]
+  )
+
+  const resolveFileResource = useCallback(
+    (resource: MothershipResource): MothershipResource => {
+      if (resource.type !== 'file') return resource
+
+      const reference = (resource.path || resource.id).trim()
+      const workspacePlanAlias = resolveWorkspacePlanAliasPath(reference)
+      const workflowAlias = workspacePlanAlias
+        ? null
+        : resolveWorkflowAliasPath(reference, workflowAliasEntries)
+      const alias = workspacePlanAlias || workflowAlias
+      const targetPath = alias && alias.kind !== 'plans_dir' ? alias.backingPath : reference
+
+      const file = workspaceFiles.find((candidate) => {
+        const candidatePath = canonicalWorkspaceFilePath({
+          folderPath: candidate.folderPath,
+          name: candidate.name,
+        })
+        return (
+          candidate.id === reference || candidatePath === reference || candidatePath === targetPath
+        )
+      })
+
+      if (!file) return resource
+      return {
+        ...resource,
+        id: file.id,
+        title: resource.title || file.name,
+        path: alias ? reference : resource.path,
+      }
+    },
+    [workflowAliasEntries, workspaceFiles]
+  )
+
   function handleWorkspaceResourceSelect(resource: MothershipResource) {
-    openResourceTab(resource)
+    openResourceTab(resolveFileResource(resource))
   }
 
   // `resolvedChatId` is the chat actually in view — the prop on direct nav, or
@@ -469,17 +533,20 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
                 lives in the shelf below and animates the chat list open inside
                 the grey tray — growing downward as the input rides up. */}
               <div className='mx-auto w-full max-w-[48rem] overflow-hidden rounded-[18px] bg-[var(--surface-3)] p-px'>
-                <UserInput
-                  ref={initialViewUserInputRef}
-                  defaultValue={initialPrompt}
-                  draftScopeKey={draftScopeKey}
-                  onSubmit={handleSubmit}
-                  isSending={isSending}
-                  onStopGeneration={handleStopGeneration}
+                <ChatSurfaceProvider
                   userId={userId}
                   onContextAdd={handleContextAdd}
                   onContextRemove={handleInitialContextRemove}
-                />
+                >
+                  <UserInput
+                    ref={initialViewUserInputRef}
+                    defaultValue={initialPrompt}
+                    draftScopeKey={draftScopeKey}
+                    onSubmit={handleSubmit}
+                    isSending={isSending}
+                    onStopGeneration={handleStopGeneration}
+                  />
+                </ChatSurfaceProvider>
                 <ChatHistory onSelectChat={handleOpenExistingChat} />
               </div>
               <SuggestedActions
@@ -537,36 +604,40 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           </div>
         )}
 
-        <MothershipView
-          ref={mothershipRef}
-          workspaceId={workspaceId}
-          chatId={resolvedChatId}
-          resources={panelTabs}
-          activeResourceId={storeActiveTabId}
-          chatArtifactKeys={chatArtifactKeys}
-          onSelectResource={handleSelectTab}
-          onAddResource={openResourceTab}
-          onRemoveResource={handleCloseTab}
-          onReorderResources={(tabs) => reorderTabs(workspaceId, tabs)}
-          isCollapsed={isResourceCollapsed}
-          previewSession={previewSession}
-          genericResourceData={genericResourceData ?? undefined}
-          tabsLeading={
-            isChatCollapsed ? (
-              /* With the chat pane hidden, the tabs bar doubles as the title
-                 bar. The gap-1 cluster mirrors the chat title bar exactly so
-                 the toggle and switcher never shift when the pane closes. */
-              <div className='flex flex-shrink-0 items-center gap-1'>
-                <SidebarToggle className='-ml-[9px]' />
-                <ChatSwitcher chatId={activeChatId} onSelectChat={reopenChatPane} />
-              </div>
-            ) : undefined
-          }
-          className={cn(
-            skipResourceTransition && '!transition-none',
-            isChatCollapsed && 'w-full flex-1 border-l-0'
-          )}
-        />
+        <MothershipResourcesProvider
+          selectResource={handleSelectTab}
+          addResource={openResourceTab}
+          removeResource={handleCloseTab}
+          reorderResources={(tabs) => reorderTabs(workspaceId, tabs)}
+          collapseResource={collapseResource}
+        >
+          <MothershipView
+            ref={mothershipRef}
+            workspaceId={workspaceId}
+            chatId={resolvedChatId}
+            resources={panelTabs}
+            activeResourceId={storeActiveTabId}
+            chatArtifactKeys={chatArtifactKeys}
+            isCollapsed={isResourceCollapsed}
+            previewSession={previewSession}
+            genericResourceData={genericResourceData ?? undefined}
+            tabsLeading={
+              isChatCollapsed ? (
+                /* With the chat pane hidden, the tabs bar doubles as the title
+                   bar. The gap-1 cluster mirrors the chat title bar exactly so
+                   the toggle and switcher never shift when the pane closes. */
+                <div className='flex flex-shrink-0 items-center gap-1'>
+                  <SidebarToggle className='-ml-[9px]' />
+                  <ChatSwitcher chatId={activeChatId} onSelectChat={reopenChatPane} />
+                </div>
+              ) : undefined
+            }
+            className={cn(
+              skipResourceTransition && '!transition-none',
+              isChatCollapsed && 'w-full flex-1 border-l-0'
+            )}
+          />
+        </MothershipResourcesProvider>
       </div>
 
       {/* Single, stationary collapse/expand toggle. Lives OUTSIDE the animating

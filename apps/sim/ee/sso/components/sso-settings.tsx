@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
@@ -11,11 +11,12 @@ import {
   ChipTextarea,
   Expandable,
   ExpandableContent,
-  FormField,
+  Label,
   Switch,
   toast,
 } from '@/components/emcn'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from '@/components/emcn/icons'
+import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -28,6 +29,30 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SSO')
+
+interface FormFieldProps {
+  label: ReactNode
+  children: ReactNode
+  optional?: boolean
+  error?: ReactNode
+}
+
+/**
+ * Page-level labeled-field row for the SSO settings form, matching the
+ * standalone-field rhythm: muted label, control, then a caption-sized error.
+ */
+function FormField({ label, children, optional = false, error }: FormFieldProps) {
+  return (
+    <div className='flex flex-col gap-[9px]'>
+      <Label className='font-normal text-[var(--text-muted)]'>
+        {label}
+        {optional ? <span className='ml-1'>(optional)</span> : null}
+      </Label>
+      {children}
+      {error ? <p className='text-[var(--text-error)] text-caption'>{error}</p> : null}
+    </div>
+  )
+}
 
 interface SSOProvider {
   id: string
@@ -95,7 +120,7 @@ export function SSO() {
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSSOProviderOwner =
-    !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
+    !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
 
   const configureSSOMutation = useConfigureSSO()
 
@@ -270,38 +295,42 @@ export function SSO() {
     try {
       const providerType = formData.providerType || 'oidc'
 
-      const requestBody: any = {
-        providerId: formData.providerId,
-        issuer: formData.issuerUrl,
-        domain: formData.domain,
-        providerType,
-        orgId: activeOrganization?.id,
-        mapping: {
-          id: 'sub',
-          email: 'email',
-          name: 'name',
-          image: 'picture',
-        },
-      }
-
-      if (providerType === 'oidc') {
-        requestBody.clientId = formData.clientId
-        requestBody.clientSecret = formData.clientSecret
-        requestBody.scopes = formData.scopes.split(',').map((s) => s.trim())
-      } else if (providerType === 'saml') {
-        requestBody.entryPoint = formData.entryPoint
-        requestBody.cert = formData.cert
-        requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
-        if (formData.callbackUrl) requestBody.callbackUrl = formData.callbackUrl
-        if (formData.audience) requestBody.audience = formData.audience
-        if (formData.idpMetadata) requestBody.idpMetadata = formData.idpMetadata
-
-        requestBody.mapping = {
-          id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-          email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-          name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
-        }
-      }
+      const requestBody: SsoRegistrationBody =
+        providerType === 'oidc'
+          ? {
+              providerType: 'oidc',
+              providerId: formData.providerId,
+              issuer: formData.issuerUrl,
+              domain: formData.domain,
+              orgId: activeOrganization?.id,
+              mapping: {
+                id: 'sub',
+                email: 'email',
+                name: 'name',
+                image: 'picture',
+              },
+              clientId: formData.clientId,
+              clientSecret: formData.clientSecret,
+              scopes: formData.scopes.split(',').map((s) => s.trim()),
+            }
+          : {
+              providerType: 'saml',
+              providerId: formData.providerId,
+              issuer: formData.issuerUrl,
+              domain: formData.domain,
+              orgId: activeOrganization?.id,
+              mapping: {
+                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+              },
+              entryPoint: formData.entryPoint,
+              cert: formData.cert,
+              wantAssertionsSigned: formData.wantAssertionsSigned,
+              ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
+              ...(formData.audience ? { audience: formData.audience } : {}),
+              ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
+            }
 
       await configureSSOMutation.mutateAsync(requestBody)
 
@@ -320,17 +349,14 @@ export function SSO() {
   }
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData((prev) => {
-      const next = { ...prev, [field]: value }
+    const next = { ...formData, [field]: value }
 
-      if (field === 'providerType') {
-        setShowErrors(false)
-      }
+    if (field === 'providerType') {
+      setShowErrors(false)
+    }
 
-      validateAll(next)
-
-      return next
-    })
+    setFormData(next)
+    validateAll(next)
   }
 
   const isSaml = formData.providerType === 'saml'
@@ -499,7 +525,7 @@ export function SSO() {
         tabIndex={-1}
         readOnly
       />
-      <input type='text' name='hidden' className='hidden' autoComplete='false' />
+      <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
       <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
         <div />
@@ -581,9 +607,6 @@ export function SSO() {
               }))}
               placeholder='Select or enter a provider ID'
               editable
-              className={cn(
-                showErrors && errors.providerId.length > 0 && 'border-[var(--text-error)]'
-              )}
             />
           </FormField>
 
@@ -684,11 +707,7 @@ export function SSO() {
                   }}
                   onBlurCapture={() => setShowClientSecret(false)}
                   onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                  style={
-                    !showClientSecret
-                      ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-                      : undefined
-                  }
+                  inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
                   error={showErrors && errors.clientSecret.length > 0}
                   endAdornment={
                     <Button

@@ -18,11 +18,11 @@ import { getMissingRequiredScopes } from '@/lib/oauth/utils'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const getProviderIcon = (providerName: OAuthProvider) => {
@@ -64,7 +64,6 @@ interface ToolCredentialSelectorProps {
   label?: string
   serviceId: OAuthService
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 const EMPTY_SCOPES: string[] = []
@@ -79,8 +78,8 @@ export function ToolCredentialSelector({
   label,
   serviceId,
   disabled = false,
-  activeSearchTarget,
 }: ToolCredentialSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const onChangeRef = useRef(onChange)

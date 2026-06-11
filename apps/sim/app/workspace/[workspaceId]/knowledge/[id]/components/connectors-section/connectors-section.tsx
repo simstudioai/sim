@@ -3,19 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  Loader,
-  Skeleton,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
 import {
   ChevronDown,
   CircleAlert,
@@ -183,6 +171,24 @@ export function ConnectorsSection({
     [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
+  const handleDeleteConnector = () => {
+    if (!deleteTarget) return
+    deleteConnector(
+      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        onSuccess: () => {
+          setError(null)
+          closeDeleteModal()
+        },
+        onError: (err) => {
+          logger.error('Delete connector failed', { error: err.message })
+          setError(err.message)
+          closeDeleteModal()
+        },
+      }
+    )
+  }
+
   if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
@@ -190,22 +196,7 @@ export function ConnectorsSection({
       {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
 
       {isLoading ? (
-        <div className='mt-2 flex flex-col gap-1'>
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className='rounded-lg px-2 py-2'>
-              <div className='flex items-center gap-2.5'>
-                <Skeleton className='size-9 flex-shrink-0 rounded-lg' />
-                <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                  <div className='flex items-center gap-2'>
-                    <Skeleton className='h-[14px] w-[100px]' />
-                    <Skeleton className='h-[18px] w-[52px] rounded-full' />
-                  </div>
-                  <Skeleton className='h-[12px] w-[180px]' />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className='mt-2' />
       ) : connectors.length === 0 ? (
         <p className='mt-2 text-[var(--text-muted)] text-small'>
           No connected sources yet. Connect an external source to automatically sync documents.
@@ -240,62 +231,35 @@ export function ConnectorsSection({
         />
       )}
 
-      <ChipModal
+      <ChipConfirmModal
         open={deleteTarget !== null}
-        onOpenChange={closeDeleteModal}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteModal()
+        }}
         srTitle='Remove Connector'
+        title='Remove Connector'
+        description='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteConnector,
+          pending: isDeleting,
+          pendingLabel: 'Removing...',
+        }}
       >
-        <ChipModalHeader showDivider={false}>Remove Connector</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This will disconnect the source and stop future syncs. Documents already synced will
-            remain in the knowledge base unless you choose to delete them.
-          </p>
-          <div className='flex items-center gap-2 px-2'>
-            <Checkbox
-              id={deleteDocumentsId}
-              checked={deleteDocuments}
-              onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-            />
-            <label
-              htmlFor={deleteDocumentsId}
-              className='cursor-pointer text-[var(--text-secondary)] text-small'
-            >
-              Also delete all synced documents
-            </label>
-          </div>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={closeDeleteModal} disabled={isDeleting}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            disabled={isDeleting}
-            onClick={() => {
-              if (deleteTarget) {
-                deleteConnector(
-                  { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-                  {
-                    onSuccess: () => {
-                      setError(null)
-                      closeDeleteModal()
-                    },
-                    onError: (err) => {
-                      logger.error('Delete connector failed', { error: err.message })
-                      setError(err.message)
-                      closeDeleteModal()
-                    },
-                  }
-                )
-              }
-            }}
+        <div className='flex items-center gap-2 px-2'>
+          <Checkbox
+            id={deleteDocumentsId}
+            checked={deleteDocuments}
+            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+          />
+          <label
+            htmlFor={deleteDocumentsId}
+            className='cursor-pointer text-[var(--text-secondary)] text-small'
           >
-            {isDeleting ? 'Removing...' : 'Remove'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+            Also delete all synced documents
+          </label>
+        </div>
+      </ChipConfirmModal>
     </div>
   )
 }

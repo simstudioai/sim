@@ -7,12 +7,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
   Button,
-  Chip,
   ChipCombobox,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
+  ChipConfirmModal,
   Columns2,
   type ComboboxOption,
   Eye,
@@ -21,6 +17,7 @@ import {
   FolderPlus,
   Loader,
   Pencil,
+  Plus,
   Trash,
   toast,
   Upload,
@@ -49,7 +46,7 @@ import {
 import type {
   BreadcrumbItem,
   FilterTag,
-  HeaderAction,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   RowDragDropConfig,
@@ -58,10 +55,8 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
-  InlineRenameInput,
   ownerCell,
   Resource,
-  ResourceHeader,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
@@ -279,23 +274,19 @@ export function Files() {
     onSave: (rowId, name) => {
       const parsed = parseRowId(rowId)
       if (parsed.kind === 'folder') {
-        updateFolder.mutate({ workspaceId, folderId: parsed.id, updates: { name } })
-        return
+        return updateFolder.mutateAsync({ workspaceId, folderId: parsed.id, updates: { name } })
       }
-      renameFile.mutate({ workspaceId, fileId: parsed.id, name })
+      return renameFile.mutateAsync({ workspaceId, fileId: parsed.id, name })
     },
   })
 
   const headerRename = useInlineRename({
-    onSave: (fileId, name) => {
-      renameFile.mutate({ workspaceId, fileId, name })
-    },
+    onSave: (fileId, name) => renameFile.mutateAsync({ workspaceId, fileId, name }),
   })
 
   const breadcrumbRename = useInlineRename({
-    onSave: (folderId, name) => {
-      updateFolder.mutate({ workspaceId, folderId, updates: { name } })
-    },
+    onSave: (folderId, name) =>
+      updateFolder.mutateAsync({ workspaceId, folderId, updates: { name } }),
   })
 
   const selectedFile = useMemo(
@@ -495,33 +486,24 @@ export function Files() {
     if (!listRename.editingId) return baseRows
     return baseRows.map((row) => {
       if (row.id !== listRename.editingId) return row
-      const parsed = parseRowId(row.id)
-      const file = parsed.kind === 'file' ? filteredFiles.find((f) => f.id === parsed.id) : null
-      const Icon = file ? getDocumentIcon(file.type || '', file.name) : Folder
       return {
         ...row,
         cells: {
           ...row.cells,
           name: {
             ...row.cells.name,
-            content: (
-              <span className='flex min-w-0 items-center gap-3 font-medium text-[var(--text-body)] text-sm'>
-                <span className='flex-shrink-0 text-[var(--text-icon)]'>
-                  <Icon className='size-[14px]' />
-                </span>
-                <InlineRenameInput
-                  value={listRename.editValue}
-                  onChange={listRename.setEditValue}
-                  onSubmit={listRename.submitRename}
-                  onCancel={listRename.cancelRename}
-                />
-              </span>
-            ),
+            editing: {
+              value: listRename.editValue,
+              onChange: listRename.setEditValue,
+              onSubmit: listRename.submitRename,
+              onCancel: listRename.cancelRename,
+              disabled: listRename.isSaving,
+            },
           },
         },
       }
     })
-  }, [baseRows, listRename.editingId, listRename.editValue, filteredFiles])
+  }, [baseRows, listRename.editingId, listRename.editValue, listRename.isSaving])
 
   const visibleRowIds = useMemo(() => rows.map((row) => row.id), [rows])
 
@@ -1416,7 +1398,7 @@ export function Files() {
     setPreviewMode((prev) => (prev === 'preview' ? 'editor' : 'preview'))
   }, [])
 
-  const fileActions = useMemo<HeaderAction[]>(() => {
+  const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
     const canEditText = isTextEditable(selectedFile)
     const canPreview = isPreviewable(selectedFile)
@@ -1440,8 +1422,8 @@ export function Files() {
       ...(canEditText
         ? [
             {
-              label: saveLabel,
-              onClick: handleSave,
+              text: saveLabel,
+              onSelect: handleSave,
               disabled:
                 (!isDirty && saveStatus === 'idle') ||
                 saveStatus === 'saving' ||
@@ -1452,31 +1434,31 @@ export function Files() {
       ...(hasSplitView
         ? [
             {
-              label: nextModeLabel,
+              text: nextModeLabel,
               icon: nextModeIcon,
-              onClick: handleCyclePreviewMode,
+              onSelect: handleCyclePreviewMode,
             },
           ]
         : canPreview
           ? [
               {
-                label: previewMode === 'preview' ? 'Edit' : 'Preview',
+                text: previewMode === 'preview' ? 'Edit' : 'Preview',
                 icon: previewMode === 'preview' ? Pencil : Eye,
-                onClick: handleTogglePreview,
+                onSelect: handleTogglePreview,
               },
             ]
           : []),
       {
-        label: 'Download',
+        text: 'Download',
         icon: Download,
-        onClick: handleDownloadSelected,
+        onSelect: handleDownloadSelected,
       },
       ...(canEdit
         ? [
             {
-              label: 'Delete',
+              text: 'Delete',
               icon: Trash,
-              onClick: handleDeleteSelected,
+              onSelect: handleDeleteSelected,
             },
           ]
         : []),
@@ -1529,12 +1511,6 @@ export function Files() {
     placeholder: 'Search files...',
   }
 
-  const createConfig = {
-    label: 'New file',
-    onClick: handleCreateFile,
-    disabled: uploading || creatingFile || !canEdit,
-  }
-
   const uploadButtonLabel =
     uploading && uploadProgress.total > 0
       ? uploadProgress.currentPercent > 0 && uploadProgress.currentPercent < 100
@@ -1544,22 +1520,38 @@ export function Files() {
         ? 'Uploading...'
         : 'Upload'
 
-  const headerActionsConfig = useMemo(
+  const headerActionsConfig = useMemo<ResourceAction[]>(
     () => [
       {
-        label: uploadButtonLabel,
+        text: uploadButtonLabel,
         icon: Upload,
-        onClick: handleUploadClick,
+        onSelect: handleUploadClick,
         disabled: uploading || !canEdit,
       },
       {
-        label: 'New folder',
+        text: 'New folder',
         icon: FolderPlus,
-        onClick: handleCreateFolder,
+        onSelect: handleCreateFolder,
         disabled: createFolder.isPending || !canEdit,
       },
+      {
+        text: 'New file',
+        icon: Plus,
+        onSelect: handleCreateFile,
+        disabled: uploading || creatingFile || !canEdit,
+        variant: 'primary',
+      },
     ],
-    [uploadButtonLabel, handleUploadClick, handleCreateFolder, createFolder.isPending, canEdit]
+    [
+      uploadButtonLabel,
+      handleUploadClick,
+      handleCreateFolder,
+      handleCreateFile,
+      createFolder.isPending,
+      canEdit,
+      uploading,
+      creatingFile,
+    ]
   )
 
   const handleNavigateToFiles = useCallback(() => {
@@ -1844,7 +1836,7 @@ export function Files() {
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-        <ResourceHeader icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
+        <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
@@ -1856,7 +1848,7 @@ export function Files() {
     return (
       <>
         <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-          <ResourceHeader
+          <Resource.Header
             icon={FilesIcon}
             breadcrumbs={fileDetailBreadcrumbs}
             actions={fileActions}
@@ -1873,26 +1865,15 @@ export function Files() {
             saveRef={saveRef}
           />
 
-          <ChipModal
+          <ChipConfirmModal
             open={showUnsavedChangesAlert}
             onOpenChange={setShowUnsavedChangesAlert}
             srTitle='Unsaved Changes'
-          >
-            <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
-            <ChipModalBody>
-              <p className='px-2 text-[var(--text-secondary)] text-sm'>
-                You have unsaved changes. Are you sure you want to discard them?
-              </p>
-            </ChipModalBody>
-            <ChipModalFooter>
-              <Chip variant='filled' flush onClick={() => setShowUnsavedChangesAlert(false)}>
-                Keep Editing
-              </Chip>
-              <Chip variant='destructive' flush onClick={handleDiscardChanges}>
-                Discard Changes
-              </Chip>
-            </ChipModalFooter>
-          </ChipModal>
+            title='Unsaved Changes'
+            description='You have unsaved changes. Are you sure you want to discard them?'
+            dismissLabel='Keep editing'
+            confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
+          />
         </div>
 
         <DeleteConfirmModal
@@ -1916,51 +1897,56 @@ export function Files() {
       onDragOver={canEdit ? handleDragOver : undefined}
       onDrop={canEdit ? handleDrop : undefined}
     >
-      <Resource
-        icon={FilesIcon}
-        title='Files'
-        breadcrumbs={listBreadcrumbs}
-        create={createConfig}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        headerActions={headerActionsConfig}
-        columns={COLUMNS}
-        rows={rows}
-        selectable={selectableConfig}
-        rowDragDrop={rowDragDropConfig}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading || foldersLoading}
-        onContextMenu={handleContentContextMenu}
-        emptyMessage={emptyMessage}
-        overlay={
-          <>
-            <FilesActionBar
-              selectedCount={selectedRowIds.size}
-              onDownload={handleBulkDownload}
-              onMove={canEdit ? handleContextMenuMove : undefined}
-              moveOptions={canEdit ? contextMenuMoveOptions : undefined}
-              onDelete={canEdit ? handleBulkDelete : undefined}
-              isLoading={bulkArchiveItems.isPending || moveItems.isPending}
-            />
-            {isDraggingOver ? (
-              <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
-                <Upload className='size-5 text-[var(--brand-secondary)]' />
-                <div className='flex flex-col gap-0.5 text-center'>
-                  <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
-                    Drop to upload
-                  </p>
-                  <p className='text-[11px] text-[var(--text-tertiary)]'>
-                    Release files here to add them to this workspace
-                  </p>
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header
+          icon={FilesIcon}
+          title='Files'
+          breadcrumbs={listBreadcrumbs}
+          actions={headerActionsConfig}
+        />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={filterContent ? { content: filterContent } : undefined}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          sort={sortConfig}
+          selectable={selectableConfig}
+          rowDragDrop={rowDragDropConfig}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading || foldersLoading}
+          emptyMessage={emptyMessage}
+          overlay={
+            <>
+              <FilesActionBar
+                selectedCount={selectedRowIds.size}
+                onDownload={handleBulkDownload}
+                onMove={canEdit ? handleContextMenuMove : undefined}
+                moveOptions={canEdit ? contextMenuMoveOptions : undefined}
+                onDelete={canEdit ? handleBulkDelete : undefined}
+                isLoading={bulkArchiveItems.isPending || moveItems.isPending}
+              />
+              {isDraggingOver ? (
+                <div className='pointer-events-none absolute inset-0 z-[var(--z-dropdown)] flex flex-col items-center justify-center gap-2 border border-[var(--brand-secondary)] border-dashed bg-[var(--surface-4)] transition-colors'>
+                  <Upload className='size-5 text-[var(--brand-secondary)]' />
+                  <div className='flex flex-col gap-0.5 text-center'>
+                    <p className='font-medium text-[14px] text-[var(--brand-secondary)]'>
+                      Drop to upload
+                    </p>
+                    <p className='text-[11px] text-[var(--text-tertiary)]'>
+                      Release files here to add them to this workspace
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ) : null}
-          </>
-        }
-      />
+              ) : null}
+            </>
+          }
+        />
+      </Resource>
 
       <FilesListContextMenu
         isOpen={isListContextMenuOpen}

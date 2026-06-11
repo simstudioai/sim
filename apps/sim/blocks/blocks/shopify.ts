@@ -26,7 +26,7 @@ export const ShopifyBlock: BlockConfig<ShopifyResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.',
-  docsLink: 'https://docs.sim.ai/tools/shopify',
+  docsLink: 'https://docs.sim.ai/integrations/shopify',
   category: 'tools',
   integrationType: IntegrationType.Commerce,
   icon: ShopifyIcon,
@@ -1100,6 +1100,39 @@ export const ShopifyBlockMeta = {
       category: 'operations',
       tags: ['ecommerce', 'monitoring', 'analysis'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-product-listing',
+      description: 'Create a new Shopify product with title, description, status, and variants.',
+      content:
+        '# Create Product Listing\n\nAdd a new product to the Shopify store.\n\n## Steps\n1. Run Create Product with the title, body description, vendor, and product type.\n2. Set the status (active, draft, or archived) so the product publishes only when ready.\n3. Verify with Get Product on the returned product ID.\n\n## Output\nReturn the new product ID, title, and status, and confirm the listing was created as draft or active as intended.',
+    },
+    {
+      name: 'process-recent-orders',
+      description:
+        'List recent Shopify orders and summarize them by status, value, or fulfillment need.',
+      content:
+        '# Process Recent Orders\n\nReview the latest orders to triage fulfillment and flag anything unusual.\n\n## Steps\n1. Run List Orders filtered by status (open, closed, cancelled, or any) and a recent time window.\n2. For orders needing detail, run Get Order to read line items, customer, and shipping address.\n3. Group orders by fulfillment status and total value.\n\n## Output\nReturn a summary of recent orders with their order numbers, totals, and status, highlighting any that need immediate fulfillment or review.',
+    },
+    {
+      name: 'fulfill-order',
+      description: 'Create a fulfillment for a Shopify order and update its status.',
+      content:
+        '# Fulfill Order\n\nMark an order as fulfilled once it has shipped.\n\n## Steps\n1. Run Get Order to confirm the order and its line items, and List Locations to identify the fulfilling location.\n2. Run Create Fulfillment for the order, supplying the location and tracking details if available.\n3. Optionally run Update Order to record any notes.\n\n## Output\nConfirm the order number, the fulfillment created, and any tracking number supplied.',
+    },
+    {
+      name: 'adjust-inventory',
+      description: 'Check and adjust Shopify inventory levels for an item at a location.',
+      content:
+        '# Adjust Inventory\n\nReconcile stock levels for an inventory item.\n\n## Steps\n1. Run List Inventory Items and List Locations to identify the item and the location.\n2. Run Get Inventory Level to read the current available quantity.\n3. Run Adjust Inventory with the delta needed to reach the correct count.\n\n## Output\nReport the inventory item, the location, the previous and new quantities, and the adjustment applied.',
+    },
+    {
+      name: 'manage-customer-record',
+      description: 'Create, look up, or update a Shopify customer record.',
+      content:
+        '# Manage Customer Record\n\nMaintain a customer profile in Shopify.\n\n## Steps\n1. To find an existing customer, run List Customers with a filter or Get Customer by ID.\n2. To add a new one, run Create Customer with name, email, and any tags.\n3. To change details, run Update Customer with only the fields to modify.\n\n## Output\nReturn the customer ID, name, and email, and note whether the record was created, found, or updated.',
     },
   ],
 } as const satisfies BlockMeta

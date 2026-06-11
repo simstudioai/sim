@@ -432,7 +432,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
 
   return (
     <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-      {/* Breadcrumb header — matches real ResourceHeader breadcrumb layout */}
+      {/* Breadcrumb header — matches real Resource.Header breadcrumb layout */}
       <div className='border-[var(--border)] border-b px-4 py-[8.5px]'>
         <div className='flex items-center gap-3'>
           <button

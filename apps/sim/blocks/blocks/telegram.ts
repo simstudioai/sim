@@ -12,7 +12,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
   authMode: AuthMode.BotToken,
   longDescription:
     'Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.',
-  docsLink: 'https://docs.sim.ai/tools/telegram',
+  docsLink: 'https://docs.sim.ai/integrations/telegram',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#FFFFFF',
@@ -496,6 +496,27 @@ export const TelegramBlockMeta = {
       category: 'operations',
       tags: ['communication', 'monitoring'],
       alsoIntegrations: ['whatsapp'],
+    },
+  ],
+  skills: [
+    {
+      name: 'send-alert-message',
+      description: 'Post a formatted alert or notification to a Telegram chat or channel.',
+      content:
+        '# Send a Telegram Alert\n\nDeliver a timely notification to a Telegram chat, group, or channel.\n\n## Steps\n1. Use the Send Message operation with your Bot Token and the target Chat ID.\n2. Compose the Message with the essentials up front: what happened, severity, and a link for follow-up.\n3. To find a Chat ID, add the bot to the chat, send a message, then read the chat field from the getUpdates response.\n4. For recurring alerts, build the message from upstream block outputs so each notification carries live context.\n\n## Output\nReturn the sent message ID and chat ID so the run can be traced or the message later deleted.',
+    },
+    {
+      name: 'send-media-message',
+      description:
+        'Send a photo, video, document, or audio file to a Telegram chat with a caption.',
+      content:
+        '# Send Media to Telegram\n\nDeliver a file such as a chart, report, or image to a Telegram chat.\n\n## Steps\n1. Pick the matching operation: Send Photo, Send Video, Send Audio, Send Animation, or Send Document.\n2. Provide the Bot Token and Chat ID.\n3. Upload the file directly, or reference a file produced by a previous block (for example a generated PDF or chart image).\n4. Add an optional Caption describing the attachment.\n\n## Output\nConfirm delivery and return the message ID so the media post can be referenced later.',
+    },
+    {
+      name: 'route-incoming-message',
+      description: 'Trigger a workflow when a Telegram message arrives and act on its content.',
+      content:
+        '# Route an Incoming Telegram Message\n\nUse Telegram as a trigger so the workflow runs whenever a user messages the bot.\n\n## Steps\n1. Enable the Telegram webhook trigger so incoming messages start the workflow.\n2. Read the trigger outputs: text, from_username, chat_id, and chat_type.\n3. Branch on the message content (for example detect a command or a support question) to decide the next action.\n4. Reply with the Send Message operation using the chat_id from the trigger.\n\n## Output\nReturn the parsed incoming message fields and confirm the reply that was sent back to the user.',
     },
   ],
 } as const satisfies BlockMeta

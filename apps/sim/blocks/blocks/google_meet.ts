@@ -11,7 +11,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   description: 'Create and manage Google Meet meetings',
   longDescription:
     'Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.',
-  docsLink: 'https://docs.sim.ai/tools/google_meet',
+  docsLink: 'https://docs.sim.ai/integrations/google_meet',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#FFFFFF',
@@ -252,6 +252,27 @@ export const GoogleMeetBlockMeta = {
       category: 'engineering',
       tags: ['team', 'reporting'],
       alsoIntegrations: ['notion'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-meeting-space',
+      description: 'Create a Google Meet space and return its join link and meeting code.',
+      content:
+        '# Create a Meeting Space\n\nSpin up a Google Meet space to share.\n\n## Steps\n1. Decide the Access Type: Open (anyone with link), Trusted (organization members), or Restricted (invited only).\n2. Optionally set Entry Point Access if the space should only be joinable from the creating app.\n3. Run the Create Space operation.\n4. Capture the meeting URI and meeting code from the response.\n\n## Output\nReturn the meeting link (meetingUri), the meeting code, the access type, and the space resource name so it can be referenced or shared.',
+    },
+    {
+      name: 'summarize-meeting-attendance',
+      description:
+        'Pull a Google Meet conference record and its participants to report who attended.',
+      content:
+        '# Summarize Meeting Attendance\n\nReport attendance for a finished meeting.\n\n## Steps\n1. If you only have the space, run List Conference Records (filter by `space.name = "spaces/..."`) to find the conference record name.\n2. Run Get Conference Record to read start time, end time, and duration.\n3. Run List Participants on that conference record name, paging through results.\n4. Build the attendee list and compute meeting duration.\n\n## Output\nAn attendance summary: meeting start/end and duration, total participant count, and the list of participants. Flag the meeting if no participants are recorded.',
+    },
+    {
+      name: 'list-recent-conferences',
+      description: 'List recent Google Meet conference records for reporting or archival.',
+      content:
+        '# List Recent Conferences\n\nEnumerate past Meet conferences.\n\n## Steps\n1. Run List Conference Records with a Page Size; optionally apply a Filter (e.g., by space name or time).\n2. Page through using the next page token until you have the needed window.\n3. For each record capture the conference record name, associated space, start time, and end time.\n4. Optionally fetch participants per record (List Participants) when attendance is needed.\n\n## Output\nA list of conferences sorted by start time, each with space, start/end, and duration. Include the conference record name so any record can be drilled into.',
     },
   ],
 } as const satisfies BlockMeta

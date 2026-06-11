@@ -108,6 +108,12 @@ export const GET = withRouteHandler(
           stampedVariables[variableId] = { ...variable, workflowId }
         }
       }
+      const workflowStateMetadata = {
+        name: responseWorkflowData.name,
+        ...(typeof responseWorkflowData.description === 'string'
+          ? { description: responseWorkflowData.description }
+          : {}),
+      }
 
       if (snapshot.normalizedData) {
         const finalWorkflowData = {
@@ -120,10 +126,7 @@ export const GET = withRouteHandler(
             lastSaved: Date.now(),
             isDeployed: responseWorkflowData.isDeployed || false,
             deployedAt: responseWorkflowData.deployedAt,
-            metadata: {
-              name: responseWorkflowData.name,
-              description: responseWorkflowData.description,
-            },
+            metadata: workflowStateMetadata,
           },
           variables: stampedVariables,
         }
@@ -145,10 +148,7 @@ export const GET = withRouteHandler(
           lastSaved: Date.now(),
           isDeployed: responseWorkflowData.isDeployed || false,
           deployedAt: responseWorkflowData.deployedAt,
-          metadata: {
-            name: responseWorkflowData.name,
-            description: responseWorkflowData.description,
-          },
+          metadata: workflowStateMetadata,
         },
         variables: stampedVariables,
       }
@@ -325,7 +325,13 @@ export const PUT = withRouteHandler(
 
       if (!result.success || !result.workflow) {
         const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
+          result.errorCode === 'not_found'
+            ? 404
+            : result.errorCode === 'conflict'
+              ? 409
+              : result.errorCode === 'validation'
+                ? 400
+                : 500
         return NextResponse.json({ error: result.error }, { status })
       }
 

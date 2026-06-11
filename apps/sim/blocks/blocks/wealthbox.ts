@@ -11,7 +11,7 @@ export const WealthboxBlock: BlockConfig<WealthboxResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.',
-  docsLink: 'https://docs.sim.ai/tools/wealthbox',
+  docsLink: 'https://docs.sim.ai/integrations/wealthbox',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
@@ -345,6 +345,34 @@ export const WealthboxBlockMeta = {
       category: 'sales',
       tags: ['sales', 'crm'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'log-client-note',
+      description: 'Write a note to a Wealthbox contact record to capture meeting or call details.',
+      content:
+        '# Log a Wealthbox Client Note\n\nRecord a note on a client record so the interaction history stays complete.\n\n## Steps\n1. Use the Write Note operation and select your Wealthbox account.\n2. Select the Contact the note belongs to (or enter the Contact ID in advanced mode).\n3. Write the note Content, summarizing the meeting, call, or decision.\n\n## Output\nReturn the created note with its ID and linked contact so the entry can be referenced later.',
+    },
+    {
+      name: 'create-followup-task',
+      description: 'Create a follow-up task on a Wealthbox contact with a title and due date.',
+      content:
+        '# Create a Wealthbox Follow-up Task\n\nAdd a task to a client record so an advisor follow-up is not missed.\n\n## Steps\n1. Use the Write Task operation and select your Wealthbox account.\n2. Select the Contact the task is for.\n3. Set the Title, the Content describing the work, and a Due Date (natural language like "tomorrow at 2pm" works).\n\n## Output\nReturn the created task with its ID and due date so it can be tracked to completion.',
+    },
+    {
+      name: 'upsert-contact',
+      description:
+        'Create or read a Wealthbox contact with name, email, and background information.',
+      content:
+        '# Manage a Wealthbox Contact\n\nAdd a new client or pull an existing client record.\n\n## Steps\n1. To add a client, use the Write Contact operation with First Name, Last Name, and optionally Email Address and Background Information.\n2. To read a client, use the Read Contact operation and select the Contact or enter its Contact ID.\n3. Select your Wealthbox account for either operation.\n\n## Output\nReturn the contact record including name, email, and background info so downstream steps can use it.',
+    },
+    {
+      name: 'prepare-client-brief',
+      description:
+        'Read a Wealthbox contact plus their recent notes and tasks to build a meeting brief.',
+      content:
+        '# Prepare a Wealthbox Client Brief\n\nGather everything about a client ahead of a meeting.\n\n## Steps\n1. Use Read Contact with the Contact ID to pull the client profile and background.\n2. Use Read Note to retrieve recent notes for the contact.\n3. Use Read Task to pull open and recent tasks tied to the client.\n4. Have an agent synthesize the records into a concise prep brief.\n\n## Output\nReturn a brief covering the client profile, recent notes, and outstanding tasks, ready to email to the advisor.',
     },
   ],
 } as const satisfies BlockMeta

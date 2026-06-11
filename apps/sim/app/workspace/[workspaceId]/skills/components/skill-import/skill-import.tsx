@@ -220,7 +220,6 @@ export function SkillImport({ onImport }: SkillImportProps) {
             className='flex-1'
           />
           <Chip
-            variant='filled'
             flush
             onClick={handleGithubImport}
             disabled={githubState === 'loading' || !githubUrl.trim()}

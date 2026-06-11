@@ -7,11 +7,11 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/use-file-preview-sessions'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
   MothershipResource,
-  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
@@ -45,10 +45,6 @@ interface MothershipViewProps {
   chatId?: string
   resources: MothershipResource[]
   activeResourceId: string | null
-  onSelectResource: (id: string) => void
-  onAddResource: (resource: MothershipResource) => void
-  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  onReorderResources: (resources: MothershipResource[]) => void
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
@@ -69,10 +65,6 @@ export const MothershipView = memo(
       chatId,
       resources,
       activeResourceId,
-      onSelectResource,
-      onAddResource,
-      onRemoveResource,
-      onReorderResources,
       isCollapsed,
       className,
       previewSession,
@@ -84,6 +76,7 @@ export const MothershipView = memo(
   ) {
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
+    const { addResource, removeResource } = useMothershipResources()
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
@@ -121,10 +114,6 @@ export const MothershipView = memo(
             chatArtifactKeys={chatArtifactKeys}
             resources={resources}
             activeId={active?.id ?? null}
-            onSelect={onSelectResource}
-            onAddResource={onAddResource}
-            onRemoveResource={onRemoveResource}
-            onReorderResources={onReorderResources}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }
@@ -141,8 +130,8 @@ export const MothershipView = memo(
                   previewSession={previewForActive}
                   genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                   previewContextKey={chatId}
-                  onNotFound={(resourceId) => onRemoveResource('log', resourceId)}
-                  onAddResource={onAddResource}
+                  onNotFound={(resourceId) => removeResource('log', resourceId)}
+                  onAddResource={addResource}
                 />
               </SidebarToggleHidden>
             ) : (

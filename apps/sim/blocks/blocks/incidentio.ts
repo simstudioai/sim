@@ -10,7 +10,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
-  docsLink: 'https://docs.sim.ai/tools/incidentio',
+  docsLink: 'https://docs.sim.ai/integrations/incidentio',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#FFFFFF',
@@ -1295,6 +1295,35 @@ export const IncidentioBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'monitoring'],
+    },
+  ],
+  skills: [
+    {
+      name: 'declare-incident-from-alert',
+      description:
+        'Open an incident.io incident from an inbound alert with the right severity and summary.',
+      content:
+        '# Declare an Incident From an Alert\n\nTurn a monitoring alert into a structured incident.io incident so responders can act fast.\n\n## Steps\n1. Look up available severities and pick the one matching the alert impact.\n2. Create the incident with a clear name, a summary describing impact and affected service, and the chosen severity.\n3. Set incident type and any required custom fields from the alert payload.\n4. Capture the new incident reference and link.\n\n## Output\nReturn the incident ID, reference, severity, and link. Confirm the responder channel was created so the team can jump in.',
+    },
+    {
+      name: 'post-incident-update',
+      description:
+        'Update an active incident with current status and a progress note for stakeholders.',
+      content:
+        '# Post an Incident Update\n\nKeep stakeholders informed by moving an active incident through its lifecycle.\n\n## Steps\n1. Look up the incident by reference or ID to confirm its current status.\n2. List valid incident statuses and choose the next one (investigating, identified, monitoring, resolved).\n3. Update the incident with the new status and a concise progress message.\n\n## Output\nReturn the incident reference, the new status, and a one-line summary of what changed and when.',
+    },
+    {
+      name: 'on-call-handoff-report',
+      description: 'Summarize who is on call and recent open incidents for an on-call handoff.',
+      content:
+        '# On-Call Handoff Report\n\nBuild a clean handoff so the next on-call engineer knows the state of the world.\n\n## Steps\n1. List current schedules and active escalation paths to determine who is on call.\n2. List recent incidents and filter to those that are open or recently resolved.\n3. For each open incident, capture severity, status, and outstanding follow-ups.\n\n## Output\nReturn a handoff brief: who is on call now, open incidents with severity and status, and follow-ups that still need owners.',
+    },
+    {
+      name: 'export-incident-followups',
+      description:
+        'Pull follow-ups from recent incidents into an actionable list for post-incident review.',
+      content:
+        '# Export Incident Follow-Ups\n\nGather the action items that came out of recent incidents so none slip through.\n\n## Steps\n1. List incidents within the target time window.\n2. For each, list its follow-ups and capture title, owner, status, and linked incident.\n3. Group follow-ups by owner and by open vs completed.\n\n## Output\nReturn a table of follow-ups grouped by owner with status and source incident, highlighting overdue or unassigned items.',
     },
   ],
 } as const satisfies BlockMeta

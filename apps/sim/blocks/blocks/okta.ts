@@ -9,7 +9,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   description: 'Manage users and groups in Okta',
   longDescription:
     'Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.',
-  docsLink: 'https://docs.sim.ai/tools/okta',
+  docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#191919',
@@ -294,8 +294,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         if (params.groupName) result.name = params.groupName
         if (params.groupDescription !== undefined) result.description = params.groupDescription
 
-        // Pass through all other non-empty params
-        // Allow empty strings so users can clear fields (e.g. update_user partial updates)
+        // Pass through all other params, skipping empty values. Blank fields in a
+        // partial update (e.g. update_user, a POST merge) must be omitted so they
+        // leave the existing Okta value unchanged rather than overwriting it with
+        // an empty string. This mirrors the agent tool-call path, which already
+        // filters empty params before execution.
         const skipKeys = new Set([
           'operation',
           'apiKey',
@@ -305,7 +308,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'groupDescription',
         ])
         for (const [key, value] of Object.entries(params)) {
-          if (!skipKeys.has(key) && value !== undefined && value !== null) {
+          if (!skipKeys.has(key) && value !== undefined && value !== null && value !== '') {
             result[key] = value
           }
         }
@@ -453,6 +456,32 @@ export const OktaBlockMeta = {
       modules: ['scheduled', 'agent', 'files', 'workflows'],
       category: 'operations',
       tags: ['legal', 'enterprise'],
+    },
+  ],
+  skills: [
+    {
+      name: 'onboard-user',
+      description: 'Create an Okta user, set their profile, and add them to the right groups.',
+      content:
+        '# Onboard User\n\nProvision a new user in Okta and grant their group access.\n\n## Steps\n1. Run Create User with the profile fields: first name, last name, email, and login.\n2. Determine the groups the role requires, using List Groups to resolve group ids.\n3. Run Add User to Group for each required group.\n4. Activate the user if it was created in a staged state.\n\n## Output\nConfirm the new user id and login, and list the groups they were added to.',
+    },
+    {
+      name: 'offboard-user',
+      description: 'Deactivate an Okta user and remove their group memberships during offboarding.',
+      content:
+        '# Offboard User\n\nRevoke access for a departing user in Okta.\n\n## Steps\n1. Find the user with List Users or Get User to confirm the user id.\n2. Run Deactivate User (or Suspend User for a temporary hold) to block sign-in.\n3. Remove the user from sensitive groups with Remove User from Group.\n4. Only run Delete User when permanent removal is explicitly requested, since it is irreversible.\n\n## Output\nConfirm the user status and the groups removed. State clearly whether the account was deactivated or deleted.',
+    },
+    {
+      name: 'audit-group-membership',
+      description: 'List Okta groups and their members to audit access for a security review.',
+      content:
+        '# Audit Group Membership\n\nReview who belongs to Okta groups, focusing on privileged access.\n\n## Steps\n1. Run List Groups to enumerate the groups, or Get Group for a specific one.\n2. For each group of interest, run List Group Members.\n3. Highlight privileged or admin groups and call out any unexpected members.\n\n## Output\nA per-group roster with member counts, and a short list of access concerns to review.',
+    },
+    {
+      name: 'reset-user-password',
+      description: 'Trigger an Okta password reset for a user who is locked out.',
+      content:
+        '# Reset User Password\n\nHelp a user regain access by resetting their Okta password.\n\n## Steps\n1. Locate the user with Get User to confirm identity.\n2. Run Reset Password to start the reset flow for that user.\n3. If the account is suspended, run Unsuspend User first so the reset can proceed.\n\n## Output\nConfirm the reset was initiated for the named user and note any prerequisite step that was taken.',
     },
   ],
 } as const satisfies BlockMeta

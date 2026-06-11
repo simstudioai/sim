@@ -4,7 +4,6 @@ import { memo, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Chip,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -156,19 +155,15 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
         )}
         <ChipModalError>{error}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip variant='filled' flush onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={handleSubmit}
-          disabled={!isValid || !isDirty || isSubmitting}
-        >
-          {isSubmitting ? 'Saving...' : 'Save'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Saving...' : 'Save',
+          onClick: handleSubmit,
+          disabled: !isValid || !isDirty || isSubmitting,
+        }}
+      />
     </ChipModal>
   )
 })

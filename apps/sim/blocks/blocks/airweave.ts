@@ -10,7 +10,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.',
-  docsLink: 'https://docs.sim.ai/tools/airweave',
+  docsLink: 'https://docs.sim.ai/integrations/airweave',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#6366F1',
@@ -170,6 +170,22 @@ export const AirweaveBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['research', 'reporting'],
+    },
+  ],
+  skills: [
+    {
+      name: 'answer-from-collection',
+      description:
+        'Search an Airweave collection across synced sources and answer a question with grounded, cited results.',
+      content:
+        '# Answer From Collection\n\nUse Airweave to retrieve current context across connected apps and answer a question.\n\n## Steps\n1. Take the user question and search the relevant Airweave collection.\n2. Review the top results, noting which source each came from (docs, tickets, CRM, etc.).\n3. Synthesize an answer grounded only in the retrieved content.\n4. If the collection returns nothing relevant, say so instead of guessing.\n\n## Output\nA concise answer with citations back to the source records. Do not include claims unsupported by the results.',
+    },
+    {
+      name: 'build-context-brief',
+      description:
+        'Search an Airweave collection for a person, account, or project and compile a context brief from all sources.',
+      content:
+        '# Build Context Brief\n\nGather everything Airweave knows about a subject across synced sources into one brief.\n\n## Steps\n1. Search the collection for the subject (account name, project, customer, or person).\n2. Pull relevant hits from each source type and group them.\n3. Summarize the current state, recent activity, and any open items.\n\n## Output\nA short brief organized by source, highlighting the most recent and relevant facts plus open questions.',
     },
   ],
 } as const satisfies BlockMeta

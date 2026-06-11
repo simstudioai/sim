@@ -33,7 +33,7 @@ export const CredentialBlock: BlockConfig<CredentialBlockOutput> = {
   - The outputs are credential ID references, not secret values — they are safe to log and inspect.
   - To switch credentials across environments, replace the single Credential block rather than updating every downstream block.
   `,
-  docsLink: 'https://docs.sim.ai/blocks/credential',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/credential',
   bgColor: '#6366F1',
   icon: CredentialIcon,
   category: 'blocks',

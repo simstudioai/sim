@@ -1,22 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
-  Chip,
   ChipCombobox,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  Label,
   Trash,
 } from '@/components/emcn'
-import { requestJson } from '@/lib/api/client/request'
-import { getTagUsageContract, type TagUsageData } from '@/lib/api/contracts/knowledge'
+import type { TagUsageData } from '@/lib/api/contracts/knowledge'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { SUPPORTED_FIELD_TYPES, TAG_SLOT_CONFIG } from '@/lib/knowledge/constants'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
@@ -24,7 +23,11 @@ import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
 } from '@/hooks/kb/use-knowledge-base-tag-definitions'
-import { useCreateTagDefinition, useDeleteTagDefinition } from '@/hooks/queries/kb/knowledge'
+import {
+  useCreateTagDefinition,
+  useDeleteTagDefinition,
+  useTagUsageQuery,
+} from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('BaseTagsModal')
 
@@ -58,7 +61,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
               {doc.tagValue && (
                 <>
                   <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-xs'>
+                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {doc.tagValue}
                   </span>
                 </>
@@ -67,7 +70,7 @@ function DocumentList({ documents, totalCount }: DocumentListProps) {
           )
         })}
         {hasMore && (
-          <div className='p-2 text-[var(--text-muted)] text-xs'>
+          <div className='p-2 text-[var(--text-muted)] text-caption'>
             and {totalCount - displayLimit} more documents
           </div>
         )}
@@ -91,33 +94,15 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
   const [deleteTagDialogOpen, setDeleteTagDialogOpen] = useState(false)
   const [selectedTag, setSelectedTag] = useState<TagDefinition | null>(null)
   const [viewDocumentsDialogOpen, setViewDocumentsDialogOpen] = useState(false)
-  const [tagUsageData, setTagUsageData] = useState<TagUsageData[]>([])
   const [isCreatingTag, setIsCreatingTag] = useState(false)
   const [createTagForm, setCreateTagForm] = useState({
     displayName: '',
     fieldType: 'text',
   })
 
-  const fetchTagUsage = useCallback(async () => {
-    if (!knowledgeBaseId) return
-
-    try {
-      const result = await requestJson(getTagUsageContract, {
-        params: { id: knowledgeBaseId },
-      })
-      if (result.success) {
-        setTagUsageData(result.data)
-      }
-    } catch (error) {
-      logger.error('Error fetching tag usage:', error)
-    }
-  }, [knowledgeBaseId])
-
-  useEffect(() => {
-    if (open) {
-      fetchTagUsage()
-    }
-  }, [open, fetchTagUsage])
+  const { data: tagUsageData = [], refetch: refetchTagUsage } = useTagUsageQuery(knowledgeBaseId, {
+    enabled: open,
+  })
 
   const getTagUsage = (tagSlot: string): TagUsageData => {
     return (
@@ -132,13 +117,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
   const handleDeleteTagClick = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
+    await refetchTagUsage()
     setDeleteTagDialogOpen(true)
   }
 
   const handleViewDocuments = async (tag: TagDefinition) => {
     setSelectedTag(tag)
-    await fetchTagUsage()
+    await refetchTagUsage()
     setViewDocumentsDialogOpen(true)
   }
 
@@ -208,8 +193,6 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         fieldType: createTagForm.fieldType,
       })
 
-      await fetchTagUsage()
-
       setCreateTagForm({
         displayName: '',
         fieldType: 'text',
@@ -218,6 +201,11 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
     } catch (error) {
       logger.error('Error creating tag definition:', error)
     }
+  }
+
+  const closeDeleteTagDialog = () => {
+    setDeleteTagDialogOpen(false)
+    setSelectedTag(null)
   }
 
   const confirmDeleteTag = async () => {
@@ -229,10 +217,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         tagDefinitionId: selectedTag.id,
       })
 
-      await fetchTagUsage()
-
-      setDeleteTagDialogOpen(false)
-      setSelectedTag(null)
+      closeDeleteTagDialog()
     } catch (error) {
       logger.error('Error deleting tag definition:', error)
     }
@@ -261,15 +246,18 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         </ChipModalHeader>
 
         <ChipModalBody>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='space-y-2'>
-              <Label>
+          <ChipModalField
+            type='custom'
+            title={
+              <>
                 Tags:{' '}
                 <span className='pl-1.5 text-[var(--text-tertiary)]'>
                   {kbTagDefinitions.length} defined
                 </span>
-              </Label>
-
+              </>
+            }
+          >
+            <div className='flex flex-col gap-2'>
               {kbTagDefinitions.length === 0 && !isCreatingTag && (
                 <div className='rounded-md border p-4 text-center'>
                   <p className='text-[var(--text-tertiary)] text-caption'>
@@ -299,7 +287,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                       {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                     </span>
                     <div className='mb-[-1.5px] h-[14px] w-[1.25px] flex-shrink-0 rounded-full bg-[var(--border-1)]' />
-                    <span className='min-w-0 flex-1 text-[var(--text-muted)] text-xs'>
+                    <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
                       {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                     </span>
                     <div className='flex flex-shrink-0 items-center gap-1'>
@@ -331,10 +319,13 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
 
               {isCreatingTag && (
                 <div className='space-y-2 rounded-md border p-3'>
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='tagName'>Tag Name</Label>
+                  <ChipModalField
+                    type='custom'
+                    title='Tag Name'
+                    flush
+                    error={tagNameConflict ? 'A tag with this name already exists' : undefined}
+                  >
                     <ChipInput
-                      id='tagName'
                       value={createTagForm.displayName}
                       onChange={(e) =>
                         setCreateTagForm({ ...createTagForm, displayName: e.target.value })
@@ -352,27 +343,25 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         }
                       }}
                     />
-                    {tagNameConflict && (
-                      <span className='text-[var(--text-error)] text-caption'>
-                        A tag with this name already exists
-                      </span>
-                    )}
-                  </div>
+                  </ChipModalField>
 
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='tagType'>Type</Label>
+                  <ChipModalField
+                    type='custom'
+                    title='Type'
+                    flush
+                    error={
+                      !hasAvailableSlots(createTagForm.fieldType)
+                        ? 'No available slots for this type. Choose a different type.'
+                        : undefined
+                    }
+                  >
                     <ChipCombobox
                       options={fieldTypeOptions}
                       value={createTagForm.fieldType}
                       onChange={(value) => setCreateTagForm({ ...createTagForm, fieldType: value })}
                       placeholder='Select type'
                     />
-                    {!hasAvailableSlots(createTagForm.fieldType) && (
-                      <span className='text-[var(--text-error)] text-caption'>
-                        No available slots for this type. Choose a different type.
-                      </span>
-                    )}
-                  </div>
+                  </ChipModalField>
 
                   <div className='flex gap-2'>
                     <Button variant='default' onClick={cancelCreatingTag} className='flex-1'>
@@ -394,25 +383,29 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                 </div>
               )}
             </div>
-          </div>
+          </ChipModalField>
         </ChipModalBody>
 
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => handleClose(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          primaryAction={{ label: 'Close', onClick: () => handleClose(false) }}
+        />
       </ChipModal>
 
       {/* Delete Tag Confirmation Dialog */}
-      <ChipModal
+      <ChipConfirmModal
         open={deleteTagDialogOpen}
-        onOpenChange={setDeleteTagDialogOpen}
+        onOpenChange={(openState) => {
+          if (openState) {
+            setDeleteTagDialogOpen(true)
+          } else {
+            closeDeleteTagDialog()
+          }
+        }}
         srTitle='Delete Tag'
-      >
-        <ChipModalHeader showDivider={false}>Delete Tag</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Tag'
+        description={
+          <>
             Are you sure you want to delete the &ldquo;
             <span className='text-[var(--text-primary)]'>{selectedTag?.displayName}</span>&rdquo;
             tag?{' '}
@@ -421,36 +414,24 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
             </span>{' '}
             This action cannot be undone.
-          </p>
-          {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
-            <div className='flex flex-col gap-2 px-2'>
-              <Label>Affected documents:</Label>
-              <DocumentList
-                documents={selectedTagUsage.documents}
-                totalCount={selectedTagUsage.documentCount}
-              />
-            </div>
-          )}
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            disabled={deleteTagMutation.isPending}
-            onClick={() => setDeleteTagDialogOpen(false)}
-          >
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDeleteTag}
-            disabled={deleteTagMutation.isPending}
-          >
-            {deleteTagMutation.isPending ? 'Deleting...' : 'Delete Tag'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete Tag',
+          onClick: confirmDeleteTag,
+          pending: deleteTagMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      >
+        {selectedTagUsage && selectedTagUsage.documentCount > 0 && (
+          <ChipModalField type='custom' title='Affected documents'>
+            <DocumentList
+              documents={selectedTagUsage.documents}
+              totalCount={selectedTagUsage.documentCount}
+            />
+          </ChipModalField>
+        )}
+      </ChipConfirmModal>
 
       {/* View Documents Dialog */}
       <ChipModal
@@ -463,7 +444,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
           Documents using "{selectedTag?.displayName}"
         </ChipModalHeader>
         <ChipModalBody>
-          <div className='space-y-2'>
+          <div className='flex flex-col gap-2 px-2'>
             <p className='text-[var(--text-secondary)]'>
               {selectedTagUsage?.documentCount || 0} document
               {selectedTagUsage?.documentCount !== 1 ? 's are' : ' is'} currently using this tag
@@ -485,11 +466,10 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
             )}
           </div>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setViewDocumentsDialogOpen(false)}>
-            Close
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={() => setViewDocumentsDialogOpen(false)}
+          primaryAction={{ label: 'Close', onClick: () => setViewDocumentsDialogOpen(false) }}
+        />
       </ChipModal>
     </>
   )

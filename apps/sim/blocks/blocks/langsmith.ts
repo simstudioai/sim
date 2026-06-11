@@ -9,7 +9,7 @@ export const LangsmithBlock: BlockConfig<LangsmithResponse> = {
   description: 'Forward workflow runs to LangSmith for observability',
   longDescription:
     'Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.',
-  docsLink: 'https://docs.sim.ai/tools/langsmith',
+  docsLink: 'https://docs.sim.ai/integrations/langsmith',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#181C1E',
@@ -363,6 +363,22 @@ export const LangsmithBlockMeta = {
       modules: ['agent', 'workflows'],
       category: 'engineering',
       tags: ['engineering', 'monitoring'],
+    },
+  ],
+  skills: [
+    {
+      name: 'log-llm-run-to-langsmith',
+      description:
+        'Send a single LLM or chain run to LangSmith with inputs, outputs, and timing for tracing.',
+      content:
+        '# Log an LLM Run to LangSmith\n\nForward one workflow step into LangSmith so it shows up in tracing and evals.\n\n## Steps\n1. Capture the run name, run type (llm, chain, tool), and the project to log into.\n2. Record the inputs (prompt or arguments) and the outputs the step produced.\n3. Include start and end times so latency is captured, plus any error if the step failed.\n4. Create the run in LangSmith.\n\n## Output\nConfirm the run was logged with its name, type, and project, and surface the run ID for follow-up inspection.',
+    },
+    {
+      name: 'batch-export-runs',
+      description:
+        'Send a batch of completed workflow runs to LangSmith in one call for observability.',
+      content:
+        '# Batch Export Runs\n\nShip multiple completed runs to LangSmith at once instead of one by one.\n\n## Steps\n1. Collect the runs to export, each with name, type, inputs, outputs, and timing.\n2. Assign a shared project so the runs land together.\n3. Submit them as a single batch.\n\n## Output\nReturn how many runs were exported, the project they landed in, and any runs that failed validation.',
     },
   ],
 } as const satisfies BlockMeta

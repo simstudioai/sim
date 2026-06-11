@@ -15,14 +15,7 @@ import {
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
-import {
-  ArrowUp,
-  Bell,
-  Library,
-  MoreHorizontal,
-  RefreshCw,
-  Workflow,
-} from '@/components/emcn/icons'
+import { ArrowUp, Library, MoreHorizontal, RefreshCw, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
@@ -76,8 +69,6 @@ interface LogsToolbarProps {
   canEdit: boolean
   /** Whether there are logs to export */
   hasLogs: boolean
-  /** Callback when notification settings is clicked */
-  onOpenNotificationSettings: () => void
   /** Search query value */
   searchQuery: string
   /** Callback when search query changes */
@@ -163,7 +154,6 @@ export const LogsToolbar = memo(function LogsToolbar({
   onExport,
   canEdit,
   hasLogs,
-  onOpenNotificationSettings,
   searchQuery,
   onSearchQueryChange,
   onSearchOpenChange,
@@ -445,10 +435,6 @@ export const LogsToolbar = memo(function LogsToolbar({
               <DropdownMenuItem onSelect={onExport} disabled={!canEdit || isExporting || !hasLogs}>
                 <ArrowUp className='size-3' />
                 <span>Export as CSV</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onOpenNotificationSettings}>
-                <Bell className='size-3' />
-                <span>Configure Notifications</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

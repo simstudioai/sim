@@ -5,13 +5,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   Button,
-  Chip,
   ChipInput,
   ChipModal,
   ChipModalBody,
+  ChipModalError,
+  ChipModalField,
   ChipModalFooter,
+  type ChipModalFooterAction,
   ChipModalHeader,
-  ChipTextarea,
   SecretInput,
 } from '@/components/emcn'
 import { ChevronDown, ChevronRight } from '@/components/emcn/icons'
@@ -23,7 +24,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { useMcpServerTest } from '@/hooks/queries/mcp'
-import { FormField } from '../form-field/form-field'
 
 const logger = createLogger('McpServerFormModal')
 
@@ -612,27 +612,62 @@ export function McpServerFormModal({
   const title = mode === 'add' ? 'Add New MCP Server' : 'Edit MCP Server'
   const submitLabel = mode === 'add' ? 'Add MCP' : 'Save'
 
+  const handleToggleJsonMode = () => {
+    if (testResult) clearTestResult()
+    setFormMode(formMode === 'form' ? 'json' : 'form')
+    setJsonError(null)
+    setSubmitError(null)
+  }
+
+  const secondaryAction: ChipModalFooterAction | undefined =
+    mode === 'add'
+      ? {
+          label: formMode === 'form' ? 'Edit JSON' : 'Edit Form',
+          onClick: handleToggleJsonMode,
+        }
+      : formMode === 'form'
+        ? {
+            label: testButtonLabel,
+            onClick: handleTestConnection,
+            disabled: isTestingConnection || !isFormValid || isDomainBlocked,
+          }
+        : undefined
+
+  const primaryAction: ChipModalFooterAction =
+    formMode === 'json'
+      ? {
+          label: isSubmitting ? 'Adding...' : submitLabel,
+          onClick: handleSubmitJson,
+          disabled: isSubmitting || !jsonInput.trim(),
+        }
+      : {
+          label: isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel,
+          onClick: handleSubmitForm,
+          disabled: isSubmitDisabled,
+        }
+
   return (
     <ChipModal open={open} onOpenChange={onOpenChange} srTitle={title} size='lg'>
       <ChipModalHeader onClose={() => onOpenChange(false)}>{title}</ChipModalHeader>
-      <ChipModalBody className='max-h-[82vh] min-h-0 overflow-y-auto'>
+      <ChipModalBody>
         {formMode === 'json' ? (
-          <div className='flex flex-col gap-2'>
-            <ChipTextarea
-              placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
-              value={jsonInput}
-              onChange={(e) => {
-                setJsonInput(e.target.value)
-                if (jsonError) setJsonError(null)
-                if (testResult) clearTestResult()
-                if (submitError) setSubmitError(null)
-              }}
-              className='min-h-[280px] font-mono text-small leading-5'
-            />
-            {jsonError && <p className='text-[var(--text-error)] text-caption'>{jsonError}</p>}
-          </div>
+          <ChipModalField
+            type='textarea'
+            title='Configuration'
+            value={jsonInput}
+            onChange={(value) => {
+              setJsonInput(value)
+              if (jsonError) setJsonError(null)
+              if (testResult) clearTestResult()
+              if (submitError) setSubmitError(null)
+            }}
+            placeholder={`{\n  "mcpServers": {\n    "server-name": {\n      "url": "https://...",\n      "headers": {\n        "X-API-Key": "..."\n      }\n    }\n  }\n}`}
+            minHeight={280}
+            resizable
+            error={jsonError}
+          />
         ) : (
-          <div className='flex flex-col gap-3'>
+          <>
             <input
               type='text'
               name='fakeusernameremembered'
@@ -649,19 +684,23 @@ export function McpServerFormModal({
               tabIndex={-1}
               readOnly
             />
-            <FormField label='Server Name'>
-              <ChipInput
-                placeholder='e.g., My MCP Server'
-                value={formData.name}
-                onChange={(e) => {
-                  if (testResult) clearTestResult()
-                  if (submitError) setSubmitError(null)
-                  setFormData((prev) => ({ ...prev, name: e.target.value }))
-                }}
-              />
-            </FormField>
+            <ChipModalField
+              type='input'
+              title='Server Name'
+              value={formData.name}
+              onChange={(value) => {
+                if (testResult) clearTestResult()
+                if (submitError) setSubmitError(null)
+                setFormData((prev) => ({ ...prev, name: value }))
+              }}
+              placeholder='e.g., My MCP Server'
+            />
 
-            <FormField label='Server URL'>
+            <ChipModalField
+              type='custom'
+              title='Server URL'
+              error={isDomainBlocked ? 'Domain not permitted by server policy' : undefined}
+            >
               <FormattedInput
                 ref={urlInputRef}
                 placeholder='https://mcp.server.dev/{{YOUR_API_KEY}}/sse'
@@ -679,14 +718,9 @@ export function McpServerFormModal({
                 onChange={(e) => handleInputChange('url', e.target.value)}
                 onScroll={setUrlScrollLeft}
               />
-              {isDomainBlocked && (
-                <p className='mt-1 text-[var(--text-error)] text-caption'>
-                  Domain not permitted by server policy
-                </p>
-              )}
-            </FormField>
+            </ChipModalField>
 
-            <FormField label='Headers'>
+            <ChipModalField type='custom' title='Headers'>
               <div className='flex max-h-[140px] flex-col gap-2 overflow-y-auto'>
                 {(formData.headers || []).map((header, index) => (
                   <HeaderRow
@@ -708,13 +742,13 @@ export function McpServerFormModal({
                   />
                 ))}
               </div>
-            </FormField>
+            </ChipModalField>
 
             <Button
               type='button'
               variant='ghost'
               onClick={() => setShowAdvanced((v) => !v)}
-              className='mt-1 gap-1 self-start px-0 py-0 text-small'
+              className='gap-1 self-start px-2 py-0 text-small'
             >
               {showAdvanced ? (
                 <ChevronDown className='size-[14px]' />
@@ -724,8 +758,8 @@ export function McpServerFormModal({
               Advanced settings
             </Button>
             {showAdvanced && (
-              <div className='flex flex-col gap-2'>
-                <FormField label='Client ID'>
+              <>
+                <ChipModalField type='custom' title='Client ID'>
                   <ChipInput
                     placeholder='OAuth Client ID (optional)'
                     value={formData.oauthClientId || ''}
@@ -741,8 +775,12 @@ export function McpServerFormModal({
                       setFormData((prev) => ({ ...prev, oauthClientId: e.target.value }))
                     }}
                   />
-                </FormField>
-                <FormField label='Client Secret'>
+                </ChipModalField>
+                <ChipModalField
+                  type='custom'
+                  title='Client Secret'
+                  hint="Only needed for servers that don't support automatic client registration."
+                >
                   <SecretInput
                     placeholder='OAuth Client Secret (optional)'
                     value={formData.oauthClientSecret || ''}
@@ -759,73 +797,18 @@ export function McpServerFormModal({
                       setFormData((prev) => ({ ...prev, oauthClientSecret: value }))
                     }}
                   />
-                </FormField>
-                <p className='text-[var(--text-tertiary)] text-caption'>
-                  Only needed for servers that don't support automatic client registration.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-        {submitError && <p className='w-full text-[var(--text-error)] text-small'>{submitError}</p>}
-      </ChipModalBody>
-      <ChipModalFooter
-        leading={
-          <>
-            {mode === 'add' && (
-              <Chip
-                type='button'
-                variant='filled'
-                flush
-                onClick={() => {
-                  if (testResult) clearTestResult()
-                  setFormMode(formMode === 'form' ? 'json' : 'form')
-                  setJsonError(null)
-                  setSubmitError(null)
-                }}
-              >
-                {formMode === 'form' ? 'Edit JSON' : 'Edit Form'}
-              </Chip>
-            )}
-            {mode === 'edit' && formMode === 'form' && (
-              <Chip
-                type='button'
-                variant='filled'
-                flush
-                onClick={handleTestConnection}
-                disabled={isTestingConnection || !isFormValid || isDomainBlocked}
-              >
-                {testButtonLabel}
-              </Chip>
+                </ChipModalField>
+              </>
             )}
           </>
-        }
-      >
-        <Chip type='button' variant='filled' flush onClick={() => onOpenChange(false)}>
-          Cancel
-        </Chip>
-        {formMode === 'json' ? (
-          <Chip
-            type='button'
-            variant='primary'
-            flush
-            onClick={handleSubmitJson}
-            disabled={isSubmitting || !jsonInput.trim()}
-          >
-            {isSubmitting ? 'Adding...' : submitLabel}
-          </Chip>
-        ) : (
-          <Chip
-            type='button'
-            variant='primary'
-            flush
-            onClick={handleSubmitForm}
-            disabled={isSubmitDisabled}
-          >
-            {isSubmitting ? (mode === 'add' ? 'Adding...' : 'Saving...') : submitLabel}
-          </Chip>
         )}
-      </ChipModalFooter>
+        <ChipModalError>{submitError}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        secondaryAction={secondaryAction}
+        primaryAction={primaryAction}
+      />
     </ChipModal>
   )
 }

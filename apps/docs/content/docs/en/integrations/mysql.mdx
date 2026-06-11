@@ -1,0 +1,168 @@
+---
+title: MySQL
+description: Connect to MySQL database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mysql"
+  color="#FFFFFF"
+/>
+
+## Usage Instructions
+
+Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.
+
+
+
+## Actions
+
+### `mysql_query`
+
+Execute SELECT query on MySQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Yes | SQL SELECT query to execute \(e.g., SELECT * FROM users WHERE active = 1\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows returned |
+
+### `mysql_insert`
+
+Insert new record into MySQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to insert into \(e.g., users, orders\) |
+| `data` | object | Yes | Data to insert as key-value pairs |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of inserted rows |
+| `rowCount` | number | Number of rows inserted |
+
+### `mysql_update`
+
+Update existing records in MySQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to update \(e.g., users, orders\) |
+| `data` | object | Yes | Data to update as key-value pairs |
+| `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of updated rows |
+| `rowCount` | number | Number of rows updated |
+
+### `mysql_delete`
+
+Delete records from MySQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `table` | string | Yes | Table name to delete from \(e.g., users, orders\) |
+| `where` | string | Yes | WHERE clause condition \(without WHERE keyword\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of deleted rows |
+| `rowCount` | number | Number of rows deleted |
+
+### `mysql_execute`
+
+Execute raw SQL query on MySQL database
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+| `query` | string | Yes | Raw SQL query to execute \(e.g., CREATE TABLE users \(id INT PRIMARY KEY, name VARCHAR\(255\)\)\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `rows` | array | Array of rows returned from the query |
+| `rowCount` | number | Number of rows affected |
+
+### `mysql_introspect`
+
+Introspect MySQL database schema to retrieve table structures, columns, and relationships
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `host` | string | Yes | MySQL server hostname or IP address |
+| `port` | number | Yes | MySQL server port \(default: 3306\) |
+| `database` | string | Yes | Database name to connect to \(e.g., my_database\) |
+| `username` | string | Yes | Database username |
+| `password` | string | Yes | Database password |
+| `ssl` | string | No | SSL connection mode \(disabled, required, preferred\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `message` | string | Operation status message |
+| `tables` | array | Array of table schemas with columns, keys, and indexes |
+| `databases` | array | List of available databases on the server |
+
+

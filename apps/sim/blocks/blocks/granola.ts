@@ -7,7 +7,7 @@ export const GranolaBlock: BlockConfig = {
   description: 'Access meeting notes and transcripts from Granola',
   longDescription:
     'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.',
-  docsLink: 'https://docs.sim.ai/tools/granola',
+  docsLink: 'https://docs.sim.ai/integrations/granola',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#B2C147',
@@ -22,6 +22,7 @@ export const GranolaBlock: BlockConfig = {
       options: [
         { label: 'List Notes', id: 'list_notes' },
         { label: 'Get Note', id: 'get_note' },
+        { label: 'List Folders', id: 'list_folders' },
       ],
       value: () => 'list_notes',
     },
@@ -108,7 +109,7 @@ export const GranolaBlock: BlockConfig = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '10 (1-30)',
-      condition: { field: 'operation', value: 'list_notes' },
+      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
       mode: 'advanced',
     },
     {
@@ -116,13 +117,13 @@ export const GranolaBlock: BlockConfig = {
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from previous response',
-      condition: { field: 'operation', value: 'list_notes' },
+      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
       mode: 'advanced',
     },
   ],
 
   tools: {
-    access: ['granola_list_notes', 'granola_get_note'],
+    access: ['granola_list_notes', 'granola_get_note', 'granola_list_folders'],
     config: {
       tool: (params) => `granola_${params.operation}`,
       params: (params) => {
@@ -163,7 +164,11 @@ export const GranolaBlock: BlockConfig = {
     summaryText: { type: 'string', description: 'Plain text meeting summary' },
     summaryMarkdown: { type: 'string', description: 'Markdown meeting summary' },
     attendees: { type: 'json', description: 'Meeting attendees (name, email)' },
-    folders: { type: 'json', description: 'Folders the note belongs to (id, name)' },
+    folders: {
+      type: 'json',
+      description:
+        'Folders — a note’s folder memberships (id, name) for Get Note, or the workspace folder listing (id, name, parentFolderId) for List Folders',
+    },
     calendarEventTitle: { type: 'string', description: 'Calendar event title' },
     calendarOrganiser: { type: 'string', description: 'Calendar event organiser email' },
     calendarEventId: { type: 'string', description: 'Calendar event ID' },
@@ -172,7 +177,7 @@ export const GranolaBlock: BlockConfig = {
     invitees: { type: 'json', description: 'Calendar event invitee emails' },
     transcript: {
       type: 'json',
-      description: 'Meeting transcript entries (speaker, text, startTime, endTime)',
+      description: 'Meeting transcript entries (speaker, speakerLabel, text, startTime, endTime)',
     },
   },
 }
@@ -247,6 +252,28 @@ export const GranolaBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'reporting'],
+    },
+  ],
+  skills: [
+    {
+      name: 'digest-meeting-notes',
+      description:
+        'List recent Granola notes and produce a structured digest of takeaways and action items.',
+      content:
+        '# Digest Meeting Notes\n\nTurn recent Granola meeting notes into a concise digest.\n\n## Steps\n1. List notes, optionally limited to a recent time window.\n2. For each note, get the full note content.\n3. Extract the meeting title, key decisions, takeaways, and action items with owners and due dates if present.\n4. Keep each meeting summary short and uniformly structured.\n\n## Output\nReturn a digest with one section per meeting: title, date, decisions, takeaways, and action items. Suitable for a team recap or daily summary.',
+    },
+    {
+      name: 'extract-action-items',
+      description: 'Read a Granola note and pull out a clean list of action items with owners.',
+      content:
+        '# Extract Action Items\n\nIsolate the follow-ups from a single meeting note.\n\n## Steps\n1. If only a title or date is known, list notes and match to find the note ID.\n2. Get the note content.\n3. Identify every action item, normalizing each into a clear task with an owner and due date when stated.\n4. Drop duplicates and merge near-identical items.\n\n## Output\nReturn a list of action items, each with the task, owner, and due date. Ready to push into a task manager or tracking table.',
+    },
+    {
+      name: 'log-decisions',
+      description:
+        'Scan Granola notes for decisions made and compile them into a dated decision log.',
+      content:
+        '# Log Decisions\n\nBuild an auditable record of decisions captured in meetings.\n\n## Steps\n1. List notes across the target window.\n2. Get each note and identify explicit decisions, the rationale, and who made them.\n3. Normalize each into a row with date, decision, owner, and context.\n\n## Output\nReturn a chronological decision log, each entry with date, decision, owner, and supporting context. Useful for writing to a decision-tracking table.',
     },
   ],
 } as const satisfies BlockMeta

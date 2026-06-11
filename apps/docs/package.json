@@ -32,7 +32,9 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "shiki": "4.0.0",
-    "tailwind-merge": "^3.0.2"
+    "tailwind-merge": "^3.0.2",
+    "reactflow": "^11.11.4",
+    "framer-motion": "^12.5.0"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

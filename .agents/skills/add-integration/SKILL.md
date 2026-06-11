@@ -137,7 +137,7 @@ export const {Service}Block: BlockConfig = {
   name: '{Service}',
   description: '...',
   longDescription: '...',
-  docsLink: 'https://docs.sim.ai/tools/{service}',
+  docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',
   bgColor: '#HEXCOLOR',
   icon: {Service}Icon,
@@ -425,7 +425,7 @@ Run the documentation generator:
 bun run scripts/generate-docs.ts
 ```
 
-This creates `apps/docs/content/docs/en/tools/{service}.mdx`
+This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 ## V2 Integration Pattern
 

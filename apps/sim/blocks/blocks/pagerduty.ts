@@ -7,7 +7,7 @@ export const PagerDutyBlock: BlockConfig = {
   description: 'Manage incidents and on-call schedules with PagerDuty',
   longDescription:
     'Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.',
-  docsLink: 'https://docs.sim.ai/tools/pagerduty',
+  docsLink: 'https://docs.sim.ai/integrations/pagerduty',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#06AC38',
@@ -553,6 +553,36 @@ export const PagerDutyBlockMeta = {
       category: 'engineering',
       tags: ['devops', 'incident-management', 'ticketing'],
       alsoIntegrations: ['linear'],
+    },
+  ],
+  skills: [
+    {
+      name: 'open-incident',
+      description:
+        'Create a PagerDuty incident on a service with a title, urgency, and description so responders get paged.',
+      content:
+        '# Open Incident\n\nCreate a new PagerDuty incident and page the on-call responder.\n\n## Steps\n1. Use the Create Incident operation with the target Service ID and a clear, specific Title summarizing the problem.\n2. Set Urgency (high or low) based on customer impact and add a Description with affected systems, symptoms, and any error signatures.\n3. Optionally set an Escalation Policy ID or Assignee User ID to route the page directly.\n4. Capture the returned incident ID, number, and web URL for follow-up.\n\n## Output\nReport the new incident number, urgency, assigned service, and the PagerDuty URL so the team can jump straight to the incident.',
+    },
+    {
+      name: 'triage-active-incidents',
+      description:
+        'List triggered and acknowledged PagerDuty incidents and produce a prioritized triage summary.',
+      content:
+        '# Triage Active Incidents\n\nReview what is currently on fire and summarize it for the team.\n\n## Steps\n1. Use List Incidents filtered to Triggered then Acknowledged statuses, sorted by created at (newest first).\n2. Optionally scope to specific Service IDs or a Since window to focus on a team or recent activity.\n3. Group results by service and urgency, flagging high-urgency triggered incidents that are still unacknowledged.\n4. For each, note title, age, status, and the responsible service.\n\n## Output\nA prioritized list leading with unacknowledged high-urgency incidents, including incident number, service, age, and URL.',
+    },
+    {
+      name: 'resolve-and-note-incident',
+      description:
+        'Update a PagerDuty incident status and add a resolution note documenting what was done.',
+      content:
+        '# Resolve and Note Incident\n\nClose out an incident with a clear audit trail.\n\n## Steps\n1. Use Update Incident with the Incident ID and set Status to acknowledged or resolved as appropriate.\n2. Use Add Note on the same Incident ID to record the root cause, the fix applied, and any follow-up actions.\n3. Provide a valid From Email (a real PagerDuty user) since these write operations require it.\n4. Confirm the new status from the response.\n\n## Output\nState the incident number, its new status, and a one-line summary of the note that was attached.',
+    },
+    {
+      name: 'check-whos-on-call',
+      description:
+        'List current PagerDuty on-call assignments for given schedules or escalation policies.',
+      content:
+        '# Check Who Is On Call\n\nFind the right person to reach right now.\n\n## Steps\n1. Use List On-Calls, optionally scoped by Escalation Policy IDs or Schedule IDs.\n2. Set a Since and Until window to look at the current or an upcoming shift.\n3. Map each on-call entry to its escalation level so primary versus backup responders are clear.\n\n## Output\nA concise roster: who is on call at level 1 (primary) and level 2 (backup) per schedule, with the time window covered.',
     },
   ],
 } as const satisfies BlockMeta

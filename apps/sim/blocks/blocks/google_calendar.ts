@@ -13,7 +13,7 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.',
-  docsLink: 'https://docs.sim.ai/tools/google_calendar',
+  docsLink: 'https://docs.sim.ai/integrations/google_calendar',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
@@ -780,6 +780,34 @@ export const GoogleCalendarBlockMeta = {
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'sales',
       tags: ['sales', 'research', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'schedule-meeting',
+      description:
+        'Create a Google Calendar event with the right time, attendees, and details, sending invites.',
+      content:
+        '# Schedule a Meeting\n\nCreate a calendar event and invite attendees.\n\n## Steps\n1. Determine the calendar (default to `primary`), title, start and end times, location, and description from the request.\n2. Convert times to ISO 8601 with the correct timezone offset (e.g., `2025-06-03T10:00:00-08:00`).\n3. If the request is conversational (e.g., "lunch with John tomorrow at noon"), use Quick Add instead of building each field by hand.\n4. Run Create Event (or Quick Add) with the attendee emails as a comma-separated list.\n5. Set Send Email Notifications to `all` so attendees are invited.\n\n## Output\nConfirm the created event: title, start/end in a readable format, attendees, and the event link (htmlLink). If a conflict is likely, note it.',
+    },
+    {
+      name: 'summarize-daily-agenda',
+      description:
+        "List today's Google Calendar events and produce a clean, ordered agenda summary.",
+      content:
+        '# Summarize the Daily Agenda\n\nProduce a readable agenda for a day or window.\n\n## Steps\n1. Resolve the target window into UTC ISO timestamps for Start Time Filter (timeMin) and End Time Filter (timeMax). For "today", use 00:00:00Z to 23:59:59Z.\n2. Run List Events on the chosen calendar with those filters and a reasonable Max Results.\n3. Sort events chronologically and read summary, start/end, location, and attendees for each.\n4. Flag back-to-back meetings and any event with no agenda or description.\n\n## Output\nA chronological agenda. Each line: time range, title, location (if any), and attendee count. Add a short header with total meetings and total meeting hours.',
+    },
+    {
+      name: 'find-and-reschedule-event',
+      description: 'Locate an existing event and update its time, attendees, or details.',
+      content:
+        '# Find and Reschedule an Event\n\nUpdate an existing calendar event.\n\n## Steps\n1. If you do not have the event ID, run List Events over a suitable window and match by title/attendees to find the event ID.\n2. Run Get Event to read the current details and confirm it is the right one.\n3. Run Update Event with only the changed fields (new start/end in ISO 8601 with offset, new attendees, new location, or title).\n4. Set Send Email Notifications to `all` so attendees see the change.\n\n## Output\nConfirm what changed (old vs new time/attendees) and return the event link. If multiple events matched, list them and ask which to update before changing anything destructive.',
+    },
+    {
+      name: 'invite-attendees-to-event',
+      description: 'Add attendees to an existing Google Calendar event and notify them.',
+      content:
+        '# Invite Attendees to an Event\n\nAdd people to an event without recreating it.\n\n## Steps\n1. Obtain the event ID (use List Events to find it if needed).\n2. Collect the attendee emails to add as a comma-separated list.\n3. Run Invite Attendees with Replace Existing set to `Add to existing attendees` (unless asked to replace the whole list).\n4. Set Send Email Notifications to `all`.\n\n## Output\nConfirm the added attendees and the resulting full attendee list, with the event link.',
     },
   ],
 } as const satisfies BlockMeta

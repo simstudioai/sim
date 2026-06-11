@@ -58,6 +58,9 @@ export const vercelCancelDeploymentTool: ToolConfig<
         name: data.name ?? null,
         state: data.readyState ?? data.state ?? 'CANCELED',
         url: data.url ?? null,
+        status: data.status ?? null,
+        projectId: data.projectId ?? null,
+        inspectorUrl: data.inspectorUrl ?? null,
       },
     }
   },
@@ -78,6 +81,21 @@ export const vercelCancelDeploymentTool: ToolConfig<
     url: {
       type: 'string',
       description: 'Deployment URL',
+    },
+    status: {
+      type: 'string',
+      description: 'Deployment status',
+      optional: true,
+    },
+    projectId: {
+      type: 'string',
+      description: 'Associated project ID',
+      optional: true,
+    },
+    inspectorUrl: {
+      type: 'string',
+      description: 'Vercel inspector URL',
+      optional: true,
     },
   },
 }

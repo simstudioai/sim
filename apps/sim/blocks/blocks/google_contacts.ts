@@ -12,7 +12,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.',
-  docsLink: 'https://docs.sim.ai/tools/google_contacts',
+  docsLink: 'https://docs.sim.ai/integrations/google_contacts',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
@@ -345,6 +345,28 @@ export const GoogleContactsBlockMeta = {
       category: 'operations',
       tags: ['hr', 'automation'],
       alsoIntegrations: ['workday'],
+    },
+  ],
+  skills: [
+    {
+      name: 'add-contact',
+      description: 'Create a new Google Contact with name, email, phone, and organization details.',
+      content:
+        '# Add a Contact\n\nCreate a new entry in Google Contacts.\n\n## Steps\n1. Gather the contact fields from the request: first name (required), last name, email, phone, organization, job title, and notes.\n2. Before creating, run Search Contacts on the email or full name to avoid duplicates.\n3. If no match exists, run Create Contact with the gathered fields and the appropriate email/phone types (work, home, mobile).\n4. Capture the new resource name from the response.\n\n## Output\nConfirm the created contact with name, email, organization, and the resource name. If a likely duplicate was found, surface it and ask before creating.',
+    },
+    {
+      name: 'find-contact',
+      description:
+        'Search Google Contacts by name, email, phone, or organization and return matches.',
+      content:
+        '# Find a Contact\n\nLook up someone in Google Contacts.\n\n## Steps\n1. Build a query from whatever identifier you have (name, email, phone, or organization).\n2. Run Search Contacts with that query and a sensible Page Size.\n3. If you need full details for one match, take its resource name and run Get Contact.\n\n## Output\nA list of matching contacts with name, email, phone, organization, and resource name. If exactly one matches, return its full record; if several match, list them so the requester can disambiguate.',
+    },
+    {
+      name: 'update-contact-details',
+      description:
+        'Update fields on an existing Google Contact such as email, phone, or job title.',
+      content:
+        '# Update Contact Details\n\nModify an existing Google Contact safely.\n\n## Steps\n1. If you do not have the resource name, run Search Contacts to find it.\n2. Run Get Contact to read the current values and capture the ETag (required for updates).\n3. Run Update Contact with the resource name, the ETag, and the changed fields only.\n4. If the update fails on a stale ETag, re-run Get Contact and retry with the fresh ETag.\n\n## Output\nConfirm which fields changed (old vs new) and return the updated record. Never update without first fetching the current ETag.',
     },
   ],
 } as const satisfies BlockMeta

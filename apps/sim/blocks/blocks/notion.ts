@@ -16,7 +16,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/tools/notion',
+  docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#181C1E',
@@ -427,7 +427,7 @@ export const NotionV2Block: BlockConfig<any> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/tools/notion',
+  docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#181C1E',
@@ -628,6 +628,33 @@ export const NotionBlockMeta = {
       category: 'productivity',
       tags: ['team', 'reporting', 'automation'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-structured-page',
+      description:
+        'Create a Notion page under a parent with headings, bullets, and a clean layout.',
+      content:
+        '# Create Structured Page\n\nCreate a well-formatted Notion page, such as meeting notes or a project brief.\n\n## Steps\n1. Identify the parent page or database, using Search Workspace if the destination is not known.\n2. Run Create Page with the title and parent.\n3. Use Append Content to add the body as Notion blocks: headings for sections, bulleted lists for items, and to-do blocks for action items.\n\n## Output\nReturn the new page URL and id. Summarize the sections that were added.',
+    },
+    {
+      name: 'add-database-entry',
+      description: 'Add a row to a Notion database with the correct property values.',
+      content:
+        '# Add Database Entry\n\nInsert a new row into a Notion database with its properties set.\n\n## Steps\n1. Run Read Database on the target database to learn its property names and types.\n2. Map the requested values to the matching properties, formatting select, date, and relation fields correctly.\n3. Run Add Database Row with the property values.\n\n## Output\nConfirm the new row id and URL, and list the property values that were written.',
+    },
+    {
+      name: 'query-database',
+      description: 'Filter and sort a Notion database to return matching entries.',
+      content:
+        '# Query Database\n\nRetrieve entries from a Notion database that match a condition.\n\n## Steps\n1. Read the database with Read Database to confirm the property to filter on.\n2. Build a filter and optional sort for the requested condition (for example Status equals Done, sorted by date).\n3. Run Query Database and collect the matching pages.\n\n## Output\nA list of matching entries with their key properties and page links. Note the total count.',
+    },
+    {
+      name: 'search-and-summarize',
+      description: 'Search the Notion workspace for a topic and summarize the relevant pages.',
+      content:
+        '# Search and Summarize\n\nFind and summarize Notion content on a given topic.\n\n## Steps\n1. Run Search Workspace with the topic keywords.\n2. Read the most relevant pages with Read Page.\n3. Synthesize the key points across the pages, citing each source page by title and link.\n\n## Output\nA short synthesized answer with citations to the Notion pages used. Note if the workspace had no relevant content.',
     },
   ],
 } as const satisfies BlockMeta

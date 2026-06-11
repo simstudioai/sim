@@ -1,6 +1,7 @@
 'use client'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { billingSwitchPlanContract } from '@/lib/api/contracts/subscription'
 import { useSubscriptionUpgrade } from '@/lib/billing/client/upgrade'
@@ -129,7 +130,7 @@ export function useUpgradeState(): UpgradeState {
           ...(seats ? { seats } : {}),
         })
       } catch (error) {
-        alert(getErrorMessage(error, 'Unknown error occurred'))
+        toast.error(getErrorMessage(error, 'Unknown error occurred'))
       }
     },
     [handleUpgrade, isAnnual]
@@ -180,7 +181,7 @@ export function useUpgradeState(): UpgradeState {
       })
       await refetchSubscription()
     } catch (e) {
-      alert(getErrorMessage(e, 'Failed to upgrade'))
+      toast.error(getErrorMessage(e, 'Failed to upgrade'))
     }
   }, [subscription.isTeam, isAnnual, refetchSubscription])
 
@@ -196,7 +197,7 @@ export function useUpgradeState(): UpgradeState {
       })
       await refetchSubscription()
     } catch (e) {
-      alert(getErrorMessage(e, 'Failed to switch plan'))
+      toast.error(getErrorMessage(e, 'Failed to switch plan'))
     }
   }, [subscription.plan, subscription.isTeam, refetchSubscription])
 

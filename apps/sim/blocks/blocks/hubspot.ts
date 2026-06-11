@@ -12,7 +12,7 @@ export const HubSpotBlock: BlockConfig<HubSpotResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.',
-  docsLink: 'https://docs.sim.ai/tools/hubspot',
+  docsLink: 'https://docs.sim.ai/integrations/hubspot',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FF7A59',
@@ -1329,6 +1329,40 @@ export const HubSpotBlockMeta = {
       category: 'support',
       tags: ['support', 'automation', 'crm'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'upsert-contact',
+      description:
+        'Find a HubSpot contact by email and update it, or create it if it does not exist.',
+      content:
+        '# Upsert Contact\n\nKeep a contact record current without creating duplicates.\n\n## Steps\n1. Search contacts by the email address to check if the person already exists.\n2. If a match is found, update the contact with the new property values.\n3. If no match exists, create a new contact with the email and known properties.\n4. Read the contact back to confirm the final property values.\n\n## Output\nReturn the contact ID and whether it was created or updated, along with the properties that were set.',
+    },
+    {
+      name: 'create-deal-for-account',
+      description: 'Create a HubSpot deal and associate it with the right company and contact.',
+      content:
+        '# Create Deal For Account\n\nLog a new opportunity tied to the correct account.\n\n## Steps\n1. Search companies to resolve the company by name or domain; create it if missing.\n2. Search contacts to find the primary contact for the deal.\n3. Create the deal with name, amount, pipeline, and stage, associating it with the company and contact.\n4. Read the deal back to confirm associations and stage.\n\n## Output\nReturn the deal ID, its stage and amount, and the associated company and contact IDs.',
+    },
+    {
+      name: 'triage-support-ticket',
+      description:
+        'Classify a HubSpot ticket, set priority, and associate it with the correct company.',
+      content:
+        '# Triage Support Ticket\n\nRoute and prioritize an incoming support ticket.\n\n## Steps\n1. Get the ticket to read its subject and content.\n2. Classify topic and priority from the content.\n3. Update the ticket with the priority and any pipeline stage change.\n4. Search companies to find the requesting account and associate the ticket with it.\n\n## Output\nReturn the ticket ID, assigned priority and topic, and the associated company. Flag high-priority tickets for escalation.',
+    },
+    {
+      name: 'summarize-open-deals',
+      description: 'Search HubSpot deals by stage and produce a pipeline summary with totals.',
+      content:
+        '# Summarize Open Deals\n\nReport on the active sales pipeline.\n\n## Steps\n1. Search deals filtered to open stages, paginating through all results.\n2. Group deals by pipeline stage and capture amount and close date.\n3. Sum amounts per stage and overall, and flag deals with a close date in the past.\n4. Identify the largest deals and any missing key properties.\n\n## Output\nReturn a per-stage breakdown with deal counts and total value, a grand total, and a flagged list of overdue or incomplete deals. Suitable for a sales pipeline review.',
+    },
+    {
+      name: 'build-quote-from-deal',
+      description: 'Gather a HubSpot deal and its line items to assemble a quote summary.',
+      content:
+        '# Build Quote From Deal\n\nCompile the commercial details needed to quote a deal.\n\n## Steps\n1. Get the deal by ID for its name, amount, and stage.\n2. List line items and get details to capture product, quantity, and price for each.\n3. Get the associated quote if one exists, or summarize the line items into a draft quote.\n4. Total the line items and compare against the deal amount, flagging mismatches.\n\n## Output\nReturn the deal summary, an itemized line-item list with totals, and any existing quote reference. Flag discrepancies between the line-item total and the deal amount.',
     },
   ],
 } as const satisfies BlockMeta

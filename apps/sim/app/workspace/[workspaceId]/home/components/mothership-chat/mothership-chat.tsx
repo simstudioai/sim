@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from '
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
+import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   assistantMessageHasRenderableContent,
   MessageContent,
@@ -139,20 +140,16 @@ interface AssistantMessageRowProps {
   message: ChatMessage
   isStreaming: boolean
   precedingUserContent?: string
-  chatId?: string
   rowClassName: string
   onOptionSelect?: (id: string) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
 }
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
   message,
   isStreaming,
   precedingUserContent,
-  chatId,
   rowClassName,
   onOptionSelect,
-  onWorkspaceResourceSelect,
 }: AssistantMessageRowProps) {
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
@@ -176,13 +173,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         fallbackContent={message.content}
         isStreaming={isStreaming}
         onOptionSelect={onOptionSelect}
-        onWorkspaceResourceSelect={onWorkspaceResourceSelect}
       />
       {showActions && (
         <div className='mt-2.5'>
           <MessageActions
             content={message.content}
-            chatId={chatId}
             userQuery={precedingUserContent}
             requestId={message.requestId}
             messageId={message.id}
@@ -247,20 +242,29 @@ export function MothershipChat({
     }
     return out
   }, [messages])
+  const assistantTurnKeyByIndex = useMemo(() => {
+    const out: string[] = []
+    let lastUserId: string | undefined
+    let ordinal = 0
+    for (const [index, message] of messages.entries()) {
+      if (message.role === 'user') {
+        lastUserId = message.id
+        ordinal = 0
+      } else {
+        out[index] = lastUserId ? `assistant:${lastUserId}:${ordinal++}` : message.id
+      }
+    }
+    return out
+  }, [messages])
   const initialScrollDoneRef = useRef(false)
   const userInputRef = useRef<UserInputHandle>(null)
 
   const onSubmitRef = useRef(onSubmit)
-  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   useEffect(() => {
     onSubmitRef.current = onSubmit
-    onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
-  }, [onSubmit, onWorkspaceResourceSelect])
+  }, [onSubmit])
   const stableOnOptionSelect = useCallback((id: string) => {
     onSubmitRef.current(id)
-  }, [])
-  const stableOnWorkspaceResourceSelect = useCallback((resource: MothershipResource) => {
-    onWorkspaceResourceSelectRef.current?.(resource)
   }, [])
 
   function handleSendQueuedHead() {
@@ -296,85 +300,88 @@ export function MothershipChat({
   }, [isStaging, stagedMessageCount, initialScrollBlocked, scrollToBottom])
 
   return (
-    <div className={cn('flex h-full min-h-0 flex-col', className)}>
-      {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} onClose={onCloseChat} />}
-      <div className='relative flex min-h-0 flex-1 flex-col'>
-        <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
-          {isLoading && !hasMessages ? (
-            <MothershipChatSkeleton layout={layout} />
-          ) : (
-            <div className={styles.content}>
-              {stagedMessages.map((msg, localIndex) => {
-                const index = stagedOffset + localIndex
-                if (msg.role === 'user') {
+    <ChatSurfaceProvider
+      chatId={chatId}
+      userId={userId}
+      onContextAdd={onContextAdd}
+      onContextRemove={onContextRemove}
+      onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+    >
+      <div className={cn('flex h-full min-h-0 flex-col', className)}>
+        {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} onClose={onCloseChat} />}
+        <div className='relative flex min-h-0 flex-1 flex-col'>
+          <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
+            {isLoading && !hasMessages ? (
+              <MothershipChatSkeleton layout={layout} />
+            ) : (
+              <div className={styles.content}>
+                {stagedMessages.map((msg, localIndex) => {
+                  const index = stagedOffset + localIndex
+                  if (msg.role === 'user') {
+                    return (
+                      <UserMessageRow
+                        key={msg.id}
+                        content={msg.content}
+                        contexts={msg.contexts}
+                        attachments={msg.attachments}
+                        rowClassName={styles.userRow}
+                        bubbleClassName={styles.userBubble}
+                        attachmentWidthClassName={styles.attachmentWidth}
+                      />
+                    )
+                  }
+
+                  const isLast = index === messages.length - 1
                   return (
-                    <UserMessageRow
-                      key={msg.id}
-                      content={msg.content}
-                      contexts={msg.contexts}
-                      attachments={msg.attachments}
-                      rowClassName={styles.userRow}
-                      bubbleClassName={styles.userBubble}
-                      attachmentWidthClassName={styles.attachmentWidth}
+                    <AssistantMessageRow
+                      key={assistantTurnKeyByIndex[index] ?? msg.id}
+                      message={msg}
+                      isStreaming={isStreamActive && isLast}
+                      precedingUserContent={precedingUserContentByIndex[index]}
+                      rowClassName={styles.assistantRow}
+                      onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                     />
                   )
-                }
-
-                const isLast = index === messages.length - 1
-                return (
-                  <AssistantMessageRow
-                    key={msg.id}
-                    message={msg}
-                    isStreaming={isStreamActive && isLast}
-                    precedingUserContent={precedingUserContentByIndex[index]}
-                    chatId={chatId}
-                    rowClassName={styles.assistantRow}
-                    onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                    onWorkspaceResourceSelect={stableOnWorkspaceResourceSelect}
-                  />
-                )
-              })}
-            </div>
-          )}
+                })}
+              </div>
+            )}
+          </div>
+          {/* Messages dissolve into the input instead of hard-clipping: a bg
+              fade plus the faintest backdrop blur, both masked so they ramp in
+              toward the bottom edge. */}
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-x-0 bottom-0 h-[40px] bg-gradient-to-t from-[var(--bg)] to-transparent backdrop-blur-[1.5px] [mask-image:linear-gradient(to_top,black_20%,transparent)]'
+          />
         </div>
-        {/* Messages dissolve into the input instead of hard-clipping: a bg
-            fade plus the faintest backdrop blur, both masked so they ramp in
-            toward the bottom edge. */}
+
         <div
-          aria-hidden='true'
-          className='pointer-events-none absolute inset-x-0 bottom-0 h-[40px] bg-gradient-to-t from-[var(--bg)] to-transparent backdrop-blur-[1.5px] [mask-image:linear-gradient(to_top,black_20%,transparent)]'
-        />
-      </div>
-
-      <div
-        className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
-        onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
-      >
-        <div className={styles.footerInner}>
-          <QueuedMessages
-            messageQueue={messageQueue}
-            editingQueuedId={editingQueuedId}
-            dispatchingHeadId={dispatchingHeadId}
-            onRemove={onRemoveQueuedMessage}
-            onSendNow={onSendQueuedMessage}
-            onEdit={handleEditQueued}
-            onCancelEdit={onCancelQueueEdit}
-          />
-          <UserInput
-            ref={userInputRef}
-            onSubmit={onSubmit}
-            isSending={isStreamActive}
-            onStopGeneration={onStopGeneration}
-            isInitialView={false}
-            userId={userId}
-            onContextAdd={onContextAdd}
-            onContextRemove={onContextRemove}
-            onSendQueuedHead={handleSendQueuedHead}
-            onEditQueuedTail={handleEditQueuedTail}
-            draftScopeKey={draftScopeKey}
-          />
+          className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
+          onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
+        >
+          <div className={styles.footerInner}>
+            <QueuedMessages
+              messageQueue={messageQueue}
+              editingQueuedId={editingQueuedId}
+              dispatchingHeadId={dispatchingHeadId}
+              onRemove={onRemoveQueuedMessage}
+              onSendNow={onSendQueuedMessage}
+              onEdit={handleEditQueued}
+              onCancelEdit={onCancelQueueEdit}
+            />
+            <UserInput
+              ref={userInputRef}
+              onSubmit={onSubmit}
+              isSending={isStreamActive}
+              onStopGeneration={onStopGeneration}
+              isInitialView={false}
+              onSendQueuedHead={handleSendQueuedHead}
+              onEditQueuedTail={handleEditQueuedTail}
+              draftScopeKey={draftScopeKey}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </ChatSurfaceProvider>
   )
 }

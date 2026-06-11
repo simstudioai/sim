@@ -20,7 +20,7 @@ export const WaitBlock: BlockConfig = {
   category: 'blocks',
   bgColor: '#F59E0B',
   icon: WaitIcon,
-  docsLink: 'https://docs.sim.ai/blocks/wait',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/wait',
   subBlocks: [
     {
       id: 'timeValue',

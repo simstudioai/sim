@@ -17,7 +17,7 @@ export const ExtendBlock: BlockConfig<ExtendParserOutput> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Extend AI into the workflow. Parse and extract structured content from documents including PDFs, images, and Office files.',
-  docsLink: 'https://docs.sim.ai/tools/extend',
+  docsLink: 'https://docs.sim.ai/integrations/extend',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#000000',
@@ -278,6 +278,29 @@ export const ExtendBlockMeta = {
       modules: ['files', 'tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['legal', 'document-processing', 'automation'],
+    },
+  ],
+  skills: [
+    {
+      name: 'extract-invoice-fields',
+      description:
+        'Parse an uploaded invoice with Extend and return structured vendor, line item, and total fields.',
+      content:
+        '# Extract Invoice Fields\n\nUse Extend to turn an invoice PDF or image into structured, validated data.\n\n## Steps\n1. Take the uploaded invoice document (file upload or URL).\n2. Run the Extend parser to produce structured chunks and blocks.\n3. Pull the key fields: vendor name, invoice number, invoice date, due date, line items (description, quantity, unit price), subtotal, tax, and total.\n4. Validate that totals add up and that required fields are present; flag any that are missing or inconsistent.\n\n## Output\nReturn a clean JSON object with the extracted fields plus a list of any validation warnings. Note the page count and credits used so cost can be tracked.',
+    },
+    {
+      name: 'parse-document-to-markdown',
+      description:
+        'Convert a scanned or complex document into clean, LLM-ready markdown using Extend.',
+      content:
+        '# Parse Document to Markdown\n\nUse Extend to convert any supported document (PDF, image, or Office file) into clean markdown an agent can reason over.\n\n## Steps\n1. Take the source document and choose a chunking strategy (page, section, or document) based on how the content will be consumed.\n2. Run the Extend parser with markdown output.\n3. Stitch the returned chunks into a single ordered markdown document, preserving headings, tables, and lists.\n\n## Output\nReturn the full markdown text plus the page count. If the document was chunked, also return the per-chunk markdown so downstream steps can process sections independently.',
+    },
+    {
+      name: 'classify-and-route-document',
+      description:
+        'Parse an uploaded document with Extend, identify its type, and route it to the right downstream handler.',
+      content:
+        '# Classify and Route Document\n\nUse Extend to read an incoming document and decide where it should go.\n\n## Steps\n1. Run the Extend parser on the uploaded document to get its text content.\n2. Inspect the parsed content to classify the document type (e.g. invoice, contract, claim form, purchase order, KYC document).\n3. Pull the few identifying fields needed for routing (such as document type, reference number, and amount).\n4. Decide the destination queue, table, or channel based on the classification and any thresholds.\n\n## Output\nReturn the detected document type, the routing decision, and the extracted routing fields. Note any document that could not be confidently classified for manual review.',
     },
   ],
 } as const satisfies BlockMeta

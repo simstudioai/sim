@@ -190,6 +190,8 @@ export const DataRow = React.memo(function DataRow({
    */
   const waitingByGroupId = React.useMemo(() => {
     if (workflowGroups.length === 0) return null
+    // Deps are stored as column ids; the "Waiting on …" pill shows display names.
+    const nameByColumnId = new Map(columns.map((c) => [c.key, c.name]))
     const map = new Map<string, string[]>()
     for (const group of workflowGroups) {
       // autoRun=false groups never fire from the scheduler — there's nothing
@@ -197,10 +199,13 @@ export const DataRow = React.memo(function DataRow({
       if (group.autoRun === false) continue
       const unmet = getUnmetGroupDeps(group, row)
       if (unmet.columns.length === 0) continue
-      map.set(group.id, unmet.columns)
+      map.set(
+        group.id,
+        unmet.columns.map((id) => nameByColumnId.get(id) ?? id)
+      )
     }
     return map
-  }, [workflowGroups, row])
+  }, [workflowGroups, row, columns])
   const isMultiCell = sel !== null && (sel.startRow !== sel.endRow || sel.startCol !== sel.endCol)
   const isRowSelected = isRowChecked
   /**
@@ -294,7 +299,7 @@ export const DataRow = React.memo(function DataRow({
           colIndex >= sel.startCol &&
           colIndex <= sel.endCol
         const isAnchor = sel !== null && rowIndex === sel.anchorRow && colIndex === sel.anchorCol
-        const isEditing = editingColumnName === column.name
+        const isEditing = editingColumnName === column.key
         const isHighlighted = inRange || isRowChecked
 
         const isTopEdge = inRange ? rowIndex === sel!.startRow : isRowChecked
@@ -325,13 +330,13 @@ export const DataRow = React.memo(function DataRow({
             }}
             onMouseEnter={() => onCellMouseEnter(rowIndex, colIndex)}
             onClick={(e) =>
-              onClick(row.id, column.name, {
+              onClick(row.id, column.key, {
                 toggleBoolean:
                   !e.shiftKey &&
                   Boolean((e.target as HTMLElement).closest('[data-boolean-cell-toggle]')),
               })
             }
-            onDoubleClick={() => onDoubleClick(row.id, column.name, column.key)}
+            onDoubleClick={() => onDoubleClick(row.id, column.key, column.key)}
           >
             {isHighlighted && (isMultiCell || isRowChecked) && (
               <div
@@ -360,9 +365,9 @@ export const DataRow = React.memo(function DataRow({
               <CellContent
                 workspaceId={workspaceId}
                 value={
-                  pendingCellValue && column.name in pendingCellValue
-                    ? pendingCellValue[column.name]
-                    : row.data[column.name]
+                  pendingCellValue && column.key in pendingCellValue
+                    ? pendingCellValue[column.key]
+                    : row.data[column.key]
                 }
                 exec={resolveCellExec(
                   row,
@@ -374,7 +379,7 @@ export const DataRow = React.memo(function DataRow({
                 column={column}
                 isEditing={isEditing}
                 initialCharacter={isEditing ? initialCharacter : undefined}
-                onSave={(value, reason) => onSave(row.id, column.name, value, reason)}
+                onSave={(value, reason) => onSave(row.id, column.key, value, reason)}
                 onCancel={onCancel}
                 waitingOnLabels={
                   column.workflowGroupId

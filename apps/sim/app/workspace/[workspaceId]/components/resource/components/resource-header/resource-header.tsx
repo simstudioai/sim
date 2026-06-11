@@ -1,15 +1,24 @@
-import { Fragment, forwardRef, memo, useEffect, useRef, useState } from 'react'
+import {
+  type ComponentType,
+  Fragment,
+  forwardRef,
+  memo,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
-  Button,
-  ChevronDown,
+  Chip,
+  ChipChevronDown,
+  chipGeometryClass,
   chipVariants,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   FloatingTooltip,
-  Plus,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -26,8 +35,6 @@ import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inli
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
-const HEADER_PLUS_ICON = <Plus className='mr-1.5 size-[14px] text-[var(--text-icon)]' />
-
 export interface DropdownOption {
   label: string
   icon?: React.ElementType
@@ -41,6 +48,13 @@ export interface BreadcrumbEditing {
   onChange: (value: string) => void
   onSubmit: () => void
   onCancel: () => void
+  /**
+   * Disables the rename field while the save is in flight, mirroring
+   * {@link ResourceCellEditing.disabled} on table cells. Threaded from
+   * `useInlineRename`'s `isSaving`. Optional so existing consumers keep
+   * working unchanged.
+   */
+  disabled?: boolean
 }
 
 export interface BreadcrumbItem {
@@ -56,17 +70,19 @@ export interface BreadcrumbItem {
   terminal?: boolean
 }
 
-export interface HeaderAction {
-  label: string
-  icon?: React.ElementType
-  onClick: () => void
-  disabled?: boolean
+/**
+ * The single, strict contract for a top-right header action. Every action renders
+ * as a {@link Chip} — consumers describe intent through these fields and nothing
+ * else, so the action row looks identical on every page and cannot drift. Omit
+ * `variant` for the default chip; use `primary`/`destructive` for emphasis. Express
+ * a selected/toggle state with `active` (e.g. the Logs/Dashboard view toggle).
+ */
+export interface ResourceAction {
+  icon?: ComponentType<{ className?: string }>
+  text: string
+  variant?: 'primary' | 'destructive'
   active?: boolean
-}
-
-export interface CreateAction {
-  label: string
-  onClick: () => void
+  onSelect: () => void
   disabled?: boolean
 }
 
@@ -74,32 +90,36 @@ interface ResourceHeaderProps {
   icon?: React.ElementType
   title?: string
   breadcrumbs?: BreadcrumbItem[]
-  create?: CreateAction
-  actions?: HeaderAction[]
-  /** Arbitrary content rendered in the right-aligned actions row, before `actions`. */
-  leadingActions?: React.ReactNode
-  /** Arbitrary content rendered in the right-aligned actions row, before the Create button. */
-  trailingActions?: React.ReactNode
+  /** Strict top-right action chips. List pages use ONLY this. */
+  actions?: ResourceAction[]
   /**
-   * Replaces the default Create button entirely — supply your own trigger (for
-   * example a dropdown) when the create action needs richer UI. When provided,
-   * `create` is ignored.
+   * Supplementary right-aligned content rendered before `actions` — custom
+   * widgets that cannot collapse into the strict {@link ResourceAction} chip
+   * contract, e.g. the table editor's run/stop control, an import-progress
+   * menu, or a create dropdown. Anything that fits the chip contract belongs
+   * in `actions`; never stuff primary actions in here.
    */
-  createTrigger?: React.ReactNode
+  aside?: ReactNode
 }
 
 export const ResourceHeader = memo(function ResourceHeader({
   icon: Icon,
   title,
   breadcrumbs,
-  create,
   actions,
-  leadingActions,
-  trailingActions,
-  createTrigger,
+  aside,
 }: ResourceHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null)
-  const hasBreadcrumbs = breadcrumbs && breadcrumbs.length > 0
+  /**
+   * Breadcrumb mode is reserved for nested pages (length > 1). A single-crumb
+   * "breadcrumb" is just the current page, so it falls through to the static
+   * title below — keeping the top-left non-interactive and hover-free,
+   * identical to a title-only page (e.g. the Files root matches the Tables root).
+   */
+  const hasBreadcrumbs = breadcrumbs != null && breadcrumbs.length > 1
+  const rootCrumb = breadcrumbs?.length === 1 ? breadcrumbs[0] : undefined
+  const TitleIcon = Icon ?? rootCrumb?.icon
+  const titleLabel = title ?? rootCrumb?.label
   const terminalBreadcrumbIndex =
     hasBreadcrumbs && breadcrumbs[breadcrumbs.length - 1].terminal ? breadcrumbs.length - 1 : -1
   const currentResourceIndex =
@@ -112,7 +132,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex h-[44px] items-center gap-2 border-[var(--border)] border-b px-4'
+      className='flex items-center gap-2 border-[var(--border)] border-b px-4 py-[8.5px]'
     >
       {/* Chrome controls live outside the overflow-hidden breadcrumb group so
           the toggle's 9px pull-out (7px edge inset, matching the chat title
@@ -133,6 +153,12 @@ export const ResourceHeader = memo(function ResourceHeader({
                 terminalBreadcrumbIndex
               )
               const LocationIcon = i === 0 ? (crumb.icon ?? Icon) : undefined
+              /**
+               * The first crumb on a nested page opens the hover "path" popover
+               * (back-navigation). Single-crumb roots never reach here — they
+               * render as the static title above.
+               */
+              const showLocationPopover = LocationIcon != null
 
               return (
                 <Fragment key={`${crumb.label}-${i}`}>
@@ -141,7 +167,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                       /
                     </span>
                   )}
-                  {LocationIcon ? (
+                  {showLocationPopover ? (
                     <BreadcrumbLocationPopover
                       icon={LocationIcon}
                       breadcrumbs={breadcrumbs}
@@ -150,7 +176,7 @@ export const ResourceHeader = memo(function ResourceHeader({
                     />
                   ) : (
                     <BreadcrumbSegment
-                      icon={crumb.icon}
+                      icon={LocationIcon ?? crumb.icon}
                       label={crumb.label}
                       onClick={crumb.onClick}
                       dropdownItems={crumb.dropdownItems}
@@ -162,55 +188,39 @@ export const ResourceHeader = memo(function ResourceHeader({
               )
             })
           ) : (
-            <>
-              {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
-              {title && (
-                <h1 className='min-w-0 flex-1 font-medium text-[var(--text-body)] text-sm'>
-                  <FloatingOverflowText label={title} className='block truncate' />
-                </h1>
+            <span
+              className={cn(
+                chipGeometryClass,
+                'inline-flex min-w-0 max-w-full cursor-default justify-start'
               )}
-            </>
+            >
+              {TitleIcon && <TitleIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
+              {titleLabel && (
+                <FloatingOverflowText
+                  label={titleLabel}
+                  className='block min-w-0 truncate text-[var(--text-body)] text-sm'
+                />
+              )}
+            </span>
           )}
         </div>
-        <div className='-mr-[9px] flex shrink-0 items-center gap-1.5'>
-          {leadingActions}
-          {actions?.map((action) => {
-            const ActionIcon = action.icon
-            return (
-              <Button
-                key={action.label}
-                onClick={action.onClick}
+        {(aside || (actions && actions.length > 0)) && (
+          <div className='flex shrink-0 items-center'>
+            {aside}
+            {actions?.map((action) => (
+              <Chip
+                key={action.text}
+                variant={action.variant}
+                active={action.active}
+                leftIcon={action.icon}
+                onClick={action.onSelect}
                 disabled={action.disabled}
-                variant='subtle'
-                className={cn(
-                  'h-[30px] whitespace-nowrap rounded-lg bg-transparent px-2 text-caption hover-hover:bg-[var(--surface-active)]',
-                  action.active === true &&
-                    'bg-[var(--surface-active)] hover-hover:bg-[var(--surface-active)]'
-                )}
               >
-                {ActionIcon && (
-                  <ActionIcon
-                    className={cn('size-[14px] text-[var(--text-icon)]', action.label && 'mr-1.5')}
-                  />
-                )}
-                {action.label}
-              </Button>
-            )
-          })}
-          {trailingActions}
-          {createTrigger ??
-            (create && (
-              <Button
-                onClick={create.onClick}
-                disabled={create.disabled}
-                variant='subtle'
-                className='h-[30px] whitespace-nowrap rounded-lg bg-transparent px-2 text-caption hover-hover:bg-[var(--surface-active)]'
-              >
-                {HEADER_PLUS_ICON}
-                {create.label}
-              </Button>
+                {action.text}
+              </Chip>
             ))}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -269,13 +279,14 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
 
   if (editing?.isEditing) {
     return (
-      <span className={cn('inline-flex h-[30px] min-w-0 items-center px-2', className)}>
-        {Icon && <Icon className='mr-3 size-[14px] text-[var(--text-icon)]' />}
+      <span className={cn(chipGeometryClass, 'inline-flex min-w-0 justify-start', className)}>
+        {Icon && <Icon className='size-[14px] shrink-0 text-[var(--text-icon)]' />}
         <InlineRenameInput
           value={editing.value}
           onChange={editing.onChange}
           onSubmit={editing.onSubmit}
           onCancel={editing.onCancel}
+          disabled={editing.disabled}
         />
       </span>
     )
@@ -287,9 +298,15 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
       <BreadcrumbLabel ref={labelRef} isOverflowing={isOverflowing} label={label} />
     </>
   )
+  /**
+   * Interactive crumbs use a plain `<button>` with bare-chip geometry — NEVER
+   * the Button component, whose buttonVariants inject font-medium /
+   * rounded-[5px] / justify-center and break chip parity with the static/title
+   * crumbs.
+   */
   const triggerClassName = cn(
-    chipVariants({ variant: 'ghost', flush: true }),
-    'group min-w-0 max-w-full justify-start font-medium transition-colors'
+    chipVariants({ flush: true }),
+    'group min-w-0 max-w-full justify-start'
   )
 
   if (dropdownItems && dropdownItems.length > 0) {
@@ -298,14 +315,10 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
         <DropdownMenu>
           <FloatingTooltip label={label} state={tooltipState} />
           <DropdownMenuTrigger asChild>
-            <Button
-              variant='subtle'
-              className={cn(triggerClassName, className, 'border-0')}
-              {...tooltipHandlers}
-            >
+            <button type='button' className={cn(triggerClassName, className)} {...tooltipHandlers}>
               {content}
-              <ChevronDown className='ml-auto size-[14px] shrink-0 text-[var(--text-muted)]' />
-            </Button>
+              <ChipChevronDown className='ml-auto' />
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
             {dropdownItems.map((item) => {
@@ -327,14 +340,14 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
     return (
       <>
         <FloatingTooltip label={label} state={tooltipState} />
-        <Button
-          variant='subtle'
-          className={cn(triggerClassName, className, 'border-0')}
+        <button
+          type='button'
+          className={cn(triggerClassName, className)}
           onClick={onClick}
           {...tooltipHandlers}
         >
           {content}
-        </Button>
+        </button>
       </>
     )
   }
@@ -344,8 +357,8 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
       <FloatingTooltip label={label} state={tooltipState} />
       <span
         className={cn(
-          chipVariants({ variant: 'ghost', flush: true }),
-          'group min-w-0 max-w-full cursor-default justify-start font-medium',
+          chipGeometryClass,
+          'group inline-flex min-w-0 max-w-full cursor-default justify-start',
           className
         )}
         {...tooltipHandlers}
@@ -415,8 +428,8 @@ function BreadcrumbLocationPopover({
             onPointerLeave={scheduleClose}
             onPointerMove={openPopover}
             className={cn(
-              chipVariants({ variant: 'ghost', flush: true }),
-              'max-w-none gap-1.5 px-2 font-medium transition-colors',
+              chipVariants({ flush: true }),
+              'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
               className
             )}
@@ -581,7 +594,7 @@ const BreadcrumbLabel = memo(
       <span
         ref={ref}
         className={cn(
-          'min-w-0 truncate',
+          'min-w-0 truncate text-[var(--text-body)]',
           isOverflowing &&
             '[mask-image:linear-gradient(to_right,black_calc(100%-18px),transparent)] group-hover:[mask-image:none] group-focus-visible:[mask-image:none]'
         )}

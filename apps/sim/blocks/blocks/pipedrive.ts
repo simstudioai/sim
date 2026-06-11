@@ -11,7 +11,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
-  docsLink: 'https://docs.sim.ai/tools/pipedrive',
+  docsLink: 'https://docs.sim.ai/integrations/pipedrive',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#2E6936',
@@ -910,6 +910,36 @@ export const PipedriveBlockMeta = {
       category: 'sales',
       tags: ['sales', 'enterprise'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-deal',
+      description:
+        'Create a Pipedrive deal with a title, value, pipeline stage, and linked person or organization.',
+      content:
+        '# Create Deal\n\nAdd a new opportunity to the sales pipeline.\n\n## Steps\n1. Use the Create Deal operation with a clear Title.\n2. Set Value and Currency, the target Pipeline and Stage ID, and Status (open, won, or lost).\n3. Link the deal to a Person ID or Organization ID, and set an Expected Close Date.\n4. Capture the returned deal ID for follow-up activities.\n\n## Output\nConfirm the new deal title, value, pipeline stage, and ID so it can be referenced in later steps.',
+    },
+    {
+      name: 'review-pipeline',
+      description:
+        'List Pipedrive deals in a pipeline and summarize stage distribution and deals at risk.',
+      content:
+        '# Review Pipeline\n\nGet a snapshot of the current sales pipeline.\n\n## Steps\n1. Use Get All Deals (or Get Pipeline Deals for one pipeline) filtered to open status.\n2. Optionally scope by Pipeline, Person ID, or Organization ID and set Updated Since to focus on recent movement.\n3. Group deals by stage and total their value, flagging stale deals with no recent update.\n4. Page with the cursor or start offset for large pipelines.\n\n## Output\nA stage-by-stage breakdown with deal counts and total value, plus a short list of at-risk deals that have gone quiet.',
+    },
+    {
+      name: 'log-activity',
+      description:
+        'Create a Pipedrive activity such as a call, meeting, or task linked to a deal or contact.',
+      content:
+        '# Log Activity\n\nSchedule or record follow-up work against a record.\n\n## Steps\n1. Use the Create Activity operation with a Subject and an activity Type (call, meeting, task, deadline, email, or lunch).\n2. Set the Due Date and optional Due Time, Duration, and Notes.\n3. Link the activity to the relevant Deal ID, Person ID, or Organization ID.\n4. Use Update Activity later to mark it done.\n\n## Output\nConfirm the activity subject, type, due date, and the record it is linked to.',
+    },
+    {
+      name: 'manage-leads',
+      description:
+        'Create or update Pipedrive leads with value, contacts, and expected close date.',
+      content:
+        '# Manage Leads\n\nCapture and maintain top-of-funnel leads.\n\n## Steps\n1. Use Create Lead with a Title and link a Person ID or Organization ID and an Owner ID.\n2. Set the Value Amount and Value Currency and an Expected Close Date.\n3. Use Update Lead to revise details or archive a lead once it converts or goes cold.\n4. Use Get Leads to review active or archived leads.\n\n## Output\nThe lead title, linked contact, value, and current state (active or archived) with its ID.',
     },
   ],
 } as const satisfies BlockMeta

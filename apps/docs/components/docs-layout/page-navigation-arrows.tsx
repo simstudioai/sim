@@ -12,6 +12,9 @@ interface PageNavigationArrowsProps {
   }
 }
 
+const ARROW_LINK_CLASS =
+  'flex size-[30px] items-center justify-center rounded-lg text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)]'
+
 export function PageNavigationArrows({ previous, next }: PageNavigationArrowsProps) {
   if (!previous && !next) return null
 
@@ -20,21 +23,16 @@ export function PageNavigationArrows({ previous, next }: PageNavigationArrowsPro
       {previous && (
         <Link
           href={previous.url}
-          className='inline-flex items-center justify-center rounded-[5px] border border-transparent px-2.5 py-2 text-foreground/40 transition-colors duration-200 hover:border-border/40 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800'
+          className={ARROW_LINK_CLASS}
           aria-label='Previous page'
           title='Previous page'
         >
-          <ChevronLeft className='size-4' />
+          <ChevronLeft className='size-[16px]' />
         </Link>
       )}
       {next && (
-        <Link
-          href={next.url}
-          className='inline-flex items-center justify-center rounded-[5px] border border-transparent px-2.5 py-2 text-foreground/40 transition-colors duration-200 hover:border-border/40 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800'
-          aria-label='Next page'
-          title='Next page'
-        >
-          <ChevronRight className='size-4' />
+        <Link href={next.url} className={ARROW_LINK_CLASS} aria-label='Next page' title='Next page'>
+          <ChevronRight className='size-[16px]' />
         </Link>
       )}
     </div>

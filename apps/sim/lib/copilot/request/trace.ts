@@ -1,6 +1,3 @@
-import type { Context } from '@opentelemetry/api'
-import { createLogger } from '@sim/logger'
-import { SIM_AGENT_API_URL } from '@/lib/copilot/constants'
 import {
   type RequestTraceV1CostSummary,
   RequestTraceV1Outcome,
@@ -10,10 +7,6 @@ import {
   RequestTraceV1SpanStatus,
   type RequestTraceV1UsageSummary,
 } from '@/lib/copilot/generated/request-trace-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { env } from '@/lib/core/config/env'
-
-const logger = createLogger('RequestTrace')
 
 export class TraceCollector {
   private readonly spans: RequestTraceV1Span[] = []
@@ -80,7 +73,16 @@ export class TraceCollector {
     // the moment it's first written instead of waiting on the late
     // analytics UPDATE.
     userMessage?: string
-    usage?: { prompt: number; completion: number }
+    usage?: {
+      prompt: number
+      completion: number
+      cacheAttemptedRequests?: number
+      cacheHitRequests?: number
+      cacheWriteRequests?: number
+      cacheReadTokens?: number
+      cacheWriteTokens?: number
+      cacheSavingsRate?: number
+    }
     cost?: { input: number; output: number; total: number }
   }): RequestTraceV1SimReport {
     const endMs = Date.now()
@@ -88,6 +90,12 @@ export class TraceCollector {
       ? {
           inputTokens: params.usage.prompt,
           outputTokens: params.usage.completion,
+          cacheAttemptedRequests: params.usage.cacheAttemptedRequests ?? 0,
+          cacheHitRequests: params.usage.cacheHitRequests ?? 0,
+          cacheWriteRequests: params.usage.cacheWriteRequests ?? 0,
+          cacheReadTokens: params.usage.cacheReadTokens ?? 0,
+          cacheWriteTokens: params.usage.cacheWriteTokens ?? 0,
+          cacheSavingsRate: params.usage.cacheSavingsRate ?? 0,
         }
       : undefined
 
@@ -114,37 +122,6 @@ export class TraceCollector {
       cost,
       spans: this.spans,
     }
-  }
-}
-
-export async function reportTrace(
-  trace: RequestTraceV1SimReport,
-  otelContext?: Context
-): Promise<void> {
-  const { fetchGo } = await import('@/lib/copilot/request/go/fetch')
-  const body = JSON.stringify(trace)
-  const response = await fetchGo(`${SIM_AGENT_API_URL}/api/traces`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-    },
-    body,
-    otelContext,
-    spanName: 'sim → go /api/traces',
-    operation: 'report_trace',
-    attributes: {
-      [TraceAttr.RequestId]: trace.simRequestId ?? '',
-      [TraceAttr.HttpRequestContentLength]: body.length,
-      [TraceAttr.CopilotTraceSpanCount]: trace.spans?.length ?? 0,
-    },
-  })
-
-  if (!response.ok) {
-    logger.warn('Failed to report trace', {
-      status: response.status,
-      simRequestId: trace.simRequestId,
-    })
   }
 }
 

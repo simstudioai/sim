@@ -270,4 +270,27 @@ export const SimilarwebBlockMeta = {
       tags: ['sales', 'research', 'analysis'],
     },
   ],
+  skills: [
+    {
+      name: 'profile-website-traffic',
+      description:
+        'Pull a Similarweb website overview and traffic metrics for a domain and summarize its scale.',
+      content:
+        '# Profile Website Traffic\n\nBuild a quick traffic profile for a single domain.\n\n## Steps\n1. Run Website Overview for the domain to get a high-level snapshot.\n2. Run Traffic Visits, Bounce Rate, Pages Per Visit, and Visit Duration for deeper engagement metrics, setting the country (or worldwide) to scope the data.\n3. Interpret the numbers together: high visits with a low bounce rate and long duration indicates strong engagement.\n\n## Output\nReturn a concise profile of the domain: estimated monthly visits, bounce rate, pages per visit, and average visit duration, with a one-line read on overall traffic health.',
+    },
+    {
+      name: 'compare-competitor-domains',
+      description:
+        'Pull Similarweb traffic metrics for several domains and rank them for a competitive view.',
+      content:
+        '# Compare Competitor Domains\n\nBenchmark a set of competing domains on traffic and engagement.\n\n## Steps\n1. For each domain, run Website Overview and Traffic Visits using the same country scope so the numbers are comparable.\n2. Optionally add Bounce Rate and Pages Per Visit for an engagement dimension.\n3. Rank the domains by visits and engagement.\n\n## Output\nReturn a ranked table of the domains with their visits, bounce rate, and engagement metrics, and a short read on which competitor leads.',
+    },
+    {
+      name: 'score-prospect-domains',
+      description:
+        'Score a list of prospect domains by Similarweb traffic size to prioritize outreach.',
+      content:
+        '# Score Prospect Domains\n\nPrioritize sales prospects by the size of their web traffic.\n\n## Steps\n1. For each prospect domain, run Website Overview and Traffic Visits in the relevant region.\n2. Assign a score based on monthly visits and any visible growth trend.\n3. Sort the prospects from highest to lowest score.\n\n## Output\nReturn the prospect domains ranked by score, each with its estimated monthly visits, so the sales team can prioritize the biggest-traffic targets.',
+    },
+  ],
 } as const satisfies BlockMeta

@@ -11,7 +11,7 @@ export const PerplexityBlock: BlockConfig<PerplexityResponse> = {
   longDescription:
     'Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.',
   authMode: AuthMode.ApiKey,
-  docsLink: 'https://docs.sim.ai/tools/perplexity',
+  docsLink: 'https://docs.sim.ai/integrations/perplexity',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#20808D', // Perplexity turquoise color
@@ -332,6 +332,29 @@ export const PerplexityBlockMeta = {
       category: 'marketing',
       tags: ['research', 'monitoring', 'reporting'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'answer-with-citations',
+      description:
+        'Ask Perplexity a question and get an answer grounded in current web sources with citations.',
+      content:
+        '# Answer With Citations\n\nGet a current, sourced answer to a question.\n\n## Steps\n1. Use the Chat operation and write the question as the User Prompt. Add a System Prompt to set tone and require inline citations.\n2. Pick a model: sonar for quick answers, sonar-pro for harder questions, or sonar-deep-research for thorough multi-source work.\n3. Keep temperature low (around 0.2) for factual tasks and set Max Tokens to cap length.\n\n## Output\nThe answer with its supporting sources, and a note flagging anything the model could not confirm.',
+    },
+    {
+      name: 'search-recent-news',
+      description:
+        'Use Perplexity search with a recency filter to find the latest results on a topic.',
+      content:
+        '# Search Recent News\n\nFind the freshest sources on a topic.\n\n## Steps\n1. Use the Search operation and enter the topic as the Search Query.\n2. Set a Recency Filter (hour, day, week, month, or year) or pin an After Date and Before Date window.\n3. Optionally constrain a Domain Filter to trusted outlets and set a Country code for regional results.\n4. Adjust Max Results for breadth.\n\n## Output\nA dated list of results, each with title, URL, and a one-line summary, ordered by relevance and recency.',
+    },
+    {
+      name: 'domain-restricted-research',
+      description:
+        'Run a Perplexity search restricted to specific authoritative domains and summarize findings.',
+      content:
+        '# Domain-Restricted Research\n\nResearch a topic using only trusted sources.\n\n## Steps\n1. Use the Search operation with a precise Search Query.\n2. Set the Domain Filter to the allowed domains (comma-separated, up to twenty) such as official, academic, or .gov sites.\n3. Tune Max Page Tokens to control how much text is pulled per source.\n4. Synthesize the returned results into a short summary.\n\n## Output\nA concise summary drawn only from the allowed domains, with each finding attributed to its source URL.',
     },
   ],
 } as const satisfies BlockMeta

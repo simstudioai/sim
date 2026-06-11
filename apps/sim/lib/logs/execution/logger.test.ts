@@ -68,9 +68,9 @@ vi.mock('@/lib/core/utils/display-filters', () => ({
   filterForDisplay: vi.fn((data) => data),
 }))
 
-// Mock events
-vi.mock('@/lib/logs/events', () => ({
-  emitWorkflowExecutionCompleted: vi.fn(() => Promise.resolve()),
+// Mock workspace event emission
+vi.mock('@/lib/workspace-events/emitter', () => ({
+  emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
 // Mock snapshot service

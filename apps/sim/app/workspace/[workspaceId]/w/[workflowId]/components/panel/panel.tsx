@@ -11,11 +11,7 @@ import {
   BubbleChatClose,
   BubbleChatPreview,
   Button,
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
+  ChipConfirmModal,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -930,14 +926,13 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
       </aside>
 
       {/* Delete Confirmation Modal */}
-      <ChipModal
+      <ChipConfirmModal
         open={isDeleteModalOpen}
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
-      >
-        <ChipModalHeader showDivider={false}>Delete Workflow</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Workflow'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>
               {currentWorkflow?.name ?? 'this workflow'}
@@ -947,22 +942,15 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
               All associated blocks, executions, and configuration will be removed.
             </span>{' '}
             You can restore it from Recently Deleted in Settings.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip
-            variant='filled'
-            flush
-            onClick={() => setIsDeleteModalOpen(false)}
-            disabled={isDeleting}
-          >
-            Cancel
-          </Chip>
-          <Chip variant='destructive' flush onClick={handleDeleteWorkflow} disabled={isDeleting}>
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteWorkflow,
+          pending: isDeleting,
+          pendingLabel: 'Deleting...',
+        }}
+      />
 
       {/* Floating Variables Modal */}
       <Variables readOnly={workflowLocked} />

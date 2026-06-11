@@ -4,9 +4,23 @@
 import { describe, expect, it } from 'vitest'
 import {
   apportionCredits,
+  creditsToDollars,
   dollarsToCredits,
   formatCreditCost,
 } from '@/lib/billing/credits/conversion'
+
+describe('creditsToDollars', () => {
+  it('converts credits to dollars at 200 credits per dollar', () => {
+    expect(creditsToDollars(200)).toBe(1)
+    expect(creditsToDollars(0)).toBe(0)
+    expect(creditsToDollars(1)).toBe(0.005)
+  })
+
+  it('round-trips with dollarsToCredits for whole-credit values', () => {
+    expect(dollarsToCredits(creditsToDollars(2000))).toBe(2000)
+    expect(dollarsToCredits(creditsToDollars(1))).toBe(1)
+  })
+})
 
 describe('formatCreditCost', () => {
   it('renders multiplier-inclusive dollars as a single-rounded credit label', () => {

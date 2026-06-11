@@ -18,6 +18,7 @@ import {
   verifyProviderAuth,
 } from '@/lib/webhooks/processor'
 import { blockExistsInDeployment } from '@/lib/workflows/persistence/utils'
+import { isInternalTriggerProvider } from '@/triggers/constants'
 
 const logger = createLogger('WebhookTriggerAPI')
 
@@ -89,7 +90,19 @@ async function handleWebhookPost(
   }
 
   // Find all webhooks for this path (supports credential set fan-out where multiple webhooks share a path)
-  const webhooksForPath = await findAllWebhooksForPath({ requestId, path })
+  const allWebhooksForPath = await findAllWebhooksForPath({ requestId, path })
+
+  // Internal trigger providers (sim, table) are fired in-process, never over
+  // HTTP. Their rows still register a path, so reject deliveries here to keep
+  // forged events out.
+  const webhooksForPath = allWebhooksForPath.filter(
+    ({ webhook: foundWebhook }) => !isInternalTriggerProvider(foundWebhook.provider)
+  )
+
+  if (allWebhooksForPath.length > 0 && webhooksForPath.length === 0) {
+    logger.warn(`[${requestId}] Rejected HTTP delivery to internal trigger path: ${path}`)
+    return new NextResponse('Not Found', { status: 404 })
+  }
 
   if (webhooksForPath.length === 0) {
     const verificationResponse = await handlePreLookupWebhookVerification(

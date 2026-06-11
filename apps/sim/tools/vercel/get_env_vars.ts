@@ -52,6 +52,8 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
       target: e.target ?? [],
       gitBranch: e.gitBranch ?? null,
       comment: e.comment ?? null,
+      createdAt: e.createdAt ?? null,
+      updatedAt: e.updatedAt ?? null,
     }))
 
     return {
@@ -88,6 +90,8 @@ export const vercelGetEnvVarsTool: ToolConfig<VercelGetEnvVarsParams, VercelGetE
             description: 'Comment providing context for the variable',
             optional: true,
           },
+          createdAt: { type: 'number', description: 'Creation timestamp', optional: true },
+          updatedAt: { type: 'number', description: 'Last update timestamp', optional: true },
         },
       },
     },

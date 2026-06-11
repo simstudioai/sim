@@ -9,6 +9,7 @@ import {
   AvatarImage,
   Checkbox,
   Chip,
+  ChipConfirmModal,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -156,7 +157,7 @@ function AddMembersModal({
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className='min-w-0 flex-1'
                 />
-                <Chip variant='filled' onClick={handleToggleAll}>
+                <Chip onClick={handleToggleAll}>
                   {allFilteredSelected ? 'Deselect All' : 'Select All'}
                 </Chip>
               </div>
@@ -208,26 +209,17 @@ function AddMembersModal({
         )}
         <ChipModalError>{errorMessage}</ChipModalError>
       </ChipModalBody>
-      <ChipModalFooter>
-        <Chip
-          variant='filled'
-          flush
-          onClick={() => {
-            setSearchTerm('')
-            onOpenChange(false)
-          }}
-        >
-          Cancel
-        </Chip>
-        <Chip
-          variant='primary'
-          flush
-          onClick={onAddMembers}
-          disabled={selectedMemberIds.size === 0 || isAdding}
-        >
-          {isAdding ? 'Adding...' : 'Add Members'}
-        </Chip>
-      </ChipModalFooter>
+      <ChipModalFooter
+        onCancel={() => {
+          setSearchTerm('')
+          onOpenChange(false)
+        }}
+        primaryAction={{
+          label: isAdding ? 'Adding...' : 'Add Members',
+          onClick: onAddMembers,
+          disabled: selectedMemberIds.size === 0 || isAdding,
+        }}
+      />
     </ChipModal>
   )
 }
@@ -284,10 +276,7 @@ function ModelCheckboxGrid({
           onChange={(e) => setSearch(e.target.value)}
           className='min-w-0 flex-1'
         />
-        <Chip
-          variant='filled'
-          onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}
-        >
+        <Chip onClick={() => onSetModelsDenied(filteredModels, allFilteredAllowed)}>
           {allFilteredAllowed ? 'Block All' : 'Allow All'}
         </Chip>
       </div>
@@ -796,6 +785,31 @@ export function AccessControl() {
     }
   }, [viewingGroup, editingConfig, workspaceId, updatePermissionGroup])
 
+  const handleCloseConfigModal = useCallback(() => {
+    if (hasConfigChanges) {
+      setShowUnsavedChanges(true)
+    } else {
+      setShowConfigModal(false)
+      setProviderSearchTerm('')
+      setIntegrationSearchTerm('')
+      setPlatformSearchTerm('')
+    }
+  }, [hasConfigChanges])
+
+  const handleDiscardConfig = useCallback(() => {
+    setShowUnsavedChanges(false)
+    setShowConfigModal(false)
+    setEditingConfig(null)
+    setProviderSearchTerm('')
+    setIntegrationSearchTerm('')
+    setPlatformSearchTerm('')
+  }, [])
+
+  const handleSaveConfigFromUnsaved = useCallback(() => {
+    setShowUnsavedChanges(false)
+    handleSaveConfig()
+  }, [handleSaveConfig])
+
   const handleOpenAddMembersModal = useCallback(() => {
     setSelectedMemberIds(new Set())
     setAddMembersError(null)
@@ -1093,7 +1107,6 @@ export function AccessControl() {
                           </div>
 
                           <Chip
-                            variant='ghost'
                             onClick={() => handleRemoveMember(member.id)}
                             disabled={removeMember.isPending}
                             className='flex-shrink-0'
@@ -1141,7 +1154,7 @@ export function AccessControl() {
           >
             Configure Permissions
           </ChipModalHeader>
-          <ChipModalBody className='max-h-[70vh] overflow-y-auto'>
+          <ChipModalBody>
             <ChipModalTabs
               tabs={[
                 { value: 'providers', label: 'Model Providers' },
@@ -1162,7 +1175,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedModelProviders === null ||
@@ -1208,7 +1220,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allAllowed =
                         editingConfig?.allowedIntegrations === null ||
@@ -1314,7 +1325,6 @@ export function AccessControl() {
                     className='min-w-0 flex-1'
                   />
                   <Chip
-                    variant='filled'
                     onClick={() => {
                       const allVisible = platformFeatures.every(
                         (f) => !editingConfig?.[f.configKey]
@@ -1374,32 +1384,14 @@ export function AccessControl() {
               </div>
             )}
           </ChipModalBody>
-          <ChipModalFooter>
-            <Chip
-              variant='filled'
-              flush
-              onClick={() => {
-                if (hasConfigChanges) {
-                  setShowUnsavedChanges(true)
-                } else {
-                  setShowConfigModal(false)
-                  setProviderSearchTerm('')
-                  setIntegrationSearchTerm('')
-                  setPlatformSearchTerm('')
-                }
-              }}
-            >
-              Cancel
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={handleSaveConfig}
-              disabled={updatePermissionGroup.isPending || !hasConfigChanges}
-            >
-              {updatePermissionGroup.isPending ? 'Saving...' : 'Save'}
-            </Chip>
-          </ChipModalFooter>
+          <ChipModalFooter
+            onCancel={handleCloseConfigModal}
+            primaryAction={{
+              label: updatePermissionGroup.isPending ? 'Saving...' : 'Save',
+              onClick: handleSaveConfig,
+              disabled: updatePermissionGroup.isPending || !hasConfigChanges,
+            }}
+          />
         </ChipModal>
 
         <ChipModal
@@ -1408,39 +1400,27 @@ export function AccessControl() {
           size='sm'
           srTitle='Unsaved Changes'
         >
-          <ChipModalHeader showDivider={false}>Unsaved Changes</ChipModalHeader>
+          <ChipModalHeader onClose={() => setShowUnsavedChanges(false)}>
+            Unsaved Changes
+          </ChipModalHeader>
           <ChipModalBody>
             <p className='px-2 text-[var(--text-secondary)] text-sm'>
               You have unsaved changes. Do you want to save them before closing?
             </p>
           </ChipModalBody>
-          <ChipModalFooter>
-            <Chip
-              variant='destructive'
-              flush
-              onClick={() => {
-                setShowUnsavedChanges(false)
-                setShowConfigModal(false)
-                setEditingConfig(null)
-                setProviderSearchTerm('')
-                setIntegrationSearchTerm('')
-                setPlatformSearchTerm('')
-              }}
-            >
-              Discard Changes
-            </Chip>
-            <Chip
-              variant='primary'
-              flush
-              onClick={() => {
-                setShowUnsavedChanges(false)
-                handleSaveConfig()
-              }}
-              disabled={updatePermissionGroup.isPending}
-            >
-              {updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes'}
-            </Chip>
-          </ChipModalFooter>
+          <ChipModalFooter
+            onCancel={() => setShowUnsavedChanges(false)}
+            secondaryAction={{
+              label: 'Discard Changes',
+              onClick: handleDiscardConfig,
+              variant: 'destructive',
+            }}
+            primaryAction={{
+              label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
+              onClick: handleSaveConfigFromUnsaved,
+              disabled: updatePermissionGroup.isPending,
+            }}
+          />
         </ChipModal>
 
         <AddMembersModal
@@ -1561,52 +1541,38 @@ export function AccessControl() {
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={handleCloseCreateModal}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='primary'
-            flush
-            onClick={handleCreatePermissionGroup}
-            disabled={!newGroupName.trim() || createPermissionGroup.isPending}
-          >
-            {createPermissionGroup.isPending ? 'Creating...' : 'Create'}
-          </Chip>
-        </ChipModalFooter>
+        <ChipModalFooter
+          onCancel={handleCloseCreateModal}
+          primaryAction={{
+            label: createPermissionGroup.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreatePermissionGroup,
+            disabled: !newGroupName.trim() || createPermissionGroup.isPending,
+          }}
+        />
       </ChipModal>
 
-      <ChipModal
+      <ChipConfirmModal
         open={!!deletingGroup}
         onOpenChange={() => setDeletingGroup(null)}
-        size='sm'
         srTitle='Delete Permission Group'
-      >
-        <ChipModalHeader showDivider={false}>Delete Permission Group</ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+        title='Delete Permission Group'
+        description={
+          <>
             Are you sure you want to delete{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
             <span className='text-[var(--text-error)]'>
               All members will be removed from this group.
             </span>{' '}
             This action cannot be undone.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeletingGroup(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={confirmDelete}
-            disabled={deletePermissionGroup.isPending}
-          >
-            {deletePermissionGroup.isPending ? 'Deleting...' : 'Delete'}
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deletePermissionGroup.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

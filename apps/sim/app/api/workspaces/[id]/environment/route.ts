@@ -25,9 +25,48 @@ import {
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  getWorkspaceById,
+  type PermissionType,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
+
+/**
+ * Restricts decrypted workspace env values to administrators. Members (including
+ * read-only) receive the variable names with empty values so editor autocomplete
+ * and conflict detection keep working without leaking secret values. A value is
+ * revealed when the caller is a credential admin of that key, or — for legacy
+ * keys predating per-secret ACLs — when they hold workspace `admin` permission.
+ * Mirrors the per-key edit gating in PUT/DELETE: if you can administer a secret,
+ * you can read it.
+ */
+async function maskWorkspaceEnvForViewer({
+  workspaceDecrypted,
+  workspaceId,
+  userId,
+  permission,
+}: {
+  workspaceDecrypted: Record<string, string>
+  workspaceId: string
+  userId: string
+  permission: PermissionType
+}): Promise<Record<string, string>> {
+  const workspaceKeys = Object.keys(workspaceDecrypted)
+  const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: workspaceKeys,
+    userId,
+  })
+
+  const masked: Record<string, string> = {}
+  for (const key of workspaceKeys) {
+    const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
+    masked[key] = canViewValue ? workspaceDecrypted[key] : ''
+  }
+  return masked
+}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -43,13 +82,11 @@ export const GET = withRouteHandler(
 
       const userId = session.user.id
 
-      // Validate workspace exists
       const ws = await getWorkspaceById(workspaceId)
       if (!ws) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
-      // Require any permission to read
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -60,10 +97,17 @@ export const GET = withRouteHandler(
         workspaceId
       )
 
+      const workspace = await maskWorkspaceEnvForViewer({
+        workspaceDecrypted,
+        workspaceId,
+        userId,
+        permission,
+      })
+
       return NextResponse.json(
         {
           data: {
-            workspace: workspaceDecrypted,
+            workspace,
             personal: personalDecrypted,
             conflicts,
           },
@@ -80,6 +124,12 @@ export const GET = withRouteHandler(
   }
 )
 
+/**
+ * Upserts workspace environment variables under tiered authorization: the caller
+ * needs some workspace permission, editing an existing secret requires
+ * credential-admin on that key, and adding a brand-new key requires workspace
+ * write/admin.
+ */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -98,9 +148,6 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
 
-      // Caller must have workspace access at all (blocks non-member writes);
-      // per-key gating below then requires credential-admin to edit existing
-      // secrets and write/admin to add brand-new keys.
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -221,6 +268,11 @@ export const PUT = withRouteHandler(
   }
 )
 
+/**
+ * Removes workspace environment variables. Deleting an existing secret requires
+ * credential-admin on that key; a key with no credential yet (legacy) falls back
+ * to workspace write/admin.
+ */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -239,9 +291,6 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body
 
-      // Caller must have workspace access at all; deleting an existing secret then
-      // requires being its credential admin, while a key with no credential yet
-      // (legacy) falls back to workspace write/admin.
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

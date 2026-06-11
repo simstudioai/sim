@@ -9,10 +9,10 @@ import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skil
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface StoredSkill {
   skillId: string
@@ -25,7 +25,6 @@ interface SkillInputProps {
   isPreview?: boolean
   previewValue?: unknown
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SkillInput({
@@ -34,8 +33,8 @@ export function SkillInput({
   isPreview,
   previewValue,
   disabled,
-  activeSearchTarget,
 }: SkillInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 

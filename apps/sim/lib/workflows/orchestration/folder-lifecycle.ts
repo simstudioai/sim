@@ -54,6 +54,33 @@ export interface PerformUpdateFolderResult {
   folder?: typeof workflowFolder.$inferSelect
 }
 
+/**
+ * Verifies that a prospective parent folder exists, belongs to the target
+ * workspace, and is not archived. Mirrors the validation in the duplicate
+ * route's `assertTargetParentFolderMutable` so a caller cannot reparent a
+ * folder to a non-existent id or to a folder in another workspace. Returns
+ * an error result when invalid, or `null` when the parent is acceptable.
+ */
+async function assertParentFolderInWorkspace(
+  parentId: string,
+  workspaceId: string
+): Promise<{ error: string; errorCode: OrchestrationErrorCode } | null> {
+  const [parent] = await db
+    .select({
+      workspaceId: workflowFolder.workspaceId,
+      archivedAt: workflowFolder.archivedAt,
+    })
+    .from(workflowFolder)
+    .where(eq(workflowFolder.id, parentId))
+    .limit(1)
+
+  if (!parent || parent.workspaceId !== workspaceId || parent.archivedAt) {
+    return { error: 'Parent folder not found', errorCode: 'validation' }
+  }
+
+  return null
+}
+
 async function nextFolderSortOrder(
   workspaceId: string,
   parentId: string | null | undefined
@@ -93,6 +120,19 @@ export async function performCreateFolder(
   try {
     const folderId = params.id || generateId()
     const parentId = params.parentId || null
+
+    if (parentId) {
+      if (parentId === folderId) {
+        return {
+          success: false,
+          error: 'Folder cannot be its own parent',
+          errorCode: 'validation',
+        }
+      }
+      const parentError = await assertParentFolderInWorkspace(parentId, params.workspaceId)
+      if (parentError) return { success: false, ...parentError }
+    }
+
     const sortOrder =
       params.sortOrder !== undefined
         ? params.sortOrder
@@ -146,6 +186,9 @@ export async function performUpdateFolder(
     }
 
     if (params.parentId) {
+      const parentError = await assertParentFolderInWorkspace(params.parentId, params.workspaceId)
+      if (parentError) return { success: false, ...parentError }
+
       const wouldCreateCycle = await checkForCircularReference(params.folderId, params.parentId)
       if (wouldCreateCycle) {
         return {

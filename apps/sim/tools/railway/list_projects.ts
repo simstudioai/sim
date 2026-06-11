@@ -1,3 +1,4 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayListProjectsParams,
   RailwayListProjectsResponse,
@@ -5,7 +6,6 @@ import type {
   RailwayProjectSummary,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -42,7 +42,8 @@ export const railwayListProjectsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     workspaceId: {
       type: 'string',
@@ -88,7 +89,7 @@ export const railwayListProjectsTool: ToolConfig<
           }
         }
       `,
-      variables: compactVariables({
+      variables: filterUndefined({
         workspaceId: optionalString(params.workspaceId),
         first: params.first ? Number(params.first) : undefined,
         after: optionalString(params.after),

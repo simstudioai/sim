@@ -9,7 +9,7 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
   description: 'Connect to AWS Secrets Manager',
   longDescription:
     'Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.',
-  docsLink: 'https://docs.sim.ai/tools/secrets_manager',
+  docsLink: 'https://docs.sim.ai/integrations/secrets_manager',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',
@@ -351,6 +351,36 @@ export const SecretsManagerBlockMeta = {
       category: 'engineering',
       tags: ['devops', 'monitoring'],
       alsoIntegrations: ['slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'rotate-secret-value',
+      description:
+        'Update a stored secret in AWS Secrets Manager with a new value as part of a rotation flow. Use to push refreshed credentials without manual console edits.',
+      content:
+        '# Rotate Secret Value\n\nUpdate a secret with a new value.\n\n## Steps\n1. Confirm the target secret exists by getting it (do not log the returned value).\n2. Obtain the new secret value to store, as a string or JSON key/value payload.\n3. Update the secret with the new value, creating a new version.\n4. Verify by getting the secret and checking the updated version metadata, not the raw value.\n\n## Output\nConfirm the secret name and that a new version was created. Never print the secret value itself.',
+    },
+    {
+      name: 'audit-secret-inventory',
+      description:
+        'List secrets in AWS Secrets Manager and report metadata like last-changed and rotation status. Use for hygiene checks and finding stale secrets.',
+      content:
+        '# Audit Secret Inventory\n\nReport on the secrets that exist without exposing their values.\n\n## Steps\n1. List secrets to enumerate names, descriptions, and tags.\n2. For each secret of interest, read metadata such as last changed and last rotated dates.\n3. Flag secrets that are stale, undescribed, or appear unused.\n4. Summarize without ever fetching or printing secret values.\n\n## Output\nAn inventory summary: secret names with last-changed and rotation status, and stale or unrotated secrets called out. No secret values.',
+    },
+    {
+      name: 'store-new-secret',
+      description:
+        'Create a new secret in AWS Secrets Manager from a provided credential or generated value. Use to register app credentials, API keys, or DB passwords centrally.',
+      content:
+        '# Store New Secret\n\nRegister a new credential in Secrets Manager.\n\n## Steps\n1. Choose a clear hierarchical name for the secret, such as my-app/prod/db-password.\n2. Assemble the value to store — a plain string, or a JSON object of key/value pairs for structured credentials.\n3. Create the secret with that name, value, and a description of what it is and where it is used.\n4. Confirm creation by reading back the version metadata, not the value.\n\n## Output\nConfirm the secret name, ARN, and new version ID. Never echo the stored secret value back.',
+    },
+    {
+      name: 'decommission-secret',
+      description:
+        'Schedule deletion of a secret in AWS Secrets Manager with a recovery window so it can be restored if needed. Use to retire unused or rotated-out credentials safely.',
+      content:
+        '# Decommission Secret\n\nRetire a secret without permanently losing it immediately.\n\n## Steps\n1. Confirm the target secret and that nothing still depends on it.\n2. Schedule deletion with a recovery window (e.g. 30 days) so it can be restored during that period; reserve force delete for confirmed-orphaned secrets only.\n3. Record the scheduled deletion date.\n4. Re-list secrets to confirm it is marked for deletion.\n\n## Output\nConfirm the secret name and the scheduled deletion date, or that immediate deletion was requested. Do not print the secret value.',
     },
   ],
 } as const satisfies BlockMeta

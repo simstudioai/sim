@@ -7,7 +7,7 @@
     "longDescription": "Access and manage secrets stored in 1Password vaults using the Connect API or Service Account SDK. List vaults, retrieve items with their fields and secrets, create new items, update existing ones, delete items, and resolve secret references.",
     "bgColor": "#FFFFFF",
     "iconName": "OnePasswordIcon",
-    "docsUrl": "https://docs.sim.ai/tools/onepassword",
+    "docsUrl": "https://docs.sim.ai/integrations/onepassword",
     "operations": [
       {
         "name": "List Vaults",
@@ -62,7 +62,7 @@
     "longDescription": "Integrate AgentMail into your workflow. Create and manage email inboxes, send and receive messages, reply to threads, manage drafts, and organize threads with labels. Requires API Key.",
     "bgColor": "#000000",
     "iconName": "AgentMailIcon",
-    "docsUrl": "https://docs.sim.ai/tools/agentmail",
+    "docsUrl": "https://docs.sim.ai/integrations/agentmail",
     "operations": [
       {
         "name": "Send Message",
@@ -165,7 +165,7 @@
     "longDescription": "Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.",
     "bgColor": "linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)",
     "iconName": "AgentPhoneIcon",
-    "docsUrl": "https://docs.sim.ai/tools/agentphone",
+    "docsUrl": "https://docs.sim.ai/integrations/agentphone",
     "operations": [
       {
         "name": "Create Number",
@@ -272,7 +272,7 @@
     "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
     "bgColor": "#001028",
     "iconName": "AgiloftIcon",
-    "docsUrl": "https://docs.sim.ai/tools/agiloft",
+    "docsUrl": "https://docs.sim.ai/integrations/agiloft",
     "operations": [
       {
         "name": "Create Record",
@@ -330,7 +330,7 @@
     "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -394,7 +394,7 @@
     "longDescription": "Integrates Airtable into the workflow. Can list bases, list tables (with schema), and create, get, list, or update records. Can also be used in trigger mode to trigger a workflow when an update is made to an Airtable table.",
     "bgColor": "#FFFFFF",
     "iconName": "AirtableIcon",
-    "docsUrl": "https://docs.sim.ai/tools/airtable",
+    "docsUrl": "https://docs.sim.ai/integrations/airtable",
     "operations": [
       {
         "name": "List Bases",
@@ -451,7 +451,7 @@
     "longDescription": "Search across your synced data sources using Airweave. Supports semantic search with hybrid, neural, or keyword retrieval strategies. Optionally generate AI-powered answers from search results.",
     "bgColor": "#6366F1",
     "iconName": "AirweaveIcon",
-    "docsUrl": "https://docs.sim.ai/tools/airweave",
+    "docsUrl": "https://docs.sim.ai/integrations/airweave",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -469,7 +469,7 @@
     "longDescription": "Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.",
     "bgColor": "#003DFF",
     "iconName": "AlgoliaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/algolia",
+    "docsUrl": "https://docs.sim.ai/integrations/algolia",
     "operations": [
       {
         "name": "Search",
@@ -548,7 +548,7 @@
     "longDescription": "Integrate Amazon DynamoDB into workflows. Supports Get, Put, Query, Scan, Update, Delete, and Introspect operations on DynamoDB tables.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "DynamoDBIcon",
-    "docsUrl": "https://docs.sim.ai/tools/dynamodb",
+    "docsUrl": "https://docs.sim.ai/integrations/dynamodb",
     "operations": [
       {
         "name": "Get Item",
@@ -582,10 +582,10 @@
     "operationCount": 7,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud", "data-analytics"]
   },
   {
     "type": "rds",
@@ -595,7 +595,7 @@
     "longDescription": "Integrate Amazon RDS Aurora Serverless into the workflow using the Data API. Can query, insert, update, delete, and execute raw SQL without managing database connections.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "RDSIcon",
-    "docsUrl": "https://docs.sim.ai/tools/rds",
+    "docsUrl": "https://docs.sim.ai/integrations/rds",
     "operations": [
       {
         "name": "Query (SELECT)",
@@ -628,7 +628,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "sqs",
@@ -638,7 +638,7 @@
     "longDescription": "Integrate Amazon SQS into the workflow. Can send messages to SQS queues.",
     "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
     "iconName": "SQSIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sqs",
+    "docsUrl": "https://docs.sim.ai/integrations/sqs",
     "operations": [
       {
         "name": "Send Message",
@@ -661,7 +661,7 @@
     "longDescription": "Integrate Amplitude into your workflow to track events, identify users and groups, search for users, query analytics, and retrieve revenue data.",
     "bgColor": "#1B1F3B",
     "iconName": "AmplitudeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/amplitude",
+    "docsUrl": "https://docs.sim.ai/integrations/amplitude",
     "operations": [
       {
         "name": "Send Event",
@@ -724,7 +724,7 @@
     "longDescription": "Integrate Apify into your workflow. Run any Apify actor or saved task with custom input, fetch dataset items, and check run status. Supports both synchronous and asynchronous execution with automatic dataset fetching.",
     "bgColor": "#FFFFFF",
     "iconName": "ApifyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/apify",
+    "docsUrl": "https://docs.sim.ai/integrations/apify",
     "operations": [
       {
         "name": "Run Actor",
@@ -763,7 +763,7 @@
     "longDescription": "Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.",
     "bgColor": "#EBF212",
     "iconName": "ApolloIcon",
-    "docsUrl": "https://docs.sim.ai/tools/apollo",
+    "docsUrl": "https://docs.sim.ai/integrations/apollo",
     "operations": [
       {
         "name": "Search People",
@@ -882,7 +882,7 @@
     "longDescription": "Integrates ArXiv into the workflow. Can search for papers, get paper details, and get author papers. Does not require OAuth or an API key.",
     "bgColor": "#FFFFFF",
     "iconName": "ArxivIcon",
-    "docsUrl": "https://docs.sim.ai/tools/arxiv",
+    "docsUrl": "https://docs.sim.ai/integrations/arxiv",
     "operations": [
       {
         "name": "Search Papers",
@@ -913,7 +913,7 @@
     "longDescription": "Integrate Asana into the workflow. Can read, write, and update tasks.",
     "bgColor": "#FFFFFF",
     "iconName": "AsanaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/asana",
+    "docsUrl": "https://docs.sim.ai/integrations/asana",
     "operations": [
       {
         "name": "Get Task",
@@ -956,7 +956,7 @@
     "longDescription": "Integrate Ashby into the workflow. Manage candidates (list, get, create, update, search, tag), applications (list, get, create, change stage), jobs (list, get), job postings (list, get), offers (list, get), notes (list, create), interviews (list), and reference data (sources, tags, archive reasons, custom fields, departments, locations, openings, users).",
     "bgColor": "#5D4ED6",
     "iconName": "AshbyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/ashby",
+    "docsUrl": "https://docs.sim.ai/integrations/ashby",
     "operations": [
       {
         "name": "List Candidates",
@@ -1118,7 +1118,7 @@
     "longDescription": "Integrate AWS Athena into workflows. Execute SQL queries against data in S3, check query status, retrieve results, manage named queries, and list executions. Requires AWS access key and secret access key.",
     "bgColor": "linear-gradient(45deg, #4D27A8 0%, #A166FF 100%)",
     "iconName": "AthenaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/athena",
+    "docsUrl": "https://docs.sim.ai/integrations/athena",
     "operations": [
       {
         "name": "Start Query",
@@ -1169,7 +1169,7 @@
     "longDescription": "Connect to Attio to manage CRM records (people, companies, custom objects), notes, tasks, lists, list entries, comments, workspace members, and webhooks.",
     "bgColor": "#1D1E20",
     "iconName": "AttioIcon",
-    "docsUrl": "https://docs.sim.ai/tools/attio",
+    "docsUrl": "https://docs.sim.ai/integrations/attio",
     "operations": [
       {
         "name": "List Records",
@@ -1456,6 +1456,125 @@
     "tags": ["sales-engagement", "enrichment"]
   },
   {
+    "type": "appconfig",
+    "slug": "aws-appconfig",
+    "name": "AWS AppConfig",
+    "description": "Manage and retrieve configuration with AWS AppConfig",
+    "longDescription": "Integrate AWS AppConfig into workflows. Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
+    "iconName": "AppConfigIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/appconfig",
+    "operations": [
+      {
+        "name": "Get Configuration",
+        "description": "Retrieve the latest deployed configuration for an AppConfig application, environment, and profile"
+      },
+      {
+        "name": "List Applications",
+        "description": "List applications in AWS AppConfig"
+      },
+      {
+        "name": "Create Application",
+        "description": "Create an application in AWS AppConfig"
+      },
+      {
+        "name": "Get Application",
+        "description": "Get details about a single AWS AppConfig application"
+      },
+      {
+        "name": "Update Application",
+        "description": "Update the name or description of an AWS AppConfig application"
+      },
+      {
+        "name": "Delete Application",
+        "description": "Delete an AWS AppConfig application"
+      },
+      {
+        "name": "List Environments",
+        "description": "List environments for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Environment",
+        "description": "Create an environment for an AWS AppConfig application"
+      },
+      {
+        "name": "Get Environment",
+        "description": "Get details about a single AWS AppConfig environment"
+      },
+      {
+        "name": "Update Environment",
+        "description": "Update the name or description of an AWS AppConfig environment"
+      },
+      {
+        "name": "Delete Environment",
+        "description": "Delete an AWS AppConfig environment"
+      },
+      {
+        "name": "List Configuration Profiles",
+        "description": "List configuration profiles for an AWS AppConfig application"
+      },
+      {
+        "name": "Create Configuration Profile",
+        "description": "Create a configuration profile in an AWS AppConfig application"
+      },
+      {
+        "name": "Get Configuration Profile",
+        "description": "Get details about a single AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Update Configuration Profile",
+        "description": "Update the name, description, or retrieval role of an AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Configuration Profile",
+        "description": "Delete an AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Create Hosted Configuration Version",
+        "description": "Create a new hosted configuration version for an AppConfig configuration profile"
+      },
+      {
+        "name": "Get Hosted Configuration Version",
+        "description": "Retrieve a specific hosted configuration version from an AppConfig profile"
+      },
+      {
+        "name": "List Hosted Configuration Versions",
+        "description": "List hosted configuration versions for an AWS AppConfig configuration profile"
+      },
+      {
+        "name": "Delete Hosted Configuration Version",
+        "description": "Delete a specific hosted configuration version from an AppConfig profile"
+      },
+      {
+        "name": "List Deployment Strategies",
+        "description": "List deployment strategies available in AWS AppConfig"
+      },
+      {
+        "name": "Start Deployment",
+        "description": "Start deploying a configuration version to an AWS AppConfig environment"
+      },
+      {
+        "name": "Get Deployment",
+        "description": "Get details about a specific AWS AppConfig deployment"
+      },
+      {
+        "name": "List Deployments",
+        "description": "List deployments for an AWS AppConfig environment"
+      },
+      {
+        "name": "Stop Deployment",
+        "description": "Stop an in-progress AWS AppConfig deployment"
+      }
+    ],
+    "operationCount": 25,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "feature-flags", "automation"]
+  },
+  {
     "type": "iam",
     "slug": "aws-iam",
     "name": "AWS IAM",
@@ -1463,7 +1582,7 @@
     "longDescription": "Integrate AWS Identity and Access Management into your workflow. Create and manage users, roles, policies, groups, and access keys.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
     "iconName": "IAMIcon",
-    "docsUrl": "https://docs.sim.ai/tools/iam",
+    "docsUrl": "https://docs.sim.ai/integrations/iam",
     "operations": [
       {
         "name": "List Users",
@@ -1553,7 +1672,7 @@
     "operationCount": 21,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1566,7 +1685,7 @@
     "longDescription": "Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
     "iconName": "IdentityCenterIcon",
-    "docsUrl": "https://docs.sim.ai/tools/identity_center",
+    "docsUrl": "https://docs.sim.ai/integrations/identity_center",
     "operations": [
       {
         "name": "List Instances",
@@ -1620,7 +1739,7 @@
     "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["cloud", "identity"]
@@ -1633,7 +1752,7 @@
     "longDescription": "Integrate AWS Secrets Manager into the workflow. Can retrieve, create, update, list, and delete secrets.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
     "iconName": "SecretsManagerIcon",
-    "docsUrl": "https://docs.sim.ai/tools/secrets_manager",
+    "docsUrl": "https://docs.sim.ai/integrations/secrets_manager",
     "operations": [
       {
         "name": "Get Secret",
@@ -1672,7 +1791,7 @@
     "longDescription": "Integrate AWS SES v2 into the workflow. Send simple, templated, and bulk emails. Manage email templates and retrieve account sending quota and verified identity information.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
     "iconName": "SESIcon",
-    "docsUrl": "https://docs.sim.ai/tools/ses",
+    "docsUrl": "https://docs.sim.ai/integrations/ses",
     "operations": [
       {
         "name": "Send Email",
@@ -1714,10 +1833,10 @@
     "operationCount": 9,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
-    "tags": ["cloud", "marketing"]
+    "tags": ["cloud", "email-marketing", "messaging"]
   },
   {
     "type": "sts",
@@ -1727,7 +1846,7 @@
     "longDescription": "Integrate AWS STS into the workflow. Assume roles, get temporary credentials, verify caller identity, and look up access key information.",
     "bgColor": "linear-gradient(45deg, #BD0816 0%, #FF5252 100%)",
     "iconName": "STSIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sts",
+    "docsUrl": "https://docs.sim.ai/integrations/sts",
     "operations": [
       {
         "name": "Assume Role",
@@ -1749,10 +1868,10 @@
     "operationCount": 4,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["cloud"]
+    "tags": ["cloud", "identity"]
   },
   {
     "type": "textract_v2",
@@ -1762,12 +1881,12 @@
     "longDescription": "Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.",
     "bgColor": "linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)",
     "iconName": "TextractIcon",
-    "docsUrl": "https://docs.sim.ai/tools/textract",
+    "docsUrl": "https://docs.sim.ai/integrations/textract",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
     "tags": ["document-processing", "ocr", "cloud"]
@@ -1780,7 +1899,7 @@
     "longDescription": "Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.",
     "bgColor": "#0078D4",
     "iconName": "AzureIcon",
-    "docsUrl": "https://docs.sim.ai/tools/microsoft_ad",
+    "docsUrl": "https://docs.sim.ai/integrations/microsoft_ad",
     "operations": [
       {
         "name": "List Users",
@@ -1851,7 +1970,7 @@
     "longDescription": "Integrate Azure DevOps into your workflow. List and inspect pipelines and builds, query and manage work items, and add or read comments.",
     "bgColor": "#0078D4",
     "iconName": "AzureIcon",
-    "docsUrl": "https://docs.sim.ai/tools/azure_devops",
+    "docsUrl": "https://docs.sim.ai/integrations/azure_devops",
     "operations": [
       {
         "name": "List Pipelines",
@@ -1950,7 +2069,7 @@
     "longDescription": "Integrate Box into your workflow to manage files, folders, and e-signatures. Upload and download files, search content, create folders, send documents for e-signature, track signing status, and more.",
     "bgColor": "#FFFFFF",
     "iconName": "BoxCompanyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/box",
+    "docsUrl": "https://docs.sim.ai/integrations/box",
     "operations": [
       {
         "name": "Upload File",
@@ -2029,7 +2148,7 @@
     "longDescription": "Integrate Brandfetch into your workflow. Retrieve brand logos, colors, fonts, and company data by domain, ticker, or name search.",
     "bgColor": "#000000",
     "iconName": "BrandfetchIcon",
-    "docsUrl": "https://docs.sim.ai/tools/brandfetch",
+    "docsUrl": "https://docs.sim.ai/integrations/brandfetch",
     "operations": [
       {
         "name": "Get Brand",
@@ -2054,9 +2173,9 @@
     "name": "Bright Data",
     "description": "Scrape websites, search engines, and extract structured data",
     "longDescription": "Integrate Bright Data into the workflow. Scrape any URL with Web Unlocker, search Google and other engines with SERP API, discover web content ranked by intent, or trigger pre-built scrapers for structured data extraction.",
-    "bgColor": "#0F4C81",
+    "bgColor": "#FFFFFF",
     "iconName": "BrightDataIcon",
-    "docsUrl": "https://docs.sim.ai/tools/brightdata",
+    "docsUrl": "https://docs.sim.ai/integrations/brightdata",
     "operations": [
       {
         "name": "Scrape URL",
@@ -2107,7 +2226,7 @@
     "longDescription": "Integrate Browser Use into the workflow. Can navigate the web and perform actions as if a real user was interacting with the browser.",
     "bgColor": "#181C1E",
     "iconName": "BrowserUseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/browser_use",
+    "docsUrl": "https://docs.sim.ai/integrations/browser_use",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -2123,9 +2242,9 @@
     "name": "Cal Com",
     "description": "Manage Cal.com bookings, event types, schedules, and availability",
     "longDescription": "Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.",
-    "bgColor": "#FFFFFE",
+    "bgColor": "#292929",
     "iconName": "CalComIcon",
-    "docsUrl": "https://docs.sim.ai/tools/calcom",
+    "docsUrl": "https://docs.sim.ai/integrations/calcom",
     "operations": [
       {
         "name": "List Bookings",
@@ -2266,7 +2385,7 @@
     "longDescription": "Integrate Calendly into your workflow. Manage event types, scheduled events, invitees, and webhooks. Can also trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.",
     "bgColor": "#FFFFFF",
     "iconName": "CalendlyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/calendly",
+    "docsUrl": "https://docs.sim.ai/integrations/calendly",
     "operations": [
       {
         "name": "Get Current User",
@@ -2334,12 +2453,12 @@
     "longDescription": "Integrate Clay into the workflow. Can populate a table with data.",
     "bgColor": "#FFFFFF",
     "iconName": "ClayIcon",
-    "docsUrl": "https://docs.sim.ai/tools/clay",
+    "docsUrl": "https://docs.sim.ai/integrations/clay",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement", "data-analytics"]
@@ -2352,7 +2471,7 @@
     "longDescription": "Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.",
     "bgColor": "#131316",
     "iconName": "ClerkIcon",
-    "docsUrl": "https://docs.sim.ai/tools/clerk",
+    "docsUrl": "https://docs.sim.ai/integrations/clerk",
     "operations": [
       {
         "name": "List Users",
@@ -2415,7 +2534,7 @@
     "longDescription": "Integrate ClickHouse into the workflow. Query and insert data, manage databases and tables, inspect schemas, monitor mutations and running queries, manage partitions, and execute raw SQL over the ClickHouse HTTP interface.",
     "bgColor": "#f9ff69",
     "iconName": "ClickHouseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/clickhouse",
+    "docsUrl": "https://docs.sim.ai/integrations/clickhouse",
     "operations": [
       {
         "name": "Query (SELECT)",
@@ -2538,7 +2657,7 @@
     "longDescription": "Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.",
     "bgColor": "#F5F6FA",
     "iconName": "CloudflareIcon",
-    "docsUrl": "https://docs.sim.ai/tools/cloudflare",
+    "docsUrl": "https://docs.sim.ai/integrations/cloudflare",
     "operations": [
       {
         "name": "List Zones",
@@ -2609,7 +2728,7 @@
     "longDescription": "Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.",
     "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
     "iconName": "CloudFormationIcon",
-    "docsUrl": "https://docs.sim.ai/tools/cloudformation",
+    "docsUrl": "https://docs.sim.ai/integrations/cloudformation",
     "operations": [
       {
         "name": "Describe Stacks",
@@ -2656,7 +2775,7 @@
     "longDescription": "Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.",
     "bgColor": "linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)",
     "iconName": "CloudWatchIcon",
-    "docsUrl": "https://docs.sim.ai/tools/cloudwatch",
+    "docsUrl": "https://docs.sim.ai/integrations/cloudwatch",
     "operations": [
       {
         "name": "Query Logs (Insights)",
@@ -2708,6 +2827,57 @@
     "tags": ["cloud", "monitoring"]
   },
   {
+    "type": "codepipeline",
+    "slug": "codepipeline",
+    "name": "CodePipeline",
+    "description": "Run, monitor, and approve AWS CodePipeline pipelines",
+    "longDescription": "Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.",
+    "bgColor": "linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)",
+    "iconName": "CodePipelineIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/codepipeline",
+    "operations": [
+      {
+        "name": "Start Execution",
+        "description": "Start a CodePipeline pipeline execution, optionally overriding pipeline variables"
+      },
+      {
+        "name": "Get Pipeline State",
+        "description": "Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens"
+      },
+      {
+        "name": "List Pipelines",
+        "description": "List all CodePipeline pipelines in an AWS account and region"
+      },
+      {
+        "name": "List Executions",
+        "description": "List recent executions of a CodePipeline pipeline with status and source revisions"
+      },
+      {
+        "name": "Get Execution",
+        "description": "Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables"
+      },
+      {
+        "name": "Stop Execution",
+        "description": "Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them"
+      },
+      {
+        "name": "Retry Stage",
+        "description": "Retry the failed actions (or all actions) of a failed CodePipeline stage"
+      },
+      {
+        "name": "Approve / Reject Approval",
+        "description": "Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action"
+      }
+    ],
+    "operationCount": 8,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["cloud", "ci-cd"]
+  },
+  {
     "type": "confluence_v2",
     "slug": "confluence",
     "name": "Confluence",
@@ -2715,7 +2885,7 @@
     "longDescription": "Integrate Confluence into the workflow. Can read, create, update, delete pages, manage comments, attachments, labels, and search content.",
     "bgColor": "#FFFFFF",
     "iconName": "ConfluenceIcon",
-    "docsUrl": "https://docs.sim.ai/tools/confluence",
+    "docsUrl": "https://docs.sim.ai/integrations/confluence",
     "operations": [
       {
         "name": "Read Page",
@@ -3034,7 +3204,7 @@
     "longDescription": "Integrate CrowdStrike Identity Protection into workflows to search sensors, fetch documented sensor details by device ID, and run documented sensor aggregate queries.",
     "bgColor": "#E01F3D",
     "iconName": "CrowdStrikeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/crowdstrike",
+    "docsUrl": "https://docs.sim.ai/integrations/crowdstrike",
     "operations": [
       {
         "name": "Query Sensors",
@@ -3052,7 +3222,7 @@
     "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "security",
     "tags": ["identity", "monitoring"]
@@ -3132,7 +3302,7 @@
     "longDescription": "Connect to a Dagster instance to launch job runs, monitor run status, list available jobs across repositories, terminate or delete runs, reexecute failed runs, fetch run logs, and manage schedules and sensors. API token only required for Dagster+.",
     "bgColor": "#ffffff",
     "iconName": "DagsterIcon",
-    "docsUrl": "https://docs.sim.ai/tools/dagster",
+    "docsUrl": "https://docs.sim.ai/integrations/dagster",
     "operations": [
       {
         "name": "Launch Run",
@@ -3220,24 +3390,6 @@
     "tags": ["data-analytics", "automation"]
   },
   {
-    "type": "enrichment",
-    "slug": "data-enrichment",
-    "name": "Data Enrichment",
-    "description": "Enrich data with a Sim enrichment",
-    "longDescription": "Run a Sim enrichment to look up data — work email, phone number, company domain, company info, and more — from the fields you map in. Uses the same provider cascade as table enrichments.",
-    "bgColor": "#9333EA",
-    "iconName": "EnrichmentIcon",
-    "docsUrl": "https://docs.sim.ai/tools/enrichment",
-    "operations": [],
-    "operationCount": 0,
-    "triggers": [],
-    "triggerCount": 0,
-    "authType": "none",
-    "category": "tools",
-    "integrationType": "sales",
-    "tags": ["enrichment", "sales-engagement"]
-  },
-  {
     "type": "databricks",
     "slug": "databricks",
     "name": "Databricks",
@@ -3245,15 +3397,27 @@
     "longDescription": "Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.",
     "bgColor": "#F9F7F4",
     "iconName": "DatabricksIcon",
-    "docsUrl": "https://docs.sim.ai/tools/databricks",
+    "docsUrl": "https://docs.sim.ai/integrations/databricks",
     "operations": [
       {
         "name": "Execute SQL",
         "description": "Execute a SQL statement against a Databricks SQL warehouse and return results inline. Supports parameterized queries and Unity Catalog."
       },
       {
+        "name": "Get Statement",
+        "description": "Poll a SQL statement by its ID to retrieve status and results. Use this after Execute SQL when a query runs longer than the wait timeout."
+      },
+      {
+        "name": "List Warehouses",
+        "description": "List all SQL warehouses in a Databricks workspace including their size, state, and type. Use this to discover the warehouse ID needed for Execute SQL."
+      },
+      {
         "name": "List Jobs",
         "description": "List all jobs in a Databricks workspace with optional filtering by name."
+      },
+      {
+        "name": "Get Job",
+        "description": "Get the full definition and settings of a single Databricks job by its job ID."
       },
       {
         "name": "Run Job",
@@ -3278,9 +3442,13 @@
       {
         "name": "List Clusters",
         "description": "List all clusters in a Databricks workspace including their state, configuration, and resource details."
+      },
+      {
+        "name": "Get Cluster",
+        "description": "Get the state, configuration, and resource details of a single Databricks cluster by its cluster ID."
       }
     ],
-    "operationCount": 8,
+    "operationCount": 12,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -3296,7 +3464,7 @@
     "longDescription": "Integrate Datadog monitoring into workflows. Submit metrics, manage monitors, query logs, create events, handle downtimes, and more.",
     "bgColor": "#632CA6",
     "iconName": "DatadogIcon",
-    "docsUrl": "https://docs.sim.ai/tools/datadog",
+    "docsUrl": "https://docs.sim.ai/integrations/datadog",
     "operations": [
       {
         "name": "Submit Metrics",
@@ -3363,7 +3531,7 @@
     "longDescription": "Integrate Devin into your workflow. Create sessions to assign coding tasks, send messages to guide active sessions, and retrieve session status and results. Devin autonomously writes, runs, and tests code.",
     "bgColor": "#12141A",
     "iconName": "DevinIcon",
-    "docsUrl": "https://docs.sim.ai/tools/devin",
+    "docsUrl": "https://docs.sim.ai/integrations/devin",
     "operations": [
       {
         "name": "Create Session",
@@ -3426,7 +3594,7 @@
     "longDescription": "Comprehensive Discord integration: messages, threads, channels, roles, members, invites, and webhooks.",
     "bgColor": "#5865F2",
     "iconName": "DiscordIcon",
-    "docsUrl": "https://docs.sim.ai/tools/discord",
+    "docsUrl": "https://docs.sim.ai/integrations/discord",
     "operations": [
       {
         "name": "Send Message",
@@ -3572,7 +3740,7 @@
     "operationCount": 35,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -3585,7 +3753,7 @@
     "longDescription": "Create and send envelopes for e-signature, use templates, check signing status, download signed documents, and manage recipients with DocuSign.",
     "bgColor": "#FFFFFF",
     "iconName": "DocuSignIcon",
-    "docsUrl": "https://docs.sim.ai/tools/docusign",
+    "docsUrl": "https://docs.sim.ai/integrations/docusign",
     "operations": [
       {
         "name": "Send Envelope",
@@ -3636,7 +3804,7 @@
     "longDescription": "Integrate Dropbox into your workflow for file management, sharing, and collaboration. Upload files, download content, create folders, manage shared links, and more.",
     "bgColor": "#0061FF",
     "iconName": "DropboxIcon",
-    "docsUrl": "https://docs.sim.ai/tools/dropbox",
+    "docsUrl": "https://docs.sim.ai/integrations/dropbox",
     "operations": [
       {
         "name": "Upload File",
@@ -3695,7 +3863,7 @@
     "longDescription": "Integrate with your self-hosted DSPy programs for LLM-powered predictions. Supports Predict, Chain of Thought, and ReAct agents. DSPy is the framework for programming—not prompting—language models.",
     "bgColor": "#FFFFFF",
     "iconName": "DsPyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/dspy",
+    "docsUrl": "https://docs.sim.ai/integrations/dspy",
     "operations": [
       {
         "name": "Predict",
@@ -3726,7 +3894,7 @@
     "longDescription": "Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.",
     "bgColor": "#181C1E",
     "iconName": "DubIcon",
-    "docsUrl": "https://docs.sim.ai/tools/dub",
+    "docsUrl": "https://docs.sim.ai/integrations/dub",
     "operations": [
       {
         "name": "Create Link",
@@ -3753,11 +3921,35 @@
         "description": "Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting."
       },
       {
+        "name": "Count Links",
+        "description": "Retrieve the number of short links for the authenticated workspace, optionally filtered and grouped by domain, tag, user, or folder."
+      },
+      {
+        "name": "Bulk Create Links",
+        "description": "Create up to 100 short links in a single request. Returns the created links alongside any per-link errors."
+      },
+      {
+        "name": "Bulk Update Links",
+        "description": "Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs."
+      },
+      {
+        "name": "Bulk Delete Links",
+        "description": "Delete up to 100 short links in a single request by their link IDs. Non-existing IDs are ignored."
+      },
+      {
         "name": "Get Analytics",
         "description": "Retrieve analytics for links including clicks, leads, and sales. Supports filtering by link, time range, and grouping by various dimensions."
+      },
+      {
+        "name": "List Events",
+        "description": "Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location."
+      },
+      {
+        "name": "Get QR Code",
+        "description": "Generate a customizable QR code (PNG) for a short link, with control over size, error correction, colors, and margin."
       }
     ],
-    "operationCount": 7,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -3773,7 +3965,7 @@
     "longDescription": "Search the web using DuckDuckGo Instant Answers API. Returns instant answers, abstracts, related topics, and more. Free to use without an API key.",
     "bgColor": "#FFFFFF",
     "iconName": "DuckDuckGoIcon",
-    "docsUrl": "https://docs.sim.ai/tools/duckduckgo",
+    "docsUrl": "https://docs.sim.ai/integrations/duckduckgo",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -3781,7 +3973,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "seo"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "elasticsearch",
@@ -3791,7 +3983,7 @@
     "longDescription": "Integrate Elasticsearch into workflows for powerful search, indexing, and data management. Supports document CRUD operations, advanced search queries, bulk operations, index management, and cluster monitoring. Works with both self-hosted and Elastic Cloud deployments.",
     "bgColor": "#FFFFFF",
     "iconName": "ElasticsearchIcon",
-    "docsUrl": "https://docs.sim.ai/tools/elasticsearch",
+    "docsUrl": "https://docs.sim.ai/integrations/elasticsearch",
     "operations": [
       {
         "name": "Search",
@@ -3862,7 +4054,7 @@
     "longDescription": "Integrate ElevenLabs into the workflow. Can convert text to speech.",
     "bgColor": "#181C1E",
     "iconName": "ElevenLabsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/elevenlabs",
+    "docsUrl": "https://docs.sim.ai/integrations/elevenlabs",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -3880,7 +4072,7 @@
     "longDescription": "Integrate Email Bison into workflows. Create and update leads, manage campaigns, attach leads to campaigns, list replies, and organize leads with tags.",
     "bgColor": "#FB7A22",
     "iconName": "EmailBisonIcon",
-    "docsUrl": "https://docs.sim.ai/tools/emailbison",
+    "docsUrl": "https://docs.sim.ai/integrations/emailbison",
     "operations": [
       {
         "name": "List Leads",
@@ -3949,9 +4141,9 @@
     "name": "Embeddings",
     "description": "Generate Open AI embeddings",
     "longDescription": "Integrate Embeddings into the workflow. Can generate embeddings from text.",
-    "bgColor": "#10a37f",
+    "bgColor": "#000000",
     "iconName": "OpenAIIcon",
-    "docsUrl": "https://docs.sim.ai/tools/openai",
+    "docsUrl": "https://docs.sim.ai/integrations/openai",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -4052,6 +4244,10 @@
         "description": "Advanced people search with complex filters for location, company size, seniority, experience, and more."
       },
       {
+        "name": "Search Jobs",
+        "description": "Search LinkedIn job postings by keywords with filters for location, job type, workplace type, experience level, and company."
+      },
+      {
         "name": "Search Posts",
         "description": "Search LinkedIn posts by keywords with date filtering."
       },
@@ -4064,8 +4260,16 @@
         "description": "Get reactions on a LinkedIn post with filtering by reaction type."
       },
       {
+        "name": "Search Post Reactions (by URL)",
+        "description": "Get reactions on a LinkedIn post by its URL, filtered by reaction type."
+      },
+      {
         "name": "Search Post Comments",
         "description": "Get comments on a LinkedIn post."
+      },
+      {
+        "name": "Search Post Comments (by URL)",
+        "description": "Get comments on a LinkedIn post by its URL."
       },
       {
         "name": "Search People Activities",
@@ -4088,13 +4292,13 @@
         "description": "Check your Enrich API credit usage and remaining balance."
       }
     ],
-    "operationCount": 29,
+    "operationCount": 32,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["enrichment", "data-analytics"]
+    "tags": ["enrichment"]
   },
   {
     "type": "evernote",
@@ -4104,7 +4308,7 @@
     "longDescription": "Integrate with Evernote to manage notes, notebooks, and tags. Create, read, update, copy, search, and delete notes. Create and list notebooks and tags.",
     "bgColor": "#FFFFFF",
     "iconName": "EvernoteIcon",
-    "docsUrl": "https://docs.sim.ai/tools/evernote",
+    "docsUrl": "https://docs.sim.ai/integrations/evernote",
     "operations": [
       {
         "name": "Create Note",
@@ -4167,7 +4371,7 @@
     "longDescription": "Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.",
     "bgColor": "#1F40ED",
     "iconName": "ExaAIIcon",
-    "docsUrl": "https://docs.sim.ai/tools/exa",
+    "docsUrl": "https://docs.sim.ai/integrations/exa",
     "operations": [
       {
         "name": "Search",
@@ -4196,7 +4400,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["web-scraping", "enrichment"]
+    "tags": ["web-scraping"]
   },
   {
     "type": "extend_v2",
@@ -4206,7 +4410,7 @@
     "longDescription": "Integrate Extend AI into the workflow. Parse and extract structured content from documents or file references.",
     "bgColor": "#000000",
     "iconName": "ExtendIcon",
-    "docsUrl": "https://docs.sim.ai/tools/extend",
+    "docsUrl": "https://docs.sim.ai/integrations/extend",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -4224,7 +4428,7 @@
     "longDescription": "Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.",
     "bgColor": "#181C1E",
     "iconName": "FathomIcon",
-    "docsUrl": "https://docs.sim.ai/tools/fathom",
+    "docsUrl": "https://docs.sim.ai/integrations/fathom",
     "operations": [
       {
         "name": "List Meetings",
@@ -4274,7 +4478,7 @@
     "longDescription": "Integrate Findymail to find verified work emails by name, domain, or LinkedIn URL, verify deliverability, reverse-lookup profiles from emails, enrich company data, find employees by job title, look up phone numbers, search technology stacks, and check credit usage.",
     "bgColor": "#FFFFFF",
     "iconName": "FindymailIcon",
-    "docsUrl": "https://docs.sim.ai/tools/findymail",
+    "docsUrl": "https://docs.sim.ai/integrations/findymail",
     "operations": [
       {
         "name": "Find Email From Name",
@@ -4337,7 +4541,7 @@
     "longDescription": "Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entire sites, map URL structures, and extract structured data with AI.",
     "bgColor": "#181C1E",
     "iconName": "FirecrawlIcon",
-    "docsUrl": "https://docs.sim.ai/tools/firecrawl",
+    "docsUrl": "https://docs.sim.ai/integrations/firecrawl",
     "operations": [
       {
         "name": "Scrape",
@@ -4384,7 +4588,7 @@
     "longDescription": "Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to live meetings, create soundbites, and more. Can also trigger workflows when transcriptions complete.",
     "bgColor": "#100730",
     "iconName": "FirefliesIcon",
-    "docsUrl": "https://docs.sim.ai/tools/fireflies",
+    "docsUrl": "https://docs.sim.ai/integrations/fireflies",
     "operations": [
       {
         "name": "List Transcripts",
@@ -4439,7 +4643,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["meeting", "speech-to-text", "note-taking"]
+    "tags": ["meeting", "note-taking"]
   },
   {
     "type": "gamma",
@@ -4449,7 +4653,7 @@
     "longDescription": "Integrate Gamma into the workflow. Can generate presentations, documents, webpages, and social posts from text, create from templates, check generation status, and browse themes and folders.",
     "bgColor": "#002253",
     "iconName": "GammaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/gamma",
+    "docsUrl": "https://docs.sim.ai/integrations/gamma",
     "operations": [
       {
         "name": "Generate",
@@ -4488,7 +4692,7 @@
     "longDescription": "Integrate Github into the workflow. Can get get PR details, create PR comment, get repository info, and get latest commit. Can be used in trigger mode to trigger a workflow when a PR is created, commented on, or a commit is pushed.",
     "bgColor": "#181C1E",
     "iconName": "GithubIcon",
-    "docsUrl": "https://docs.sim.ai/tools/github",
+    "docsUrl": "https://docs.sim.ai/integrations/github",
     "operations": [
       {
         "name": "Get PR details",
@@ -4895,7 +5099,7 @@
     "longDescription": "Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.",
     "bgColor": "#FFFFFF",
     "iconName": "GitLabIcon",
-    "docsUrl": "https://docs.sim.ai/tools/gitlab",
+    "docsUrl": "https://docs.sim.ai/integrations/gitlab",
     "operations": [
       {
         "name": "List Projects",
@@ -4990,7 +5194,7 @@
     "longDescription": "Integrate Gmail into the workflow. Can send, read, search, and move emails. Can be used in trigger mode to trigger a workflow when a new email is received.",
     "bgColor": "#FFFFFF",
     "iconName": "GmailIcon",
-    "docsUrl": "https://docs.sim.ai/tools/gmail",
+    "docsUrl": "https://docs.sim.ai/integrations/gmail",
     "operations": [
       {
         "name": "Send Email",
@@ -5067,7 +5271,7 @@
     "longDescription": "Integrate Gong into your workflow. Access call recordings, transcripts, user data, activity stats, scorecards, trackers, library content, coaching metrics, and more via the Gong API.",
     "bgColor": "#8039DF",
     "iconName": "GongIcon",
-    "docsUrl": "https://docs.sim.ai/tools/gong",
+    "docsUrl": "https://docs.sim.ai/integrations/gong",
     "operations": [
       {
         "name": "List Calls",
@@ -5087,7 +5291,7 @@
       },
       {
         "name": "Get Extensive Calls",
-        "description": "Retrieve detailed call data including trackers, topics, and highlights from Gong."
+        "description": "Retrieve detailed call data including trackers, topics, highlights, and AI spotlight content (brief, outline, key points, call outcome) from Gong."
       },
       {
         "name": "List Users",
@@ -5100,6 +5304,14 @@
       {
         "name": "Aggregate Activity",
         "description": "Retrieve aggregated activity statistics for users by date range from Gong."
+      },
+      {
+        "name": "Day-by-Day Activity",
+        "description": "Retrieve detailed day-by-day activity (call IDs per activity type) for users by date range from Gong."
+      },
+      {
+        "name": "Aggregate by Period",
+        "description": "Retrieve aggregated user activity grouped into time periods (day, week, month, quarter, year) by date range from Gong."
       },
       {
         "name": "Interaction Stats",
@@ -5146,7 +5358,7 @@
         "description": "Find all references to a phone number in Gong (calls, email messages, meetings, CRM data, and associated contacts)."
       }
     ],
-    "operationCount": 19,
+    "operationCount": 21,
     "triggers": [
       {
         "id": "gong_webhook",
@@ -5160,7 +5372,7 @@
       }
     ],
     "triggerCount": 2,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["meeting", "sales-engagement", "speech-to-text"]
@@ -5173,7 +5385,7 @@
     "longDescription": "Connect to Google Ads to list accessible accounts, list campaigns, view ad group details, get performance metrics, and run custom GAQL queries.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleAdsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_ads",
+    "docsUrl": "https://docs.sim.ai/integrations/google_ads",
     "operations": [
       {
         "name": "List Customers",
@@ -5216,7 +5428,7 @@
     "longDescription": "Connect to Google BigQuery to run SQL queries, list datasets and tables, get table metadata, and insert rows.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleBigQueryIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_bigquery",
+    "docsUrl": "https://docs.sim.ai/integrations/google_bigquery",
     "operations": [
       {
         "name": "Run Query",
@@ -5255,7 +5467,7 @@
     "longDescription": "Search for books using the Google Books API. Find volumes by title, author, ISBN, or keywords, and retrieve detailed information about specific books including descriptions, ratings, and publication details.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleBooksIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_books",
+    "docsUrl": "https://docs.sim.ai/integrations/google_books",
     "operations": [
       {
         "name": "Search Volumes",
@@ -5282,7 +5494,7 @@
     "longDescription": "Integrate Google Calendar into the workflow. Can create, read, update, and list calendar events.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleCalendarIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_calendar",
+    "docsUrl": "https://docs.sim.ai/integrations/google_calendar",
     "operations": [
       {
         "name": "Create Event",
@@ -5347,7 +5559,7 @@
     "longDescription": "Integrate Google Contacts into the workflow. Can create, read, update, delete, list, and search contacts.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleContactsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_contacts",
+    "docsUrl": "https://docs.sim.ai/integrations/google_contacts",
     "operations": [
       {
         "name": "Create Contact",
@@ -5390,7 +5602,7 @@
     "longDescription": "Integrate Google Docs into the workflow. Can read, write, and create documents.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleDocsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_docs",
+    "docsUrl": "https://docs.sim.ai/integrations/google_docs",
     "operations": [
       {
         "name": "Read Document",
@@ -5421,7 +5633,7 @@
     "longDescription": "Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleDriveIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_drive",
+    "docsUrl": "https://docs.sim.ai/integrations/google_drive",
     "operations": [
       {
         "name": "List Files",
@@ -5518,7 +5730,7 @@
     "longDescription": "Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleFormsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_forms",
+    "docsUrl": "https://docs.sim.ai/integrations/google_forms",
     "operations": [
       {
         "name": "Get Responses",
@@ -5662,7 +5874,7 @@
     "longDescription": "Integrate Google Maps Platform APIs into your workflow. Supports geocoding addresses to coordinates, reverse geocoding, getting directions between locations, calculating distance matrices, searching for places, retrieving place details, elevation data, and timezone information.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleMapsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_maps",
+    "docsUrl": "https://docs.sim.ai/integrations/google_maps",
     "operations": [
       {
         "name": "Geocode Address",
@@ -5733,7 +5945,7 @@
     "longDescription": "Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleMeetIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_meet",
+    "docsUrl": "https://docs.sim.ai/integrations/google_meet",
     "operations": [
       {
         "name": "Create Space",
@@ -5776,7 +5988,7 @@
     "longDescription": "Analyze web pages for performance, accessibility, SEO, and best practices using Google PageSpeed Insights API powered by Lighthouse.",
     "bgColor": "#FFFFFF",
     "iconName": "GooglePagespeedIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_pagespeed",
+    "docsUrl": "https://docs.sim.ai/integrations/google_pagespeed",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -5794,7 +6006,7 @@
     "longDescription": "Integrate Google Search into the workflow. Can search the web.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_search",
+    "docsUrl": "https://docs.sim.ai/integrations/google_search",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -5812,7 +6024,7 @@
     "longDescription": "Integrate Google Sheets into the workflow with explicit sheet selection. Can read, write, append, update, clear data, create spreadsheets, get spreadsheet info, and copy sheets.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleSheetsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_sheets",
+    "docsUrl": "https://docs.sim.ai/integrations/google_sheets",
     "operations": [
       {
         "name": "Read Data",
@@ -5881,7 +6093,7 @@
     "longDescription": "Build, edit, and export branded Google Slides presentations end-to-end. Copy a template, replace text and image tokens, embed Sheets charts, style text and shapes with brand fonts and colors, manage tables and layouts, group elements, run atomic batch updates, and export to PDF or PPTX.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleSlidesIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_slides",
+    "docsUrl": "https://docs.sim.ai/integrations/google_slides",
     "operations": [
       {
         "name": "Read Presentation",
@@ -6108,7 +6320,7 @@
     "longDescription": "Integrate Google Tasks into your workflow. Create, read, update, delete, and list tasks and task lists.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleTasksIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_tasks",
+    "docsUrl": "https://docs.sim.ai/integrations/google_tasks",
     "operations": [
       {
         "name": "Create Task",
@@ -6151,7 +6363,7 @@
     "longDescription": "Translate and detect languages using the Google Cloud Translation API. Supports auto-detection of the source language.",
     "bgColor": "#FFFFFF",
     "iconName": "GoogleTranslateIcon",
-    "docsUrl": "https://docs.sim.ai/tools/google_translate",
+    "docsUrl": "https://docs.sim.ai/integrations/google_translate",
     "operations": [
       {
         "name": "Translate Text",
@@ -6215,7 +6427,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "security",
-    "tags": ["google-workspace", "secrets-management", "document-processing"]
+    "tags": ["google-workspace", "document-processing"]
   },
   {
     "type": "grafana",
@@ -6225,7 +6437,7 @@
     "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
     "bgColor": "#FFFFFF",
     "iconName": "GrafanaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/grafana",
+    "docsUrl": "https://docs.sim.ai/integrations/grafana",
     "operations": [
       {
         "name": "List Dashboards",
@@ -6320,7 +6532,7 @@
     "longDescription": "Integrate Grain into your workflow. Access meeting recordings, transcripts, highlights, and AI-generated summaries. Can also trigger workflows based on Grain webhook events.",
     "bgColor": "#F6FAF9",
     "iconName": "GrainIcon",
-    "docsUrl": "https://docs.sim.ai/tools/grain",
+    "docsUrl": "https://docs.sim.ai/integrations/grain",
     "operations": [
       {
         "name": "List Recordings",
@@ -6416,7 +6628,7 @@
     "longDescription": "Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.",
     "bgColor": "#B2C147",
     "iconName": "GranolaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/granola",
+    "docsUrl": "https://docs.sim.ai/integrations/granola",
     "operations": [
       {
         "name": "List Notes",
@@ -6425,9 +6637,13 @@
       {
         "name": "Get Note",
         "description": "Retrieves a specific meeting note from Granola by ID, including summary, attendees, calendar event details, and optionally the transcript."
+      },
+      {
+        "name": "List Folders",
+        "description": "Lists folders from Granola, sorted alphabetically, with pagination."
       }
     ],
-    "operationCount": 2,
+    "operationCount": 3,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -6443,7 +6659,7 @@
     "longDescription": "Integrate Greenhouse into the workflow. List and retrieve candidates, jobs, applications, users, departments, offices, and job stages from your Greenhouse ATS account.",
     "bgColor": "#469776",
     "iconName": "GreenhouseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/greenhouse",
+    "docsUrl": "https://docs.sim.ai/integrations/greenhouse",
     "operations": [
       {
         "name": "List Candidates",
@@ -6545,9 +6761,9 @@
     "name": "Greptile",
     "description": "AI-powered codebase search and Q&A",
     "longDescription": "Query and search codebases using natural language with Greptile. Get AI-generated answers about your code, find relevant files, and understand complex codebases.",
-    "bgColor": "#5DE195",
+    "bgColor": "#181C1E",
     "iconName": "GreptileIcon",
-    "docsUrl": "https://docs.sim.ai/tools/greptile",
+    "docsUrl": "https://docs.sim.ai/integrations/greptile",
     "operations": [
       {
         "name": "Query",
@@ -6582,7 +6798,7 @@
     "longDescription": "Integrate Hex into your workflow. Run projects, check run status, manage collections and groups, list users, and view data connections. Requires a Hex API token.",
     "bgColor": "#14151A",
     "iconName": "HexIcon",
-    "docsUrl": "https://docs.sim.ai/tools/hex",
+    "docsUrl": "https://docs.sim.ai/integrations/hex",
     "operations": [
       {
         "name": "Run Project",
@@ -6655,7 +6871,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-warehouse", "data-analytics"]
+    "tags": ["data-analytics"]
   },
   {
     "type": "hubspot",
@@ -6665,7 +6881,7 @@
     "longDescription": "Integrate HubSpot into your workflow. Manage contacts, companies, deals, tickets, and other CRM objects with powerful automation capabilities. Can be used in trigger mode to start workflows when records are created, updated, a specific property changes, or a contact joins a list.",
     "bgColor": "#FF7A59",
     "iconName": "HubspotIcon",
-    "docsUrl": "https://docs.sim.ai/tools/hubspot",
+    "docsUrl": "https://docs.sim.ai/integrations/hubspot",
     "operations": [
       {
         "name": "Get Contacts",
@@ -6806,7 +7022,7 @@
     "longDescription": "Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.",
     "bgColor": "#0B0F19",
     "iconName": "HuggingFaceIcon",
-    "docsUrl": "https://docs.sim.ai/tools/huggingface",
+    "docsUrl": "https://docs.sim.ai/integrations/huggingface",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -6824,7 +7040,7 @@
     "longDescription": "Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.",
     "bgColor": "#FFFFFF",
     "iconName": "HunterIOIcon",
-    "docsUrl": "https://docs.sim.ai/tools/hunter",
+    "docsUrl": "https://docs.sim.ai/integrations/hunter",
     "operations": [
       {
         "name": "Domain Search",
@@ -6867,7 +7083,7 @@
     "longDescription": "Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.",
     "bgColor": "#FFFFFF",
     "iconName": "IncidentioIcon",
-    "docsUrl": "https://docs.sim.ai/tools/incidentio",
+    "docsUrl": "https://docs.sim.ai/integrations/incidentio",
     "operations": [
       {
         "name": "List Incidents",
@@ -7070,7 +7286,7 @@
     "longDescription": "Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.",
     "bgColor": "#F7FE62",
     "iconName": "InfisicalIcon",
-    "docsUrl": "https://docs.sim.ai/tools/infisical",
+    "docsUrl": "https://docs.sim.ai/integrations/infisical",
     "operations": [
       {
         "name": "List Secrets",
@@ -7109,7 +7325,7 @@
     "longDescription": "Integrate Instantly API V2 into workflows. Create and list leads, manage lead interest status, delete leads in bulk, list and create campaigns, reply to emails, and manage lead lists.",
     "bgColor": "#FFFFFF",
     "iconName": "InstantlyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/instantly",
+    "docsUrl": "https://docs.sim.ai/integrations/instantly",
     "operations": [
       {
         "name": "List Leads",
@@ -7281,7 +7497,7 @@
     "longDescription": "Integrate Intercom into the workflow. Can create, get, update, list, search, and delete contacts; create, get, and list companies; get, list, reply, and search conversations; create and get tickets; and create messages.",
     "bgColor": "#FFFFFF",
     "iconName": "IntercomIcon",
-    "docsUrl": "https://docs.sim.ai/tools/intercom",
+    "docsUrl": "https://docs.sim.ai/integrations/intercom",
     "operations": [
       {
         "name": "Create Contact",
@@ -7455,7 +7671,7 @@
     "longDescription": "Integrate Jina AI into the workflow. Search the web and get LLM-friendly results, or extract clean content from specific URLs with advanced parsing options.",
     "bgColor": "#333333",
     "iconName": "JinaAIIcon",
-    "docsUrl": "https://docs.sim.ai/tools/jina",
+    "docsUrl": "https://docs.sim.ai/integrations/jina",
     "operations": [
       {
         "name": "Read URL",
@@ -7482,7 +7698,7 @@
     "longDescription": "Integrate Jira into the workflow. Can read, write, and update issues. Can also trigger workflows based on Jira webhook events.",
     "bgColor": "#FFFFFF",
     "iconName": "JiraIcon",
-    "docsUrl": "https://docs.sim.ai/tools/jira",
+    "docsUrl": "https://docs.sim.ai/integrations/jira",
     "operations": [
       {
         "name": "Read Issue",
@@ -7677,7 +7893,7 @@
     "longDescription": "Integrate with Jira Service Management for IT service management. Create and manage service requests, handle customers and organizations, track SLAs, and manage queues.",
     "bgColor": "#FFFFFF",
     "iconName": "JiraServiceManagementIcon",
-    "docsUrl": "https://docs.sim.ai/tools/jira_service_management",
+    "docsUrl": "https://docs.sim.ai/integrations/jira_service_management",
     "operations": [
       {
         "name": "Get Service Desks",
@@ -7858,7 +8074,7 @@
     "longDescription": "Integrate Kalshi prediction markets into the workflow. Can get markets, market, events, event, balance, positions, orders, orderbook, trades, candlesticks, fills, series, exchange status, and place/cancel/amend trades.",
     "bgColor": "#09C285",
     "iconName": "KalshiIcon",
-    "docsUrl": "https://docs.sim.ai/tools/kalshi",
+    "docsUrl": "https://docs.sim.ai/integrations/kalshi",
     "operations": [
       {
         "name": "Get Markets",
@@ -7905,16 +8121,36 @@
         "description": "Retrieve OHLC candlestick data for a specific market"
       },
       {
+        "name": "Get Event Candlesticks",
+        "description": "Retrieve OHLC candlestick data aggregated across all markets in an event"
+      },
+      {
         "name": "Get Fills",
         "description": "Retrieve your portfolio"
+      },
+      {
+        "name": "Get Settlements",
+        "description": "Retrieve your portfolio settlement history from Kalshi"
       },
       {
         "name": "Get Series by Ticker",
         "description": "Retrieve details of a specific market series by ticker"
       },
       {
+        "name": "Get Series List",
+        "description": "Retrieve a list of market series from Kalshi with optional filtering"
+      },
+      {
         "name": "Get Exchange Status",
         "description": "Retrieve the current status of the Kalshi exchange (trading and exchange activity)"
+      },
+      {
+        "name": "Get Exchange Schedule",
+        "description": "Retrieve the Kalshi exchange trading schedule and maintenance windows"
+      },
+      {
+        "name": "Get Exchange Announcements",
+        "description": "Retrieve exchange-wide announcements from Kalshi"
       },
       {
         "name": "Create Order",
@@ -7929,10 +8165,10 @@
         "description": "Modify the price or quantity of an existing order on Kalshi"
       }
     ],
-    "operationCount": 17,
+    "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["prediction-markets", "data-analytics"]
@@ -7945,7 +8181,7 @@
     "longDescription": "Integrate Ketch into the workflow. Retrieve and update consent preferences, manage subscription topics and controls, and submit data subject rights requests for access, deletion, correction, or processing restriction.",
     "bgColor": "#9B5CFF",
     "iconName": "KetchIcon",
-    "docsUrl": "https://docs.sim.ai/tools/ketch",
+    "docsUrl": "https://docs.sim.ai/integrations/ketch",
     "operations": [
       {
         "name": "Get Consent",
@@ -7984,7 +8220,7 @@
     "longDescription": "Send run data to LangSmith to trace executions, attach metadata, and monitor workflow performance.",
     "bgColor": "#181C1E",
     "iconName": "LangsmithIcon",
-    "docsUrl": "https://docs.sim.ai/tools/langsmith",
+    "docsUrl": "https://docs.sim.ai/integrations/langsmith",
     "operations": [
       {
         "name": "Create Run",
@@ -8001,7 +8237,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "observability",
-    "tags": ["monitoring", "llm", "data-analytics"]
+    "tags": ["monitoring", "llm"]
   },
   {
     "type": "launchdarkly",
@@ -8011,7 +8247,7 @@
     "longDescription": "Integrate LaunchDarkly into your workflow. List, create, update, toggle, and delete feature flags. Manage projects, environments, segments, members, and audit logs. Requires API Key.",
     "bgColor": "#191919",
     "iconName": "LaunchDarklyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/launchdarkly",
+    "docsUrl": "https://docs.sim.ai/integrations/launchdarkly",
     "operations": [
       {
         "name": "List Flags",
@@ -8027,7 +8263,7 @@
       },
       {
         "name": "Update Flag",
-        "description": "Update a feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
+        "description": "Update feature flag metadata (name, description, tags, temporary, archived) using semantic patch."
       },
       {
         "name": "Toggle Flag",
@@ -8067,7 +8303,7 @@
     "triggerCount": 0,
     "authType": "api-key",
     "category": "tools",
-    "integrationType": "observability",
+    "integrationType": "devops",
     "tags": ["feature-flags", "ci-cd"]
   },
   {
@@ -8078,7 +8314,7 @@
     "longDescription": "Integrate Lemlist into your workflow. Retrieve campaign activities and replies, get lead information, and send emails through the Lemlist inbox.",
     "bgColor": "#316BFF",
     "iconName": "LemlistIcon",
-    "docsUrl": "https://docs.sim.ai/tools/lemlist",
+    "docsUrl": "https://docs.sim.ai/integrations/lemlist",
     "operations": [
       {
         "name": "Get Activities",
@@ -8155,7 +8391,7 @@
     "longDescription": "Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.",
     "bgColor": "#5E6AD2",
     "iconName": "LinearIcon",
-    "docsUrl": "https://docs.sim.ai/tools/linear",
+    "docsUrl": "https://docs.sim.ai/integrations/linear",
     "operations": [
       {
         "name": "Read Issues",
@@ -8562,7 +8798,7 @@
     "longDescription": "Integrate LinkedIn into workflows. Share posts to your personal feed and access your LinkedIn profile information.",
     "bgColor": "#0072B1",
     "iconName": "LinkedInIcon",
-    "docsUrl": "https://docs.sim.ai/tools/linkedin",
+    "docsUrl": "https://docs.sim.ai/integrations/linkedin",
     "operations": [
       {
         "name": "Share Post",
@@ -8579,7 +8815,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["marketing", "sales-engagement", "enrichment"]
+    "tags": ["marketing", "sales-engagement"]
   },
   {
     "type": "linkup",
@@ -8589,7 +8825,7 @@
     "longDescription": "Integrate Linkup into the workflow. Can search the web.",
     "bgColor": "#D6D3C7",
     "iconName": "LinkupIcon",
-    "docsUrl": "https://docs.sim.ai/tools/linkup",
+    "docsUrl": "https://docs.sim.ai/integrations/linkup",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -8607,7 +8843,7 @@
     "longDescription": "Reach people on iMessage, SMS, and RCS through Linq. Start chats, send messages with media, links, effects, and replies, send voice memos, react with tapbacks, manage group participants, check iMessage/RCS capability, configure contact cards, and subscribe to webhook events — all through a single Linq API key.",
     "bgColor": "#000000",
     "iconName": "LinqIcon",
-    "docsUrl": "https://docs.sim.ai/tools/linq",
+    "docsUrl": "https://docs.sim.ai/integrations/linq",
     "operations": [
       {
         "name": "Send Message",
@@ -8762,7 +8998,7 @@
     "longDescription": "Integrate Loops into the workflow. Create and manage contacts, send transactional emails, and trigger event-based automations.",
     "bgColor": "#FAFAF9",
     "iconName": "LoopsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/loops",
+    "docsUrl": "https://docs.sim.ai/integrations/loops",
     "operations": [
       {
         "name": "Create Contact",
@@ -8818,10 +9054,10 @@
     "slug": "luma",
     "name": "Luma",
     "description": "Manage events and guests on Luma",
-    "longDescription": "Integrate Luma into the workflow. Can create events, update events, get event details, list calendar events, get guest lists, and add guests to events.",
-    "bgColor": "#FFFFFF",
+    "longDescription": "Integrate Luma into the workflow. Can create, update, look up, and cancel events, list calendar events, manage guest lists (get one or many, add guests, send invites, and update approval status).",
+    "bgColor": "#000000",
     "iconName": "LumaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/luma",
+    "docsUrl": "https://docs.sim.ai/integrations/luma",
     "operations": [
       {
         "name": "Get Event",
@@ -8840,15 +9076,35 @@
         "description": "List events from your Luma calendar with optional date range filtering, sorting, and pagination."
       },
       {
+        "name": "Lookup Event",
+        "description": "Look up an event by its public URL or event ID to resolve its canonical ID, API ID, and approval status."
+      },
+      {
+        "name": "Cancel Event",
+        "description": "Cancel a Luma event. This is irreversible and notifies all registered guests. Requires a cancellation token obtained from the Request Event Cancellation endpoint."
+      },
+      {
         "name": "Get Guests",
         "description": "Retrieve the guest list for a Luma event with optional filtering by approval status, sorting, and pagination."
       },
       {
+        "name": "Get Guest",
+        "description": "Retrieve a single guest"
+      },
+      {
         "name": "Add Guests",
         "description": "Add guests to a Luma event by email. Guests are added with Going (approved) status and receive one ticket of the default ticket type."
+      },
+      {
+        "name": "Send Invites",
+        "description": "Send email invitations to guests for a Luma event. Unlike Add Guests (which registers guests directly), this emails an invite that recipients can accept."
+      },
+      {
+        "name": "Update Guest Status",
+        "description": "Update a guest"
       }
     ],
-    "operationCount": 6,
+    "operationCount": 11,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -8864,7 +9120,7 @@
     "longDescription": "Integrate Mailchimp into the workflow. Can manage audiences (lists), list members, campaigns, automation workflows, templates, reports, segments, tags, merge fields, interest categories, landing pages, signup forms, and batch operations.",
     "bgColor": "#FFE01B",
     "iconName": "MailchimpIcon",
-    "docsUrl": "https://docs.sim.ai/tools/mailchimp",
+    "docsUrl": "https://docs.sim.ai/integrations/mailchimp",
     "operations": [
       {
         "name": "Get Audiences",
@@ -9173,9 +9429,9 @@
     "name": "Mailgun",
     "description": "Send emails and manage mailing lists with Mailgun",
     "longDescription": "Integrate Mailgun into your workflow. Send transactional emails, manage mailing lists and members, view domain information, and track email events. Supports text and HTML emails, tags for tracking, and comprehensive list management.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#C12126",
     "iconName": "MailgunIcon",
-    "docsUrl": "https://docs.sim.ai/tools/mailgun",
+    "docsUrl": "https://docs.sim.ai/integrations/mailgun",
     "operations": [
       {
         "name": "Send Message",
@@ -9226,7 +9482,7 @@
     "longDescription": "Integrate Mem0 into the workflow. Can add, search, and retrieve memories.",
     "bgColor": "#181C1E",
     "iconName": "Mem0Icon",
-    "docsUrl": "https://docs.sim.ai/tools/mem0",
+    "docsUrl": "https://docs.sim.ai/integrations/mem0",
     "operations": [
       {
         "name": "Add Memories",
@@ -9257,7 +9513,7 @@
     "longDescription": "Integrate Microsoft Dataverse into your workflow. Create, read, update, delete, upsert, associate, query, search, and execute actions and functions against Dataverse tables using the Web API. Supports bulk operations, FetchXML, file uploads, and relevance search. Works with Dynamics 365, Power Platform, and custom Dataverse environments.",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftDataverseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/microsoft_dataverse",
+    "docsUrl": "https://docs.sim.ai/integrations/microsoft_dataverse",
     "operations": [
       {
         "name": "List Records",
@@ -9344,7 +9600,7 @@
     "longDescription": "Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftExcelIcon",
-    "docsUrl": "https://docs.sim.ai/tools/microsoft_excel",
+    "docsUrl": "https://docs.sim.ai/integrations/microsoft_excel",
     "operations": [
       {
         "name": "Read Data",
@@ -9371,7 +9627,7 @@
     "longDescription": "Integrate Microsoft Planner into the workflow. Manage tasks, plans, buckets, and task details including checklists and references.",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftPlannerIcon",
-    "docsUrl": "https://docs.sim.ai/tools/microsoft_planner",
+    "docsUrl": "https://docs.sim.ai/integrations/microsoft_planner",
     "operations": [
       {
         "name": "Read Task",
@@ -9432,7 +9688,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management", "microsoft-365", "ticketing"]
+    "tags": ["project-management", "microsoft-365"]
   },
   {
     "type": "microsoft_teams",
@@ -9442,7 +9698,7 @@
     "longDescription": "Integrate Microsoft Teams into the workflow. Read, write, update, and delete chat and channel messages. Reply to messages, add reactions, and list team/channel members. Can be used in trigger mode to trigger a workflow when a message is sent to a chat or channel. To mention users in messages, wrap their name in `<at>` tags: `<at>userName</at>`",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftTeamsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/microsoft_teams",
+    "docsUrl": "https://docs.sim.ai/integrations/microsoft_teams",
     "operations": [
       {
         "name": "Read Chat Messages",
@@ -9516,6 +9772,33 @@
     "tags": ["messaging", "microsoft-365"]
   },
   {
+    "type": "millionverifier",
+    "slug": "millionverifier",
+    "name": "MillionVerifier",
+    "description": "Verify email deliverability and check account credits",
+    "longDescription": "Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MillionVerifierIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/millionverifier",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Verify the deliverability of an email address. Uses one verification credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining verification credits for the authenticated account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "sales",
+    "tags": ["enrichment", "sales-engagement"]
+  },
+  {
     "type": "mistral_parse_v3",
     "slug": "mistral-parser",
     "name": "Mistral Parser",
@@ -9523,7 +9806,7 @@
     "longDescription": "Integrate Mistral Parse into the workflow. Can extract text from uploaded PDF documents, or from a URL.",
     "bgColor": "#000000",
     "iconName": "MistralIcon",
-    "docsUrl": "https://docs.sim.ai/tools/mistral_parse",
+    "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -9541,7 +9824,7 @@
     "longDescription": "Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.",
     "bgColor": "#FFFFFF",
     "iconName": "MondayIcon",
-    "docsUrl": "https://docs.sim.ai/tools/monday",
+    "docsUrl": "https://docs.sim.ai/integrations/monday",
     "operations": [
       {
         "name": "List Boards",
@@ -9648,7 +9931,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "productivity",
-    "tags": ["project-management"]
+    "tags": ["project-management", "ticketing"]
   },
   {
     "type": "mongodb",
@@ -9658,7 +9941,7 @@
     "longDescription": "Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.",
     "bgColor": "#FFFFFF",
     "iconName": "MongoDBIcon",
-    "docsUrl": "https://docs.sim.ai/tools/mongodb",
+    "docsUrl": "https://docs.sim.ai/integrations/mongodb",
     "operations": [
       {
         "name": "Find Documents",
@@ -9694,6 +9977,48 @@
     "tags": ["data-warehouse", "cloud"]
   },
   {
+    "type": "mysql",
+    "slug": "mysql",
+    "name": "MySQL",
+    "description": "Connect to MySQL database",
+    "longDescription": "Integrate MySQL into the workflow. Can query, insert, update, delete, and execute raw SQL.",
+    "bgColor": "#FFFFFF",
+    "iconName": "MySQLIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/mysql",
+    "operations": [
+      {
+        "name": "Query (SELECT)",
+        "description": "Execute SELECT query on MySQL database"
+      },
+      {
+        "name": "Insert Data",
+        "description": "Insert new record into MySQL database"
+      },
+      {
+        "name": "Update Data",
+        "description": "Update existing records in MySQL database"
+      },
+      {
+        "name": "Delete Data",
+        "description": "Delete records from MySQL database"
+      },
+      {
+        "name": "Execute Raw SQL",
+        "description": "Execute raw SQL query on MySQL database"
+      },
+      {
+        "name": "Introspect Schema",
+        "description": "Introspect MySQL database schema to retrieve table structures, columns, and relationships"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "databases"
+  },
+  {
     "type": "neo4j",
     "slug": "neo4j",
     "name": "Neo4j",
@@ -9701,7 +10026,7 @@
     "longDescription": "Integrate Neo4j graph database into the workflow. Can query, create, merge, update, and delete nodes and relationships.",
     "bgColor": "#FFFFFF",
     "iconName": "Neo4jIcon",
-    "docsUrl": "https://docs.sim.ai/tools/neo4j",
+    "docsUrl": "https://docs.sim.ai/integrations/neo4j",
     "operations": [
       {
         "name": "Query (MATCH)",
@@ -9741,6 +10066,33 @@
     "tags": ["data-warehouse", "data-analytics"]
   },
   {
+    "type": "neverbounce",
+    "slug": "neverbounce",
+    "name": "NeverBounce",
+    "description": "Verify email deliverability and check account credits",
+    "longDescription": "Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.",
+    "bgColor": "#064AF4",
+    "iconName": "NeverBounceIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/neverbounce",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Verify the deliverability of an email address. Uses one verification credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining paid and free verification credits for the account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "sales",
+    "tags": ["enrichment", "sales-engagement"]
+  },
+  {
     "type": "new_relic",
     "slug": "new-relic",
     "name": "New Relic",
@@ -9748,7 +10100,7 @@
     "longDescription": "Integrate New Relic into workflows. Run NRQL queries, search monitored entities, fetch entity details, and record deployment change events.",
     "bgColor": "#000000",
     "iconName": "NewRelicIcon",
-    "docsUrl": "https://docs.sim.ai/tools/new_relic",
+    "docsUrl": "https://docs.sim.ai/integrations/new_relic",
     "operations": [
       {
         "name": "Run NRQL Query",
@@ -9783,7 +10135,7 @@
     "longDescription": "Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.",
     "bgColor": "#181C1E",
     "iconName": "NotionIcon",
-    "docsUrl": "https://docs.sim.ai/tools/notion",
+    "docsUrl": "https://docs.sim.ai/integrations/notion",
     "operations": [],
     "operationCount": 0,
     "triggers": [
@@ -9847,7 +10199,7 @@
     "longDescription": "Read, create, update, search, and delete notes in your Obsidian vault. Manage periodic notes, execute commands, and patch content at specific locations. Requires the Obsidian Local REST API plugin.",
     "bgColor": "#0F0F0F",
     "iconName": "ObsidianIcon",
-    "docsUrl": "https://docs.sim.ai/tools/obsidian",
+    "docsUrl": "https://docs.sim.ai/integrations/obsidian",
     "operations": [
       {
         "name": "List Files",
@@ -9926,7 +10278,7 @@
     "longDescription": "Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.",
     "bgColor": "#191919",
     "iconName": "OktaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/okta",
+    "docsUrl": "https://docs.sim.ai/integrations/okta",
     "operations": [
       {
         "name": "List Users",
@@ -10017,7 +10369,7 @@
     "longDescription": "Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftOneDriveIcon",
-    "docsUrl": "https://docs.sim.ai/tools/onedrive",
+    "docsUrl": "https://docs.sim.ai/integrations/onedrive",
     "operations": [
       {
         "name": "Create Folder",
@@ -10060,7 +10412,7 @@
     "longDescription": "Integrate Outlook into the workflow. Can read, draft, send, forward, and move email messages. Can be used in trigger mode to trigger a workflow when a new email is received.",
     "bgColor": "#FFFFFF",
     "iconName": "OutlookIcon",
-    "docsUrl": "https://docs.sim.ai/tools/outlook",
+    "docsUrl": "https://docs.sim.ai/integrations/outlook",
     "operations": [
       {
         "name": "Send Email",
@@ -10121,7 +10473,7 @@
     "longDescription": "Integrate PagerDuty into your workflow to list, create, and update incidents, add notes, list services, and check on-call schedules.",
     "bgColor": "#06AC38",
     "iconName": "PagerDutyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/pagerduty",
+    "docsUrl": "https://docs.sim.ai/integrations/pagerduty",
     "operations": [
       {
         "name": "List Incidents",
@@ -10162,9 +10514,9 @@
     "name": "Parallel AI",
     "description": "Web research with Parallel AI",
     "longDescription": "Integrate Parallel AI into the workflow. Can search the web, extract information from URLs, and conduct deep research.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#1D1C1A",
     "iconName": "ParallelIcon",
-    "docsUrl": "https://docs.sim.ai/tools/parallel_ai",
+    "docsUrl": "https://docs.sim.ai/integrations/parallel_ai",
     "operations": [
       {
         "name": "Search",
@@ -10195,7 +10547,7 @@
     "longDescription": "Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.",
     "bgColor": "#4831C3",
     "iconName": "PeopleDataLabsIcon",
-    "docsUrl": "https://docs.sim.ai/tools/peopledatalabs",
+    "docsUrl": "https://docs.sim.ai/integrations/peopledatalabs",
     "operations": [
       {
         "name": "Person Enrich",
@@ -10258,7 +10610,7 @@
     "longDescription": "Integrate Perplexity into the workflow. Can generate completions using Perplexity AI chat models or perform web searches with advanced filtering.",
     "bgColor": "#20808D",
     "iconName": "PerplexityIcon",
-    "docsUrl": "https://docs.sim.ai/tools/perplexity",
+    "docsUrl": "https://docs.sim.ai/integrations/perplexity",
     "operations": [
       {
         "name": "Chat",
@@ -10285,7 +10637,7 @@
     "longDescription": "Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.",
     "bgColor": "#0D1117",
     "iconName": "PineconeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/pinecone",
+    "docsUrl": "https://docs.sim.ai/integrations/pinecone",
     "operations": [
       {
         "name": "Generate Embeddings",
@@ -10324,7 +10676,7 @@
     "longDescription": "Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.",
     "bgColor": "#2E6936",
     "iconName": "PipedriveIcon",
-    "docsUrl": "https://docs.sim.ai/tools/pipedrive",
+    "docsUrl": "https://docs.sim.ai/integrations/pipedrive",
     "operations": [
       {
         "name": "Get All Deals",
@@ -10415,7 +10767,7 @@
     "longDescription": "Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.",
     "bgColor": "#4C82FB",
     "iconName": "PolymarketIcon",
-    "docsUrl": "https://docs.sim.ai/tools/polymarket",
+    "docsUrl": "https://docs.sim.ai/integrations/polymarket",
     "operations": [
       {
         "name": "Get Markets",
@@ -10507,6 +10859,48 @@
     "tags": ["prediction-markets", "data-analytics"]
   },
   {
+    "type": "postgresql",
+    "slug": "postgresql",
+    "name": "PostgreSQL",
+    "description": "Connect to PostgreSQL database",
+    "longDescription": "Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.",
+    "bgColor": "#336791",
+    "iconName": "PostgresIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/postgresql",
+    "operations": [
+      {
+        "name": "Query (SELECT)",
+        "description": "Execute a SELECT query on PostgreSQL database"
+      },
+      {
+        "name": "Insert Data",
+        "description": "Insert data into PostgreSQL database"
+      },
+      {
+        "name": "Update Data",
+        "description": "Update data in PostgreSQL database"
+      },
+      {
+        "name": "Delete Data",
+        "description": "Delete data from PostgreSQL database"
+      },
+      {
+        "name": "Execute Raw SQL",
+        "description": "Execute raw SQL query on PostgreSQL database"
+      },
+      {
+        "name": "Introspect Schema",
+        "description": "Introspect PostgreSQL database schema to retrieve table structures, columns, and relationships"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "none",
+    "category": "tools",
+    "integrationType": "databases"
+  },
+  {
     "type": "posthog",
     "slug": "posthog",
     "name": "PostHog",
@@ -10514,7 +10908,7 @@
     "longDescription": "Integrate PostHog into your workflow. Track events, manage feature flags, analyze user behavior, run experiments, create surveys, and access session recordings.",
     "bgColor": "#FFFFFF",
     "iconName": "PosthogIcon",
-    "docsUrl": "https://docs.sim.ai/tools/posthog",
+    "docsUrl": "https://docs.sim.ai/integrations/posthog",
     "operations": [
       {
         "name": "Capture Event",
@@ -10692,10 +11086,10 @@
     "operationCount": 43,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
-    "tags": ["data-analytics", "monitoring"]
+    "tags": ["data-analytics", "monitoring", "feature-flags"]
   },
   {
     "type": "profound",
@@ -10705,7 +11099,7 @@
     "longDescription": "Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.",
     "bgColor": "#000000",
     "iconName": "ProfoundIcon",
-    "docsUrl": "https://docs.sim.ai/tools/profound",
+    "docsUrl": "https://docs.sim.ai/integrations/profound",
     "operations": [
       {
         "name": "List Categories",
@@ -10820,7 +11214,7 @@
     "longDescription": "Find verified work emails and mobile numbers, enrich person and company profiles, and search a B2B database of leads and companies using 20+ filters.",
     "bgColor": "#FF1A26",
     "iconName": "ProspeoIcon",
-    "docsUrl": "https://docs.sim.ai/tools/prospeo",
+    "docsUrl": "https://docs.sim.ai/integrations/prospeo",
     "operations": [
       {
         "name": "Enrich Person",
@@ -10871,7 +11265,7 @@
     "longDescription": "Integrate Pulse into the workflow. Extract text from PDF documents, images, and Office files via upload or file references.",
     "bgColor": "#FFFFFF",
     "iconName": "PulseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/pulse",
+    "docsUrl": "https://docs.sim.ai/integrations/pulse",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -10920,7 +11314,7 @@
     "longDescription": "Generate SVG images from text prompts or vectorize raster images into SVGs using QuiverAI. Supports reference images, style instructions, and multiple output generation.",
     "bgColor": "#FFFFFF",
     "iconName": "QuiverIcon",
-    "docsUrl": "https://docs.sim.ai/tools/quiver",
+    "docsUrl": "https://docs.sim.ai/integrations/quiver",
     "operations": [
       {
         "name": "Text to SVG",
@@ -10947,11 +11341,11 @@
     "type": "railway",
     "slug": "railway",
     "name": "Railway",
-    "description": "Manage Railway projects, deployments, and variables",
-    "longDescription": "Integrate Railway into workflows to list projects, inspect services and environments, monitor deployments, trigger service deployments, and manage environment variables.",
-    "bgColor": "#FFFFFF",
+    "description": "Manage Railway projects, services, deployments, and variables",
+    "longDescription": "Integrate Railway into workflows to list projects, manage services and environments, monitor deployments, trigger and roll back service deployments, and manage environment variables.",
+    "bgColor": "#000000",
     "iconName": "RailwayIcon",
-    "docsUrl": "https://docs.sim.ai/tools/railway",
+    "docsUrl": "https://docs.sim.ai/integrations/railway",
     "operations": [
       {
         "name": "List Projects",
@@ -10990,12 +11384,36 @@
         "description": "Delete a Railway project environment"
       },
       {
+        "name": "Create Service",
+        "description": "Create a Railway service from a GitHub repo or Docker image"
+      },
+      {
+        "name": "Delete Service",
+        "description": "Delete a Railway service and all of its deployments"
+      },
+      {
         "name": "List Deployments",
         "description": "List deployments for a Railway service in an environment"
       },
       {
+        "name": "Get Deployment",
+        "description": "Get details for a single Railway deployment"
+      },
+      {
         "name": "Deploy Service",
         "description": "Trigger a deployment for a Railway service in an environment"
+      },
+      {
+        "name": "Restart Deployment",
+        "description": "Restart a running Railway deployment without rebuilding"
+      },
+      {
+        "name": "Rollback Deployment",
+        "description": "Roll a Railway service back to a previous deployment"
+      },
+      {
+        "name": "Get Deployment Logs",
+        "description": "Retrieve runtime logs for a Railway deployment"
       },
       {
         "name": "List Variables",
@@ -11004,9 +11422,13 @@
       {
         "name": "Upsert Variable",
         "description": "Create or update a Railway environment variable"
+      },
+      {
+        "name": "Delete Variable",
+        "description": "Delete a Railway environment variable"
       }
     ],
-    "operationCount": 13,
+    "operationCount": 20,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -11022,7 +11444,7 @@
     "longDescription": "Resolve IP addresses, hashed emails, and LinkedIn profiles into person-level identity and B2B enrichment data using the RB2B API. Convert IPs to hashed emails, MAIDs, and company domains; enrich emails into LinkedIn profiles, business profiles, and mobile IDs; and look up emails or phone numbers from LinkedIn. Requires an RB2B API key.",
     "bgColor": "#51FF00",
     "iconName": "RB2BIcon",
-    "docsUrl": "https://docs.sim.ai/tools/rb2b",
+    "docsUrl": "https://docs.sim.ai/integrations/rb2b",
     "operations": [
       {
         "name": "Credit Check",
@@ -11101,7 +11523,7 @@
     "longDescription": "Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.",
     "bgColor": "#FF5700",
     "iconName": "RedditIcon",
-    "docsUrl": "https://docs.sim.ai/tools/reddit",
+    "docsUrl": "https://docs.sim.ai/integrations/reddit",
     "operations": [
       {
         "name": "Get Posts",
@@ -11170,9 +11592,89 @@
       {
         "name": "Get Subreddit Info",
         "description": "Get metadata and information about a subreddit"
+      },
+      {
+        "name": "Get Subreddit Rules",
+        "description": "Get the rules and site-wide rules that apply to a subreddit"
+      },
+      {
+        "name": "Get User Posts",
+        "description": "Fetch submitted posts (t3) from a Reddit user profile"
+      },
+      {
+        "name": "Get User Comments",
+        "description": "Fetch comments (t1) made by a Reddit user"
+      },
+      {
+        "name": "Get Saved Items",
+        "description": "Fetch your own saved posts (t3) and comments (t1). You can only read your own saved items"
+      },
+      {
+        "name": "Get Info by ID",
+        "description": "Fetch information about one or more Reddit things (posts, comments, or subreddits) by their fullnames"
+      },
+      {
+        "name": "Search Subreddits",
+        "description": "Search for subreddits by name and description"
+      },
+      {
+        "name": "List My Subreddits",
+        "description": "List the subreddits the authenticated user is subscribed to"
+      },
+      {
+        "name": "Report",
+        "description": "Report a Reddit post or comment to subreddit moderators for a rules violation"
+      },
+      {
+        "name": "Hide",
+        "description": "Hide one or more Reddit posts from your listings"
+      },
+      {
+        "name": "Unhide",
+        "description": "Unhide one or more previously hidden Reddit posts"
+      },
+      {
+        "name": "Mark NSFW",
+        "description": "Mark a Reddit post as NSFW (not safe for work)"
+      },
+      {
+        "name": "Unmark NSFW",
+        "description": "Remove the NSFW (not safe for work) mark from a Reddit post"
+      },
+      {
+        "name": "Mark Messages Read",
+        "description": "Mark one or more private messages as read"
+      },
+      {
+        "name": "Mark All Messages Read",
+        "description": "Mark all private messages in the inbox as read"
+      },
+      {
+        "name": "Approve (Mod)",
+        "description": "Approve a reported or removed Reddit post or comment as a moderator"
+      },
+      {
+        "name": "Remove (Mod)",
+        "description": "Remove a Reddit post or comment as a moderator, optionally marking it as spam"
+      },
+      {
+        "name": "Distinguish (Mod)",
+        "description": "Distinguish or un-distinguish a Reddit post or comment as a moderator"
+      },
+      {
+        "name": "Lock (Mod)",
+        "description": "Lock a Reddit post or comment to prevent further replies (moderator action)"
+      },
+      {
+        "name": "Unlock (Mod)",
+        "description": "Unlock a Reddit post or comment to allow replies again (moderator action)"
+      },
+      {
+        "name": "Sticky (Mod)",
+        "description": "Sticky or unsticky a Reddit post to the top of a subreddit (moderator action)"
       }
     ],
-    "operationCount": 17,
+    "operationCount": 37,
     "triggers": [],
     "triggerCount": 0,
     "authType": "oauth",
@@ -11188,7 +11690,7 @@
     "longDescription": "Connect to any Redis instance to perform key-value, hash, list, and utility operations via a direct connection.",
     "bgColor": "#FF4438",
     "iconName": "RedisIcon",
-    "docsUrl": "https://docs.sim.ai/tools/redis",
+    "docsUrl": "https://docs.sim.ai/integrations/redis",
     "operations": [
       {
         "name": "Get",
@@ -11282,10 +11784,10 @@
     "operationCount": 22,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "reducto_v2",
@@ -11295,7 +11797,7 @@
     "longDescription": "Integrate Reducto Parse into the workflow. Can extract text from uploaded PDF documents or file references.",
     "bgColor": "#5c0c5c",
     "iconName": "ReductoIcon",
-    "docsUrl": "https://docs.sim.ai/tools/reducto",
+    "docsUrl": "https://docs.sim.ai/integrations/reducto",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -11313,7 +11815,7 @@
     "longDescription": "Integrate Resend into your workflow. Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.",
     "bgColor": "#181C1E",
     "iconName": "ResendIcon",
-    "docsUrl": "https://docs.sim.ai/tools/resend",
+    "docsUrl": "https://docs.sim.ai/integrations/resend",
     "operations": [
       {
         "name": "Send Email",
@@ -11392,7 +11894,7 @@
       }
     ],
     "triggerCount": 8,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "email",
     "tags": ["email-marketing", "messaging"]
@@ -11405,7 +11907,7 @@
     "longDescription": "Integrate RevenueCat into the workflow. Manage subscribers, entitlements, offerings, and Google Play subscriptions. Retrieve customer subscription status, grant or revoke promotional entitlements, record purchases, update subscriber attributes, and manage Google Play subscription billing.",
     "bgColor": "#F25A5A",
     "iconName": "RevenueCatIcon",
-    "docsUrl": "https://docs.sim.ai/tools/revenuecat",
+    "docsUrl": "https://docs.sim.ai/integrations/revenuecat",
     "operations": [
       {
         "name": "Get Customer",
@@ -11462,9 +11964,9 @@
     "name": "Rippling",
     "description": "Manage workers, departments, custom objects, and company data in Rippling",
     "longDescription": "Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.",
-    "bgColor": "#FFCC1C",
+    "bgColor": "#502D3C",
     "iconName": "RipplingIcon",
-    "docsUrl": "https://docs.sim.ai/tools/rippling",
+    "docsUrl": "https://docs.sim.ai/integrations/rippling",
     "operations": [
       {
         "name": "List Workers",
@@ -11827,7 +12329,7 @@
     "longDescription": "Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.",
     "bgColor": "#6C72C8",
     "iconName": "RootlyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/rootly",
+    "docsUrl": "https://docs.sim.ai/integrations/rootly",
     "operations": [
       {
         "name": "Create Incident",
@@ -11936,9 +12438,65 @@
       {
         "name": "List Playbooks",
         "description": "List playbooks from Rootly with pagination support."
+      },
+      {
+        "name": "Mitigate Incident",
+        "description": "Transition a Rootly incident to the mitigated state."
+      },
+      {
+        "name": "Resolve Incident",
+        "description": "Transition a Rootly incident to the resolved state."
+      },
+      {
+        "name": "Assign Incident Role",
+        "description": "Assign an incident role (e.g. commander) to a user on a Rootly incident."
+      },
+      {
+        "name": "Unassign Incident Role",
+        "description": "Remove an incident role assignment from a user on a Rootly incident."
+      },
+      {
+        "name": "Add Subscribers",
+        "description": "Subscribe users to a Rootly incident so they receive updates."
+      },
+      {
+        "name": "Remove Subscribers",
+        "description": "Unsubscribe users from a Rootly incident."
+      },
+      {
+        "name": "Create Status Page Event",
+        "description": "Post a public status page update for a Rootly incident."
+      },
+      {
+        "name": "Update Action Item",
+        "description": "Update a Rootly incident action item (status, priority, assignee, etc.)."
+      },
+      {
+        "name": "Delete Action Item",
+        "description": "Delete a Rootly incident action item."
+      },
+      {
+        "name": "Snooze Alert",
+        "description": "Snooze a Rootly alert for a set number of minutes."
+      },
+      {
+        "name": "Escalate Alert",
+        "description": "Escalate a Rootly alert, optionally to a specific escalation policy or level."
+      },
+      {
+        "name": "List Incident Events",
+        "description": "List the timeline events for a Rootly incident."
+      },
+      {
+        "name": "Run Workflow",
+        "description": "Trigger a Rootly automation workflow, optionally scoped to an incident or alert."
+      },
+      {
+        "name": "List Incident Roles",
+        "description": "List incident roles configured in Rootly (e.g. commander, scribe)."
       }
     ],
-    "operationCount": 27,
+    "operationCount": 41,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -11954,7 +12512,7 @@
     "longDescription": "Integrate S3 into the workflow. Upload files, download objects, list bucket contents, delete objects, and copy objects between buckets. Requires AWS access key and secret access key.",
     "bgColor": "linear-gradient(45deg, #1B660F 0%, #6CAE3E 100%)",
     "iconName": "S3Icon",
-    "docsUrl": "https://docs.sim.ai/tools/s3",
+    "docsUrl": "https://docs.sim.ai/integrations/s3",
     "operations": [
       {
         "name": "Download File",
@@ -11980,7 +12538,7 @@
     "operationCount": 5,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "documents",
     "tags": ["cloud", "automation"]
@@ -11993,7 +12551,7 @@
     "longDescription": "Integrate Salesforce into your workflow. Manage accounts, contacts, leads, opportunities, cases, and tasks with powerful automation capabilities.",
     "bgColor": "#FFFFFF",
     "iconName": "SalesforceIcon",
-    "docsUrl": "https://docs.sim.ai/tools/salesforce",
+    "docsUrl": "https://docs.sim.ai/integrations/salesforce",
     "operations": [
       {
         "name": "Get Accounts",
@@ -12183,7 +12741,7 @@
     "longDescription": "Connect SAP Concur via OAuth 2.0. Manage expense reports and line items, allocations, attendees, comments, exceptions, quick expenses, receipts, travel requests and expected expenses, cash advances, itineraries, user identities, custom lists, budgets, exchange rates, and purchase requests across every Concur datacenter.",
     "bgColor": "#FFFFFF",
     "iconName": "SapConcurIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sap_concur",
+    "docsUrl": "https://docs.sim.ai/integrations/sap_concur",
     "operations": [
       {
         "name": "List Expense Reports",
@@ -12469,7 +13027,7 @@
     "operationCount": 70,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "productivity",
     "tags": ["automation"]
@@ -12482,7 +13040,7 @@
     "longDescription": "Connect SAP S4HANA Cloud Public Edition with per-tenant OAuth 2.0 client credentials configured in your Communication Arrangements. Read and create business partners, customers, suppliers, sales orders, deliveries (inbound/outbound), billing documents, products, stock and material documents, purchase requisitions, purchase orders, and supplier invoices, or run arbitrary OData v2 queries against any whitelisted Communication Scenario.",
     "bgColor": "#FFFFFF",
     "iconName": "SapS4HanaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sap_s4hana",
+    "docsUrl": "https://docs.sim.ai/integrations/sap_s4hana",
     "operations": [
       {
         "name": "List Business Partners",
@@ -12640,10 +13198,60 @@
     "operationCount": 38,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "hr",
     "tags": ["automation"]
+  },
+  {
+    "type": "sendblue",
+    "slug": "sendblue",
+    "name": "Sendblue",
+    "description": "Send and receive iMessage and SMS",
+    "longDescription": "Send iMessages and SMS to individuals or groups, check whether a number supports iMessage, show typing indicators, and look up message status with Sendblue. Trigger workflows on inbound messages and delivery status updates.",
+    "bgColor": "#008BFF",
+    "iconName": "SendblueIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/sendblue",
+    "operations": [
+      {
+        "name": "Send Message",
+        "description": "Send an iMessage or SMS to a single recipient via Sendblue."
+      },
+      {
+        "name": "Send Group Message",
+        "description": "Send an iMessage or SMS to a group of recipients via Sendblue."
+      },
+      {
+        "name": "Evaluate Service",
+        "description": "Check whether a phone number can receive iMessage or only SMS."
+      },
+      {
+        "name": "Send Typing Indicator",
+        "description": "Display a typing indicator to a recipient (not supported in group chats)."
+      },
+      {
+        "name": "Get Message",
+        "description": "Retrieve a single message and its current status by message handle/ID."
+      }
+    ],
+    "operationCount": 5,
+    "triggers": [
+      {
+        "id": "sendblue_message_received",
+        "name": "Sendblue Message Received",
+        "description": "Trigger when an inbound iMessage or SMS is received in Sendblue"
+      },
+      {
+        "id": "sendblue_message_status_updated",
+        "name": "Sendblue Message Status Updated",
+        "description": "Trigger when an outbound message status changes (SENT, DELIVERED, ERROR) in Sendblue"
+      }
+    ],
+    "triggerCount": 2,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "communication",
+    "tags": ["messaging", "automation", "webhooks"]
   },
   {
     "type": "sendgrid",
@@ -12653,7 +13261,7 @@
     "longDescription": "Integrate SendGrid into your workflow. Send transactional emails, manage marketing contacts and lists, and work with email templates. Supports dynamic templates, attachments, and comprehensive contact management.",
     "bgColor": "#1A82E2",
     "iconName": "SendgridIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sendgrid",
+    "docsUrl": "https://docs.sim.ai/integrations/sendgrid",
     "operations": [
       {
         "name": "Send Mail",
@@ -12734,9 +13342,9 @@
     "name": "Sentry",
     "description": "Manage Sentry issues, projects, events, and releases",
     "longDescription": "Integrate Sentry into the workflow. Monitor issues, manage projects, track events, and coordinate releases across your applications.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#362D59",
     "iconName": "SentryIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sentry",
+    "docsUrl": "https://docs.sim.ai/integrations/sentry",
     "operations": [
       {
         "name": "List Issues",
@@ -12767,6 +13375,10 @@
         "description": "Update a Sentry project by changing its name, slug, platform, or other settings. Returns the updated project details."
       },
       {
+        "name": "List Teams",
+        "description": "List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects."
+      },
+      {
         "name": "List Events",
         "description": "List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information."
       },
@@ -12787,7 +13399,7 @@
         "description": "Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details."
       }
     ],
-    "operationCount": 12,
+    "operationCount": 13,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",
@@ -12803,7 +13415,7 @@
     "longDescription": "Integrate Serper into the workflow. Can search the web.",
     "bgColor": "#2B3543",
     "iconName": "SerperIcon",
-    "docsUrl": "https://docs.sim.ai/tools/serper",
+    "docsUrl": "https://docs.sim.ai/integrations/serper",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
@@ -12821,7 +13433,7 @@
     "longDescription": "Integrate ServiceNow into your workflow. Create, read, update, and delete records in any ServiceNow table including incidents, tasks, change requests, users, and more.",
     "bgColor": "#032D42",
     "iconName": "ServiceNowIcon",
-    "docsUrl": "https://docs.sim.ai/tools/servicenow",
+    "docsUrl": "https://docs.sim.ai/integrations/servicenow",
     "operations": [
       {
         "name": "Create Record",
@@ -12838,9 +13450,25 @@
       {
         "name": "Delete Record",
         "description": "Delete a record from a ServiceNow table"
+      },
+      {
+        "name": "Aggregate Records",
+        "description": "Compute aggregate statistics (count, sum, average, min, max, group by) over a ServiceNow table"
+      },
+      {
+        "name": "List Attachments",
+        "description": "List the attachments on a ServiceNow record"
+      },
+      {
+        "name": "Download Attachment",
+        "description": "Download an attachment file from ServiceNow by its sys_id"
+      },
+      {
+        "name": "Upload Attachment",
+        "description": "Attach a file to a ServiceNow record"
       }
     ],
-    "operationCount": 4,
+    "operationCount": 8,
     "triggers": [
       {
         "id": "servicenow_incident_created",
@@ -12869,10 +13497,52 @@
       }
     ],
     "triggerCount": 5,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "support",
     "tags": ["customer-support", "ticketing", "incident-management"]
+  },
+  {
+    "type": "sftp",
+    "slug": "sftp",
+    "name": "SFTP",
+    "description": "Transfer files via SFTP (SSH File Transfer Protocol)",
+    "longDescription": "Upload, download, list, and manage files on remote servers via SFTP. Supports both password and private key authentication for secure file transfers.",
+    "bgColor": "#2D3748",
+    "iconName": "SftpIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/sftp",
+    "operations": [
+      {
+        "name": "Upload Files",
+        "description": "Upload files to a remote SFTP server"
+      },
+      {
+        "name": "Create File",
+        "description": ""
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from a remote SFTP server"
+      },
+      {
+        "name": "List Directory",
+        "description": "List files and directories on a remote SFTP server"
+      },
+      {
+        "name": "Delete File/Directory",
+        "description": "Delete a file or directory on a remote SFTP server"
+      },
+      {
+        "name": "Create Directory",
+        "description": "Create a directory on a remote SFTP server"
+      }
+    ],
+    "operationCount": 6,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "documents"
   },
   {
     "type": "sharepoint_v2",
@@ -12882,7 +13552,7 @@
     "longDescription": "Integrate SharePoint into the workflow. Read/create pages, list sites, and work with lists (read, create, update items). Requires OAuth.",
     "bgColor": "#FFFFFF",
     "iconName": "MicrosoftSharepointIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sharepoint",
+    "docsUrl": "https://docs.sim.ai/integrations/sharepoint",
     "operations": [
       {
         "name": "Create Page",
@@ -12933,7 +13603,7 @@
     "longDescription": "Integrate Shopify into your workflow. Manage products, orders, customers, and inventory. Create, read, update, and delete products. List and manage orders. Handle customer data and adjust inventory levels.",
     "bgColor": "#FFFFFF",
     "iconName": "ShopifyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/shopify",
+    "docsUrl": "https://docs.sim.ai/integrations/shopify",
     "operations": [
       {
         "name": "Create Product",
@@ -13026,7 +13696,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "commerce",
-    "tags": ["payments", "subscriptions"]
+    "tags": ["payments", "automation"]
   },
   {
     "type": "similarweb",
@@ -13075,7 +13745,7 @@
     "longDescription": "Find emails, phone numbers, and enrich lead or company data with contact information, social profiles, and detailed research using Sixtyfour AI.",
     "bgColor": "#000000",
     "iconName": "SixtyfourIcon",
-    "docsUrl": "https://docs.sim.ai/tools/sixtyfour",
+    "docsUrl": "https://docs.sim.ai/integrations/sixtyfour",
     "operations": [
       {
         "name": "Find Phone",
@@ -13110,7 +13780,7 @@
     "longDescription": "Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.",
     "bgColor": "#611f69",
     "iconName": "SlackIcon",
-    "docsUrl": "https://docs.sim.ai/tools/slack",
+    "docsUrl": "https://docs.sim.ai/integrations/slack",
     "operations": [
       {
         "name": "Send Message",
@@ -13135,6 +13805,30 @@
       {
         "name": "Get Thread",
         "description": "Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context."
+      },
+      {
+        "name": "Get Thread Replies",
+        "description": "Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies."
+      },
+      {
+        "name": "Get Channel History",
+        "description": "Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp."
+      },
+      {
+        "name": "Get Message Permalink",
+        "description": "Get a stable permalink URL to a specific Slack message."
+      },
+      {
+        "name": "Set Assistant Status",
+        "description": "Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it."
+      },
+      {
+        "name": "Set Assistant Title",
+        "description": "Set the title of a Slack assistant thread (shown in the AI app thread header)."
+      },
+      {
+        "name": "Set Suggested Prompts",
+        "description": "Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app)."
       },
       {
         "name": "List Channels",
@@ -13229,7 +13923,7 @@
         "description": "Publish a static view to a user"
       }
     ],
-    "operationCount": 29,
+    "operationCount": 35,
     "triggers": [
       {
         "id": "slack_webhook",
@@ -13273,6 +13967,93 @@
     }
   },
   {
+    "type": "smtp",
+    "slug": "smtp",
+    "name": "SMTP",
+    "description": "Send emails via any SMTP mail server",
+    "longDescription": "Send emails using any SMTP server (Gmail, Outlook, custom servers, etc.). Configure SMTP connection settings and send emails with full control over content, recipients, and attachments.",
+    "bgColor": "#2D3748",
+    "iconName": "SmtpIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/smtp",
+    "operations": [],
+    "operationCount": 0,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "email"
+  },
+  {
+    "type": "ssh",
+    "slug": "ssh",
+    "name": "SSH",
+    "description": "Connect to remote servers via SSH",
+    "longDescription": "Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.",
+    "bgColor": "#000000",
+    "iconName": "SshIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/ssh",
+    "operations": [
+      {
+        "name": "Execute Command",
+        "description": "Execute a shell command on a remote SSH server"
+      },
+      {
+        "name": "Execute Script",
+        "description": "Upload and execute a multi-line script on a remote SSH server"
+      },
+      {
+        "name": "Check Command Exists",
+        "description": "Check if a command/program exists on the remote SSH server"
+      },
+      {
+        "name": "Upload File",
+        "description": "Upload a file to a remote SSH server"
+      },
+      {
+        "name": "Download File",
+        "description": "Download a file from a remote SSH server"
+      },
+      {
+        "name": "List Directory",
+        "description": "List files and directories in a remote directory"
+      },
+      {
+        "name": "Check File/Directory Exists",
+        "description": "Check if a file or directory exists on the remote SSH server"
+      },
+      {
+        "name": "Create Directory",
+        "description": "Create a directory on the remote SSH server"
+      },
+      {
+        "name": "Delete File/Directory",
+        "description": "Delete a file or directory from the remote SSH server"
+      },
+      {
+        "name": "Move/Rename",
+        "description": "Move or rename a file or directory on the remote SSH server"
+      },
+      {
+        "name": "Get System Info",
+        "description": "Retrieve system information from the remote SSH server"
+      },
+      {
+        "name": "Read File Content",
+        "description": "Read the contents of a remote file"
+      },
+      {
+        "name": "Write File Content",
+        "description": "Write or append content to a remote file"
+      }
+    ],
+    "operationCount": 13,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops"
+  },
+  {
     "type": "stagehand",
     "slug": "stagehand",
     "name": "Stagehand",
@@ -13280,7 +14061,7 @@
     "longDescription": "Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.",
     "bgColor": "#FFC83C",
     "iconName": "StagehandIcon",
-    "docsUrl": "https://docs.sim.ai/tools/stagehand",
+    "docsUrl": "https://docs.sim.ai/integrations/stagehand",
     "operations": [
       {
         "name": "Extract Data",
@@ -13307,7 +14088,7 @@
     "longDescription": "Integrates Stripe into the workflow. Manage payment intents, customers, subscriptions, invoices, charges, products, prices, and events. Can be used in trigger mode to trigger a workflow when a Stripe event occurs.",
     "bgColor": "#635BFF",
     "iconName": "StripeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/stripe",
+    "docsUrl": "https://docs.sim.ai/integrations/stripe",
     "operations": [
       {
         "name": "Create Payment Intent",
@@ -13532,7 +14313,7 @@
     "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
     "bgColor": "#1C1C1C",
     "iconName": "SupabaseIcon",
-    "docsUrl": "https://docs.sim.ai/tools/supabase",
+    "docsUrl": "https://docs.sim.ai/integrations/supabase",
     "operations": [
       {
         "name": "Get Many Rows",
@@ -13639,7 +14420,7 @@
     "longDescription": "Interact with the Tailscale API to manage devices, DNS, ACLs, auth keys, users, and routes across your tailnet.",
     "bgColor": "#2E2D2D",
     "iconName": "TailscaleIcon",
-    "docsUrl": "https://docs.sim.ai/tools/tailscale",
+    "docsUrl": "https://docs.sim.ai/integrations/tailscale",
     "operations": [
       {
         "name": "List Devices",
@@ -13738,7 +14519,7 @@
     "longDescription": "Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.",
     "bgColor": "#0066FF",
     "iconName": "TavilyIcon",
-    "docsUrl": "https://docs.sim.ai/tools/tavily",
+    "docsUrl": "https://docs.sim.ai/integrations/tavily",
     "operations": [
       {
         "name": "Search",
@@ -13773,7 +14554,7 @@
     "longDescription": "Integrate Telegram into the workflow. Can send and delete messages. Can be used in trigger mode to trigger a workflow when a message is sent to a chat.",
     "bgColor": "#FFFFFF",
     "iconName": "TelegramIcon",
-    "docsUrl": "https://docs.sim.ai/tools/telegram",
+    "docsUrl": "https://docs.sim.ai/integrations/telegram",
     "operations": [
       {
         "name": "Send Message",
@@ -13813,7 +14594,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "webhooks", "automation"]
@@ -13826,7 +14607,7 @@
     "longDescription": "Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.",
     "bgColor": "#2EF598",
     "iconName": "TinybirdIcon",
-    "docsUrl": "https://docs.sim.ai/tools/tinybird",
+    "docsUrl": "https://docs.sim.ai/integrations/tinybird",
     "operations": [
       {
         "name": "Send Events",
@@ -13856,7 +14637,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "analytics",
     "tags": ["data-warehouse", "data-analytics"]
@@ -13869,7 +14650,7 @@
     "longDescription": "Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.",
     "bgColor": "#0052CC",
     "iconName": "TrelloIcon",
-    "docsUrl": "https://docs.sim.ai/tools/trello",
+    "docsUrl": "https://docs.sim.ai/integrations/trello",
     "operations": [
       {
         "name": "Get Lists",
@@ -13912,12 +14693,12 @@
     "longDescription": "Integrate Twilio into the workflow. Can send SMS messages.",
     "bgColor": "#F22F46",
     "iconName": "TwilioIcon",
-    "docsUrl": "https://docs.sim.ai/tools/twilio_sms",
+    "docsUrl": "https://docs.sim.ai/integrations/twilio_sms",
     "operations": [],
     "operationCount": 0,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "automation"]
@@ -13930,7 +14711,7 @@
     "longDescription": "Integrate Twilio Voice into the workflow. Make outbound calls and retrieve call recordings.",
     "bgColor": "#F22F46",
     "iconName": "TwilioIcon",
-    "docsUrl": "https://docs.sim.ai/tools/twilio_voice",
+    "docsUrl": "https://docs.sim.ai/integrations/twilio_voice",
     "operations": [
       {
         "name": "Make Call",
@@ -13954,7 +14735,7 @@
       }
     ],
     "triggerCount": 1,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
     "tags": ["messaging", "text-to-speech"]
@@ -13967,7 +14748,7 @@
     "longDescription": "Integrate Typeform into the workflow. Can retrieve responses, download files, and get form insights. Can be used in trigger mode to trigger a workflow when a form is submitted. Requires API Key.",
     "bgColor": "#262627",
     "iconName": "TypeformIcon",
-    "docsUrl": "https://docs.sim.ai/tools/typeform",
+    "docsUrl": "https://docs.sim.ai/integrations/typeform",
     "operations": [
       {
         "name": "Retrieve Responses",
@@ -14024,7 +14805,7 @@
     "longDescription": "Connect to Upstash Redis to perform key-value, hash, list, and utility operations via the REST API.",
     "bgColor": "#181C1E",
     "iconName": "UpstashIcon",
-    "docsUrl": "https://docs.sim.ai/tools/upstash",
+    "docsUrl": "https://docs.sim.ai/integrations/upstash",
     "operations": [
       {
         "name": "Get",
@@ -14094,10 +14875,10 @@
     "operationCount": 16,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "databases",
-    "tags": ["cloud", "data-warehouse"]
+    "tags": ["cloud"]
   },
   {
     "type": "vercel",
@@ -14107,7 +14888,7 @@
     "longDescription": "Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.",
     "bgColor": "#171717",
     "iconName": "VercelIcon",
-    "docsUrl": "https://docs.sim.ai/tools/vercel",
+    "docsUrl": "https://docs.sim.ai/integrations/vercel",
     "operations": [
       {
         "name": "List Deployments",
@@ -14136,6 +14917,10 @@
       {
         "name": "List Deployment Files",
         "description": "List files in a Vercel deployment"
+      },
+      {
+        "name": "Promote Deployment",
+        "description": "Promote a deployment by pointing the production deployment to the given deployment"
       },
       {
         "name": "List Projects",
@@ -14172,6 +14957,14 @@
       {
         "name": "Add Project Domain",
         "description": "Add a domain to a Vercel project"
+      },
+      {
+        "name": "Update Project Domain",
+        "description": "Update a project domain"
+      },
+      {
+        "name": "Verify Project Domain",
+        "description": "Verify a Vercel project domain by checking its verification challenge"
       },
       {
         "name": "Remove Project Domain",
@@ -14222,6 +15015,10 @@
         "description": "Create a DNS record for a domain in a Vercel account"
       },
       {
+        "name": "Update DNS Record",
+        "description": "Update an existing DNS record for a domain in a Vercel account"
+      },
+      {
         "name": "Delete DNS Record",
         "description": "Delete a DNS record for a domain in a Vercel account"
       },
@@ -14262,8 +15059,16 @@
         "description": "Create, update, upsert, or delete items in an Edge Config store"
       },
       {
+        "name": "Delete Edge Config",
+        "description": "Delete an Edge Config store by ID"
+      },
+      {
         "name": "List Webhooks",
         "description": "List webhooks for a Vercel project or team"
+      },
+      {
+        "name": "Get Webhook",
+        "description": "Get details about a specific Vercel webhook"
       },
       {
         "name": "Create Webhook",
@@ -14310,7 +15115,7 @@
         "description": "Get information about the authenticated Vercel user"
       }
     ],
-    "operationCount": 50,
+    "operationCount": 56,
     "triggers": [
       {
         "id": "vercel_deployment_created",
@@ -14367,7 +15172,7 @@
     "longDescription": "Integrate Wealthbox into the workflow. Can read and write notes, read and write contacts, and read and write tasks.",
     "bgColor": "#FFFFFF",
     "iconName": "WealthboxIcon",
-    "docsUrl": "https://docs.sim.ai/tools/wealthbox",
+    "docsUrl": "https://docs.sim.ai/integrations/wealthbox",
     "operations": [
       {
         "name": "Read Note",
@@ -14400,7 +15205,7 @@
     "authType": "oauth",
     "category": "tools",
     "integrationType": "sales",
-    "tags": ["sales-engagement", "customer-support"]
+    "tags": ["sales-engagement"]
   },
   {
     "type": "webflow",
@@ -14410,7 +15215,7 @@
     "longDescription": "Integrates Webflow CMS into the workflow. Can create, get, list, update, or delete items in Webflow CMS collections. Manage your Webflow content programmatically. Can be used in trigger mode to trigger workflows when collection items change or forms are submitted.",
     "bgColor": "#FFFFFF",
     "iconName": "WebflowIcon",
-    "docsUrl": "https://docs.sim.ai/tools/webflow",
+    "docsUrl": "https://docs.sim.ai/integrations/webflow",
     "operations": [
       {
         "name": "List Items",
@@ -14470,7 +15275,7 @@
     "longDescription": "Integrate WhatsApp into the workflow. Can send messages.",
     "bgColor": "#25D366",
     "iconName": "WhatsAppIcon",
-    "docsUrl": "https://docs.sim.ai/tools/whatsapp",
+    "docsUrl": "https://docs.sim.ai/integrations/whatsapp",
     "operations": [],
     "operationCount": 0,
     "triggers": [
@@ -14494,7 +15299,7 @@
     "longDescription": "Integrate Wikipedia into the workflow. Can get page summary, search pages, get page content, and get random page.",
     "bgColor": "#000000",
     "iconName": "WikipediaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/wikipedia",
+    "docsUrl": "https://docs.sim.ai/integrations/wikipedia",
     "operations": [
       {
         "name": "Get Page Summary",
@@ -14519,7 +15324,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "search",
-    "tags": ["knowledge-base", "web-scraping"]
+    "tags": ["knowledge-base"]
   },
   {
     "type": "wiza",
@@ -14529,7 +15334,7 @@
     "longDescription": "Integrates Wiza into the workflow. Search prospects, enrich companies, reveal verified emails and phone numbers for individuals, and check your account credit balance.",
     "bgColor": "#9284BC",
     "iconName": "WizaIcon",
-    "docsUrl": "https://docs.sim.ai/tools/wiza",
+    "docsUrl": "https://docs.sim.ai/integrations/wiza",
     "operations": [
       {
         "name": "Prospect Search",
@@ -14564,7 +15369,7 @@
     "longDescription": "Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.",
     "bgColor": "#21759B",
     "iconName": "WordpressIcon",
-    "docsUrl": "https://docs.sim.ai/tools/wordpress",
+    "docsUrl": "https://docs.sim.ai/integrations/wordpress",
     "operations": [
       {
         "name": "Create Post",
@@ -14687,7 +15492,7 @@
     "longDescription": "Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, manage worker profiles, assign onboarding plans, handle job changes, retrieve compensation data, and process terminations.",
     "bgColor": "#F5F0EB",
     "iconName": "WorkdayIcon",
-    "docsUrl": "https://docs.sim.ai/tools/workday",
+    "docsUrl": "https://docs.sim.ai/integrations/workday",
     "operations": [
       {
         "name": "Get Worker",
@@ -14736,7 +15541,7 @@
     "authType": "none",
     "category": "tools",
     "integrationType": "hr",
-    "tags": ["hiring", "project-management"]
+    "tags": ["hiring"]
   },
   {
     "type": "x",
@@ -14746,7 +15551,7 @@
     "longDescription": "Integrate X into the workflow. Search tweets, manage bookmarks, follow/block/mute users, like and retweet, view trends, and more.",
     "bgColor": "#000000",
     "iconName": "xIcon",
-    "docsUrl": "https://docs.sim.ai/tools/x",
+    "docsUrl": "https://docs.sim.ai/integrations/x",
     "operations": [
       {
         "name": "Create Tweet",
@@ -14877,7 +15682,7 @@
     "longDescription": "Integrate YouTube into the workflow. Can search for videos, get trending videos, get video details, get video categories, get channel information, get all videos from a channel, get channel playlists, get playlist items, and get video comments.",
     "bgColor": "#FF0000",
     "iconName": "YouTubeIcon",
-    "docsUrl": "https://docs.sim.ai/tools/youtube",
+    "docsUrl": "https://docs.sim.ai/integrations/youtube",
     "operations": [
       {
         "name": "Search Videos",
@@ -14922,7 +15727,7 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "communication",
-    "tags": ["google-workspace", "marketing", "content-management"]
+    "tags": ["marketing", "content-management"]
   },
   {
     "type": "zendesk",
@@ -14930,9 +15735,9 @@
     "name": "Zendesk",
     "description": "Manage support tickets, users, and organizations in Zendesk",
     "longDescription": "Integrate Zendesk into the workflow. Can get tickets, get ticket, create ticket, create tickets bulk, update ticket, update tickets bulk, delete ticket, merge tickets, get users, get user, get current user, search users, create user, create users bulk, update user, update users bulk, delete user, get organizations, get organization, autocomplete organizations, create organization, create organizations bulk, update organization, delete organization, search, search count.",
-    "bgColor": "#FFFFFF",
+    "bgColor": "#03363D",
     "iconName": "ZendeskIcon",
-    "docsUrl": "https://docs.sim.ai/tools/zendesk",
+    "docsUrl": "https://docs.sim.ai/integrations/zendesk",
     "operations": [
       {
         "name": "Get Tickets",
@@ -15042,7 +15847,7 @@
     "operationCount": 26,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "support",
     "tags": ["customer-support", "ticketing"]
@@ -15055,7 +15860,7 @@
     "longDescription": "Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.",
     "bgColor": "#E8E8E8",
     "iconName": "ZepIcon",
-    "docsUrl": "https://docs.sim.ai/tools/zep",
+    "docsUrl": "https://docs.sim.ai/integrations/zep",
     "operations": [
       {
         "name": "Create Thread",
@@ -15100,7 +15905,34 @@
     "authType": "api-key",
     "category": "tools",
     "integrationType": "ai",
-    "tags": ["llm", "knowledge-base", "agentic"]
+    "tags": ["knowledge-base", "agentic"]
+  },
+  {
+    "type": "zerobounce",
+    "slug": "zerobounce",
+    "name": "ZeroBounce",
+    "description": "Validate email deliverability and check account credits",
+    "longDescription": "Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.",
+    "bgColor": "#FFFFFF",
+    "iconName": "ZeroBounceIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/zerobounce",
+    "operations": [
+      {
+        "name": "Verify Email",
+        "description": "Validate an email address deliverability in real time. Uses one validation credit."
+      },
+      {
+        "name": "Get Remaining Credits",
+        "description": "Retrieve the remaining validation credits for the authenticated account."
+      }
+    ],
+    "operationCount": 2,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "sales",
+    "tags": ["enrichment", "sales-engagement"]
   },
   {
     "type": "zoom",
@@ -15110,7 +15942,7 @@
     "longDescription": "Integrate Zoom into workflows. Create, list, update, and delete Zoom meetings. Get meeting details, invitations, recordings, and participants. Manage cloud recordings programmatically.",
     "bgColor": "#2D8CFF",
     "iconName": "ZoomIcon",
-    "docsUrl": "https://docs.sim.ai/tools/zoom",
+    "docsUrl": "https://docs.sim.ai/integrations/zoom",
     "operations": [
       {
         "name": "Create Meeting",
@@ -15200,7 +16032,7 @@
     "longDescription": "Integrates ZoomInfo into the workflow. Search companies and contacts, enrich firmographic and contact data, find intent signals, and pull news — all using the ZoomInfo GTM API.",
     "bgColor": "#EA1B15",
     "iconName": "ZoomInfoIcon",
-    "docsUrl": "https://docs.sim.ai/tools/zoominfo",
+    "docsUrl": "https://docs.sim.ai/integrations/zoominfo",
     "operations": [
       {
         "name": "Search Companies",
@@ -15230,7 +16062,7 @@
     "operationCount": 6,
     "triggers": [],
     "triggerCount": 0,
-    "authType": "none",
+    "authType": "api-key",
     "category": "tools",
     "integrationType": "sales",
     "tags": ["enrichment", "sales-engagement"]

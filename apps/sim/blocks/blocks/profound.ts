@@ -64,7 +64,7 @@ export const ProfoundBlock: BlockConfig = {
   description: 'AI visibility and analytics with Profound',
   longDescription:
     'Track how your brand appears across AI platforms. Monitor visibility scores, sentiment, citations, bot traffic, referrals, content optimization, and prompt volumes with Profound.',
-  docsLink: 'https://docs.sim.ai/tools/profound',
+  docsLink: 'https://docs.sim.ai/integrations/profound',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#000000',
@@ -473,6 +473,36 @@ export const ProfoundBlockMeta = {
       category: 'marketing',
       tags: ['marketing', 'reporting', 'analysis'],
       alsoIntegrations: ['gmail'],
+    },
+  ],
+  skills: [
+    {
+      name: 'check-brand-visibility',
+      description:
+        'Pull a Profound visibility report to see how a brand surfaces in AI answers for tracked prompts.',
+      content:
+        '# Check Brand Visibility\n\nMeasure how often a brand appears in AI engine answers.\n\n## Steps\n1. Use the Visibility Report operation with the Category ID and a Start Date and End Date.\n2. Set Metrics such as share_of_voice, visibility_score, and mentions_count.\n3. Optionally break the data out by Dimensions (date, model) and set a Date Interval.\n4. Compare the latest period against the prior one.\n\n## Output\nThe visibility and share-of-voice scores for the period, broken down by model where requested, with the change versus the previous window.',
+    },
+    {
+      name: 'track-citation-sources',
+      description:
+        'Pull a Profound citations report to see which sources AI engines cite for brand prompts.',
+      content:
+        '# Track Citation Sources\n\nFind the sources AI engines cite when answering about a brand.\n\n## Steps\n1. Use the Citations Report operation with the Category ID, Start Date, and End Date, and set Metrics such as count and citation_share.\n2. For a specific domain, use Citation Prompts with the Domain to see which prompts cite it.\n3. Optionally add Dimensions to group by source domain or page.\n\n## Output\nA ranked list of citing domains and pages with their citation share, highlighting any new sources the content team should target.',
+    },
+    {
+      name: 'compare-competitor-share',
+      description:
+        'Use Profound visibility metrics to compare a brand against competitors in AI answers.',
+      content:
+        '# Compare Competitor Share\n\nBenchmark share-of-voice across competitors.\n\n## Steps\n1. Use the Visibility Report operation for the Category ID over a date window with the share_of_voice metric.\n2. Add Dimensions to break results out by asset or brand name, and apply Filters as JSON to scope to the competitor set.\n3. Rank the brands by share-of-voice.\n\n## Output\nA leaderboard of brands by share-of-voice in AI answers, flagging any competitor that gained or lost notable ground.',
+    },
+    {
+      name: 'find-content-gaps',
+      description:
+        'Use Profound prompt and answer data to find prompts where the brand is absent from AI answers.',
+      content:
+        '# Find Content Gaps\n\nSurface prompts where the brand is missing from AI answers.\n\n## Steps\n1. Use Category Prompts with the Category ID to list tracked prompts, paging with the cursor.\n2. Use Prompt Answers over a date window to see how the brand appears (or does not) for each prompt.\n3. Flag prompts with low or zero visibility as content gaps.\n\n## Output\nA prioritized list of prompts where the brand is absent or weak in AI answers, ready to drive content briefs.',
     },
   ],
 } as const satisfies BlockMeta

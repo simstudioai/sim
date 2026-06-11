@@ -1,0 +1,110 @@
+---
+title: Using files in workflows
+description: Read a file's contents in a workflow, pass a file to a block that needs one, or save a new file from a run.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, FILE_SUMMARY_WORKFLOW } from '@/components/workflow-preview'
+
+A file is a document, image, spreadsheet, or PDF in your workspace. A workflow can read a file to act on its contents, pass a file to a block or tool that needs one (attach a PDF to an email, send an image to a vision model), or produce a new file and save it. The [File](/integrations/file) block is how a file enters or leaves a workflow; the work in between is done by whatever block the task calls for.
+
+What you do with a file depends on the task, so this page covers the File block's operations and how a file moves between blocks rather than one fixed recipe. The example we'll use throughout reads `report.pdf`, asks an agent to summarize it, and saves the summary as `summary.md`, which exercises reading, processing, and writing in one workflow.
+
+<WorkflowPreview workflow={FILE_SUMMARY_WORKFLOW} height={200} />
+
+## The File block
+
+The **File** block is one block with five operations, chosen from a dropdown. Each operation is a different way a file, or its contents, enters or leaves the workflow.
+
+| Operation | What it does | Outputs |
+| --- | --- | --- |
+| **Read** | Take an existing workspace file, by file picker or by file ID. | `files` |
+| **Get Content** | Extract a workspace file's text, by file picker or by file ID. | `contents` |
+| **Fetch** | Download and parse a file from an external URL. | `files`, `combinedContent` |
+| **Write** | Create a new workspace file from a name and text content. | `id`, `name`, `size`, `url` |
+| **Append** | Add text to the end of an existing workspace file. | `id`, `name`, `size`, `url` |
+
+Read hands the next block the **file itself**; Get Content hands it the **text inside**. Fetch brings in both for an external URL. Write and Append put a file out. A workflow uses only the operations its task needs, often just Read. The two sections below cover Read and Write; the other operations are variants noted alongside.
+
+{/* VISUAL: File block config UI. Operation dropdown open showing Read / Get Content / Fetch / Write / Append */}
+
+## Reading a file in
+
+In our example, the first File block is set to **Read**, with `report.pdf` chosen from the file picker. When it runs, it produces `files`: a list of **file objects**, one per file read. The first is `<file1.files[0]>`.
+
+When the next step needs the file's *text* rather than the file itself, use **Get Content** instead: it extracts the text and outputs `contents`, an array with one string per file, read as `<file1.contents[0]>`.
+
+A **file object** is the standard shape Sim uses for every file. It carries the file's details:
+
+```jsonc
+{
+  "id": "wf_V1StGXR8z5jdHi6B…", // workspace file ID
+  "name": "report.pdf",
+  "url": "https://…",         // where to access it
+  "size": 248120,             // bytes
+  "type": "application/pdf"
+}
+```
+
+You rarely type a reference by hand. Wherever a block parameter accepts a file or a value, the builder lists the available outputs and you pick the one you want. Read mode also takes a file ID directly in advanced mode, which is how you read a file produced earlier in the same run.
+
+<Callout type="info">
+**Fetch** brings in files that live outside the workspace. Point it at a URL, and add request headers (such as `Authorization: Bearer …`) when the download needs authentication. It outputs `files` like Read does, plus `combinedContent`: the fetched files' text merged into one string.
+</Callout>
+
+{/* VISUAL: File block in Read mode, file picker open with report.pdf selected; callout on the files[] output */}
+
+## Processing the file
+
+Once a file is read, a processing block reads that output by name. Two blocks do this, and they consume the file differently.
+
+### Agent block
+
+An [Agent](/workflows/blocks/agent) block has a **Files** input. Reference the read file there, `<file1.files[0]>`, and write the instruction in the prompt: "Summarize this document." The agent receives the file object, not just its text, so a **vision-capable model** can analyze images and scanned pages directly. Other models work from the file's text content.
+
+In our example the Agent reads `<file1.files[0]>`, summarizes it, and keeps the summary under its own name as `<agent1.content>`.
+
+{/* VISUAL: Agent block config. Files input bound to <file1.files[0]>, prompt "Summarize this document" */}
+
+### Function block
+
+A [Function](/workflows/blocks/function) block runs code, and it usually works with file **text**. Read the file with **Get Content** and pass the extracted text, `<file1.contents[0]>`, and the code can parse, filter, or reshape it and return the result as its own output. A Function can also take the file object itself and read it in code with the `sim.files` helpers, like `await sim.files.readText(file)` — see [the Function block](/workflows/blocks/function) for those. Use a Function when the file is structured text (a CSV or JSON dump) and you want exact, deterministic processing instead of a model's interpretation.
+
+<Callout type="info">
+The two blocks differ in what they take. An **Agent** takes the file object on its Files input, while a **Function** typically takes the file's text from Get Content's `contents`. Both store their result under their own name for the next block to read.
+</Callout>
+
+## Writing a file out
+
+Writing a file is optional, and many workflows skip it. The agent's summary could be returned in the response, posted to Slack, or emailed as-is without ever becoming a workspace file. Write a file when you specifically need a new one to keep, download, or hand to a later run.
+
+The last block in our example is a File block set to **Write**. Give it a file name and the content to save:
+
+- `fileName`: `summary.md`
+- `content`: `<agent1.content>`
+
+Write creates a new workspace file and returns its `id`, `name`, `size`, and `url`. If a file with that name already exists, Write keeps both by adding a numeric suffix to the new one. The saved file lands in your workspace [files](/files), ready for the next run, a download, or another workflow.
+
+{/* VISUAL: run log showing the File Write step with the returned file id, name, and url */}
+
+<Callout type="info">
+**Append** adds to a file instead of replacing it. Target an existing workspace file by name and give it the content to add to the end. Use it to accumulate across runs, such as appending each run's observation to one `notes.md`.
+</Callout>
+
+## Composing the steps
+
+Each block references the previous one by name, so you compose only the steps a task needs. A contract read by an Agent that returns a verdict stops at processing, and an uploaded image described by a vision model never touches Write, while a fetched CSV cleaned by a Function and saved as a new file uses all three. Reading a file in is common, and writing one out is only for when the result is itself a file.
+
+For the file-object schema in full, base64 access, and how files move across API and chat triggers, see [Passing files](/files/passing-files).
+
+## Next
+
+<Cards>
+  <Card title="Passing files" href="/files/passing-files" description="The file object in full: properties, base64, and references across blocks." />
+  <Card title="Generating & storing files" href="/files/generating" description="Produce files from a run and save them to your workspace." />
+  <Card title="File block reference" href="/integrations/file" description="Every operation, input, and output in detail." />
+  <Card title="Agent block" href="/workflows/blocks/agent" description="Give an agent files to read, summarize, or analyze." />
+  <Card title="Using tables in workflows" href="/tables/using-in-workflows" description="Read and write structured rows the same way you read and write files." />
+</Cards>

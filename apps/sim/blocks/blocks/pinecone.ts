@@ -10,7 +10,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Pinecone into the workflow. Can generate embeddings, upsert text, search with text, fetch vectors, and search with vectors.',
-  docsLink: 'https://docs.sim.ai/tools/pinecone',
+  docsLink: 'https://docs.sim.ai/integrations/pinecone',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#0D1117',
@@ -399,6 +399,35 @@ export const PineconeBlockMeta = {
       category: 'support',
       tags: ['support', 'vector-search', 'automation'],
       alsoIntegrations: ['openai', 'zendesk'],
+    },
+  ],
+  skills: [
+    {
+      name: 'upsert-text-records',
+      description:
+        'Embed and upsert text records into a Pinecone namespace using integrated embeddings.',
+      content:
+        '# Upsert Text Records\n\nLoad documents into a Pinecone index for retrieval.\n\n## Steps\n1. Use the Upsert Text operation and provide the Index Host and target Namespace.\n2. Pass newline-delimited JSON Records, each with a unique _id, a text or chunk_text field, and any metadata fields such as category for later filtering.\n3. Keep chunks reasonably sized so each record carries one coherent idea.\n4. Confirm the upsert status from the response.\n\n## Output\nReport how many records were upserted into which namespace and surface any records that failed validation.',
+    },
+    {
+      name: 'semantic-search',
+      description:
+        'Run a text query against a Pinecone index with metadata filtering and optional reranking.',
+      content:
+        '# Semantic Search\n\nRetrieve the most relevant records for a query.\n\n## Steps\n1. Use the Search With Text operation with the Index Host, Namespace, and a natural-language Search Query.\n2. Set Top K for how many matches to return and list the Fields to Return.\n3. Optionally apply a metadata Filter (operators like $eq, $in, $gte) to scope the search, and pass Rerank Options to reorder by a cross-encoder for higher precision.\n\n## Output\nThe top matches with their scores, returned fields, and IDs, ordered by relevance after any reranking.',
+    },
+    {
+      name: 'generate-embeddings',
+      description:
+        'Generate vector embeddings for a set of texts with a Pinecone-hosted embedding model.',
+      content:
+        '# Generate Embeddings\n\nTurn text into vectors for storage or comparison.\n\n## Steps\n1. Use the Generate Embeddings operation and choose a model such as multilingual-e5-large or llama-text-embed-v2.\n2. Provide the Text Inputs as a JSON array of objects each with a text field.\n3. Use the returned vectors for downstream upserts or similarity work.\n\n## Output\nThe embedding vector per input, the model used, and the usage statistics for cost tracking.',
+    },
+    {
+      name: 'fetch-vectors-by-id',
+      description: 'Fetch specific vectors and their metadata from a Pinecone namespace by ID.',
+      content:
+        '# Fetch Vectors By ID\n\nLook up known records directly.\n\n## Steps\n1. Use the Fetch Vectors operation with the Index Host and Namespace.\n2. Provide the Vector IDs as a JSON array of the records to retrieve.\n3. Inspect the returned values and metadata to confirm content or debug retrieval.\n\n## Output\nThe requested records with their stored metadata, and a note listing any IDs that were not found.',
     },
   ],
 } as const satisfies BlockMeta

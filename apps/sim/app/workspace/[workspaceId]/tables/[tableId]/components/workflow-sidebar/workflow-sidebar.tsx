@@ -39,6 +39,7 @@ import type {
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   type FlattenOutputsBlockInput,
@@ -269,7 +270,7 @@ export function WorkflowSidebarBody({
   const existingGroup: WorkflowGroup | undefined = (() => {
     if (config.mode === 'edit-group') return workflowGroups.find((g) => g.id === config.groupId)
     if (config.mode === 'edit-output') {
-      const col = allColumns.find((c) => c.name === config.columnName)
+      const col = allColumns.find((c) => getColumnId(c) === config.columnName)
       return col?.workflowGroupId
         ? workflowGroups.find((g) => g.id === col.workflowGroupId)
         : undefined
@@ -278,7 +279,7 @@ export function WorkflowSidebarBody({
   })()
   const existingColumn =
     config.mode === 'edit-output'
-      ? (allColumns.find((c) => c.name === config.columnName) ?? null)
+      ? (allColumns.find((c) => getColumnId(c) === config.columnName) ?? null)
       : null
 
   // `manual` vs `enrichment`. For create it's carried on the config; for edit
@@ -296,7 +297,7 @@ export function WorkflowSidebarBody({
   //     existing column qualifies.
   const anchorIdx = (() => {
     if (config.mode === 'edit-output') {
-      const idx = allColumns.findIndex((c) => c.name === config.columnName)
+      const idx = allColumns.findIndex((c) => getColumnId(c) === config.columnName)
       return idx === -1 ? allColumns.length : idx
     }
     if (config.mode === 'edit-group' && existingGroup) {
@@ -321,8 +322,8 @@ export function WorkflowSidebarBody({
 
   // Every left-of-current column is a valid dep — workflow output columns
   // included. Exclude this group's own outputs (you can't depend on yourself).
-  const ownOutputNames = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
-  const depOptions = otherColumns.filter((c) => !ownOutputNames.has(c.name))
+  const ownOutputIds = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
+  const depOptions = otherColumns.filter((c) => !ownOutputIds.has(getColumnId(c)))
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
     () => existingGroup?.workflowId ?? (config.mode === 'create' ? (config.workflowId ?? '') : '')
@@ -401,7 +402,9 @@ export function WorkflowSidebarBody({
     return allColumns
       .filter(
         (c) =>
-          c.name !== anchor && !c.workflowGroupId && !startBlockInputs.existingNames.has(c.name)
+          getColumnId(c) !== anchor &&
+          !c.workflowGroupId &&
+          !startBlockInputs.existingNames.has(c.name)
       )
       .map((c) => c.name)
   }, [allColumns, anchorColumnName, startBlockInputs])
@@ -538,7 +541,7 @@ export function WorkflowSidebarBody({
     const encoded: string[] = []
     if (config.mode === 'edit-output' && existingColumn) {
       // Single-output sub-mode: only seed the picker with this column's mapping.
-      const own = existingGroup.outputs.find((o) => o.columnName === existingColumn.name)
+      const own = existingGroup.outputs.find((o) => o.columnName === getColumnId(existingColumn))
       if (own) {
         const match = blockOutputGroups.find(
           (g) => g.blockId === own.blockId && g.paths.includes(own.path)
@@ -561,13 +564,16 @@ export function WorkflowSidebarBody({
   // persisted mapping yet but matches a table column by name. Runs once; never
   // overrides a persisted or user-picked mapping.
   if (!inputMappingsHydrated && startBlockInputs.existing.length > 0) {
-    const columnNames = new Set(depOptions.map((c) => c.name))
+    // Map a Start input field to the column sharing its name, storing the
+    // column id (the value the dropdowns and persisted mappings key on).
+    const idByColumnName = new Map(depOptions.map((c) => [c.name, getColumnId(c)]))
     const next = { ...inputMappings }
     let changed = false
     for (const field of startBlockInputs.existing) {
       if (!field.name || next[field.name]) continue
-      if (columnNames.has(field.name)) {
-        next[field.name] = field.name
+      const colId = idByColumnName.get(field.name)
+      if (colId) {
+        next[field.name] = colId
         changed = true
       }
     }

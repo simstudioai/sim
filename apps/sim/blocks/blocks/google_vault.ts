@@ -616,4 +616,27 @@ export const GoogleVaultBlockMeta = {
       tags: ['legal', 'enterprise'],
     },
   ],
+  skills: [
+    {
+      name: 'open-legal-hold',
+      description:
+        'Create a Vault matter and place a legal hold on custodians for an investigation or litigation.',
+      content:
+        '# Open Legal Hold\n\nStand up a Vault matter and preserve data for the relevant custodians.\n\n## Steps\n1. Create a matter with a clear name and description tied to the case or investigation.\n2. List existing matters first to avoid creating a duplicate for the same case.\n3. Create a hold on the matter for the named custodians and the relevant service (mail, Drive, etc.).\n4. List holds on the matter to confirm the custodians were preserved.\n\n## Output\nReturn the matterId, the holdId, and the list of custodians now under hold. Note any custodian that could not be added.',
+    },
+    {
+      name: 'run-discovery-export',
+      description:
+        'Create a Vault export for a matter using a search query, then retrieve the export files.',
+      content:
+        '# Run Discovery Export\n\nProduce an export of matching data for eDiscovery or compliance review.\n\n## Steps\n1. Identify or create the matter for the export.\n2. Create an export with the search query, date range, and target accounts/org unit scoped as narrowly as possible.\n3. List exports on the matter and poll until the new export status is completed.\n4. Download the export files once the export is ready.\n\n## Output\nReturn the exportId, its status, and the downloaded file references. Summarize the query and scope used so the export is auditable.',
+    },
+    {
+      name: 'audit-active-holds',
+      description:
+        'List Vault matters and their holds to produce a custodian preservation status report.',
+      content:
+        '# Audit Active Holds\n\nGenerate a status report of which matters and custodians are currently preserved.\n\n## Steps\n1. List all matters and capture their IDs, names, and states.\n2. For each open matter, list its holds and the custodians and services covered.\n3. Flag matters with no holds and custodians that appear across multiple matters.\n\n## Output\nReturn a per-matter summary listing holds, services, and custodians, plus a flagged section for matters missing holds. Suitable for a monthly legal review.',
+    },
+  ],
 } as const satisfies BlockMeta

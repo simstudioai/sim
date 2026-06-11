@@ -4,12 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import type { ChipDropdownOption } from '@/components/emcn'
-import { Button, ChipDropdown, Tooltip } from '@/components/emcn'
+import { Button, ChipDropdown, Plus, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
-  CreateAction,
   FilterTag,
+  ResourceAction,
   ResourceCell,
   ResourceColumn,
   ResourceRow,
@@ -399,12 +399,16 @@ export function Knowledge({ onOpenKnowledgeBase }: KnowledgeProps) {
 
   const canEdit = userPermissions.canEdit === true
 
-  const createAction: CreateAction = useMemo(
-    () => ({
-      label: 'New base',
-      onClick: handleOpenCreateModal,
-      disabled: !canEdit,
-    }),
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: 'New base',
+        icon: Plus,
+        onSelect: handleOpenCreateModal,
+        disabled: !canEdit,
+        variant: 'primary',
+      },
+    ],
     [handleOpenCreateModal, canEdit]
   )
 
@@ -565,21 +569,23 @@ export function Knowledge({ onOpenKnowledgeBase }: KnowledgeProps) {
 
   return (
     <>
-      <Resource
-        icon={Database}
-        title='Knowledge Base'
-        create={createAction}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        columns={COLUMNS}
-        rows={rows}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header icon={Database} title='Knowledge Base' actions={headerActions} />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          sort={sortConfig}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <KnowledgeListContextMenu
         isOpen={isListContextMenuOpen}

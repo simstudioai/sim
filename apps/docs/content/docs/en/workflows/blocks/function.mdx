@@ -1,0 +1,175 @@
+---
+title: Function
+description: The Function block runs your JavaScript or Python code as a step and returns what it produces.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { BlockPreview, WorkflowPreview, FUNCTION_RESHAPE_WORKFLOW, FUNCTION_VALIDATE_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Function block** runs your own JavaScript or Python code as one step of a workflow. Use it to reshape a value, run a calculation, or add logic no other block covers.
+
+<BlockPreview type="function" />
+
+## Configuration
+
+### Code
+
+Your code, in JavaScript (the default) or Python — pick the language on the block. Reference an earlier output directly, with no quotes around the tag, and read an environment variable with `{{VAR}}`:
+
+<Tabs items={['JavaScript', 'Python']}>
+  <Tab value="JavaScript">
+  ```javascript
+  const data = <api.data>;
+  return data.items.filter((i) => i.active).map((i) => i.id);
+  ```
+  </Tab>
+  <Tab value="Python">
+  ```python
+  import json
+  data = json.loads('<api.data>')
+  print(json.dumps([i["id"] for i in data["items"] if i["active"]]))
+  ```
+  </Tab>
+</Tabs>
+
+Return a value in JavaScript with `return`. In Python, print it as JSON to stdout with `print(json.dumps(...))`; the block captures stdout as the result. Your code runs in an async context, so you can `await` directly in JavaScript.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<function.result>` | The value your code returns (object, array, string, number, …) |
+| `<function.stdout>` | Anything printed with `console.log()` or `print()` |
+
+## Language
+
+JavaScript runs in a fast local sandbox, or in an [E2B](https://e2b.dev) sandbox when your code uses `import` or `require`. Python always runs in the E2B sandbox.
+
+| | JavaScript | Python |
+| --- | --- | --- |
+| **Execution** | Local sandbox (fast), or E2B with imports | Always E2B sandbox |
+| **Return a value** | `return { … }` | `print(json.dumps({ … }))` |
+| **HTTP requests** | `fetch()` built-in | `requests` or `httpx` |
+| **Best for** | quick transforms, JSON | data science, charts, complex math |
+
+<Callout type="info">
+Python requires E2B. It is enabled by default on sim.ai; on a self-hosted instance, enable E2B to see Python in the language dropdown. Any figures you generate are captured as images automatically.
+</Callout>
+
+{/* Package list provenance (verified 2026-06-10): E2B code-interpreter template
+    requirements (github.com/e2b-dev/code-interpreter, template/requirements.txt)
+    plus Sim's template additions — pip awscli/yq/csvkit — from
+    simstudioai/copilot scripts/e2b/template.ts. Update if either source changes. */}
+
+Beyond the Python standard library, the sandbox ships E2B's data-science stack plus a few Sim additions:
+
+- **Data:** `pandas`, `numpy`, `scipy`, `xarray`, `numba`, `joblib`
+- **ML and NLP:** `scikit-learn`, `gensim`, `nltk`, `spacy`, `textblob`
+- **Plots and images:** `matplotlib`, `seaborn`, `plotly`, `bokeh`, `pillow`, `opencv-python`, `scikit-image`, `imageio`
+- **Audio:** `librosa`, `soundfile`
+- **Web and files:** `requests`, `aiohttp`, `beautifulsoup4`, `openpyxl`, `xlrd`, `python-docx`, `orjson`
+- **Math and testing:** `sympy`, `pytest`
+- **Sim additions:** `awscli`, `yq`, `csvkit`
+
+## Examples
+
+### Reshape an API response
+
+<WorkflowPreview workflow={FUNCTION_RESHAPE_WORKFLOW} />
+
+The Function reads `<api.data>`, returns just the field the rest of the workflow needs, and exposes it as `<extract.result>`.
+
+### Validate input before writing
+
+<WorkflowPreview workflow={FUNCTION_VALIDATE_WORKFLOW} />
+
+The Function sanitizes the form input and returns the clean value, which the API block sends as its body.
+
+### A worked example: loyalty score
+
+<Tabs items={['JavaScript', 'Python']}>
+  <Tab value="JavaScript">
+```javascript title="loyalty-calculator.js"
+const { purchaseHistory, accountAge, supportTickets } = <agent>;
+
+const totalSpent = purchaseHistory.reduce((sum, p) => sum + p.amount, 0);
+const purchaseFrequency = purchaseHistory.length / (accountAge / 365);
+const ticketRatio = supportTickets.resolved / supportTickets.total;
+
+const spendScore = Math.min((totalSpent / 1000) * 30, 30);
+const frequencyScore = Math.min(purchaseFrequency * 20, 40);
+const supportScore = ticketRatio * 30;
+const loyaltyScore = Math.round(spendScore + frequencyScore + supportScore);
+
+return {
+  customer: <agent.name>,
+  loyaltyScore,
+  loyaltyTier: loyaltyScore >= 80 ? 'Platinum' : loyaltyScore >= 60 ? 'Gold' : 'Silver',
+};
+```
+  </Tab>
+  <Tab value="Python">
+```python title="loyalty-calculator.py"
+import json
+
+data = json.loads('<agent>')
+purchase_history = data["purchaseHistory"]
+account_age = data["accountAge"]
+support_tickets = data["supportTickets"]
+
+total_spent = sum(p["amount"] for p in purchase_history)
+purchase_frequency = len(purchase_history) / (account_age / 365)
+ticket_ratio = support_tickets["resolved"] / support_tickets["total"]
+
+spend_score = min(total_spent / 1000 * 30, 30)
+frequency_score = min(purchase_frequency * 20, 40)
+support_score = ticket_ratio * 30
+loyalty_score = round(spend_score + frequency_score + support_score)
+
+tier = "Platinum" if loyalty_score >= 80 else "Gold" if loyalty_score >= 60 else "Silver"
+print(json.dumps({ "customer": data["name"], "loyaltyScore": loyalty_score, "loyaltyTier": tier }))
+```
+  </Tab>
+</Tabs>
+
+## Large inputs
+
+Sim hands a Function block its code, parameters, and resolved references in one request, so very large values are kept by reference rather than inlined.
+
+Prefer a narrow reference over a whole large value: use `<api.data.id>` instead of `<api.data>`. If a JavaScript function without imports does reference a whole large value, Sim rewrites it to a lazy server-side read automatically.
+
+Files are metadata-first: reading `<file.name>` or `<file.url>` does not load the file's contents. Read content on demand with the `sim.files` helpers (JavaScript without imports only):
+
+```javascript
+const file = <readfile.file>;
+const text = await sim.files.readText(file);
+const chunk = await sim.files.readTextChunk(file, { offset: 0, length: 1024 * 1024 });
+const bytes = await sim.files.readBase64Chunk(file, { offset: 0, length: 1024 * 1024 });
+```
+
+`sim.files.readText`, `readBase64`, and the `…Chunk` variants stream from execution storage under memory caps. `sim.values.read(ref)` and `sim.values.readArray(ref)` read large value and array references. Chunk `offset` and `length` are byte-based, so for exact Unicode parsing prefer smaller structured references. For large generated data, write the result to a file or table with `outputPath`, `outputSandboxPath`, or `outputTable` instead of returning the whole payload inline.
+
+<Callout type="warn">
+The lazy `sim.files` and `sim.values` helpers are available only in JavaScript functions without imports. JavaScript with imports, Python, and shell do not support them yet.
+</Callout>
+
+## Best Practices
+
+{/* Keep the error-path guidance below prominent: fewer than 1% of deployed workflows connect an error port (platform data, 2026-06) — under-adopted, not under-needed. */}
+
+- **Keep each function focused.** One transform per block is easier to read, test, and debug.
+- **Handle errors.** Wrap risky code in `try`/`catch` and return a clear message, or let it throw to the error path.
+- **Reference only what you need.** Pull a narrow field rather than a whole large object to keep values out of the request body.
+- **Use stdout to debug.** `console.log()` and `print()` land in `<function.stdout>` and the run logs.
+
+<FAQ items={[
+  { question: "What languages does the Function block support?", answer: "JavaScript and Python. JavaScript is the default. Python requires the E2B feature, since Python always runs in a secure E2B sandbox." },
+  { question: "When does code run locally vs. in a sandbox?", answer: "JavaScript without external imports runs in a local isolated sandbox for speed. JavaScript that uses import or require runs in E2B. Python always runs in the E2B sandbox, with or without imports." },
+  { question: "How do I reference outputs from other blocks inside my code?", answer: "Use angle-bracket syntax directly, like <agent.content> or <api.data>, with no quotes around the tag — Sim replaces it with the real value before execution. For environment variables, use double curly braces: {{API_KEY}}." },
+  { question: "What does the Function block return?", answer: "Two outputs: result (the return value of your code, read as <function.result>) and stdout (anything logged with console.log or print, read as <function.stdout>). Include a return statement in JavaScript, or print JSON in Python, to pass data downstream." },
+  { question: "Can I make HTTP requests from a Function block?", answer: "Yes. fetch() is available in JavaScript with async/await; libraries like axios are not, only the built-in fetch. In Python, use requests or httpx in the E2B sandbox." },
+  { question: "Is there a timeout for Function block execution?", answer: "Yes, a configurable execution timeout. If your code exceeds it, the run is terminated and the block reports an error. Keep this in mind for external calls or heavy processing." },
+]} />

@@ -10,7 +10,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Hugging Face into the workflow. Can generate completions using the Hugging Face Inference API.',
-  docsLink: 'https://docs.sim.ai/tools/huggingface',
+  docsLink: 'https://docs.sim.ai/integrations/huggingface',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#0B0F19',
@@ -188,6 +188,28 @@ export const HuggingFaceBlockMeta = {
       modules: ['tables', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['llm', 'engineering', 'analysis'],
+    },
+  ],
+  skills: [
+    {
+      name: 'run-chat-completion',
+      description:
+        'Send a prompt to a Hugging Face chat model via the Inference API and return the response.',
+      content:
+        '# Run Chat Completion\n\nGenerate a completion from an open chat model.\n\n## Steps\n1. Choose the model (e.g. an instruct or chat-tuned model available via the Inference API).\n2. Build the messages with a clear system instruction and the user prompt.\n3. Call chat with the model and messages, setting temperature and max tokens appropriate to the task.\n4. Capture the assistant response and any token usage returned.\n\n## Output\nReturn the model output and the model name used. Note token usage when available for cost tracking.',
+    },
+    {
+      name: 'extract-structured-data',
+      description:
+        'Use a Hugging Face chat model to extract fields from unstructured text into a structured object.',
+      content:
+        '# Extract Structured Data\n\nPull named fields out of free text using an open model.\n\n## Steps\n1. Define the exact fields to extract and their types.\n2. Build a system message instructing the model to return only valid JSON matching the schema, with nulls for missing fields.\n3. Call chat with the source text as the user message and a low temperature for determinism.\n4. Parse the response and validate it against the expected fields; retry once with a stricter instruction if parsing fails.\n\n## Output\nReturn the parsed structured object. On repeated parse failure, return the raw model text and an error note.',
+    },
+    {
+      name: 'compare-model-outputs',
+      description: 'Run the same prompt through two Hugging Face models and compare their outputs.',
+      content:
+        '# Compare Model Outputs\n\nEvaluate how two open models handle the same task.\n\n## Steps\n1. Define the shared prompt and the two model identifiers to compare.\n2. Call chat once per model with identical messages and generation settings.\n3. Capture each output along with latency and token usage.\n4. Score the outputs against the task criteria (accuracy, format, completeness).\n\n## Output\nReturn both responses side by side with their latency, token usage, and a brief quality comparison. Suitable for logging to an evaluation table.',
     },
   ],
 } as const satisfies BlockMeta

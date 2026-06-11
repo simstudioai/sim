@@ -13,7 +13,7 @@ export const CirclebackBlock: BlockConfig = {
   category: 'triggers',
   integrationType: IntegrationType.AI,
   bgColor: 'linear-gradient(180deg, #E0F7FA 0%, #FFFFFF 100%)',
-  docsLink: 'https://docs.sim.ai/tools/circleback',
+  docsLink: 'https://docs.sim.ai/integrations/circleback',
   icon: CirclebackIcon,
   triggerAllowed: true,
 

@@ -5,6 +5,7 @@ import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
+import { decodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 
 /** Respond tools are internal handoff tools shown with a friendly generic label. */
 const HIDDEN_TOOL_SUFFIX = '_respond'
@@ -80,6 +81,20 @@ function formatReadingLabel(target: string | undefined, state: ClientToolCallSta
   }
 }
 
+/**
+ * VFS paths store each segment percent-encoded (see {@link encodeVfsSegment}), so
+ * a read on "My Report.txt" arrives as "files/My%20Report.txt". Decode for
+ * display so the user sees the real file name. Falls back to the raw segment when
+ * it is not valid encoding (e.g. a literal "%" that was never encoded).
+ */
+function decodeVfsSegmentSafe(segment: string): string {
+  try {
+    return decodeVfsSegment(segment)
+  } catch {
+    return segment
+  }
+}
+
 function describeReadTarget(path: string | undefined): string | undefined {
   if (!path) return undefined
 
@@ -87,6 +102,7 @@ function describeReadTarget(path: string | undefined): string | undefined {
     .split('/')
     .map((segment) => segment.trim())
     .filter(Boolean)
+    .map(decodeVfsSegmentSafe)
 
   if (segments.length === 0) return undefined
 
@@ -107,8 +123,13 @@ function describeReadTarget(path: string | undefined): string | undefined {
   return stripExtension(resourceName)
 }
 
-const FILE_SPECIAL_READ_TARGET_PREFIXES: Record<string, string> = {
-  content: 'the content of',
+// A workspace file is addressed as a directory of facets in the VFS
+// (files/{...path}/{name}/{facet}). `content` is the default facet — reading a
+// file means reading its content — so it carries no qualifier, matching a bare
+// `files/{...path}/{name}` read. The remaining facets are genuinely distinct, so
+// they keep a descriptive label.
+const FILE_FACET_LABELS: Record<string, string> = {
+  content: '',
   'meta.json': 'metadata for',
   style: 'style details for',
   'compiled-check': 'the final file check for',
@@ -116,21 +137,16 @@ const FILE_SPECIAL_READ_TARGET_PREFIXES: Record<string, string> = {
 
 function describeFileReadTarget(segments: string[]): string {
   const lastSegment = segments[segments.length - 1] || ''
-  const specialPrefix = FILE_SPECIAL_READ_TARGET_PREFIXES[lastSegment]
-  if (specialPrefix) {
-    return `${specialPrefix} ${describeSpecialFilePathSubject(segments)}`
+  const facetLabel = FILE_FACET_LABELS[lastSegment]
+  // Treat the suffix as a facet only when a real file name precedes it; otherwise
+  // the leaf is the file itself (e.g. a file literally named "content").
+  if (facetLabel !== undefined && segments.length > 2) {
+    const fileName = segments[segments.length - 2]
+    return facetLabel ? `${facetLabel} ${fileName}` : fileName
   }
-
-  return segments.slice(1).join('/') || lastSegment
-}
-
-function describeSpecialFilePathSubject(segments: string[]): string {
-  if (segments[1] === 'by-id') {
-    const namedRemainder = segments.slice(3, -1).join('/')
-    return namedRemainder || 'this file'
-  }
-
-  return segments.slice(1, -1).join('/') || 'this file'
+  // Show just the file name, not the folder path — these are glanceable status
+  // lines, and the other resource types already render the leaf only.
+  return lastSegment
 }
 
 function getLeafResourceSegment(segments: string[]): string {

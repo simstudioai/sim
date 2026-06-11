@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { apiKey as apiKeyTable } from '@sim/db/schema'
+import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
@@ -47,6 +47,7 @@ interface HashCandidate {
   workspaceId: string | null
   type: string
   expiresAt: Date | null
+  userBanned: boolean | null
 }
 
 /**
@@ -82,14 +83,19 @@ export async function authenticateApiKeyFromHeader(
         workspaceId: apiKeyTable.workspaceId,
         type: apiKeyTable.type,
         expiresAt: apiKeyTable.expiresAt,
+        userBanned: userTable.banned,
       })
       .from(apiKeyTable)
+      .leftJoin(userTable, eq(apiKeyTable.userId, userTable.id))
       .where(eq(apiKeyTable.keyHash, keyHash))
 
     if (rows.length === 0) return INVALID
 
     const record = rows[0]
     const keyType = record.type as 'personal' | 'workspace'
+
+    // Defense in depth: banning deletes a user's keys, but reject any survivor too.
+    if (record.userBanned) return INVALID
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID

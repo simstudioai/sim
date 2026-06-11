@@ -41,7 +41,7 @@ import {
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
-import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
@@ -342,27 +342,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             await scheduleFilePreviewSessionCleanup(streamId)
             await cleanupAbortMarker(streamId)
 
-            const trace = collector.build({
-              outcome,
-              simRequestId: requestId,
-              streamId,
-              chatId,
-              runId,
-              executionId,
-              // Pass the raw user prompt through so the Go-side trace
-              // ingest can stamp it onto the `request_traces.message`
-              // column at insert time. Avoids relying on the late
-              // `UpdateAnalytics` UPDATE (which silently misses many
-              // rows).
-              userMessage: message,
-              usage: lifecycleResult?.usage,
-              cost: lifecycleResult?.cost,
-            })
-            reportTrace(trace, otelContext).catch((err) => {
-              logger.warn(`[${requestId}] Failed to report trace`, {
-                error: getErrorMessage(err),
-              })
-            })
             rootOutcome = outcome
             if (lifecycleResult?.usage) {
               activeOtelRoot.span.setAttributes({
@@ -525,6 +504,7 @@ export async function requestChatTitle(params: {
         message,
         model,
         ...(provider ? { provider } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
         ...(userId ? { userId } : {}),
       }),
       otelContext,

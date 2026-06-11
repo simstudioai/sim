@@ -12,7 +12,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   triggerAllowed: true,
   longDescription:
     'Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.',
-  docsLink: 'https://docs.sim.ai/tools/fathom',
+  docsLink: 'https://docs.sim.ai/integrations/fathom',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#181C1E',
@@ -281,6 +281,29 @@ export const FathomBlockMeta = {
       category: 'sales',
       tags: ['sales', 'meeting', 'automation'],
       alsoIntegrations: ['gmail'],
+    },
+  ],
+  skills: [
+    {
+      name: 'summarize-recent-meetings',
+      description:
+        'List recent Fathom meetings and produce a concise digest of decisions, owners, and action items.',
+      content:
+        '# Summarize Recent Meetings\n\nUse Fathom to pull recent meetings and turn them into a readable digest.\n\n## Steps\n1. List Fathom meetings, filtering by a date range (createdAfter / createdBefore) and optionally by team or recorder.\n2. Request summaries and action items in the response so each meeting comes back with its recap.\n3. Across the meetings, group the key decisions, commitments, and open action items by topic or owner.\n\n## Output\nReturn a digest with one short section per meeting (title, date, attendees, key points) followed by a consolidated action-item list with owners. Use the pagination cursor to cover the full range if there are many meetings.',
+    },
+    {
+      name: 'extract-meeting-action-items',
+      description:
+        'Pull a specific Fathom meeting summary and extract a clean list of action items with owners.',
+      content:
+        '# Extract Meeting Action Items\n\nUse Fathom to turn a single meeting into a tracked task list.\n\n## Steps\n1. Get the meeting summary for the given recording ID.\n2. Identify every commitment or next step mentioned, with the responsible owner and any stated due date.\n3. If owners are unclear, fall back to the transcript to find who made each commitment.\n\n## Output\nReturn a structured list of action items, each with the task description, owner, and due date (or null). Include a one-line meeting recap at the top for context.',
+    },
+    {
+      name: 'log-sales-call-to-crm',
+      description:
+        'Pull a Fathom call summary and CRM matches, then format a CRM-ready note with next steps.',
+      content:
+        '# Log Sales Call to CRM\n\nUse Fathom to capture a sales call and prepare it for the CRM.\n\n## Steps\n1. Get the summary for the meeting recording ID, including CRM matches so the linked contact or deal is known.\n2. Extract the customer pain points, objections, commitments, and agreed next steps.\n3. Format a concise call note suitable for logging against the matched CRM record.\n\n## Output\nReturn the matched CRM contact or deal identifier, a formatted call note, and a list of follow-up next steps with owners and dates so they can be written into the CRM.',
     },
   ],
 } as const satisfies BlockMeta

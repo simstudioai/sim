@@ -1,5 +1,6 @@
 import type { AgiloftLockRecordParams, AgiloftLockResponse } from '@/tools/agiloft/types'
-import { buildLockRecordUrl, executeAgiloftRequest, getLockHttpMethod } from '@/tools/agiloft/utils'
+import { buildLockRecordUrl, getLockHttpMethod } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftLockResponse> = {

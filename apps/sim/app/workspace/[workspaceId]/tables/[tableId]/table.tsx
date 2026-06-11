@@ -4,22 +4,15 @@ import { useCallback, useMemo, useReducer, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import {
-  Chip,
-  ChipModal,
-  ChipModalBody,
-  ChipModalFooter,
-  ChipModalHeader,
-  toast,
-} from '@/components/emcn'
+import { Chip, ChipConfirmModal, toast } from '@/components/emcn'
 import { Download, Pencil, Table as TableIcon, Trash, Upload } from '@/components/emcn/icons'
 import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import {
   type ColumnOption,
-  ResourceHeader,
-  ResourceOptionsBar,
+  Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
@@ -177,10 +170,10 @@ export function Table({
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
-  // useCallback because <ResourceHeader> is memo-wrapped — these flow into
+  // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
-  const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
+  const onRequestImportCsv = useCallback((): void => setIsImportCsvOpen(true), [])
   // Used inside grid's `useCallback` deps — identity stability prevents the
   // grid's `useCallback` from re-creating on every wrapper re-render.
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
@@ -350,7 +343,7 @@ export function Table({
     onSave: (_id, name) => {
       const data = tableDataRef.current
       if (data) pushTableRenameUndoSinkRef.current?.(data.name, name)
-      renameTableMutation.mutate({ tableId, name })
+      return renameTableMutation.mutateAsync({ tableId, name })
     },
   })
 
@@ -392,7 +385,8 @@ export function Table({
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
       columns.map((col) => ({
-        id: col.name,
+        // `id` is the filter/sort field key (column id); `label` is what the user sees.
+        id: getColumnId(col),
         label: col.name,
         type: col.type,
         icon: COLUMN_TYPE_ICONS[col.type],
@@ -478,7 +472,7 @@ export function Table({
             {
               label: 'Export CSV',
               icon: Download,
-              onClick: () => void handleExportCsv(),
+              onClick: (): void => void handleExportCsv(),
               disabled: tableData.rowCount === 0,
             },
           ]
@@ -515,6 +509,13 @@ export function Table({
     }
   }
 
+  const handleConfirmDeleteColumns = () => {
+    if (!deletingColumns) return
+    const names = deletingColumns
+    setDeletingColumns(null)
+    confirmDeleteColumnsSinkRef.current?.(names)
+  }
+
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
   const executionId = slideout.kind === 'execution' ? slideout.executionId : null
@@ -526,13 +527,11 @@ export function Table({
   return (
     <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
-        <ResourceHeader
+        <Resource.Header
           icon={TableIcon}
           breadcrumbs={breadcrumbs}
-          createTrigger={createTrigger}
-          actions={headerActions}
-          leadingActions={
-            <>
+          aside={
+            <div className='flex items-center gap-1.5'>
               <ImportProgressMenu workspaceId={workspaceId} tableId={tableId} />
               {selection.totalRunning > 0 || selection.hasActiveDispatch ? (
                 <RunStatusControl
@@ -541,18 +540,32 @@ export function Table({
                   isStopping={cancelRunsMutation.isPending}
                 />
               ) : null}
-            </>
+              {headerActions?.map((action) => (
+                <Chip
+                  key={action.label}
+                  leftIcon={action.icon}
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                >
+                  {action.label}
+                </Chip>
+              ))}
+              {createTrigger}
+            </div>
           }
         />
       )}
       {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
-          mode there's no ResourceHeader, so the run/stop control rides in the options
-          bar's right-aligned `trailing` slot — opposite the left-aligned filter/sort. */}
-      <ResourceOptionsBar
+          mode there's no Resource.Header, so the run/stop control rides in the options
+          bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
+      <Resource.Options
         sort={sortConfig}
-        onFilterToggle={() => setFilterOpen((prev) => !prev)}
-        filterActive={filterOpen || !!queryOptions.filter}
-        trailing={
+        filter={{
+          mode: 'toggle',
+          active: filterOpen || !!queryOptions.filter,
+          onToggle: () => setFilterOpen((prev) => !prev),
+        }}
+        aside={
           embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl
               running={selection.totalRunning}
@@ -648,7 +661,7 @@ export function Table({
         onClose={onCloseSlideout}
         existingColumn={
           columnConfig?.mode === 'edit'
-            ? (columns.find((c) => c.name === columnConfig.columnName) ?? null)
+            ? (columns.find((c) => getColumnId(c) === columnConfig.columnName) ?? null)
             : null
         }
         workspaceId={workspaceId}
@@ -709,7 +722,7 @@ export function Table({
           }}
         />
       )}
-      <ChipModal
+      <ChipConfirmModal
         open={deletingColumns !== null}
         onOpenChange={(open) => {
           if (!open) setDeletingColumns(null)
@@ -719,14 +732,13 @@ export function Table({
             ? `Delete ${deletingColumns.length} Columns`
             : 'Delete Column'
         }
-      >
-        <ChipModalHeader showDivider={false}>
-          {deletingColumns && deletingColumns.length > 1
+        title={
+          deletingColumns && deletingColumns.length > 1
             ? `Delete ${deletingColumns.length} Columns`
-            : 'Delete Column'}
-        </ChipModalHeader>
-        <ChipModalBody>
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            : 'Delete Column'
+        }
+        description={
+          <>
             {deletingColumns && deletingColumns.length > 1 ? (
               <>
                 Are you sure you want to delete{' '}
@@ -739,7 +751,9 @@ export function Table({
               <>
                 Are you sure you want to delete{' '}
                 <span className='font-medium text-[var(--text-primary)]'>
-                  {deletingColumns?.[0]}
+                  {(deletingColumns &&
+                    columns.find((c) => getColumnId(c) === deletingColumns[0])?.name) ??
+                    deletingColumns?.[0]}
                 </span>
                 ?{' '}
               </>
@@ -749,62 +763,36 @@ export function Table({
               {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
             </span>{' '}
             You can undo this action.
-          </p>
-        </ChipModalBody>
-        <ChipModalFooter>
-          <Chip variant='filled' flush onClick={() => setDeletingColumns(null)}>
-            Cancel
-          </Chip>
-          <Chip
-            variant='destructive'
-            flush
-            onClick={() => {
-              if (!deletingColumns) return
-              const names = deletingColumns
-              setDeletingColumns(null)
-              confirmDeleteColumnsSinkRef.current?.(names)
-            }}
-          >
-            Delete
-          </Chip>
-        </ChipModalFooter>
-      </ChipModal>
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleConfirmDeleteColumns,
+        }}
+      />
       {!embedded && (
-        <ChipModal
+        <ChipConfirmModal
           open={showDeleteTableConfirm}
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
-        >
-          <ChipModalHeader showDivider={false}>Delete Table</ChipModalHeader>
-          <ChipModalBody>
-            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+          title='Delete Table'
+          description={
+            <>
               Are you sure you want to delete{' '}
               <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
               <span className='text-[var(--text-error)]'>
                 All {tableData?.rowCount ?? 0} rows will be removed.
               </span>{' '}
               You can restore it from Recently Deleted in Settings.
-            </p>
-          </ChipModalBody>
-          <ChipModalFooter>
-            <Chip
-              variant='filled'
-              flush
-              onClick={() => setShowDeleteTableConfirm(false)}
-              disabled={deleteTableMutation.isPending}
-            >
-              Cancel
-            </Chip>
-            <Chip
-              variant='destructive'
-              flush
-              onClick={handleDeleteTable}
-              disabled={deleteTableMutation.isPending}
-            >
-              {deleteTableMutation.isPending ? 'Deleting...' : 'Delete'}
-            </Chip>
-          </ChipModalFooter>
-        </ChipModal>
+            </>
+          }
+          confirm={{
+            label: 'Delete',
+            onClick: handleDeleteTable,
+            pending: deleteTableMutation.isPending,
+            pendingLabel: 'Deleting...',
+          }}
+        />
       )}
     </div>
   )

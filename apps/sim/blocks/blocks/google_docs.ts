@@ -12,7 +12,7 @@ export const GoogleDocsBlock: BlockConfig<GoogleDocsResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Docs into the workflow. Can read, write, and create documents.',
-  docsLink: 'https://docs.sim.ai/tools/google_docs',
+  docsLink: 'https://docs.sim.ai/integrations/google_docs',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -282,6 +282,28 @@ export const GoogleDocsBlockMeta = {
       modules: ['knowledge-base', 'agent', 'workflows'],
       category: 'productivity',
       tags: ['team', 'research', 'sync'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-document-from-content',
+      description: 'Create a new Google Doc with a title and formatted content in a chosen folder.',
+      content:
+        '# Create a Document from Content\n\nGenerate a new Google Doc from supplied or drafted content.\n\n## Steps\n1. Determine the document title and the body content from the request.\n2. If the content uses headings, bold, lists, tables, or links, enable the Markdown option so it renders as formatted Doc content; otherwise leave it off for plain text.\n3. Optionally set the parent folder ID to file the doc in the right place.\n4. Run the Create Document operation with the title, content, and folder.\n\n## Output\nConfirm creation and return the document ID and link. If a folder was specified, confirm it was placed there.',
+    },
+    {
+      name: 'summarize-document',
+      description:
+        'Read a Google Doc and produce a concise summary with key points and action items.',
+      content:
+        '# Summarize a Document\n\nRead a Doc and distill it.\n\n## Steps\n1. Obtain the document ID (select the doc or pass its ID).\n2. Run the Read Document operation to pull the full text.\n3. Identify the main thesis, key points, decisions, and any action items or owners.\n4. Keep the summary faithful to the source; do not invent details not present.\n\n## Output\nA short summary: a one-line gist, 3-6 bullet key points, and an Action Items section (owner + task) if any exist. Reference the doc link.',
+    },
+    {
+      name: 'append-to-document',
+      description:
+        'Write additional content into an existing Google Doc, such as a running log or report section.',
+      content:
+        '# Append to a Document\n\nAdd a new section to an existing Doc.\n\n## Steps\n1. Obtain the target document ID.\n2. Draft the content to add, clearly delimited (e.g., a dated heading for a running log).\n3. Run the Write to Document operation with the document ID and the new content.\n4. For recurring updates, prefix each entry with a date or section header so the doc stays organized.\n\n## Output\nConfirm the content was written and return the document link. Summarize in one line what was appended.',
     },
   ],
 } as const satisfies BlockMeta

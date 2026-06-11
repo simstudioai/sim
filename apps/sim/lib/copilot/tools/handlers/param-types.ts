@@ -13,6 +13,10 @@ export interface GetWorkflowDataParams {
   dataType?: string
 }
 
+export interface GetWorkflowRunOptionsParams {
+  workflowId?: string
+}
+
 export interface GetBlockOutputsParams {
   workflowId?: string
   blockIds?: string[]
@@ -48,6 +52,10 @@ export interface RunWorkflowParams {
   input?: unknown
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
+  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  useMockPayload?: boolean
+  /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
+  inputFromExecutionId?: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
   useDeployedState?: boolean
 }
@@ -58,6 +66,10 @@ export interface RunWorkflowUntilBlockParams {
   input?: unknown
   /** Optional trigger block ID when the workflow has multiple entrypoints and the caller wants a specific one. */
   triggerBlockId?: string
+  /** When true, run with the resolved trigger's generated mock payload instead of workflow_input. */
+  useMockPayload?: boolean
+  /** Reuse the recorded input from a past execution of this workflow instead of supplying workflow_input. */
+  inputFromExecutionId?: string
   /** The block ID to stop after. Execution halts once this block completes. */
   stopAfterBlockId: string
   /** When true, runs the deployed version instead of the draft. Default: false (draft). */
@@ -118,6 +130,10 @@ export interface SetBlockEnabledParams {
 export interface DeployApiParams {
   workflowId?: string
   action?: 'deploy' | 'undeploy'
+  /** Description of what changed in this deployment version. Required when action is 'deploy'. */
+  versionDescription?: string
+  /** Short human-readable name/label for this deployment version. Required when action is 'deploy'. */
+  versionName?: string
 }
 
 export interface DeployChatParams {
@@ -126,6 +142,10 @@ export interface DeployChatParams {
   identifier?: string
   title?: string
   description?: string
+  /** Description of what changed in this deployment version (distinct from the chat-facing `description`). Required when action is 'deploy'. */
+  versionDescription?: string
+  /** Short human-readable name/label for this deployment version. Required when action is 'deploy'. */
+  versionName?: string
   welcomeMessage?: string
   customizations?: {
     primaryColor?: string
@@ -148,11 +168,50 @@ export interface DeployMcpParams {
   toolName?: string
   toolDescription?: string
   serverId?: string
-  parameterSchema?: Record<string, unknown>
+  /**
+   * Per-parameter descriptions as `[{ name, description }]`. Overlaid onto the
+   * workflow's input format before generating the tool schema — the same path
+   * the deploy modal uses. Parameter names/types/required come from the
+   * workflow's input trigger, not from this tool.
+   */
+  parameterDescriptions?: Array<{ name: string; description: string }>
 }
 
 export interface CheckDeploymentStatusParams {
   workflowId?: string
+}
+
+export interface UpdateDeploymentVersionParams {
+  workflowId?: string
+  version: number | string
+  /** New name/label for the version. Provide name and/or description. */
+  name?: string
+  /** New description for the version. Provide name and/or description. */
+  description?: string
+}
+
+export interface GetDeploymentLogParams {
+  workflowId?: string
+}
+
+export interface DiffWorkflowsParams {
+  workflowId?: string
+  /** Base/previous side: a version number, "live", or "draft". */
+  ref1: number | string
+  /** Target/current side: a version number, "live", or "draft". */
+  ref2: number | string
+}
+
+export interface LoadDeploymentParams {
+  workflowId?: string
+  /** Version number to load, or "live" for the active deployment. */
+  version: number | string
+}
+
+export interface PromoteToLiveParams {
+  workflowId?: string
+  /** Version number to promote to live. */
+  version: number
 }
 
 export interface ListWorkspaceMcpServersParams {
@@ -219,15 +278,18 @@ export type OpenResourceType = MothershipResourceType
 export interface OpenResourceItem {
   type?: OpenResourceType
   id?: string
+  path?: string
 }
 
 export interface OpenResourceParams {
   resources?: OpenResourceItem[]
   type?: OpenResourceType
   id?: string
+  path?: string
 }
 
 export interface ValidOpenResourceParams {
   type: OpenResourceType
-  id: string
+  id?: string
+  path?: string
 }

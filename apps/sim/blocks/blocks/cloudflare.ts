@@ -9,7 +9,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.',
-  docsLink: 'https://docs.sim.ai/tools/cloudflare',
+  docsLink: 'https://docs.sim.ai/integrations/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#F5F6FA',
@@ -1167,6 +1167,29 @@ export const CloudflareBlockMeta = {
       modules: ['knowledge-base', 'scheduled', 'agent', 'workflows'],
       category: 'engineering',
       tags: ['devops', 'enterprise', 'monitoring'],
+    },
+  ],
+  skills: [
+    {
+      name: 'audit-dns-records',
+      description:
+        'Pull all DNS records for a Cloudflare zone and report on misconfigurations, dangling records, and sensitive record changes.',
+      content:
+        '# Audit Cloudflare DNS Records\n\nExport and review the DNS configuration for a zone to catch misconfigurations and risky records.\n\n## Steps\n1. Resolve the zone ID for the target domain.\n2. List every DNS record (A, AAAA, CNAME, MX, TXT, NS) for the zone.\n3. Flag records that point to deprovisioned hosts, wildcard CNAMEs, missing SPF/DMARC TXT records, and proxied vs. unproxied mismatches.\n4. Group findings by record type and severity.\n\n## Output\nA prioritized list of DNS issues with the record name, type, current value, and recommended fix.',
+    },
+    {
+      name: 'purge-cache',
+      description:
+        'Purge Cloudflare cache for specific URLs or an entire zone after a deploy, then confirm what was cleared.',
+      content:
+        '# Purge Cloudflare Cache\n\nClear cached content so visitors see the latest deploy.\n\n## Steps\n1. Identify the affected zone and the paths or hostnames that changed.\n2. Purge by specific files when possible; only purge everything for the zone if the change is global.\n3. Confirm the purge succeeded and note the timestamp.\n\n## Output\nA short confirmation listing the zone, the purged URLs (or "full zone"), and the purge time.',
+    },
+    {
+      name: 'check-ssl-and-zone-settings',
+      description:
+        'Inspect SSL certificate status and security settings for Cloudflare zones and report drift from a desired baseline.',
+      content:
+        '# Check SSL and Zone Settings\n\nVerify SSL/TLS posture and key security settings across zones.\n\n## Steps\n1. List the target zones.\n2. For each zone read SSL mode, certificate status/expiry, minimum TLS version, and security level.\n3. Compare against the desired baseline (e.g. Full Strict, TLS 1.2+).\n4. Flag expiring certs and any setting weaker than the baseline.\n\n## Output\nA per-zone table of SSL status, settings, and any drift that needs remediation.',
     },
   ],
 } as const satisfies BlockMeta
