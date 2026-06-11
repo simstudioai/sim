@@ -3,13 +3,13 @@
 import type { ElementType, ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import {
-  Calendar,
-  Connections,
+  CalendarClock,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
+  Integration,
   Layout,
-  Library,
+  Logs,
   Table as TableIcon,
   Task,
   TerminalWindow,
@@ -100,8 +100,8 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
 const PAGE_ICONS: Record<MothershipPageId, ElementType> = {
   tables: TableIcon,
   knowledge: Database,
-  logs: Library,
-  'scheduled-tasks': Calendar,
+  logs: Logs,
+  'scheduled-tasks': CalendarClock,
 }
 
 function getPageIcon(pageId: string): ElementType {
@@ -201,18 +201,18 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   log: {
     type: 'log',
     label: 'Logs',
-    icon: Library,
+    icon: Logs,
     renderTabIcon: (_resource, className) => (
-      <Library className={cn(className, 'text-[var(--text-icon)]')} />
+      <Logs className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <LogDropdownItem {...props} />,
   },
   integration: {
     type: 'integration',
     label: 'Integrations',
-    icon: Connections,
+    icon: Integration,
     renderTabIcon: (_resource, className) => (
-      <Connections className={cn(className, 'text-[var(--text-icon)]')} />
+      <Integration className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
   },
