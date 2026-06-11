@@ -2168,6 +2168,137 @@
     "tags": ["enrichment", "marketing"]
   },
   {
+    "type": "brex",
+    "slug": "brex",
+    "name": "Brex",
+    "description": "Manage expenses, receipts, transactions, and team data in Brex",
+    "longDescription": "Integrates Brex into the workflow. List and update expenses, upload and match receipts, view card and cash transactions, accounts, budgets, spend limits, vendors, transfers, and team data.",
+    "bgColor": "#171717",
+    "iconName": "BrexIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/brex",
+    "operations": [
+      {
+        "name": "List Expenses",
+        "description": "List expenses in the Brex account with optional filters for user, status, payment status, and purchase date range"
+      },
+      {
+        "name": "Get Expense",
+        "description": "Get a single Brex expense by its ID, including merchant, user, and receipt details"
+      },
+      {
+        "name": "Update Expense Memo",
+        "description": "Update the memo of a Brex card expense"
+      },
+      {
+        "name": "Upload Receipt",
+        "description": "Upload a receipt file and attach it to a specific Brex card expense"
+      },
+      {
+        "name": "Match Receipt",
+        "description": "Upload a receipt file and let Brex automatically match it with existing expenses"
+      },
+      {
+        "name": "List Card Transactions",
+        "description": "List settled card transactions for all Brex card accounts"
+      },
+      {
+        "name": "List Cash Transactions",
+        "description": "List transactions for a Brex cash account"
+      },
+      {
+        "name": "List Card Accounts",
+        "description": "List all Brex card accounts with balances and limits"
+      },
+      {
+        "name": "List Cash Accounts",
+        "description": "List all Brex cash accounts with balances and account details"
+      },
+      {
+        "name": "Get Cash Account",
+        "description": "Get a Brex cash account by ID, or the primary cash account when no ID is provided"
+      },
+      {
+        "name": "List Card Statements",
+        "description": "List finalized statements for the primary Brex card account"
+      },
+      {
+        "name": "List Cash Statements",
+        "description": "List finalized statements for a Brex cash account"
+      },
+      {
+        "name": "List Users",
+        "description": "List users in the Brex account, optionally filtered by email"
+      },
+      {
+        "name": "Get User",
+        "description": "Get a Brex user by their ID"
+      },
+      {
+        "name": "Get Current User",
+        "description": "Get the Brex user associated with the API token"
+      },
+      {
+        "name": "List Departments",
+        "description": "List departments in the Brex account, optionally filtered by name"
+      },
+      {
+        "name": "List Locations",
+        "description": "List locations in the Brex account, optionally filtered by name"
+      },
+      {
+        "name": "List Titles",
+        "description": "List job titles in the Brex account, optionally filtered by name"
+      },
+      {
+        "name": "List Cards",
+        "description": "List cards in the Brex account, optionally filtered by card owner"
+      },
+      {
+        "name": "Get Company",
+        "description": "Get the Brex company associated with the API token"
+      },
+      {
+        "name": "List Budgets",
+        "description": "List budgets in the Brex account"
+      },
+      {
+        "name": "Get Budget",
+        "description": "Get a Brex budget by its ID"
+      },
+      {
+        "name": "List Spend Limits",
+        "description": "List spend limits in the Brex account, optionally filtered by member user"
+      },
+      {
+        "name": "Get Spend Limit",
+        "description": "Get a Brex spend limit by its ID"
+      },
+      {
+        "name": "List Vendors",
+        "description": "List vendors in the Brex account, optionally filtered by name"
+      },
+      {
+        "name": "Get Vendor",
+        "description": "Get a Brex vendor by its ID"
+      },
+      {
+        "name": "List Transfers",
+        "description": "List money transfers in the Brex account"
+      },
+      {
+        "name": "Get Transfer",
+        "description": "Get a Brex money transfer by its ID"
+      }
+    ],
+    "operationCount": 28,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "commerce",
+    "tags": ["payments"]
+  },
+  {
     "type": "brightdata",
     "slug": "bright-data",
     "name": "Bright Data",
