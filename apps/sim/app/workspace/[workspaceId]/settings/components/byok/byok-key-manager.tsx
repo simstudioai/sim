@@ -202,7 +202,7 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
   }
 
   const handleSave = async () => {
-    if (!editing || !apiKeyInput.trim()) return
+    if (!editing || !apiKeyInput.trim() || isSaving) return
 
     setError(null)
     try {
@@ -406,6 +406,9 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
                 }}
                 placeholder={editingMeta?.placeholder}
                 className={CHIP_FIELD_INPUT}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSave()
+                }}
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'

@@ -64,6 +64,11 @@ export function BYOKProviderKeysModal({
             </div>
           ))}
         </div>
+        {atCapacity && (
+          <p className='px-2 text-[12px] text-[var(--text-muted)]'>
+            Key limit reached ({maxKeys} keys per provider).
+          </p>
+        )}
       </ChipModalBody>
       <ChipModalFooter
         onCancel={close}
