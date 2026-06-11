@@ -155,6 +155,7 @@ import {
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
+import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock, LemlistBlockMeta } from '@/blocks/blocks/lemlist'
 import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/linear'
@@ -458,6 +459,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
+  latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
@@ -730,6 +732,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
   langsmith: LangsmithBlockMeta,
+  latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,
   lemlist: LemlistBlockMeta,
   linear: LinearBlockMeta,
