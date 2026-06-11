@@ -4,7 +4,7 @@ import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, asc, count, eq } from 'drizzle-orm'
+import { and, asc, count, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   deleteByokKeyContract,
@@ -143,8 +143,6 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { providerId, apiKey, keyId, name } = parsed.data.body
 
-      const { encrypted } = await encryptSecret(apiKey)
-
       if (keyId) {
         const [existingKey] = await db
           .select({ id: workspaceBYOKKeys.id, name: workspaceBYOKKeys.name })
@@ -162,6 +160,7 @@ export const POST = withRouteHandler(
           return NextResponse.json({ error: 'BYOK key not found' }, { status: 404 })
         }
 
+        const { encrypted } = await encryptSecret(apiKey)
         const updatedName = name === undefined ? existingKey.name : name || null
         const updatedAt = new Date()
 
@@ -202,17 +201,50 @@ export const POST = withRouteHandler(
         })
       }
 
-      const [{ keyCount }] = await db
-        .select({ keyCount: count() })
-        .from(workspaceBYOKKeys)
-        .where(
-          and(
-            eq(workspaceBYOKKeys.workspaceId, workspaceId),
-            eq(workspaceBYOKKeys.providerId, providerId)
-          )
+      const newKey = await db.transaction(async (tx) => {
+        await tx.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtext(${`byok:${workspaceId}:${providerId}`}))`
         )
 
-      if (keyCount >= MAX_BYOK_KEYS_PER_PROVIDER) {
+        const [{ keyCount }] = await tx
+          .select({ keyCount: count() })
+          .from(workspaceBYOKKeys)
+          .where(
+            and(
+              eq(workspaceBYOKKeys.workspaceId, workspaceId),
+              eq(workspaceBYOKKeys.providerId, providerId)
+            )
+          )
+
+        if (keyCount >= MAX_BYOK_KEYS_PER_PROVIDER) {
+          return null
+        }
+
+        const { encrypted } = await encryptSecret(apiKey)
+
+        const [inserted] = await tx
+          .insert(workspaceBYOKKeys)
+          .values({
+            id: generateShortId(),
+            workspaceId,
+            providerId,
+            encryptedApiKey: encrypted,
+            name: name || null,
+            createdBy: userId,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning({
+            id: workspaceBYOKKeys.id,
+            providerId: workspaceBYOKKeys.providerId,
+            name: workspaceBYOKKeys.name,
+            createdAt: workspaceBYOKKeys.createdAt,
+          })
+
+        return inserted
+      })
+
+      if (!newKey) {
         return NextResponse.json(
           {
             error: `A workspace can store at most ${MAX_BYOK_KEYS_PER_PROVIDER} keys per provider`,
@@ -220,25 +252,6 @@ export const POST = withRouteHandler(
           { status: 400 }
         )
       }
-
-      const [newKey] = await db
-        .insert(workspaceBYOKKeys)
-        .values({
-          id: generateShortId(),
-          workspaceId,
-          providerId,
-          encryptedApiKey: encrypted,
-          name: name || null,
-          createdBy: userId,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .returning({
-          id: workspaceBYOKKeys.id,
-          providerId: workspaceBYOKKeys.providerId,
-          name: workspaceBYOKKeys.name,
-          createdAt: workspaceBYOKKeys.createdAt,
-        })
 
       logger.info(`[${requestId}] Created BYOK key for ${providerId} in workspace ${workspaceId}`)
 

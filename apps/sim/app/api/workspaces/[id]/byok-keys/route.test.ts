@@ -37,8 +37,8 @@ const {
   }
 })
 
-vi.mock('@sim/db', () => ({
-  db: {
+vi.mock('@sim/db', () => {
+  const dbMock: Record<string, unknown> = {
     select: vi.fn(() => {
       const chain: Record<string, unknown> = {}
       chain.from = vi.fn().mockReturnValue(chain)
@@ -53,8 +53,11 @@ vi.mock('@sim/db', () => ({
     update: vi.fn(() => ({ set: mockUpdateSet })),
     insert: vi.fn(() => ({ values: mockInsertValues })),
     delete: vi.fn(() => ({ where: mockDeleteWhere })),
-  },
-}))
+    execute: vi.fn(() => Promise.resolve([])),
+  }
+  dbMock.transaction = vi.fn(async (callback: (tx: unknown) => unknown) => callback(dbMock))
+  return { db: dbMock }
+})
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -195,6 +198,7 @@ describe('workspace BYOK keys route', () => {
       const body = await res.json()
       expect(body.error).toContain('at most 10 keys')
       expect(mockInsertValues).not.toHaveBeenCalled()
+      expect(mockEncryptSecret).not.toHaveBeenCalled()
     })
 
     it('updates the targeted key in place when keyId is provided', async () => {
@@ -241,6 +245,7 @@ describe('workspace BYOK keys route', () => {
 
       expect(res.status).toBe(404)
       expect(mockUpdateSet).not.toHaveBeenCalled()
+      expect(mockEncryptSecret).not.toHaveBeenCalled()
     })
 
     it('rejects an empty apiKey', async () => {

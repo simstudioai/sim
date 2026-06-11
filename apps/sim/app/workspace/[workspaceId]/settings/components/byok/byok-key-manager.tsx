@@ -228,9 +228,13 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
 
     try {
       if (props.multiKey) {
-        if (deleteConfirm.keyId) {
-          await props.onDeleteKey(deleteConfirm.providerId, deleteConfirm.keyId)
+        const { providerId, keyId } = deleteConfirm
+        if (!keyId) {
+          logger.error('Delete confirmation is missing a keyId in multi-key mode', { providerId })
+          setDeleteConfirm(null)
+          return
         }
+        await props.onDeleteKey(providerId, keyId)
       } else {
         await props.onDelete(deleteConfirm.providerId)
       }
