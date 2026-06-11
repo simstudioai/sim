@@ -4,6 +4,7 @@ import type {
   PersonaDocument,
   PersonaImporter,
   PersonaInquiry,
+  PersonaInquiryTemplate,
   PersonaReport,
   PersonaVerification,
 } from '@/tools/persona/types'
@@ -253,6 +254,18 @@ export function mapDocument(data: PersonaResourceData): PersonaDocument {
 }
 
 /**
+ * Maps a raw Persona Inquiry Template resource to its flattened representation.
+ */
+export function mapInquiryTemplate(data: PersonaResourceData): PersonaInquiryTemplate {
+  const attrs = data.attributes ?? {}
+  return {
+    id: data.id ?? '',
+    name: getString(attrs, 'name'),
+    status: getString(attrs, 'status'),
+  }
+}
+
+/**
  * Maps a raw Persona Account Importer resource to its flattened representation.
  */
 export function mapImporter(data: PersonaResourceData): PersonaImporter {
@@ -421,6 +434,16 @@ export const DOCUMENT_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
   attributes: {
     type: 'json',
     description: 'Full document attributes, which vary by document type',
+  },
+}
+
+export const INQUIRY_TEMPLATE_OUTPUT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Inquiry template ID (starts with itmpl_)' },
+  name: { type: 'string', description: 'Name of the inquiry template', nullable: true },
+  status: {
+    type: 'string',
+    description: 'Inquiry template status (active, inactive)',
+    nullable: true,
   },
 }
 

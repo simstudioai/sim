@@ -10634,7 +10634,7 @@
     "slug": "persona",
     "name": "Persona",
     "description": "Verify identities with Persona",
-    "longDescription": "Integrate Persona identity verification into the workflow. Create and decision inquiries, generate one-time verification links, manage accounts, bulk-import accounts from CSV, run watchlist and adverse media reports, review cases, and retrieve verifications and documents.",
+    "longDescription": "Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.",
     "bgColor": "#FFFFFF",
     "iconName": "PersonaIcon",
     "docsUrl": "https://docs.sim.ai/tools/persona",
@@ -10652,6 +10652,10 @@
         "description": "List identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated."
       },
       {
+        "name": "Update Inquiry",
+        "description": "Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed."
+      },
+      {
         "name": "Approve Inquiry",
         "description": "Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks."
       },
@@ -10660,12 +10664,28 @@
         "description": "Decline an identity verification inquiry. Declining prevents further progress on the inquiry and triggers any associated workflows and webhooks."
       },
       {
+        "name": "Mark Inquiry for Review",
+        "description": "Mark an identity verification inquiry for manual review, moving it to the needs_review status."
+      },
+      {
+        "name": "Resume Inquiry",
+        "description": "Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token."
+      },
+      {
+        "name": "Expire Inquiry",
+        "description": "Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it."
+      },
+      {
         "name": "Generate Inquiry Link",
         "description": "Generate a one-time link for an inquiry that the individual can open to complete their identity verification."
       },
       {
         "name": "Print Inquiry PDF",
         "description": "Download a PDF summary of an inquiry, including its collected information and verification results."
+      },
+      {
+        "name": "Redact Inquiry",
+        "description": "Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone."
       },
       {
         "name": "Create Account",
@@ -10680,8 +10700,16 @@
         "description": "List accounts in your Persona organization, optionally filtered by reference ID. Results are cursor-paginated."
       },
       {
+        "name": "Update Account",
+        "description": "Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed."
+      },
+      {
         "name": "Import Accounts (CSV)",
         "description": "Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes."
+      },
+      {
+        "name": "Redact Account",
+        "description": "Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone."
       },
       {
         "name": "List Cases",
@@ -10700,15 +10728,23 @@
         "description": "Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes."
       },
       {
+        "name": "List Reports",
+        "description": "List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated."
+      },
+      {
         "name": "Get Verification",
         "description": "Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran."
       },
       {
         "name": "Get Document",
         "description": "Retrieve a single document by ID (government ID, generic document, and more), including its processing status and uploaded files."
+      },
+      {
+        "name": "List Inquiry Templates",
+        "description": "List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated."
       }
     ],
-    "operationCount": 17,
+    "operationCount": 26,
     "triggers": [],
     "triggerCount": 0,
     "authType": "api-key",

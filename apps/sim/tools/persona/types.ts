@@ -112,6 +112,15 @@ export interface PersonaImporter {
   completedAt: string | null
 }
 
+/**
+ * Flattened representation of a Persona Inquiry Template resource.
+ */
+export interface PersonaInquiryTemplate {
+  id: string
+  name: string | null
+  status: string | null
+}
+
 export interface PersonaCreateInquiryParams extends PersonaBaseParams {
   inquiryTemplateId: string
   accountId?: string
@@ -135,7 +144,31 @@ export interface PersonaListInquiriesParams extends PersonaBaseParams {
   pageAfter?: string
 }
 
+export interface PersonaUpdateInquiryParams extends PersonaBaseParams {
+  inquiryId: string
+  note?: string
+  fields?: Record<string, unknown> | string
+  tags?: string[] | string
+  redirectUri?: string
+}
+
 export interface PersonaApproveInquiryParams extends PersonaBaseParams {
+  inquiryId: string
+}
+
+export interface PersonaMarkInquiryForReviewParams extends PersonaBaseParams {
+  inquiryId: string
+}
+
+export interface PersonaResumeInquiryParams extends PersonaBaseParams {
+  inquiryId: string
+}
+
+export interface PersonaExpireInquiryParams extends PersonaBaseParams {
+  inquiryId: string
+}
+
+export interface PersonaRedactInquiryParams extends PersonaBaseParams {
   inquiryId: string
 }
 
@@ -161,6 +194,18 @@ export interface PersonaCreateAccountParams extends PersonaBaseParams {
 }
 
 export interface PersonaGetAccountParams extends PersonaBaseParams {
+  accountId: string
+}
+
+export interface PersonaUpdateAccountParams extends PersonaBaseParams {
+  accountId: string
+  referenceId?: string
+  countryCode?: string
+  fields?: Record<string, unknown> | string
+  tags?: string[] | string
+}
+
+export interface PersonaRedactAccountParams extends PersonaBaseParams {
   accountId: string
 }
 
@@ -202,6 +247,18 @@ export interface PersonaGetReportParams extends PersonaBaseParams {
   reportId: string
 }
 
+export interface PersonaListReportsParams extends PersonaBaseParams {
+  accountId?: string
+  referenceId?: string
+  pageSize?: number
+  pageAfter?: string
+}
+
+export interface PersonaListInquiryTemplatesParams extends PersonaBaseParams {
+  pageSize?: number
+  pageAfter?: string
+}
+
 export interface PersonaGetVerificationParams extends PersonaBaseParams {
   verificationId: string
 }
@@ -220,6 +277,13 @@ export interface PersonaListInquiriesResponse extends ToolResponse {
   output: {
     inquiries: PersonaInquiry[]
     nextCursor: string | null
+  }
+}
+
+export interface PersonaResumeInquiryResponse extends ToolResponse {
+  output: {
+    inquiry: PersonaInquiry
+    sessionToken: string | null
   }
 }
 
@@ -280,6 +344,20 @@ export interface PersonaReportResponse extends ToolResponse {
   }
 }
 
+export interface PersonaListReportsResponse extends ToolResponse {
+  output: {
+    reports: PersonaReport[]
+    nextCursor: string | null
+  }
+}
+
+export interface PersonaListInquiryTemplatesResponse extends ToolResponse {
+  output: {
+    inquiryTemplates: PersonaInquiryTemplate[]
+    nextCursor: string | null
+  }
+}
+
 export interface PersonaVerificationResponse extends ToolResponse {
   output: {
     verification: PersonaVerification
@@ -295,7 +373,10 @@ export interface PersonaDocumentResponse extends ToolResponse {
 export type PersonaResponse =
   | PersonaInquiryResponse
   | PersonaListInquiriesResponse
+  | PersonaResumeInquiryResponse
   | PersonaGenerateInquiryLinkResponse
+  | PersonaListReportsResponse
+  | PersonaListInquiryTemplatesResponse
   | PersonaPrintInquiryPdfResponse
   | PersonaAccountResponse
   | PersonaListAccountsResponse

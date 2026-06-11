@@ -26,7 +26,7 @@ In Sim, the Persona block lets your agents drive identity verification as part o
 
 ## Usage Instructions
 
-Integrate Persona identity verification into the workflow. Create and decision inquiries, generate one-time verification links, manage accounts, bulk-import accounts from CSV, run watchlist and adverse media reports, review cases, and retrieve verifications and documents.
+Integrate Persona identity verification into the workflow. Manage the full inquiry lifecycle (create, update, approve, decline, review, resume, expire, redact), generate one-time verification links and PDF summaries, manage accounts including CSV bulk import, run watchlist and adverse media reports, review cases, retrieve verifications and documents, and discover inquiry templates.
 
 
 
@@ -95,6 +95,27 @@ List identity verification inquiries, optionally filtered by status, account ID,
 | `inquiries` | array | Inquiries matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+### `persona_update_inquiry`
+
+Update an inquiry’s note, fields, tags, or redirect URI. Only the provided values are changed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `inquiryId` | string | Yes | Inquiry ID to update \(starts with inq_\) |
+| `note` | string | No | Free-form note to set on the inquiry |
+| `fields` | json | No | JSON object of field name to field value pairs to set, as defined by the inquiry template \(e.g. \{"name-first": "Jane"\}\) |
+| `tags` | array | No | JSON array of tag names to set on the inquiry \(e.g. \["vip"\]\) |
+| `redirectUri` | string | No | URI to redirect the individual to after completing the inquiry flow |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiry` | object | The updated inquiry |
+
 ### `persona_approve_inquiry`
 
 Approve an identity verification inquiry. Approving prevents further progress on the inquiry and triggers any associated workflows and webhooks.
@@ -128,6 +149,58 @@ Decline an identity verification inquiry. Declining prevents further progress on
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `inquiry` | object | The declined inquiry |
+
+### `persona_mark_inquiry_for_review`
+
+Mark an identity verification inquiry for manual review, moving it to the needs_review status.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `inquiryId` | string | Yes | Inquiry ID to mark for review \(starts with inq_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiry` | object | The inquiry marked for review |
+
+### `persona_resume_inquiry`
+
+Resume a pending or expired inquiry, creating a new session so the individual can continue verification. Returns a session token.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `inquiryId` | string | Yes | Inquiry ID to resume \(starts with inq_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiry` | object | The resumed inquiry |
+| `sessionToken` | string | Session token for the new inquiry session, used to continue the flow in embedded SDKs |
+
+### `persona_expire_inquiry`
+
+Expire an in-progress inquiry, invalidating its sessions and one-time links so the individual can no longer continue it.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `inquiryId` | string | Yes | Inquiry ID to expire \(starts with inq_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiry` | object | The expired inquiry |
 
 ### `persona_generate_inquiry_link`
 
@@ -165,6 +238,23 @@ Download a PDF summary of an inquiry, including its collected information and ve
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `file` | file | PDF summary of the inquiry, stored in execution files |
+
+### `persona_redact_inquiry`
+
+Permanently delete all personally identifiable information collected by an inquiry, for example to honor a data deletion request. This cannot be undone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `inquiryId` | string | Yes | Inquiry ID to redact \(starts with inq_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiry` | object | The redacted inquiry \(PII fields are removed\) |
 
 ### `persona_create_account`
 
@@ -224,6 +314,27 @@ List accounts in your Persona organization, optionally filtered by reference ID.
 | `accounts` | array | Accounts matching the filters |
 | `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
+### `persona_update_account`
+
+Update an account’s reference ID, country code, fields, or tags. Only the provided values are changed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `accountId` | string | Yes | Account ID to update \(starts with act_\) |
+| `referenceId` | string | No | Reference ID that refers to an entity in your user model |
+| `countryCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g. US\) |
+| `fields` | json | No | JSON object of field name to field value pairs to set, as defined by the account type \(e.g. \{"name-first": "Jane"\}\) |
+| `tags` | array | No | JSON array of tag names to set on the account \(e.g. \["vip"\]\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The updated account |
+
 ### `persona_import_accounts`
 
 Bulk-import accounts into Persona from a CSV file. Returns an importer whose status can be polled until processing completes.
@@ -240,6 +351,23 @@ Bulk-import accounts into Persona from a CSV file. Returns an importer whose sta
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `importer` | object | The created account importer |
+
+### `persona_redact_account`
+
+Permanently delete all personally identifiable information stored on an account, for example to honor a data deletion request. This cannot be undone.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `accountId` | string | Yes | Account ID to redact \(starts with act_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `account` | object | The redacted account \(PII fields are removed\) |
 
 ### `persona_list_cases`
 
@@ -322,6 +450,27 @@ Retrieve a single screening report by ID, including its status, match results, a
 | --------- | ---- | ----------- |
 | `report` | object | The retrieved report |
 
+### `persona_list_reports`
+
+List screening reports, optionally filtered by account ID or reference ID. Results are cursor-paginated.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `accountId` | string | No | Filter by account ID \(starts with act_\) |
+| `referenceId` | string | No | Filter by reference ID |
+| `pageSize` | number | No | Number of reports to return per page \(1-100, default 10\) |
+| `pageAfter` | string | No | Pagination cursor: return reports after this report ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Reports matching the filters |
+| `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
+
 ### `persona_get_verification`
 
 Retrieve a single verification by ID (government ID, selfie, document, database, and more), including its status and the checks that ran.
@@ -355,5 +504,24 @@ Retrieve a single document by ID (government ID, generic document, and more), in
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `document` | object | The retrieved document |
+
+### `persona_list_inquiry_templates`
+
+List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Persona API key |
+| `pageSize` | number | No | Number of templates to return per page \(1-100, default 10\) |
+| `pageAfter` | string | No | Pagination cursor: return templates after this template ID |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `inquiryTemplates` | array | Inquiry templates in the organization |
+| `nextCursor` | string | Cursor for the next page \(pass as pageAfter\), or null on the last page |
 
 
