@@ -39,9 +39,10 @@ function buildReceiptMultipartBody(
   }
 
   const safeFileName = file.name.replace(/[\r\n"]/g, '_')
+  const safeContentType = file.type.replace(/[\r\n]/g, '') || 'application/octet-stream'
   parts.push(
     Buffer.from(
-      `--${boundary}\r\nContent-Disposition: attachment; name="receipt"; filename="${safeFileName}"\r\nContent-Type: ${file.type}\r\n\r\n`
+      `--${boundary}\r\nContent-Disposition: attachment; name="receipt"; filename="${safeFileName}"\r\nContent-Type: ${safeContentType}\r\n\r\n`
     )
   )
   parts.push(file.buffer)
