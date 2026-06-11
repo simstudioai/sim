@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useId, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useId, useState } from 'react'
 import styles from '@/components/emcn/components/thinking-loader/thinking-loader.module.css'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -31,6 +31,41 @@ const VARIANT_LOOP_MS: Record<ThinkingLoaderVariant, number> = {
   compass: 2000,
   squeeze: 1200,
   maze: 2000,
+}
+
+/**
+ * Fixed shuffle of the cycle so every instance walks the same pattern order.
+ * Which pattern shows is a pure function of the wall clock, so loaders in
+ * the chat switcher and the message stream stay in lockstep.
+ */
+const CYCLE_SEQUENCE: readonly ThinkingLoaderVariant[] = [
+  'metaballs',
+  'relay',
+  'compass',
+  'corners',
+  'maze',
+  'burst',
+  'orbit',
+  'squeeze',
+]
+const CYCLE_TOTAL_MS = CYCLE_SEQUENCE.reduce((sum, v) => sum + VARIANT_LOOP_MS[v], 0)
+
+/**
+ * Common multiple of every shape animation period (800/1000/1200/2000ms,
+ * alternates doubled) — the wall-clock modulus for the shared negative
+ * animation-delay that phase-locks instances mounted at different times.
+ */
+const SYNC_PERIOD_MS = 12_000
+
+/** The pattern the shared timeline is on right now, and how long it holds. */
+function variantAtNow(): { variant: ThinkingLoaderVariant; msUntilNext: number } {
+  let t = Date.now() % CYCLE_TOTAL_MS
+  for (const v of CYCLE_SEQUENCE) {
+    const hold = VARIANT_LOOP_MS[v]
+    if (t < hold) return { variant: v, msUntilNext: hold - t }
+    t -= hold
+  }
+  return { variant: CYCLE_SEQUENCE[0], msUntilNext: VARIANT_LOOP_MS[CYCLE_SEQUENCE[0]] }
 }
 
 /**
@@ -152,14 +187,23 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
     if (!cycling) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-    const timeout = setTimeout(() => {
-      setCycleVariant((prev) => {
-        const others = VARIANTS.filter((v) => v !== prev)
-        return others[Math.floor(Math.random() * others.length)]
-      })
-    }, VARIANT_LOOP_MS[cycleVariant])
+    let timeout: ReturnType<typeof setTimeout>
+    const tick = () => {
+      const { variant: next, msUntilNext } = variantAtNow()
+      setCycleVariant(next)
+      timeout = setTimeout(tick, msUntilNext)
+    }
+    tick()
     return () => clearTimeout(timeout)
-  }, [cycling, cycleVariant])
+  }, [cycling])
+
+  // Phase-lock the CSS animations to the wall clock (set after mount so
+  // server and client markup agree). All instances share the same negative
+  // delay modulus, so their keyframes line up regardless of mount time.
+  const [syncDelay, setSyncDelay] = useState<string | undefined>(undefined)
+  useEffect(() => {
+    setSyncDelay(`-${Date.now() % SYNC_PERIOD_MS}ms`)
+  }, [])
 
   const shown = variant ?? cycleVariant
   const stages = cycling ? VARIANTS : [shown]
@@ -173,6 +217,7 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
       width={size}
       height={size}
       className={cn(styles.frame, !label && className)}
+      style={syncDelay ? ({ '--tl-sync': syncDelay } as CSSProperties) : undefined}
     >
       <defs>
         <filter id={filterId} x='-30%' y='-30%' width='160%' height='160%'>

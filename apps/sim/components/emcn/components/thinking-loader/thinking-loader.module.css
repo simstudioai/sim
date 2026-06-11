@@ -20,6 +20,15 @@
   flex: none;
 }
 
+/* Wall-clock phase lock: the component sets --tl-sync to a shared negative
+   delay (now mod the common animation period), so every instance's keyframes
+   line up no matter when it mounted. The doubled class out-specifies the
+   shape classes' animation shorthand (implicit 0s delay) regardless of
+   source order. */
+.frame.frame * {
+  animation-delay: var(--tl-sync, 0s);
+}
+
 :global(.dark) .frame {
   color: #d6d6d6;
 }
