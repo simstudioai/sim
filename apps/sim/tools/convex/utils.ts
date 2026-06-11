@@ -1,4 +1,8 @@
-import type { ConvexFunctionCallResponse } from '@/tools/convex/types'
+import { truncate } from '@sim/utils/string'
+import type {
+  ConvexFunctionCallApiResponse,
+  ConvexFunctionCallResponse,
+} from '@/tools/convex/types'
 
 /**
  * Builds a Convex deployment API URL from the user-provided deployment URL.
@@ -48,6 +52,20 @@ export function parseFunctionArgs(
 }
 
 /**
+ * Parses a Convex API response body, surfacing non-OK HTTP statuses (e.g. 401
+ * from an invalid deploy key) as descriptive errors instead of empty results.
+ */
+export async function parseConvexResponse(response: Response): Promise<unknown> {
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(
+      `Convex request failed (HTTP ${response.status})${text ? `: ${truncate(text.trim(), 300)}` : ''}`
+    )
+  }
+  return response.json()
+}
+
+/**
  * Transforms a Convex function-call response. Convex returns HTTP 200 with an
  * in-band `status: "error"` payload when the function itself fails, so errors
  * must be surfaced here rather than relying on the HTTP status code.
@@ -57,7 +75,7 @@ export async function transformFunctionCallResponse(
   response: Response,
   functionType: 'query' | 'mutation' | 'action' | 'function'
 ): Promise<ConvexFunctionCallResponse> {
-  const data = await response.json()
+  const data = (await parseConvexResponse(response)) as ConvexFunctionCallApiResponse
 
   if (data.status === 'error') {
     const details =

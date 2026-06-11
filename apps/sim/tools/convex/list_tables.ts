@@ -1,5 +1,5 @@
 import type { ConvexListTablesParams, ConvexListTablesResponse } from '@/tools/convex/types'
-import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
+import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTablesResponse> = {
@@ -30,7 +30,7 @@ export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTables
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = await parseConvexResponse(response)
     const schemas =
       data !== null && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>)

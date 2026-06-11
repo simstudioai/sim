@@ -1,5 +1,9 @@
-import type { ConvexListDocumentsParams, ConvexListDocumentsResponse } from '@/tools/convex/types'
-import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
+import type {
+  ConvexListDocumentsParams,
+  ConvexListDocumentsResponse,
+  ConvexListSnapshotApiResponse,
+} from '@/tools/convex/types'
+import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexListDocumentsResponse> =
@@ -59,7 +63,7 @@ export const listDocumentsTool: ToolConfig<ConvexListDocumentsParams, ConvexList
     },
 
     transformResponse: async (response: Response) => {
-      const data = await response.json()
+      const data = (await parseConvexResponse(response)) as ConvexListSnapshotApiResponse
 
       return {
         success: true,

@@ -1,5 +1,9 @@
-import type { ConvexDocumentDeltasParams, ConvexDocumentDeltasResponse } from '@/tools/convex/types'
-import { convexApiUrl, convexAuthHeaders } from '@/tools/convex/utils'
+import type {
+  ConvexDocumentDeltasApiResponse,
+  ConvexDocumentDeltasParams,
+  ConvexDocumentDeltasResponse,
+} from '@/tools/convex/types'
+import { convexApiUrl, convexAuthHeaders, parseConvexResponse } from '@/tools/convex/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const documentDeltasTool: ToolConfig<
@@ -57,7 +61,7 @@ export const documentDeltasTool: ToolConfig<
   },
 
   transformResponse: async (response: Response) => {
-    const data = await response.json()
+    const data = (await parseConvexResponse(response)) as ConvexDocumentDeltasApiResponse
 
     return {
       success: true,

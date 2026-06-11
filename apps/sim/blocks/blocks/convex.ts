@@ -105,7 +105,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'list_documents' },
     },
     {
-      id: 'cursor',
+      id: 'pageCursor',
       title: 'Cursor',
       type: 'short-input',
       mode: 'advanced',
@@ -144,6 +144,15 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
             throw new Error(`Invalid Convex operation: ${params.operation}`)
         }
       },
+      params: (params) => {
+        const { pageCursor, ...rest } = params
+
+        if (params.operation === 'list_documents') {
+          rest.cursor = pageCursor
+        }
+
+        return rest
+      },
     },
   },
   inputs: {
@@ -153,8 +162,9 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
     functionPath: { type: 'string', description: 'Function path (e.g., messages:list)' },
     args: { type: 'json', description: 'Named arguments for the function' },
     tableName: { type: 'string', description: 'Table to read from (empty for all tables)' },
-    snapshot: { type: 'string', description: 'Snapshot timestamp for pagination' },
-    cursor: { type: 'string', description: 'Pagination cursor' },
+    snapshot: { type: 'string', description: 'Snapshot timestamp for List Documents pagination' },
+    cursor: { type: 'string', description: 'Timestamp cursor for Document Deltas' },
+    pageCursor: { type: 'string', description: 'Pagination cursor for List Documents' },
   },
   outputs: {
     value: {

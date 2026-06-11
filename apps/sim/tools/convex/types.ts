@@ -60,6 +60,34 @@ export interface ConvexDocumentDeltasResponse extends ToolResponse {
   }
 }
 
+/**
+ * Raw wire shape of Convex function-call responses (`/api/query`, `/api/mutation`,
+ * `/api/action`, `/api/run/{identifier}`).
+ * @see https://docs.convex.dev/http-api/#post-apiquery-apimutation-apiaction
+ */
+export interface ConvexFunctionCallApiResponse {
+  status?: 'success' | 'error'
+  value?: unknown
+  logLines?: string[]
+  errorMessage?: string
+  errorData?: unknown
+}
+
+/** Raw wire shape of `/api/list_snapshot` responses. */
+export interface ConvexListSnapshotApiResponse {
+  values?: unknown[]
+  hasMore?: boolean
+  snapshot?: number | string | null
+  cursor?: number | string | null
+}
+
+/** Raw wire shape of `/api/document_deltas` responses. */
+export interface ConvexDocumentDeltasApiResponse {
+  values?: unknown[]
+  hasMore?: boolean
+  cursor?: number | string | null
+}
+
 export interface ConvexResponse extends ToolResponse {
   output: {
     value?: unknown
