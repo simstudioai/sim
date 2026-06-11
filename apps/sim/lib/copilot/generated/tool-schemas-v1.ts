@@ -1051,6 +1051,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   file: {
     parameters: {
+      properties: {
+        prompt: {
+          description:
+            "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+          type: 'string',
+        },
+      },
       type: 'object',
     },
     resultSchema: undefined,
@@ -2498,6 +2505,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   media: {
     parameters: {
+      properties: {
+        prompt: {
+          description:
+            "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+          type: 'string',
+        },
+      },
       type: 'object',
     },
     resultSchema: undefined,
@@ -3940,6 +3954,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
   },
   workflow: {
     parameters: {
+      properties: {
+        prompt: {
+          description:
+            "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+          type: 'string',
+        },
+      },
       type: 'object',
     },
     resultSchema: undefined,
