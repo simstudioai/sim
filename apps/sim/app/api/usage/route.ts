@@ -1,3 +1,4 @@
+import { dbReplica } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getUsageLimitContract, updateUsageLimitContract } from '@/lib/api/contracts/subscription'
@@ -62,7 +63,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 })
       }
 
-      const org = await getOrganizationBillingData(organizationId)
+      const org = await getOrganizationBillingData(organizationId, dbReplica)
       return NextResponse.json({
         success: true,
         context,

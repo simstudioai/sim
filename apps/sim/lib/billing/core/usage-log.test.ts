@@ -23,12 +23,10 @@ const {
   mockUpdate: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({
-  db: {
-    insert: mockInsert,
-    transaction: mockTransaction,
-  },
-}))
+vi.mock('@sim/db', () => {
+  const instance = { insert: mockInsert, transaction: mockTransaction }
+  return { db: instance, dbReplica: instance }
+})
 
 vi.mock('@sim/db/schema', () => ({
   usageLog: {

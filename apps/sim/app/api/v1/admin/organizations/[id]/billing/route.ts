@@ -15,7 +15,7 @@
  * Response: AdminSingleResponse<{ success: true, orgUsageLimit: string | null }>
  */
 
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq } from 'drizzle-orm'
@@ -96,7 +96,7 @@ export const GET = withRouteHandler(
         return singleResponse(data)
       }
 
-      const billingData = await getOrganizationBillingData(organizationId)
+      const billingData = await getOrganizationBillingData(organizationId, dbReplica)
 
       if (!billingData) {
         return notFoundResponse('Organization or subscription')
