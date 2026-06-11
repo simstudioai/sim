@@ -9,7 +9,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { FileAccessDeniedError, verifyFileAccess } from '@/app/api/files/authorization'
-import { buildPersonaHeaders, mapImporter, PERSONA_API_BASE } from '@/tools/persona/utils'
+import {
+  buildPersonaHeaders,
+  extractPersonaErrorMessage,
+  mapImporter,
+  PERSONA_API_BASE,
+} from '@/tools/persona/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,8 +85,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const personaData = await personaResponse.json().catch(() => null)
 
     if (!personaResponse.ok) {
-      const personaError =
-        personaData?.errors?.[0]?.title ?? `Persona API error: ${personaResponse.statusText}`
+      const personaError = extractPersonaErrorMessage(
+        personaData,
+        `Persona API error: ${personaResponse.statusText}`
+      )
       logger.error(`[${requestId}] Persona import accounts failed`, {
         status: personaResponse.status,
         error: personaError,

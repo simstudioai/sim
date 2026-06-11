@@ -3,12 +3,13 @@ import type {
   PersonaListInquiryTemplatesResponse,
 } from '@/tools/persona/types'
 import {
+  asResourceList,
   buildPersonaHeaders,
   getNextCursor,
   INQUIRY_TEMPLATE_OUTPUT_PROPERTIES,
   mapInquiryTemplate,
   PERSONA_API_BASE,
-  type PersonaResourceData,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -56,8 +57,8 @@ export const personaListInquiryTemplatesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    const templates: PersonaResourceData[] = Array.isArray(data.data) ? data.data : []
+    const data = await parsePersonaResponse(response)
+    const templates = asResourceList(data.data)
     return {
       success: true,
       output: {

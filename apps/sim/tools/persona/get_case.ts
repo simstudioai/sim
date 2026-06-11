@@ -1,9 +1,11 @@
 import type { PersonaCaseResponse, PersonaGetCaseParams } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   CASE_OUTPUT_PROPERTIES,
   mapCase,
   PERSONA_API_BASE,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -36,11 +38,11 @@ export const personaGetCaseTool: ToolConfig<PersonaGetCaseParams, PersonaCaseRes
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        case: mapCase(data.data ?? {}),
+        case: mapCase(asResource(data.data)),
       },
     }
   },

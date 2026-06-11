@@ -2,7 +2,11 @@ import type {
   PersonaPrintInquiryPdfParams,
   PersonaPrintInquiryPdfResponse,
 } from '@/tools/persona/types'
-import { PERSONA_API_BASE, PERSONA_API_VERSION } from '@/tools/persona/utils'
+import {
+  extractPersonaErrorMessage,
+  PERSONA_API_BASE,
+  PERSONA_API_VERSION,
+} from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaPrintInquiryPdfTool: ToolConfig<
@@ -42,6 +46,14 @@ export const personaPrintInquiryPdfTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
+    if (!response.ok) {
+      const fallback = `Persona API error: ${response.status} ${response.statusText}`
+      const errorBody: unknown = await response
+        .text()
+        .then((text) => JSON.parse(text))
+        .catch(() => null)
+      throw new Error(extractPersonaErrorMessage(errorBody, fallback))
+    }
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     const inquiryId = params?.inquiryId?.trim() ?? 'inquiry'

@@ -1,10 +1,12 @@
 import type { PersonaAccountResponse, PersonaCreateAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
+  asResource,
   buildPersonaHeaders,
   mapAccount,
   PERSONA_API_BASE,
   parseJsonObjectParam,
+  parsePersonaResponse,
   parseStringArrayParam,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -88,11 +90,11 @@ export const personaCreateAccountTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        account: mapAccount(data.data ?? {}),
+        account: mapAccount(asResource(data.data)),
       },
     }
   },

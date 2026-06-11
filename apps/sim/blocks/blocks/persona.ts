@@ -198,8 +198,7 @@ export const PersonaBlock: BlockConfig<PersonaResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a JSON array of tag name strings (e.g. ["vip", "beta-user"]). Return ONLY the JSON array.',
-        generationType: 'json-object',
+          'Generate a JSON array of tag name strings (e.g. ["vip", "beta-user"]). The output must be a JSON array, not an object. Return ONLY the JSON array.',
         placeholder: 'Describe the tags to apply...',
       },
     },

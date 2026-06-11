@@ -29,6 +29,67 @@ export interface PersonaResourceData {
 }
 
 /**
+ * Top-level JSON:API envelope returned by the Persona API.
+ */
+export interface PersonaApiEnvelope {
+  data?: unknown
+  links?: unknown
+  meta?: Record<string, unknown>
+}
+
+/**
+ * Extracts a human-readable message from a Persona JSON:API error body.
+ */
+export function extractPersonaErrorMessage(body: unknown, fallback: string): string {
+  if (body !== null && typeof body === 'object') {
+    const errors = (body as Record<string, unknown>).errors
+    if (Array.isArray(errors) && errors.length > 0) {
+      const first = errors[0]
+      if (first !== null && typeof first === 'object') {
+        const title = (first as Record<string, unknown>).title
+        if (typeof title === 'string' && title.length > 0) {
+          return title
+        }
+      }
+    }
+  }
+  return fallback
+}
+
+/**
+ * Reads a Persona JSON response, throwing a descriptive error for non-2xx
+ * responses using the JSON:API error format.
+ */
+export async function parsePersonaResponse(response: Response): Promise<PersonaApiEnvelope> {
+  const body: unknown = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(
+      extractPersonaErrorMessage(
+        body,
+        `Persona API error: ${response.status} ${response.statusText}`
+      )
+    )
+  }
+  return body !== null && typeof body === 'object' ? (body as PersonaApiEnvelope) : {}
+}
+
+/**
+ * Narrows an unknown JSON:API `data` value to a single resource object.
+ */
+export function asResource(value: unknown): PersonaResourceData {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as PersonaResourceData)
+    : {}
+}
+
+/**
+ * Narrows an unknown JSON:API `data` value to a list of resource objects.
+ */
+export function asResourceList(value: unknown): PersonaResourceData[] {
+  return Array.isArray(value) ? value.map(asResource) : []
+}
+
+/**
  * Builds the standard headers for Persona API requests.
  */
 export function buildPersonaHeaders(apiKey: string): Record<string, string> {

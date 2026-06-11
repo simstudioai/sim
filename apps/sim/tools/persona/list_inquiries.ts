@@ -3,12 +3,13 @@ import type {
   PersonaListInquiriesResponse,
 } from '@/tools/persona/types'
 import {
+  asResourceList,
   buildPersonaHeaders,
   getNextCursor,
   INQUIRY_OUTPUT_PROPERTIES,
   mapInquiry,
   PERSONA_API_BASE,
-  type PersonaResourceData,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -98,8 +99,8 @@ export const personaListInquiriesTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    const inquiries: PersonaResourceData[] = Array.isArray(data.data) ? data.data : []
+    const data = await parsePersonaResponse(response)
+    const inquiries = asResourceList(data.data)
     return {
       success: true,
       output: {

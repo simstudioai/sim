@@ -3,10 +3,12 @@ import type {
   PersonaGenerateInquiryLinkResponse,
 } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   INQUIRY_OUTPUT_PROPERTIES,
   mapInquiry,
   PERSONA_API_BASE,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -60,13 +62,15 @@ export const personaGenerateInquiryLinkTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
+    const oneTimeLink = data.meta?.['one-time-link']
+    const oneTimeLinkShort = data.meta?.['one-time-link-short']
     return {
       success: true,
       output: {
-        inquiry: mapInquiry(data.data ?? {}),
-        oneTimeLink: data.meta?.['one-time-link'] ?? '',
-        oneTimeLinkShort: data.meta?.['one-time-link-short'] ?? '',
+        inquiry: mapInquiry(asResource(data.data)),
+        oneTimeLink: typeof oneTimeLink === 'string' ? oneTimeLink : '',
+        oneTimeLinkShort: typeof oneTimeLinkShort === 'string' ? oneTimeLinkShort : '',
       },
     }
   },

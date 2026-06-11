@@ -1,11 +1,12 @@
 import type { PersonaListAccountsParams, PersonaListAccountsResponse } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
+  asResourceList,
   buildPersonaHeaders,
   getNextCursor,
   mapAccount,
   PERSONA_API_BASE,
-  type PersonaResourceData,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -62,8 +63,8 @@ export const personaListAccountsTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    const accounts: PersonaResourceData[] = Array.isArray(data.data) ? data.data : []
+    const data = await parsePersonaResponse(response)
+    const accounts = asResourceList(data.data)
     return {
       success: true,
       output: {

@@ -3,10 +3,12 @@ import type {
   PersonaMarkInquiryForReviewParams,
 } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   INQUIRY_OUTPUT_PROPERTIES,
   mapInquiry,
   PERSONA_API_BASE,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -43,11 +45,11 @@ export const personaMarkInquiryForReviewTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        inquiry: mapInquiry(data.data ?? {}),
+        inquiry: mapInquiry(asResource(data.data)),
       },
     }
   },

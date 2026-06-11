@@ -1,8 +1,10 @@
 import type { PersonaGetReportParams, PersonaReportResponse } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   mapReport,
   PERSONA_API_BASE,
+  parsePersonaResponse,
   REPORT_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -36,11 +38,11 @@ export const personaGetReportTool: ToolConfig<PersonaGetReportParams, PersonaRep
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        report: mapReport(data.data ?? {}),
+        report: mapReport(asResource(data.data)),
       },
     }
   },

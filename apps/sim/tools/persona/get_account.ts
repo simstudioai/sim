@@ -1,9 +1,11 @@
 import type { PersonaAccountResponse, PersonaGetAccountParams } from '@/tools/persona/types'
 import {
   ACCOUNT_OUTPUT_PROPERTIES,
+  asResource,
   buildPersonaHeaders,
   mapAccount,
   PERSONA_API_BASE,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -36,11 +38,11 @@ export const personaGetAccountTool: ToolConfig<PersonaGetAccountParams, PersonaA
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        account: mapAccount(data.data ?? {}),
+        account: mapAccount(asResource(data.data)),
       },
     }
   },

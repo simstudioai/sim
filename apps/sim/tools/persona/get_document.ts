@@ -1,9 +1,11 @@
 import type { PersonaDocumentResponse, PersonaGetDocumentParams } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   DOCUMENT_OUTPUT_PROPERTIES,
   mapDocument,
   PERSONA_API_BASE,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,11 +40,11 @@ export const personaGetDocumentTool: ToolConfig<PersonaGetDocumentParams, Person
     },
 
     transformResponse: async (response) => {
-      const data = await response.json()
+      const data = await parsePersonaResponse(response)
       return {
         success: true,
         output: {
-          document: mapDocument(data.data ?? {}),
+          document: mapDocument(asResource(data.data)),
         },
       }
     },

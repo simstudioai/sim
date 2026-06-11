@@ -3,9 +3,11 @@ import type {
   PersonaVerificationResponse,
 } from '@/tools/persona/types'
 import {
+  asResource,
   buildPersonaHeaders,
   mapVerification,
   PERSONA_API_BASE,
+  parsePersonaResponse,
   VERIFICATION_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -43,11 +45,11 @@ export const personaGetVerificationTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
+    const data = await parsePersonaResponse(response)
     return {
       success: true,
       output: {
-        verification: mapVerification(data.data ?? {}),
+        verification: mapVerification(asResource(data.data)),
       },
     }
   },

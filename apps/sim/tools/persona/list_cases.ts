@@ -1,11 +1,12 @@
 import type { PersonaListCasesParams, PersonaListCasesResponse } from '@/tools/persona/types'
 import {
+  asResourceList,
   buildPersonaHeaders,
   CASE_OUTPUT_PROPERTIES,
   getNextCursor,
   mapCase,
   PERSONA_API_BASE,
-  type PersonaResourceData,
+  parsePersonaResponse,
 } from '@/tools/persona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -73,8 +74,8 @@ export const personaListCasesTool: ToolConfig<PersonaListCasesParams, PersonaLis
   },
 
   transformResponse: async (response) => {
-    const data = await response.json()
-    const cases: PersonaResourceData[] = Array.isArray(data.data) ? data.data : []
+    const data = await parsePersonaResponse(response)
+    const cases = asResourceList(data.data)
     return {
       success: true,
       output: {
