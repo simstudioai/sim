@@ -4251,7 +4251,11 @@ const WorkflowContent = React.memo(
                 chat pane's title bar carries them); the title stays — it's the
                 editor's identity. */}
             {!embedded && (
-              <div className='absolute top-[7px] left-[7px] z-10 flex items-center gap-1'>
+              /* Fixed 30px height so the title centers on the same midline
+                 (y=22) whether or not the 30px control pills render — without
+                 it the docked state floats the title to the text's own
+                 line-height. */
+              <div className='absolute top-[7px] left-[7px] z-10 flex h-[30px] items-center gap-1'>
                 {!chatDock?.isOpen && (
                   <>
                     <SidebarToggle />
