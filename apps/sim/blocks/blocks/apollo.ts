@@ -12,7 +12,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrates Apollo.io into the workflow. Search for people and companies, enrich contact data, manage your CRM contacts and accounts, add contacts to sequences, and create tasks.',
-  docsLink: 'https://docs.sim.ai/tools/apollo',
+  docsLink: 'https://docs.sim.ai/integrations/apollo',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#EBF212',

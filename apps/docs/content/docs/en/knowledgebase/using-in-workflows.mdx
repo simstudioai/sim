@@ -1,0 +1,108 @@
+---
+title: Using a knowledge base in a workflow
+description: How the Knowledge block searches a knowledge base and what it returns, so an agent can ground its answers in your documents.
+pageType: concept
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, OutputBundle, SUPPORT_KB_WORKFLOW } from '@/components/workflow-preview'
+
+A **Knowledge block** searches a [knowledge base](/knowledgebase) and hands the matching passages to a later block, so an [Agent](/workflows/blocks/agent) can answer from your documents instead of the model's memory alone. It works like asking a librarian for the most relevant excerpts on a topic: you give it a question and get back a ranked, source-labeled list. This page covers searching, narrowing with tags, reranking, and reading the results.
+
+<WorkflowPreview workflow={SUPPORT_KB_WORKFLOW} height={180} />
+
+In this workflow, the Knowledge block searches a base of product docs for the customer's question, and the Agent answers from the passages it returns.
+
+## Search
+
+A **Knowledge block** set to **Search** takes a query, compares it against the chunks in a base, and returns the closest matches. (The block can also manage documents and chunks, but Search is what a workflow uses to retrieve context.) You point it at a knowledge base and give it a query; in our example the query is `<start.input>`, the customer's question.
+
+Search is semantic, not keyword matching. The block turns the query into a vector and finds the chunks whose meaning is closest, so "refund timelines" can match a passage that says "we process returns within 14 days" with no shared words.
+
+**Number of Results** (topK) sets how many chunks come back, 10 by default. Fewer give the agent a tight, focused set; more widen the net at the cost of noise and tokens.
+
+You can also search by tags, instead of or alongside a query:
+
+| What you provide | What it does |
+| --- | --- |
+| Query only | Semantic search across every document in the base. The default. |
+| Tags only | Returns documents that match the tags, with no ranking by meaning. |
+| Query and tags | Tags narrow the document set first, then semantic search runs within it. The most precise. |
+
+## Tag Filters
+
+**Tag Filters** restrict a search to documents carrying specific [tags](/knowledgebase/tags). Each filter has three parts: a **Tag** (a tag defined on the base, like `Department`), an **Operator** (`equals`, `contains`, `greater than`, and others depending on the tag's type), and a **Value** to match.
+
+In our example, adding `Department equals "Billing"` makes the search consider only billing documents. Add more filters with the **+** button; multiple filters combine with AND, so a document must match all of them. A filter value can be a fixed string or a reference like `<start.department>`, so the scope can change per run.
+
+Filters run before the vector comparison, so they make a search both more precise and cheaper. See [Tags and filtering](/knowledgebase/tags) for the full operator list by tag type.
+
+## Rerank Results
+
+**Rerank Results** is an optional second pass. Vector search ranks by raw similarity; reranking re-scores the top matches with a dedicated relevance model (Cohere's rerank models) and reorders them, which sharpens the ordering when the best answer isn't the literal closest vector.
+
+Leave it off for most searches. Turn it on when retrieval returns roughly the right documents but in the wrong order. When enabled, you pick a **Rerank Model**; self-hosted deployments also supply a Cohere API key.
+
+## Retrieved chunks
+
+The Search operation produces an **output** stored under the block's name, the same as any other block. Its main value is `results`: an array of the matched chunks, ranked best first. A later block reads it by reference, for example `<knowledge.results>`.
+
+<OutputBundle
+  blockName="knowledge"
+  blockType="knowledge"
+  blockColor="#00B0B0"
+  duration="312ms"
+  values={[
+    {
+      key: 'results', type: 'array', highlight: true,
+      children: [
+        {
+          key: '0', type: 'object',
+          children: [
+            { key: 'content', type: 'string', value: '"Refunds are issued within 14 days…"' },
+            { key: 'documentName', type: 'string', value: '"refund-policy.pdf"' },
+            { key: 'similarity', type: 'number', value: '0.92' },
+            { key: 'sourceUrl', type: 'null', expanded: false },
+          ],
+        },
+      ],
+    },
+    { key: 'query', type: 'string', value: '"refund policy"' },
+    { key: 'totalResults', type: 'number', value: '5' },
+  ]}
+/>
+
+Each result in the array is an object with these fields:
+
+| Field | What it is |
+| --- | --- |
+| `content` | The chunk's text. This is what the agent reads. |
+| `documentName` | The source document's filename, for citation. |
+| `sourceUrl` | A link to the original, if the document came from a [connector](/knowledgebase/connectors). `null` for uploaded files. |
+| `chunkIndex` | The chunk's position within its document. |
+| `similarity` | How close the chunk is to the query, higher is better. For example `0.92`. |
+| `metadata` | The document's attributes, including its tags. |
+| `documentId` | The source document's identifier. |
+
+The output also carries `query` (the text that was searched) and `totalResults` (the count).
+
+To ground an answer, wire the Knowledge block before an [Agent](/workflows/blocks/agent) block and reference the chunks in the Agent's prompt with `<knowledge.results>`. The agent reads the `content` of each result and can cite `documentName` and `sourceUrl`. See [how blocks reference output](/workflows/data-flow) for how one block reads another's output by name.
+
+## When retrieval looks wrong
+
+When the agent's answer is off, the cause is usually in retrieval, not the agent. Read the Knowledge block's output in the [run logs](/logs-debugging) and check the chunks it actually returned:
+
+- **No results, or wrong documents.** A tag filter may be excluding what you want, or the documents may not be indexed yet. A document is only searchable once its processing status is `completed`; while it is `pending`, `processing`, or `failed`, its chunks won't appear.
+- **Low similarity scores across the board.** The query is too vague, or the information simply isn't in the base. Rewrite the query to match how the documents phrase things.
+- **Right documents, wrong order.** Turn on Rerank Results, or raise Number of Results so the relevant chunk is included.
+
+See [debugging retrieval](/knowledgebase/debugging-retrieval) for the full diagnostic path, and [chunking strategies](/knowledgebase/chunking-strategies) for how chunk boundaries shape what a search can return.
+
+## Next
+
+<Cards>
+  <Card title="Knowledge bases overview" href="/knowledgebase" description="What a knowledge base is and how documents get indexed." />
+  <Card title="Tags and filtering" href="/knowledgebase/tags" description="Define tags and use them to narrow a search." />
+  <Card title="Debugging retrieval" href="/knowledgebase/debugging-retrieval" description="Diagnose why a search returns the wrong chunks." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="How one block reads another block's output." />
+</Cards>

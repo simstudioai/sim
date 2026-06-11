@@ -79,7 +79,7 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
   description: 'Key-value operations with Redis',
   longDescription:
     'Connect to any Redis instance to perform key-value, hash, list, and utility operations via a direct connection.',
-  docsLink: 'https://docs.sim.ai/tools/redis',
+  docsLink: 'https://docs.sim.ai/integrations/redis',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#FF4438',

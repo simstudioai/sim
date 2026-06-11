@@ -16,7 +16,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate OneDrive into the workflow. Can create text and Excel files, upload files, download files, list files, and delete files or folders.',
-  docsLink: 'https://docs.sim.ai/tools/onedrive',
+  docsLink: 'https://docs.sim.ai/integrations/onedrive',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',

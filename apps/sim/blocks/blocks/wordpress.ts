@@ -12,7 +12,7 @@ export const WordPressBlock: BlockConfig<WordPressResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with WordPress to create, update, and manage posts, pages, media, comments, categories, tags, and users. Supports WordPress.com sites via OAuth and self-hosted WordPress sites using Application Passwords authentication.',
-  docsLink: 'https://docs.sim.ai/tools/wordpress',
+  docsLink: 'https://docs.sim.ai/integrations/wordpress',
   category: 'tools',
   integrationType: IntegrationType.Marketing,
   bgColor: '#21759B',

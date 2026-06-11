@@ -34,6 +34,118 @@ body {
   --color-fd-muted: hsl(0, 0%, 18%) !important;
 }
 
+/*
+ * emcn workspace tokens — mirrored from apps/sim/app/_styles/globals.css so the
+ * docs chip chrome (components/ui/chip.tsx, dropdown-menu.tsx, badges) renders
+ * identically to the platform. Keep values in sync with the main app.
+ */
+:root {
+  --bg: #fefefe;
+  --surface-1: #fbfbfb;
+  --surface-2: #ffffff;
+  --surface-3: #f7f7f7;
+  --surface-4: #f5f5f5;
+  --surface-5: #f3f3f3;
+  --surface-6: #e5e5e5;
+  --surface-active: #ececec;
+  --border: #dedede;
+  --border-1: #e0e0e0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #525252;
+  --text-tertiary: #5c5c5c;
+  --text-body: #3b3b3b;
+  --text-muted: #707070;
+  --text-subtle: #8c8c8c;
+  --text-icon: #525252;
+  --text-inverse: #ffffff;
+  --text-error: #ef4444;
+  --brand-accent: #33c482;
+  --brand-accent-hover: #2dac72;
+  --badge-success-bg: #bbf7d0;
+  --badge-success-text: #15803d;
+  --badge-blue-bg: #bfdbfe;
+  --badge-blue-text: #1d4ed8;
+  --badge-purple-bg: #e9d5ff;
+  --badge-purple-text: #7c3aed;
+  --badge-amber-bg: #fde68a;
+  --badge-amber-text: #a16207;
+  --badge-orange-bg: #fed7aa;
+  --badge-orange-text: #c2410c;
+  --badge-error-bg: #fecaca;
+  --badge-error-text: #dc2626;
+  --badge-gray-bg: #e7e5e4;
+  --badge-gray-text: #57534e;
+  --scrollbar-thumb-color: #c0c0c0;
+  --scrollbar-thumb-hover-color: #a8a8a8;
+  --shadow-subtle: 0 2px 4px 0 rgba(0, 0, 0, 0.08);
+  --shadow-medium: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dark {
+  --bg: #1b1b1b;
+  --surface-1: #1e1e1e;
+  --surface-2: #232323;
+  --surface-3: #242424;
+  --surface-4: #292929;
+  --surface-5: #363636;
+  --surface-6: #454545;
+  --surface-active: #2c2c2c;
+  --border: #333333;
+  --border-1: #3d3d3d;
+  --text-primary: #e6e6e6;
+  --text-secondary: #cccccc;
+  --text-tertiary: #b3b3b3;
+  --text-body: #cdcdcd;
+  --text-muted: #787878;
+  --text-subtle: #7d7d7d;
+  --text-icon: #a0a0a0;
+  --text-inverse: #1b1b1b;
+  --text-error: #ef4444;
+  --brand-accent: #33c482;
+  --brand-accent-hover: #2dac72;
+  --badge-success-bg: rgba(34, 197, 94, 0.2);
+  --badge-success-text: #86efac;
+  --badge-blue-bg: rgba(59, 130, 246, 0.2);
+  --badge-blue-text: #93c5fd;
+  --badge-purple-bg: rgba(168, 85, 247, 0.2);
+  --badge-purple-text: #d8b4fe;
+  --badge-amber-bg: rgba(245, 158, 11, 0.2);
+  --badge-amber-text: #fcd34d;
+  --badge-orange-bg: rgba(249, 115, 22, 0.2);
+  --badge-orange-text: #fdba74;
+  --badge-error-bg: #551a1a;
+  --badge-error-text: #fca5a5;
+  --badge-gray-bg: #3a3a3a;
+  --badge-gray-text: #a8a8a8;
+  --scrollbar-thumb-color: #5a5a5a;
+  --scrollbar-thumb-hover-color: #6a6a6a;
+}
+
+/* Scrollbars — platform thumb tokens, transparent track */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-color) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb-color);
+  border-radius: 9999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover-color);
+}
+
 /* Font family utilities */
 .font-sans {
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
@@ -43,6 +155,12 @@ body {
 .font-mono {
   font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
+}
+
+/* Platform UI font — Season Sans, used by the chip chrome to match the main app */
+.font-season {
+  font-family: var(--font-season), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
 }
 
 :root {
@@ -71,17 +189,6 @@ body {
 /* Dark mode navbar background */
 :root.dark nav {
   background-color: hsla(0, 0%, 10.6%, 0.92) !important;
-}
-
-:root.dark nav button[data-search-trigger] {
-  background-color: hsla(0, 0%, 15%, 0.85) !important;
-  backdrop-filter: blur(33px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(33px) saturate(180%) !important;
-  color: rgba(255, 255, 255, 0.5) !important;
-}
-
-:root.dark nav button[data-search-trigger] kbd {
-  color: rgba(255, 255, 255, 0.4) !important;
 }
 
 /* Floating sidebar appearance - remove background */
@@ -165,12 +272,9 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
     bottom: 0;
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
     width: 1px;
-    background-color: rgba(0, 0, 0, 0.08);
+    background-color: var(--surface-active);
     pointer-events: none;
     z-index: 21;
-  }
-  html.dark #nd-docs-layout::before {
-    background-color: rgba(255, 255, 255, 0.08);
   }
 
   /* Hide fumadocs nav on desktop - we use custom navbar there */
@@ -213,32 +317,23 @@ html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) 
   line-height: 1.4 !important;
   padding: 0.375rem 0.875rem !important;
   font-weight: 450 !important;
-  border-radius: 0.75rem !important;
+  border-radius: 0.5rem !important; /* platform rounded-lg */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif !important;
 }
 
-/* Sidebar text — aligned with platform --text-body */
-html.dark #nd-sidebar a:not(:has(span.font-mono)),
-html.dark #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: #cdcdcd !important;
+/* Sidebar text — platform --text-body */
+html #nd-sidebar a:not(:has(span.font-mono)),
+html #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
+  color: var(--text-body) !important;
 }
 
-html:not(.dark) #nd-sidebar a:not(:has(span.font-mono)),
-html:not(.dark) #nd-sidebar button:not([aria-label*="ollapse"]):not([aria-label*="xpand"]) {
-  color: #3b3b3b !important;
-}
-
-/* Chevron icons — aligned with platform --text-icon */
+/* Chevron icons — platform --text-icon */
 #nd-sidebar svg {
   display: inline-block !important;
   opacity: 1 !important;
-  color: #5e5e5e !important;
+  color: var(--text-icon) !important;
   flex-shrink: 0 !important;
-}
-
-html.dark #nd-sidebar svg {
-  color: #939393 !important;
 }
 
 /* Ensure the small chevron toggle buttons are visible */
@@ -286,40 +381,23 @@ html.dark #nd-sidebar svg {
   background-image: none !important;
 }
 
-html.dark #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
-html.dark #nd-sidebar button[data-active="true"] {
-  background-color: #2c2c2c !important;
-  color: #cdcdcd !important;
+html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
+html #nd-sidebar button[data-active="true"] {
+  background-color: var(--surface-active) !important;
+  color: var(--text-body) !important;
 }
 
-html:not(.dark) #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)),
-html:not(.dark) #nd-sidebar button[data-active="true"] {
-  background-color: #ececec !important;
-  color: #3b3b3b !important;
-}
-
-/* Hover state — aligned with platform --surface-hover */
-html.dark #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
-html.dark #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: #262626 !important;
-}
-
-html:not(.dark) #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
-html:not(.dark) #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: #f2f2f2 !important;
+/* Hover state — platform --surface-3 */
+html #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
+html #nd-sidebar button:hover:not([data-active="true"]) {
+  background-color: var(--surface-3) !important;
 }
 
 /* Active items don't change on hover */
-html.dark #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
-html.dark #nd-sidebar button[data-active="true"]:hover {
-  background-color: #2c2c2c !important;
-  color: #cdcdcd !important;
-}
-
-html:not(.dark) #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
-html:not(.dark) #nd-sidebar button[data-active="true"]:hover {
-  background-color: #ececec !important;
-  color: #3b3b3b !important;
+html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
+html #nd-sidebar button[data-active="true"]:hover {
+  background-color: var(--surface-active) !important;
+  color: var(--text-body) !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */
@@ -474,23 +552,16 @@ pre code {
 /* Inline code — neutral colors aligned with sim design system */
 :not(pre) > code {
   padding: 0.2em 0.4em;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font-size: 0.875em;
   font-weight: 500;
 }
 
-/* Light mode inline code — neutral, no red */
-:root:not(.dark) :not(pre) > code {
-  background-color: rgb(245 245 245);
-  color: rgb(55 65 81);
-  border: 1px solid rgb(229 231 235);
-}
-
-/* Dark mode inline code — neutral, no red */
-.dark :not(pre) > code {
-  background-color: rgb(38 38 38);
-  color: rgb(212 212 216);
-  border: 1px solid rgb(63 63 70);
+/* Inline code — platform surface-4 / text-body / border-1 */
+:not(pre) > code {
+  background-color: var(--surface-4);
+  color: var(--text-body);
+  border: 1px solid var(--border-1);
 }
 
 /* Remove heavy shadows globally — aligned with sim design system (shadow-card: 0 1px 3px rgba(0,0,0,0.04)) */
@@ -503,7 +574,7 @@ figure[data-rehype-pretty-code-figure],
 /* Search dialog — lighter shadow + constrained size */
 [data-radix-popper-content-wrapper] > div,
 [role="dialog"][data-state] {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  box-shadow: var(--shadow-medium) !important;
 }
 
 [role="dialog"][data-state] {
@@ -543,13 +614,7 @@ main article h1,
   font-size: 1.5rem !important;
   font-weight: 550 !important;
   letter-spacing: -0.02em;
-  color: rgba(0, 0, 0, 0.88);
-}
-
-html.dark main article h1,
-html.dark [data-content] h1,
-html.dark #nd-page h1 {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
 }
 
 main article h2,
@@ -558,13 +623,7 @@ main article h2,
   font-size: 1.25rem !important;
   font-weight: 500 !important;
   letter-spacing: -0.015em;
-  color: rgba(0, 0, 0, 0.85);
-}
-
-html.dark main article h2,
-html.dark [data-content] h2,
-html.dark #nd-page h2 {
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
 }
 
 main article h3,
@@ -576,55 +635,28 @@ main article h4,
   font-size: 1rem !important;
   font-weight: 470 !important;
   letter-spacing: -0.01em;
-  color: rgba(0, 0, 0, 0.8);
+  color: var(--text-body);
 }
 
-html.dark main article h3,
-html.dark main article h4,
-html.dark [data-content] h3,
-html.dark [data-content] h4,
-html.dark #nd-page h3,
-html.dark #nd-page h4 {
-  color: rgba(255, 255, 255, 0.85);
-}
-
-/* Body text — align with landing text colors */
+/* Body text — platform --text-secondary */
 main article p,
 [data-content] p,
 [data-docs-page] p {
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-secondary);
 }
 
-html.dark main article p,
-html.dark [data-content] p,
-html.dark [data-docs-page] p {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-/* Muted text — align with landing-text-muted (#999999) */
+/* Muted text — platform --text-muted */
 main article .text-muted-foreground,
 [data-content] .text-muted-foreground,
 [data-docs-page] .text-muted-foreground {
-  color: rgba(0, 0, 0, 0.45);
-}
-
-html.dark main article .text-muted-foreground,
-html.dark [data-content] .text-muted-foreground,
-html.dark [data-docs-page] .text-muted-foreground {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 /* List items — inherit body text color */
 main article li,
 [data-content] li,
 [data-docs-page] li {
-  color: rgba(0, 0, 0, 0.7);
-}
-
-html.dark main article li,
-html.dark [data-content] li,
-html.dark [data-docs-page] li {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 /* Custom text highlighting styles */
@@ -647,41 +679,24 @@ html.dark [data-docs-page] li {
 #nd-toc [class*="title"] {
   font-weight: 480 !important;
   font-size: 0.8125rem !important;
-  color: rgba(0, 0, 0, 0.5);
-}
-
-html.dark #nd-toc h3,
-html.dark #nd-toc [class*="title"] {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 /* TOC links — softer colors aligned with landing muted text */
 #nd-toc a {
   font-weight: 430 !important;
   font-size: 0.8125rem !important;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-muted);
   transition: color 0.2s;
 }
 
-html.dark #nd-toc a {
-  color: rgba(255, 255, 255, 0.45);
-}
-
 #nd-toc a:hover {
-  color: rgba(0, 0, 0, 0.75);
-}
-
-html.dark #nd-toc a:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-body);
 }
 
 #nd-toc a[data-active="true"] {
-  color: rgba(0, 0, 0, 0.85) !important;
+  color: var(--text-primary) !important;
   font-weight: 470 !important;
-}
-
-html.dark #nd-toc a[data-active="true"] {
-  color: rgba(255, 255, 255, 0.9) !important;
 }
 
 /* Add bottom spacing to prevent abrupt page endings */
@@ -780,36 +795,19 @@ video {
 span.font-mono.font-medium[data-method="get"],
 span.font-mono.font-medium[data-method="head"],
 span.font-mono.font-medium[data-method="options"] {
-  background-color: rgb(220 252 231 / 0.85);
-}
-html.dark span.font-mono.font-medium[data-method="get"],
-html.dark span.font-mono.font-medium[data-method="head"],
-html.dark span.font-mono.font-medium[data-method="options"] {
-  background-color: rgb(34 197 94 / 0.15);
+  background-color: var(--badge-success-bg);
 }
 span.font-mono.font-medium[data-method="post"] {
-  background-color: rgb(219 234 254 / 0.85);
-}
-html.dark span.font-mono.font-medium[data-method="post"] {
-  background-color: rgb(59 130 246 / 0.15);
+  background-color: var(--badge-blue-bg);
 }
 span.font-mono.font-medium[data-method="put"] {
-  background-color: rgb(254 249 195 / 0.85);
-}
-html.dark span.font-mono.font-medium[data-method="put"] {
-  background-color: rgb(234 179 8 / 0.15);
+  background-color: var(--badge-amber-bg);
 }
 span.font-mono.font-medium[data-method="patch"] {
-  background-color: rgb(255 237 213 / 0.85);
-}
-html.dark span.font-mono.font-medium[data-method="patch"] {
-  background-color: rgb(249 115 22 / 0.15);
+  background-color: var(--badge-orange-bg);
 }
 span.font-mono.font-medium[data-method="delete"] {
-  background-color: rgb(254 226 226 / 0.85);
-}
-html.dark span.font-mono.font-medium[data-method="delete"] {
-  background-color: rgb(239 68 68 / 0.15);
+  background-color: var(--badge-error-bg);
 }
 
 /* Sidebar links with method badges — match regular item padding */
@@ -833,7 +831,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   font-size: 0.625rem !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.25rem;
-  border-radius: 0.1875rem;
+  border-radius: 0.375rem;
   flex-shrink: 0;
 }
 
@@ -845,7 +843,7 @@ html #nd-sidebar a:has(span.font-mono.font-medium) {
   font-size: 0.625rem !important;
   line-height: 1 !important;
   padding: 0.15625rem 0.375rem;
-  border-radius: 0.1875rem;
+  border-radius: 0.375rem;
 }
 
 /* API page code/card containers — transparent background */
@@ -899,16 +897,9 @@ div.flex.flex-row.items-start.bg-fd-secondary.border.rounded-lg.text-xs {
 /* Method+path bar — cleaner, lighter styling like Gumloop.
    Override bg-fd-card CSS variable directly for reliability. */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose {
-  --color-fd-card: rgb(249 250 251) !important;
-  background-color: rgb(249 250 251) !important;
-  border-color: rgb(229 231 235) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose {
-  --color-fd-card: rgb(24 24 27) !important;
-  background-color: rgb(24 24 27) !important;
-  border-color: rgb(63 63 70) !important;
+  --color-fd-card: var(--surface-3) !important;
+  background-color: var(--surface-3) !important;
+  border-color: var(--border-1) !important;
 }
 /* Method badge inside path bar — cleaner sans-serif, softer colors */
 #nd-page:has(.api-page-header)
@@ -927,95 +918,50 @@ html.dark
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-green"] {
-  color: rgb(22 163 74) !important;
-  background-color: rgb(220 252 231 / 0.7) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-green"] {
-  color: rgb(74 222 128) !important;
-  background-color: rgb(34 197 94 / 0.15) !important;
+  color: var(--badge-success-text) !important;
+  background-color: var(--badge-success-bg) !important;
 }
 /* POST */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-blue"] {
-  color: rgb(37 99 235) !important;
-  background-color: rgb(219 234 254 / 0.7) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-blue"] {
-  color: rgb(96 165 250) !important;
-  background-color: rgb(59 130 246 / 0.15) !important;
+  color: var(--badge-blue-text) !important;
+  background-color: var(--badge-blue-bg) !important;
 }
 /* PUT */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-yellow"] {
-  color: rgb(161 98 7) !important;
-  background-color: rgb(254 249 195 / 0.7) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-yellow"] {
-  color: rgb(250 204 21) !important;
-  background-color: rgb(234 179 8 / 0.15) !important;
+  color: var(--badge-amber-text) !important;
+  background-color: var(--badge-amber-bg) !important;
 }
 /* PATCH */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-orange"] {
-  color: rgb(194 65 12) !important;
-  background-color: rgb(255 237 213 / 0.7) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-orange"] {
-  color: rgb(251 146 60) !important;
-  background-color: rgb(249 115 22 / 0.15) !important;
+  color: var(--badge-orange-text) !important;
+  background-color: var(--badge-orange-bg) !important;
 }
 /* DELETE */
 #nd-page:has(.api-page-header)
   div.flex.flex-row.items-center.rounded-xl.border.not-prose
   span.font-mono.font-medium[class*="text-red"] {
-  color: rgb(185 28 28) !important;
-  background-color: rgb(254 226 226 / 0.7) !important;
-}
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  span.font-mono.font-medium[class*="text-red"] {
-  color: rgb(248 113 113) !important;
-  background-color: rgb(239 68 68 / 0.15) !important;
+  color: var(--badge-error-text) !important;
+  background-color: var(--badge-error-bg) !important;
 }
 
 /* Path text inside method+path bar — monospace, bright like Gumloop */
 #nd-page:has(.api-page-header) div.flex.flex-row.items-center.rounded-xl.border.not-prose code {
-  color: rgb(55 65 81) !important;
+  color: var(--text-body) !important;
   background: none !important;
   border: none !important;
   padding: 0 !important;
   font-size: 0.8125rem !important;
 }
-html.dark
-  #nd-page:has(.api-page-header)
-  div.flex.flex-row.items-center.rounded-xl.border.not-prose
-  code {
-  color: rgb(229 231 235) !important;
-}
-
 /* Inline code in API pages — neutral color aligned with sim design.
    Exclude code inside the method+path bar (handled above). */
 #nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: rgb(55 65 81) !important;
-}
-html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
-  color: rgb(212 212 216) !important;
+  color: var(--text-body) !important;
 }
 
 /* Response Section — custom dropdown-based rendering (Mintlify style) */
@@ -1065,12 +1011,8 @@ html.dark #nd-page:has(.api-page-header) .prose :not(pre) > code {
   font-weight: 500;
   letter-spacing: -0.015em;
   margin: 0;
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
-}
-
-html.dark .response-section-title {
-  color: rgba(255, 255, 255, 0.88);
 }
 
 .response-section-meta {
@@ -1096,7 +1038,7 @@ html.dark .response-section-title {
   background: none;
   border: none;
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   transition: color 0.15s;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
@@ -1119,17 +1061,12 @@ html.dark .response-section-title {
   left: 0;
   z-index: 50;
   min-width: 5rem;
-  background-color: var(--color-fd-popover, white);
-  border: 1px solid rgb(229 231 235);
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-card);
   padding: 0.375rem;
   overflow: hidden;
-}
-html.dark .response-section-dropdown-menu {
-  background-color: var(--color-fd-popover, rgb(24 24 27));
-  border-color: rgb(63 63 70);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .response-section-dropdown-item {
@@ -1139,22 +1076,19 @@ html.dark .response-section-dropdown-menu {
   width: 100%;
   padding: 0.375rem 0.5rem;
   font-size: 0.875rem;
-  color: var(--color-fd-muted-foreground);
+  color: var(--text-body);
   background: none;
   border: none;
   cursor: pointer;
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   transition:
     background-color 0.1s,
     color 0.1s;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 .response-section-dropdown-item:hover {
-  background-color: rgb(243 244 246);
-  color: var(--color-fd-foreground);
-}
-html.dark .response-section-dropdown-item:hover {
-  background-color: rgb(39 39 42);
+  background-color: var(--surface-active);
+  color: var(--text-primary);
 }
 .response-section-dropdown-item-selected {
   color: var(--color-fd-foreground);
@@ -1198,8 +1132,8 @@ html.dark .response-section-dropdown-item:hover {
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
   order: 2;
-  background-color: rgb(241 245 249);
-  color: rgb(71 85 105);
+  background-color: var(--surface-5);
+  color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1211,8 +1145,8 @@ html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground {
-  background-color: rgb(51 51 56);
-  color: rgb(212 212 220);
+  background-color: var(--surface-4);
+  color: var(--text-secondary);
 }
 
 /* Hide the "*" inside the name span — we'll add "required" as a ::after on the flex row */
@@ -1227,8 +1161,8 @@ html.dark
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 226 226);
-  color: rgb(185 28 28);
+  background-color: var(--badge-error-bg);
+  color: var(--badge-error-text);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1236,13 +1170,6 @@ html.dark
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark
-  #nd-page:has(.api-page-header)
-  .flex.flex-wrap.items-center.gap-3.not-prose:has(span.text-red-400)::after {
-  background-color: rgb(153 27 27 / 0.3);
-  color: rgb(252 165 165);
-}
-
 /* Optional "?" indicator — hide it */
 #nd-page:has(.api-page-header)
   span.font-medium.font-mono.text-fd-primary
@@ -1284,8 +1211,8 @@ html.dark
   line-height: 1.125rem;
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  background-color: rgb(241 245 249);
-  color: rgb(71 85 105);
+  background-color: var(--surface-5);
+  color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   display: inline-flex;
@@ -1296,8 +1223,8 @@ html.dark
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose
   > span.text-sm.font-mono.text-fd-muted-foreground::after {
-  background-color: rgb(51 51 56);
-  color: rgb(212 212 220);
+  background-color: var(--surface-4);
+  color: var(--text-secondary);
 }
 
 /* "header" badge via ::before on the auth flex row */
@@ -1306,8 +1233,8 @@ html.dark
   order: 3;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(241 245 249);
-  color: rgb(71 85 105);
+  background-color: var(--surface-5);
+  color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1319,8 +1246,8 @@ html.dark
   #nd-page:has(.api-page-header)
   div.my-4
   > .flex.flex-wrap.items-center.gap-3.not-prose::before {
-  background-color: rgb(51 51 56);
-  color: rgb(212 212 220);
+  background-color: var(--surface-4);
+  color: var(--text-secondary);
 }
 
 /* "required" badge via ::after on the auth flex row — red pill */
@@ -1329,8 +1256,8 @@ html.dark
   order: 4;
   display: inline-flex;
   align-items: center;
-  background-color: rgb(254 226 226);
-  color: rgb(185 28 28);
+  background-color: var(--badge-error-bg);
+  color: var(--badge-error-text);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1338,14 +1265,6 @@ html.dark
   font-weight: 500;
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
-html.dark
-  #nd-page:has(.api-page-header)
-  div.my-4
-  > .flex.flex-wrap.items-center.gap-3.not-prose::after {
-  background-color: rgb(153 27 27 / 0.3);
-  color: rgb(252 165 165);
-}
-
 /* Hide "In: header" text below auth property — redundant with the header badge */
 #nd-page:has(.api-page-header) div.my-4 .prose-no-margin p:has(> code) {
   display: none !important;
@@ -1354,10 +1273,7 @@ html.dark
 /* Section dividers — bottom border after Authorization and Body sections. */
 .api-section-divider {
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid rgb(229 231 235 / 0.6);
-}
-html.dark .api-section-divider {
-  border-bottom-color: rgb(255 255 255 / 0.07);
+  border-bottom: 1px solid var(--surface-active);
 }
 
 /* Property rows — breathing room like Mintlify.
@@ -1374,10 +1290,7 @@ html.dark .api-section-divider {
 
 /* Divider lines between fields — very subtle like Mintlify */
 #nd-page:has(.api-page-header) .text-sm.border-t {
-  border-color: rgb(229 231 235 / 0.6);
-}
-html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
-  border-color: rgb(255 255 255 / 0.07);
+  border-color: var(--surface-active);
 }
 
 /* Body/Callback section "application/json" label — remove inline code styling */
@@ -1395,8 +1308,8 @@ html.dark #nd-page:has(.api-page-header) .text-sm.border-t {
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > button,
 #nd-page:has(.api-page-header) .flex.flex-wrap.items-center.gap-3.not-prose > span:has(> button) {
   order: 2;
-  background-color: rgb(241 245 249);
-  color: rgb(71 85 105);
+  background-color: var(--surface-5);
+  color: var(--text-secondary);
   padding: 0.1875rem 0.5rem;
   border-radius: 0.375rem;
   font-size: 0.6875rem;
@@ -1409,8 +1322,8 @@ html.dark
   #nd-page:has(.api-page-header)
   .flex.flex-wrap.items-center.gap-3.not-prose
   > span:has(> button) {
-  background-color: rgb(51 51 56);
-  color: rgb(212 212 220);
+  background-color: var(--surface-4);
+  color: var(--text-secondary);
 }
 
 /* Section headings (Authorization, Path Parameters, etc.) — consistent top spacing */
@@ -1434,13 +1347,9 @@ html.dark
 div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) {
   background-color: transparent !important;
   box-shadow: none !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
+  border-color: var(--border-1) !important;
   padding-left: 0.875rem !important;
   align-items: center !important;
-}
-
-html.dark div.rounded-xl.border.bg-fd-card.shadow-md:has(> [role="none"]) {
-  border-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 div.rounded-xl.border.bg-fd-card.shadow-md > [role="none"] {
@@ -1450,11 +1359,7 @@ div.rounded-xl.border.bg-fd-card.shadow-md > [role="none"] {
 /* Files component — transparent background */
 div.not-prose.rounded-md.border.bg-fd-card.p-2 {
   background-color: transparent !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-}
-
-html.dark div.not-prose.rounded-md.border.bg-fd-card.p-2 {
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--border-1) !important;
 }
 
 /* Callout icon — outline style, text color, vertically centered */
@@ -1527,23 +1432,15 @@ main article thead th {
   background: none !important;
   font-weight: 600 !important;
   padding: 0.5rem 0.75rem !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid var(--border) !important;
   border-left: none !important;
   border-right: none !important;
   border-top: none !important;
   border-inline-start: none !important;
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--text-primary);
   text-align: left;
   white-space: nowrap;
   line-height: 1.5;
-}
-
-html.dark .prose thead th,
-html.dark [data-docs-page] thead th,
-html.dark [data-content] thead th,
-html.dark main article thead th {
-  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
-  color: rgba(255, 255, 255, 0.88);
 }
 
 .prose td,
@@ -1551,21 +1448,13 @@ html.dark main article thead th {
 [data-content] td,
 main article td {
   padding: 0.5rem 0.75rem !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-bottom: 1px solid var(--surface-active) !important;
   border-left: none !important;
   border-right: none !important;
   border-top: none !important;
   border-inline-start: none !important;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-secondary);
   line-height: 1.5;
-}
-
-html.dark .prose td,
-html.dark [data-docs-page] td,
-html.dark [data-content] td,
-html.dark main article td {
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
-  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Remove bottom border on last row */
@@ -1583,17 +1472,10 @@ figure.shiki:not(div > figure.shiki),
 figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
 figure:has(pre):not(div > figure:has(pre)) {
   border-radius: 0.5rem !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid var(--border) !important;
   overflow: hidden !important;
   background-color: transparent !important;
   box-shadow: none !important;
-}
-
-html.dark figure.shiki:not(div > figure.shiki),
-html.dark figure[data-rehype-pretty-code-figure]:not(div > figure[data-rehype-pretty-code-figure]),
-html.dark figure:has(pre):not(div > figure:has(pre)) {
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  background-color: transparent !important;
 }
 
 /* Code block inside tabs (API examples) — no extra border, inherits from parent */
@@ -1610,70 +1492,40 @@ html.dark div > figure.shiki {
 /* Tabbed code block container (cURL/JS/Go tabs) */
 div:has(> [role="tablist"]):has(> div > figure.shiki) {
   border-radius: 0.5rem !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid var(--border) !important;
   overflow: hidden !important;
   background-color: transparent !important;
   box-shadow: none !important;
 }
 
-html.dark div:has(> [role="tablist"]):has(> div > figure.shiki) {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  background-color: transparent !important;
-}
-
 /* Tab list bar — match platform surface-4 */
 div:has(> div > figure.shiki) > [role="tablist"] {
   background: none !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-}
-
-html.dark div:has(> div > figure.shiki) > [role="tablist"] {
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  border-bottom: 1px solid var(--surface-active) !important;
 }
 
 /* Tab triggers — muted text, active gets foreground */
 div:has(> div > figure.shiki) > [role="tablist"] button {
-  color: rgba(0, 0, 0, 0.4) !important;
+  color: var(--text-muted) !important;
   font-weight: 470 !important;
 }
 
 div:has(> div > figure.shiki) > [role="tablist"] button:hover {
-  color: rgba(0, 0, 0, 0.7) !important;
+  color: var(--text-body) !important;
 }
 
 div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
-  color: rgba(0, 0, 0, 0.85) !important;
-}
-
-html.dark div:has(> div > figure.shiki) > [role="tablist"] button {
-  color: rgba(255, 255, 255, 0.35) !important;
-}
-
-html.dark div:has(> div > figure.shiki) > [role="tablist"] button:hover {
-  color: rgba(255, 255, 255, 0.65) !important;
-}
-
-html.dark div:has(> div > figure.shiki) > [role="tablist"] button[data-state="active"] {
-  color: rgba(255, 255, 255, 0.88) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Code block title header (figcaption with filename) */
 figure.shiki > div:first-child:has(figcaption) {
-  background-color: rgb(245, 245, 245) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-}
-
-html.dark figure.shiki > div:first-child:has(figcaption) {
-  background-color: rgb(41, 41, 41) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  background-color: var(--surface-4) !important;
+  border-bottom: 1px solid var(--surface-active) !important;
 }
 
 figure.shiki figcaption {
-  color: rgba(0, 0, 0, 0.45) !important;
-}
-
-html.dark figure.shiki figcaption {
-  color: rgba(255, 255, 255, 0.4) !important;
+  color: var(--text-muted) !important;
 }
 
 /* Code block pre element — transparent bg */
@@ -1697,7 +1549,7 @@ html.dark figure.shiki > div[role="region"] {
 /* Copy button — minimal ghost style */
 figure.shiki button[aria-label="Copy Text"],
 figure.shiki button[aria-label="Copied Text"] {
-  color: rgba(0, 0, 0, 0.3) !important;
+  color: var(--text-muted) !important;
   background: none !important;
   border: none !important;
   box-shadow: none !important;
@@ -1705,24 +1557,11 @@ figure.shiki button[aria-label="Copied Text"] {
 }
 
 figure.shiki button[aria-label="Copy Text"]:hover {
-  color: rgba(0, 0, 0, 0.6) !important;
+  color: var(--text-icon) !important;
 }
 
 figure.shiki button[aria-label="Copied Text"] {
-  color: rgb(34, 197, 94) !important;
-}
-
-html.dark figure.shiki button[aria-label="Copy Text"],
-html.dark figure.shiki button[aria-label="Copied Text"] {
-  color: rgba(255, 255, 255, 0.25) !important;
-}
-
-html.dark figure.shiki button[aria-label="Copy Text"]:hover {
-  color: rgba(255, 255, 255, 0.6) !important;
-}
-
-html.dark figure.shiki button[aria-label="Copied Text"] {
-  color: rgb(74, 222, 128) !important;
+  color: var(--brand-accent) !important;
 }
 
 /* Copy button container — remove backdrop blur bg */
@@ -1737,14 +1576,8 @@ figure.shiki > div:has(> button[aria-label]) {
   display: flex !important;
   flex-direction: column !important;
   gap: 0 !important;
-  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
-}
-
-html.dark .prose .grid:has(> a[data-card]),
-html.dark #nd-page .grid:has(> a[data-card]) {
-  border-top-color: rgba(255, 255, 255, 0.08) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  border-top: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
 }
 
 /* Card items — line-separated rows with hover bg (scoped to grid container only) */
@@ -1754,7 +1587,7 @@ html.dark #nd-page .grid:has(> a[data-card]) {
   gap: 0.125rem !important;
   background: none !important;
   border: none !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-bottom: 1px solid var(--border) !important;
   border-radius: 0 !important;
   padding: 0.875rem 1rem !important;
   transition: background-color 0.15s !important;
@@ -1766,59 +1599,32 @@ html.dark #nd-page .grid:has(> a[data-card]) {
 }
 
 .grid > a[data-card]:hover {
-  background-color: rgba(0, 0, 0, 0.02) !important;
-}
-
-html.dark .grid > a[data-card] {
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
-  background: none !important;
-}
-
-html.dark .grid > a[data-card]:hover {
-  background-color: rgba(255, 255, 255, 0.03) !important;
+  background-color: var(--surface-3) !important;
 }
 
 /* Card title */
 .grid > a[data-card] h3 {
   font-weight: 470 !important;
   font-size: 0.875rem !important;
-  color: rgba(0, 0, 0, 0.85) !important;
-}
-
-html.dark .grid > a[data-card] h3 {
-  color: rgba(255, 255, 255, 0.88) !important;
+  color: var(--text-primary) !important;
 }
 
 /* Card description */
 .grid > a[data-card] p,
 .grid > a[data-card] div {
-  color: rgba(0, 0, 0, 0.45) !important;
+  color: var(--text-muted) !important;
   font-size: 0.8125rem !important;
-}
-
-html.dark .grid > a[data-card] p,
-html.dark .grid > a[data-card] div {
-  color: rgba(255, 255, 255, 0.4) !important;
 }
 
 /* Steps — lighter styling aligned with platform */
 .fd-steps {
-  border-left-color: rgba(0, 0, 0, 0.08) !important;
-}
-
-html.dark .fd-steps {
-  border-left-color: rgba(255, 255, 255, 0.08) !important;
+  border-left-color: var(--surface-active) !important;
 }
 
 .fd-step::before {
-  background-color: rgb(245, 245, 245) !important;
-  color: rgba(0, 0, 0, 0.5) !important;
+  background-color: var(--surface-4) !important;
+  color: var(--text-muted) !important;
   font-weight: 500 !important;
-}
-
-html.dark .fd-step::before {
-  background-color: rgb(41, 41, 41) !important;
-  color: rgba(255, 255, 255, 0.45) !important;
 }
 
 /* Blockquotes — subtle left border, matching platform divider */
@@ -1826,20 +1632,12 @@ html.dark .fd-step::before {
 [data-docs-page] blockquote,
 [data-content] blockquote,
 main article blockquote {
-  border-left: 3px solid rgba(0, 0, 0, 0.1) !important;
+  border-left: 3px solid var(--border-1) !important;
   padding: 0.25rem 0 0.25rem 1rem !important;
-  color: rgba(0, 0, 0, 0.55) !important;
+  color: var(--text-muted) !important;
   font-style: italic;
   background: none !important;
   margin: 1.5rem 0 !important;
-}
-
-html.dark .prose blockquote,
-html.dark [data-docs-page] blockquote,
-html.dark [data-content] blockquote,
-html.dark main article blockquote {
-  border-left-color: rgba(255, 255, 255, 0.1) !important;
-  color: rgba(255, 255, 255, 0.5) !important;
 }
 
 /* Remove all remaining box-shadows on content components */
@@ -1848,6 +1646,55 @@ html.dark main article blockquote {
 [data-docs-page] table,
 [data-docs-page] [data-card] {
   box-shadow: none !important;
+}
+
+/* Workflow-preview theme scope. Values mirror the app's tokens in
+   apps/sim/app/_styles/globals.css (light from :root/.light, dark from .dark)
+   so the docs previews match the OG repository in both modes. */
+.wp-scope {
+  /* surfaces */
+  --wp-canvas: var(--bg);
+  --wp-panel: var(--surface-1);
+  --wp-surface: var(--surface-2);
+  --wp-header: var(--surface-3);
+  --wp-btn: var(--surface-4);
+  --wp-control: var(--surface-5);
+  --wp-active: var(--surface-active);
+  --wp-container-fill: rgba(0, 0, 0, 0.02);
+
+  /* borders */
+  --wp-border: var(--border);
+  --wp-border-1: var(--border-1);
+  --wp-chip-bg: var(--surface-5); /* ChipTag surface (light) */
+  --wp-chip-text: var(--text-body);
+  --wp-divider: #ededed; /* --divider */
+  --wp-edge: #e0e0e0; /* --workflow-edge */
+
+  /* text */
+  --wp-text: var(--text-primary);
+  --wp-text-2: var(--text-secondary);
+  --wp-text-3: var(--text-tertiary);
+  --wp-text-muted: var(--text-muted);
+  --wp-text-subtle: var(--text-subtle);
+
+  /* type badges (output inspector) */
+  --wp-badge-success-bg: var(--badge-success-bg);
+  --wp-badge-success-text: var(--badge-success-text);
+  --wp-badge-blue-bg: var(--badge-blue-bg);
+  --wp-badge-blue-text: var(--badge-blue-text);
+  --wp-badge-orange-bg: var(--badge-orange-bg);
+  --wp-badge-orange-text: var(--badge-orange-text);
+  --wp-badge-purple-bg: var(--badge-purple-bg);
+  --wp-badge-purple-text: var(--badge-purple-text);
+  --wp-badge-gray-bg: var(--badge-gray-bg);
+  --wp-badge-gray-text: var(--badge-gray-text);
+}
+
+.dark .wp-scope {
+  --wp-container-fill: rgba(255, 255, 255, 0.02);
+  --wp-chip-bg: var(--surface-4); /* ChipTag surface (dark) */
+  --wp-divider: #393939;
+  --wp-edge: #454545;
 }
 
 /* Tailwind v4 content sources */

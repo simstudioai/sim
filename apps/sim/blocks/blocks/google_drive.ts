@@ -14,7 +14,7 @@ export const GoogleDriveBlock: BlockConfig<GoogleDriveResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Google Drive into the workflow. Can create, upload, download, copy, move, delete, share files and manage permissions.',
-  docsLink: 'https://docs.sim.ai/tools/google_drive',
+  docsLink: 'https://docs.sim.ai/integrations/google_drive',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',

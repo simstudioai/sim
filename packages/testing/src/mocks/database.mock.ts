@@ -235,17 +235,21 @@ export function resetDbChainMock(): void {
  * vi.mock('@sim/db', () => dbChainMock)
  * ```
  */
+const dbChainInstance = {
+  select,
+  selectDistinct,
+  selectDistinctOn,
+  insert,
+  update,
+  delete: del,
+  execute,
+  transaction,
+}
+
 export const dbChainMock = {
-  db: {
-    select,
-    selectDistinct,
-    selectDistinctOn,
-    insert,
-    update,
-    delete: del,
-    execute,
-    transaction,
-  },
+  db: dbChainInstance,
+  /** Same instance as `db` so per-test chain overrides cover both clients. */
+  dbReplica: dbChainInstance,
 }
 
 /**
@@ -309,8 +313,12 @@ export function createMockDb() {
  * vi.mock('@sim/db', () => databaseMock)
  * ```
  */
+const mockDbInstance = createMockDb()
+
 export const databaseMock = {
-  db: createMockDb(),
+  db: mockDbInstance,
+  /** Same instance as `db` so per-test overrides cover both clients. */
+  dbReplica: mockDbInstance,
   sql: createMockSql(),
   ...createMockSqlOperators(),
 }

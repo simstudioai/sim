@@ -8,7 +8,7 @@ export const AlgoliaBlock: BlockConfig = {
   description: 'Search and manage Algolia indices',
   longDescription:
     'Integrate Algolia into your workflow. Search indices, manage records (add, update, delete, browse), configure index settings, and perform batch operations.',
-  docsLink: 'https://docs.sim.ai/tools/algolia',
+  docsLink: 'https://docs.sim.ai/integrations/algolia',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#003DFF',

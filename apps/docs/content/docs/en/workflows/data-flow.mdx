@@ -1,0 +1,78 @@
+---
+title: How blocks pass data
+description: What a block's output is, how blocks reference earlier outputs, and the data types you'll work with.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, OutputBundle, CLASSIFY_REPLY_WORKFLOW } from '@/components/workflow-preview'
+
+Most blocks need a value that an earlier block produced. A block gets it by referencing that block's output by name. This page covers three things: what an output is and where it lives, how a block references one, and the types of values you'll find inside.
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} />
+
+In this workflow, Classify reads the message from Start, and Reply reads the classification from Classify.
+
+## What an output is
+
+When a block runs, Sim keeps its result under the block's name for the rest of the run. That stored result is the block's **output**, and any later block can read it.
+
+An output is usually a set of named values, not a single thing. You read one by its key: `<classify.content>` is the `content` value of the block named `classify`.
+
+<OutputBundle
+  blockName="classify"
+  blockType="agent"
+  blockColor="#33C482"
+  duration="2.1s"
+  values={[
+    { key: 'content', type: 'string', value: '"Billing · high urgency"', highlight: true },
+    { key: 'model', type: 'string', value: '"claude-sonnet-4-6"', expanded: false },
+    {
+      key: 'tokens', type: 'object',
+      children: [
+        { key: 'input', type: 'number', value: '412' },
+        { key: 'output', type: 'number', value: '38' },
+        { key: 'total', type: 'number', value: '450' },
+      ],
+    },
+  ]}
+/>
+
+Different blocks produce different values. An [Agent](/workflows/blocks/agent) keeps its `content`; an [API](/workflows/blocks/api) keeps the `data` it received; a Table block keeps a `rowCount` and the rows it read, reached with `<table1.rowCount>`.
+
+<Callout type="info">
+A block's output is not the same as the **workflow's** output. Every block has its own, kept under its own name. The workflow's output is simply one of them: whatever the last block produced.
+</Callout>
+
+## How a block references an output
+
+A block's inputs are its **parameters**: the fields you fill in, like an Agent's model and prompt. In any parameter you can insert a **connection tag** to pull in an earlier output instead of typing a fixed value. The `<start.input>` in Classify's prompt means "use whatever Start received here."
+
+<WorkflowPreview workflow={CLASSIFY_REPLY_WORKFLOW} height={180} highlightBlock="reply" />
+
+A block can reference any output that already exists by the time it runs, meaning any block before it on its path (see [how workflows run](/workflows/how-it-runs)). You rarely type a tag by hand: wherever a parameter accepts one, the builder lists the available outputs and you pick the value you want.
+
+## Data types
+
+Each value inside an output has a type, shown next to it in the output panel. The type tells you what you can do with the value: index into an array, read a field from an object, compare a number.
+
+| Type | What it is | Example |
+| --- | --- | --- |
+| `string` | Text | `"Billing issue"` |
+| `number` | A numeric value | `248` |
+| `boolean` | `true` or `false` | `true` |
+| `object` | A set of named fields | `{ category: "billing", urgency: "high" }` |
+| `array` | An ordered list of values | `["billing", "urgent"]` |
+| `null` | No value | `null` |
+
+A file shows up as an `object` carrying the file's details, like its name and URL. When a value isn't the type the next step needs, reshape it in a [Function](/workflows/blocks/function) block, which runs a short snippet of code and stores the result as its own output.
+
+## Next
+
+<Cards>
+  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, and branches." />
+  <Card title="Connection tags" href="/workflows/connections" description="The reference syntax in full." />
+  <Card title="Blocks" href="/workflows#blocks" description="What each block outputs." />
+  <Card title="Logs & debugging" href="/logs-debugging" description="Inspect what every block received and returned." />
+</Cards>

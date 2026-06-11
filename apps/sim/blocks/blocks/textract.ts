@@ -16,7 +16,7 @@ export const TextractBlock: BlockConfig<TextractParserOutput> = {
   hideFromToolbar: true,
   authMode: AuthMode.ApiKey,
   longDescription: `Integrate AWS Textract into your workflow to extract text, tables, forms, and key-value pairs from documents. Single-page mode supports JPEG, PNG, and single-page PDF. Multi-page mode supports multi-page PDF and TIFF.`,
-  docsLink: 'https://docs.sim.ai/tools/textract',
+  docsLink: 'https://docs.sim.ai/integrations/textract',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: 'linear-gradient(135deg, #055F4E 0%, #56C0A7 100%)',

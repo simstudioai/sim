@@ -1,24 +1,25 @@
 ---
-title: Chunking Strategies
-description: How Sim splits documents into searchable chunks, and which strategy to pick for your content
+title: Chunking strategies
+description: The chunking settings and strategies, for the rare case you need to override Auto.
+pageType: reference
 ---
 
+import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 
-Sim splits every uploaded document into chunks before generating embeddings. The strategy controls *where* those splits happen.
+<Callout type="warn">
+**Advanced.** Leave the strategy on **Auto** and the settings on their defaults unless you have a specific reason to change them and know how chunk boundaries affect retrieval. Auto inspects each file and routes it to the right chunker on its own. The rest of this page is for the case where you've confirmed Auto isn't producing the chunks you want.
+</Callout>
 
-## How chunking works
+If you do override Auto, the short version:
 
-Every chunker follows a two-phase pattern:
+- Sentence integrity matters (Q&A, legal text) → **[Sentence](#sentence)**
+- Content has structural markers Text misses (code, custom formats) → **[Recursive](#recursive)**
+- You need uniform chunk sizes → **[Token](#token)**
+- Content has explicit delimiters → **[Regex](#regex)**
+- Each record must be its own chunk → **[convert to JSONL](#one-record-per-chunk)**
 
-1. **Split** — break the document at boundaries (paragraphs, sentences, tokens, or a custom regex)
-2. **Pack** — merge adjacent splits up to the maximum chunk size
-
-This is documented in [LangChain's text splitter guide](https://python.langchain.com/docs/concepts/text_splitters/), which states the principle: *"no resulting merged split should exceed the designated chunk size."* LlamaIndex, Chonkie, and Unstructured follow the same convention.
-
-The packing step is what keeps chunks roughly uniform. It also means a chunk usually spans multiple splits — a precise split boundary is not the same as a chunk boundary. Most "why is my regex not producing one chunk per match" surprises trace back to this.
-
-## Configuration shared by all strategies
+## Settings
 
 | Setting | Unit | Default | Range | Description |
 |---------|------|---------|-------|-------------|
@@ -26,7 +27,9 @@ The packing step is what keeps chunks roughly uniform. It also means a chunk usu
 | Min Chunk Size | characters | 100 | 100–2,000 | Tiny fragments below this are dropped. |
 | Overlap | tokens | 200 | 0–500 | Tokens repeated between adjacent chunks to preserve context. |
 
-[Pinecone's chunking guide](https://www.pinecone.io/learn/chunking-strategies/) covers the tradeoffs in size and overlap.
+[Pinecone's chunking guide](https://www.pinecone.io/learn/chunking-strategies/) covers the size and overlap tradeoffs.
+
+Every strategy splits the document at boundaries, then packs adjacent splits together up to the max chunk size, so a chunk usually spans several splits and a split boundary is not a chunk boundary. This is why a precise [Regex](#regex) can still produce chunks containing multiple matches.
 
 ## Strategies
 
@@ -90,18 +93,6 @@ The regex strategy has an opt-in **"Each match is its own chunk (don't merge)"**
 This matches the `join=False` knob in [txtai](https://neuml.github.io/txtai/) and the `split_length=1` pattern in Haystack's `DocumentSplitter`. Most libraries don't expose this directly because they expect users to switch to a structural parser instead — see "One record per chunk" below.
 
 Turn it on when each match is a discrete record (one QA pair, one log entry) and you need each isolated for retrieval.
-
-## How to choose
-
-Pick **Auto** unless you have a reason not to.
-
-If Auto isn't right:
-
-- Sentence integrity matters → **Sentence**
-- Your content has structural markers Text doesn't know about → **Recursive**
-- You need uniform chunk sizes → **Token**
-- You have explicit delimiters → **Regex**
-- Each record must be its own chunk → see below
 
 ## One record per chunk
 

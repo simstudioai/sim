@@ -10,7 +10,7 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
   description: 'Connect to PostgreSQL database',
   longDescription:
     'Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
-  docsLink: 'https://docs.sim.ai/tools/postgresql',
+  docsLink: 'https://docs.sim.ai/integrations/postgresql',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#336791',

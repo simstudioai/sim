@@ -1,0 +1,63 @@
+---
+title: Wait
+description: The Wait block pauses a workflow for a set time before continuing.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { BlockPreview, WorkflowPreview, WAIT_RATELIMIT_WORKFLOW, WAIT_FOLLOWUP_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Wait block** pauses a workflow for a set time, then continues. Use it to space out actions, respect API rate limits, or give an external system time to finish. A short wait runs in line; a long one suspends the run and resumes later.
+
+<BlockPreview type="wait" />
+
+## Configuration
+
+### Wait Amount
+
+The duration to pause, as a positive number.
+
+### Unit
+
+The time unit. For a short, in-line wait, choose **Seconds** or **Minutes**. With **Async** on, choose **Minutes**, **Hours**, or **Days**.
+
+### Async
+
+Off, the run sleeps in line for the duration (up to 10 minutes). On, the run **suspends** and resumes after the delay, which is what lets a wait run for hours or days without holding the execution open. A suspended wait records when it will resume in `<wait.resumeAt>`.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `<wait.status>` | `waiting`, `completed`, or `cancelled` |
+| `<wait.waitDuration>` | The wait duration, in milliseconds |
+| `<wait.resumeAt>` | ISO timestamp a suspended (async) wait resumes at |
+
+## Examples
+
+### Space out API calls
+
+<WorkflowPreview workflow={WAIT_RATELIMIT_WORKFLOW} />
+
+A short wait between two calls keeps the workflow under an API's rate limit. The same shape works for polling: wait, then re-check an external job.
+
+### Send a delayed follow-up
+
+<WorkflowPreview workflow={WAIT_FOLLOWUP_WORKFLOW} />
+
+With Async on, the run suspends for two days and resumes to send the follow-up, without holding the execution open in between.
+
+## Best Practices
+
+- **Use a short in-line wait for seconds to a few minutes.** Turn on Async for hours or days so the run doesn't stay open the whole time.
+- **Remember waits extend the run.** The wait counts toward total duration, which shows in the logs.
+- **A wait is cancellable.** Stopping the run cancels an active wait, and `status` reports `cancelled`.
+
+<FAQ items={[
+  { question: "What is the maximum wait time?", answer: "An in-line (synchronous) wait is capped at 10 minutes. For longer delays, turn on Async: the run suspends and resumes after the delay, so a wait can run for minutes, hours, or days." },
+  { question: "Can a Wait block be cancelled?", answer: "Yes. Waits are interruptible by workflow cancellation. If the run is stopped while a Wait is active, the wait is cancelled and the status output reads 'cancelled'." },
+  { question: "What is the difference between a sync and an async wait?", answer: "A sync wait (Async off) sleeps in line for up to 10 minutes while the execution stays open. An async wait (Async on) suspends the run and resumes after minutes, hours, or days, recording the resume time in <wait.resumeAt>." },
+  { question: "Does the Wait block consume resources while paused?", answer: "An in-line wait performs a simple sleep and does not actively use compute, though the execution stays open. An async wait suspends the run entirely, so nothing is held open until it resumes." },
+  { question: "What outputs does the Wait block provide?", answer: "waitDuration (the wait in milliseconds), status ('waiting', 'completed', or 'cancelled'), and resumeAt (the ISO timestamp an async wait resumes at)." },
+]} />

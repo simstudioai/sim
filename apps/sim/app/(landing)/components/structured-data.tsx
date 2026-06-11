@@ -255,7 +255,7 @@ export default function StructuredData() {
             name: 'Can I self-host Sim?',
             acceptedAnswer: {
               '@type': 'Answer',
-              text: 'Yes. Sim can be self-hosted using Docker. Documentation is available at docs.sim.ai/self-hosting. Enterprise customers can also get dedicated infrastructure and on-premise deployment.',
+              text: 'Yes. Sim can be self-hosted using Docker. Documentation is available at docs.sim.ai/platform/self-hosting. Enterprise customers can also get dedicated infrastructure and on-premise deployment.',
             },
           },
         ],

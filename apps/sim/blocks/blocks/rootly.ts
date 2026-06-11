@@ -10,7 +10,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.',
-  docsLink: 'https://docs.sim.ai/tools/rootly',
+  docsLink: 'https://docs.sim.ai/integrations/rootly',
   category: 'tools',
   integrationType: IntegrationType.Observability,
   bgColor: '#6C72C8',

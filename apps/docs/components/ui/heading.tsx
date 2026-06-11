@@ -45,12 +45,12 @@ export function Heading({ as, className, ...props }: HeadingProps) {
       {copied ? (
         <Check
           aria-hidden
-          className='size-3.5 shrink-0 text-green-500 opacity-100 transition-opacity'
+          className='size-[14px] shrink-0 text-[var(--brand-accent)] opacity-100 transition-opacity'
         />
       ) : (
         <Link
           aria-hidden
-          className='size-3.5 shrink-0 text-fd-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100'
+          className='size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100'
         />
       )}
     </As>

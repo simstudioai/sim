@@ -9,7 +9,7 @@ export const CloudflareBlock: BlockConfig<CloudflareResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL/TLS certificates, zone settings, DNS analytics, and cache purging via the Cloudflare API.',
-  docsLink: 'https://docs.sim.ai/tools/cloudflare',
+  docsLink: 'https://docs.sim.ai/integrations/cloudflare',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#F5F6FA',

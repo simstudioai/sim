@@ -77,7 +77,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   - Prefer using integrations as tools within the agent block over separate integration blocks unless complete determinism needed. 
   - Response Format should be a valid JSON Schema. This determines the output of the agent only if present. Fields can be accessed at root level by the following blocks: e.g. <agent1.field>. If response format is not present, the agent will return the standard outputs: content, model, tokens, toolCalls.
   `,
-  docsLink: 'https://docs.sim.ai/blocks/agent',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/agent',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: 'var(--brand)',
