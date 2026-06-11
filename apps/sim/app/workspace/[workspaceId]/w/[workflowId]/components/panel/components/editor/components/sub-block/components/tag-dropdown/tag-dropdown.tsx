@@ -1518,7 +1518,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
       if (tag.startsWith(TAG_PREFIXES.VARIABLE)) {
         const variableName = tag.substring(TAG_PREFIXES.VARIABLE.length)
         const variableObj = workflowVariables.find(
-          (v: Variable) => v.name.replace(/\s+/g, '') === variableName
+          (v: Variable) => normalizeName(v.name) === variableName
         )
 
         if (variableObj) {
