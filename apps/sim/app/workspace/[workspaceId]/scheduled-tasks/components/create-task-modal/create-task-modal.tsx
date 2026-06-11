@@ -91,7 +91,13 @@ export function CreateTaskModal({ open, onOpenChange, slot, onSubmit }: CreateTa
         <ChipModalField type='custom' title='When it will launch'>
           <div className='flex items-center gap-2'>
             <div className='min-w-0 flex-1'>
-              <ChipDatePicker value={launchDate} onChange={setLaunchDate} fullWidth flush />
+              <ChipDatePicker
+                value={launchDate}
+                onChange={setLaunchDate}
+                fullWidth
+                flush
+                className='w-full'
+              />
             </div>
             <div className='min-w-0 flex-1'>
               <ChipDropdown
@@ -100,6 +106,7 @@ export function CreateTaskModal({ open, onOpenChange, slot, onSubmit }: CreateTa
                 options={TIME_OPTIONS}
                 fullWidth
                 flush
+                className='w-full'
               />
             </div>
           </div>

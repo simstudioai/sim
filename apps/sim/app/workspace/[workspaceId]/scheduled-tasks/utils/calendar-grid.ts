@@ -52,13 +52,6 @@ export const HOURS: number[] = Array.from({ length: 24 }, (_, hour) => hour)
 /** Fixed pixel height of one hour row in the time grid. */
 export const TIME_SLOT_HEIGHT = 48
 
-/**
- * Horizontal inset of the calendar's edge content, matching the page's content
- * gutter (header `px-4` + the title chip's `px-2`). Edge grid tracks are widened
- * by this amount so every column keeps an equal content width.
- */
-export const EDGE_GUTTER = 24
-
 const BASE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 /** Weekday header labels rotated to honor {@link WEEK_STARTS_ON}. */
