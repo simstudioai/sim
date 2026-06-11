@@ -6,6 +6,7 @@ import {
   encodeTimeCursor,
   timeCursorOrderBy,
   timeCursorPredicate,
+  timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
@@ -58,7 +59,13 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
     const metaRows = await dbReplica
       .select(chatColumns)
       .from(copilotChats)
-      .where(and(inArray(copilotChats.workspaceId, workspaceIds), cursorClause))
+      .where(
+        and(
+          inArray(copilotChats.workspaceId, workspaceIds),
+          timeCursorStabilityBound(copilotChats.createdAt),
+          cursorClause
+        )
+      )
       .orderBy(...timeCursorOrderBy(copilotChats.createdAt, copilotChats.id))
       .limit(input.chunkSize)
 

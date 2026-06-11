@@ -7,6 +7,7 @@ import {
   encodeTimeCursor,
   timeCursorOrderBy,
   timeCursorPredicate,
+  timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
@@ -40,6 +41,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<WorkflowLogRow[]> {
         and(
           inArray(workflowExecutionLogs.workspaceId, workspaceIds),
           isNotNull(workflowExecutionLogs.endedAt),
+          timeCursorStabilityBound(workflowExecutionLogs.endedAt),
           cursorClause
         )
       )
