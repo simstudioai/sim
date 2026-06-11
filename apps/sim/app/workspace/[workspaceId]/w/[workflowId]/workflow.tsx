@@ -4233,6 +4233,18 @@ const WorkflowContent = React.memo(
 
             {!embedded && <DiffControls />}
 
+            {/* Top fade between the canvas and the chrome row: nodes panning
+                under the toggle/switcher/title dissolve into the page bg
+                instead of colliding with them. Solid through the 44px chrome
+                zone, faded out by 72px. Gradient only — a backdrop blur here
+                would tax every canvas pan/zoom repaint. */}
+            {!embedded && (
+              <div
+                aria-hidden='true'
+                className='pointer-events-none absolute inset-x-0 top-0 z-[9] h-[72px] bg-gradient-to-b from-40% from-[var(--bg)] to-transparent'
+              />
+            )}
+
             {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
                 + workflow title at the top-left, matching the title-bar rhythm
                 on other pages. The controls hide while a chat is docked (the
