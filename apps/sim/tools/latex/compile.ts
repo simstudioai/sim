@@ -100,6 +100,19 @@ export const latexCompileTool: ToolConfig<LatexCompileParams, LatexCompileRespon
           }
         : '')
 
+    if (!pdf) {
+      return {
+        success: false,
+        error: 'LaTeX compile response did not include a PDF',
+        output: {
+          pdf: '',
+          pdfUrl: '',
+          fileName: '',
+          compiler: data.compiler || '',
+        },
+      }
+    }
+
     return {
       success: true,
       output: {

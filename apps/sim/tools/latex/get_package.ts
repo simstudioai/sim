@@ -41,13 +41,33 @@ export const latexGetPackageTool: ToolConfig<LatexGetPackageParams, LatexGetPack
       }
     }
 
-    const pkg = data.package ?? {}
+    const pkg = data.package
+    if (!pkg?.package) {
+      return {
+        success: false,
+        error: 'Package not found',
+        output: {
+          package: {
+            name: '',
+            installed: false,
+            shortDescription: null,
+            longDescription: null,
+            category: null,
+            license: null,
+            topics: [],
+            relatedPackages: [],
+            homepage: null,
+            ctanUrl: null,
+          },
+        },
+      }
+    }
 
     return {
       success: true,
       output: {
         package: {
-          name: pkg.package ?? '',
+          name: pkg.package,
           installed: pkg.installed ?? false,
           shortDescription: pkg.shortdesc ?? null,
           longDescription: pkg.longdesc ?? null,
