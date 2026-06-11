@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -16,6 +15,7 @@ import {
   Label,
   Loader,
 } from '@/components/emcn'
+import { RotateCcw, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'

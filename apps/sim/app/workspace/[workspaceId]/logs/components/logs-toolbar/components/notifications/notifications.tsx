@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus, X } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -21,6 +20,7 @@ import {
   TagInput,
   type TagItem,
 } from '@/components/emcn'
+import { Plus, X } from '@/components/emcn/icons'
 import { SlackIcon } from '@/components/icons'
 import type {
   NotificationAlertRule,

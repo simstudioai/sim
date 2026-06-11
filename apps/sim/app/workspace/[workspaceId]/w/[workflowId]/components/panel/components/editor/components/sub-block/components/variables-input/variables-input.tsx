@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { generateId } from '@sim/utils/id'
-import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -11,6 +10,7 @@ import {
   Label,
   Textarea,
 } from '@/components/emcn'
+import { Plus } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'

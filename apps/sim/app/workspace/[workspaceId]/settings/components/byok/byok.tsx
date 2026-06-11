@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -17,6 +16,7 @@ import {
   ChipModalHeader,
   Search,
 } from '@/components/emcn'
+import { Eye, EyeOff } from '@/components/emcn/icons'
 import {
   AnthropicIcon,
   BasetenIcon,

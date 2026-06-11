@@ -1,7 +1,7 @@
 'use client'
 
 import { Button, Tooltip } from '@/components/emcn'
-import { PanelLeft } from '@/components/emcn/icons'
+import { PanelRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
@@ -46,7 +46,7 @@ export function ResourcePanelToggle({
       aria-label={isCollapsed ? 'Expand resource view' : 'Collapse resource view'}
       className={cn(RESOURCE_TAB_ICON_BUTTON_CLASS, placeholder && 'invisible', className)}
     >
-      <PanelLeft className={cn(RESOURCE_TAB_ICON_CLASS, '-scale-x-100')} />
+      <PanelRight className={RESOURCE_TAB_ICON_CLASS} />
     </Button>
   )
 

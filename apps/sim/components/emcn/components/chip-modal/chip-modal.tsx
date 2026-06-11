@@ -38,7 +38,6 @@
 'use client'
 
 import * as React from 'react'
-import { X } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import {
   ChipDropdown,
@@ -50,6 +49,7 @@ import { ChipTextarea } from '@/components/emcn/components/chip-textarea/chip-te
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
 import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
+import { X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 

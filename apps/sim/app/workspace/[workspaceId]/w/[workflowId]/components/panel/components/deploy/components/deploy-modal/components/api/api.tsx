@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Check, Clipboard } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -12,6 +11,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import { Check, Clipboard } from '@/components/emcn/icons'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 
 interface WorkflowDeploymentInfo {

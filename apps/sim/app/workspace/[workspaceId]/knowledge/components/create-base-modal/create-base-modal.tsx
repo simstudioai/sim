@@ -4,7 +4,6 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { RotateCcw, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -25,6 +24,7 @@ import {
   Label,
   Loader,
 } from '@/components/emcn'
+import { RotateCcw, X } from '@/components/emcn/icons'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'

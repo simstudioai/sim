@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Chip,
@@ -16,6 +15,7 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { Info, Plus } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

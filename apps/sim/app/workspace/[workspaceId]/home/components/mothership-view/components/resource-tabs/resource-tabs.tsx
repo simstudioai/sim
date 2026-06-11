@@ -686,7 +686,7 @@ export function ResourceTabs({
                 )}
               >
                 +{overflowTabs.length}
-                <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+                <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               </button>
             </PopoverAnchor>
             {/* Anchored 6px below the 44px bar, matching the chat switcher.

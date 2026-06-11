@@ -1,5 +1,4 @@
 import { Fragment, forwardRef, memo, useEffect, useRef, useState } from 'react'
-import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -20,6 +19,7 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@/components/emcn'
+import { ArrowUpLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
@@ -304,7 +304,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
               {...tooltipHandlers}
             >
               {content}
-              <ChevronDown className='ml-auto h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
+              <ChevronDown className='ml-auto size-[14px] shrink-0 text-[var(--text-muted)]' />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>

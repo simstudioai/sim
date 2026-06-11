@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Camera, Check, Info, Pencil } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
@@ -19,6 +18,7 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { Camera, Check, Info, Pencil } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { telemetryContract } from '@/lib/api/contracts/telemetry'
 import { signOut, useSession } from '@/lib/auth/auth-client'

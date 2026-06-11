@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Check, ChevronRight, Clipboard, Info } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Checkbox, Input, Label, SecretInput, Tooltip, toast, Wizard } from '@/components/emcn'
+import { Check, ChevronRight, Clipboard, Info } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   Button,
   Chip,
@@ -15,6 +14,7 @@ import {
   ChipTextarea,
   SecretInput,
 } from '@/components/emcn'
+import { ChevronDown, ChevronRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 import {

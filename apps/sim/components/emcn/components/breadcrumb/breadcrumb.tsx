@@ -1,6 +1,6 @@
 import type * as React from 'react'
-import { ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { ChevronRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 interface BreadcrumbItem {

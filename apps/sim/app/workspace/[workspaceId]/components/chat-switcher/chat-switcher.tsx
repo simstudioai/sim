@@ -9,7 +9,7 @@ import {
   PopoverContent,
   Tooltip,
 } from '@/components/emcn'
-import { ChevronDown, MessageCircle } from '@/components/emcn/icons'
+import { BubbleChatDelay, ChevronDown } from '@/components/emcn/icons'
 import {
   isMothershipPageId,
   MOTHERSHIP_PAGES,
@@ -128,8 +128,8 @@ export function ChatSwitcher({
         open && 'bg-[var(--surface-active)]'
       )}
     >
-      <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-      <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+      <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
     </button>
   ) : (
     <button
@@ -142,11 +142,11 @@ export function ChatSwitcher({
         open && 'bg-[var(--surface-active)]'
       )}
     >
-      <MessageCircle className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+      <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
       <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
         {title}
       </span>
-      <ChevronDown className='ml-0.5 h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+      <ChevronDown className='ml-0.5 size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
     </button>
   )
 

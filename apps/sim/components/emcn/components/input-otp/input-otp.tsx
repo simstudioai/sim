@@ -28,7 +28,7 @@
 
 import * as React from 'react'
 import { OTPInput, OTPInputContext } from 'input-otp'
-import { Minus } from 'lucide-react'
+import { Minus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /**

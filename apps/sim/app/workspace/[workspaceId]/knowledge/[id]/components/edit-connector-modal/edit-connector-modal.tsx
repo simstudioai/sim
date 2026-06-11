@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ExternalLink, Info, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -19,6 +18,7 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import { ArrowLeftRight, ExternalLink, Info, RotateCcw } from '@/components/emcn/icons'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'

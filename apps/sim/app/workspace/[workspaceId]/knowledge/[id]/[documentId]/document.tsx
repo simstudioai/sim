@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronUp, FileText, Pencil, Tag } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import {
   Badge,
@@ -14,7 +13,14 @@ import {
   ChipModalHeader,
   Trash,
 } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import {
+  ChevronDown,
+  ChevronUp,
+  Database,
+  FileText,
+  Pencil,
+  TagIcon,
+} from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
@@ -497,7 +503,7 @@ export function Document({
                 ...(userPermissions.canEdit
                   ? [
                       { label: 'Rename', icon: Pencil, onClick: handleStartDocRename },
-                      { label: 'Tags', icon: Tag, onClick: handleShowTags },
+                      { label: 'Tags', icon: TagIcon, onClick: handleShowTags },
                       { label: 'Delete', icon: Trash, onClick: handleShowDeleteDoc },
                     ]
                   : []),

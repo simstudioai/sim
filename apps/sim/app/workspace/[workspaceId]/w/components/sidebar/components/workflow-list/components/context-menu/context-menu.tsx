@@ -1,6 +1,5 @@
 'use client'
 
-import { Pin, PinOff } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +17,8 @@ import {
   LogOut,
   Mail,
   Pencil,
+  Pin,
+  PinOff,
   Plus,
   SquareArrowUpRight,
   Trash,

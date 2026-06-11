@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { PauseCircle } from 'lucide-react'
+import { PauseCircle } from '@/components/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 const WaitIcon = (props: SVGProps<SVGSVGElement>) => createElement(PauseCircle, props)

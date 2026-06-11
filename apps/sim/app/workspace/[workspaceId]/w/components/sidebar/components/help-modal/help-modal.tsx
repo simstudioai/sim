@@ -5,7 +5,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { useMutation } from '@tanstack/react-query'
 import imageCompression from 'browser-image-compression'
-import { X } from 'lucide-react'
 import Image from 'next/image'
 import { Controller, useForm } from 'react-hook-form'
 import { z } from 'zod'
@@ -17,6 +16,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
 
 const logger = createLogger('HelpModal')
 

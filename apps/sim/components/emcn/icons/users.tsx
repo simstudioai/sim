@@ -1,28 +1,53 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * Users icon component - two person silhouettes
- * @param props - SVG properties including className, fill, etc.
+ * Users icon (Hugeicons stroke-rounded: UserMultipleIcon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function Users(props: SVGProps<SVGSVGElement>) {
+export function Users({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <circle cx='8.25' cy='5.75' r='3.5' />
-      <path d='M0.75 18.75C0.75 14.61 4.11 11.25 8.25 11.25C12.39 11.25 15.75 14.61 15.75 18.75' />
-      <path d='M14.25 0.93C15.11 0.63 16.04 0.73 16.83 1.19C17.62 1.65 18.17 2.42 18.33 3.32C18.49 4.21 18.25 5.13 17.68 5.83C17.11 6.54 16.27 6.95 15.37 6.97' />
-      <path d='M16.75 11.43C18.08 11.67 19.29 12.35 20.17 13.37C21.05 14.39 21.53 15.69 21.53 17.03V18.75' />
+      <path
+        d='M13 11C13 8.79086 11.2091 7 9 7C6.79086 7 5 8.79086 5 11C5 13.2091 6.79086 15 9 15C11.2091 15 13 13.2091 13 11Z'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M11.0386 7.55773C11.0131 7.37547 11 7.18927 11 7C11 4.79086 12.7909 3 15 3C17.2091 3 19 4.79086 19 7C19 9.20914 17.2091 11 15 11C14.2554 11 13.5584 10.7966 12.9614 10.4423'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M15 21C15 17.6863 12.3137 15 9 15C5.68629 15 3 17.6863 3 21'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M21 17C21 13.6863 18.3137 11 15 11'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

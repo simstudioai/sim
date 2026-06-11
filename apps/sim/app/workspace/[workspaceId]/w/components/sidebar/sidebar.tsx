@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -15,7 +14,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FolderPlus,
-  Library,
   Loader,
   Skeleton,
   Tooltip,
@@ -23,12 +21,14 @@ import {
 } from '@/components/emcn'
 import {
   BookOpen,
-  Clock,
+  BubbleChatSpark,
+  CalendarClock,
   Database,
-  Files,
+  File,
   HelpCircle,
   Integration,
-  MessageCircle,
+  Logs,
+  MoreHorizontal,
   Plus,
   Search,
   Settings,
@@ -436,7 +436,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'home',
           label: 'New chat',
-          icon: MessageCircle,
+          icon: BubbleChatSpark,
           href: `/workspace/${workspaceId}/home`,
         },
         {
@@ -470,7 +470,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'files',
           label: 'Files',
-          icon: Files,
+          icon: File,
           href: `/workspace/${workspaceId}/files`,
           hidden: permissionConfig.hideFilesTab,
         },
@@ -484,13 +484,13 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'scheduled-tasks',
           label: 'Scheduled tasks',
-          icon: Clock,
+          icon: CalendarClock,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',
           label: 'Logs',
-          icon: Library,
+          icon: Logs,
           href: `/workspace/${workspaceId}/logs`,
         },
       ].filter((item) => !item.hidden),

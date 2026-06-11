@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import Editor from 'react-simple-code-editor'
 import {
@@ -14,6 +13,7 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
+import { ChevronDown, ChevronsUpDown, ChevronUp, Plus } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import {

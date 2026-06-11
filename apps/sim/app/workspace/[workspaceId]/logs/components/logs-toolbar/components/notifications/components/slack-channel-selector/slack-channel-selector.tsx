@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Hash, Lock } from 'lucide-react'
 import { ChipCombobox, type ComboboxOption } from '@/components/emcn'
+import { Hash, Lock } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { slackChannelsSelectorContract } from '@/lib/api/contracts'
 

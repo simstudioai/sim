@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -31,6 +30,7 @@ import {
   TableRow,
   toast,
 } from '@/components/emcn'
+import { ChevronDown, Plus } from '@/components/emcn/icons'
 import type { CreateDataDrainBody, DataDrain, DataDrainRun } from '@/lib/api/contracts/data-drains'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'

@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { WrenchIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -14,6 +13,7 @@ import {
   Search,
   Switch,
 } from '@/components/emcn'
+import { Wrench } from '@/components/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import type { MothershipEnvironment, MothershipSettings } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/auth-client'
@@ -203,7 +203,7 @@ export function Admin() {
           return {
             label: tool.title,
             value,
-            icon: WrenchIcon,
+            icon: Wrench,
           }
         }),
       })

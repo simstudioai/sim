@@ -2,7 +2,6 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   DropdownMenu,
@@ -17,6 +16,7 @@ import {
   ModalDescription,
   ModalHeader,
 } from '@/components/emcn'
+import { CircleAlert } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { Preview } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useExecutionSnapshot } from '@/hooks/queries/logs'
@@ -110,7 +110,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-2 text-[var(--text-error)]'>
-            <AlertCircle className='size-[16px]' />
+            <CircleAlert className='size-[16px]' />
             <span className='text-small'>Failed to load run snapshot: {error.message}</span>
           </div>
         </div>
@@ -138,7 +138,7 @@ export function ExecutionSnapshot({
           style={{ height, width }}
         >
           <div className='flex items-center gap-3 text-[var(--text-warning)]'>
-            <AlertCircle className='size-[20px]' />
+            <CircleAlert className='size-[20px]' />
             <span className='font-medium text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>

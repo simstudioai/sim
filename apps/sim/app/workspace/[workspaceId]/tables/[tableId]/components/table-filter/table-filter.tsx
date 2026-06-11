@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { generateShortId } from '@sim/utils/id'
-import { X } from 'lucide-react'
 import {
   Button,
   DropdownMenu,
@@ -10,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { ChevronDown, Plus } from '@/components/emcn/icons'
+import { ChevronDown, Plus, X } from '@/components/emcn/icons'
 import type { Filter, FilterRule } from '@/lib/table'
 import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'

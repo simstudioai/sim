@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { AlertTriangle, LibraryBig, MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import {
   Button,
@@ -13,7 +12,7 @@ import {
   DropdownMenuTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { ChevronDown } from '@/components/emcn/icons'
+import { ChevronDown, LibraryBig, MoreHorizontal, TriangleAlert } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { filterButtonClass } from '@/app/workspace/[workspaceId]/knowledge/components/constants'
 import { useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
@@ -123,7 +122,7 @@ export function KnowledgeHeader({ breadcrumbs, options }: KnowledgeHeaderProps) 
               {!hasWorkspace && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <AlertTriangle className='size-4 text-amber-500' />
+                    <TriangleAlert className='size-4 text-amber-500' />
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Not assigned to workspace</Tooltip.Content>
                 </Tooltip.Root>

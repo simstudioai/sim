@@ -1,5 +1,4 @@
 import { useRef } from 'react'
-import { Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -9,6 +8,7 @@ import {
   Label,
   Trash,
 } from '@/components/emcn'
+import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { FilterRule } from '@/lib/table/query-builder/constants'

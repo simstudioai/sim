@@ -5,7 +5,6 @@ import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon, X } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -20,7 +19,7 @@ import {
   Tooltip,
   toast,
 } from '@/components/emcn'
-import { ArrowLeft, ChevronDown } from '@/components/emcn/icons'
+import { ArrowLeft, ChevronDown, ExternalLink, Repeat, Split, X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -488,8 +487,8 @@ export function WorkflowSidebarBody({
           .charAt(0)
           .toUpperCase()
         if (blockConfig?.icon) blockIcon = blockConfig.icon
-        else if (f.blockType === 'loop') blockIcon = RepeatIcon
-        else if (f.blockType === 'parallel') blockIcon = SplitIcon
+        else if (f.blockType === 'loop') blockIcon = Repeat
+        else if (f.blockType === 'parallel') blockIcon = Split
         group = {
           blockId: f.blockId,
           blockName: f.blockName,

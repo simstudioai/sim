@@ -2,11 +2,10 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { MoreHorizontal } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { chipVariants } from '@/components/emcn'
-import { Lock } from '@/components/emcn/icons'
+import { Lock, MoreHorizontal } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

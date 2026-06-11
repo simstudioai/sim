@@ -1,26 +1,32 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * X icon component - close / clear / dismiss
- * @param props - SVG properties including className, fill, etc.
+ * X icon (Hugeicons stroke-rounded: Cancel01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function X(props: SVGProps<SVGSVGElement>) {
+export function X({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <path d='M15.25 4.75L4.75 15.25' />
-      <path d='M4.75 4.75L15.25 15.25' />
+      <path
+        d='M18 6L6.00081 17.9992M17.9992 18L6 6.00085'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

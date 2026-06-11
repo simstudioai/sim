@@ -1,33 +1,45 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * Eye-off icon. Companion to {@link Eye}; used for "hide" affordances where
- * something is being concealed without being destroyed (e.g. hide a workflow
- * output column from the table while keeping it re-addable from the sidebar).
- *
- * Uses currentColor so it inherits the surrounding text color.
- *
- * @param props - SVG properties including className, fill, etc.
+ * EyeOff icon (Hugeicons stroke-rounded: ViewOffSlashIcon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function EyeOff(props: SVGProps<SVGSVGElement>) {
+export function EyeOff({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='14'
-      height='14'
+      xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
       viewBox='0 0 24 24'
       fill='none'
-      stroke='currentColor'
-      strokeWidth='2'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path d='M9.88 9.88a3 3 0 1 0 4.24 4.24' />
-      <path d='M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68' />
-      <path d='M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61' />
-      <line x1='2' y1='2' x2='22' y2='22' />
+      <path
+        d='M19.439 15.439C20.3636 14.5212 21.0775 13.6091 21.544 12.955C21.848 12.5287 22 12.3155 22 12C22 11.6845 21.848 11.4713 21.544 11.045C20.1779 9.12944 16.6892 5 12 5C11.0922 5 10.2294 5.15476 9.41827 5.41827M6.74742 6.74742C4.73118 8.1072 3.24215 9.94266 2.45604 11.045C2.15201 11.4713 2 11.6845 2 12C2 12.3155 2.15201 12.5287 2.45604 12.955C3.8221 14.8706 7.31078 19 12 19C13.9908 19 15.7651 18.2557 17.2526 17.2526'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M9.85786 10C9.32783 10.53 9 11.2623 9 12.0711C9 13.6887 10.3113 15 11.9289 15C12.7377 15 13.47 14.6722 14 14.1421'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M3 3L21 21'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

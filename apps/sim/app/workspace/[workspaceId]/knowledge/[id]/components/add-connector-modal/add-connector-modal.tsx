@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowLeftRight, Info, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   ArrowRight,
@@ -21,6 +20,7 @@ import {
   Search,
   Tooltip,
 } from '@/components/emcn'
+import { ArrowLeft, ArrowLeftRight, Info, Plus } from '@/components/emcn/icons'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'

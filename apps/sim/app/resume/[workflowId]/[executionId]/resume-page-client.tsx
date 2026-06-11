@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { RefreshCw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { RefreshCw } from '@/components/emcn/icons'
 
 const logger = createLogger('ResumePage')
 

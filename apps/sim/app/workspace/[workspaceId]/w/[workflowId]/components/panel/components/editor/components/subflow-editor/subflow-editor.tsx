@@ -1,8 +1,8 @@
 'use client'
 
-import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
+import { ChevronUp } from '@/components/emcn/icons'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {
   formatDisplayText,

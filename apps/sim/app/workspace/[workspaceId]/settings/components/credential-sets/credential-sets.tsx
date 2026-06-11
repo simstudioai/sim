@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
@@ -23,7 +22,7 @@ import {
   TagInput,
   type TagItem,
 } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+import { ArrowLeft, Plus } from '@/components/emcn/icons'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'

@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import clsx from 'clsx'
-import { Filter } from 'lucide-react'
 import {
   Button,
   Popover,
@@ -13,6 +12,7 @@ import {
   PopoverSection,
   PopoverTrigger,
 } from '@/components/emcn'
+import { Filter } from '@/components/emcn/icons'
 import type {
   BlockInfo,
   TerminalFilters,

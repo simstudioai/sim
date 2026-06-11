@@ -1,8 +1,8 @@
 'use client'
 
-import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Chip } from '@/components/emcn'
+import { ArrowRight } from '@/components/emcn/icons'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 

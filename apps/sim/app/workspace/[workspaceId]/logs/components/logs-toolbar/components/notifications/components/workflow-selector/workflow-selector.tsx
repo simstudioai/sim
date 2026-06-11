@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { X } from 'lucide-react'
 import { Badge, ChipCombobox, type ComboboxOption, Label, Skeleton } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
 import { useWorkflows } from '@/hooks/queries/workflows'
 
 interface WorkflowSelectorProps {

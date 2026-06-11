@@ -1,31 +1,31 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * MoreHorizontal icon component (three horizontal dots)
- * @param props - SVG properties including className, fill, etc.
+ * MoreHorizontal icon (Hugeicons stroke-rounded: MoreHorizontalIcon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function MoreHorizontal(props: SVGProps<SVGSVGElement>) {
+export function MoreHorizontal({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='12'
-      height='3'
-      viewBox='0 0 12 3'
-      fill='none'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
       <path
-        d='M10.64 2.72C10.46 2.72 10.29 2.68 10.122 2.61C9.96 2.54 9.81 2.44 9.68 2.32C9.56 2.19 9.46 2.04 9.39 1.88C9.32 1.71 9.28 1.54 9.28 1.36C9.28 1.18 9.32 1 9.39 0.84C9.45 0.67 9.55 0.52 9.68 0.4C9.81 0.27 9.96 0.17 10.12 0.1C10.286 0.04 10.46 5.74e-05 10.641 7.02e-08C11 0 11.35 0.14 11.6 0.4C11.86 0.65 12 1 12 1.36C12 1.72 11.86 2.06 11.6 2.32C11.35 2.57 11 2.72 10.64 2.72Z'
-        fill='currentColor'
-      />
-      <path
-        d='M6 2.72C6.75 2.72 7.36 2.11 7.36 1.36C7.36 0.61 6.75 0 6 0C5.25 0 4.64 0.61 4.64 1.36C4.64 2.11 5.25 2.72 6 2.72Z'
-        fill='currentColor'
-      />
-      <path
-        d='M1.36 2.72C2.11 2.72 2.72 2.11 2.72 1.36C2.72 0.61 2.11 0 1.36 0C0.61 0 0 0.61 0 1.36C0 2.11 0.61 2.72 1.36 2.72Z'
-        fill='currentColor'
+        d='M6.00449 12.5V12M18.0045 12.5V12M12.0045 12.5V12M7.00449 12.5C7.00449 11.9477 6.55677 11.5 6.00449 11.5C5.4522 11.5 5.00449 11.9477 5.00449 12.5C5.00449 13.0523 5.4522 13.5 6.00449 13.5C6.55677 13.5 7.00449 13.0523 7.00449 12.5ZM19.0045 12.5C19.0045 11.9477 18.5568 11.5 18.0045 11.5C17.4522 11.5 17.0045 11.9477 17.0045 12.5C17.0045 13.0523 17.4522 13.5 18.0045 13.5C18.5568 13.5 19.0045 13.0523 19.0045 12.5ZM13.0045 12.5C13.0045 11.9477 12.5568 11.5 12.0045 11.5C11.4522 11.5 11.0045 11.9477 11.0045 12.5C11.0045 13.0523 11.4522 13.5 12.0045 13.5C12.5568 13.5 13.0045 13.0523 13.0045 12.5Z'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
       />
     </svg>
   )

@@ -9,8 +9,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
+import { ChevronLeft, ChevronRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import type { BreadcrumbItem, CreateAction, HeaderAction } from './components/resource-header'

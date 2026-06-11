@@ -2,11 +2,11 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, domMax, LazyMotion, m } from 'framer-motion'
-import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { Blimp, BubbleChatPreview, ChevronDown, MoreHorizontal, Play } from '@/components/emcn'
+import { ArrowUp } from '@/components/emcn/icons'
 import { AgentIcon, HubspotIcon, OpenAIIcon, SalesforceIcon } from '@/components/icons'
 import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -432,7 +432,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
               <div className='flex h-[32px] items-center gap-2 rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2'>
                 {ModelIcon && <ModelIcon className='h-[14px] w-[14px] text-[#e6e6e6]' />}
                 <span className='flex-1 truncate font-medium text-[#e6e6e6] text-sm'>{model}</span>
-                <ChevronDown className='h-[7px] w-[9px] text-[#636363]' />
+                <ChevronDown className='size-[14px] text-[#636363]' />
               </div>
             </div>
           )}

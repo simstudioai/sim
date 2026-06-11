@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
-import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Check,
@@ -17,6 +16,7 @@ import {
   Tooltip,
   toast,
 } from '@/components/emcn'
+import { GitBranch } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'

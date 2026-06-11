@@ -1,6 +1,6 @@
 import type * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { AlertTriangle, CheckCircle2, Info } from 'lucide-react'
+import { CircleCheck, Info, TriangleAlert } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 const calloutVariants = cva('flex items-center gap-2 rounded-lg border p-2.5 text-[12px]', {
@@ -24,9 +24,9 @@ const calloutVariants = cva('flex items-center gap-2 rounded-lg border p-2.5 tex
 const DEFAULT_ICONS = {
   default: Info,
   info: Info,
-  success: CheckCircle2,
-  warning: AlertTriangle,
-  destructive: AlertTriangle,
+  success: CircleCheck,
+  warning: TriangleAlert,
+  destructive: TriangleAlert,
 } as const
 
 interface CalloutProps

@@ -1,4 +1,4 @@
-import { RepeatIcon } from 'lucide-react'
+import { Repeat } from '@/components/emcn/icons'
 
 /**
  * Loop tool configuration for the toolbar.
@@ -7,7 +7,7 @@ import { RepeatIcon } from 'lucide-react'
 export const LoopTool = {
   type: 'loop',
   name: 'Loop',
-  icon: RepeatIcon,
+  icon: Repeat,
   bgColor: '#2FB3FF',
   docsLink: 'https://docs.sim.ai/blocks/loop',
 } as const

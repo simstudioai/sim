@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -17,7 +16,7 @@ import {
   Search,
   Tooltip,
 } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import { cn } from '@/lib/core/utils/cn'

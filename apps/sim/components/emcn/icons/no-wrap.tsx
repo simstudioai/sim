@@ -1,29 +1,32 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * NoWrap icon component - shows text extending horizontally without wrapping
- * @param props - SVG properties including className, fill, etc.
+ * NoWrap icon (Hugeicons stroke-rounded: ArrowRight01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function NoWrap(props: SVGProps<SVGSVGElement>) {
+export function NoWrap({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
+      xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
       viewBox='0 0 24 24'
       fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path d='M3 8h18' />
-      <path d='M3 12h18' />
-      <path d='M3 16h15' />
-      <path d='m21 16-3 3' />
-      <path d='m21 16-3-3' />
+      <path
+        d='M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

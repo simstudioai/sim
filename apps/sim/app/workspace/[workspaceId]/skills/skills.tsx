@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Chip,
@@ -14,6 +13,7 @@ import {
   ChipModalHeader,
   Search,
 } from '@/components/emcn'
+import { ArrowRight, Plus } from '@/components/emcn/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'

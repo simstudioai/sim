@@ -3,8 +3,8 @@
 import type React from 'react'
 import { memo } from 'react'
 import clsx from 'clsx'
-import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { ChevronDown } from '@/components/emcn/icons'
 
 export interface ToggleButtonProps {
   isExpanded: boolean

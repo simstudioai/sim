@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Chip,
@@ -14,6 +13,7 @@ import {
   ChipModalHeader,
   Search,
 } from '@/components/emcn'
+import { Plus } from '@/components/emcn/icons'
 import { CustomToolModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/custom-tool-modal/custom-tool-modal'
 import { useCustomTools, useDeleteCustomTool } from '@/hooks/queries/custom-tools'
 

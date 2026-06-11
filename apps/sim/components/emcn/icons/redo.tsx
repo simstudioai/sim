@@ -1,33 +1,38 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * Redo icon component
- * @param props - SVG properties including className, fill, etc.
+ * Redo icon (Hugeicons stroke-rounded: ArrowTurnForwardIcon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function Redo(props: SVGProps<SVGSVGElement>) {
+export function Redo({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='12'
-      height='12'
-      viewBox='0 0 12 12'
-      fill='none'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
       <path
-        d='M9.5 4.5H4C2.62 4.5 1.5 5.62 1.5 7C1.5 8.38 2.62 9.5 4 9.5H7'
+        d='M13 6H8.5C6.01472 6 4 8.01472 4 10.5C4 12.9853 6.01472 15 8.5 15H20'
         stroke='currentColor'
-        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
+        strokeWidth='1.5'
       />
       <path
-        d='M8 2.5L10 4.5L8 6.5'
+        d='M17 12C17 12 20 14.2095 20 15C20 15.7906 17 18 17 18'
         stroke='currentColor'
-        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
+        strokeWidth='1.5'
       />
     </svg>
   )

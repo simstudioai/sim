@@ -1,5 +1,5 @@
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/emcn'
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 interface PreviewNavigationControls {

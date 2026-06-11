@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, XCircle } from 'lucide-react'
+import { CircleCheck, XCircle } from '@/components/emcn/icons'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { QuizDefinition, QuizQuestion } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
@@ -202,7 +202,7 @@ export function LessonQuiz({ lessonId, quizConfig, onPass }: LessonQuizProps) {
                 )}
               >
                 {isCorrect ? (
-                  <CheckCircle2 className='mt-0.5 size-3.5 flex-shrink-0' />
+                  <CircleCheck className='mt-0.5 size-3.5 flex-shrink-0' />
                 ) : (
                   <XCircle className='mt-0.5 size-3.5 flex-shrink-0' />
                 )}

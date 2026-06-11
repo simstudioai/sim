@@ -1,7 +1,7 @@
-import { Clock, GraduationCap } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Clock, GraduationCap } from '@/components/emcn/icons'
 import { COURSES, getCourse } from '@/lib/academy/content'
 import { CourseProgress } from './components/course-progress'
 

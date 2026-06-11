@@ -20,7 +20,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check } from 'lucide-react'
+import { Check } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}

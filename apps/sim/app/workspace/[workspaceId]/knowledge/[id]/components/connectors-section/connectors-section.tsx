@@ -4,18 +4,6 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
 import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
-  ChevronDown,
-  Pause,
-  Play,
-  RefreshCw,
-  Settings,
-  Trash,
-  XCircle,
-} from 'lucide-react'
-import {
   Badge,
   Button,
   Checkbox,
@@ -28,6 +16,18 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import {
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  Pause,
+  Play,
+  RefreshCw,
+  Settings,
+  Trash,
+  TriangleAlert,
+  XCircle,
+} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
@@ -388,7 +388,7 @@ function ConnectorCard({
               )}
             </div>
             {connector.status === 'disabled' && (
-              <AlertTriangle className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
+              <TriangleAlert className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
             )}
           </div>
           <div className='flex min-w-0 flex-col gap-0.5'>
@@ -427,7 +427,7 @@ function ConnectorCard({
               {connector.lastSyncError && (
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <AlertCircle className='size-3 text-[var(--text-error)]' />
+                    <CircleAlert className='size-3 text-[var(--text-error)]' />
                   </Tooltip.Trigger>
                   <Tooltip.Content>{connector.lastSyncError}</Tooltip.Content>
                 </Tooltip.Root>
@@ -535,7 +535,7 @@ function ConnectorCard({
         <div className='border-[var(--border-muted)] border-t px-2 py-2'>
           <div className='flex flex-col gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-3)] px-2.5 py-2'>
             <div className='flex items-center gap-1.5 font-medium text-[var(--text-primary)] text-caption'>
-              <AlertTriangle className='size-3 flex-shrink-0 text-[var(--caution)]' />
+              <TriangleAlert className='size-3 flex-shrink-0 text-[var(--caution)]' />
               Connector disabled after repeated sync failures
             </div>
             <p className='text-[var(--text-muted)] text-caption leading-snug'>
@@ -690,7 +690,7 @@ function SyncHistory({ logs, isLoading }: SyncHistoryProps) {
               ) : isError ? (
                 <XCircle className='size-3 text-[var(--text-error)]' />
               ) : (
-                <CheckCircle2 className='size-3 text-[var(--success)]' />
+                <CircleCheck className='size-3 text-[var(--success)]' />
               )}
             </div>
 

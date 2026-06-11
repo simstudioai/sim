@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
   ChipCombobox,
@@ -16,6 +15,7 @@ import {
   Switch,
   toast,
 } from '@/components/emcn'
+import { Check, ChevronDown, Clipboard, Eye, EyeOff } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
