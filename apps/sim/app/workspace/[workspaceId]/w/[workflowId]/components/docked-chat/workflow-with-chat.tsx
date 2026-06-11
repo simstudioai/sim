@@ -9,6 +9,7 @@ import {
   MothershipResourcesProvider,
   MothershipView,
 } from '@/app/workspace/[workspaceId]/home/components'
+import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type {
   MothershipResource,
   MothershipResourceType,
@@ -91,10 +92,14 @@ export function WorkflowWithChat() {
 
   // ── Stage stack ──────────────────────────────────────────────────────────
   // Non-workflow resources never replace the editor: they slide in as a card
-  // IN FRONT of it (toast-stack depth), with the workflow's title strip
-  // peeking above. Clicking the peek, the ×, or pressing Escape brings the
-  // workflow forward. Tabs are the same workspace-owned strip as everywhere.
+  // IN FRONT of it (toast-stack depth) with the workflow's identity bar
+  // peeking above. The stack is a two-way flip — bringing the workflow
+  // forward tucks the resource card into a small tab at the bottom edge, so
+  // both stay one click apart. Only the card's × (or closing the last tab)
+  // tears the stack down. Tabs are the same workspace-owned strip as
+  // everywhere.
   const [stackOpen, setStackOpen] = useState<boolean>(() => Boolean(searchParams.get('resource')))
+  const [stageFront, setStageFront] = useState<'card' | 'editor'>('card')
   const initialStageIdRef = useRef(searchParams.get('resource'))
 
   const workspaceTabs = useMothershipTabsStore((s) =>
@@ -109,12 +114,14 @@ export function WorkflowWithChat() {
     [workspaceTabs]
   )
   const stageActiveId = workspaceTabs?.activeTabId ?? null
+  const activeStageTab = stageTabs.find((tab) => tab.id === stageActiveId) ?? stageTabs[0]
 
   const stageResource = useCallback(
     (resource: MothershipResource) => {
       if (!workspaceId) return
       openTabs(workspaceId, [resource], { focusId: resource.id })
       setStackOpen(true)
+      setStageFront('card')
       reflectParam('resource', resource.id)
     },
     [openTabs, workspaceId, reflectParam]
@@ -122,6 +129,7 @@ export function WorkflowWithChat() {
 
   const collapseStack = useCallback(() => {
     setStackOpen(false)
+    setStageFront('card')
     reflectParam('resource', null)
   }, [reflectParam])
 
@@ -155,14 +163,15 @@ export function WorkflowWithChat() {
     return useMothershipTabsStore.persist.onFinishHydration(apply)
   }, [workspaceId, setActiveTab, openTabs])
 
+  /** Escape flips the editor forward (the stack stays one click away). */
   useEffect(() => {
-    if (!stackOpen) return
+    if (!stackOpen || stageFront !== 'card') return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') collapseStack()
+      if (event.key === 'Escape') setStageFront('editor')
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [stackOpen, collapseStack])
+  }, [stackOpen, stageFront])
 
   /**
    * Closing the last tab leaves nothing to show — the editor comes forward.
@@ -310,7 +319,7 @@ export function WorkflowWithChat() {
           workflowId={workflowId}
           chatDock={{ isOpen: dock.open, onSelectChat: openChat }}
         />
-        {stackOpen && (
+        {stackOpen && stageFront === 'card' && (
           <>
             {/* Opaque stage backdrop: the editor stays mounted and live
                 underneath, but the back card shows only its identity — never
@@ -323,19 +332,19 @@ export function WorkflowWithChat() {
             <button
               type='button'
               aria-label='Back to workflow'
-              onClick={collapseStack}
-              className='absolute inset-x-4 top-2 z-30 flex h-[52px] items-start rounded-t-xl border border-[var(--border-1)] bg-[var(--surface-5)] px-3 transition-colors hover-hover:bg-[var(--surface-active)] dark:bg-[var(--surface-4)]'
+              onClick={() => setStageFront('editor')}
+              className='absolute inset-x-4 top-2 z-30 flex h-[38px] items-start rounded-t-lg border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
-              <span className='flex h-[42px] min-w-0 items-center gap-1.5'>
-                <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>
+              <span className='flex h-[26px] min-w-0 items-center gap-1.5'>
+                <WorkflowIcon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' />
+                <span className='truncate font-medium text-[12px] text-[var(--text-body)]'>
                   {workflowName}
                 </span>
               </span>
             </button>
             {/* The front card: the workspace resource tabs + active content,
                 a fully detached rounded pane over the back card. */}
-            <div className='absolute inset-x-2 top-[46px] bottom-2 z-30 flex animate-slide-in-bottom flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'>
+            <div className='absolute inset-x-2 top-[32px] bottom-2 z-30 flex animate-slide-in-bottom flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'>
               <MothershipResourcesProvider
                 selectResource={selectStageTab}
                 addResource={addStageTab}
@@ -364,11 +373,37 @@ export function WorkflowWithChat() {
                   </button>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='bottom'>
-                  <p>Back to workflow</p>
+                  <p>Close resources</p>
                 </Tooltip.Content>
               </Tooltip.Root>
             </div>
           </>
+        )}
+        {stackOpen && stageFront === 'editor' && activeStageTab && (
+          /* The resource card tucked at the bottom edge while the editor is
+             forward — same identity-bar treatment as the workflow's, so the
+             two sides of the stack stay one click apart. */
+          <button
+            type='button'
+            aria-label='Show resources'
+            onClick={() => setStageFront('card')}
+            className='absolute right-4 bottom-0 z-30 flex h-[32px] items-start rounded-t-lg border border-[var(--border-1)] border-b-0 bg-[var(--bg)] px-3 shadow-sm transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            <span className='flex h-[30px] min-w-0 items-center gap-1.5'>
+              {getResourceConfig(activeStageTab.type).renderTabIcon(
+                activeStageTab,
+                'size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+              )}
+              <span className='max-w-[200px] truncate font-medium text-[12px] text-[var(--text-body)]'>
+                {activeStageTab.title}
+              </span>
+              {stageTabs.length > 1 && (
+                <span className='text-[11px] text-[var(--text-muted)]'>
+                  +{stageTabs.length - 1}
+                </span>
+              )}
+            </span>
+          </button>
         )}
       </div>
     </div>
