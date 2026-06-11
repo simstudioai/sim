@@ -56,11 +56,11 @@ export function ThemeToggle() {
     <button
       type='button'
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className='flex size-[30px] cursor-pointer items-center justify-center rounded-full text-foreground/40 transition-colors duration-200 hover:bg-neutral-100 hover:text-foreground/70 dark:hover:bg-neutral-800 dark:hover:text-foreground/70'
+      className='flex size-[30px] cursor-pointer items-center justify-center rounded-lg text-[var(--text-icon)] transition-colors hover:bg-[var(--surface-active)]'
       aria-label='Toggle theme'
     >
-      <SunIcon className='block dark:hidden' />
-      <MoonIcon className='hidden dark:block' />
+      <SunIcon className='block size-[14px] dark:hidden' />
+      <MoonIcon className='hidden size-[14px] dark:block' />
     </button>
   )
 }

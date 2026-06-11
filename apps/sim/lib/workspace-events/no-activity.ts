@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { webhook, workflow, workflowDeploymentVersion, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, gt, gte, inArray, isNull, ne, or, sql } from 'drizzle-orm'
@@ -42,7 +42,7 @@ export interface NoActivityPollResult {
 async function fetchNoActivitySubscriptionPage(
   afterWebhookId: string | null
 ): Promise<SimSubscription[]> {
-  const rows = await db
+  const rows = await dbReplica
     .select({ webhook, workflow })
     .from(webhook)
     .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
@@ -105,7 +105,7 @@ async function fetchWatchedWorkflowPage(
     conditions.push(gt(workflow.id, afterWorkflowId))
   }
 
-  return db
+  return dbReplica
     .select({ id: workflow.id, name: workflow.name })
     .from(workflow)
     .where(and(...conditions))

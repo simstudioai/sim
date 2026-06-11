@@ -1618,6 +1618,13 @@
       "when": 1781053629977,
       "tag": "0231_sim_trigger_workspace_events",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1781146236134,
+      "tag": "0232_byok_multiple_keys",
+      "breakpoints": true
     }
   ]
 }

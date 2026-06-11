@@ -155,6 +155,7 @@ import {
 import { KetchBlock, KetchBlockMeta } from '@/blocks/blocks/ketch'
 import { KnowledgeBlock } from '@/blocks/blocks/knowledge'
 import { LangsmithBlock, LangsmithBlockMeta } from '@/blocks/blocks/langsmith'
+import { LatexBlock, LatexBlockMeta } from '@/blocks/blocks/latex'
 import { LaunchDarklyBlock, LaunchDarklyBlockMeta } from '@/blocks/blocks/launchdarkly'
 import { LemlistBlock, LemlistBlockMeta } from '@/blocks/blocks/lemlist'
 import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/linear'
@@ -214,6 +215,7 @@ import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
 import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
+import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PolymarketBlock, PolymarketBlockMeta } from '@/blocks/blocks/polymarket'
@@ -272,11 +274,13 @@ import { TableBlock } from '@/blocks/blocks/table'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
+import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import { TextractBlock, TextractBlockMeta, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
 import { TranslateBlock } from '@/blocks/blocks/translate'
 import { TrelloBlock, TrelloBlockMeta } from '@/blocks/blocks/trello'
+import { TriggerDevBlock, TriggerDevBlockMeta } from '@/blocks/blocks/trigger_dev'
 import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice'
@@ -455,6 +459,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   ketch: KetchBlock,
   knowledge: KnowledgeBlock,
   langsmith: LangsmithBlock,
+  latex: LatexBlock,
   launchdarkly: LaunchDarklyBlock,
   lemlist: LemlistBlock,
   linear: LinearBlock,
@@ -500,6 +505,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   parallel_ai: ParallelBlock,
   peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
+  persona: PersonaBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   polymarket: PolymarketBlock,
@@ -563,12 +569,14 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
+  temporal: TemporalBlock,
   textract: TextractBlock,
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
   tinybird: TinybirdBlock,
   translate: TranslateBlock,
   trello: TrelloBlock,
+  trigger_dev: TriggerDevBlock,
   tts: TtsBlock,
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
@@ -724,6 +732,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   kalshi_v2: KalshiV2BlockMeta,
   ketch: KetchBlockMeta,
   langsmith: LangsmithBlockMeta,
+  latex: LatexBlockMeta,
   launchdarkly: LaunchDarklyBlockMeta,
   lemlist: LemlistBlockMeta,
   linear: LinearBlockMeta,
@@ -760,6 +769,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   parallel_ai: ParallelBlockMeta,
   peopledatalabs: PeopleDataLabsBlockMeta,
   perplexity: PerplexityBlockMeta,
+  persona: PersonaBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   polymarket: PolymarketBlockMeta,
@@ -805,9 +815,11 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   tailscale: TailscaleBlockMeta,
   tavily: TavilyBlockMeta,
   telegram: TelegramBlockMeta,
+  temporal: TemporalBlockMeta,
   textract: TextractBlockMeta,
   tinybird: TinybirdBlockMeta,
   trello: TrelloBlockMeta,
+  trigger_dev: TriggerDevBlockMeta,
   twilio_sms: TwilioSMSBlockMeta,
   twilio_voice: TwilioVoiceBlockMeta,
   typeform: TypeformBlockMeta,

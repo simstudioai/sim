@@ -11,6 +11,7 @@ import {
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
+import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -147,7 +148,7 @@ export function OutputSelect({
     return flat.map((f) => {
       const displayBlockName =
         f.blockName && typeof f.blockName === 'string'
-          ? f.blockName.replace(/\s+/g, '').toLowerCase()
+          ? normalizeName(f.blockName)
           : `block-${f.blockId}`
       return {
         id: `${f.blockId}_${f.path}`,

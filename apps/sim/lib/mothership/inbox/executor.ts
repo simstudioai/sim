@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
+import { getActivelyBannedUserIds, isEmailBlocked } from '@/lib/auth/ban'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
@@ -24,6 +25,7 @@ import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 const logger = createLogger('InboxExecutor')
 
@@ -90,6 +92,43 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     if (!claimed) {
       logger.info('Task already claimed by another execution, skipping', { taskId })
+      return
+    }
+
+    // Blocked senders and banned accounts must not drive the agent; the sender
+    // email is checked directly (domain list + the sender's own account ban)
+    // because non-members resolve to the workspace owner, and the workspace
+    // billed account is checked to match preprocessExecution's gate. Fails
+    // closed on lookup errors. No email response in any of these paths —
+    // never mail a suspended account.
+    let blockReason: string | null = null
+    try {
+      const [senderBlocked, billedAccountUserId] = await Promise.all([
+        isEmailBlocked(inboxTask.fromEmail),
+        getWorkspaceBilledAccountUserId(ws.id),
+      ])
+      const bannedUserIds = await getActivelyBannedUserIds(
+        billedAccountUserId ? [userId, billedAccountUserId] : [userId]
+      )
+      if (senderBlocked || bannedUserIds.length > 0) {
+        logger.warn('Blocking inbox task: sender, resolved user, or billed account is banned', {
+          taskId,
+          userId,
+          senderBlocked,
+          bannedUserIds,
+        })
+        blockReason = 'User account is suspended'
+      }
+    } catch (error) {
+      logger.error('Inbox task ban check failed; failing closed', {
+        taskId,
+        error: getErrorMessage(error, 'Unknown error'),
+      })
+      blockReason = 'Unable to verify account status'
+    }
+    if (blockReason) {
+      responseSent = true
+      await markTaskFailed(taskId, blockReason)
       return
     }
 
