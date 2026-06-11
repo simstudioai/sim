@@ -690,6 +690,7 @@ export const auth = betterAuth({
         'airtable',
         'box',
         'dropbox',
+        'ramp',
         'salesforce',
         'wealthbox',
         'zoom',
@@ -2489,6 +2490,54 @@ export const auth = betterAuth({
               }
             } catch (error) {
               logger.error('Error in getUserInfo:', error)
+              throw error
+            }
+          },
+        },
+
+        {
+          providerId: 'ramp',
+          clientId: env.RAMP_CLIENT_ID as string,
+          clientSecret: env.RAMP_CLIENT_SECRET as string,
+          authorizationUrl: 'https://app.ramp.com/v1/authorize',
+          tokenUrl: 'https://api.ramp.com/developer/v1/token',
+          scopes: getCanonicalScopesForProvider('ramp'),
+          responseType: 'code',
+          authentication: 'basic',
+          redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/ramp`,
+          getUserInfo: async (tokens) => {
+            try {
+              const response = await fetch('https://api.ramp.com/developer/v1/business', {
+                headers: {
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+              })
+
+              if (!response.ok) {
+                const errorText = await response.text()
+                logger.error('Ramp API error:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: errorText,
+                })
+                throw new Error(`Ramp API error: ${response.status} ${response.statusText}`)
+              }
+
+              const data = await response.json()
+
+              return {
+                // Ramp authorizes a business, not an end user, and exposes no
+                // user identity endpoint - synthesize a stable identity from
+                // the business record.
+                id: `${data.id}-${generateId()}`,
+                email: `${data.id}@ramp.business`,
+                name: data.business_name_legal || data.business_name_on_card || 'Ramp Business',
+                emailVerified: true,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }
+            } catch (error) {
+              logger.error('Error in Ramp getUserInfo:', error)
               throw error
             }
           },

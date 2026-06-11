@@ -1643,6 +1643,17 @@ export function RB2BIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function RampIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} xmlns='http://www.w3.org/2000/svg' viewBox='0 0 69.5 59'>
+      <path
+        d='M69.5,58.7V59l-37.9,0v-0.3c5.5-3.1,9.2-6.2,12.6-9.5h15.6L69.5,58.7z M60.2,9.4L50.6,0h-0.3c0,0,0.2,17.5-16,33.5 C18.5,49.1,0,49.2,0,49.2v0.3L9.8,59c0,0,18.3,0.2,34.4-15.7C60.3,27.6,60.2,9.4,60.2,9.4z'
+        fill='currentColor'
+      />
+    </svg>
+  )
+}
+
 export function RedditIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

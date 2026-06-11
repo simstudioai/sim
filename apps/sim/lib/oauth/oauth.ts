@@ -38,6 +38,7 @@ import {
   NotionIcon,
   OutlookIcon,
   PipedriveIcon,
+  RampIcon,
   RedditIcon,
   SalesforceIcon,
   ShopifyIcon,
@@ -715,6 +716,37 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'slack',
   },
+  ramp: {
+    name: 'Ramp',
+    icon: RampIcon,
+    services: {
+      ramp: {
+        name: 'Ramp',
+        description: 'Manage spend, transactions, reimbursements, bills, and receipts in Ramp.',
+        providerId: 'ramp',
+        icon: RampIcon,
+        baseProviderIcon: RampIcon,
+        scopes: [
+          'business:read',
+          'transactions:read',
+          'users:read',
+          'cards:read',
+          'limits:read',
+          'reimbursements:read',
+          'bills:read',
+          'departments:read',
+          'departments:write',
+          'vendors:read',
+          'entities:read',
+          'spend_programs:read',
+          'receipts:read',
+          'receipts:write',
+          'offline_access',
+        ],
+      },
+    },
+    defaultService: 'ramp',
+  },
   reddit: {
     name: 'Reddit',
     icon: RedditIcon,
@@ -1231,6 +1263,16 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
+      }
+    }
+    case 'ramp': {
+      const { clientId, clientSecret } = getCredentials(env.RAMP_CLIENT_ID, env.RAMP_CLIENT_SECRET)
+      return {
+        tokenEndpoint: 'https://api.ramp.com/developer/v1/token',
+        clientId,
+        clientSecret,
+        useBasicAuth: true,
         supportsRefreshTokenRotation: true,
       }
     }

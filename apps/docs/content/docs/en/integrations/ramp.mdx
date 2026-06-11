@@ -1,0 +1,649 @@
+---
+title: Ramp
+description: Manage spend, transactions, reimbursements, bills, and receipts in Ramp
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="ramp"
+  color="#E4F222"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Ramp](https://ramp.com/) is the finance operations platform that helps businesses manage corporate cards, expenses, reimbursements, and bill payments in one place. Ramp combines spend controls, automated receipt matching, and accounting integrations so finance teams can close their books faster and keep spend under control.
+
+With Ramp in Sim, you can:
+
+- **Track card spend**: List and inspect card transactions with filters for user, card, department, merchant, amount, state, and date range
+- **Look up people and cards**: Query users, corporate cards, spend limits, and spend programs across the business
+- **Monitor reimbursements**: List employee reimbursements and drill into individual requests
+- **Stay on top of payables**: List bills, check statuses and due dates, and review vendor records with year-to-date spend
+- **Upload receipts**: Send receipt images or PDFs straight to Ramp, attached to a specific transaction or auto-matched by Ramp
+- **Check business health**: Pull business details, entities, and real-time balance and credit limit information
+
+These capabilities let your Sim agents automate finance operations end to end — from chasing missing receipts and posting daily spend digests to syncing transactions into tables and flagging bills before they're due. Connect a Ramp account once and every operation runs through the same secure OAuth credential.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Ramp into your workflow to automate corporate spend operations. List and inspect card transactions, users, cards, spend limits, reimbursements, bills, departments, and vendors, and upload receipts directly to transactions.
+
+
+
+## Actions
+
+### `ramp_list_transactions`
+
+List card transactions in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | Filter transactions by user ID |
+| `cardId` | string | No | Filter transactions by card ID |
+| `departmentId` | string | No | Filter transactions by department ID |
+| `merchantId` | string | No | Filter transactions by merchant ID |
+| `state` | string | No | Filter by transaction state: ALL, CLEARED, COMPLETION, DECLINED, ERROR, PENDING, or PENDING_INITIATION. Declined transactions are only included when set to ALL or DECLINED. |
+| `minAmount` | number | No | Only include transactions larger than this U.S. dollar amount |
+| `maxAmount` | number | No | Only include transactions smaller than this U.S. dollar amount |
+| `fromDate` | string | No | Only include transactions that occurred after this ISO 8601 timestamp |
+| `toDate` | string | No | Only include transactions that occurred before this ISO 8601 timestamp |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transactions` | array | List of Ramp card transactions |
+|   ↳ `id` | string | Unique identifier for the transaction |
+|   ↳ `amount` | number | Settled amount in U.S. dollars |
+|   ↳ `currency_code` | string | ISO 4217 currency code |
+|   ↳ `merchant_name` | string | Name of the merchant |
+|   ↳ `memo` | string | Memo attached to the transaction |
+|   ↳ `state` | string | Transaction state \(e.g. CLEARED, PENDING\) |
+|   ↳ `user_transaction_time` | string | When the transaction occurred |
+|   ↳ `card_id` | string | ID of the card used |
+|   ↳ `card_holder` | object | Cardholder details \(user and department\) |
+|   ↳ `receipts` | array | IDs of receipts attached to the transaction |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_transaction`
+
+Retrieve a single Ramp card transaction by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | Yes | ID of the transaction to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transaction` | object | The requested Ramp transaction |
+|   ↳ `id` | string | Unique identifier for the transaction |
+|   ↳ `amount` | number | Settled amount in U.S. dollars |
+|   ↳ `currency_code` | string | ISO 4217 currency code |
+|   ↳ `merchant_name` | string | Name of the merchant |
+|   ↳ `memo` | string | Memo attached to the transaction |
+|   ↳ `state` | string | Transaction state \(e.g. CLEARED, PENDING\) |
+|   ↳ `user_transaction_time` | string | When the transaction occurred |
+|   ↳ `card_id` | string | ID of the card used |
+|   ↳ `card_holder` | object | Cardholder details \(user and department\) |
+|   ↳ `receipts` | array | IDs of receipts attached to the transaction |
+
+### `ramp_list_users`
+
+List users in the Ramp business with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | No | Filter users by email address |
+| `departmentId` | string | No | Filter users by department ID |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `users` | array | List of users in the Ramp business |
+|   ↳ `id` | string | Unique identifier for the user |
+|   ↳ `first_name` | string | First name of the user |
+|   ↳ `last_name` | string | Last name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Role of the user in the business |
+|   ↳ `status` | string | Status of the user \(e.g. ACTIVE\) |
+|   ↳ `department_id` | string | ID of the user department |
+|   ↳ `manager_id` | string | ID of the user manager |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_user`
+
+Retrieve a single Ramp user by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | ID of the user to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `user` | object | The requested Ramp user |
+|   ↳ `id` | string | Unique identifier for the user |
+|   ↳ `first_name` | string | First name of the user |
+|   ↳ `last_name` | string | Last name of the user |
+|   ↳ `email` | string | Email address of the user |
+|   ↳ `role` | string | Role of the user in the business |
+|   ↳ `status` | string | Status of the user \(e.g. ACTIVE\) |
+|   ↳ `department_id` | string | ID of the user department |
+|   ↳ `manager_id` | string | ID of the user manager |
+
+### `ramp_list_cards`
+
+List corporate cards in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | Filter cards by cardholder user ID |
+| `displayName` | string | No | Filter cards by display name |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cards` | array | List of Ramp corporate cards |
+|   ↳ `id` | string | Unique identifier for the card |
+|   ↳ `display_name` | string | Display name of the card |
+|   ↳ `last_four` | string | Last four digits of the card number |
+|   ↳ `cardholder_id` | string | User ID of the cardholder |
+|   ↳ `cardholder_name` | string | Full name of the cardholder |
+|   ↳ `is_physical` | boolean | Whether the card is physical |
+|   ↳ `state` | string | State of the card \(e.g. ACTIVE\) |
+|   ↳ `expiration` | string | Expiration date of the card |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_card`
+
+Retrieve a single Ramp corporate card by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `cardId` | string | Yes | ID of the card to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `card` | object | The requested Ramp card |
+|   ↳ `id` | string | Unique identifier for the card |
+|   ↳ `display_name` | string | Display name of the card |
+|   ↳ `last_four` | string | Last four digits of the card number |
+|   ↳ `cardholder_id` | string | User ID of the cardholder |
+|   ↳ `cardholder_name` | string | Full name of the cardholder |
+|   ↳ `is_physical` | boolean | Whether the card is physical |
+|   ↳ `state` | string | State of the card \(e.g. ACTIVE\) |
+|   ↳ `expiration` | string | Expiration date of the card |
+
+### `ramp_list_limits`
+
+List spend limits in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | Filter limits by user ID |
+| `cardId` | string | No | Filter limits by card ID |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limits` | array | List of Ramp spend limits |
+|   ↳ `id` | string | Unique identifier for the spend limit |
+|   ↳ `display_name` | string | Display name of the spend limit |
+|   ↳ `state` | string | State of the spend limit \(e.g. ACTIVE\) |
+|   ↳ `balance` | object | Balance of the spend limit \(cleared, pending, and total canonical amounts in the smallest currency denomination\) |
+|   ↳ `users` | array | Users the spend limit applies to |
+|   ↳ `cards` | array | Cards attached to the spend limit |
+|   ↳ `spend_program_id` | string | ID of the associated spend program |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_limit`
+
+Retrieve a single Ramp spend limit by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `limitId` | string | Yes | ID of the spend limit to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `limit` | object | The requested Ramp spend limit |
+|   ↳ `id` | string | Unique identifier for the spend limit |
+|   ↳ `display_name` | string | Display name of the spend limit |
+|   ↳ `state` | string | State of the spend limit \(e.g. ACTIVE\) |
+|   ↳ `balance` | object | Balance of the spend limit \(cleared, pending, and total canonical amounts in the smallest currency denomination\) |
+|   ↳ `users` | array | Users the spend limit applies to |
+|   ↳ `cards` | array | Cards attached to the spend limit |
+|   ↳ `spend_program_id` | string | ID of the associated spend program |
+
+### `ramp_list_reimbursements`
+
+List reimbursements in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | No | Filter reimbursements by user ID |
+| `fromDate` | string | No | Only include reimbursements created after this ISO 8601 timestamp |
+| `toDate` | string | No | Only include reimbursements created before this ISO 8601 timestamp |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reimbursements` | array | List of Ramp reimbursements |
+|   ↳ `id` | string | Unique identifier for the reimbursement |
+|   ↳ `amount` | number | Reimbursement amount |
+|   ↳ `currency` | string | ISO 4217 currency code |
+|   ↳ `merchant` | string | Merchant the expense was made at |
+|   ↳ `memo` | string | Memo attached to the reimbursement |
+|   ↳ `state` | string | State of the reimbursement \(e.g. APPROVED\) |
+|   ↳ `type` | string | Type of reimbursement |
+|   ↳ `user_id` | string | ID of the user being reimbursed |
+|   ↳ `user_full_name` | string | Full name of the user |
+|   ↳ `created_at` | string | When the reimbursement was created |
+|   ↳ `transaction_date` | string | Date of the underlying expense |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_reimbursement`
+
+Retrieve a single Ramp reimbursement by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `reimbursementId` | string | Yes | ID of the reimbursement to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reimbursement` | object | The requested Ramp reimbursement |
+|   ↳ `id` | string | Unique identifier for the reimbursement |
+|   ↳ `amount` | number | Reimbursement amount |
+|   ↳ `currency` | string | ISO 4217 currency code |
+|   ↳ `merchant` | string | Merchant the expense was made at |
+|   ↳ `memo` | string | Memo attached to the reimbursement |
+|   ↳ `state` | string | State of the reimbursement \(e.g. APPROVED\) |
+|   ↳ `type` | string | Type of reimbursement |
+|   ↳ `user_id` | string | ID of the user being reimbursed |
+|   ↳ `user_full_name` | string | Full name of the user |
+|   ↳ `created_at` | string | When the reimbursement was created |
+|   ↳ `transaction_date` | string | Date of the underlying expense |
+|   ↳ `receipts` | array | IDs of receipts attached to the reimbursement |
+
+### `ramp_list_bills`
+
+List bills in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | No | Filter bills by vendor ID |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bills` | array | List of Ramp bills |
+|   ↳ `id` | string | Unique identifier for the bill |
+|   ↳ `invoice_number` | string | Invoice number of the bill |
+|   ↳ `amount` | object | Canonical bill amount \(integer amount in the smallest currency denomination plus currency code\) |
+|   ↳ `status` | string | Status of the bill \(e.g. OPEN, PAID\) |
+|   ↳ `due_at` | string | When the bill is due |
+|   ↳ `issued_at` | string | When the bill was issued |
+|   ↳ `vendor` | object | Vendor the bill is payable to |
+|   ↳ `memo` | string | Memo attached to the bill |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_bill`
+
+Retrieve a single Ramp bill by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `billId` | string | Yes | ID of the bill to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bill` | object | The requested Ramp bill |
+|   ↳ `id` | string | Unique identifier for the bill |
+|   ↳ `invoice_number` | string | Invoice number of the bill |
+|   ↳ `amount` | object | Canonical bill amount \(integer amount in the smallest currency denomination plus currency code\) |
+|   ↳ `status` | string | Status of the bill \(e.g. OPEN, PAID\) |
+|   ↳ `due_at` | string | When the bill is due |
+|   ↳ `issued_at` | string | When the bill was issued |
+|   ↳ `vendor` | object | Vendor the bill is payable to |
+|   ↳ `memo` | string | Memo attached to the bill |
+|   ↳ `line_items` | array | Line items on the bill |
+
+### `ramp_list_departments`
+
+List departments in the Ramp business
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `departments` | array | List of departments in the Ramp business |
+|   ↳ `id` | string | Unique identifier for the department |
+|   ↳ `name` | string | Name of the department |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_department`
+
+Retrieve a single Ramp department by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `departmentId` | string | Yes | ID of the department to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `department` | object | The requested Ramp department |
+|   ↳ `id` | string | Unique identifier for the department |
+|   ↳ `name` | string | Name of the department |
+
+### `ramp_create_department`
+
+Create a new department in the Ramp business
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `departmentName` | string | Yes | Name of the department to create |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `department` | object | The created Ramp department |
+|   ↳ `id` | string | Unique identifier for the department |
+|   ↳ `name` | string | Name of the department |
+
+### `ramp_list_vendors`
+
+List vendors in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorName` | string | No | Filter vendors by name |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendors` | array | List of Ramp vendors |
+|   ↳ `id` | string | Unique identifier for the vendor |
+|   ↳ `name` | string | Name of the vendor |
+|   ↳ `state` | string | State of the vendor record |
+|   ↳ `is_active` | boolean | Whether the vendor is active |
+|   ↳ `country` | string | Country of the vendor |
+|   ↳ `total_spend_ytd` | object | Year-to-date spend with the vendor \(integer amount in the smallest currency denomination plus currency code\) |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_vendor`
+
+Retrieve a single Ramp vendor by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vendorId` | string | Yes | ID of the vendor to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `vendor` | object | The requested Ramp vendor |
+|   ↳ `id` | string | Unique identifier for the vendor |
+|   ↳ `name` | string | Name of the vendor |
+|   ↳ `state` | string | State of the vendor record |
+|   ↳ `is_active` | boolean | Whether the vendor is active |
+|   ↳ `country` | string | Country of the vendor |
+|   ↳ `total_spend_ytd` | object | Year-to-date spend with the vendor \(integer amount in the smallest currency denomination plus currency code\) |
+|   ↳ `total_spend_all_time` | object | All-time spend with the vendor \(integer amount in the smallest currency denomination plus currency code\) |
+
+### `ramp_list_entities`
+
+List business entities in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `entityName` | string | No | Filter entities by name |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `entities` | array | List of business entities in Ramp |
+|   ↳ `id` | string | Unique identifier for the entity |
+|   ↳ `entity_name` | string | Name of the entity |
+|   ↳ `currency` | string | Primary currency of the entity |
+|   ↳ `is_primary` | boolean | Whether this is the primary entity of the business |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_list_spend_programs`
+
+List spend programs in the Ramp business
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spendPrograms` | array | List of spend programs in the Ramp business |
+|   ↳ `id` | string | Unique identifier for the spend program |
+|   ↳ `display_name` | string | Display name of the spend program |
+|   ↳ `description` | string | Description of the spend program |
+|   ↳ `is_shareable` | boolean | Whether limits under this program can be shared |
+|   ↳ `permitted_spend_types` | object | Spend types permitted by the program \(card and/or reimbursement\) |
+|   ↳ `restrictions` | object | Spending restrictions of the program |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_spend_program`
+
+Retrieve a single Ramp spend program by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `spendProgramId` | string | Yes | ID of the spend program to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `spendProgram` | object | The requested Ramp spend program |
+|   ↳ `id` | string | Unique identifier for the spend program |
+|   ↳ `display_name` | string | Display name of the spend program |
+|   ↳ `description` | string | Description of the spend program |
+|   ↳ `is_shareable` | boolean | Whether limits under this program can be shared |
+|   ↳ `permitted_spend_types` | object | Spend types permitted by the program \(card and/or reimbursement\) |
+|   ↳ `restrictions` | object | Spending restrictions of the program |
+
+### `ramp_get_business`
+
+Retrieve information about the authorized Ramp business
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `business` | object | The authorized Ramp business |
+|   ↳ `id` | string | Unique identifier for the business |
+|   ↳ `business_name_legal` | string | Legal name of the business |
+|   ↳ `business_name_on_card` | string | Business name shown on cards |
+|   ↳ `active` | boolean | Whether the business account is active |
+|   ↳ `created_time` | string | When the business account was created |
+|   ↳ `is_reimbursements_enabled` | boolean | Whether reimbursements are enabled for the business |
+|   ↳ `website` | string | Company website URL |
+|   ↳ `phone` | string | Primary contact phone number |
+
+### `ramp_get_business_balance`
+
+Retrieve the current balance and limits of the authorized Ramp business
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `balance` | object | Balance and limit details for the Ramp business |
+|   ↳ `balance_including_pending` | number | Total balance including pending transactions, in U.S. dollars |
+|   ↳ `card_balance_including_pending` | number | Card balance including pending transactions, in U.S. dollars |
+|   ↳ `card_balance_excluding_pending` | number | Card balance excluding pending transactions, in U.S. dollars |
+|   ↳ `card_limit` | number | Total card limit in U.S. dollars |
+|   ↳ `available_card_limit` | number | Remaining available card limit in U.S. dollars |
+|   ↳ `card_limit_amount` | object | Canonical card limit \(integer amount in the smallest currency denomination plus currency code\) |
+|   ↳ `available_card_limit_amount` | object | Canonical available card limit \(integer amount in the smallest currency denomination plus currency code\) |
+
+### `ramp_list_receipts`
+
+List receipts in Ramp with optional filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionId` | string | No | Filter receipts by transaction ID |
+| `fromDate` | string | No | Only include receipts for transactions that occurred after this ISO 8601 timestamp |
+| `toDate` | string | No | Only include receipts for transactions that occurred before this ISO 8601 timestamp |
+| `pageSize` | number | No | Number of results per page \(between 2 and 100, default 20\) |
+| `start` | string | No | Pagination cursor: the ID of the last entity from the previous page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receipts` | array | List of Ramp receipts |
+|   ↳ `id` | string | Unique identifier for the receipt |
+|   ↳ `receipt_url` | string | Pre-signed URL to download the receipt image \(valid for one hour\) |
+|   ↳ `transaction_id` | string | Transaction the receipt is attached to |
+|   ↳ `user_id` | string | User who uploaded the receipt |
+|   ↳ `created_at` | string | When the receipt was created |
+| `nextStart` | string | Cursor for the next page of results \(null when there are no more pages\) |
+
+### `ramp_get_receipt`
+
+Retrieve a single Ramp receipt by ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `receiptId` | string | Yes | ID of the receipt to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receipt` | object | The requested Ramp receipt |
+|   ↳ `id` | string | Unique identifier for the receipt |
+|   ↳ `receipt_url` | string | Pre-signed URL to download the receipt image \(valid for one hour\) |
+|   ↳ `transaction_id` | string | Transaction the receipt is attached to |
+|   ↳ `user_id` | string | User who uploaded the receipt |
+|   ↳ `created_at` | string | When the receipt was created |
+
+### `ramp_upload_receipt`
+
+Upload a receipt image to Ramp and optionally attach it to a transaction. When no transaction is provided, Ramp matches the receipt to the most relevant transaction automatically.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `userId` | string | Yes | ID of the Ramp user to associate with the receipt |
+| `transactionId` | string | No | ID of the transaction to attach the receipt to |
+| `file` | file | Yes | The receipt image or PDF to upload |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `receiptId` | string | Unique identifier of the uploaded receipt |
+
+
