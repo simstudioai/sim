@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { Workflow as WorkflowIcon, X } from '@/components/emcn/icons'
 import { isMothershipPageId, MOTHERSHIP_PAGES } from '@/lib/copilot/resources/types'
+import { cn } from '@/lib/core/utils/cn'
 import {
   MothershipResourcesProvider,
   MothershipView,
@@ -282,13 +283,22 @@ export function WorkflowWithChat() {
 
   if (!workspaceId || !workflowId) return null
 
+  // Stacked-card mode: the stage stops being a panel — everything floats as
+  // detached modules on the workspace chrome backdrop, chat included.
+  const isStackMode = stackOpen && stageFront === 'card'
+
   return (
-    <div className='flex h-full w-full'>
+    <div className={cn('flex h-full w-full', isStackMode && 'bg-[var(--surface-1)]')}>
       {dock.open && (
         <>
           <div
             ref={chatPaneRef}
-            className='flex h-full w-[clamp(360px,34%,520px)] flex-shrink-0 flex-col border-[var(--border)] border-r'
+            className={cn(
+              'flex w-[clamp(360px,34%,520px)] flex-shrink-0 flex-col',
+              isStackMode
+                ? 'my-2 ml-2 h-[calc(100%-16px)] overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'
+                : 'h-full border-[var(--border)] border-r'
+            )}
           >
             <DockedChat
               key={dock.chatId ?? 'new'}
@@ -321,10 +331,10 @@ export function WorkflowWithChat() {
         />
         {stackOpen && stageFront === 'card' && (
           <>
-            {/* Opaque stage backdrop: the editor stays mounted and live
-                underneath, but the back card shows only its identity — never
-                slices of canvas or controls. */}
-            <div aria-hidden='true' className='absolute inset-0 z-30 bg-[var(--bg)]' />
+            {/* Opaque stage backdrop in the chrome's own color: the editor
+                stays mounted and live underneath, but the stage reads as
+                workspace space holding two floating cards — not a panel. */}
+            <div aria-hidden='true' className='absolute inset-0 z-30 bg-[var(--surface-1)]' />
             {/* The back card: a slim bar with just the workflow icon + name,
                 peeking above the front card (toast-stack depth). Narrower
                 than the front so it reads as behind; clicking it brings the
