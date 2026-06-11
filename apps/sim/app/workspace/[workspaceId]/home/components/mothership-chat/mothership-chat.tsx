@@ -62,6 +62,13 @@ interface MothershipChatProps {
   onInputAnimationEnd?: () => void
   /** Shows the title bar's close (×) control that hides the chat pane. */
   onCloseChat?: () => void
+  /** Forwarded to the title bar's chat switcher. */
+  onSelectChat?: (chatId: string) => void
+  /**
+   * Forwarded to the title bar's chat switcher: when false, selecting a chat
+   * only fires {@link onSelectChat} (docked-chat hosts swap in place).
+   */
+  switcherNavigates?: boolean
   className?: string
 }
 
@@ -213,6 +220,8 @@ export function MothershipChat({
   animateInput = false,
   onInputAnimationEnd,
   onCloseChat,
+  onSelectChat,
+  switcherNavigates,
   className,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
@@ -309,7 +318,13 @@ export function MothershipChat({
     >
       <div className={cn('flex h-full min-h-0 flex-col', className)}>
         {layout === 'mothership-view' && (
-          <ChatTitleBar chatId={chatId} onClose={onCloseChat} isWorking={isStreamActive} />
+          <ChatTitleBar
+            chatId={chatId}
+            onClose={onCloseChat}
+            onSelectChat={onSelectChat}
+            navigateOnSelect={switcherNavigates}
+            isWorking={isStreamActive}
+          />
         )}
         <div className='relative flex min-h-0 flex-1 flex-col'>
           <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>

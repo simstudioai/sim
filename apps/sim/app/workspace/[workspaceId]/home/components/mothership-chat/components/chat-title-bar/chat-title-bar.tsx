@@ -13,6 +13,12 @@ interface ChatTitleBarProps {
    * to reopen a hidden chat pane (including re-picking the current chat).
    */
   onSelectChat?: (chatId: string) => void
+  /**
+   * Forwarded to the switcher: when false, selecting a chat only fires
+   * {@link onSelectChat} — used by the workflow editor's docked chat, where
+   * switching swaps the pane in place instead of navigating.
+   */
+  navigateOnSelect?: boolean
   /** Renders a close (×) control at the bar's right edge that hides the chat pane. */
   onClose?: () => void
   /** The chat is generating a response — the switcher's recents icon becomes a spinner. */
@@ -25,7 +31,13 @@ interface ChatTitleBarProps {
  * straight between chats without returning to the new-chat view. Selecting a
  * chat navigates to it.
  */
-export function ChatTitleBar({ chatId, onSelectChat, onClose, isWorking }: ChatTitleBarProps) {
+export function ChatTitleBar({
+  chatId,
+  onSelectChat,
+  navigateOnSelect,
+  onClose,
+  isWorking,
+}: ChatTitleBarProps) {
   return (
     <div className='flex h-[44px] flex-shrink-0 items-center gap-1 border-[var(--border)] border-b px-4'>
       {/* Edge controls pull out by 9px so their 30px hover pills sit 7px from
@@ -37,6 +49,7 @@ export function ChatTitleBar({ chatId, onSelectChat, onClose, isWorking }: ChatT
         chatId={chatId}
         isNewChat={!chatId}
         onSelectChat={onSelectChat}
+        navigateOnSelect={navigateOnSelect}
         isWorking={isWorking}
       />
       {onClose && (

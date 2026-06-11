@@ -33,7 +33,6 @@ function derivePageResource(pathname: string, workspaceId: string): MothershipRe
   const prefix = `/workspace/${workspaceId}/`
   if (!pathname.startsWith(prefix)) return null
   const [segment, detail] = pathname.slice(prefix.length).split('/')
-  if (segment === 'w' && detail) return { type: 'workflow', id: detail, title: 'Workflow' }
   if (segment === 'tables' && detail) return { type: 'table', id: detail, title: 'Table' }
   if (segment === 'knowledge' && detail) {
     return { type: 'knowledgebase', id: detail, title: 'Knowledge Base' }
@@ -66,6 +65,12 @@ interface ChatSwitcherProps {
    */
   onSelectChat?: (chatId: string) => void
   /**
+   * When false, selecting a chat only fires {@link onSelectChat} — the host
+   * owns what happens next. The workflow editor uses this to dock the chat
+   * beside the canvas instead of leaving the page.
+   */
+  navigateOnSelect?: boolean
+  /**
    * The chat is generating a response — the recents icon becomes a spinner so
    * the title bar signals work in progress even when the messages are off
    * screen (collapsed pane, scrolled away).
@@ -83,6 +88,7 @@ export function ChatSwitcher({
   isNewChat = false,
   iconOnly = false,
   onSelectChat,
+  navigateOnSelect = true,
   isWorking = false,
 }: ChatSwitcherProps) {
   const isHidden = useSidebarToggleHidden()
@@ -113,6 +119,7 @@ export function ChatSwitcher({
   const handleSelect = (selectedChatId: string) => {
     setOpen(false)
     onSelectChat?.(selectedChatId)
+    if (!navigateOnSelect) return
     if (selectedChatId === chatId) return
     // Opening a chat never takes away what you're looking at: the current
     // page becomes the focused panel tab, and the chat slides in beside it.

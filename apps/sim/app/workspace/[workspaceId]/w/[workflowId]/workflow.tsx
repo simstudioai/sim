@@ -214,12 +214,21 @@ interface AddBlockFromToolbarDetail {
  * Main workflow canvas content component.
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
  */
+interface WorkflowChatDock {
+  /** The chat pane is docked beside the canvas — the canvas chrome hides. */
+  isOpen: boolean
+  /** Docks the picked chat (undefined for a new chat) without navigating. */
+  onSelectChat: (chatId?: string) => void
+}
+
 interface WorkflowContentProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
   /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
   sandbox?: boolean
+  /** Host-provided chat docking — chat opens beside the editor, never away from it. */
+  chatDock?: WorkflowChatDock
 }
 
 const WorkflowContent = React.memo(
@@ -228,6 +237,7 @@ const WorkflowContent = React.memo(
     workflowId: propWorkflowId,
     embedded,
     sandbox,
+    chatDock,
   }: WorkflowContentProps = {}) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -4224,11 +4234,17 @@ const WorkflowContent = React.memo(
             {!embedded && <DiffControls />}
 
             {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
-                at the top-left, matching the title-bar rhythm on other pages. */}
-            {!embedded && (
+                at the top-left, matching the title-bar rhythm on other pages.
+                Hidden while a chat is docked — the chat pane's title bar
+                carries both controls. */}
+            {!embedded && !chatDock?.isOpen && (
               <div className='absolute top-[7px] left-[7px] z-10 flex items-center gap-1'>
                 <SidebarToggle />
-                <ChatSwitcher iconOnly />
+                <ChatSwitcher
+                  iconOnly
+                  navigateOnSelect={!chatDock}
+                  onSelectChat={chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined}
+                />
               </div>
             )}
           </div>
@@ -4268,11 +4284,13 @@ interface WorkflowProps {
   embedded?: boolean
   /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
   sandbox?: boolean
+  /** Host-provided chat docking — chat opens beside the editor, never away from it. */
+  chatDock?: WorkflowChatDock
 }
 
 /** Workflow page with ReactFlowProvider and error boundary wrapper. */
 const Workflow = React.memo(
-  ({ workspaceId, workflowId, embedded, sandbox }: WorkflowProps = {}) => {
+  ({ workspaceId, workflowId, embedded, sandbox, chatDock }: WorkflowProps = {}) => {
     return (
       <ReactFlowProvider>
         <ErrorBoundary>
@@ -4281,6 +4299,7 @@ const Workflow = React.memo(
             workflowId={workflowId}
             embedded={embedded}
             sandbox={sandbox}
+            chatDock={chatDock}
           />
         </ErrorBoundary>
       </ReactFlowProvider>

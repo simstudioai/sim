@@ -162,12 +162,17 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
 
   // The tab strip is user-owned per workspace (browser-tab semantics): chats
   // merge their artifacts in additively; only the user closes/reorders tabs.
+  // Workflows never tab — they own the stage as the full editor, so any
+  // legacy persisted workflow tabs are filtered out on read.
   const workspaceTabs = useMothershipTabsStore((s) => s.byWorkspace[workspaceId])
   const openTabs = useMothershipTabsStore((s) => s.openTabs)
   const closeTab = useMothershipTabsStore((s) => s.closeTab)
   const reorderTabs = useMothershipTabsStore((s) => s.reorderTabs)
   const setActiveTab = useMothershipTabsStore((s) => s.setActiveTab)
-  const storeTabs = workspaceTabs?.tabs
+  const storeTabs = useMemo(
+    () => workspaceTabs?.tabs.filter((tab) => tab.type !== 'workflow'),
+    [workspaceTabs]
+  )
   const storeActiveTabId = workspaceTabs?.activeTabId ?? null
 
   function handleResourceEvent() {
@@ -175,6 +180,22 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       setIsResourceCollapsed(false)
     }
   }
+
+  /**
+   * The chat the panel is following, readable from stream callbacks without
+   * re-creating the options object (resolvedChatId lands a render later).
+   */
+  const activeChatIdRef = useRef<string | undefined>(chatId)
+
+  /** Swaps the stage to a workflow's full editor, carrying the chat along. */
+  const openWorkflowStage = useCallback(
+    (workflowId: string) => {
+      const chatKey = activeChatIdRef.current
+      const chatParam = chatKey ? `?chat=${chatKey}` : ''
+      router.push(`/workspace/${workspaceId}/w/${workflowId}${chatParam}`)
+    },
+    [router, workspaceId]
+  )
 
   const {
     messages,
@@ -204,8 +225,13 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       onResourceEvent: handleResourceEvent,
       // The panel follows the conversation: any resource the agent touches —
       // even one that's already an open tab — surfaces and takes focus, so
-      // "switch to X" in chat actually switches the strip.
+      // "switch to X" in chat actually switches the strip. Workflows are the
+      // exception: they never tab, the stage swaps to their full editor.
       onResourceTouched: (resource) => {
+        if (resource.type === 'workflow') {
+          openWorkflowStage(resource.id)
+          return
+        }
         openTabs(workspaceId, [resource], { focusId: resource.id })
       },
       initialActiveResourceId: initialResourceId,
@@ -247,7 +273,10 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
       mergedKeysRef.current = new Set()
     }
     const fresh = resources.filter(
-      (r) => !isEphemeralResource(r) && !mergedKeysRef.current.has(`${r.type}:${r.id}`)
+      (r) =>
+        !isEphemeralResource(r) &&
+        r.type !== 'workflow' &&
+        !mergedKeysRef.current.has(`${r.type}:${r.id}`)
     )
     if (fresh.length === 0) return
     for (const r of fresh) mergedKeysRef.current.add(`${r.type}:${r.id}`)
@@ -411,9 +440,15 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   /**
    * Manually attaching a resource opens its tab (session) AND records it on
    * the chat (provenance + agent context) via {@link addResource}, which keeps
-   * the existing persistence machinery.
+   * the existing persistence machinery. Workflows never tab — they swap the
+   * stage to their full editor (still recorded on the chat first).
    */
   function openResourceTab(resource: MothershipResource) {
+    if (resource.type === 'workflow') {
+      addResource(resource)
+      openWorkflowStage(resource.id)
+      return
+    }
     openTabs(workspaceId, [resource], { focusId: resource.id })
     addResource(resource)
     handleResourceEvent()
@@ -494,6 +529,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   // it (not just the prop) lets an inline-opened chat render its skeleton + view
   // before its history finishes loading.
   const activeChatId = resolvedChatId ?? chatId
+  activeChatIdRef.current = activeChatId
   const { isPending: isActiveChatHistoryPending } = useMothershipChatHistory(activeChatId)
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(activeChatId) && !hasMessages && isActiveChatHistoryPending

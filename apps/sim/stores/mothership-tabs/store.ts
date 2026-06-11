@@ -15,7 +15,9 @@ export const useMothershipTabsStore = create<MothershipTabsState>()(
       (set, get) => ({
         byWorkspace: {},
         openTabs: (workspaceId, resources, options) => {
-          const additions = resources.filter((resource) => !isEphemeralResource(resource))
+          const additions = resources.filter(
+            (resource) => !isEphemeralResource(resource) && resource.type !== 'workflow'
+          )
           const current = get().byWorkspace[workspaceId] ?? EMPTY_WORKSPACE_STATE
           const existingKeys = new Set(current.tabs.map(tabKey))
           const fresh = additions.filter((resource) => !existingKeys.has(tabKey(resource)))
