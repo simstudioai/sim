@@ -109,7 +109,8 @@ export const GET = withRouteHandler(
                 organizationId,
                 computed.billingPeriodStart && computed.billingPeriodEnd
                   ? { start: computed.billingPeriodStart, end: computed.billingPeriodEnd }
-                  : null
+                  : null,
+                dbReplica
               )
             ).get(memberId) ?? 0
           memberData = {

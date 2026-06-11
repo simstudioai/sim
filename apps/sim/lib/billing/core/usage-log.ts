@@ -581,7 +581,10 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
-      const cursorLog = await dbReplica
+      // Cursor resolution stays on the primary: the page itself reads a
+      // load-balanced replica, and a laggier sibling replica missing the cursor
+      // row would silently restart pagination from page 1.
+      const cursorLog = await db
         .select({ createdAt: usageLog.createdAt })
         .from(usageLog)
         .where(eq(usageLog.id, cursor))
