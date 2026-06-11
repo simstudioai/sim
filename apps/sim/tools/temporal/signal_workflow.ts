@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type {
   TemporalSignalWorkflowParams,
   TemporalSignalWorkflowResponse,
@@ -76,6 +77,7 @@ export const signalWorkflowTool: ToolConfig<
       const body: Record<string, unknown> = {
         workflowExecution: workflowExecutionRef(params.workflowId, params.runId),
         identity: TEMPORAL_CLIENT_IDENTITY,
+        requestId: generateId(),
       }
       const input = parseJsonArgs(params.signalInput, 'signalInput')
       if (input) body.input = input

@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type {
   TemporalScheduleMutationResponse,
   TemporalTriggerScheduleParams,
@@ -64,6 +65,7 @@ export const triggerScheduleTool: ToolConfig<
       return {
         patch: { triggerImmediately },
         identity: TEMPORAL_CLIENT_IDENTITY,
+        requestId: generateId(),
       }
     },
   },

@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type {
   TemporalCancelWorkflowParams,
   TemporalCancelWorkflowResponse,
@@ -69,6 +70,7 @@ export const cancelWorkflowTool: ToolConfig<
       const body: Record<string, unknown> = {
         workflowExecution: workflowExecutionRef(params.workflowId, params.runId),
         identity: TEMPORAL_CLIENT_IDENTITY,
+        requestId: generateId(),
       }
       if (params.reason) body.reason = params.reason
       return body

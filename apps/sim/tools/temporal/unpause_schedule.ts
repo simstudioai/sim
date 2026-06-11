@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type {
   TemporalPatchScheduleParams,
   TemporalScheduleMutationResponse,
@@ -60,6 +61,7 @@ export const unpauseScheduleTool: ToolConfig<
     body: (params) => ({
       patch: { unpause: params.reason || 'Unpaused via Sim' },
       identity: TEMPORAL_CLIENT_IDENTITY,
+      requestId: generateId(),
     }),
   },
 

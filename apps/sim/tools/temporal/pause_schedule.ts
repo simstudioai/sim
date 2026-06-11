@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import type {
   TemporalPatchScheduleParams,
   TemporalScheduleMutationResponse,
@@ -60,6 +61,7 @@ export const pauseScheduleTool: ToolConfig<
     body: (params) => ({
       patch: { pause: params.reason || 'Paused via Sim' },
       identity: TEMPORAL_CLIENT_IDENTITY,
+      requestId: generateId(),
     }),
   },
 
