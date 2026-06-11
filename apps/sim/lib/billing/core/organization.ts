@@ -19,6 +19,7 @@ import {
   hasUsableSubscriptionStatus,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import type { DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('OrganizationBilling')
 
@@ -64,7 +65,8 @@ interface MemberUsageData {
  */
 export async function getOrgMemberLedgerByUser(
   organizationId: string,
-  period?: { start: Date; end: Date } | null
+  period?: { start: Date; end: Date } | null,
+  executor: DbOrTx = db
 ): Promise<Map<string, number>> {
   let billingPeriod = period ?? null
   if (period === undefined) {
@@ -77,7 +79,9 @@ export async function getOrgMemberLedgerByUser(
   if (!billingPeriod) return new Map<string, number>()
   return getBillingPeriodUsageCostByUser(
     { type: 'organization', id: organizationId },
-    billingPeriod
+    billingPeriod,
+    undefined,
+    executor
   )
 }
 
@@ -85,7 +89,8 @@ export async function getOrgMemberLedgerByUser(
  * Get comprehensive organization billing and usage data
  */
 export async function getOrganizationBillingData(
-  organizationId: string
+  organizationId: string,
+  executor: DbOrTx = db
 ): Promise<OrganizationUsageData | null> {
   try {
     // Get organization info
@@ -134,7 +139,7 @@ export async function getOrganizationBillingData(
       subscription.periodStart && subscription.periodEnd
         ? { start: subscription.periodStart, end: subscription.periodEnd }
         : null
-    const usageByUser = await getOrgMemberLedgerByUser(organizationId, billingPeriod)
+    const usageByUser = await getOrgMemberLedgerByUser(organizationId, billingPeriod, executor)
 
     // Process member data
     const members: MemberUsageData[] = membersWithUsage.map((memberRecord) => {
@@ -168,7 +173,9 @@ export async function getOrganizationBillingData(
     if (billingPeriod) {
       totalCurrentUsage += await getBillingPeriodUsageCost(
         { type: 'organization', id: subscription.referenceId },
-        billingPeriod
+        billingPeriod,
+        undefined,
+        executor
       )
     }
 
@@ -180,15 +187,18 @@ export async function getOrganizationBillingData(
           subscription.referenceId,
           subscription.periodStart
         )
-        const refreshConsumed = await computeDailyRefreshConsumed({
-          userIds: memberIds,
-          periodStart: subscription.periodStart,
-          periodEnd: subscription.periodEnd ?? null,
-          planDollars,
-          seats: subscription.seats || 1,
-          userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-          billingEntity: { type: 'organization', id: subscription.referenceId },
-        })
+        const refreshConsumed = await computeDailyRefreshConsumed(
+          {
+            userIds: memberIds,
+            periodStart: subscription.periodStart,
+            periodEnd: subscription.periodEnd ?? null,
+            planDollars,
+            seats: subscription.seats || 1,
+            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+            billingEntity: { type: 'organization', id: subscription.referenceId },
+          },
+          executor
+        )
         totalCurrentUsage = Math.max(0, totalCurrentUsage - refreshConsumed)
       }
     }

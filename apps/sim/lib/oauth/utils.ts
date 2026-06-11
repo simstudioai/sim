@@ -201,9 +201,6 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
-  'read:form:jira-service-management': 'View JSM forms and templates',
-  'write:form:jira-service-management': 'Attach, save, and submit JSM forms',
-  'delete:form:jira-service-management': 'Delete JSM forms',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',
@@ -275,6 +272,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'groups:history': 'Read private messages',
   'chat:write': 'Send messages',
   'chat:write.public': 'Post to public channels',
+  'assistant:write': 'Set assistant thread status, title, and suggested prompts',
   'im:write': 'Send direct messages',
   'im:history': 'Read direct message history',
   'im:read': 'View direct message channels',

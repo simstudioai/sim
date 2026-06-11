@@ -16,7 +16,6 @@ import type { ToolConfig } from '@/tools/types'
 export interface KalshiGetPositionsParams extends KalshiAuthParams, KalshiPaginationParams {
   ticker?: string
   eventTicker?: string
-  settlementStatus?: string // all, unsettled, settled
 }
 
 export interface KalshiGetPositionsResponse {
@@ -62,13 +61,6 @@ export const kalshiGetPositionsTool: ToolConfig<
       description:
         'Filter by event ticker, max 10 comma-separated (e.g., "KXBTC-24DEC31,INX-25JAN03")',
     },
-    settlementStatus: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'Filter by settlement status: "all", "unsettled", or "settled" (default: "unsettled")',
-    },
     limit: {
       type: 'string',
       required: false,
@@ -88,7 +80,6 @@ export const kalshiGetPositionsTool: ToolConfig<
       const queryParams = new URLSearchParams()
       if (params.ticker) queryParams.append('ticker', params.ticker)
       if (params.eventTicker) queryParams.append('event_ticker', params.eventTicker)
-      if (params.settlementStatus) queryParams.append('settlement_status', params.settlementStatus)
       if (params.limit) queryParams.append('limit', params.limit)
       if (params.cursor) queryParams.append('cursor', params.cursor)
 
@@ -216,7 +207,8 @@ export const kalshiGetPositionsV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter by count: "all", "positive", or "negative" (default: "all")',
+      description:
+        'Restrict to positions with non-zero values for the given fields (comma-separated): "position", "total_traded"',
     },
     subaccount: {
       type: 'string',

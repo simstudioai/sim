@@ -43,7 +43,7 @@ export const oktaDeleteUserTool: ToolConfig<OktaDeleteUserParams, OktaDeleteUser
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const sendEmail = params.sendEmail === true
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}?sendEmail=${sendEmail}`
     },
     method: 'DELETE',
     headers: (params) => ({

@@ -251,7 +251,6 @@ export interface LandingWorkflowSeed {
   templateId: string
   workflowName: string
   workflowDescription?: string
-  color?: string
   workflowJson: string
 }
 

@@ -11,10 +11,9 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Transcribe audio and video files to text using leading AI providers. Supports multiple languages, timestamps, and speaker diarization.',
-  docsLink: 'https://docs.sim.ai/tools/stt',
-  category: 'tools',
+  docsLink: 'https://docs.sim.ai/integrations/stt',
+  category: 'blocks',
   integrationType: IntegrationType.AI,
-  tags: ['speech-to-text', 'document-processing'],
   bgColor: '#181C1E',
   icon: STTIcon,
 

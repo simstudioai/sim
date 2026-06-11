@@ -5,18 +5,16 @@ import { Settings2 } from 'lucide-react'
 import {
   Button,
   Checkbox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
-  ModalTrigger,
+  ChipModal,
+  ChipModalBody,
+  ChipModalField,
+  ChipModalHeader,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface SelectedCountDisplayProps {
   noneSelected: boolean
@@ -51,7 +49,6 @@ interface GroupedCheckboxListProps {
   subBlockValues: Record<string, any>
   disabled?: boolean
   maxHeight?: number
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function GroupedCheckboxList({
@@ -63,8 +60,8 @@ export function GroupedCheckboxList({
   subBlockValues,
   disabled = false,
   maxHeight = 400,
-  activeSearchTarget,
 }: GroupedCheckboxListProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [open, setOpen] = useState(false)
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
   const optionRefs = useRef<Record<number, HTMLDivElement | null>>({})
@@ -127,80 +124,69 @@ export function GroupedCheckboxList({
   }, [activeSearchTarget, open, subBlockId])
 
   return (
-    <Modal open={open} onOpenChange={setOpen}>
-      <ModalTrigger asChild>
-        <Button
-          variant='ghost'
-          disabled={disabled}
-          className={cn(
-            'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
-            'hover-hover:bg-[var(--surface-active)]'
-          )}
-        >
-          <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-            <Settings2 className='size-4 flex-shrink-0 opacity-50' />
-            <span className='truncate'>Configure PII Types</span>
-          </span>
-          <SelectedCountDisplay
-            noneSelected={noneSelected}
-            allSelected={allSelected}
-            count={selectedValues.length}
-          />
-        </Button>
-      </ModalTrigger>
-      <ModalContent
-        size='lg'
-        className='flex max-h-[80vh] flex-col'
-        onWheel={(e) => e.stopPropagation()}
+    <>
+      <Button
+        variant='ghost'
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+        className={cn(
+          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+          'hover-hover:bg-[var(--surface-active)]'
+        )}
       >
-        <ModalHeader>Select PII Types to Detect</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='mb-3 text-[var(--text-muted)] text-sm'>
-            Choose which types of personally identifiable information to detect and block.
-          </ModalDescription>
-
-          {/* Header with Select All and Clear */}
-          <div className='flex items-center justify-between border-b pb-3'>
-            <div className='flex items-center gap-2'>
-              <Checkbox
-                id='select-all'
-                checked={allSelected}
-                onCheckedChange={(checked) => {
-                  if (checked) {
-                    handleSelectAll()
-                  } else {
-                    handleClear()
-                  }
-                }}
-                disabled={disabled}
-              />
-              <label
-                htmlFor='select-all'
-                className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
-              >
-                Select all entities
-              </label>
-            </div>
-            <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
-              <span className='flex items-center gap-1'>
-                Clear{!noneSelected && <span>({selectedValues.length})</span>}
-              </span>
-            </Button>
-          </div>
-
-          {/* Scrollable grouped checkboxes */}
-          <div
-            className='flex-1 overflow-y-auto pr-4'
-            onWheel={(e) => e.stopPropagation()}
-            style={{ maxHeight: '60vh' }}
+        <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
+          <Settings2 className='size-4 flex-shrink-0 opacity-50' />
+          <span className='truncate'>Configure PII Types</span>
+        </span>
+        <SelectedCountDisplay
+          noneSelected={noneSelected}
+          allSelected={allSelected}
+          count={selectedValues.length}
+        />
+      </Button>
+      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
+        <ChipModalHeader onClose={() => setOpen(false)}>Select PII Types to Detect</ChipModalHeader>
+        <ChipModalBody onWheel={(e) => e.stopPropagation()}>
+          <ChipModalField
+            type='custom'
+            title='PII types'
+            hint='Choose which types of personally identifiable information to detect and block.'
           >
-            <div className='space-y-6'>
+            <div className='flex items-center justify-between border-[var(--border)] border-b pb-3'>
+              <div className='flex items-center gap-2'>
+                <Checkbox
+                  id='select-all'
+                  checked={allSelected}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      handleSelectAll()
+                    } else {
+                      handleClear()
+                    }
+                  }}
+                  disabled={disabled}
+                />
+                <label
+                  htmlFor='select-all'
+                  className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                >
+                  Select all entities
+                </label>
+              </div>
+              <Button variant='ghost' onClick={handleClear} disabled={disabled || noneSelected}>
+                <span className='flex items-center gap-1'>
+                  Clear{!noneSelected && <span>({selectedValues.length})</span>}
+                </span>
+              </Button>
+            </div>
+
+            <div className='flex flex-col gap-6'>
               {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                 <div key={groupName}>
                   <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
                     {groupName}
                   </h3>
-                  <div className='space-y-3'>
+                  <div className='flex flex-col gap-3'>
                     {groupOptions.map((option) => {
                       const optionIndex = options.findIndex(
                         (candidate) => candidate.id === option.id
@@ -239,9 +225,9 @@ export function GroupedCheckboxList({
                 </div>
               ))}
             </div>
-          </div>
-        </ModalBody>
-      </ModalContent>
-    </Modal>
+          </ChipModalField>
+        </ChipModalBody>
+      </ChipModal>
+    </>
   )
 }

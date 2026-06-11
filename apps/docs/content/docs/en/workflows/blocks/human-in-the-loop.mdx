@@ -1,0 +1,287 @@
+---
+title: Human in the Loop
+description: The Human in the Loop block pauses a run for human approval, then resumes with their input.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  HITL_APPROVAL_WORKFLOW,
+  HITL_MULTISTAGE_WORKFLOW,
+  HITL_VALIDATE_WORKFLOW,
+} from '@/components/workflow-preview'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+The **Human in the Loop block** pauses a run and waits for a person before it continues. Use it for approval gates, to collect feedback, or to gather input at a decision point. The run stays paused — with no timeout — until someone responds through the approval portal, the API, or a webhook.
+
+<BlockPreview type="human_in_the_loop" />
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/hitl-2.png"
+    alt="Human in the Loop Approval Portal"
+    width={700}
+    height={500}
+    className="my-6"
+  />
+</div>
+
+## Configuration
+
+### Display Data
+
+What the approver sees — the context shown in the portal to help them decide. Build it field by field or as JSON, referencing earlier outputs with `<blockName.output>`.
+
+```json
+{
+  "customerName": "<agent1.content.name>",
+  "proposedAction": "<router1.selectedPath>",
+  "confidenceScore": "<evaluator1.score>",
+  "generatedEmail": "<agent2.content>"
+}
+```
+
+### Notification
+
+How approvers are alerted that a decision is waiting. Include the approval URL (`<blockId.url>`) in the message so they can open the portal. Available channels:
+
+- **Slack** — a message to a channel or DM
+- **Gmail** — an email with the approval link
+- **Microsoft Teams** — a channel notification
+- **SMS** — a text alert via Twilio
+- **Webhook** — a request to your own notification system
+
+### Resume Form
+
+The fields the approver fills in when responding. Each becomes available to downstream blocks once the run resumes.
+
+```json
+{
+  "approved": {
+    "type": "boolean",
+    "description": "Approve or reject this request"
+  },
+  "comments": {
+    "type": "string",
+    "description": "Optional feedback or explanation"
+  }
+}
+```
+
+Access resume data in downstream blocks using `<blockId.fieldName>`. 
+
+## Approval Methods
+
+<Tabs items={['Approval Portal', 'API', 'Webhook']}>
+  <Tab>
+    ### Approval Portal
+    
+    Every block generates a unique portal URL (`<blockId.url>`) with a visual interface showing all paused output data and form fields for resume input. Mobile-responsive and secure.
+    
+    Share this URL in notifications for approvers to review and respond.
+  </Tab>
+  <Tab>
+    ### REST API
+    
+    Programmatically resume workflows using the resume endpoint. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
+    
+    ```bash
+    POST /api/resume/{workflowId}/{executionId}/{contextId}
+    Content-Type: application/json
+    X-API-Key: your-api-key
+    
+    {
+      "input": {
+        "approved": true,
+        "comments": "Looks good to proceed"
+      }
+    }
+    ```
+    
+    The resume endpoint automatically respects the execution mode used in the original execute call:
+    
+    - **Sync mode** (default) — The response waits for the remaining workflow to complete and returns the full result:
+    
+    ```json
+    {
+      "success": true,
+      "status": "completed",
+      "executionId": "<resumeExecutionId>",
+      "output": { ... },
+      "metadata": { "duration": 1234, "startTime": "...", "endTime": "..." }
+    }
+    ```
+    
+    If the resumed workflow hits another HITL block, the response returns `"status": "paused"` with new `_resume` URLs in the output.
+    
+    - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
+    
+    - **Async mode** (`X-Execution-Mode: async` on the original execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including a `jobId` and `statusUrl` for polling:
+    
+    ```json
+    {
+      "success": true,
+      "async": true,
+      "jobId": "<jobId>",
+      "executionId": "<resumeExecutionId>",
+      "message": "Resume execution queued",
+      "statusUrl": "/api/jobs/<jobId>"
+    }
+    ```
+    
+    #### Polling execution status
+    
+    Poll the `statusUrl` from the async response to check when the resume completes:
+    
+    ```bash
+    GET /api/jobs/{jobId}
+    X-API-Key: your-api-key
+    ```
+    
+    Returns job status and, when completed, the full workflow output.
+    
+    To check on a paused execution's pause points and resume links:
+    
+    ```bash
+    GET /api/resume/{workflowId}/{executionId}
+    X-API-Key: your-api-key
+    ```
+    
+    Returns the paused execution detail with all pause points, their statuses, and resume links. Returns `404` when the execution has completed and is no longer paused.
+  </Tab>
+  <Tab>
+    ### Webhook
+    
+    Add a webhook tool to the Notification section to send approval requests to external systems. Integrate with ticketing systems like Jira or ServiceNow.
+  </Tab>
+</Tabs>
+
+## API Execute Behavior
+
+When triggering a workflow via the execute API (`POST /api/workflows/{id}/execute`), HITL blocks cause the execution to pause and return the `_resume` data in the response:
+
+<Tabs items={['Sync (JSON)', 'Stream (SSE)', 'Async']}>
+  <Tab>
+    The response includes the full pause data with resume URLs:
+    
+    ```json
+    {
+      "success": true,
+      "executionId": "<executionId>",
+      "output": {
+        "data": {
+          "operation": "human",
+          "_resume": {
+            "apiUrl": "/api/resume/{workflowId}/{executionId}/{contextId}",
+            "uiUrl": "/resume/{workflowId}/{executionId}",
+            "contextId": "<contextId>",
+            "executionId": "<executionId>",
+            "workflowId": "<workflowId>"
+          }
+        }
+      }
+    }
+    ```
+  </Tab>
+  <Tab>
+    Blocks before the HITL stream their `selectedOutputs` normally. When execution pauses, the final SSE event includes `status: "paused"` and the `_resume` data:
+    
+    ```
+    data: {"blockId":"agent1","chunk":"streamed content..."}
+    data: {"event":"final","data":{"success":true,"output":{...,"_resume":{...}},"status":"paused"}}
+    data: "[DONE]"
+    ```
+    
+    On resume, blocks after the HITL stream their `selectedOutputs` the same way.
+    
+    <Callout type="info">
+      HITL blocks are automatically excluded from the `selectedOutputs` dropdown since their data is always included in the pause response.
+    </Callout>
+  </Tab>
+  <Tab>
+    Returns `202` immediately. Use the polling endpoint to check when the execution pauses.
+  </Tab>
+</Tabs>
+
+## Examples
+
+### Approve content before it ships
+
+<WorkflowPreview workflow={HITL_APPROVAL_WORKFLOW} />
+
+The run pauses at the Human in the Loop block until someone approves; on resume, the API publishes. The same gate works before any action, like sending a customer email.
+
+### Chain multiple approvals
+
+<WorkflowPreview workflow={HITL_MULTISTAGE_WORKFLOW} />
+
+For a high-stakes change, chain two approval steps — a manager, then a director — before the workflow executes.
+
+### Verify extracted data
+
+<WorkflowPreview workflow={HITL_VALIDATE_WORKFLOW} />
+
+A reviewer checks the data an Agent extracted before a Function processes it.
+
+## Outputs
+
+| Output | What it is |
+| --- | --- |
+| `url` | The approval portal URL |
+| `resumeEndpoint` | The resume API endpoint |
+| `response` | The display data shown to the approver |
+| `submission` | The approver's form submission |
+| `submittedAt` | ISO timestamp of when the run resumed |
+| `<fieldName>` | Each Resume Form field, by name, after the run resumes |
+
+Read them downstream as `<blockName.output>` — for a block named `approval`, that's `<approval.approved>`.
+
+## The approval portal
+
+**Paused Output:**
+```json
+{
+  "title": "<agent1.content.title>",
+  "body": "<agent1.content.body>",
+  "qualityScore": "<evaluator1.score>"
+}
+```
+
+**Resume Input:**
+```json
+{
+  "approved": { "type": "boolean" },
+  "feedback": { "type": "string" }
+}
+```
+
+**Downstream Usage:**
+```javascript
+// Condition block
+<approval1.approved> === true
+```
+The example below shows an approval portal as seen by an approver after the workflow is paused. Approvers can review the data and provide inputs as a part of the workflow resumption. The approval portal can be accessed directly via the unique URL, `<blockId.url>`.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg my-6">
+  <Video src="hitl-resume.mp4" width={700} height={450} />
+</div>
+
+## Related Blocks
+
+- **[Condition](/workflows/blocks/condition)** - Branch based on approval decisions
+- **[Variables](/workflows/blocks/variables)** - Store approval history and metadata
+- **[Response](/workflows/blocks/response)** - Return workflow results to API callers
+
+<FAQ items={[
+  { question: "How long does the workflow stay paused?", answer: "The workflow pauses indefinitely until a human provides input through the approval portal, the REST API, or a webhook. There is no automatic timeout — it will wait until someone responds." },
+  { question: "What notification channels can I use to alert approvers?", answer: "You can configure notifications through Slack, Gmail, Microsoft Teams, SMS (via Twilio), or custom webhooks. Include the approval URL in your notification message so approvers can access the portal directly." },
+  { question: "How do I access the approver's input in downstream blocks?", answer: "Use the syntax <blockId.fieldName> to reference specific fields from the resume form. For example, if your block name is 'approval1' and the form has an 'approved' field, use <approval1.approved>." },
+  { question: "Can I chain multiple Human in the Loop blocks for multi-stage approvals?", answer: "Yes. You can place multiple Human in the Loop blocks in sequence to create multi-stage approval workflows. Each block pauses independently and can have its own notification configuration and resume form fields." },
+  { question: "Can I resume the workflow programmatically without the portal?", answer: "Yes. Each block exposes a resume API endpoint that you can call with a POST request containing the form data as JSON. This lets you build custom approval UIs or integrate with existing systems like Jira or ServiceNow." },
+  { question: "What outputs are available after the workflow resumes?", answer: "The block outputs include the approval portal URL, the resume API endpoint URL, the display data shown to the approver, the form submission data, the raw resume input, and an ISO timestamp of when the workflow was resumed." },
+]} />

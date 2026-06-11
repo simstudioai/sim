@@ -58,7 +58,9 @@ export interface MothershipStreamV1SessionStartData {
 export interface MothershipStreamV1StreamScope {
   agentId?: string
   lane: 'subagent'
+  parentSpanId?: string
   parentToolCallId?: string
+  spanId?: string
 }
 export interface MothershipStreamV1StreamRef {
   chatId?: string

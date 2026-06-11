@@ -51,7 +51,6 @@ export interface WorkflowExportData {
     id: string
     name: string
     description?: string
-    color?: string
     folderId?: string | null
     sortOrder?: number
   }
@@ -69,7 +68,6 @@ export interface FolderExportData {
 interface WorkspaceExportStructure {
   workspace: {
     name: string
-    color?: string
     exportedAt: string
   }
   workflows: WorkflowExportData[]
@@ -112,7 +110,7 @@ export function downloadFile(
  */
 export async function fetchWorkflowForExport(
   workflowId: string,
-  workflowMeta: { name: string; description?: string; color?: string; folderId?: string | null }
+  workflowMeta: { name: string; description?: string; folderId?: string | null }
 ): Promise<WorkflowExportData | null> {
   try {
     let workflowData: { state?: WorkflowState }
@@ -153,7 +151,6 @@ export async function fetchWorkflowForExport(
         id: workflowId,
         name: workflowMeta.name,
         description: workflowMeta.description,
-        color: workflowMeta.color,
         folderId: workflowMeta.folderId,
       },
       state: workflowData.state,
@@ -174,7 +171,6 @@ export function exportWorkflowToJson(workflowData: WorkflowExportData): string {
     metadata: {
       name: workflowData.workflow.name,
       description: workflowData.workflow.description,
-      color: workflowData.workflow.color,
       exportedAt: new Date().toISOString(),
     },
     variables: workflowData.variables,
@@ -231,8 +227,7 @@ function buildFolderPath(
 export async function exportWorkspaceToZip(
   workspaceName: string,
   workflows: WorkflowExportData[],
-  folders: FolderExportData[],
-  workspaceColor?: string
+  folders: FolderExportData[]
 ): Promise<Blob> {
   const JSZip = await getJSZip()
   const zip = new JSZip()
@@ -241,7 +236,6 @@ export async function exportWorkspaceToZip(
   const metadata = {
     workspace: {
       name: workspaceName,
-      ...(workspaceColor && { color: workspaceColor }),
       exportedAt: new Date().toISOString(),
     },
     folders: folders.map((f) => ({
@@ -261,7 +255,6 @@ export async function exportWorkspaceToZip(
         metadata: {
           name: workflow.workflow.name,
           description: workflow.workflow.description,
-          color: workflow.workflow.color,
           sortOrder: workflow.workflow.sortOrder,
           exportedAt: new Date().toISOString(),
         },
@@ -318,7 +311,6 @@ export async function exportFolderToZip(
         metadata: {
           name: workflow.workflow.name,
           description: workflow.workflow.description,
-          color: workflow.workflow.color,
           exportedAt: new Date().toISOString(),
         },
         variables: workflow.variables,
@@ -349,7 +341,6 @@ export interface ImportedWorkflow {
 
 export interface WorkspaceImportMetadata {
   workspaceName: string
-  workspaceColor?: string
   exportedAt?: string
   folders?: Array<{
     id: string
@@ -385,7 +376,6 @@ export async function extractWorkflowsFromZip(
         const parsed = JSON.parse(content)
         metadata = {
           workspaceName: parsed.workspace?.name || 'Imported Workspace',
-          workspaceColor: parsed.workspace?.color,
           exportedAt: parsed.workspace?.exportedAt,
           folders: parsed.folders,
         }
@@ -649,7 +639,6 @@ export function parseWorkflowJson(
 interface CreateImportedWorkflowInput {
   name: string
   description: string
-  color: string
   workspaceId: string
   folderId?: string
   sortOrder?: number
@@ -667,7 +656,6 @@ interface PersistImportedWorkflowOptions {
   sortOrder?: number
   nameOverride?: string
   descriptionOverride?: string
-  colorOverride?: string
   createWorkflow: (input: CreateImportedWorkflowInput) => Promise<CreatedImportedWorkflow>
 }
 
@@ -679,7 +667,6 @@ export async function persistImportedWorkflow({
   sortOrder,
   nameOverride,
   descriptionOverride,
-  colorOverride,
   createWorkflow,
 }: PersistImportedWorkflowOptions): Promise<{ workflowId: string; workflowName: string } | null> {
   const { data: workflowData, errors: parseErrors } = parseWorkflowJson(content)
@@ -690,8 +677,6 @@ export async function persistImportedWorkflow({
   }
 
   const workflowName = nameOverride || extractWorkflowName(content, filename)
-  const workflowColor =
-    colorOverride || (workflowData.metadata as { color?: string } | undefined)?.color || '#3972F6'
 
   const createdWorkflow = await createWorkflow({
     name: workflowName,
@@ -699,7 +684,6 @@ export async function persistImportedWorkflow({
     workspaceId,
     folderId,
     sortOrder,
-    color: workflowColor,
   })
 
   const newWorkflowId = createdWorkflow.id

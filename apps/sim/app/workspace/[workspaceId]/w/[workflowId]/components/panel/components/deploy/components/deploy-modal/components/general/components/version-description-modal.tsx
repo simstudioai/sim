@@ -2,14 +2,13 @@
 
 import { useRef, useState } from 'react'
 import {
-  Button,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
+  ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
 import {
   useGenerateVersionDescription,
@@ -89,83 +88,61 @@ export function VersionDescriptionModal({
 
   return (
     <>
-      <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent size='lg'>
-          <ModalHeader>
-            <span>Version Description</span>
-          </ModalHeader>
-          <ModalBody className='space-y-2.5'>
-            <div className='flex items-center justify-between'>
-              <ModalDescription className='text-[var(--text-secondary)]'>
+      <ChipModal
+        open={open}
+        onOpenChange={(openState) => !openState && handleCloseAttempt()}
+        srTitle='Version Description'
+      >
+        <ChipModalHeader onClose={() => handleCloseAttempt()}>Version Description</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='textarea'
+            title={
+              <span>
                 {currentDescription ? 'Edit the' : 'Add a'} description for{' '}
                 <span className='font-medium text-[var(--text-primary)]'>{versionName}</span>
-              </ModalDescription>
-              <Button
-                variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
-                onClick={handleGenerateDescription}
-                disabled={isGenerating || updateMutation.isPending}
-              >
-                {isGenerating ? 'Generating...' : 'Generate'}
-              </Button>
-            </div>
-            <Textarea
-              placeholder='Describe the changes in this deployment version...'
-              className='min-h-[120px] resize-none'
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={2000}
-              disabled={isGenerating}
-            />
-            <div className='flex items-center justify-between'>
-              {(updateMutation.error || generateMutation.error) && (
-                <p className='text-[var(--text-error)] text-caption'>
-                  {updateMutation.error?.message || generateMutation.error?.message}
-                </p>
-              )}
-              {!updateMutation.error && !generateMutation.error && <div />}
-              <p className='text-[var(--text-tertiary)] text-xs'>{description.length}/2000</p>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={handleCloseAttempt}
-              disabled={updateMutation.isPending || isGenerating}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='tertiary'
-              onClick={handleSave}
-              disabled={updateMutation.isPending || isGenerating || !hasChanges}
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+              </span>
+            }
+            value={description}
+            onChange={setDescription}
+            placeholder='Describe the changes in this deployment version...'
+            maxLength={2000}
+            minHeight={120}
+            disabled={isGenerating}
+            hint={`${description.length}/2000`}
+          />
+          <ChipModalError>
+            {updateMutation.error?.message || generateMutation.error?.message}
+          </ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={handleCloseAttempt}
+          cancelDisabled={updateMutation.isPending || isGenerating}
+          secondaryAction={{
+            label: isGenerating ? 'Generating...' : 'Generate',
+            onClick: handleGenerateDescription,
+            disabled: isGenerating || updateMutation.isPending,
+          }}
+          primaryAction={{
+            label: updateMutation.isPending ? 'Saving...' : 'Save',
+            onClick: handleSave,
+            disabled: updateMutation.isPending || isGenerating || !hasChanges,
+          }}
+        />
+      </ChipModal>
 
-      <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent size='sm'>
-          <ModalHeader>
-            <span>Unsaved Changes</span>
-          </ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showUnsavedChangesAlert}
+        onOpenChange={setShowUnsavedChangesAlert}
+        srTitle='Unsaved Changes'
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleDiscardChanges,
+        }}
+      />
     </>
   )
 }

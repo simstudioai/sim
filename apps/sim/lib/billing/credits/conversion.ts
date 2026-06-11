@@ -13,6 +13,15 @@ export function dollarsToCredits(dollars: number): number {
 }
 
 /**
+ * Convert a credit amount (the API/UI unit) into stored dollars.
+ * Inverse of {@link dollarsToCredits}; use at write boundaries that accept
+ * credit-denominated input (e.g. per-member usage limits).
+ */
+export function creditsToDollars(credits: number): number {
+  return credits / CREDIT_MULTIPLIER
+}
+
+/**
  * Single source of truth for rendering a dollar cost as a credit label.
  *
  * Both the billing cost breakdown and the trace view derive their credit

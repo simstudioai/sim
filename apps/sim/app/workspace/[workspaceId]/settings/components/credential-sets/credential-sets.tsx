@@ -2,36 +2,37 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Plus, Search } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
-  Button,
+  ButtonGroup,
+  ButtonGroupItem,
+  Chip,
+  ChipConfirmModal,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   type FileInputOptions,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Skeleton,
+  Search,
   TagInput,
   type TagItem,
 } from '@/components/emcn'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
-import { Input as BaseInput } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { cn } from '@/lib/core/utils/cn'
 import { getProviderDisplayName, type PollingProvider } from '@/lib/credential-sets/providers'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getUserRole } from '@/lib/workspaces/organization'
-import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type CredentialSet,
   useAcceptCredentialSetInvitation,
@@ -402,7 +403,7 @@ export function CredentialSets() {
     !hasNoContent
 
   if (membershipsLoading || invitationsLoading) {
-    return <CredentialSetsSkeleton />
+    return null
   }
 
   if (viewingSet) {
@@ -410,10 +411,17 @@ export function CredentialSets() {
     const totalCount = activeMembers.length + pendingInvitations.length
 
     return (
-      <>
-        <div className='flex h-full flex-col gap-4.5'>
-          <div className='min-h-0 flex-1 overflow-y-auto'>
-            <div className='flex flex-col gap-4.5'>
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <Chip leftIcon={ArrowLeft} onClick={handleBackToList}>
+            Sim Mailer
+          </Chip>
+          <div />
+        </div>
+
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pt-4 pb-6'>
+            <SettingsSection label='Details'>
               <div className='flex items-center gap-4.5'>
                 <div className='flex items-center gap-2'>
                   <span className='font-medium text-[var(--text-primary)] text-sm'>Group Name</span>
@@ -430,7 +438,9 @@ export function CredentialSets() {
                   </div>
                 </div>
               </div>
+            </SettingsSection>
 
+            <SettingsSection label='Invite'>
               <div className='flex flex-col gap-1'>
                 <div className='flex items-center gap-2'>
                   <TagInput
@@ -443,464 +453,390 @@ export function CredentialSets() {
                     fileInputOptions={fileInputOptions}
                     className='flex-1'
                   />
-                  <Button
-                    variant='default'
+                  <Chip
                     onClick={handleInviteMembers}
                     disabled={createInvitation.isPending || validEmails.length === 0}
                   >
                     {createInvitation.isPending ? 'Sending...' : 'Invite'}
-                  </Button>
+                  </Chip>
                 </div>
                 {emailError && <p className='text-[var(--text-error)] text-small'>{emailError}</p>}
               </div>
+            </SettingsSection>
 
-              <div className='flex flex-col gap-4.5'>
-                <h4 className='font-medium text-[var(--text-primary)] text-base'>Members</h4>
+            <SettingsSection label='Members'>
+              {membersLoading || pendingInvitationsLoading ? null : totalCount === 0 ? (
+                <p className='text-[var(--text-muted)] text-sm'>
+                  No members yet. Send invitations above.
+                </p>
+              ) : (
+                <div className='flex flex-col gap-4.5'>
+                  {activeMembers.map((member) => {
+                    const name = member.userName || 'Unknown'
+                    const avatarInitial = name.charAt(0).toUpperCase()
 
-                {membersLoading || pendingInvitationsLoading ? (
-                  <div className='flex flex-col gap-4.5'>
-                    {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-3'>
-                          <Skeleton className='size-8 rounded-full' />
-                          <div className='flex flex-col gap-1'>
-                            <Skeleton className='h-[14px] w-[100px]' />
-                            <Skeleton className='h-[12px] w-[150px]' />
+                    return (
+                      <div key={member.id} className='flex items-center justify-between'>
+                        <div className='flex flex-1 items-center gap-3'>
+                          <Avatar size='md'>
+                            {member.userImage && <AvatarImage src={member.userImage} alt={name} />}
+                            <AvatarFallback
+                              style={{
+                                background: getUserColor(member.userId || member.userEmail || ''),
+                              }}
+                              className='border-0 text-white'
+                            >
+                              {avatarInitial}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className='min-w-0'>
+                            <div className='flex items-center gap-2'>
+                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                                {name}
+                              </span>
+                              {member.credentials.length === 0 && (
+                                <Badge variant='red' size='sm'>
+                                  Disconnected
+                                </Badge>
+                              )}
+                            </div>
+                            <div className='truncate text-[var(--text-muted)] text-small'>
+                              {member.userEmail}
+                            </div>
                           </div>
+                        </div>
+
+                        <div className='ml-4 flex items-center gap-1'>
+                          <Chip
+                            variant='destructive'
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={removeMember.isPending}
+                          >
+                            Remove
+                          </Chip>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : totalCount === 0 ? (
-                  <p className='text-[var(--text-muted)] text-sm'>
-                    No members yet. Send invitations above.
-                  </p>
-                ) : (
-                  <div className='flex flex-col gap-4.5'>
-                    {activeMembers.map((member) => {
-                      const name = member.userName || 'Unknown'
-                      const avatarInitial = name.charAt(0).toUpperCase()
+                    )
+                  })}
 
-                      return (
-                        <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-3'>
-                            <Avatar size='md'>
-                              {member.userImage && (
-                                <AvatarImage src={member.userImage} alt={name} />
-                              )}
-                              <AvatarFallback
-                                style={{
-                                  background: getUserColor(member.userId || member.userEmail || ''),
-                                }}
-                                className='border-0 text-white'
-                              >
-                                {avatarInitial}
-                              </AvatarFallback>
-                            </Avatar>
+                  {pendingInvitations.map((invitation) => {
+                    const email = invitation.email || 'Unknown'
+                    const emailPrefix = email.split('@')[0]
+                    const avatarInitial = emailPrefix.charAt(0).toUpperCase()
 
-                            <div className='min-w-0'>
-                              <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
-                                  {name}
-                                </span>
-                                {member.credentials.length === 0 && (
-                                  <Badge variant='red' size='sm'>
-                                    Disconnected
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className='truncate text-[var(--text-muted)] text-small'>
-                                {member.userEmail}
-                              </div>
+                    return (
+                      <div key={invitation.id} className='flex items-center justify-between'>
+                        <div className='flex flex-1 items-center gap-3'>
+                          <Avatar size='md'>
+                            <AvatarFallback
+                              style={{ background: getUserColor(email) }}
+                              className='border-0 text-white'
+                            >
+                              {avatarInitial}
+                            </AvatarFallback>
+                          </Avatar>
+
+                          <div className='min-w-0'>
+                            <div className='flex items-center gap-2'>
+                              <span className='truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                                {emailPrefix}
+                              </span>
+                              <Badge variant='gray-secondary' size='sm'>
+                                Pending
+                              </Badge>
+                            </div>
+                            <div className='truncate text-[var(--text-muted)] text-small'>
+                              {email}
                             </div>
                           </div>
-
-                          <div className='ml-4 flex items-center gap-1'>
-                            <Button
-                              variant='destructive'
-                              onClick={() => handleRemoveMember(member.id)}
-                              disabled={removeMember.isPending}
-                              className='h-8'
-                            >
-                              Remove
-                            </Button>
-                          </div>
                         </div>
-                      )
-                    })}
 
-                    {pendingInvitations.map((invitation) => {
-                      const email = invitation.email || 'Unknown'
-                      const emailPrefix = email.split('@')[0]
-                      const avatarInitial = emailPrefix.charAt(0).toUpperCase()
-
-                      return (
-                        <div key={invitation.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-3'>
-                            <Avatar size='md'>
-                              <AvatarFallback
-                                style={{ background: getUserColor(email) }}
-                                className='border-0 text-white'
-                              >
-                                {avatarInitial}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <div className='min-w-0'>
-                              <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-[var(--text-primary)] text-base'>
-                                  {emailPrefix}
-                                </span>
-                                <Badge variant='gray-secondary' size='sm'>
-                                  Pending
-                                </Badge>
-                              </div>
-                              <div className='truncate text-[var(--text-muted)] text-small'>
-                                {email}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className='ml-4 flex items-center gap-1'>
-                            <Button
-                              variant='ghost'
-                              onClick={() => handleResendInvitation(invitation.id, email)}
-                              disabled={
-                                resendingInvitations.has(invitation.id) ||
-                                (resendCooldowns[invitation.id] ?? 0) > 0
-                              }
-                              className='h-8'
-                            >
-                              {resendingInvitations.has(invitation.id)
-                                ? 'Sending...'
-                                : resendCooldowns[invitation.id]
-                                  ? `Resend (${resendCooldowns[invitation.id]}s)`
-                                  : 'Resend'}
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              onClick={() => handleCancelInvitation(invitation.id)}
-                              disabled={cancellingInvitations.has(invitation.id)}
-                              className='h-8'
-                            >
-                              {cancellingInvitations.has(invitation.id)
-                                ? 'Cancelling...'
-                                : 'Cancel'}
-                            </Button>
-                          </div>
+                        <div className='ml-4 flex items-center gap-1'>
+                          <Chip
+                            onClick={() => handleResendInvitation(invitation.id, email)}
+                            disabled={
+                              resendingInvitations.has(invitation.id) ||
+                              (resendCooldowns[invitation.id] ?? 0) > 0
+                            }
+                          >
+                            {resendingInvitations.has(invitation.id)
+                              ? 'Sending...'
+                              : resendCooldowns[invitation.id]
+                                ? `Resend (${resendCooldowns[invitation.id]}s)`
+                                : 'Resend'}
+                          </Chip>
+                          <Chip
+                            onClick={() => handleCancelInvitation(invitation.id)}
+                            disabled={cancellingInvitations.has(invitation.id)}
+                          >
+                            {cancellingInvitations.has(invitation.id) ? 'Cancelling...' : 'Cancel'}
+                          </Chip>
                         </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className='mt-auto flex items-center justify-start'>
-            <Button onClick={handleBackToList} variant='default'>
-              Back
-            </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </SettingsSection>
           </div>
         </div>
-      </>
+      </div>
     )
   }
 
   return (
     <>
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='flex items-center gap-2'>
-          <div className='flex flex-1 items-center gap-2 rounded-lg border border-[var(--border)] bg-transparent px-2 py-1.5 transition-colors duration-100 dark:bg-[var(--surface-4)] dark:hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]'>
-            <Search
-              className='size-[14px] flex-shrink-0 text-[var(--text-tertiary)]'
-              strokeWidth={2}
-            />
-            <BaseInput
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            {canManageCredentialSets && (
+              <Chip leftIcon={Plus} variant='primary' onClick={() => setShowCreateModal(true)}>
+                Create Group
+              </Chip>
+            )}
+          </div>
+        </div>
+
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            <ChipInput
+              icon={Search}
               placeholder='Search polling groups...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className='h-auto flex-1 border-0 bg-transparent p-0 font-base leading-none placeholder:text-[var(--text-tertiary)] focus-visible:ring-0 focus-visible:ring-offset-0'
             />
-          </div>
-          {canManageCredentialSets && (
-            <Button variant='primary' onClick={() => setShowCreateModal(true)}>
-              <Plus className='mr-1.5 size-[13px]' />
-              Create
-            </Button>
-          )}
-        </div>
 
-        <div className='relative min-h-0 flex-1 overflow-y-auto'>
-          {hasNoContent && !canManageCredentialSets ? (
-            <div className='absolute inset-0 flex items-center justify-center text-[var(--text-muted)] text-sm'>
-              You're not a member of any polling groups yet. When someone invites you, it will
-              appear here.
-            </div>
-          ) : hasNoResults ? (
-            <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-              No results found matching "{searchTerm}"
-            </div>
-          ) : (
-            <div className='flex flex-col gap-4.5'>
-              {filteredInvitations.length > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                    Pending Invitations
-                  </div>
-                  {filteredInvitations.map((invitation) => (
-                    <div
-                      key={invitation.invitationId}
-                      className='flex items-center justify-between'
-                    >
-                      <div className='flex items-center gap-3'>
-                        <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
-                          {getProviderIcon(invitation.providerId)}
-                        </div>
-                        <div className='flex flex-col'>
-                          <span className='font-medium text-base'>
-                            {invitation.credentialSetName}
-                          </span>
-                          <span className='text-[var(--text-muted)] text-sm'>
-                            {invitation.organizationName}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        variant='primary'
-                        onClick={() => handleAcceptInvitation(invitation.token)}
-                        disabled={acceptInvitation.isPending}
-                      >
-                        {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
-                      </Button>
-                    </div>
-                  ))}
+            <div className='relative'>
+              {hasNoContent && !canManageCredentialSets ? (
+                <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
+                  You're not a member of any polling groups yet. When someone invites you, it will
+                  appear here.
                 </div>
-              )}
-
-              {filteredMemberships.length > 0 && (
-                <div className='flex flex-col gap-2'>
-                  <div className='font-medium text-[var(--text-secondary)] text-sm'>
-                    My Memberships
-                  </div>
-                  {filteredMemberships.map((membership) => (
-                    <div
-                      key={membership.membershipId}
-                      className='flex items-center justify-between'
-                    >
-                      <div className='flex items-center gap-3'>
-                        <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
-                          {getProviderIcon(membership.providerId)}
-                        </div>
-                        <div className='flex flex-col'>
-                          <span className='font-medium text-base'>
-                            {membership.credentialSetName}
-                          </span>
-                          <span className='text-[var(--text-muted)] text-sm'>
-                            {membership.organizationName}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        variant='ghost'
-                        onClick={() =>
-                          handleLeave(membership.credentialSetId, membership.credentialSetName)
-                        }
-                        disabled={leaveCredentialSet.isPending}
-                      >
-                        Leave
-                      </Button>
-                    </div>
-                  ))}
+              ) : hasNoResults ? (
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  No results found matching "{searchTerm}"
                 </div>
-              )}
-
-              {canManageCredentialSets &&
-                (filteredOwnedSets.length > 0 ||
-                  ownedSetsLoading ||
-                  (!searchTerm.trim() && ownedSets.length === 0)) && (
-                  <div className='flex flex-col gap-2'>
-                    <div className='font-medium text-[var(--text-secondary)] text-sm'>Manage</div>
-                    {ownedSetsLoading ? (
-                      <>
-                        {[1, 2].map((i) => (
-                          <div key={i} className='flex items-center justify-between'>
-                            <div className='flex items-center gap-3'>
-                              <Skeleton className='size-9 rounded-md' />
-                              <div className='flex flex-col gap-1'>
-                                <Skeleton className='h-[14px] w-[120px]' />
-                                <Skeleton className='h-[12px] w-[80px]' />
+              ) : (
+                <div className='flex flex-col gap-4.5'>
+                  {filteredInvitations.length > 0 && (
+                    <SettingsSection label='Pending Invitations'>
+                      <div className='flex flex-col gap-3'>
+                        {filteredInvitations.map((invitation) => (
+                          <div
+                            key={invitation.invitationId}
+                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                          >
+                            <div className='flex items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                {getProviderIcon(invitation.providerId)}
+                              </div>
+                              <div className='flex flex-col'>
+                                <span className='text-[14px] text-[var(--text-body)]'>
+                                  {invitation.credentialSetName}
+                                </span>
+                                <span className='text-[12px] text-[var(--text-muted)]'>
+                                  {invitation.organizationName}
+                                </span>
                               </div>
                             </div>
+                            <Chip
+                              variant='primary'
+                              onClick={() => handleAcceptInvitation(invitation.token)}
+                              disabled={acceptInvitation.isPending}
+                            >
+                              {acceptInvitation.isPending ? 'Accepting...' : 'Accept'}
+                            </Chip>
                           </div>
                         ))}
-                      </>
-                    ) : !searchTerm.trim() && ownedSets.length === 0 ? (
-                      <div className='text-[var(--text-muted)] text-sm'>
-                        No polling groups created yet
                       </div>
-                    ) : (
-                      filteredOwnedSets.map((set) => (
-                        <div key={set.id} className='flex items-center justify-between'>
-                          <div className='flex items-center gap-3'>
-                            <div className='flex size-9 items-center justify-center rounded-md bg-[var(--surface-5)]'>
-                              {getProviderIcon(set.providerId)}
+                    </SettingsSection>
+                  )}
+
+                  {filteredMemberships.length > 0 && (
+                    <SettingsSection label='My Memberships'>
+                      <div className='flex flex-col gap-3'>
+                        {filteredMemberships.map((membership) => (
+                          <div
+                            key={membership.membershipId}
+                            className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                          >
+                            <div className='flex items-center gap-2.5'>
+                              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                {getProviderIcon(membership.providerId)}
+                              </div>
+                              <div className='flex flex-col'>
+                                <span className='text-[14px] text-[var(--text-body)]'>
+                                  {membership.credentialSetName}
+                                </span>
+                                <span className='text-[12px] text-[var(--text-muted)]'>
+                                  {membership.organizationName}
+                                </span>
+                              </div>
                             </div>
-                            <div className='flex flex-col'>
-                              <span className='font-medium text-base'>{set.name}</span>
-                              <span className='text-[var(--text-muted)] text-sm'>
-                                {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                          <div className='flex items-center gap-2'>
-                            <Button variant='default' onClick={() => setViewingSet(set)}>
-                              Details
-                            </Button>
-                            <Button
-                              variant='ghost'
-                              onClick={() => handleDeleteClick(set)}
-                              disabled={deletingSetIds.has(set.id)}
+                            <Chip
+                              onClick={() =>
+                                handleLeave(
+                                  membership.credentialSetId,
+                                  membership.credentialSetName
+                                )
+                              }
+                              disabled={leaveCredentialSet.isPending}
                             >
-                              {deletingSetIds.has(set.id) ? 'Deleting...' : 'Delete'}
-                            </Button>
+                              Leave
+                            </Chip>
                           </div>
-                        </div>
-                      ))
+                        ))}
+                      </div>
+                    </SettingsSection>
+                  )}
+
+                  {canManageCredentialSets &&
+                    (filteredOwnedSets.length > 0 ||
+                      ownedSetsLoading ||
+                      (!searchTerm.trim() && ownedSets.length === 0)) && (
+                      <SettingsSection label='Manage'>
+                        {ownedSetsLoading ? null : !searchTerm.trim() && ownedSets.length === 0 ? (
+                          <div className='text-[var(--text-muted)] text-sm'>
+                            No polling groups created yet
+                          </div>
+                        ) : (
+                          <div className='flex flex-col gap-3'>
+                            {filteredOwnedSets.map((set) => (
+                              <div
+                                key={set.id}
+                                className='flex items-center justify-between rounded-lg p-2 transition-colors hover-hover:bg-[var(--surface-active)]'
+                              >
+                                <div className='flex items-center gap-2.5'>
+                                  <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+                                    {getProviderIcon(set.providerId)}
+                                  </div>
+                                  <div className='flex flex-col'>
+                                    <span className='text-[14px] text-[var(--text-body)]'>
+                                      {set.name}
+                                    </span>
+                                    <span className='text-[12px] text-[var(--text-muted)]'>
+                                      {set.memberCount} member{set.memberCount !== 1 ? 's' : ''}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className='flex items-center gap-2'>
+                                  <Chip onClick={() => setViewingSet(set)}>Details</Chip>
+                                  <Chip
+                                    onClick={() => handleDeleteClick(set)}
+                                    disabled={deletingSetIds.has(set.id)}
+                                  >
+                                    {deletingSetIds.has(set.id) ? 'Deleting...' : 'Delete'}
+                                  </Chip>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </SettingsSection>
                     )}
-                  </div>
-                )}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      <Modal open={showCreateModal} onOpenChange={handleCloseCreateModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Create Polling Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='sr-only'>
-              Create a new polling group for email accounts
-            </ModalDescription>
-            <div className='flex flex-col gap-3'>
-              <div className='flex flex-col gap-1'>
-                <Label>Name</Label>
-                <Input
-                  value={newSetName}
-                  onChange={(e) => {
-                    setNewSetName(e.target.value)
-                    if (createError) setCreateError(null)
-                  }}
-                  placeholder='e.g., Marketing Team'
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <Label>Description (optional)</Label>
-                <Input
-                  value={newSetDescription}
-                  onChange={(e) => setNewSetDescription(e.target.value)}
-                  placeholder='e.g., Poll emails for marketing automations'
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <Label>Email Provider</Label>
-                <div className='inline-flex gap-0.5'>
-                  <Button
-                    variant={newSetProvider === 'google-email' ? 'active' : 'default'}
-                    onClick={() => setNewSetProvider('google-email')}
-                    className={cn(
-                      'rounded-r-none px-2 py-1 text-small',
-                      newSetProvider === 'google-email' &&
-                        'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
-                    )}
-                  >
-                    Gmail
-                  </Button>
-                  <Button
-                    variant={newSetProvider === 'outlook' ? 'active' : 'default'}
-                    onClick={() => setNewSetProvider('outlook')}
-                    className={cn(
-                      'rounded-l-none px-2 py-1 text-small',
-                      newSetProvider === 'outlook' &&
-                        'bg-[var(--border-1)] hover-hover:bg-[var(--border-1)] dark:bg-[var(--surface-5)] dark:hover-hover:bg-[var(--border-1)]'
-                    )}
-                  >
-                    Outlook
-                  </Button>
-                </div>
-                <p className='mt-1 text-[var(--text-tertiary)] text-xs'>
-                  Members will connect their {getProviderDisplayName(newSetProvider)} account
-                </p>
-              </div>
-              {createError && <p className='text-[var(--text-error)] text-small'>{createError}</p>}
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={handleCloseCreateModal}>
-              Cancel
-            </Button>
-            <Button
-              variant='primary'
-              onClick={handleCreateCredentialSet}
-              disabled={!newSetName.trim() || createCredentialSet.isPending}
+      <ChipModal
+        open={showCreateModal}
+        onOpenChange={handleCloseCreateModal}
+        srTitle='Create Polling Group'
+      >
+        <ChipModalHeader onClose={handleCloseCreateModal}>Create Polling Group</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='input'
+            title='Name'
+            value={newSetName}
+            onChange={(value) => {
+              setNewSetName(value)
+              if (createError) setCreateError(null)
+            }}
+            required
+            placeholder='e.g., Marketing Team'
+          />
+          <ChipModalField
+            type='input'
+            title='Description'
+            value={newSetDescription}
+            onChange={setNewSetDescription}
+            placeholder='e.g., Poll emails for marketing automations'
+          />
+          <ChipModalField type='custom' title='Email Provider'>
+            <ButtonGroup
+              value={newSetProvider}
+              onValueChange={(v) => setNewSetProvider(v as PollingProvider)}
             >
-              {createCredentialSet.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+              <ButtonGroupItem value='google-email'>Gmail</ButtonGroupItem>
+              <ButtonGroupItem value='outlook'>Outlook</ButtonGroupItem>
+            </ButtonGroup>
+            <p className='mt-1 text-[var(--text-muted)] text-small'>
+              Members will connect their {getProviderDisplayName(newSetProvider)} account
+            </p>
+          </ChipModalField>
+          <ChipModalError>{createError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={handleCloseCreateModal}
+          primaryAction={{
+            label: createCredentialSet.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateCredentialSet,
+            disabled: !newSetName.trim() || createCredentialSet.isPending,
+          }}
+        />
+      </ChipModal>
 
-      <Modal open={!!leavingMembership} onOpenChange={() => setLeavingMembership(null)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Leave Polling Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to leave{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {leavingMembership?.name}
-              </span>
-              ? Your email account will no longer be polled in workflows using this group.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setLeavingMembership(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmLeave}
-              disabled={leaveCredentialSet.isPending}
-            >
-              {leaveCredentialSet.isPending ? 'Leaving...' : 'Leave'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={!!leavingMembership}
+        onOpenChange={(open) => {
+          if (!open) setLeavingMembership(null)
+        }}
+        srTitle='Leave Polling Group'
+        title='Leave Polling Group'
+        description={
+          <>
+            Are you sure you want to leave{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {leavingMembership?.name}
+            </span>
+            ? Your email account will no longer be polled in workflows using this group.
+          </>
+        }
+        confirm={{
+          label: 'Leave',
+          onClick: confirmLeave,
+          pending: leaveCredentialSet.isPending,
+          pendingLabel: 'Leaving...',
+        }}
+      />
 
-      <Modal open={!!deletingSet} onOpenChange={() => setDeletingSet(null)}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Polling Group</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
-              This action cannot be undone.
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setDeletingSet(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={confirmDelete}
-              disabled={deleteCredentialSet.isPending}
-            >
-              {deleteCredentialSet.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={!!deletingSet}
+        onOpenChange={(open) => {
+          if (!open) setDeletingSet(null)
+        }}
+        srTitle='Delete Polling Group'
+        title='Delete Polling Group'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
+            This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: confirmDelete,
+          pending: deleteCredentialSet.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

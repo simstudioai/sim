@@ -18,14 +18,55 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
+  getWorkspaceEnvKeyAdminAccess,
 } from '@/lib/credentials/environment'
 import {
   getPersonalAndWorkspaceEnv,
   invalidateEffectiveDecryptedEnvCache,
 } from '@/lib/environment/utils'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  getUserEntityPermissions,
+  getWorkspaceById,
+  type PermissionType,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceEnvironmentAPI')
+
+/**
+ * Restricts decrypted workspace env values to administrators. Members (including
+ * read-only) receive the variable names with empty values so editor autocomplete
+ * and conflict detection keep working without leaking secret values. A value is
+ * revealed when the caller is a credential admin of that key, or — for legacy
+ * keys predating per-secret ACLs — when they hold workspace `admin` permission.
+ * Mirrors the per-key edit gating in PUT/DELETE: if you can administer a secret,
+ * you can read it.
+ */
+async function maskWorkspaceEnvForViewer({
+  workspaceDecrypted,
+  workspaceId,
+  userId,
+  permission,
+}: {
+  workspaceDecrypted: Record<string, string>
+  workspaceId: string
+  userId: string
+  permission: PermissionType
+}): Promise<Record<string, string>> {
+  const workspaceKeys = Object.keys(workspaceDecrypted)
+  const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+    workspaceId,
+    envKeys: workspaceKeys,
+    userId,
+  })
+
+  const masked: Record<string, string> = {}
+  for (const key of workspaceKeys) {
+    const canViewValue = adminKeys.has(key) || (!knownKeys.has(key) && permission === 'admin')
+    masked[key] = canViewValue ? workspaceDecrypted[key] : ''
+  }
+  return masked
+}
 
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -41,13 +82,11 @@ export const GET = withRouteHandler(
 
       const userId = session.user.id
 
-      // Validate workspace exists
       const ws = await getWorkspaceById(workspaceId)
       if (!ws) {
         return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
       }
 
-      // Require any permission to read
       const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
       if (!permission) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -58,10 +97,17 @@ export const GET = withRouteHandler(
         workspaceId
       )
 
+      const workspace = await maskWorkspaceEnvForViewer({
+        workspaceDecrypted,
+        workspaceId,
+        userId,
+        permission,
+      })
+
       return NextResponse.json(
         {
           data: {
-            workspace: workspaceDecrypted,
+            workspace,
             personal: personalDecrypted,
             conflicts,
           },
@@ -78,6 +124,12 @@ export const GET = withRouteHandler(
   }
 )
 
+/**
+ * Upserts workspace environment variables under tiered authorization: the caller
+ * needs some workspace permission, editing an existing secret requires
+ * credential-admin on that key, and adding a brand-new key requires workspace
+ * write/admin.
+ */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -91,14 +143,54 @@ export const PUT = withRouteHandler(
       }
 
       const userId = session.user.id
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission || (permission !== 'admin' && permission !== 'write')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
 
       const parsed = await parseRequest(upsertWorkspaceEnvironmentContract, request, context)
       if (!parsed.success) return parsed.response
       const { variables } = parsed.data.body
+
+      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      if (!permission) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const incomingKeys = Object.keys(variables)
+      if (incomingKeys.length === 0) {
+        return NextResponse.json({ success: true })
+      }
+      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: incomingKeys,
+        userId,
+      })
+      const forbiddenExisting = incomingKeys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      if (forbiddenExisting.length > 0) {
+        logger.warn(`[${requestId}] Workspace env update denied`, {
+          workspaceId,
+          userId,
+          reason: 'not-secret-admin',
+          keys: forbiddenExisting,
+        })
+        return NextResponse.json(
+          { error: 'You must be an admin of these secrets to edit them' },
+          { status: 403 }
+        )
+      }
+      if (
+        incomingKeys.some((k) => !knownKeys.has(k)) &&
+        permission !== 'admin' &&
+        permission !== 'write'
+      ) {
+        logger.warn(`[${requestId}] Workspace env update denied`, {
+          workspaceId,
+          userId,
+          reason: 'write-access-required',
+          keys: incomingKeys.filter((k) => !knownKeys.has(k)),
+        })
+        return NextResponse.json(
+          { error: 'Write access is required to add new secrets' },
+          { status: 403 }
+        )
+      }
 
       const encryptedIncoming = await Promise.all(
         Object.entries(variables).map(async ([key, value]) => {
@@ -160,6 +252,11 @@ export const PUT = withRouteHandler(
         request,
       })
 
+      captureServerEvent(userId, 'environment_updated', {
+        workspace_id: workspaceId,
+        key_count: Object.keys(variables).length,
+      })
+
       return NextResponse.json({ success: true })
     } catch (error) {
       logger.error(`[${requestId}] Workspace env PUT error`, error)
@@ -171,6 +268,11 @@ export const PUT = withRouteHandler(
   }
 )
 
+/**
+ * Removes workspace environment variables. Deleting an existing secret requires
+ * credential-admin on that key; a key with no credential yet (legacy) falls back
+ * to workspace write/admin.
+ */
 export const DELETE = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -184,14 +286,46 @@ export const DELETE = withRouteHandler(
       }
 
       const userId = session.user.id
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission || (permission !== 'admin' && permission !== 'write')) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
 
       const parsed = await parseRequest(removeWorkspaceEnvironmentContract, request, context)
       if (!parsed.success) return parsed.response
       const { keys } = parsed.data.body
+
+      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
+      if (!permission) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+
+      const { adminKeys, knownKeys } = await getWorkspaceEnvKeyAdminAccess({
+        workspaceId,
+        envKeys: keys,
+        userId,
+      })
+      const forbiddenExisting = keys.filter((k) => knownKeys.has(k) && !adminKeys.has(k))
+      if (forbiddenExisting.length > 0) {
+        logger.warn(`[${requestId}] Workspace env delete denied`, {
+          workspaceId,
+          userId,
+          reason: 'not-secret-admin',
+          keys: forbiddenExisting,
+        })
+        return NextResponse.json(
+          { error: 'You must be an admin of these secrets to delete them' },
+          { status: 403 }
+        )
+      }
+      if (keys.some((k) => !knownKeys.has(k)) && permission !== 'admin' && permission !== 'write') {
+        logger.warn(`[${requestId}] Workspace env delete denied`, {
+          workspaceId,
+          userId,
+          reason: 'write-access-required',
+          keys: keys.filter((k) => !knownKeys.has(k)),
+        })
+        return NextResponse.json(
+          { error: 'Write access is required to remove these secrets' },
+          { status: 403 }
+        )
+      }
 
       const result = await db.transaction(async (tx) => {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
@@ -245,6 +379,11 @@ export const DELETE = withRouteHandler(
           remainingKeysCount: result.remainingKeysCount,
         },
         request,
+      })
+
+      captureServerEvent(userId, 'environment_deleted', {
+        workspace_id: workspaceId,
+        key_count: keys.length,
       })
 
       return NextResponse.json({ success: true })

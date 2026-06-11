@@ -25,7 +25,7 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
 
     const similarityThreshold = threshold ?? DEFAULT_DOCS_SIMILARITY_THRESHOLD
 
-    const queryEmbedding = await generateSearchEmbedding(query)
+    const { embedding: queryEmbedding } = await generateSearchEmbedding(query)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }
     }

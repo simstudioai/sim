@@ -1,7 +1,8 @@
-import { db } from '@sim/db'
+import { AuditResourceType } from '@sim/audit'
+import { db, dbReplica } from '@sim/db'
 import { auditLog, workspace } from '@sim/db/schema'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, gte, ilike, inArray, lt, lte, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, lte, or, type SQL, sql } from 'drizzle-orm'
 
 type DbAuditLog = InferSelectModel<typeof auditLog>
 
@@ -38,7 +39,11 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   const conditions: SQL<unknown>[] = []
 
   if (params.action) conditions.push(eq(auditLog.action, params.action))
-  if (params.resourceType) conditions.push(eq(auditLog.resourceType, params.resourceType))
+  if (params.resourceType) {
+    const types = params.resourceType.split(',').filter(Boolean)
+    if (types.length === 1) conditions.push(eq(auditLog.resourceType, types[0]))
+    else if (types.length > 1) conditions.push(inArray(auditLog.resourceType, types))
+  }
   if (params.resourceId) conditions.push(eq(auditLog.resourceId, params.resourceId))
   if (params.workspaceId) conditions.push(eq(auditLog.workspaceId, params.workspaceId))
   if (params.actorId) conditions.push(eq(auditLog.actorId, params.actorId))
@@ -64,33 +69,61 @@ export function buildFilterConditions(params: AuditLogFilterParams): SQL<unknown
   return conditions
 }
 
-export async function buildOrgScopeCondition(
-  orgMemberIds: string[],
-  includeDeparted: boolean
-): Promise<SQL<unknown>> {
-  if (orgMemberIds.length === 0) {
-    return sql`1 = 0`
-  }
-
-  if (!includeDeparted) {
-    return inArray(auditLog.actorId, orgMemberIds)
-  }
-
-  const orgWorkspaces = await db
+/**
+ * Returns the IDs of all workspaces attached to the organization.
+ */
+export async function getOrgWorkspaceIds(organizationId: string): Promise<string[]> {
+  const rows = await db
     .select({ id: workspace.id })
     .from(workspace)
-    .where(inArray(workspace.ownerId, orgMemberIds))
+    .where(eq(workspace.organizationId, organizationId))
+  return rows.map((row) => row.id)
+}
 
-  const orgWorkspaceIds = orgWorkspaces.map((w) => w.id)
+export interface OrgScopeParams {
+  organizationId: string
+  orgWorkspaceIds: string[]
+  orgMemberIds: string[]
+  includeDeparted: boolean
+}
 
-  if (orgWorkspaceIds.length > 0) {
-    return or(
-      inArray(auditLog.actorId, orgMemberIds),
-      inArray(auditLog.workspaceId, orgWorkspaceIds)
-    )!
+/**
+ * Builds the tenant-boundary predicate for organization audit log access:
+ * rows in org-attached workspaces, plus org-level rows (`workspace_id IS
+ * NULL`) tied to the org via `metadata.organizationId` or the organization
+ * resource itself. Actor membership is never a standalone boundary — when
+ * `includeDeparted` is false it only narrows the org scope to current members
+ * and system events (null actor).
+ */
+export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
+  const { organizationId, orgWorkspaceIds, orgMemberIds, includeDeparted } = params
+
+  const orgLevelCondition = and(
+    isNull(auditLog.workspaceId),
+    or(
+      sql`${auditLog.metadata}->>'organizationId' = ${organizationId}`,
+      and(
+        eq(auditLog.resourceType, AuditResourceType.ORGANIZATION),
+        eq(auditLog.resourceId, organizationId)
+      )
+    )
+  )!
+
+  const orgScope =
+    orgWorkspaceIds.length > 0
+      ? or(inArray(auditLog.workspaceId, orgWorkspaceIds), orgLevelCondition)!
+      : orgLevelCondition
+
+  if (includeDeparted) {
+    return orgScope
   }
 
-  return inArray(auditLog.actorId, orgMemberIds)
+  const currentActorCondition =
+    orgMemberIds.length > 0
+      ? or(inArray(auditLog.actorId, orgMemberIds), isNull(auditLog.actorId))!
+      : isNull(auditLog.actorId)
+
+  return and(orgScope, currentActorCondition)!
 }
 
 function buildCursorCondition(cursor: string): SQL<unknown> | null {
@@ -123,7 +156,7 @@ export async function queryAuditLogs(
     if (cursorCondition) allConditions.push(cursorCondition)
   }
 
-  const rows = await db
+  const rows = await dbReplica
     .select()
     .from(auditLog)
     .where(allConditions.length > 0 ? and(...allConditions) : undefined)

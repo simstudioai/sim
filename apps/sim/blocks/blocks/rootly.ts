@@ -1,5 +1,5 @@
 import { RootlyIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RootlyResponse } from '@/tools/rootly/types'
 
@@ -10,11 +10,11 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Rootly incident management into workflows. Create and manage incidents, alerts, services, severities, and retrospectives.',
-  docsLink: 'https://docs.sim.ai/tools/rootly',
+  docsLink: 'https://docs.sim.ai/integrations/rootly',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'monitoring'],
+  integrationType: IntegrationType.Observability,
   bgColor: '#6C72C8',
+  iconColor: '#6C72C8',
   icon: RootlyIcon,
   subBlocks: [
     {
@@ -49,6 +49,20 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
         { label: 'List Escalation Policies', id: 'rootly_list_escalation_policies' },
         { label: 'List Causes', id: 'rootly_list_causes' },
         { label: 'List Playbooks', id: 'rootly_list_playbooks' },
+        { label: 'Mitigate Incident', id: 'rootly_mitigate_incident' },
+        { label: 'Resolve Incident', id: 'rootly_resolve_incident' },
+        { label: 'Assign Incident Role', id: 'rootly_assign_incident_role' },
+        { label: 'Unassign Incident Role', id: 'rootly_unassign_incident_role' },
+        { label: 'Add Subscribers', id: 'rootly_add_subscribers' },
+        { label: 'Remove Subscribers', id: 'rootly_remove_subscribers' },
+        { label: 'Create Status Page Event', id: 'rootly_create_status_page_event' },
+        { label: 'Update Action Item', id: 'rootly_update_action_item' },
+        { label: 'Delete Action Item', id: 'rootly_delete_action_item' },
+        { label: 'Snooze Alert', id: 'rootly_snooze_alert' },
+        { label: 'Escalate Alert', id: 'rootly_escalate_alert' },
+        { label: 'List Incident Events', id: 'rootly_list_incident_events' },
+        { label: 'Run Workflow', id: 'rootly_run_workflow' },
+        { label: 'List Incident Roles', id: 'rootly_list_incident_roles' },
       ],
       value: () => 'rootly_create_incident',
     },
@@ -464,7 +478,6 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       type: 'short-input',
       placeholder: 'Alert source (e.g., api, datadog)',
       condition: { field: 'operation', value: 'rootly_create_alert' },
-      required: { field: 'operation', value: 'rootly_create_alert' },
     },
     {
       id: 'alertServiceIds',
@@ -1201,6 +1214,427 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     },
 
     {
+      id: 'mitigateIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident to mitigate',
+      condition: { field: 'operation', value: 'rootly_mitigate_incident' },
+      required: { field: 'operation', value: 'rootly_mitigate_incident' },
+    },
+    {
+      id: 'mitigateMessage',
+      title: 'Mitigation Message',
+      type: 'long-input',
+      placeholder: 'How was the incident mitigated?',
+      condition: { field: 'operation', value: 'rootly_mitigate_incident' },
+    },
+
+    {
+      id: 'resolveIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident to resolve',
+      condition: { field: 'operation', value: 'rootly_resolve_incident' },
+      required: { field: 'operation', value: 'rootly_resolve_incident' },
+    },
+    {
+      id: 'resolveIncidentMessage',
+      title: 'Resolution Message',
+      type: 'long-input',
+      placeholder: 'How was the incident resolved?',
+      condition: { field: 'operation', value: 'rootly_resolve_incident' },
+    },
+
+    {
+      id: 'assignRoleIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_assign_incident_role' },
+      required: { field: 'operation', value: 'rootly_assign_incident_role' },
+    },
+    {
+      id: 'assignRoleUserId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'User ID to assign (use List Users to find IDs)',
+      condition: { field: 'operation', value: 'rootly_assign_incident_role' },
+      required: { field: 'operation', value: 'rootly_assign_incident_role' },
+    },
+    {
+      id: 'assignRoleId',
+      title: 'Incident Role ID',
+      type: 'short-input',
+      placeholder: 'Role ID (use List Incident Roles to find IDs)',
+      condition: { field: 'operation', value: 'rootly_assign_incident_role' },
+      required: { field: 'operation', value: 'rootly_assign_incident_role' },
+    },
+
+    {
+      id: 'unassignRoleIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_unassign_incident_role' },
+      required: { field: 'operation', value: 'rootly_unassign_incident_role' },
+    },
+    {
+      id: 'unassignRoleUserId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'User ID to unassign (use List Users to find IDs)',
+      condition: { field: 'operation', value: 'rootly_unassign_incident_role' },
+      required: { field: 'operation', value: 'rootly_unassign_incident_role' },
+    },
+    {
+      id: 'unassignRoleId',
+      title: 'Incident Role ID',
+      type: 'short-input',
+      placeholder: 'Role ID (use List Incident Roles to find IDs)',
+      condition: { field: 'operation', value: 'rootly_unassign_incident_role' },
+      required: { field: 'operation', value: 'rootly_unassign_incident_role' },
+    },
+
+    {
+      id: 'addSubsIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_add_subscribers' },
+      required: { field: 'operation', value: 'rootly_add_subscribers' },
+    },
+    {
+      id: 'addSubsUserIds',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs to subscribe',
+      condition: { field: 'operation', value: 'rootly_add_subscribers' },
+      required: { field: 'operation', value: 'rootly_add_subscribers' },
+    },
+
+    {
+      id: 'removeSubsIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_remove_subscribers' },
+      required: { field: 'operation', value: 'rootly_remove_subscribers' },
+    },
+    {
+      id: 'removeSubsUserIds',
+      title: 'User IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated user IDs to unsubscribe',
+      condition: { field: 'operation', value: 'rootly_remove_subscribers' },
+      required: { field: 'operation', value: 'rootly_remove_subscribers' },
+    },
+
+    {
+      id: 'statusEventIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+      required: { field: 'operation', value: 'rootly_create_status_page_event' },
+    },
+    {
+      id: 'statusEventText',
+      title: 'Update Message',
+      type: 'long-input',
+      placeholder: 'The status page update to publish',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+      required: { field: 'operation', value: 'rootly_create_status_page_event' },
+    },
+    {
+      id: 'statusEventStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Investigating', id: 'investigating' },
+        { label: 'Identified', id: 'identified' },
+        { label: 'Monitoring', id: 'monitoring' },
+        { label: 'Resolved', id: 'resolved' },
+        { label: 'Scheduled', id: 'scheduled' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Completed', id: 'completed' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+    },
+    {
+      id: 'statusEventStatusPageId',
+      title: 'Status Page ID',
+      type: 'short-input',
+      placeholder: 'Status page ID to post to',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+      mode: 'advanced',
+    },
+    {
+      id: 'statusEventNotify',
+      title: 'Notify Subscribers',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+      mode: 'advanced',
+    },
+    {
+      id: 'statusEventTweet',
+      title: 'Post to Twitter/X',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_create_status_page_event' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'updateActionItemId',
+      title: 'Action Item ID',
+      type: 'short-input',
+      placeholder: 'The ID of the action item to update',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+      required: { field: 'operation', value: 'rootly_update_action_item' },
+    },
+    {
+      id: 'updateActionItemSummary',
+      title: 'Summary',
+      type: 'short-input',
+      placeholder: 'Updated action item title',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+    },
+    {
+      id: 'updateActionItemDescription',
+      title: 'Description',
+      type: 'long-input',
+      placeholder: 'Updated description',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+    },
+    {
+      id: 'updateActionItemStatus',
+      title: 'Status',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Open', id: 'open' },
+        { label: 'In Progress', id: 'in_progress' },
+        { label: 'Cancelled', id: 'cancelled' },
+        { label: 'Done', id: 'done' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+    },
+    {
+      id: 'updateActionItemPriority',
+      title: 'Priority',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'High', id: 'high' },
+        { label: 'Medium', id: 'medium' },
+        { label: 'Low', id: 'low' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateActionItemKind',
+      title: 'Kind',
+      type: 'dropdown',
+      options: [
+        { label: 'Unchanged', id: '' },
+        { label: 'Task', id: 'task' },
+        { label: 'Follow Up', id: 'follow_up' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateActionItemAssignee',
+      title: 'Assigned To User ID',
+      type: 'short-input',
+      placeholder: 'User ID to assign (use List Users to find IDs)',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updateActionItemDueDate',
+      title: 'Due Date',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD',
+      condition: { field: 'operation', value: 'rootly_update_action_item' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a date in YYYY-MM-DD format for the requested due date. Return ONLY the date string - no explanations, no extra text.',
+        placeholder: 'Describe the due date (e.g., "next Friday", "in 2 weeks")...',
+        generationType: 'timestamp',
+      },
+    },
+
+    {
+      id: 'deleteActionItemId',
+      title: 'Action Item ID',
+      type: 'short-input',
+      placeholder: 'The ID of the action item to delete',
+      condition: { field: 'operation', value: 'rootly_delete_action_item' },
+      required: { field: 'operation', value: 'rootly_delete_action_item' },
+    },
+
+    {
+      id: 'snoozeAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to snooze',
+      condition: { field: 'operation', value: 'rootly_snooze_alert' },
+      required: { field: 'operation', value: 'rootly_snooze_alert' },
+    },
+    {
+      id: 'snoozeDelayMinutes',
+      title: 'Snooze Minutes',
+      type: 'short-input',
+      placeholder: '30',
+      condition: { field: 'operation', value: 'rootly_snooze_alert' },
+      required: { field: 'operation', value: 'rootly_snooze_alert' },
+    },
+
+    {
+      id: 'escalateAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'The ID of the alert to escalate',
+      condition: { field: 'operation', value: 'rootly_escalate_alert' },
+      required: { field: 'operation', value: 'rootly_escalate_alert' },
+    },
+    {
+      id: 'escalatePolicyId',
+      title: 'Escalation Policy ID',
+      type: 'short-input',
+      placeholder: 'Policy ID (use List Escalation Policies to find IDs)',
+      condition: { field: 'operation', value: 'rootly_escalate_alert' },
+      mode: 'advanced',
+    },
+    {
+      id: 'escalatePolicyLevel',
+      title: 'Escalation Policy Level',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_escalate_alert' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'listEventsIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'The ID of the incident',
+      condition: { field: 'operation', value: 'rootly_list_incident_events' },
+      required: { field: 'operation', value: 'rootly_list_incident_events' },
+    },
+    {
+      id: 'listEventsPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_incident_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'listEventsPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_incident_events' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'runWorkflowId',
+      title: 'Workflow ID',
+      type: 'short-input',
+      placeholder: 'The ID of the workflow to run',
+      condition: { field: 'operation', value: 'rootly_run_workflow' },
+      required: { field: 'operation', value: 'rootly_run_workflow' },
+    },
+    {
+      id: 'runWorkflowIncidentId',
+      title: 'Incident ID',
+      type: 'short-input',
+      placeholder: 'Incident to run the workflow against',
+      condition: { field: 'operation', value: 'rootly_run_workflow' },
+    },
+    {
+      id: 'runWorkflowAlertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'Alert to run the workflow against',
+      condition: { field: 'operation', value: 'rootly_run_workflow' },
+      mode: 'advanced',
+    },
+    {
+      id: 'runWorkflowImmediate',
+      title: 'Run Immediately',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_run_workflow' },
+      mode: 'advanced',
+    },
+    {
+      id: 'runWorkflowCheckConditions',
+      title: 'Check Conditions',
+      type: 'dropdown',
+      options: [
+        { label: 'Default', id: '' },
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'rootly_run_workflow' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'incidentRolesSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search incident roles...',
+      condition: { field: 'operation', value: 'rootly_list_incident_roles' },
+    },
+    {
+      id: 'incidentRolesPageSize',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '20',
+      condition: { field: 'operation', value: 'rootly_list_incident_roles' },
+      mode: 'advanced',
+    },
+    {
+      id: 'incidentRolesPageNumber',
+      title: 'Page Number',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'rootly_list_incident_roles' },
+      mode: 'advanced',
+    },
+
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -1238,6 +1672,20 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       'rootly_list_escalation_policies',
       'rootly_list_causes',
       'rootly_list_playbooks',
+      'rootly_mitigate_incident',
+      'rootly_resolve_incident',
+      'rootly_assign_incident_role',
+      'rootly_unassign_incident_role',
+      'rootly_add_subscribers',
+      'rootly_remove_subscribers',
+      'rootly_create_status_page_event',
+      'rootly_update_action_item',
+      'rootly_delete_action_item',
+      'rootly_snooze_alert',
+      'rootly_escalate_alert',
+      'rootly_list_incident_events',
+      'rootly_run_workflow',
+      'rootly_list_incident_roles',
     ],
     config: {
       tool: (params) => params.operation,
@@ -1546,6 +1994,137 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
                 : undefined,
             }
 
+          case 'rootly_mitigate_incident':
+            return {
+              ...baseParams,
+              incidentId: params.mitigateIncidentId,
+              mitigationMessage: params.mitigateMessage,
+            }
+
+          case 'rootly_resolve_incident':
+            return {
+              ...baseParams,
+              incidentId: params.resolveIncidentId,
+              resolutionMessage: params.resolveIncidentMessage,
+            }
+
+          case 'rootly_assign_incident_role':
+            return {
+              ...baseParams,
+              incidentId: params.assignRoleIncidentId,
+              userId: params.assignRoleUserId,
+              incidentRoleId: params.assignRoleId,
+            }
+
+          case 'rootly_unassign_incident_role':
+            return {
+              ...baseParams,
+              incidentId: params.unassignRoleIncidentId,
+              userId: params.unassignRoleUserId,
+              incidentRoleId: params.unassignRoleId,
+            }
+
+          case 'rootly_add_subscribers':
+            return {
+              ...baseParams,
+              incidentId: params.addSubsIncidentId,
+              userIds: params.addSubsUserIds,
+            }
+
+          case 'rootly_remove_subscribers':
+            return {
+              ...baseParams,
+              incidentId: params.removeSubsIncidentId,
+              userIds: params.removeSubsUserIds,
+            }
+
+          case 'rootly_create_status_page_event':
+            return {
+              ...baseParams,
+              incidentId: params.statusEventIncidentId,
+              event: params.statusEventText,
+              status: params.statusEventStatus,
+              statusPageId: params.statusEventStatusPageId,
+              notifySubscribers: params.statusEventNotify
+                ? params.statusEventNotify === 'true'
+                : undefined,
+              shouldTweet: params.statusEventTweet ? params.statusEventTweet === 'true' : undefined,
+            }
+
+          case 'rootly_update_action_item':
+            return {
+              ...baseParams,
+              actionItemId: params.updateActionItemId,
+              summary: params.updateActionItemSummary,
+              description: params.updateActionItemDescription,
+              status: params.updateActionItemStatus,
+              priority: params.updateActionItemPriority,
+              kind: params.updateActionItemKind,
+              assignedToUserId: params.updateActionItemAssignee,
+              dueDate: params.updateActionItemDueDate,
+            }
+
+          case 'rootly_delete_action_item':
+            return {
+              ...baseParams,
+              actionItemId: params.deleteActionItemId,
+            }
+
+          case 'rootly_snooze_alert':
+            return {
+              ...baseParams,
+              alertId: params.snoozeAlertId,
+              delayMinutes: params.snoozeDelayMinutes
+                ? Number(params.snoozeDelayMinutes)
+                : undefined,
+            }
+
+          case 'rootly_escalate_alert':
+            return {
+              ...baseParams,
+              alertId: params.escalateAlertId,
+              escalationPolicyId: params.escalatePolicyId,
+              escalationPolicyLevel: params.escalatePolicyLevel
+                ? Number(params.escalatePolicyLevel)
+                : undefined,
+            }
+
+          case 'rootly_list_incident_events':
+            return {
+              ...baseParams,
+              incidentId: params.listEventsIncidentId,
+              pageSize: params.listEventsPageSize ? Number(params.listEventsPageSize) : undefined,
+              pageNumber: params.listEventsPageNumber
+                ? Number(params.listEventsPageNumber)
+                : undefined,
+            }
+
+          case 'rootly_run_workflow':
+            return {
+              ...baseParams,
+              workflowId: params.runWorkflowId,
+              incidentId: params.runWorkflowIncidentId,
+              alertId: params.runWorkflowAlertId,
+              immediate: params.runWorkflowImmediate
+                ? params.runWorkflowImmediate === 'true'
+                : undefined,
+              checkConditions: params.runWorkflowCheckConditions
+                ? params.runWorkflowCheckConditions === 'true'
+                : undefined,
+            }
+
+          case 'rootly_list_incident_roles':
+            return {
+              ...baseParams,
+              search: params.incidentRolesSearch,
+              pageSize: params.incidentRolesPageSize
+                ? Number(params.incidentRolesPageSize)
+                : undefined,
+              pageNumber: params.incidentRolesPageNumber
+                ? Number(params.incidentRolesPageNumber)
+                : undefined,
+            }
+
           default:
             return baseParams
         }
@@ -1687,6 +2266,51 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
     causesPageNumber: { type: 'string', description: 'Causes page number' },
     playbooksPageSize: { type: 'string', description: 'Playbooks page size' },
     playbooksPageNumber: { type: 'string', description: 'Playbooks page number' },
+    mitigateIncidentId: { type: 'string', description: 'Incident ID to mitigate' },
+    mitigateMessage: { type: 'string', description: 'Mitigation message' },
+    resolveIncidentId: { type: 'string', description: 'Incident ID to resolve' },
+    resolveIncidentMessage: { type: 'string', description: 'Resolution message' },
+    assignRoleIncidentId: { type: 'string', description: 'Incident ID for role assignment' },
+    assignRoleUserId: { type: 'string', description: 'User ID to assign' },
+    assignRoleId: { type: 'string', description: 'Incident role ID to assign' },
+    unassignRoleIncidentId: { type: 'string', description: 'Incident ID for role removal' },
+    unassignRoleUserId: { type: 'string', description: 'User ID to unassign' },
+    unassignRoleId: { type: 'string', description: 'Incident role ID to remove' },
+    addSubsIncidentId: { type: 'string', description: 'Incident ID for subscribers' },
+    addSubsUserIds: { type: 'string', description: 'User IDs to subscribe' },
+    removeSubsIncidentId: { type: 'string', description: 'Incident ID for unsubscribe' },
+    removeSubsUserIds: { type: 'string', description: 'User IDs to unsubscribe' },
+    statusEventIncidentId: { type: 'string', description: 'Incident ID for status page event' },
+    statusEventText: { type: 'string', description: 'Status page update message' },
+    statusEventStatus: { type: 'string', description: 'Status page event status' },
+    statusEventStatusPageId: { type: 'string', description: 'Status page ID' },
+    statusEventNotify: { type: 'string', description: 'Notify subscribers' },
+    statusEventTweet: { type: 'string', description: 'Post to Twitter/X' },
+    updateActionItemId: { type: 'string', description: 'Action item ID to update' },
+    updateActionItemSummary: { type: 'string', description: 'Updated action item title' },
+    updateActionItemDescription: { type: 'string', description: 'Updated action item description' },
+    updateActionItemStatus: { type: 'string', description: 'Updated action item status' },
+    updateActionItemPriority: { type: 'string', description: 'Updated action item priority' },
+    updateActionItemKind: { type: 'string', description: 'Updated action item kind' },
+    updateActionItemAssignee: { type: 'string', description: 'Assigned user ID' },
+    updateActionItemDueDate: { type: 'string', description: 'Updated due date' },
+    deleteActionItemId: { type: 'string', description: 'Action item ID to delete' },
+    snoozeAlertId: { type: 'string', description: 'Alert ID to snooze' },
+    snoozeDelayMinutes: { type: 'string', description: 'Minutes to snooze' },
+    escalateAlertId: { type: 'string', description: 'Alert ID to escalate' },
+    escalatePolicyId: { type: 'string', description: 'Escalation policy ID' },
+    escalatePolicyLevel: { type: 'string', description: 'Escalation policy level' },
+    listEventsIncidentId: { type: 'string', description: 'Incident ID for events' },
+    listEventsPageSize: { type: 'string', description: 'Events page size' },
+    listEventsPageNumber: { type: 'string', description: 'Events page number' },
+    runWorkflowId: { type: 'string', description: 'Workflow ID to run' },
+    runWorkflowIncidentId: { type: 'string', description: 'Incident ID for workflow run' },
+    runWorkflowAlertId: { type: 'string', description: 'Alert ID for workflow run' },
+    runWorkflowImmediate: { type: 'string', description: 'Run immediately' },
+    runWorkflowCheckConditions: { type: 'string', description: 'Check workflow conditions' },
+    incidentRolesSearch: { type: 'string', description: 'Search incident roles' },
+    incidentRolesPageSize: { type: 'string', description: 'Incident roles page size' },
+    incidentRolesPageNumber: { type: 'string', description: 'Incident roles page number' },
   },
   outputs: {
     incident: {
@@ -1770,8 +2394,133 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
       description:
         'List of action items (id, summary, description, kind, priority, status, dueDate)',
     },
+    statusPageEvent: {
+      type: 'json',
+      description: 'Status page event (id, event, status, statusPageId, notifySubscribers)',
+    },
+    events: {
+      type: 'json',
+      description: 'List of incident timeline events (id, event, visibility, occurredAt)',
+    },
+    workflowRun: {
+      type: 'json',
+      description: 'Triggered workflow run (id, workflowId, status, triggeredBy, timestamps)',
+    },
+    incidentRoles: {
+      type: 'json',
+      description: 'List of incident roles (id, name, slug, summary, enabled)',
+    },
     success: { type: 'boolean', description: 'Whether the operation succeeded' },
     message: { type: 'string', description: 'Operation result message' },
     totalCount: { type: 'number', description: 'Total count of items returned' },
   },
 }
+
+export const RootlyBlockMeta = {
+  tags: ['incident-management', 'monitoring'],
+  templates: [
+    {
+      icon: RootlyIcon,
+      title: 'Rootly incident war-room',
+      prompt:
+        'Build a scheduled workflow that polls Rootly for newly opened incidents, creates a Slack war-room channel for each, invites responders, posts the incident summary, and keeps the channel topic in sync with severity.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly retro generator',
+      prompt:
+        'Create a scheduled workflow that polls Rootly for recently closed incidents, drafts the retrospective doc, pulls the Slack thread and timeline, and assigns owners for follow-up actions in Linear.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack', 'linear'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly weekly digest',
+      prompt:
+        'Build a scheduled weekly workflow that summarizes Rootly incident counts, MTTR, top affected services, and outstanding action items, and posts a digest to leadership Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly customer-comms drafter',
+      prompt:
+        'Create a workflow that drafts and queues customer-facing status updates during a Rootly incident based on severity and impacted services, holding for approval before publishing.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly action-item tracker',
+      prompt:
+        'Build a workflow that tracks Rootly follow-up actions across incidents, opens Linear tickets, and writes a tables-based dashboard that flags overdue items by owner.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly on-call digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of Rootly pages, the on-call responder load by person, and writes a digest to the SRE Slack channel.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RootlyIcon,
+      title: 'Rootly + LangSmith agent-incident tracker',
+      prompt:
+        'Build a workflow that for each Rootly incident involving an AI agent attaches the LangSmith trace, captures the failure mode, and writes the agent-quality regression analysis.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'engineering'],
+      alsoIntegrations: ['langsmith'],
+    },
+  ],
+  skills: [
+    {
+      name: 'declare-incident',
+      description: 'Open a Rootly incident with the right severity, service, and team assigned.',
+      content:
+        '# Declare Incident\n\nSpin up a structured Rootly incident from an alert or report.\n\n## Steps\n1. Run list_severities, list_services, and list_teams to resolve the correct ids.\n2. Run create_incident with a clear title, summary, severity, affected service, and owning team.\n3. Capture the returned incident id.\n4. Add an opening timeline note with add_incident_event.\n\n## Output\nReturn the incident id, severity, assigned team, and a link. Confirm the opening event was logged.',
+    },
+    {
+      name: 'post-incident-update',
+      description: 'Append a status update event to an active Rootly incident timeline.',
+      content:
+        '# Post Incident Update\n\nKeep an incident timeline current.\n\n## Steps\n1. Run get_incident to confirm the current state.\n2. Run add_incident_event with the update text (mitigation steps, customer impact, next checkpoint).\n3. Run update_incident if the severity or status has changed.\n\n## Output\nReturn the appended event and the current incident status.',
+    },
+    {
+      name: 'triage-alerts',
+      description:
+        'List open Rootly alerts, acknowledge them, and escalate to an incident if needed.',
+      content:
+        '# Triage Alerts\n\nWork through the open alert queue.\n\n## Steps\n1. Run list_alerts to pull open alerts.\n2. For each, run get_alert for detail and run acknowledge_alert to claim it.\n3. If an alert warrants response, run create_incident and link it.\n4. Run resolve_alert once the alert is handled.\n\n## Output\nReturn how many alerts were acknowledged, resolved, and escalated to incidents.',
+    },
+    {
+      name: 'check-on-call',
+      description:
+        'Look up who is currently on call across Rootly schedules and escalation policies.',
+      content:
+        '# Check On Call\n\nFind the right person to page right now.\n\n## Steps\n1. Run list_schedules to enumerate on-call schedules.\n2. Run list_on_calls to read the current rotation members.\n3. Cross-reference list_escalation_policies for the escalation path.\n\n## Output\nReturn the current on-call person per schedule and the escalation order.',
+    },
+    {
+      name: 'track-action-items',
+      description: 'Create and list retrospective action items tied to a Rootly incident.',
+      content:
+        '# Track Action Items\n\nCapture and follow up on postmortem action items.\n\n## Steps\n1. Run get_incident to confirm the incident context.\n2. Run create_action_item for each follow-up with a clear owner and description.\n3. Run list_action_items to review open items for the incident.\n\n## Output\nReturn the created action items and the list of outstanding follow-ups.',
+    },
+  ],
+} as const satisfies BlockMeta

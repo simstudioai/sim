@@ -1,4 +1,8 @@
-export { hasWorkflowChanged } from './compare'
+export {
+  generateWorkflowDiffSummary,
+  hasWorkflowChanged,
+  type WorkflowDiffSummary,
+} from './compare'
 export {
   normalizedStringify,
   normalizeWorkflowState,

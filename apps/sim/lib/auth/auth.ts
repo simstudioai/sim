@@ -7,7 +7,7 @@ import * as schema from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { betterAuth } from 'better-auth'
+import { betterAuth, type User } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
@@ -26,10 +26,12 @@ import { headers } from 'next/headers'
 import Stripe from 'stripe'
 import {
   getEmailSubject,
+  renderExistingAccountEmail,
   renderOTPEmail,
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
+import { getAccessControlConfig } from '@/lib/auth/access-control'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -137,16 +139,6 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
   }
 }
 
-const blockedSignupDomains = env.BLOCKED_SIGNUP_DOMAINS
-  ? Array.from(
-      new Set(
-        env.BLOCKED_SIGNUP_DOMAINS.split(',')
-          .map((d) => d.trim().toLowerCase())
-          .filter(Boolean)
-      )
-    )
-  : null
-
 export function isEmailInDenylist(
   email: string | undefined | null,
   denylist: readonly string[] | null
@@ -155,10 +147,6 @@ export function isEmailInDenylist(
   const domain = email.split('@')[1]?.toLowerCase()
   if (!domain) return false
   return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
-}
-
-function isSignupEmailBlocked(email: string | undefined | null): boolean {
-  return isEmailInDenylist(email, blockedSignupDomains)
 }
 
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
@@ -246,7 +234,8 @@ export const auth = betterAuth({
     user: {
       create: {
         before: async (user) => {
-          if (isSignupEmailBlocked(user.email)) {
+          const accessControl = await getAccessControlConfig()
+          if (isEmailInDenylist(user.email, accessControl.blockedSignupDomains)) {
             throw new Error('Sign-ups from this email domain are not allowed.')
           }
           return { data: user }
@@ -768,6 +757,65 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: isEmailVerificationEnabled,
+    /**
+     * When someone signs up with an already-registered email, better-auth returns a
+     * generic success response (OWASP enumeration protection) instead of leaking that
+     * the account exists. This callback notifies the real account owner out-of-band,
+     * mirroring the privacy-preserving forget-password flow. Errors are swallowed so the
+     * response is indistinguishable from a genuine new sign-up.
+     */
+    onExistingUserSignUp: async ({ user }: { user: User }) => {
+      try {
+        const html = await renderExistingAccountEmail(user.name || '')
+        const result = await sendEmail({
+          to: user.email,
+          subject: getEmailSubject('existing-account'),
+          html,
+          from: getFromEmailAddress(),
+          emailType: 'transactional',
+        })
+        if (!result.success) {
+          logger.warn('[onExistingUserSignUp] Failed to send existing-account email', {
+            message: result.message,
+          })
+        }
+      } catch (error) {
+        logger.error('[onExistingUserSignUp] Error sending existing-account email', { error })
+      }
+    },
+    /**
+     * The synthetic user returned for the generic duplicate-sign-up response must carry
+     * the exact same set of returned fields a real freshly-created user would, otherwise
+     * the differing response shape re-opens the enumeration oracle. The admin plugin
+     * (always loaded) adds role/banned/banReason/banExpires, and the Stripe plugin — loaded
+     * only when billing is enabled — adds stripeCustomerId (null on a new user). The
+     * harmony plugin's normalizedEmail is `returned: false`, so it is intentionally omitted.
+     */
+    customSyntheticUser: ({
+      coreFields,
+      additionalFields,
+      id,
+    }: {
+      coreFields: {
+        name: string
+        email: string
+        emailVerified: boolean
+        image: string | null
+        createdAt: Date
+        updatedAt: Date
+      }
+      additionalFields: Record<string, unknown>
+      id: string
+    }) => ({
+      ...coreFields,
+      role: 'user',
+      banned: false,
+      banReason: null,
+      banExpires: null,
+      ...(isBillingEnabled && stripeClient ? { stripeCustomerId: null } : {}),
+      ...additionalFields,
+      id,
+    }),
     sendResetPassword: async ({ user, url, token }, request) => {
       const username = user.name || ''
 
@@ -813,66 +861,51 @@ export const auth = betterAuth({
           })
       }
 
-      if (
-        (ctx.path.startsWith('/sign-in') || ctx.path.startsWith('/sign-up')) &&
-        (env.ALLOWED_LOGIN_EMAILS || env.ALLOWED_LOGIN_DOMAINS)
-      ) {
+      const isSignIn = ctx.path.startsWith('/sign-in')
+      const isSignUp = ctx.path.startsWith('/sign-up')
+
+      if (isSignIn || isSignUp) {
+        const accessControl = await getAccessControlConfig()
         const requestEmail = ctx.body?.email?.toLowerCase()
 
-        if (requestEmail) {
-          let isAllowed = false
-
-          if (env.ALLOWED_LOGIN_EMAILS) {
-            const allowedEmails = env.ALLOWED_LOGIN_EMAILS.split(',').map((email) =>
-              email.trim().toLowerCase()
-            )
-            isAllowed = allowedEmails.includes(requestEmail)
-          }
-
-          if (!isAllowed && env.ALLOWED_LOGIN_DOMAINS) {
-            const allowedDomains = env.ALLOWED_LOGIN_DOMAINS.split(',').map((domain) =>
-              domain.trim().toLowerCase()
-            )
-            const emailDomain = requestEmail.split('@')[1]
-            isAllowed = emailDomain && allowedDomains.includes(emailDomain)
-          }
-
+        // Banning an existing account is owned by better-auth's admin plugin (a
+        // `session.create.before` hook that blocks banned users at sign-in across
+        // all providers), so it is not re-checked here.
+        const hasAllowlist =
+          accessControl.allowedLoginEmails.length > 0 ||
+          accessControl.allowedLoginDomains.length > 0
+        if (hasAllowlist && requestEmail) {
+          const emailDomain = requestEmail.split('@')[1]
+          const isAllowed =
+            accessControl.allowedLoginEmails.includes(requestEmail) ||
+            (!!emailDomain && accessControl.allowedLoginDomains.includes(emailDomain))
           if (!isAllowed) {
             throw new APIError('FORBIDDEN', {
               message: 'Access restricted. Please contact your administrator.',
             })
           }
         }
-      }
 
-      if (ctx.path.startsWith('/sign-up') && isSignupEmailBlocked(ctx.body?.email)) {
-        throw new APIError('FORBIDDEN', {
-          message: 'Sign-ups from this email domain are not allowed.',
-        })
-      }
-
-      if (isSignupMxValidationEnabled && ctx.path.startsWith('/sign-up/email') && ctx.body?.email) {
-        const mxCheck = await validateSignupEmailMx(ctx.body.email)
-        if (!mxCheck.allowed) {
+        if (isSignUp && isEmailInDenylist(ctx.body?.email, accessControl.blockedSignupDomains)) {
           throw new APIError('FORBIDDEN', {
             message: 'Sign-ups from this email domain are not allowed.',
           })
         }
-      }
 
-      if (ctx.path === '/sign-up/email' && ctx.body?.email) {
-        const signupEmail = ctx.body.email.toLowerCase()
-        const [existingUser] = await db
-          .select({ id: schema.user.id })
-          .from(schema.user)
-          .where(eq(schema.user.email, signupEmail))
-          .limit(1)
-
-        if (existingUser) {
-          throw new APIError('UNPROCESSABLE_ENTITY', {
-            message: 'User already exists',
-            code: 'USER_ALREADY_EXISTS',
-          })
+        if (
+          isSignupMxValidationEnabled &&
+          ctx.path.startsWith('/sign-up/email') &&
+          ctx.body?.email
+        ) {
+          const mxCheck = await validateSignupEmailMx(
+            ctx.body.email,
+            accessControl.blockedEmailMxHosts
+          )
+          if (!mxCheck.allowed) {
+            throw new APIError('FORBIDDEN', {
+              message: 'Sign-ups from this email domain are not allowed.',
+            })
+          }
         }
       }
 
@@ -2543,7 +2576,8 @@ export const auth = betterAuth({
                * marker disambiguates it from a legacy bot id (same `U.../B...` shape);
                * absent it, we keep the legacy format and today's behavior.
                */
-              const authedUser = tokens.raw?.authed_user as { id?: string } | undefined
+              const rawTokens = (tokens as typeof tokens & { raw?: Record<string, unknown> }).raw
+              const authedUser = rawTokens?.authed_user as { id?: string } | undefined
               const installerUserId = authedUser?.id
               const userSegment = installerUserId
                 ? `usr_${installerUserId}`

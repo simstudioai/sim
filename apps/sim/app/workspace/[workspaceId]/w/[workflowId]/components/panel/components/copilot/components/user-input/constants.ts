@@ -9,8 +9,8 @@ export type MentionFolderId =
   | 'knowledge'
   | 'blocks'
   | 'workflow-blocks'
-  | 'templates'
   | 'logs'
+  | 'integrations'
 
 /**
  * Menu item category types for mention menu (includes folders + docs item)
@@ -134,23 +134,6 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     }),
     useInsertFallback: true,
   },
-  templates: {
-    title: 'Templates',
-    dataKey: 'templatesList',
-    loadingKey: 'isLoadingTemplates',
-    ensureLoadedKey: 'ensureTemplatesLoaded',
-    getLabel: (item) => item.name || 'Untitled Template',
-    getId: (item) => item.id,
-    emptyMessage: 'No templates found',
-    noMatchMessage: 'No matching templates',
-    filterFn: (item, q) => (item.name || 'Untitled Template').toLowerCase().includes(q),
-    buildContext: (item) => ({
-      kind: 'templates',
-      templateId: item.id,
-      label: item.name || 'Untitled Template',
-    }),
-    useInsertFallback: false,
-  },
   logs: {
     title: 'Logs',
     dataKey: 'logsList',
@@ -169,6 +152,22 @@ export const FOLDER_CONFIGS: Record<MentionFolderId, FolderConfig> = {
     }),
     useInsertFallback: false,
   },
+  integrations: {
+    title: 'Integrations',
+    dataKey: 'integrations',
+    loadingKey: 'isLoadingIntegrations',
+    getLabel: (item) => item.name,
+    getId: (item) => item.blockType,
+    emptyMessage: 'No integrations',
+    noMatchMessage: 'No matching integrations',
+    filterFn: (item, q) => item.name.toLowerCase().includes(q),
+    buildContext: (item) => ({
+      kind: 'integration',
+      blockType: item.blockType,
+      label: item.name,
+    }),
+    useInsertFallback: true,
+  },
 }
 
 /**
@@ -180,7 +179,7 @@ export const FOLDER_ORDER: MentionFolderId[] = [
   'knowledge',
   'blocks',
   'workflow-blocks',
-  'templates',
+  'integrations',
   'logs',
 ]
 

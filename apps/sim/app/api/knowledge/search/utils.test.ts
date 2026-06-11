@@ -184,7 +184,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -214,7 +214,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])

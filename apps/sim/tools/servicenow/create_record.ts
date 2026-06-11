@@ -47,11 +47,11 @@ export const createRecordTool: ToolConfig<ServiceNowCreateParams, ServiceNowCrea
 
   request: {
     url: (params) => {
-      const baseUrl = params.instanceUrl.replace(/\/$/, '')
+      const baseUrl = params.instanceUrl.trim().replace(/\/$/, '')
       if (!baseUrl) {
         throw new Error('ServiceNow instance URL is required')
       }
-      return `${baseUrl}/api/now/table/${params.tableName}`
+      return `${baseUrl}/api/now/table/${params.tableName.trim()}`
     },
     method: 'POST',
     headers: (params) => {

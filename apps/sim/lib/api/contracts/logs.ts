@@ -58,7 +58,6 @@ const workflowSummarySchema = z
     id: z.string(),
     name: z.string().nullable(),
     description: z.string().nullable(),
-    color: z.string().nullable(),
     folderId: z.string().nullable(),
     userId: z.string().nullable(),
     workspaceId: z.string().nullable(),

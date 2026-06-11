@@ -43,7 +43,7 @@ export const vercelListDnsRecordsTool: ToolConfig<
       if (params.limit) query.set('limit', String(params.limit))
       if (params.teamId) query.set('teamId', params.teamId.trim())
       const qs = query.toString()
-      return `https://api.vercel.com/v4/domains/${params.domain.trim()}/records${qs ? `?${qs}` : ''}`
+      return `https://api.vercel.com/v5/domains/${params.domain.trim()}/records${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     headers: (params: VercelListDnsRecordsParams) => ({

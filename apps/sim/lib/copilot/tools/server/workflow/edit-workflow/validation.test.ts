@@ -48,6 +48,23 @@ const huggingfaceBlockConfig = {
   subBlocks: [{ id: 'model', type: 'short-input' }],
 }
 
+const knowledgeBlockConfig = {
+  type: 'knowledge',
+  name: 'Knowledge',
+  outputs: {},
+  subBlocks: [{ id: 'knowledgeBaseId', type: 'knowledge-base-selector' }],
+}
+
+const canonicalCredBlockConfig = {
+  type: 'canonicalcred',
+  name: 'CanonicalCred',
+  outputs: {},
+  subBlocks: [
+    { id: 'credential', type: 'oauth-input', canonicalParamId: 'cred', mode: 'basic' },
+    { id: 'manualCredential', type: 'short-input', canonicalParamId: 'cred', mode: 'advanced' },
+  ],
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'condition'
@@ -60,7 +77,11 @@ vi.mock('@/blocks/registry', () => ({
             ? agentBlockConfig
             : type === 'huggingface'
               ? huggingfaceBlockConfig
-              : undefined,
+              : type === 'knowledge'
+                ? knowledgeBlockConfig
+                : type === 'canonicalcred'
+                  ? canonicalCredBlockConfig
+                  : undefined,
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -77,7 +98,12 @@ vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],
 }))
 
-import { preValidateCredentialInputs, validateInputsForBlock } from './validation'
+import {
+  collectUnresolvedReferences,
+  preValidateCredentialInputs,
+  validateInputsForBlock,
+  validateWorkflowSelectorIds,
+} from './validation'
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -275,5 +301,117 @@ describe('preValidateCredentialInputs', () => {
     })
     expect(result.filteredOperations[0]?.params?.inputs?.credential).toBe('shared-cred-1')
     expect(result.errors).toHaveLength(0)
+  })
+})
+
+const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+describe('validateWorkflowSelectorIds (credential inclusion)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+  })
+
+  it('skips oauth-input by default (credentials pre-validated)', async () => {
+    const state = {
+      blocks: { b1: { type: 'slack', name: 'Slack', subBlocks: { credential: { value: 'bad' } } } },
+    }
+    const errors = await validateWorkflowSelectorIds(state, CTX)
+    expect(errors).toHaveLength(0)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+  })
+
+  it('validates oauth-input when includeCredentials is set', async () => {
+    mockValidateSelectorIds.mockResolvedValue({
+      valid: [],
+      invalid: ['bad'],
+      warning: 'Accessible workspace credentials: Work [cred_ok]',
+    })
+    const state = {
+      blocks: { b1: { type: 'slack', name: 'Slack', subBlocks: { credential: { value: 'bad' } } } },
+    }
+    const errors = await validateWorkflowSelectorIds(state, CTX, { includeCredentials: true })
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'bad', CTX)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.error).toContain('oauth-input')
+  })
+})
+
+describe('collectUnresolvedReferences', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+  })
+
+  it('flags a basic-mode credential that does not resolve (kind: credential)', async () => {
+    mockValidateSelectorIds.mockResolvedValue({
+      valid: [],
+      invalid: ['bad-cred'],
+      warning: 'Accessible workspace credentials: Work [cred_ok]',
+    })
+    const state = {
+      blocks: {
+        b1: { type: 'slack', name: 'Slack', subBlocks: { credential: { value: 'bad-cred' } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({
+      blockId: 'b1',
+      blockName: 'Slack',
+      field: 'credential',
+      kind: 'credential',
+    })
+    expect(refs[0]?.reason).toContain('bad-cred')
+    expect(refs[0]?.reason).toContain('Accessible workspace credentials')
+  })
+
+  it('flags an unresolved knowledge base (kind: resource)', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['kb_x'] })
+    const state = {
+      blocks: {
+        kb1: { type: 'knowledge', name: 'KB', subBlocks: { knowledgeBaseId: { value: 'kb_x' } } },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ blockId: 'kb1', field: 'knowledgeBaseId', kind: 'resource' })
+  })
+
+  it('only validates the active canonical member (inactive member is not flagged)', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['stranded'] })
+    // No override + empty basic + filled advanced -> resolves to advanced mode.
+    // The active member is the (short-input) manual twin, so the inactive
+    // oauth-input basic member is never validated.
+    const state = {
+      blocks: {
+        c1: {
+          type: 'canonicalcred',
+          name: 'Cred',
+          subBlocks: { credential: { value: '' }, manualCredential: { value: 'stranded' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(refs).toHaveLength(0)
+    expect(mockValidateSelectorIds).not.toHaveBeenCalled()
+  })
+
+  it('validates the active basic credential member', async () => {
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: ['good-but-missing'] })
+    const state = {
+      blocks: {
+        c1: {
+          type: 'canonicalcred',
+          name: 'Cred',
+          data: { canonicalModes: { cred: 'basic' } },
+          subBlocks: { credential: { value: 'good-but-missing' }, manualCredential: { value: '' } },
+        },
+      },
+    }
+    const refs = await collectUnresolvedReferences(state, CTX)
+    expect(mockValidateSelectorIds).toHaveBeenCalledWith('oauth-input', 'good-but-missing', CTX)
+    expect(refs).toHaveLength(1)
+    expect(refs[0]).toMatchObject({ field: 'credential', kind: 'credential' })
   })
 })

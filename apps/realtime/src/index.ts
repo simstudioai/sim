@@ -2,6 +2,7 @@ import { createServer } from 'http'
 import { createLogger } from '@sim/logger'
 import type { Server as SocketIOServer } from 'socket.io'
 import { createSocketIOServer, shutdownSocketIOAdapter } from '@/config/socket'
+import { assertSchemaCompatibility } from '@/database/preflight'
 import { env } from '@/env'
 import { setupAllHandlers } from '@/handlers'
 import { type AuthenticatedSocket, authenticateSocket } from '@/middleware/auth'
@@ -39,6 +40,14 @@ async function main() {
     hasRedis: !!env.REDIS_URL,
   })
 
+  // Register the HTTP handler before Socket.IO attaches: engine.io captures
+  // pre-existing `request` listeners and forwards only non-`/socket.io/`
+  // requests to them, making it the single dispatcher for the shared port.
+  // The handler itself is assigned after the room manager exists, before listen().
+  // biome-ignore lint/style/useConst: must be declared before the request listener closure; assigned only after the room manager exists
+  let httpHandler: ReturnType<typeof createHttpHandler> | undefined
+  httpServer.on('request', (req, res) => httpHandler?.(req, res))
+
   // Create Socket.IO server with Redis adapter if configured
   const io = await createSocketIOServer(httpServer)
 
@@ -49,8 +58,7 @@ async function main() {
   io.use(authenticateSocket)
 
   // Set up HTTP handler for health checks and internal APIs
-  const httpHandler = createHttpHandler(roomManager, logger)
-  httpServer.on('request', httpHandler)
+  httpHandler = createHttpHandler(roomManager, logger)
 
   // Global error handlers
   process.on('uncaughtException', (error) => {
@@ -85,6 +93,8 @@ async function main() {
     logger.info(`New socket connection: ${socket.id}`)
     setupAllHandlers(socket, roomManager)
   })
+
+  await assertSchemaCompatibility()
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     logger.info(`Socket.IO server running on port ${PORT}`)

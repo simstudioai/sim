@@ -64,7 +64,6 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
   transformResponse: async (response: Response, requestParams?: HotPostsParams) => {
     const data = await response.json()
 
-    // Process the posts data with proper error handling
     const posts: RedditPost[] =
       data.data?.children?.map((child: any) => {
         const post = child.data || {}
@@ -86,7 +85,6 @@ export const hotPostsTool: ToolConfig<HotPostsParams, RedditHotPostsResponse> = 
         }
       }) || []
 
-    // Extract the subreddit name from the response data with fallback
     const subreddit =
       data.data?.children?.[0]?.data?.subreddit ||
       (posts.length > 0 ? posts[0].subreddit : requestParams?.subreddit || '')

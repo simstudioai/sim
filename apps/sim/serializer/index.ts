@@ -227,7 +227,7 @@ export class Serializer {
     }
 
     // Extract parameters from UI state
-    const params = this.extractParams(block)
+    const params = extractBlockParams(block)
 
     const isTriggerCategory = blockConfig.category === 'triggers'
     if (block.triggerMode === true || isTriggerCategory) {
@@ -239,7 +239,13 @@ export class Serializer {
 
     // Validate required fields that only users can provide (before execution starts)
     if (options.validateRequired) {
-      this.validateRequiredFieldsBeforeExecution(block, blockConfig, params)
+      const { missingRequiredFields } = collectBlockFieldIssues(block, blockConfig, params)
+      if (missingRequiredFields.length > 0) {
+        const blockName = block.name || blockConfig.name || 'Block'
+        throw new Error(
+          `${blockName} is missing required fields: ${missingRequiredFields.join(', ')}`
+        )
+      }
     }
 
     let toolId = ''
@@ -255,7 +261,7 @@ export class Serializer {
         // For non-custom tools, we determine the tool ID
         const nonCustomTools = tools.filter((tool: any) => tool.type !== 'custom-tool')
         if (nonCustomTools.length > 0) {
-          toolId = this.selectToolId(blockConfig, params)
+          toolId = selectToolId(blockConfig, params)
         }
       } catch (error) {
         logger.error('Error processing tools in agent block:', { error })
@@ -264,7 +270,7 @@ export class Serializer {
       }
     } else {
       // For non-agent blocks, get tool ID from block config as usual
-      toolId = this.selectToolId(blockConfig, params)
+      toolId = selectToolId(blockConfig, params)
     }
 
     // Get inputs from block config
@@ -301,263 +307,6 @@ export class Serializer {
     }
 
     return serialized
-  }
-
-  private extractParams(block: BlockState): Record<string, any> {
-    if (block.type === 'loop' || block.type === 'parallel') {
-      return {}
-    }
-
-    const blockConfig = getBlock(block.type)
-    if (!blockConfig) {
-      throw new Error(`Invalid block type: ${block.type}`)
-    }
-
-    const params: Record<string, any> = {}
-    const legacyAdvancedMode = block.advancedMode ?? false
-    const canonicalModeOverrides = block.data?.canonicalModes
-    const isStarterBlock = block.type === 'starter'
-    const isAgentBlock = block.type === 'agent'
-    const isTriggerContext = block.triggerMode ?? false
-    const isTriggerCategory = blockConfig.category === 'triggers'
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
-    const allValues = buildSubBlockValues(block.subBlocks)
-
-    Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
-      const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
-
-      const hasStarterInputFormatValues =
-        isStarterBlock &&
-        id === 'inputFormat' &&
-        Array.isArray(subBlock.value) &&
-        subBlock.value.length > 0
-
-      const isLegacyAgentField =
-        isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
-
-      const shouldInclude =
-        matchingConfigs.length === 0 ||
-        matchingConfigs.some((config) =>
-          shouldSerializeSubBlock(
-            config,
-            allValues,
-            legacyAdvancedMode,
-            isTriggerContext,
-            isTriggerCategory,
-            canonicalIndex,
-            canonicalModeOverrides
-          )
-        )
-
-      if (
-        (matchingConfigs.length > 0 && shouldInclude) ||
-        hasStarterInputFormatValues ||
-        isLegacyAgentField
-      ) {
-        params[id] = subBlock.value
-      }
-    })
-
-    blockConfig.subBlocks.forEach((subBlockConfig) => {
-      const id = subBlockConfig.id
-      if (
-        params[id] == null &&
-        subBlockConfig.value &&
-        shouldSerializeSubBlock(
-          subBlockConfig,
-          allValues,
-          legacyAdvancedMode,
-          isTriggerContext,
-          isTriggerCategory,
-          canonicalIndex,
-          canonicalModeOverrides
-        )
-      ) {
-        params[id] = subBlockConfig.value(params)
-      }
-    })
-
-    Object.values(canonicalIndex.groupsById).forEach((group) => {
-      const { basicValue, advancedValue } = getCanonicalValues(group, params)
-      const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
-      const pairMode =
-        hasExplicitOverride || !legacyAdvancedMode
-          ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
-          : 'advanced'
-      const chosen = pairMode === 'advanced' ? advancedValue : basicValue
-
-      const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
-      sourceIds.forEach((id) => delete params[id])
-
-      if (chosen !== undefined) {
-        params[group.canonicalId] = chosen
-      }
-    })
-
-    return params
-  }
-
-  private validateRequiredFieldsBeforeExecution(
-    block: BlockState,
-    blockConfig: any,
-    params: Record<string, any>
-  ) {
-    // Skip validation if the block is disabled
-    if (block.enabled === false) {
-      return
-    }
-
-    // Skip validation if the block is used as a trigger
-    if (
-      block.triggerMode === true ||
-      blockConfig.category === 'triggers' ||
-      params.triggerMode === true
-    ) {
-      logger.info('Skipping validation for block in trigger mode', {
-        blockId: block.id,
-        blockType: block.type,
-      })
-      return
-    }
-
-    const missingFields: string[] = []
-    const displayAdvancedOptions = block.advancedMode ?? false
-    const isTriggerContext = block.triggerMode ?? false
-    const isTriggerCategory = blockConfig.category === 'triggers'
-    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
-    const canonicalModeOverrides = block.data?.canonicalModes
-    const allValues = buildSubBlockValues(block.subBlocks)
-
-    // Get the tool configuration to check parameter visibility
-    const toolAccess = blockConfig.tools?.access
-    const currentToolId = toolAccess?.length > 0 ? this.selectToolId(blockConfig, params) : null
-    const currentTool = currentToolId ? getTool(currentToolId) : null
-
-    // Validate tool parameters (for blocks with tools).
-    // Lookup contract: a tool param's value lives under its own paramId in `params`.
-    // Block subBlocks must align via either `id === paramId` or `canonicalParamId === paramId`
-    // (enforced by apps/sim/scripts/check-block-registry.ts), so this validator never has to invoke
-    // the block's `tools.config.params` mapper.
-    if (currentTool) {
-      Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]) => {
-        if (paramConfig.required && paramConfig.visibility === 'user-only') {
-          const matchingConfigs =
-            blockConfig.subBlocks?.filter(
-              (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
-            ) || []
-
-          let shouldValidateParam = true
-
-          if (matchingConfigs.length > 0) {
-            shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
-              const includedByMode = shouldSerializeSubBlock(
-                subBlockConfig,
-                allValues,
-                displayAdvancedOptions,
-                isTriggerContext,
-                isTriggerCategory,
-                canonicalIndex,
-                canonicalModeOverrides
-              )
-
-              const isRequired = (() => {
-                if (!subBlockConfig.required) return false
-                if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-                return evaluateSubBlockCondition(subBlockConfig.required, params)
-              })()
-
-              return includedByMode && isRequired
-            })
-          }
-
-          if (!shouldValidateParam) {
-            return
-          }
-
-          const fieldValue = params[paramId]
-          if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-            const activeConfig = matchingConfigs.find((config: any) =>
-              shouldSerializeSubBlock(
-                config,
-                allValues,
-                displayAdvancedOptions,
-                isTriggerContext,
-                isTriggerCategory,
-                canonicalIndex,
-                canonicalModeOverrides
-              )
-            )
-            const displayName = activeConfig?.title || paramId
-            missingFields.push(displayName)
-          }
-        }
-      })
-    }
-
-    // Validate required subBlocks not covered by tool params (e.g., blocks with empty tools.access)
-    const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
-
-    blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
-      // Skip if already validated via tool params (either by id or canonical bridge)
-      if (validatedByTool.has(subBlockConfig.id)) {
-        return
-      }
-      if (subBlockConfig.canonicalParamId && validatedByTool.has(subBlockConfig.canonicalParamId)) {
-        return
-      }
-
-      // Check if subBlock is visible
-      const isVisible = shouldSerializeSubBlock(
-        subBlockConfig,
-        allValues,
-        displayAdvancedOptions,
-        isTriggerContext,
-        isTriggerCategory,
-        canonicalIndex,
-        canonicalModeOverrides
-      )
-
-      if (!isVisible) {
-        return
-      }
-
-      // Check if subBlock is required
-      const isRequired = (() => {
-        if (!subBlockConfig.required) return false
-        if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
-        return evaluateSubBlockCondition(subBlockConfig.required, params)
-      })()
-
-      if (!isRequired) {
-        return
-      }
-
-      // Check if value is missing
-      // For canonical subBlocks, look up the canonical param value (original IDs were deleted)
-      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
-      const fieldValue = canonicalId ? params[canonicalId] : params[subBlockConfig.id]
-      if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
-        missingFields.push(subBlockConfig.title || subBlockConfig.id)
-      }
-    })
-
-    if (missingFields.length > 0) {
-      const blockName = block.name || blockConfig.name || 'Block'
-      throw new Error(`${blockName} is missing required fields: ${missingFields.join(', ')}`)
-    }
-  }
-
-  private selectToolId(blockConfig: any, params: Record<string, any>): string {
-    try {
-      return blockConfig.tools.config?.tool
-        ? blockConfig.tools.config.tool(params)
-        : blockConfig.tools.access[0]
-    } catch (error) {
-      logger.warn('Tool selection failed during serialization, using default:', {
-        error: toError(error).message,
-      })
-      return blockConfig.tools.access[0]
-    }
   }
 
   deserializeWorkflow(workflow: SerializedWorkflow): {
@@ -640,4 +389,320 @@ export class Serializer {
       advancedMode: serializedBlock.config?.params?.advancedMode === true,
     }
   }
+}
+
+/** A canonical pair where the active member is empty but an inactive member holds a value that will be silently dropped. */
+export interface InactiveModeValue {
+  canonicalId: string
+  /** The member the active mode reads from (where the value should live). */
+  activeMemberId?: string
+  /** The member that currently holds the stranded value. */
+  inactiveMemberId: string
+  kind: 'credential' | 'resource' | 'other'
+}
+
+export interface BlockFieldIssues {
+  missingRequiredFields: string[]
+  inactiveModeValues: InactiveModeValue[]
+}
+
+/**
+ * Select the tool id for a block given its resolved params.
+ */
+export function selectToolId(blockConfig: any, params: Record<string, any>): string {
+  try {
+    return blockConfig.tools.config?.tool
+      ? blockConfig.tools.config.tool(params)
+      : blockConfig.tools.access[0]
+  } catch (error) {
+    logger.warn('Tool selection failed during serialization, using default:', {
+      error: toError(error).message,
+    })
+    return blockConfig.tools.access[0]
+  }
+}
+
+/**
+ * Resolve a block's UI sub-block state into the flat `params` map the runtime
+ * sees. Loop/parallel containers have no params; unknown block types throw.
+ *
+ * Exported as the single source of truth so the copilot workflow lint resolves
+ * params exactly the way execution (serializeBlock) does.
+ */
+export function extractBlockParams(block: BlockState): Record<string, any> {
+  if (block.type === 'loop' || block.type === 'parallel') {
+    return {}
+  }
+
+  const blockConfig = getBlock(block.type)
+  if (!blockConfig) {
+    throw new Error(`Invalid block type: ${block.type}`)
+  }
+
+  const params: Record<string, any> = {}
+  const legacyAdvancedMode = block.advancedMode ?? false
+  const canonicalModeOverrides = block.data?.canonicalModes
+  const isStarterBlock = block.type === 'starter'
+  const isAgentBlock = block.type === 'agent'
+  const isTriggerContext = block.triggerMode ?? false
+  const isTriggerCategory = blockConfig.category === 'triggers'
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+  const allValues = buildSubBlockValues(block.subBlocks)
+
+  Object.entries(block.subBlocks).forEach(([id, subBlock]) => {
+    const matchingConfigs = blockConfig.subBlocks.filter((config) => config.id === id)
+
+    const hasStarterInputFormatValues =
+      isStarterBlock &&
+      id === 'inputFormat' &&
+      Array.isArray(subBlock.value) &&
+      subBlock.value.length > 0
+
+    const isLegacyAgentField =
+      isAgentBlock && ['systemPrompt', 'userPrompt', 'memories'].includes(id)
+
+    const shouldInclude =
+      matchingConfigs.length === 0 ||
+      matchingConfigs.some((config) =>
+        shouldSerializeSubBlock(
+          config,
+          allValues,
+          legacyAdvancedMode,
+          isTriggerContext,
+          isTriggerCategory,
+          canonicalIndex,
+          canonicalModeOverrides
+        )
+      )
+
+    if (
+      (matchingConfigs.length > 0 && shouldInclude) ||
+      hasStarterInputFormatValues ||
+      isLegacyAgentField
+    ) {
+      params[id] = subBlock.value
+    }
+  })
+
+  blockConfig.subBlocks.forEach((subBlockConfig) => {
+    const id = subBlockConfig.id
+    if (
+      params[id] == null &&
+      subBlockConfig.value &&
+      shouldSerializeSubBlock(
+        subBlockConfig,
+        allValues,
+        legacyAdvancedMode,
+        isTriggerContext,
+        isTriggerCategory,
+        canonicalIndex,
+        canonicalModeOverrides
+      )
+    ) {
+      params[id] = subBlockConfig.value(params)
+    }
+  })
+
+  Object.values(canonicalIndex.groupsById).forEach((group) => {
+    const { basicValue, advancedValue } = getCanonicalValues(group, params)
+    const hasExplicitOverride = canonicalModeOverrides?.[group.canonicalId] != null
+    const pairMode =
+      hasExplicitOverride || !legacyAdvancedMode
+        ? resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+        : 'advanced'
+    const chosen = pairMode === 'advanced' ? advancedValue : basicValue
+
+    const sourceIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
+    sourceIds.forEach((id) => delete params[id])
+
+    if (chosen !== undefined) {
+      params[group.canonicalId] = chosen
+    }
+  })
+
+  return params
+}
+
+/**
+ * Classify a canonical group as a credential/resource selector based on the
+ * sub-block type of its members (oauth-input -> credential, *-selector ->
+ * resource).
+ */
+function classifyCanonicalKind(
+  blockConfig: any,
+  memberIds: string[]
+): 'credential' | 'resource' | 'other' {
+  for (const id of memberIds) {
+    const cfg = blockConfig.subBlocks?.find((sb: any) => sb.id === id)
+    const type = cfg?.type
+    if (type === 'oauth-input') return 'credential'
+    if (typeof type === 'string' && type.endsWith('-selector')) return 'resource'
+  }
+  return 'other'
+}
+
+/**
+ * Non-throwing analysis of a block's required fields and canonical-mode value
+ * placement. `serializeBlock` wraps this and throws on missing required fields
+ * (execution ground truth); the copilot workflow lint consumes the structured
+ * result. Single source of truth shared by both, so they can never drift.
+ */
+export function collectBlockFieldIssues(
+  block: BlockState,
+  blockConfig: any,
+  params: Record<string, any>
+): BlockFieldIssues {
+  // Disabled blocks and trigger-mode blocks are not validated (mirrors runtime).
+  if (block.enabled === false) {
+    return { missingRequiredFields: [], inactiveModeValues: [] }
+  }
+  if (
+    block.triggerMode === true ||
+    blockConfig.category === 'triggers' ||
+    params.triggerMode === true
+  ) {
+    return { missingRequiredFields: [], inactiveModeValues: [] }
+  }
+
+  const missingFields: string[] = []
+  const displayAdvancedOptions = block.advancedMode ?? false
+  const isTriggerContext = block.triggerMode ?? false
+  const isTriggerCategory = blockConfig.category === 'triggers'
+  const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks || [])
+  const canonicalModeOverrides = block.data?.canonicalModes
+  const allValues = buildSubBlockValues(block.subBlocks)
+
+  // Get the tool configuration to check parameter visibility
+  const toolAccess = blockConfig.tools?.access
+  const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
+  const currentTool = currentToolId ? getTool(currentToolId) : null
+
+  // Validate tool parameters (for blocks with tools).
+  // Lookup contract: a tool param's value lives under its own paramId in `params`.
+  // Block subBlocks align via either `id === paramId` or `canonicalParamId === paramId`.
+  if (currentTool) {
+    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]: [string, any]) => {
+      if (paramConfig.required && paramConfig.visibility === 'user-only') {
+        const matchingConfigs =
+          blockConfig.subBlocks?.filter(
+            (sb: any) => sb.id === paramId || sb.canonicalParamId === paramId
+          ) || []
+
+        let shouldValidateParam = true
+
+        if (matchingConfigs.length > 0) {
+          shouldValidateParam = matchingConfigs.some((subBlockConfig: any) => {
+            const includedByMode = shouldSerializeSubBlock(
+              subBlockConfig,
+              allValues,
+              displayAdvancedOptions,
+              isTriggerContext,
+              isTriggerCategory,
+              canonicalIndex,
+              canonicalModeOverrides
+            )
+
+            const isRequired = (() => {
+              if (!subBlockConfig.required) return false
+              if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+              return evaluateSubBlockCondition(subBlockConfig.required, params)
+            })()
+
+            return includedByMode && isRequired
+          })
+        }
+
+        if (!shouldValidateParam) {
+          return
+        }
+
+        const fieldValue = params[paramId]
+        if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+          const activeConfig = matchingConfigs.find((config: any) =>
+            shouldSerializeSubBlock(
+              config,
+              allValues,
+              displayAdvancedOptions,
+              isTriggerContext,
+              isTriggerCategory,
+              canonicalIndex,
+              canonicalModeOverrides
+            )
+          )
+          const displayName = activeConfig?.title || paramId
+          missingFields.push(displayName)
+        }
+      }
+    })
+  }
+
+  // Validate required subBlocks not covered by tool params (e.g., blocks with empty tools.access)
+  const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
+
+  blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
+    if (validatedByTool.has(subBlockConfig.id)) {
+      return
+    }
+    if (subBlockConfig.canonicalParamId && validatedByTool.has(subBlockConfig.canonicalParamId)) {
+      return
+    }
+
+    const isVisible = shouldSerializeSubBlock(
+      subBlockConfig,
+      allValues,
+      displayAdvancedOptions,
+      isTriggerContext,
+      isTriggerCategory,
+      canonicalIndex,
+      canonicalModeOverrides
+    )
+
+    if (!isVisible) {
+      return
+    }
+
+    const isRequired = (() => {
+      if (!subBlockConfig.required) return false
+      if (typeof subBlockConfig.required === 'boolean') return subBlockConfig.required
+      return evaluateSubBlockCondition(subBlockConfig.required, params)
+    })()
+
+    if (!isRequired) {
+      return
+    }
+
+    // For canonical subBlocks, look up the canonical param value (original IDs were deleted)
+    const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+    const fieldValue = canonicalId ? params[canonicalId] : params[subBlockConfig.id]
+    if (fieldValue === undefined || fieldValue === null || fieldValue === '') {
+      missingFields.push(subBlockConfig.title || subBlockConfig.id)
+    }
+  })
+
+  // Detect canonical pairs whose active member is empty while an inactive member
+  // holds a value (the value is silently dropped at serialize time).
+  const inactiveModeValues: InactiveModeValue[] = []
+  for (const group of Object.values(canonicalIndex.groupsById)) {
+    if (!isCanonicalPair(group)) continue
+    const mode = resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+    const { basicValue, advancedValue } = getCanonicalValues(group, allValues)
+    const activeValue = mode === 'advanced' ? advancedValue : basicValue
+    if (isNonEmptyValue(activeValue)) continue
+
+    const memberIds = [group.basicId, ...group.advancedIds].filter(Boolean) as string[]
+    const activeMemberId = mode === 'advanced' ? group.advancedIds[0] : group.basicId
+    const inactiveMemberId = memberIds.find(
+      (id) => id !== activeMemberId && isNonEmptyValue(allValues[id])
+    )
+    if (inactiveMemberId) {
+      inactiveModeValues.push({
+        canonicalId: group.canonicalId,
+        activeMemberId,
+        inactiveMemberId,
+        kind: classifyCanonicalKind(blockConfig, memberIds),
+      })
+    }
+  }
+
+  return { missingRequiredFields: missingFields, inactiveModeValues }
 }

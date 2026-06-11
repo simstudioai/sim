@@ -10,8 +10,6 @@ export type CommandId =
   | 'accept-diff-changes'
   | 'add-agent'
   | 'add-workflow'
-  | 'add-task'
-  // | 'goto-templates'
   | 'goto-logs'
   | 'open-search'
   | 'open-workflow-search-replace'
@@ -60,16 +58,6 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     shortcut: 'Mod+Shift+P',
     allowInEditable: false,
   },
-  'add-task': {
-    id: 'add-task',
-    shortcut: 'Mod+Shift+K',
-    allowInEditable: false,
-  },
-  // 'goto-templates': {
-  //   id: 'goto-templates',
-  //   shortcut: 'Mod+Y',
-  //   allowInEditable: true,
-  // },
   'goto-logs': {
     id: 'goto-logs',
     shortcut: 'Mod+L',

@@ -2,7 +2,6 @@
 description: Core architecture principles for the Sim app
 globs: ["apps/sim/**"]
 ---
-
 # Sim App Architecture
 
 ## Core Principles
@@ -14,18 +13,29 @@ globs: ["apps/sim/**"]
 ## Root-Level Structure
 
 ```
-apps/sim/
-├── app/                 # Next.js app router (pages, API routes)
-├── blocks/              # Block definitions and registry
-├── components/          # Shared UI (emcn/, ui/)
-├── executor/            # Workflow execution engine
-├── hooks/               # Shared hooks (queries/, selectors/)
-├── lib/                 # App-wide utilities
-├── providers/           # LLM provider integrations
-├── stores/              # Zustand stores
-├── tools/               # Tool definitions
-└── triggers/            # Trigger definitions
+apps/
+├── sim/                 # this app (Next.js: UI + API routes + workflow editor)
+│   ├── app/             # Next.js app router (pages, API routes)
+│   ├── blocks/          # Block definitions and registry
+│   ├── components/      # Shared UI (emcn/, ui/)
+│   ├── executor/        # Workflow execution engine
+│   ├── hooks/           # Shared hooks (queries/, selectors/)
+│   ├── lib/             # App-wide utilities
+│   ├── providers/       # LLM provider integrations
+│   ├── stores/          # Zustand stores
+│   ├── tools/           # Tool definitions
+│   └── triggers/        # Trigger definitions
+└── realtime/            # Bun Socket.IO server (collaborative canvas)
+
+packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
+                         # security, tsconfig, utils, workflow-authz,
+                         # workflow-persistence, workflow-types
 ```
+
+## Package Boundaries
+
+- `apps/* → packages/*` only. Packages never import from `apps/*`.
+- `apps/realtime` avoids Next.js, React, the block/tool registry, provider SDKs, and the executor; never add `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` imports to any package it consumes. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
 
 ## Feature Organization
 
@@ -54,16 +64,3 @@ feature/
 - **Create `utils.ts` when** 2+ files need the same helper
 - **Check existing sources** before duplicating (`lib/` has many utilities)
 - **Location**: `lib/` (app-wide) → `feature/utils/` (feature-scoped) → inline (single-use)
-
-## API Contracts
-
-Boundary HTTP request and response shapes for all routes under `apps/sim/app/api/**` live in `apps/sim/lib/api/contracts/` (one file per resource family). Routes and clients consume the same contract — routes never define route-local boundary Zod schemas, and clients never define ad-hoc wire types. Domain validators that are not HTTP boundaries (tools, blocks, triggers, connectors, realtime handlers, internal helpers) may still use Zod directly; the contract rule is boundary-only.
-
-- Each contract is built with `defineRouteContract({ method, path, params?, query?, body?, headers?, response: { mode: 'json', schema } })` and exports both schemas and named TypeScript type aliases (e.g., `export type CreateFolderBody = z.input<typeof createFolderBodySchema>`).
-- Shared identifier schemas live in `apps/sim/lib/api/contracts/primitives.ts`.
-- Routes validate via canonical helpers in `apps/sim/lib/api/server/validation.ts` (`parseRequest`, `validationErrorResponse`, `getValidationErrorMessage`, `isZodError`). Routes never `import { z } from 'zod'` and never use `instanceof z.ZodError`.
-- Clients call `requestJson(contract, ...)` from `apps/sim/lib/api/client/request.ts`; hooks import named type aliases from contracts, never `z.input/z.output`.
-- Routes under `apps/sim/app/api/v1/**` use `apps/sim/app/api/v1/middleware.ts` for shared auth, rate-limit, and workspace access. Compose contract validation inside that middleware.
-- `bun run check:api-validation` enforces this policy and must pass on PRs.
-
-`bun run check:api-validation:strict` is the strict CI gate and additionally fails on annotations with empty reasons. Four per-line opt-out forms are recognized: `// boundary-raw-fetch: <reason>` (placed immediately above a legitimate raw `fetch(` call in `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` for stream/binary/multipart/signed-URL/OAuth-redirect/external-origin cases), `// double-cast-allowed: <reason>` (placed immediately above an `as unknown as X` cast outside test files), `// boundary-raw-json: <reason>` (placed immediately above a raw `await request.json()` / `await req.json()` read in a route handler that cannot go through `parseRequest` — JSON-RPC envelopes, tolerant `.catch(() => ({}))` parses), and `// untyped-response: <reason>` (placed immediately above a `schema: z.unknown()` response declaration in a contract file when the response body is genuinely opaque). The reason must be non-empty. Whole-file allowlists for routes that legitimately import Zod for non-boundary reasons go through `INDIRECT_ZOD_ROUTES` in `scripts/check-api-validation-contracts.ts`, not per-line annotations.

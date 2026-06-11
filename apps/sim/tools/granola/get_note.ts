@@ -79,12 +79,13 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
         transcript: data.transcript
           ? data.transcript.map(
               (t: {
-                speaker: { source: string }
+                speaker: { source: string; diarization_label?: string }
                 text: string
                 start_time: string
                 end_time: string
               }) => ({
                 speaker: t.speaker?.source ?? 'unknown',
+                speakerLabel: t.speaker?.diarization_label ?? null,
                 text: t.text ?? '',
                 startTime: t.start_time ?? '',
                 endTime: t.end_time ?? '',
@@ -149,6 +150,11 @@ export const getNoteTool: ToolConfig<GranolaGetNoteParams, GranolaGetNoteRespons
       optional: true,
       properties: {
         speaker: { type: 'string', description: 'Speaker source (microphone or speaker)' },
+        speakerLabel: {
+          type: 'string',
+          description: 'Diarization label for the speaker (e.g., Speaker A)',
+          optional: true,
+        },
         text: { type: 'string', description: 'Transcript text' },
         startTime: { type: 'string', description: 'Segment start time' },
         endTime: { type: 'string', description: 'Segment end time' },

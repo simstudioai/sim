@@ -1,0 +1,1 @@
+export { General } from './general'

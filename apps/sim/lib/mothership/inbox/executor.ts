@@ -11,16 +11,16 @@ import {
   buildPersistedUserMessage,
 } from '@/lib/copilot/chat/persisted-message'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import { taskPubSub } from '@/lib/copilot/tasks'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
 import { sendInboxResponse } from '@/lib/mothership/inbox/response'
 import type { AgentMailAttachment } from '@/lib/mothership/inbox/types'
-import { buildMothershipToolsForRequest } from '@/lib/mothership/settings/runtime'
+import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { createFileContent, type MessageContent } from '@/lib/uploads/utils/file-utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -97,7 +97,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       const chatResult = await resolveOrCreateChat({
         userId,
         workspaceId: ws.id,
-        model: 'claude-opus-4-6',
+        model: 'claude-opus-4-8',
         type: 'mothership',
       })
       chatId = chatResult.chatId
@@ -111,13 +111,13 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
       requestChatTitle({
         message: titleInput,
-        model: 'claude-opus-4-6',
+        model: 'claude-opus-4-8',
         userId,
       })
         .then(async (title) => {
           if (title && chatId) {
             await db.update(copilotChats).set({ title }).where(eq(copilotChats.id, chatId))
-            taskPubSub?.publishStatusChanged({
+            chatPubSub?.publishStatusChanged({
               workspaceId: ws.id,
               chatId,
               type: 'renamed',
@@ -128,7 +128,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
           logger.warn('Failed to generate chat title', { chatId, err })
         })
 
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'created',
@@ -138,7 +138,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const userMessageId = generateId()
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'started',
@@ -169,26 +169,15 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       return { attachments, ...downloaded }
     }
 
-    const [
-      attachmentResult,
-      workspaceContext,
-      integrationTools,
-      mothershipToolRuntime,
-      userPermission,
-    ] = await Promise.all([
-      fetchAttachments(),
-      generateWorkspaceContext(ws.id, userId),
-      buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
-      buildMothershipToolsForRequest({ workspaceId: ws.id, userId }),
-      getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
-    ])
+    const [attachmentResult, workspaceContext, integrationTools, userSkillTool, userPermission] =
+      await Promise.all([
+        fetchAttachments(),
+        generateWorkspaceContext(ws.id, userId),
+        buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
+        buildUserSkillTool(ws.id),
+        getUserEntityPermissions(userId, 'workspace', ws.id).catch(() => null),
+      ])
     const { attachments, fileAttachments, storedAttachments } = attachmentResult
-    const workspaceContextWithMothershipTools = [
-      workspaceContext,
-      mothershipToolRuntime.catalogContext,
-    ]
-      .filter(Boolean)
-      .join('\n\n')
 
     const truncatedTask = {
       ...inboxTask,
@@ -204,11 +193,10 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       mode: 'agent',
       messageId: userMessageId,
       isHosted,
-      workspaceContext: workspaceContextWithMothershipTools,
+      workspaceContext,
+      ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(mothershipToolRuntime.tools.length > 0
-        ? { mothershipTools: mothershipToolRuntime.tools }
-        : {}),
+      ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),
       ...(fileAttachments.length > 0 ? { fileAttachments } : {}),
     }
@@ -260,7 +248,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       .where(eq(mothershipInboxTask.id, taskId))
 
     if (chatId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: ws.id,
         chatId,
         type: 'completed',

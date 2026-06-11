@@ -4,7 +4,7 @@ import { TimePicker } from '@/components/emcn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface TimeInputProps {
   blockId: string
@@ -14,7 +14,6 @@ interface TimeInputProps {
   previewValue?: string | null
   className?: string
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 function formatTimeInputDisplayLabel(value: string): string {
@@ -38,8 +37,8 @@ export function TimeInput({
   previewValue,
   className,
   disabled = false,
-  activeSearchTarget,
 }: TimeInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
 
   const value = isPreview ? previewValue : storeValue

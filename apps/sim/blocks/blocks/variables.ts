@@ -17,7 +17,7 @@ export const VariablesBlock: BlockConfig = {
   `,
   icon: VariableIcon,
   category: 'blocks',
-  docsLink: 'https://docs.sim.ai/blocks/variables',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/variables',
   subBlocks: [
     {
       id: 'variables',

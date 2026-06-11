@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
@@ -35,10 +36,6 @@ export const organizationMemberQuerySchema = z
     include: z.string().optional(),
   })
   .passthrough()
-
-export const removeOrganizationMemberQuerySchema = z.object({
-  shouldReduceSeats: booleanQueryParamSchema,
-})
 
 export const workspaceGrantSchema = z.object({
   workspaceId: z.string().min(1),
@@ -172,10 +169,6 @@ export const updateOrganizationWhitelabelBodySchema = z.object({
 export const transferOwnershipBodySchema = z.object({
   newOwnerUserId: z.string().min(1),
   alsoLeave: z.boolean().optional().default(false),
-})
-
-export const updateSeatsBodySchema = z.object({
-  seats: z.number().int().min(1, 'Minimum 1 seat required').max(50, 'Maximum 50 seats allowed'),
 })
 
 export const rosterWorkspaceAccessSchema = z.object({
@@ -328,7 +321,8 @@ export const inviteOrganizationMembersContract = defineRouteContract({
                 maxSeats: z.number(),
                 availableSeats: z.number(),
               })
-              .passthrough(),
+              .passthrough()
+              .optional(),
           })
           .passthrough()
           .optional(),
@@ -362,11 +356,86 @@ export const removeOrganizationMemberContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/organizations/[id]/members/[memberId]',
   params: organizationMemberParamsSchema,
-  query: removeOrganizationMemberQuerySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema.extend({
       data: z.record(z.string(), z.unknown()).optional(),
+    }),
+  },
+})
+
+/** Per-member credit usage + cap for the Manage Credits modal (values in credits). */
+export const organizationMemberUsageLimitDataSchema = z.object({
+  creditsUsed: z.number(),
+  creditLimit: z.number().nullable(),
+})
+
+export const getOrganizationMemberUsageLimitContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/members/[memberId]/usage-limit',
+  params: organizationMemberParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.boolean(),
+      data: organizationMemberUsageLimitDataSchema,
+    }),
+  },
+})
+
+export const updateOrganizationMemberUsageLimitBodySchema = z.object({
+  /** New cap in credits; `null` clears the per-member cap. */
+  creditLimit: z
+    .number()
+    .int('Credit limit must be a whole number of credits')
+    .min(0, 'Credit limit cannot be negative')
+    .nullable(),
+})
+
+export const updateOrganizationMemberUsageLimitContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/organizations/[id]/members/[memberId]/usage-limit',
+  params: organizationMemberParamsSchema,
+  body: updateOrganizationMemberUsageLimitBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema.extend({
+      data: z
+        .object({
+          creditLimit: z.number().nullable(),
+        })
+        .optional(),
+    }),
+  },
+})
+
+/**
+ * Self-service per-member usage for the chat-home credits chip. Values are in
+ * DOLLARS (the DB unit) so the client's `formatCredits` performs the single
+ * dollars→credits conversion — returning credits here would double-convert.
+ * `limitDollars` is null when no per-member cap applies (non-hosted, the
+ * workspace isn't org-owned, or no cap is set), so the chip falls back to the
+ * plan-level credits view.
+ */
+export const myMemberCreditsDataSchema = z.object({
+  usedDollars: z.number(),
+  limitDollars: z.number().nullable(),
+})
+export type MyMemberCreditsData = z.infer<typeof myMemberCreditsDataSchema>
+
+/**
+ * Own-data-only (no admin gate, unlike the admin route above) and workspace-
+ * scoped, so the chat-home chip can resolve the acting member's own remaining.
+ */
+export const getMyMemberCreditsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/billing/member-credits',
+  query: z.object({ workspaceId: workspaceIdSchema }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      success: z.boolean(),
+      data: myMemberCreditsDataSchema,
     }),
   },
 })
@@ -387,27 +456,6 @@ export const transferOwnershipContract = defineRouteContract({
         details: z.record(z.string(), z.unknown()).optional(),
       })
       .passthrough(),
-  },
-})
-
-export const updateSeatsContract = defineRouteContract({
-  method: 'PUT',
-  path: '/api/organizations/[id]/seats',
-  params: organizationParamsSchema,
-  body: updateSeatsBodySchema,
-  response: {
-    mode: 'json',
-    schema: successResponseSchema.extend({
-      data: z
-        .object({
-          seats: z.number(),
-          previousSeats: z.number().optional(),
-          stripeSubscriptionId: z.string(),
-          stripeStatus: z.string().optional(),
-        })
-        .passthrough()
-        .optional(),
-    }),
   },
 })
 
@@ -540,3 +588,6 @@ export type RosterWorkspaceAccess = z.infer<typeof rosterWorkspaceAccessSchema>
 export type RosterMember = z.infer<typeof rosterMemberSchema>
 export type RosterPendingInvitation = z.infer<typeof rosterPendingInvitationSchema>
 export type OrganizationMembersResponse = z.infer<typeof listOrganizationMembersResponseSchema>
+export type OrganizationMemberUsageLimitData = z.infer<
+  typeof organizationMemberUsageLimitDataSchema
+>

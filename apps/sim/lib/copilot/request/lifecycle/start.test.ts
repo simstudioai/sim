@@ -107,8 +107,8 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-vi.mock('@/lib/copilot/tasks', () => ({
-  taskPubSub: null,
+vi.mock('@/lib/copilot/chat-status', () => ({
+  chatPubSub: null,
 }))
 
 import { createSSEStream } from './start'

@@ -1,5 +1,6 @@
 import type { AgiloftRecordResponse, AgiloftUpdateRecordParams } from '@/tools/agiloft/types'
-import { buildUpdateRecordUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildUpdateRecordUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftUpdateRecordTool: ToolConfig<AgiloftUpdateRecordParams, AgiloftRecordResponse> =

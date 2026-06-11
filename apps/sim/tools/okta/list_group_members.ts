@@ -54,7 +54,7 @@ export const oktaListGroupMembersTool: ToolConfig<
       if (params.limit) queryParams.append('limit', params.limit.toString())
 
       const queryString = queryParams.toString()
-      const base = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}/users`
+      const base = `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}/users`
       return queryString ? `${base}?${queryString}` : base
     },
     method: 'GET',

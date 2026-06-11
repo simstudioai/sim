@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { document, knowledgeBase, templates } from '@sim/db/schema'
+import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -7,18 +7,22 @@ import {
 } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
-  serializeFileMeta,
-  serializeTableMeta,
-  serializeWorkflowMeta,
-} from '@/lib/copilot/vfs/serializers'
+  buildVfsFolderPathMap,
+  canonicalBlockVfsPath,
+  canonicalKnowledgeBaseVfsDir,
+  canonicalTableVfsPath,
+  canonicalWorkflowVfsDir,
+  canonicalWorkspaceFilePath,
+  encodeVfsPathSegments,
+  encodeVfsSegment,
+} from '@/lib/copilot/vfs/path-utils'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
 import { getTableById } from '@/lib/table/service'
-import { canAccessTemplate } from '@/lib/templates/permissions'
+import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
+import { getSkillById } from '@/lib/workflows/skills/operations'
+import { listFolders } from '@/lib/workflows/utils'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
-import { isHiddenFromDisplay } from '@/blocks/types'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { ChatContext } from '@/stores/panel'
@@ -32,17 +36,25 @@ type AgentContextType =
   | 'knowledge'
   | 'table'
   | 'file'
-  | 'templates'
   | 'workflow_block'
   | 'docs'
   | 'folder'
   | 'filefolder'
   | 'active_resource'
+  | 'skill'
 
 interface AgentContext {
   type: AgentContextType
   tag: string
   content: string
+  /**
+   * Canonical, URL-encoded VFS path for the tagged resource (e.g.
+   * `agent/skills/My%20Skill.json`). Tagged resources are sent as path
+   * pointers so the model reads them on demand via VFS tools instead of the
+   * full body bloating the request. Skills are the exception: they carry both
+   * `path` and the full `content` so the skill is autoloaded.
+   */
+  path?: string
 }
 
 const logger = createLogger('ProcessContents')
@@ -58,6 +70,13 @@ export async function processContextsServer(
   if (!Array.isArray(contexts) || contexts.length === 0) return []
   const tasks = contexts.map(async (ctx) => {
     try {
+      if (ctx.kind === 'skill' && ctx.skillId && currentWorkspaceId) {
+        return await processSkillFromDb(
+          ctx.skillId,
+          currentWorkspaceId,
+          ctx.label ? `@${ctx.label}` : '@'
+        )
+      }
       if (ctx.kind === 'past_chat' && ctx.chatId) {
         return await processPastChatFromDb(
           ctx.chatId,
@@ -92,14 +111,6 @@ export async function processContextsServer(
           currentWorkspaceId
         )
       }
-      if (ctx.kind === 'templates' && ctx.templateId) {
-        return await processTemplateFromDb(
-          ctx.templateId,
-          userId,
-          ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId
-        )
-      }
       if (ctx.kind === 'logs' && ctx.executionId) {
         return await processExecutionLogFromDb(
           ctx.executionId,
@@ -120,17 +131,32 @@ export async function processContextsServer(
       if (ctx.kind === 'table' && ctx.tableId && currentWorkspaceId) {
         const result = await resolveTableResource(ctx.tableId, currentWorkspaceId)
         if (!result) return null
-        return { type: 'table', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+        return {
+          type: 'table',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+          path: result.path,
+        }
       }
       if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
         const result = await resolveFileResource(ctx.fileId, currentWorkspaceId)
         if (!result) return null
-        return { type: 'file', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+        return {
+          type: 'file',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+          path: result.path,
+        }
       }
       if (ctx.kind === 'folder' && 'folderId' in ctx && ctx.folderId && currentWorkspaceId) {
         const result = await resolveFolderResource(ctx.folderId, currentWorkspaceId)
         if (!result) return null
-        return { type: 'folder', tag: ctx.label ? `@${ctx.label}` : '@', content: result.content }
+        return {
+          type: 'folder',
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: result.content,
+          path: result.path,
+        }
       }
       if (ctx.kind === 'filefolder' && ctx.fileFolderId && currentWorkspaceId) {
         const result = await resolveFileFolderResource(ctx.fileFolderId, currentWorkspaceId)
@@ -139,6 +165,7 @@ export async function processContextsServer(
           type: 'filefolder',
           tag: ctx.label ? `@${ctx.label}` : '@',
           content: result.content,
+          path: result.path,
         }
       }
       if (ctx.kind === 'docs') {
@@ -164,7 +191,10 @@ export async function processContextsServer(
   })
   const results = await Promise.all(tasks)
   const filtered = results.filter(
-    (r): r is AgentContext => !!r && typeof r.content === 'string' && r.content.trim().length > 0
+    (r): r is AgentContext =>
+      !!r &&
+      ((typeof r.content === 'string' && r.content.trim().length > 0) ||
+        (typeof r.path === 'string' && r.path.length > 0))
   )
   logger.info('Processed contexts (server)', {
     totalRequested: contexts.length,
@@ -221,6 +251,25 @@ function sanitizeMessageForDocs(rawMessage: string, contexts: ChatContext[] | un
   return result
 }
 
+async function processSkillFromDb(
+  skillId: string,
+  workspaceId: string,
+  tag: string
+): Promise<AgentContext | null> {
+  try {
+    const s = await getSkillById({ skillId, workspaceId })
+    if (!s) return null
+    // Skills are autoloaded: carry the full SKILL.md body so the Go side can
+    // inject it into the dynamic system message for the turn. The path lets the
+    // model re-read the canonical VFS file if it needs to.
+    const path = `agent/skills/${encodeVfsSegment(s.name)}.json`
+    return { type: 'skill', tag, content: s.content, path }
+  } catch (error) {
+    logger.error('Error processing skill context (db)', { skillId, error })
+    return null
+  }
+}
+
 async function processPastChatFromDb(
   chatId: string,
   userId: string,
@@ -274,13 +323,33 @@ async function processPastChatFromDb(
   }
 }
 
+/**
+ * Resolve a workflow folder id to its canonical, per-segment-encoded VFS folder
+ * path. Returns null for root-level workflows or when the folder can't be
+ * resolved. Uses the shared {@link buildVfsFolderPathMap} so the pointer path
+ * matches what the workspace VFS serves.
+ */
+async function resolveWorkflowFolderPath(
+  workspaceId: string | null | undefined,
+  folderId: string | null | undefined
+): Promise<string | null> {
+  if (!folderId || !workspaceId) return null
+  try {
+    const folders = await listFolders(workspaceId)
+    return buildVfsFolderPathMap(folders).get(folderId) ?? null
+  } catch (error) {
+    logger.warn('Failed to resolve workflow folder path', { workspaceId, folderId, error })
+    return null
+  }
+}
+
 async function processWorkflowFromDb(
   workflowId: string,
   userId: string | undefined,
   tag: string,
   kind: 'workflow' | 'current_workflow' = 'workflow',
   currentWorkspaceId?: string,
-  chatId?: string
+  _chatId?: string
 ): Promise<AgentContext | null> {
   try {
     let workflowRecord: Awaited<ReturnType<typeof getActiveWorkflowRecord>> = null
@@ -303,50 +372,18 @@ async function processWorkflowFromDb(
     if (!workflowRecord) {
       workflowRecord = await getActiveWorkflowRecord(workflowId)
     }
+    if (!workflowRecord) return null
 
-    if (kind === 'workflow') {
-      if (!workflowRecord) return null
-      const content = serializeWorkflowMeta({
-        id: workflowRecord.id,
-        name: workflowRecord.name,
-        description: workflowRecord.description,
-        isDeployed: workflowRecord.isDeployed,
-        deployedAt: workflowRecord.deployedAt,
-        runCount: workflowRecord.runCount,
-        lastRunAt: workflowRecord.lastRunAt,
-        createdAt: workflowRecord.createdAt,
-        updatedAt: workflowRecord.updatedAt,
-      })
-      return { type: kind, tag, content }
-    }
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalized) {
-      logger.warn('No normalized workflow data found', { workflowId })
-      return null
-    }
-
-    const workflowState = {
-      blocks: normalized.blocks || {},
-      edges: normalized.edges || [],
-      loops: normalized.loops || {},
-      parallels: normalized.parallels || {},
-    }
-    const sanitizedState = sanitizeForCopilot(workflowState)
-    const content = JSON.stringify(
-      {
-        workflowId,
-        workflowName: workflowRecord?.name || undefined,
-        state: sanitizedState,
-      },
-      null,
-      2
+    // Emit a VFS-path pointer instead of the full (potentially huge) workflow
+    // state/meta. `current_workflow` points at the live state; a plain
+    // `workflow` mention points at the lighter metadata file.
+    const folderPath = await resolveWorkflowFolderPath(
+      workflowRecord.workspaceId ?? currentWorkspaceId,
+      workflowRecord.folderId
     )
-    logger.info('Processed sanitized workflow context', {
-      workflowId,
-      blocks: Object.keys(sanitizedState.blocks || {}).length,
-    })
-    return { type: kind, tag, content }
+    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
+    const path = kind === 'current_workflow' ? `${dir}/state.json` : `${dir}/meta.json`
+    return { type: kind, tag, content: '', path }
   } catch (error) {
     logger.error('Error processing workflow context', { workflowId, error })
     return null
@@ -421,7 +458,6 @@ async function processKnowledgeFromDb(
       .select({
         id: knowledgeBase.id,
         name: knowledgeBase.name,
-        updatedAt: knowledgeBase.updatedAt,
       })
       .from(knowledgeBase)
       .where(and(...conditions))
@@ -429,30 +465,12 @@ async function processKnowledgeFromDb(
     const kb = kbRows?.[0]
     if (!kb) return null
 
-    // Load up to 20 recent doc filenames
-    const docRows = await db
-      .select({ filename: document.filename })
-      .from(document)
-      .where(
-        and(
-          eq(document.knowledgeBaseId, knowledgeBaseId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
-      )
-      .limit(20)
-
-    const sampleDocuments = docRows.map((d: any) => d.filename).filter(Boolean)
-    // We don't have total via this quick select; fallback to sample count
-    const summary = {
-      id: kb.id,
-      name: kb.name,
-      docCount: sampleDocuments.length,
-      sampleDocuments,
+    return {
+      type: 'knowledge',
+      tag,
+      content: '',
+      path: `${canonicalKnowledgeBaseVfsDir(kb.name)}/meta.json`,
     }
-    const content = JSON.stringify(summary)
-    return { type: 'knowledge', tag, content }
   } catch (error) {
     logger.error('Error processing knowledge context (db)', { knowledgeBaseId, error })
     return null
@@ -476,112 +494,13 @@ async function processBlockMetadata(
     }
 
     const { registry: blockRegistry } = await import('@/blocks/registry')
-    const { tools: toolsRegistry } = await import('@/tools/registry')
-    const SPECIAL_BLOCKS_METADATA: Record<string, any> = {}
-
-    let metadata: any = {}
-    if ((SPECIAL_BLOCKS_METADATA as any)[blockId]) {
-      metadata = { ...(SPECIAL_BLOCKS_METADATA as any)[blockId] }
-      metadata.tools = metadata.tools?.access || []
-    } else {
-      const blockConfig: any = (blockRegistry as any)[blockId]
-      if (!blockConfig) {
-        return null
-      }
-      metadata = {
-        id: blockId,
-        name: blockConfig.name || blockId,
-        description: blockConfig.description || '',
-        longDescription: blockConfig.longDescription,
-        category: blockConfig.category,
-        bgColor: blockConfig.bgColor,
-        inputs: blockConfig.inputs || {},
-        outputs: blockConfig.outputs
-          ? Object.fromEntries(
-              Object.entries(blockConfig.outputs).filter(([_, def]) => !isHiddenFromDisplay(def))
-            )
-          : {},
-        tools: blockConfig.tools?.access || [],
-        hideFromToolbar: blockConfig.hideFromToolbar,
-      }
-      if (blockConfig.subBlocks && Array.isArray(blockConfig.subBlocks)) {
-        metadata.subBlocks = (blockConfig.subBlocks as any[]).map((sb: any) => ({
-          id: sb.id,
-          name: sb.name,
-          type: sb.type,
-          description: sb.description,
-          default: sb.default,
-          options: Array.isArray(sb.options) ? sb.options : [],
-        }))
-      } else {
-        metadata.subBlocks = []
-      }
+    if (!(blockRegistry as any)[blockId]) {
+      return null
     }
 
-    if (Array.isArray(metadata.tools) && metadata.tools.length > 0) {
-      metadata.toolDetails = {}
-      for (const toolId of metadata.tools) {
-        const tool = (toolsRegistry as any)[toolId]
-        if (tool) {
-          metadata.toolDetails[toolId] = { name: tool.name, description: tool.description }
-        }
-      }
-    }
-
-    const content = JSON.stringify({ metadata })
-    return { type: 'blocks', tag, content }
+    return { type: 'blocks', tag, content: '', path: canonicalBlockVfsPath(blockId) }
   } catch (error) {
     logger.error('Error processing block metadata', { blockId, error })
-    return null
-  }
-}
-
-async function processTemplateFromDb(
-  templateId: string,
-  userId: string | undefined,
-  tag: string,
-  currentWorkspaceId?: string
-): Promise<AgentContext | null> {
-  try {
-    const access = await canAccessTemplate(templateId, userId)
-    if (!access.allowed) {
-      return null
-    }
-
-    if (currentWorkspaceId && access.template?.workflowId) {
-      const workflowRecord = await getActiveWorkflowRecord(access.template.workflowId)
-      if (!workflowRecord || workflowRecord.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-    } else if (currentWorkspaceId) {
-      return null
-    }
-
-    const rows = await db
-      .select({
-        id: templates.id,
-        name: templates.name,
-        details: templates.details,
-        stars: templates.stars,
-        state: templates.state,
-      })
-      .from(templates)
-      .where(eq(templates.id, templateId))
-      .limit(1)
-    const t = rows?.[0]
-    if (!t) return null
-    const workflowState = t.state || {}
-    const summary = {
-      id: t.id,
-      name: t.name,
-      description: (t.details as any)?.tagline || '',
-      stars: t.stars || 0,
-      workflow: workflowState,
-    }
-    const content = JSON.stringify(summary)
-    return { type: 'templates', tag, content }
-  } catch (error) {
-    logger.error('Error processing template context (db)', { templateId, error })
     return null
   }
 }
@@ -594,6 +513,7 @@ async function processWorkflowBlockFromDb(
   currentWorkspaceId?: string
 ): Promise<AgentContext | null> {
   try {
+    let workflowRecord: Awaited<ReturnType<typeof getActiveWorkflowRecord>> = null
     if (userId) {
       const authorization = await authorizeWorkflowByWorkspacePermission({
         workflowId,
@@ -606,20 +526,28 @@ async function processWorkflowBlockFromDb(
       if (currentWorkspaceId && authorization.workflow?.workspaceId !== currentWorkspaceId) {
         return null
       }
+      workflowRecord = authorization.workflow ?? null
     }
 
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-    if (!normalized) return null
-    const block = (normalized.blocks as any)[blockId]
-    if (!block) return null
-    const tag = label ? `@${label} in Workflow` : `@${block.name || blockId} in Workflow`
-
-    const contentObj = {
-      workflowId,
-      block: block,
+    if (!workflowRecord) {
+      workflowRecord = await getActiveWorkflowRecord(workflowId)
     }
-    const content = JSON.stringify(contentObj)
-    return { type: 'workflow_block', tag, content }
+    if (!workflowRecord) return null
+
+    const folderPath = await resolveWorkflowFolderPath(
+      workflowRecord.workspaceId ?? currentWorkspaceId,
+      workflowRecord.folderId
+    )
+    const dir = canonicalWorkflowVfsDir({ name: workflowRecord.name, folderPath })
+    const tag = label ? `@${label} in Workflow` : `@${blockId} in Workflow`
+    // Point at the workflow state; the block id tells the model which node to
+    // look up inside state.json without inlining the full block definition.
+    return {
+      type: 'workflow_block',
+      tag,
+      content: `Block id: ${blockId}`,
+      path: `${dir}/state.json`,
+    }
   } catch (error) {
     logger.error('Error processing workflow_block context', { workflowId, blockId, error })
     return null
@@ -734,7 +662,12 @@ export async function resolveActiveResourceContext(
           chatId
         )
         if (!ctx) return null
-        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
+        return {
+          type: 'active_resource',
+          tag: '@active_resource',
+          content: ctx.content,
+          path: ctx.path,
+        }
       }
       case 'knowledgebase': {
         const ctx = await processKnowledgeFromDb(
@@ -744,7 +677,12 @@ export async function resolveActiveResourceContext(
           workspaceId
         )
         if (!ctx) return null
-        return { type: 'active_resource', tag: '@active_resource', content: ctx.content }
+        return {
+          type: 'active_resource',
+          tag: '@active_resource',
+          content: ctx.content,
+          path: ctx.path,
+        }
       }
       case 'table': {
         return await resolveTableResource(resourceId, workspaceId)
@@ -776,7 +714,8 @@ async function resolveTableResource(
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: serializeTableMeta(table),
+    content: '',
+    path: canonicalTableVfsPath(table.name),
   }
 }
 
@@ -789,13 +728,8 @@ async function resolveFileResource(
   return {
     type: 'active_resource',
     tag: '@active_resource',
-    content: serializeFileMeta({
-      id: record.id,
-      name: record.name,
-      contentType: record.type,
-      size: record.size,
-      uploadedAt: record.uploadedAt,
-    }),
+    content: '',
+    path: canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name }),
   }
 }
 
@@ -804,38 +738,15 @@ async function resolveFileFolderResource(
   workspaceId: string
 ): Promise<AgentContext | null> {
   try {
-    const { workspaceFileFolder, workspaceFiles } = await import('@sim/db/schema')
-    const [folder] = await db
-      .select({ id: workspaceFileFolder.id, name: workspaceFileFolder.name })
-      .from(workspaceFileFolder)
-      .where(
-        and(
-          eq(workspaceFileFolder.id, folderId),
-          eq(workspaceFileFolder.workspaceId, workspaceId),
-          isNull(workspaceFileFolder.deletedAt)
-        )
-      )
-      .limit(1)
-    if (!folder) return null
-
-    const files = await db
-      .select({
-        name: workspaceFiles.originalName,
-        type: workspaceFiles.contentType,
-      })
-      .from(workspaceFiles)
-      .where(
-        and(
-          eq(workspaceFiles.folderId, folderId),
-          eq(workspaceFiles.workspaceId, workspaceId),
-          isNull(workspaceFiles.deletedAt)
-        )
-      )
-
-    const fileList = files.map((f) => `- ${f.name}${f.type ? ` (${f.type})` : ''}`).join('\n')
-    const content = `File Folder: ${folder.name} (id: ${folder.id})\nFiles:\n${fileList || '(empty)'}`
-
-    return { type: 'active_resource', tag: '@active_resource', content }
+    const rawPath = await getWorkspaceFileFolderPath(workspaceId, folderId)
+    if (!rawPath) return null
+    const encoded = encodeVfsPathSegments(rawPath.split('/').filter(Boolean))
+    return {
+      type: 'active_resource',
+      tag: '@active_resource',
+      content: '',
+      path: `files/${encoded}`,
+    }
   } catch (error) {
     logger.error('Failed to resolve file folder resource', { folderId, error })
     return null
@@ -846,26 +757,12 @@ async function resolveFolderResource(
   folderId: string,
   workspaceId: string
 ): Promise<AgentContext | null> {
-  try {
-    const { workflowFolder, workflow } = await import('@sim/db/schema')
-    const [folder] = await db
-      .select({ id: workflowFolder.id, name: workflowFolder.name })
-      .from(workflowFolder)
-      .where(and(eq(workflowFolder.id, folderId), eq(workflowFolder.workspaceId, workspaceId)))
-      .limit(1)
-    if (!folder) return null
-
-    const workflows = await db
-      .select({ id: workflow.id, name: workflow.name })
-      .from(workflow)
-      .where(and(eq(workflow.folderId, folderId), eq(workflow.workspaceId, workspaceId)))
-
-    const workflowList = workflows.map((w) => `- ${w.name} (id: ${w.id})`).join('\n')
-    const content = `Folder: ${folder.name} (id: ${folder.id})\nWorkflows:\n${workflowList || '(empty)'}`
-
-    return { type: 'active_resource', tag: '@active_resource', content }
-  } catch (error) {
-    logger.error('Failed to resolve folder resource', { folderId, error })
-    return null
+  const folderPath = await resolveWorkflowFolderPath(workspaceId, folderId)
+  if (!folderPath) return null
+  return {
+    type: 'active_resource',
+    tag: '@active_resource',
+    content: '',
+    path: `workflows/${folderPath}`,
   }
 }

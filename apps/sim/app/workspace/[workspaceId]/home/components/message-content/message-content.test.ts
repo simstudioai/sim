@@ -1,0 +1,201 @@
+/**
+ * @vitest-environment node
+ */
+import { describe, expect, it } from 'vitest'
+import type { ContentBlock } from '../../types'
+import { parseBlocks, shouldSmoothTextSegment } from './message-content'
+
+function subagentStart(name: string, spanId: string, parentSpanId: string): ContentBlock {
+  return { type: 'subagent', content: name, spanId, parentSpanId, timestamp: 1 }
+}
+
+function subagentToolCall(
+  id: string,
+  name: string,
+  spanId: string,
+  calledBy: string
+): ContentBlock {
+  return {
+    type: 'tool_call',
+    toolCall: { id, name, status: 'success', calledBy },
+    spanId,
+    timestamp: 1,
+  }
+}
+
+function mainText(content: string): ContentBlock {
+  return { type: 'text', content, timestamp: 1 }
+}
+
+function mainToolCall(id: string, name: string): ContentBlock {
+  return { type: 'tool_call', toolCall: { id, name, status: 'success' }, timestamp: 1 }
+}
+
+describe('parseBlocks span-identity tree', () => {
+  it('nests a deploy subagent inside the workflow subagent that spawned it', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentToolCall('t1', 'create_workflow', 'S1', 'workflow'),
+      subagentStart('deploy', 'S2', 'S1'),
+      subagentToolCall('t2', 'check_deployment_status', 'S2', 'deploy'),
+    ]
+
+    const segments = parseBlocks(blocks)
+
+    expect(segments).toHaveLength(1)
+    const workflow = segments[0]
+    expect(workflow.type).toBe('agent_group')
+    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
+    expect(workflow.agentName).toBe('workflow')
+
+    const nested = workflow.items.find((item) => item.type === 'agent_group')
+    expect(nested).toBeDefined()
+    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested deploy group')
+    expect(nested.group.agentName).toBe('deploy')
+    // Deploy's own tool nests under deploy, not under workflow.
+    expect(nested.group.items.some((item) => item.type === 'tool')).toBe(true)
+  })
+
+  it('keeps two top-level subagents as siblings', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentStart('research', 'S3', 'main'),
+    ]
+
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+  })
+
+  it('creates distinct groups for repeated deploy invocations (no collision)', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('deploy', 'S2', 'main'),
+      subagentToolCall('t1', 'deploy_api', 'S2', 'deploy'),
+      subagentStart('deploy', 'S4', 'main'),
+      subagentToolCall('t2', 'deploy_api', 'S4', 'deploy'),
+    ]
+
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+  })
+
+  it('shows the delegating spinner while a span subagent is open with no output, and clears it once content arrives', () => {
+    const openOnly = parseBlocks([subagentStart('deploy', 'S2', 'main')])
+    expect(openOnly).toHaveLength(1)
+    if (openOnly[0].type !== 'agent_group') throw new Error('expected group')
+    expect(openOnly[0].isDelegating).toBe(true)
+
+    const withContent = parseBlocks([
+      subagentStart('deploy', 'S2', 'main'),
+      { type: 'subagent_text', content: 'working on it', spanId: 'S2', timestamp: 2 },
+    ])
+    if (withContent[0].type !== 'agent_group') throw new Error('expected group')
+    expect(withContent[0].isDelegating).toBe(false)
+  })
+
+  it('prunes an empty nested subagent that started and ended without output', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentToolCall('t1', 'create_workflow', 'S1', 'workflow'),
+      subagentStart('deploy', 'S2', 'S1'),
+      { type: 'subagent_end', spanId: 'S2', parentSpanId: 'S1', timestamp: 3 },
+    ]
+    const segments = parseBlocks(blocks)
+    expect(segments).toHaveLength(1)
+    if (segments[0].type !== 'agent_group') throw new Error('expected workflow group')
+    // The empty, ended deploy group is pruned; only the workflow tool remains.
+    expect(segments[0].items.some((item) => item.type === 'agent_group')).toBe(false)
+    expect(segments[0].items.some((item) => item.type === 'tool')).toBe(true)
+  })
+
+  it('interleaves mothership tools with main text instead of clustering them at the top', () => {
+    const blocks: ContentBlock[] = [
+      mainText('Let me search.'),
+      mainToolCall('t1', 'grep'),
+      subagentStart('research', 'S1', 'main'),
+      { type: 'subagent_text', content: 'looking', spanId: 'S1', timestamp: 2 },
+      { type: 'subagent_end', spanId: 'S1', parentSpanId: 'main', timestamp: 3 },
+      mainText('Found it, now finding files.'),
+      mainToolCall('t2', 'glob'),
+    ]
+
+    const segments = parseBlocks(blocks)
+
+    // Order is preserved chronologically: the second mothership tool stays below
+    // the research subagent and the trailing text rather than jumping back up
+    // into the first group.
+    const shape = segments.map((s) => (s.type === 'agent_group' ? s.agentName : s.type))
+    expect(shape).toEqual(['text', 'mothership', 'research', 'text', 'mothership'])
+
+    // The two mothership tools land in two distinct groups, one each.
+    const mothershipGroups = segments.filter(
+      (s) => s.type === 'agent_group' && s.agentName === 'mothership'
+    )
+    expect(mothershipGroups).toHaveLength(2)
+    const [first, second] = mothershipGroups
+    if (first.type !== 'agent_group' || second.type !== 'agent_group') {
+      throw new Error('expected mothership groups')
+    }
+    expect(first.items).toHaveLength(1)
+    expect(second.items).toHaveLength(1)
+    expect(first.items[0].type === 'tool' && first.items[0].data.toolName).toBe('grep')
+    expect(second.items[0].type === 'tool' && second.items[0].data.toolName).toBe('glob')
+  })
+
+  it('absorbs the dispatch tool of a nested file subagent from its parent span group', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentToolCall('t1', 'workspace_file', 'S1', 'workflow'),
+      { type: 'subagent', content: 'file', spanId: 'S2', parentSpanId: 'S1', timestamp: 2 },
+      { type: 'subagent_text', content: 'writing', spanId: 'S2', timestamp: 3 },
+    ]
+
+    const segments = parseBlocks(blocks)
+    expect(segments).toHaveLength(1)
+    const workflow = segments[0]
+    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
+
+    // The workspace_file dispatch tool is absorbed (not shown as a sibling tool);
+    // only the nested file subagent remains under workflow.
+    expect(workflow.items.some((item) => item.type === 'tool')).toBe(false)
+    const nested = workflow.items.find((item) => item.type === 'agent_group')
+    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested file group')
+    expect(nested.group.agentName).toBe('file')
+  })
+
+  it('falls back to legacy flat grouping when blocks have no span identity', () => {
+    const blocks: ContentBlock[] = [
+      { type: 'subagent', content: 'workflow', parentToolCallId: 'tc-1', timestamp: 1 },
+      {
+        type: 'tool_call',
+        toolCall: { id: 't1', name: 'create_workflow', status: 'success', calledBy: 'workflow' },
+        parentToolCallId: 'tc-1',
+        timestamp: 1,
+      },
+    ]
+
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    if (groups[0].type !== 'agent_group') throw new Error('expected group')
+    expect(groups[0].agentName).toBe('workflow')
+  })
+})
+
+describe('shouldSmoothTextSegment', () => {
+  it('only smooths the trailing text segment of a live stream', () => {
+    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 0, segmentCount: 2 })).toBe(
+      false
+    )
+    expect(shouldSmoothTextSegment({ isStreaming: true, segmentIndex: 1, segmentCount: 2 })).toBe(
+      true
+    )
+  })
+
+  it('never smooths completed messages', () => {
+    expect(shouldSmoothTextSegment({ isStreaming: false, segmentIndex: 0, segmentCount: 1 })).toBe(
+      false
+    )
+  })
+})

@@ -83,14 +83,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
   }
 
   if (!showWorkflowControls) {
-    return <div data-tour='workflow-controls' className='hidden' />
+    return <div className='hidden' />
   }
 
   return (
     <>
       <div
         className='absolute bottom-4 left-[16px] z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
-        data-tour='workflow-controls'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}

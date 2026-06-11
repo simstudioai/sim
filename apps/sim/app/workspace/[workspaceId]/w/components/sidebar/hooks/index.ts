@@ -1,4 +1,5 @@
 export { useAutoScroll } from './use-auto-scroll'
+export { useChatSelection } from './use-chat-selection'
 export { useContextMenu } from './use-context-menu'
 export { type DropIndicator, useDragDrop } from './use-drag-drop'
 export { useFlyoutInlineRename } from './use-flyout-inline-rename'
@@ -9,12 +10,11 @@ export { useHoverMenu } from './use-hover-menu'
 export { useItemDrag } from './use-item-drag'
 export { useItemRename } from './use-item-rename'
 export {
-  SidebarDragContext,
-  useSidebarDragContext,
-  useSidebarDragContextValue,
-} from './use-sidebar-drag-context'
+  SidebarListContext,
+  useSidebarListContext,
+  useSidebarListContextValue,
+} from './use-sidebar-list-context'
 export { useSidebarResize } from './use-sidebar-resize'
-export { useTaskSelection } from './use-task-selection'
 export { useWorkflowOperations } from './use-workflow-operations'
 export { useWorkflowSelection } from './use-workflow-selection'
 export { useWorkspaceLogoUpload } from './use-workspace-logo-upload'

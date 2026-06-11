@@ -1,37 +1,30 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { Skeleton, type TagItem } from '@/components/emcn'
+import { Chip, Plus } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
-import { getPlanTierCredits, getPlanTierDollars } from '@/lib/billing/plan-helpers'
-import { checkEnterprisePlan, checkTeamPlan } from '@/lib/billing/subscriptions/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
 import {
-  MemberInvitationCard,
   NoOrganizationView,
-  OrganizationRoster,
+  OrganizationInviteModal,
+  OrganizationMemberLists,
   RemoveMemberDialog,
-  TeamSeats,
   TeamSeatsOverview,
   TransferOwnershipDialog,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components'
 import {
   useCreateOrganization,
-  useInviteMember,
   useOrganization,
   useOrganizationBilling,
   useOrganizationRoster,
-  useOrganizationSubscription,
   useOrganizations,
   useRemoveMember,
   useTransferOwnership,
-  useUpdateSeats,
 } from '@/hooks/queries/organization'
 import { useOpenBillingPortal, useSubscriptionData } from '@/hooks/queries/subscription'
-import { useAdminWorkspaces } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 const logger = createLogger('TeamManagement')
@@ -54,59 +47,62 @@ export function TeamManagement() {
     error: orgError,
   } = useOrganization(activeOrganization?.id || '')
 
-  const {
-    data: subscriptionData,
-    isLoading: isLoadingSubscription,
-    error: subscriptionError,
-  } = useOrganizationSubscription(activeOrganization?.id || '')
-
-  const { data: organizationBillingData } = useOrganizationBilling(activeOrganization?.id || '')
+  const { data: organizationBillingData, isLoading: isOrgBillingLoading } = useOrganizationBilling(
+    activeOrganization?.id || ''
+  )
 
   const { data: roster, isLoading: isLoadingRoster } = useOrganizationRoster(activeOrganization?.id)
 
-  const inviteMutation = useInviteMember()
   const removeMemberMutation = useRemoveMember()
   const transferOwnershipMutation = useTransferOwnership()
   const openBillingPortal = useOpenBillingPortal()
-  const updateSeatsMutation = useUpdateSeats()
   const createOrgMutation = useCreateOrganization()
 
-  const costPerSeat = getPlanTierDollars(subscriptionData?.plan)
-  const creditsPerSeat = getPlanTierCredits(subscriptionData?.plan)
-
-  const [inviteSuccess, setInviteSuccess] = useState(false)
-
-  const [inviteEmails, setInviteEmails] = useState<TagItem[]>([])
-  const [showWorkspaceInvite, setShowWorkspaceInvite] = useState(false)
-  const [selectedWorkspaces, setSelectedWorkspaces] = useState<
-    Array<{ workspaceId: string; permission: string }>
-  >([])
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
   const [createOrgDialogOpen, setCreateOrgDialogOpen] = useState(false)
   const [removeMemberDialog, setRemoveMemberDialog] = useState<{
     open: boolean
     memberId: string
     memberName: string
-    shouldReduceSeats: boolean
     isSelfRemoval?: boolean
     isExternalRemoval?: boolean
-  }>({ open: false, memberId: '', memberName: '', shouldReduceSeats: false })
+  }>({ open: false, memberId: '', memberName: '' })
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [transferPortalError, setTransferPortalError] = useState<string | null>(null)
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
-  const [isAddSeatDialogOpen, setIsAddSeatDialogOpen] = useState(false)
-  const [newSeatCount, setNewSeatCount] = useState(1)
-  const [isUpdatingSeats, setIsUpdatingSeats] = useState(false)
-
-  const { data: adminWorkspaces = [], isLoading: isLoadingWorkspaces } = useAdminWorkspaces(
-    session?.user?.id,
-    activeOrganization?.id
-  )
 
   const adminOrOwner = isAdminOrOwner(organization, session?.user?.email)
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
-  const usedSeats = organizationBillingData?.data?.usedSeats ?? 0
-  const canReduceSubscriptionSeats = Boolean(subscriptionData && checkTeamPlan(subscriptionData))
+  // Seats are consumed only by accepted members (seat count is reconciled to the
+  // member count on accept/removal). Pending invites are surfaced separately and
+  // do not count as used until they are accepted.
+  const usedSeats = organizationBillingData?.data?.members?.length ?? 0
+  const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
+  const pendingSeats = Math.max(0, reservedSeats - usedSeats)
+
+  /**
+   * The org's active subscription, derived from DB-backed organization billing
+   * (`getOrganizationBillingData` only returns data when an entitled org
+   * subscription exists). We intentionally do not read this from better-auth's
+   * `client.subscription.list`, which does not reliably surface org-scoped
+   * subscriptions.
+   */
+  const orgBilling = organizationBillingData?.data ?? null
+  const orgSubscription = orgBilling
+    ? {
+        id: orgBilling.organizationId,
+        plan: orgBilling.subscriptionPlan,
+        status: orgBilling.subscriptionStatus ?? 'active',
+        referenceId: orgBilling.organizationId,
+      }
+    : null
+
+  const existingEmails = useMemo(() => {
+    const memberEmails = (roster?.members ?? []).map((member) => member.email)
+    const pendingEmails = (roster?.pendingInvitations ?? []).map((invitation) => invitation.email)
+    return [...memberEmails, ...pendingEmails]
+  }, [roster])
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -139,53 +135,6 @@ export function TeamManagement() {
     }
   }, [orgName, orgSlug, createOrgMutation])
 
-  const handleInviteMember = useCallback(async () => {
-    const validEmails = inviteEmails.filter((e) => e.isValid).map((e) => e.value)
-    if (!session?.user || !activeOrganization?.id || validEmails.length === 0) return
-    if (selectedWorkspaces.length === 0) {
-      setShowWorkspaceInvite(true)
-      return
-    }
-
-    try {
-      const workspaceInvitations = selectedWorkspaces.map((w) => ({
-        workspaceId: w.workspaceId,
-        permission: w.permission as 'admin' | 'write' | 'read',
-      }))
-
-      await inviteMutation.mutateAsync({
-        emails: validEmails,
-        orgId: activeOrganization.id,
-        workspaceInvitations,
-      })
-
-      setInviteSuccess(true)
-      setTimeout(() => setInviteSuccess(false), 3000)
-
-      setInviteEmails([])
-      setSelectedWorkspaces([])
-      setShowWorkspaceInvite(false)
-    } catch (error) {
-      logger.error('Failed to invite member', error)
-    }
-  }, [session?.user?.id, activeOrganization?.id, inviteEmails, selectedWorkspaces, inviteMutation])
-
-  const handleWorkspaceToggle = useCallback((workspaceId: string, permission: string) => {
-    setSelectedWorkspaces((prev) => {
-      const exists = prev.find((w) => w.workspaceId === workspaceId)
-
-      if (!permission || permission === '') {
-        return prev.filter((w) => w.workspaceId !== workspaceId)
-      }
-
-      if (exists) {
-        return prev.map((w) => (w.workspaceId === workspaceId ? { ...w, permission } : w))
-      }
-
-      return [...prev, { workspaceId, permission }]
-    })
-  }, [])
-
   const handleRemoveMember = useCallback(
     async (member: Member) => {
       if (!session?.user || !activeOrganization?.id) return
@@ -204,7 +153,6 @@ export function TeamManagement() {
         open: true,
         memberId: member.user.id,
         memberName: displayName,
-        shouldReduceSeats: false,
         isSelfRemoval: isLeavingSelf,
         isExternalRemoval: member.role === 'external',
       })
@@ -212,41 +160,36 @@ export function TeamManagement() {
     [session?.user, activeOrganization?.id]
   )
 
-  const confirmRemoveMember = useCallback(
-    async (shouldReduceSeats = false) => {
-      const { memberId, isSelfRemoval } = removeMemberDialog
-      if (!session?.user || !activeOrganization?.id || !memberId) return
+  const confirmRemoveMember = useCallback(async () => {
+    const { memberId, isSelfRemoval } = removeMemberDialog
+    if (!session?.user || !activeOrganization?.id || !memberId) return
 
-      try {
-        await removeMemberMutation.mutateAsync({
-          memberId,
-          orgId: activeOrganization?.id,
-          shouldReduceSeats,
-        })
+    try {
+      await removeMemberMutation.mutateAsync({
+        memberId,
+        orgId: activeOrganization?.id,
+      })
 
-        setRemoveMemberDialog({
-          open: false,
-          memberId: '',
-          memberName: '',
-          shouldReduceSeats: false,
-          isExternalRemoval: false,
-        })
+      setRemoveMemberDialog({
+        open: false,
+        memberId: '',
+        memberName: '',
+        isExternalRemoval: false,
+      })
 
-        if (isSelfRemoval) {
-          window.location.href = '/workspace'
-        }
-      } catch (error) {
-        logger.error('Failed to remove member', error)
+      if (isSelfRemoval) {
+        window.location.href = '/workspace'
       }
-    },
-    [
-      removeMemberDialog.memberId,
-      removeMemberDialog.isSelfRemoval,
-      session?.user?.id,
-      activeOrganization?.id,
-      removeMemberMutation,
-    ]
-  )
+    } catch (error) {
+      logger.error('Failed to remove member', error)
+    }
+  }, [
+    removeMemberDialog.memberId,
+    removeMemberDialog.isSelfRemoval,
+    session?.user?.id,
+    activeOrganization?.id,
+    removeMemberMutation,
+  ])
 
   const handleTransferDialogOpenChange = useCallback(
     (next: boolean) => {
@@ -319,101 +262,12 @@ export function TeamManagement() {
     )
   }, [activeOrganization?.id, openBillingPortal])
 
-  const handleAddSeatDialog = useCallback(() => {
-    if (subscriptionData && !checkEnterprisePlan(subscriptionData)) {
-      setNewSeatCount(totalSeats + 1)
-      setIsAddSeatDialogOpen(true)
-    }
-  }, [subscriptionData, totalSeats])
-
-  const confirmAddSeats = useCallback(
-    async (selectedSeats?: number) => {
-      if (!subscriptionData || !activeOrganization?.id) return
-
-      const seatsToUse = selectedSeats || newSeatCount
-      setIsUpdatingSeats(true)
-
-      try {
-        await updateSeatsMutation.mutateAsync({
-          orgId: activeOrganization?.id,
-          seats: seatsToUse,
-        })
-        setIsAddSeatDialogOpen(false)
-      } catch (error) {
-        logger.error('Failed to add seats', error)
-      } finally {
-        setIsUpdatingSeats(false)
-      }
-    },
-    [subscriptionData, activeOrganization?.id, newSeatCount, updateSeatsMutation]
-  )
-
-  const queryError = orgError || subscriptionError
+  const queryError = orgError
   const errorMessage = queryError instanceof Error ? queryError.message : null
   const displayOrganization = organization || activeOrganization
 
   if (isLoading && !displayOrganization && !(hasTeamPlan || hasEnterprisePlan)) {
-    return (
-      <div className='flex h-full flex-col gap-4.5'>
-        {/* Team Seats Overview */}
-        <div>
-          <div className='rounded-lg border bg-[var(--surface-3)] p-4 shadow-xs'>
-            <div className='space-y-3'>
-              <div className='flex items-center justify-between'>
-                <Skeleton className='h-5 w-24' />
-                <Skeleton className='h-8 w-20 rounded-md' />
-              </div>
-              <div className='flex items-center gap-4.5'>
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-16' />
-                  <Skeleton className='h-6 w-8' />
-                </div>
-                <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-20' />
-                  <Skeleton className='h-6 w-8' />
-                </div>
-                <div className='h-8 w-px bg-[var(--border)]' />
-                <div className='flex flex-col gap-1'>
-                  <Skeleton className='h-3 w-24' />
-                  <Skeleton className='h-6 w-12' />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Team Members */}
-        <div>
-          <Skeleton className='mb-3 h-5 w-32' />
-          <div className='space-y-2'>
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className='flex items-center justify-between rounded-lg border p-3'>
-                <div className='flex items-center gap-3'>
-                  <Skeleton className='size-10 rounded-full' />
-                  <div className='space-y-1'>
-                    <Skeleton className='h-4 w-32' />
-                    <Skeleton className='h-3 w-24' />
-                  </div>
-                </div>
-                <Skeleton className='h-6 w-16 rounded-full' />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Invite Member Card */}
-        <div>
-          <div className='rounded-lg border bg-[var(--surface-3)] p-4'>
-            <Skeleton className='mb-3 h-5 w-32' />
-            <div className='space-y-3'>
-              <Skeleton className='h-9 w-full rounded-lg' />
-              <Skeleton className='h-9 w-full rounded-lg' />
-            </div>
-          </div>
-        </div>
-      </div>
-    )
+    return null
   }
 
   if (!displayOrganization) {
@@ -440,49 +294,57 @@ export function TeamManagement() {
   }
 
   return (
-    <div className='flex h-full flex-col gap-5'>
-      <div>
-        <TeamSeatsOverview
-          subscriptionData={subscriptionData || null}
-          isLoadingSubscription={isLoadingSubscription}
-          totalSeats={totalSeats}
-          usedSeats={usedSeats}
-          isLoading={isLoading}
-          onAddSeatDialog={handleAddSeatDialog}
-        />
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center'>
+          <Chip
+            leftIcon={Plus}
+            variant='primary'
+            onClick={() => setInviteModalOpen(true)}
+            disabled={isInvitationsDisabled}
+            title={isInvitationsDisabled ? 'Invitations are disabled' : undefined}
+          >
+            Invite
+          </Chip>
+        </div>
       </div>
 
-      {!isInvitationsDisabled && (
-        <div>
-          <MemberInvitationCard
-            inviteEmails={inviteEmails}
-            setInviteEmails={setInviteEmails}
-            isInviting={inviteMutation.isPending}
-            showWorkspaceInvite={showWorkspaceInvite}
-            setShowWorkspaceInvite={setShowWorkspaceInvite}
-            selectedWorkspaces={selectedWorkspaces}
-            userWorkspaces={adminWorkspaces}
-            onInviteMember={handleInviteMember}
-            onLoadUserWorkspaces={async () => {}}
-            onWorkspaceToggle={handleWorkspaceToggle}
-            inviteSuccess={inviteSuccess}
-            availableSeats={Math.max(0, totalSeats - usedSeats)}
-            maxSeats={totalSeats}
-            invitationError={inviteMutation.error}
-            isLoadingWorkspaces={isLoadingWorkspaces}
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
+          <div className='flex flex-col gap-1'>
+            <h1 className='font-medium text-[var(--text-body)] text-lg'>Organization</h1>
+            <p className='text-[var(--text-muted)] text-md'>
+              Manage members and their access across every workspace in your organization.
+            </p>
+          </div>
+
+          <TeamSeatsOverview
+            subscriptionData={orgSubscription}
+            isLoadingSubscription={isOrgBillingLoading}
+            totalSeats={totalSeats}
+            usedSeats={usedSeats}
+            pendingSeats={pendingSeats}
+          />
+
+          <OrganizationMemberLists
+            organizationId={displayOrganization.id}
+            roster={roster ?? null}
+            isLoadingRoster={isLoadingRoster}
+            currentUserId={session?.user?.id ?? ''}
+            currentUserEmail={session?.user?.email ?? ''}
+            onRemoveMember={handleRemoveMember}
+            onTransferOwnership={handleOpenTransferDialog}
           />
         </div>
-      )}
+      </div>
 
-      <OrganizationRoster
+      <OrganizationInviteModal
+        open={inviteModalOpen}
+        onOpenChange={setInviteModalOpen}
         organizationId={displayOrganization.id}
-        roster={roster ?? null}
-        isLoadingRoster={isLoadingRoster}
-        currentUserEmail={session?.user?.email ?? ''}
-        currentUserId={session?.user?.id ?? ''}
-        isAdminOrOwner={adminOrOwner}
-        onRemoveMember={handleRemoveMember}
-        onTransferOwnership={handleOpenTransferDialog}
+        workspaces={roster?.workspaces ?? []}
+        existingEmails={existingEmails}
       />
 
       <TransferOwnershipDialog
@@ -494,7 +356,7 @@ export function TeamManagement() {
         isSubmitting={transferOwnershipMutation.isPending}
         error={transferOwnershipMutation.error}
         portalError={transferPortalError}
-        hasPaidSubscription={Boolean(subscriptionData)}
+        hasPaidSubscription={Boolean(orgSubscription)}
         isOpeningBillingPortal={openBillingPortal.isPending}
         onConfirm={handleConfirmTransfer}
         onOpenBillingPortal={handleOpenTransferBillingPortal}
@@ -503,8 +365,6 @@ export function TeamManagement() {
       <RemoveMemberDialog
         open={removeMemberDialog.open}
         memberName={removeMemberDialog.memberName}
-        shouldReduceSeats={removeMemberDialog.shouldReduceSeats}
-        canReduceSeats={canReduceSubscriptionSeats}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
         isExternalRemoval={removeMemberDialog.isExternalRemoval}
         isSubmitting={removeMemberMutation.isPending}
@@ -512,46 +372,17 @@ export function TeamManagement() {
         onOpenChange={(open: boolean) => {
           if (!open) setRemoveMemberDialog({ ...removeMemberDialog, open: false })
         }}
-        onShouldReduceSeatsChange={(shouldReduce: boolean) =>
-          setRemoveMemberDialog({
-            ...removeMemberDialog,
-            shouldReduceSeats: shouldReduce,
-          })
-        }
         onConfirmRemove={confirmRemoveMember}
         onCancel={() =>
           setRemoveMemberDialog({
             open: false,
             memberId: '',
             memberName: '',
-            shouldReduceSeats: false,
             isSelfRemoval: false,
             isExternalRemoval: false,
           })
         }
       />
-
-      {subscriptionData && !checkEnterprisePlan(subscriptionData) && (
-        <TeamSeats
-          open={isAddSeatDialogOpen}
-          onOpenChange={setIsAddSeatDialogOpen}
-          title='Add Team Seats'
-          description={`Each seat costs $${costPerSeat}/month and provides ${creditsPerSeat.toLocaleString()} monthly inference credits. Adjust the number of licensed seats for your team.`}
-          currentSeats={totalSeats}
-          initialSeats={newSeatCount}
-          isLoading={isUpdatingSeats}
-          error={updateSeatsMutation.error}
-          onConfirm={async (selectedSeats: number) => {
-            setNewSeatCount(selectedSeats)
-            await confirmAddSeats(selectedSeats)
-          }}
-          confirmButtonText='Update Seats'
-          showCostBreakdown={true}
-          isCancelledAtPeriodEnd={subscriptionData?.cancelAtPeriodEnd}
-          costPerSeatDollars={costPerSeat}
-          creditsPerSeat={creditsPerSeat}
-        />
-      )}
     </div>
   )
 }

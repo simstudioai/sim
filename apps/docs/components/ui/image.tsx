@@ -24,7 +24,7 @@ export function Image({
   const image = (
     <NextImage
       className={cn(
-        'overflow-hidden rounded-xl border border-border object-cover',
+        'overflow-hidden rounded-xl border border-[var(--border)] object-cover',
         enableLightbox && 'cursor-pointer transition-opacity group-hover:opacity-95',
         className
       )}

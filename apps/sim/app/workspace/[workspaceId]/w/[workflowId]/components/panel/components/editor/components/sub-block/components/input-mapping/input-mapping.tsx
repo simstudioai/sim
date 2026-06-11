@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, CollapsibleCard, Input } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
+import { Badge, CollapsibleCard, Input, Label } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -9,10 +8,10 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useWorkflowState } from '@/hooks/queries/workflows'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 /**
  * Props for the InputMappingField component
@@ -44,7 +43,6 @@ interface InputMappingProps {
   disabled?: boolean
   /** Sub-block values from the preview context for resolving sibling sub-block values */
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -59,8 +57,8 @@ export function InputMapping({
   previewValue,
   disabled = false,
   previewContextValues,
-  activeSearchTarget,
 }: InputMappingProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const subBlockId = subBlock.id
   const [mapping, setMapping] = useSubBlockValue(blockId, subBlockId)
   const { dependencyValues } = useDependsOnGate(blockId, subBlock, {
@@ -254,7 +252,7 @@ function InputMappingField({
       onToggleCollapse={onToggleCollapse}
     >
       <div className='flex flex-col gap-1.5'>
-        <Label className='text-small'>Value</Label>
+        <Label>Value</Label>
         <div className='relative'>
           <Input
             ref={(el) => {

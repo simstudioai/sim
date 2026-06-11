@@ -6,6 +6,7 @@ import type {
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
@@ -46,14 +47,17 @@ export function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): 
 export function checkboxColLayout(
   maxRows: number,
   hasWorkflowCols: boolean
-): { colWidth: number; numDivWidth: number } {
+): { colWidth: number; numRegionWidth: number } {
   const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
-  const numDivWidth = Math.max(20, digits * 8 + 4)
-  // When workflow columns are present a 20px run/stop button sits to the right of
-  // the number, separated by a 6px gap and a 4px right pad — 30px total. Reserving
-  // only the button width clipped the number on tables with many (wide) row indices.
-  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 30 : 0)
-  return { colWidth, numDivWidth }
+  const numWidth = Math.max(20, digits * 8 + 4)
+  // Region the number/checkbox is centered within (digit width + 12px breathing
+  // room, min 32). The select-all header checkbox centers in the same region so it
+  // lines up with the per-row checkboxes.
+  const numRegionWidth = Math.max(32, numWidth + 12)
+  // Workflow tables add a 20px run/stop button (+6px gap, +4px pad) to the right of
+  // the region; the checkbox stays centered in the space that remains.
+  const colWidth = numRegionWidth + (hasWorkflowCols ? 30 : 0)
+  return { colWidth, numRegionWidth }
 }
 
 export interface CellCoord {
@@ -106,10 +110,10 @@ export function expandToDisplayColumns(
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === child.name)
+        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
         out.push({
           ...child,
-          key: child.name,
+          key: getColumnId(child),
           outputBlockId: output?.blockId,
           outputPath: output?.path,
           groupSize: size,
@@ -122,7 +126,7 @@ export function expandToDisplayColumns(
     } else {
       out.push({
         ...column,
-        key: column.name,
+        key: getColumnId(column),
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,

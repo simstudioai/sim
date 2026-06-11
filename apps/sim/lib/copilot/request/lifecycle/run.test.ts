@@ -67,6 +67,7 @@ vi.mock('@/lib/core/config/env', () => ({
   },
   getEnv: vi.fn((key: string) => (key === 'NEXT_PUBLIC_APP_URL' ? 'http://localhost:3000' : '')),
   isTruthy: vi.fn((value: string | undefined) => value === 'true'),
+  isFalsy: vi.fn((value: string | undefined) => value === 'false'),
 }))
 
 vi.mock('@/lib/environment/utils', () => ({
@@ -85,6 +86,8 @@ vi.mock('@/lib/copilot/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
 }))
 
+import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
+import { CopilotBackendError } from '@/lib/copilot/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 
 describe('runCopilotLifecycle', () => {
@@ -223,6 +226,90 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  it('uses the final post-tool assistant content for headless results', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.Final answer only.'
+        context.finalAssistantContent = 'Final answer only.'
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: 'Final answer only.',
+      })
+    )
+  })
+
+  it('does not fall back to pre-tool narration when headless final content is empty', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'I will check that.'
+        context.finalAssistantContent = ''
+        context.sawMainToolCall = true
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        interactive: false,
+      }
+    )
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        content: '',
+      })
+    )
+  })
+
   it('propagates payload userPermission into the generated execution context', async () => {
     let capturedExecContext: ExecutionContext | undefined
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
@@ -254,5 +341,246 @@ describe('runCopilotLifecycle', () => {
         userPermission: 'write',
       })
     )
+  })
+
+  it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({})
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        requestBody = JSON.parse(String(fetchOptions.body))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+      }
+    )
+
+    expect(requestBody).toEqual(
+      expect.objectContaining({
+        workspaceId: 'ws-1',
+      })
+    )
+  })
+
+  it('uses the lifecycle workspaceId for async tool resume requests', async () => {
+    const requestBodies: Record<string, unknown>[] = []
+    const fetchUrls: string[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
+        fetchUrls.push(fetchUrl)
+        requestBodies.push(JSON.parse(String(fetchOptions.body)))
+      }
+    )
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+    expect(requestBodies[1]).toEqual(
+      expect.objectContaining({
+        checkpointId: 'ckpt-1',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      })
+    )
+  })
+
+  it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    // 1) Initial stream pauses on an async tool checkpoint with a resolved
+    //    tool result, so the lifecycle transitions into a resume leg.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // 2) First resume leg dies mid-stream like a transient provider error:
+    //    it records an error AND throws a retryable 5xx.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.errors.push(
+          'Copilot backend stream ended before a terminal event on /api/tools/resume'
+        )
+        throw new CopilotBackendError('backend stream ended before a terminal event', {
+          status: 503,
+        })
+      }
+    )
+
+    // 3) Retry of the same resume leg succeeds cleanly.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        context.accumulatedContent = 'Recovered final answer.'
+        context.finalAssistantContent = 'Recovered final answer.'
+      }
+    )
+
+    const result = await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    // Three legs ran (initial + failed resume + retried resume), and the
+    // recovered retry must NOT inherit the failed attempt's error.
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(3)
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: true,
+        cancelled: false,
+        errors: undefined,
+      })
+    )
+  })
+
+  it('marks resume legs willRetryOnStreamError except the final attempt', async () => {
+    const bodies: Record<string, unknown>[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: '',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+      decryptedEnvVars: {},
+    }
+
+    // Initial leg pauses on a resolved async tool checkpoint → enters resume.
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        fetchOptions: RequestInit,
+        context: StreamingContext
+      ): Promise<void> => {
+        bodies.push(JSON.parse(String(fetchOptions.body)))
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+
+    // Three resume attempts, all failing with a retryable 5xx so the loop
+    // exhausts MAX_RESUME_ATTEMPTS (= 3) and gives up.
+    for (let i = 0; i < 3; i++) {
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          _fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.errors.push('Copilot backend stream ended before a terminal event')
+          throw new CopilotBackendError('backend stream ended before a terminal event', {
+            status: 503,
+          })
+        }
+      )
+    }
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+      }
+    )
+
+    // Initial + 3 resume attempts.
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(4)
+    // Initial leg is never retried by this loop → no flag.
+    expect(bodies[0].willRetryOnStreamError).toBeUndefined()
+    // Resume attempts 0 and 1 will be retried on a stream error → flagged.
+    expect(bodies[1].willRetryOnStreamError).toBe(true)
+    expect(bodies[2].willRetryOnStreamError).toBe(true)
+    // Final attempt (2) is terminal → not flagged, so Go bills + surfaces it.
+    expect(bodies[3].willRetryOnStreamError).toBeUndefined()
   })
 })

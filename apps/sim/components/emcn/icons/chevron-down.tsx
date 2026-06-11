@@ -18,7 +18,7 @@ export function ChevronDown(props: SVGProps<SVGSVGElement>) {
       <path
         d='M1 1L5 5L9 1'
         stroke='currentColor'
-        strokeWidth='1.33'
+        strokeWidth='1.2'
         strokeLinecap='square'
         strokeLinejoin='miter'
         fill='none'

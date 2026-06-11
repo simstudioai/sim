@@ -82,6 +82,7 @@ export const polymarketGetHoldersTool: ToolConfig<
         name: h.name ?? null,
         profileImage: h.profileImage ?? null,
         profileImageOptimized: h.profileImageOptimized ?? null,
+        verified: h.verified ?? false,
       })),
     }))
 
@@ -123,6 +124,7 @@ export const polymarketGetHoldersTool: ToolConfig<
                   type: 'string',
                   description: 'Optimized profile image URL',
                 },
+                verified: { type: 'boolean', description: 'Whether the holder is verified' },
               },
             },
           },

@@ -903,7 +903,7 @@ const TagDropdownBackButton: React.FC<{ setSelectedIndex: (index: number) => voi
       onMouseEnter={handleMouseEnter}
     >
       <svg
-        className={cn('shrink-0', size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5')}
+        className={cn('shrink-0', size === 'sm' ? 'size-3' : 'h-3.5 w-3.5')}
         fill='none'
         viewBox='0 0 24 24'
         stroke='currentColor'

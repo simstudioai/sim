@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { mothershipChatStopEnvelopeSchema } from '@/lib/api/contracts/mothership-tasks'
+import { mothershipChatStopEnvelopeSchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { POST as copilotStopPost } from '@/app/api/copilot/chat/stop/route'

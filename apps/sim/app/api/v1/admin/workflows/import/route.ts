@@ -86,11 +86,10 @@ export const POST = withRouteHandler(
             })()
           : body.workflow
 
-      const {
-        name: workflowName,
-        color: workflowColor,
-        description: workflowDescription,
-      } = extractWorkflowMetadata(parsedWorkflow, overrideName)
+      const { name: workflowName, description: workflowDescription } = extractWorkflowMetadata(
+        parsedWorkflow,
+        overrideName
+      )
 
       const workflowId = generateId()
       const now = new Date()
@@ -103,7 +102,6 @@ export const POST = withRouteHandler(
         folderId: folderId || null,
         name: dedupedName,
         description: workflowDescription,
-        color: workflowColor,
         lastSynced: now,
         createdAt: now,
         updatedAt: now,

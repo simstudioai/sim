@@ -22,6 +22,7 @@ import {
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
+import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
@@ -54,6 +55,18 @@ export interface PerformFullDeployParams {
   workflowId: string
   userId: string
   workflowName?: string
+  /**
+   * Optional summary of what changed, stored on the created deployment version.
+   * The copilot deploy tools require this; the UI deploy route sets it
+   * separately via the version metadata endpoint, so it stays optional here.
+   */
+  versionDescription?: string
+  /**
+   * Optional name/label for the created deployment version. The copilot deploy
+   * tools require this; the UI deploy route sets it via the version metadata
+   * endpoint, so it stays optional here.
+   */
+  versionName?: string
   requestId?: string
   /**
    * Optional NextRequest for external webhook subscriptions.
@@ -107,6 +120,8 @@ export async function performFullDeploy(
     workflowId,
     deployedBy: actorId,
     workflowName: workflowName || workflowRecord.name || undefined,
+    description: params.versionDescription,
+    name: params.versionName,
     validateWorkflowState: async (workflowState) => {
       const scheduleValidation = validateWorkflowSchedules(workflowState.blocks)
       if (!scheduleValidation.isValid) {
@@ -173,6 +188,16 @@ export async function performFullDeploy(
 
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
+
+  const workspaceId = workflowData.workspaceId as string | null
+  if (workspaceId) {
+    void emitWorkflowDeployedEvent({
+      workflowId,
+      workflowName: (workflowData.name as string) || workflowId,
+      workspaceId,
+      version: deployResult.version ?? null,
+    })
+  }
 
   return {
     success: true,
@@ -404,6 +429,16 @@ export async function performActivateVersion(
 
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
   await notifySocketDeploymentChanged(workflowId)
+
+  const activationWorkspaceId = (workflow.workspaceId as string) || null
+  if (activationWorkspaceId) {
+    void emitWorkflowDeployedEvent({
+      workflowId,
+      workflowName: (workflow.name as string) || workflowId,
+      workspaceId: activationWorkspaceId,
+      version,
+    })
+  }
 
   return {
     success: true,

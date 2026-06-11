@@ -1,5 +1,5 @@
 import { EnrichSoIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
 export const EnrichBlock: BlockConfig = {
@@ -12,7 +12,6 @@ export const EnrichBlock: BlockConfig = {
   docsLink: 'https://docs.enrich.so/',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'data-analytics'],
   bgColor: '#E5E5E6',
   icon: EnrichSoIcon,
   subBlocks: [
@@ -48,11 +47,14 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Search Company Employees', id: 'search_company_employees' },
         { label: 'Search Similar Companies', id: 'search_similar_companies' },
         { label: 'Sales Pointer (People)', id: 'sales_pointer_people' },
+        { label: 'Search Jobs', id: 'search_jobs' },
         // LinkedIn Posts/Activities
         { label: 'Search Posts', id: 'search_posts' },
         { label: 'Get Post Details', id: 'get_post_details' },
         { label: 'Search Post Reactions', id: 'search_post_reactions' },
+        { label: 'Search Post Reactions (by URL)', id: 'search_post_reactions_by_url' },
         { label: 'Search Post Comments', id: 'search_post_comments' },
+        { label: 'Search Post Comments (by URL)', id: 'search_post_comments_by_url' },
         { label: 'Search People Activities', id: 'search_people_activities' },
         { label: 'Search Company Activities', id: 'search_company_activities' },
         // Other
@@ -352,8 +354,8 @@ export const EnrichBlock: BlockConfig = {
       title: 'Keywords',
       type: 'short-input',
       placeholder: 'AI automation',
-      condition: { field: 'operation', value: 'search_posts' },
-      required: { field: 'operation', value: 'search_posts' },
+      condition: { field: 'operation', value: ['search_posts', 'search_jobs'] },
+      required: { field: 'operation', value: ['search_posts', 'search_jobs'] },
     },
     {
       id: 'datePosted',
@@ -369,12 +371,102 @@ export const EnrichBlock: BlockConfig = {
     },
 
     {
+      id: 'jobLocation',
+      title: 'Location',
+      type: 'short-input',
+      placeholder: 'London',
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'timePosted',
+      title: 'Time Posted',
+      type: 'dropdown',
+      options: [
+        { label: 'Any time', id: '' },
+        { label: 'Past 24 hours', id: 'past_24hrs' },
+        { label: 'Past week', id: 'past_week' },
+        { label: 'Past month', id: 'past_month' },
+      ],
+      condition: { field: 'operation', value: 'search_jobs' },
+    },
+    {
+      id: 'jobTypes',
+      title: 'Job Types',
+      type: 'short-input',
+      placeholder: 'full time, part time',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the job types to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn job types (e.g., full time, part time, contract, internship, temporary). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'workplaceTypes',
+      title: 'Workplace Types',
+      type: 'short-input',
+      placeholder: 'on site, remote',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the workplace types to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn workplace types (on site, remote, hybrid). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'experienceLevels',
+      title: 'Experience Levels',
+      type: 'short-input',
+      placeholder: 'internship, associate',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the experience levels to include',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn experience levels (internship, entry level, associate, mid-senior level, director, executive). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'jobCompanyIds',
+      title: 'Company IDs',
+      type: 'short-input',
+      placeholder: '2048, 3050',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe the companies to filter by',
+        prompt:
+          'Convert the request into a comma-separated list of LinkedIn company IDs (numeric). Return ONLY the comma-separated list - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'start',
+      title: 'Start Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'search_jobs' },
+      mode: 'advanced',
+    },
+
+    {
       id: 'postUrl',
       title: 'LinkedIn Post URL',
       type: 'short-input',
       placeholder: 'https://www.linkedin.com/posts/...',
-      condition: { field: 'operation', value: 'get_post_details' },
-      required: { field: 'operation', value: 'get_post_details' },
+      condition: {
+        field: 'operation',
+        value: ['get_post_details', 'search_post_reactions_by_url', 'search_post_comments_by_url'],
+      },
+      required: {
+        field: 'operation',
+        value: ['get_post_details', 'search_post_reactions_by_url', 'search_post_comments_by_url'],
+      },
     },
 
     {
@@ -403,7 +495,11 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Insightful', id: 'insightful' },
         { label: 'Funny', id: 'funny' },
       ],
-      condition: { field: 'operation', value: 'search_post_reactions' },
+      value: () => 'all',
+      condition: {
+        field: 'operation',
+        value: ['search_post_reactions', 'search_post_reactions_by_url'],
+      },
     },
 
     {
@@ -423,6 +519,7 @@ export const EnrichBlock: BlockConfig = {
         { label: 'Comments', id: 'comments' },
         { label: 'Articles', id: 'articles' },
       ],
+      value: () => 'posts',
       condition: {
         field: 'operation',
         value: ['search_people_activities', 'search_company_activities'],
@@ -470,10 +567,15 @@ export const EnrichBlock: BlockConfig = {
           'sales_pointer_people',
           'search_posts',
           'search_post_reactions',
+          'search_post_reactions_by_url',
           'search_post_comments',
+          'search_post_comments_by_url',
         ],
       },
-      required: { field: 'operation', value: 'sales_pointer_people' },
+      required: {
+        field: 'operation',
+        value: ['sales_pointer_people', 'search_post_reactions', 'search_post_reactions_by_url'],
+      },
     },
     {
       id: 'pageSize',
@@ -520,10 +622,13 @@ export const EnrichBlock: BlockConfig = {
       'enrich_search_company_employees',
       'enrich_search_similar_companies',
       'enrich_sales_pointer_people',
+      'enrich_search_jobs',
       'enrich_search_posts',
       'enrich_get_post_details',
       'enrich_search_post_reactions',
+      'enrich_search_post_reactions_by_url',
       'enrich_search_post_comments',
+      'enrich_search_post_comments_by_url',
       'enrich_search_people_activities',
       'enrich_search_company_activities',
       'enrich_reverse_hash_lookup',
@@ -595,6 +700,12 @@ export const EnrichBlock: BlockConfig = {
         if (operation === 'search_logo') {
           parsedParams.url = rest.domain
         }
+        if (operation === 'search_jobs') {
+          parsedParams.location = rest.jobLocation
+          parsedParams.jobLocation = undefined
+          parsedParams.companyIds = rest.jobCompanyIds
+          parsedParams.jobCompanyIds = undefined
+        }
 
         if (parsedParams.page) {
           const pageNum = Number(parsedParams.page)
@@ -608,6 +719,7 @@ export const EnrichBlock: BlockConfig = {
         if (parsedParams.pageSize) parsedParams.pageSize = Number(parsedParams.pageSize)
         if (parsedParams.num) parsedParams.num = Number(parsedParams.num)
         if (parsedParams.offset) parsedParams.offset = Number(parsedParams.offset)
+        if (parsedParams.start) parsedParams.start = Number(parsedParams.start)
         if (parsedParams.staffCountMin)
           parsedParams.staffCountMin = Number(parsedParams.staffCountMin)
         if (parsedParams.staffCountMax)
@@ -625,3 +737,107 @@ export const EnrichBlock: BlockConfig = {
     output: { type: 'json', description: 'Output data from the Enrich operation' },
   },
 }
+
+export const EnrichBlockMeta = {
+  tags: ['enrichment'],
+  templates: [
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich CRM hydrator',
+      prompt:
+        'Build a workflow that watches new Salesforce leads, enriches each with Enrich.so contact data, and writes role, company size, and email to the lead record.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['salesforce'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich list cleaner',
+      prompt:
+        'Create a workflow that runs an outreach list through Enrich, removes invalid emails and disqualified roles, and writes the clean list to a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich bulk-account researcher',
+      prompt:
+        'Build a workflow that takes a list of target accounts, enriches each with Enrich firmographic data, and writes a tables-based account brief for the sales team.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich + Email Bison sender',
+      prompt:
+        'Create a workflow that runs Enrich on prospects then drafts and sends a personalized Email Bison sequence based on the enriched fields.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich event-attendee researcher',
+      prompt:
+        'Build a workflow that takes the Luma event attendee list, enriches each via Enrich, and writes a per-attendee research brief for the sales team.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['luma'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds HubSpot contacts missing key fields, runs Enrich, and fills in the gaps so reporting is complete.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: EnrichSoIcon,
+      title: 'Enrich LinkedIn role validator',
+      prompt:
+        'Build a scheduled workflow that reads HubSpot contacts with a LinkedIn profile URL, re-enriches each with Enrich, flags outdated roles, and updates the contact record with the current title.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['hubspot'],
+    },
+  ],
+  skills: [
+    {
+      name: 'enrich-contact-from-email',
+      description:
+        'Enrich a person from their email address — name, role, company, social profiles, and more.',
+      content:
+        '# Enrich Contact from Email\n\nTurn an email address into a full contact profile using Enrich.so.\n\n## Steps\n1. Take the email address. Choose Email to Profile for a full enrichment, or Email to Person (Lite) for a fast, cheaper lookup.\n2. Enable fresh-data fetch when up-to-date info matters more than speed.\n3. Read back name, current title, company, location, and any LinkedIn or social URLs.\n\n## Output\nReturn the enriched fields in a clean object. Note which fields could not be resolved so downstream steps know what is missing, and report remaining credits if relevant.',
+    },
+    {
+      name: 'find-and-verify-work-email',
+      description:
+        'Find a prospect work email from a name and company or LinkedIn URL, then verify deliverability.',
+      content:
+        '# Find and Verify Work Email\n\nLocate a reliable work email for a prospect and confirm it is safe to send to.\n\n## Steps\n1. If you have a name and company domain, use Find Email. If you have a LinkedIn profile URL, use LinkedIn to Work Email instead.\n2. Run Verify Email on the returned address to check deliverability, and Disposable Email Check to rule out throwaway domains.\n3. If the work email cannot be found, optionally fall back to LinkedIn to Personal Email when appropriate.\n\n## Output\nReturn the discovered email, its verification status (valid, risky, invalid), and whether it is disposable. Recommend whether the address is safe to add to outreach.',
+    },
+    {
+      name: 'enrich-company-firmographics',
+      description:
+        'Look up firmographic data for a company — size, industry, funding, revenue, and traffic.',
+      content:
+        '# Enrich Company Firmographics\n\nBuild a firmographic profile for a target account using Enrich.so.\n\n## Steps\n1. Identify the company by name or domain. Use Company Lookup for core firmographics.\n2. Add Company Funding & Traffic and Company Revenue for deeper financial signals when account scoring needs them.\n3. If you only have a visitor IP, use IP to Company first to resolve the organization.\n\n## Output\nReturn a consolidated account brief: company name, domain, industry, employee count, funding, revenue, and traffic. Flag any data points that could not be resolved.',
+    },
+    {
+      name: 'search-prospects',
+      description:
+        'Search Enrich.so for people or companies matching an ideal-customer-profile filter.',
+      content:
+        '# Search Prospects\n\nFind people or companies that match a target profile.\n\n## Steps\n1. For people, use Search People with filters like job title, industry, location, and skills. For companies, use Search Company with industry, location, and employee-size bounds.\n2. To pull contacts at known accounts, use Search Company Employees with the company IDs and target job titles.\n3. Page through results using the page and page-size parameters until you have enough matches.\n\n## Output\nReturn the matching people or companies with their key identifying fields and any profile URLs, plus a count of total matches. Suggest tighter filters if too many or too few results come back.',
+    },
+  ],
+} as const satisfies BlockMeta

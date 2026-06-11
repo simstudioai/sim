@@ -56,6 +56,8 @@ const wandGenerateBodySchema = z.object({
   stream: z.boolean().optional().default(false),
   history: z.array(chatMessageSchema).optional().default([]),
   workflowId: z.string().optional(),
+  /** Falls back here for per-member usage attribution when no workflowId is sent. */
+  workspaceId: z.string().optional(),
   generationType: z.string().optional(),
   wandContext: unknownRecordSchema.optional().default({}),
 })
@@ -81,6 +83,38 @@ export const wandGenerateStreamContract = defineRouteContract({
   },
 })
 
+const functionFileInputSchema = z
+  .object({
+    path: z.string().min(1, 'Input file path is required'),
+    sandboxPath: z.string().optional(),
+  })
+  .strict()
+
+const functionDirectoryInputSchema = z
+  .object({
+    path: z.string().min(1, 'Input directory path is required'),
+    sandboxPath: z.string().optional(),
+  })
+  .strict()
+
+const functionTableInputSchema = z
+  .object({
+    path: z.string().optional(),
+    tableId: z.string().optional(),
+    sandboxPath: z.string().optional(),
+  })
+  .strict()
+
+const functionOutputFileSchema = z
+  .object({
+    path: z.string().min(1, 'Output file path is required'),
+    mode: z.enum(['create', 'overwrite']).default('create'),
+    sandboxPath: z.string().optional(),
+    format: z.enum(['json', 'csv', 'txt', 'md', 'html']).optional(),
+    mimeType: z.string().optional(),
+  })
+  .strict()
+
 export const functionExecuteContract = defineRouteContract({
   method: 'POST',
   path: '/api/function/execute',
@@ -90,11 +124,27 @@ export const functionExecuteContract = defineRouteContract({
     params: unknownRecordSchema.optional().default({}),
     timeout: z.coerce.number().int().positive().optional(),
     language: z.string().optional().default(DEFAULT_CODE_LANGUAGE),
+    title: z.string().optional(),
     outputPath: z.string().optional(),
     outputFormat: z.string().optional(),
     outputTable: z.string().optional(),
     outputMimeType: z.string().optional(),
     outputSandboxPath: z.string().optional(),
+    overwriteFileId: z.string().optional(),
+    inputs: z
+      .object({
+        files: z.array(functionFileInputSchema).optional(),
+        directories: z.array(functionDirectoryInputSchema).optional(),
+        tables: z.array(functionTableInputSchema).optional(),
+      })
+      .strict()
+      .optional(),
+    outputs: z
+      .object({
+        files: z.array(functionOutputFileSchema).optional(),
+      })
+      .strict()
+      .optional(),
     envVars: z.record(z.string(), z.string()).optional().default({}),
     blockData: unknownRecordSchema.optional().default({}),
     blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
