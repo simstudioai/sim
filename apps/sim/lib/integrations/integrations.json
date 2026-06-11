@@ -14723,6 +14723,105 @@
     "tags": ["messaging", "webhooks", "automation"]
   },
   {
+    "type": "temporal",
+    "slug": "temporal",
+    "name": "Temporal",
+    "description": "Start, signal, query, and manage Temporal workflow executions",
+    "longDescription": "Connect to a Temporal cluster over the server's HTTP API to start workflow executions, send signals, run queries against workflow state, describe and list executions, fetch event histories, and cancel or terminate running workflows. API key only required for servers with authentication enabled.",
+    "bgColor": "#141414",
+    "iconName": "TemporalIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/temporal",
+    "operations": [
+      {
+        "name": "Start Workflow",
+        "description": "Start a new workflow execution on a Temporal cluster."
+      },
+      {
+        "name": "Signal Workflow",
+        "description": "Send a signal to a running Temporal workflow execution."
+      },
+      {
+        "name": "Signal With Start",
+        "description": "Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost."
+      },
+      {
+        "name": "Query Workflow",
+        "description": "Run a synchronous query against the state of a Temporal workflow execution and return the result."
+      },
+      {
+        "name": "Update Workflow",
+        "description": "Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response."
+      },
+      {
+        "name": "Describe Workflow",
+        "description": "Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities."
+      },
+      {
+        "name": "List Workflows",
+        "description": "List workflow executions in a Temporal namespace, optionally filtered with a visibility query."
+      },
+      {
+        "name": "Count Workflows",
+        "description": "Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation."
+      },
+      {
+        "name": "Get Workflow History",
+        "description": "Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event."
+      },
+      {
+        "name": "Cancel Workflow",
+        "description": "Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request."
+      },
+      {
+        "name": "Terminate Workflow",
+        "description": "Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react."
+      },
+      {
+        "name": "Reset Workflow",
+        "description": "Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run."
+      },
+      {
+        "name": "Describe Task Queue",
+        "description": "List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers."
+      },
+      {
+        "name": "Create Schedule",
+        "description": "Create a Temporal schedule that starts a workflow on a cron or interval cadence."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List schedules in a Temporal namespace."
+      },
+      {
+        "name": "Describe Schedule",
+        "description": "Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times."
+      },
+      {
+        "name": "Pause Schedule",
+        "description": "Pause a Temporal schedule so it stops taking actions until unpaused."
+      },
+      {
+        "name": "Unpause Schedule",
+        "description": "Unpause a Temporal schedule so it resumes taking actions."
+      },
+      {
+        "name": "Trigger Schedule",
+        "description": "Trigger an immediate action of a Temporal schedule, outside its normal spec."
+      },
+      {
+        "name": "Delete Schedule",
+        "description": "Delete a Temporal schedule. Workflows already started by the schedule keep running."
+      }
+    ],
+    "operationCount": 20,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["automation"]
+  },
+  {
     "type": "tinybird",
     "slug": "tinybird",
     "name": "Tinybird",

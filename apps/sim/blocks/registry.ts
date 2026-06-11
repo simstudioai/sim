@@ -273,6 +273,7 @@ import { TableBlock } from '@/blocks/blocks/table'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
+import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import { TextractBlock, TextractBlockMeta, TextractV2Block } from '@/blocks/blocks/textract'
 import { ThinkingBlock } from '@/blocks/blocks/thinking'
 import { TinybirdBlock, TinybirdBlockMeta } from '@/blocks/blocks/tinybird'
@@ -566,6 +567,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
+  temporal: TemporalBlock,
   textract: TextractBlock,
   textract_v2: TextractV2Block,
   thinking: ThinkingBlock,
@@ -810,6 +812,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   tailscale: TailscaleBlockMeta,
   tavily: TavilyBlockMeta,
   telegram: TelegramBlockMeta,
+  temporal: TemporalBlockMeta,
   textract: TextractBlockMeta,
   tinybird: TinybirdBlockMeta,
   trello: TrelloBlockMeta,
