@@ -685,15 +685,17 @@ export function ResourceTabs({
                 <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
               </button>
             </PopoverAnchor>
-            {/* Anchored 6px below the 44px bar, matching the chat switcher. */}
+            {/* Anchored 6px below the 44px bar, matching the chat switcher.
+                Keeps the popover's canonical 6px inset and rounded-xl so the
+                chrome matches the workspace dropdown. */}
             <PopoverContent
               side='bottom'
               align='start'
               sideOffset={13}
-              minWidth={240}
+              minWidth={180}
               maxWidth={320}
               border
-              className={cn(POPOVER_ANIMATION_CLASSES, 'bg-[var(--bg)] p-0 dark:bg-[var(--bg)]')}
+              className={cn(POPOVER_ANIMATION_CLASSES, 'bg-[var(--bg)] dark:bg-[var(--bg)]')}
             >
               <ResourceSwitcherList
                 items={overflowItems}

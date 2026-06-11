@@ -42,7 +42,9 @@ function SwitcherRow({
         className='flex h-full min-w-0 flex-1 items-center gap-2 px-2 pr-[26px] text-left'
       >
         {config.renderTabIcon(item.resource, 'size-[14px] shrink-0')}
-        <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{item.name}</span>
+        <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-small'>
+          {item.name}
+        </span>
       </button>
       <button
         type='button'
@@ -60,6 +62,8 @@ function SwitcherRow({
  * The resource switcher dropdown's contents: every open tab, grouped by
  * provenance ("From this chat" vs the rest) when the active chat has surfaced
  * any of them. Rows select on click and expose a hover close control.
+ * Spacing mirrors the workspace dropdown: rows 30px/rounded-lg/13px with a
+ * 2px gap, inside the popover's canonical 6px inset.
  */
 export function ResourceSwitcherList({ items, onSelect, onClose }: ResourceSwitcherListProps) {
   const chatItems = items.filter((item) => item.isChatArtifact)
@@ -67,18 +71,16 @@ export function ResourceSwitcherList({ items, onSelect, onClose }: ResourceSwitc
   const showSections = chatItems.length > 0 && otherItems.length > 0
 
   return (
-    <div className='flex flex-col px-2 py-2'>
+    <div className='flex flex-col gap-0.5'>
       {showSections && (
-        <p className='px-2 py-1 font-medium text-[var(--text-muted)] text-caption'>
-          From this chat
-        </p>
+        <p className='px-2 py-1 font-medium text-[var(--text-muted)] text-xs'>From this chat</p>
       )}
       {(showSections ? chatItems : items).map((item) => (
         <SwitcherRow key={item.resource.id} item={item} onSelect={onSelect} onClose={onClose} />
       ))}
       {showSections && (
         <>
-          <p className='mt-1.5 px-2 py-1 font-medium text-[var(--text-muted)] text-caption'>
+          <p className='mt-1 px-2 py-1 font-medium text-[var(--text-muted)] text-xs'>
             Other open tabs
           </p>
           {otherItems.map((item) => (
