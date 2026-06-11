@@ -1,13 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
-import { resolveNoteOverlaps } from '@/lib/workflows/autolayout/utils'
+import { getBlockMetrics, resolveNoteOverlaps } from '@/lib/workflows/autolayout/utils'
+import type { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
+const { mockGetBlock } = vi.hoisted(() => ({
+  mockGetBlock: vi.fn(),
+}))
+
 vi.mock('@/blocks', () => ({
-  getBlock: () => null,
+  getBlock: mockGetBlock,
 }))
 
 function createBlock(
@@ -28,6 +33,10 @@ function createBlock(
     ...overrides,
   } as BlockState
 }
+
+beforeEach(() => {
+  mockGetBlock.mockReturnValue(null)
+})
 
 describe('resolveNoteOverlaps', () => {
   it('relocates a note that overlaps a laid-out block', () => {
@@ -234,5 +243,75 @@ describe('resolveNoteOverlaps', () => {
 
       expect(blocks.note.position.y).toBeGreaterThan(150)
     })
+  })
+})
+
+describe('getBlockMetrics preview row estimation', () => {
+  /**
+   * Mirrors a block that spreads a trigger's subBlocks after its own,
+   * producing duplicate canonical pair entries with trigger/trigger-advanced
+   * modes (e.g. the Table block spreading the table_new_row trigger).
+   */
+  const tableLikeConfig = {
+    category: 'blocks',
+    subBlocks: [
+      { id: 'operation', title: 'Operation', type: 'dropdown' },
+      {
+        id: 'tableSelector',
+        title: 'Table',
+        type: 'table-selector',
+        mode: 'basic',
+        canonicalParamId: 'tableId',
+      },
+      {
+        id: 'manualTableId',
+        title: 'Table ID',
+        type: 'short-input',
+        mode: 'advanced',
+        canonicalParamId: 'tableId',
+      },
+      { id: 'data', title: 'Row Data (JSON)', type: 'code' },
+      {
+        id: 'tableSelector',
+        title: 'Table',
+        type: 'table-selector',
+        mode: 'trigger',
+        canonicalParamId: 'tableId',
+      },
+      {
+        id: 'manualTableId',
+        title: 'Table ID',
+        type: 'short-input',
+        mode: 'trigger-advanced',
+        canonicalParamId: 'tableId',
+      },
+      { id: 'eventType', title: 'Event', type: 'dropdown', mode: 'trigger' },
+    ],
+  } as unknown as ReturnType<typeof getBlock>
+
+  function createTableBlock(canonicalMode: 'basic' | 'advanced'): BlockState {
+    return {
+      id: 'table-1',
+      type: 'table',
+      name: 'Table 1',
+      position: { x: 0, y: 0 },
+      subBlocks: {
+        operation: { id: 'operation', type: 'dropdown', value: 'insert_row' },
+        tableSelector: { id: 'tableSelector', type: 'table-selector', value: 'tbl_1' },
+        manualTableId: { id: 'manualTableId', type: 'short-input', value: 'tbl_1' },
+      },
+      outputs: {},
+      enabled: true,
+      data: { canonicalModes: { tableId: canonicalMode } },
+    } as unknown as BlockState
+  }
+
+  it('renders one row per canonical pair regardless of basic/advanced mode', () => {
+    mockGetBlock.mockReturnValue(tableLikeConfig)
+
+    const basic = getBlockMetrics(createTableBlock('basic'))
+    const advanced = getBlockMetrics(createTableBlock('advanced'))
+
+    expect(advanced.height).toBe(basic.height)
   })
 })
