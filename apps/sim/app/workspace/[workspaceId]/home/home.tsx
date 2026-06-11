@@ -667,6 +667,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
                   <ChatSwitcher
                     chatId={activeChatId}
                     onSelectChat={reopenChatPane}
+                    onOpenChat={reopenChatPane}
                     isWorking={isSending || isReconnecting}
                   />
                 </div>

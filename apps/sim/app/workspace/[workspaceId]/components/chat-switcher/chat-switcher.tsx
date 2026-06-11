@@ -71,6 +71,13 @@ interface ChatSwitcherProps {
    */
   navigateOnSelect?: boolean
   /**
+   * Splits the titled chip into the canonical closed-chat double button:
+   * the icon+title segment invokes this directly (reopen the chat), the
+   * chevron opens the Recents list. Hosts pass it wherever the chat pane is
+   * closed; without it the titled chip stays a single dropdown trigger.
+   */
+  onOpenChat?: () => void
+  /**
    * The chat is generating a response — the recents icon becomes a spinner so
    * the title bar signals work in progress even when the messages are off
    * screen (collapsed pane, scrolled away).
@@ -89,6 +96,7 @@ export function ChatSwitcher({
   iconOnly = false,
   onSelectChat,
   navigateOnSelect = true,
+  onOpenChat,
   isWorking = false,
 }: ChatSwitcherProps) {
   const isHidden = useSidebarToggleHidden()
@@ -163,6 +171,48 @@ export function ChatSwitcher({
             className='before:-z-10 relative isolate flex items-center rounded-l-lg pr-1.5 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
           >
             {chipIcon}
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open chat</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            aria-label='Recents'
+            onClick={() => setOpen((prev) => !prev)}
+            className={cn(
+              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1.5 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+              open && 'before:opacity-100'
+            )}
+          >
+            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Recents</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </span>
+  ) : onOpenChat ? (
+    /* Closed-chat double button: icon+title reopens the chat outright, the
+       chevron opens Recents — the same pill split as the icon-only variant. */
+    <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            aria-label='Open chat'
+            onClick={onOpenChat}
+            className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1.5 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+          >
+            {chipIcon}
+            <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+              {title}
+            </span>
           </button>
         </Tooltip.Trigger>
         <Tooltip.Content side='bottom'>
