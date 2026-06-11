@@ -9,6 +9,7 @@ export const brexUploadReceiptBodySchema = z.object({
   file: RawFileInputSchema,
   receiptName: z
     .string()
+    .trim()
     .min(1, 'Receipt name cannot be empty')
     .max(255, 'Receipt name must be at most 255 characters')
     .optional(),

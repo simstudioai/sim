@@ -52,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const effectiveReceiptName = receiptName?.trim() || userFile.name
+    const effectiveReceiptName = receiptName || userFile.name
     const endpoint = expenseId
       ? `${BREX_API_BASE}/v1/expenses/card/${encodeURIComponent(expenseId)}/receipt_upload`
       : `${BREX_API_BASE}/v1/expenses/card/receipt_match`

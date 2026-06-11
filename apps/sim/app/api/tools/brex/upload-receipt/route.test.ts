@@ -117,6 +117,12 @@ describe('POST /api/tools/brex/upload-receipt', () => {
     expect(data.output.expenseId).toBe('expense_123')
   })
 
+  it('rejects a whitespace-only receipt name', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, receiptName: '   ' }))
+    expect(response.status).toBe(400)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
   it('uses receipt match when no expense ID is provided', async () => {
     mockFetch
       .mockResolvedValueOnce(
