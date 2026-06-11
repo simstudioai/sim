@@ -283,7 +283,7 @@ export interface PersonaListInquiriesResponse extends ToolResponse {
 export interface PersonaResumeInquiryResponse extends ToolResponse {
   output: {
     inquiry: PersonaInquiry
-    sessionToken: string | null
+    sessionToken: string
   }
 }
 

@@ -47,11 +47,14 @@ export const personaResumeInquiryTool: ToolConfig<
   transformResponse: async (response) => {
     const data = await parsePersonaResponse(response)
     const sessionToken = data.meta?.['session-token']
+    if (typeof sessionToken !== 'string' || sessionToken.length === 0) {
+      throw new Error('Persona did not return a session token; check the inquiry status')
+    }
     return {
       success: true,
       output: {
         inquiry: mapInquiry(asResource(data.data)),
-        sessionToken: typeof sessionToken === 'string' ? sessionToken : null,
+        sessionToken,
       },
     }
   },
@@ -66,7 +69,6 @@ export const personaResumeInquiryTool: ToolConfig<
       type: 'string',
       description:
         'Session token for the new inquiry session, used to continue the flow in embedded SDKs',
-      optional: true,
     },
   },
 }
