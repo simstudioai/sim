@@ -142,8 +142,11 @@ export function ChatHistoryList({
           className='w-full bg-transparent text-[var(--text-body)] text-sm placeholder:text-[var(--text-muted)] focus:outline-none'
         />
       </div>
+      {/* The scroller bleeds to the dropdown's edge (-mx-2/px-2) so the
+          scrollbar hugs it instead of floating mid-panel; the thumb is
+          clipped to a 4px pill inset 2px from the edge. */}
       <div
-        className='flex flex-col overflow-y-auto overscroll-contain'
+        className='-mx-2 flex flex-col overflow-y-auto overscroll-contain px-2 [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:bg-clip-content [&::-webkit-scrollbar-thumb]:[border:2px_solid_transparent]'
         style={{ maxHeight: CONFIG.LIST_MAX_HEIGHT }}
       >
         {isLoading ? (
