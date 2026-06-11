@@ -162,12 +162,20 @@ async function buildCompileErrorResponse(
       : undefined
   const errorCode = typeof errorRecord?.error === 'string' ? errorRecord.error : undefined
   const compilationErrors = extractCompilationErrors(errorRecord?.log_files)
+  const details = compilationErrors ? `:\n${compilationErrors}` : ''
 
-  if (upstreamResponse.status === 400 && errorCode) {
-    logger.warn(`[${requestId}] LaTeX compilation failed`, { errorCode })
-    const details = compilationErrors ? `:\n${compilationErrors}` : ''
+  const isCompilationFailure =
+    upstreamResponse.status >= 400 &&
+    upstreamResponse.status < 500 &&
+    Boolean(errorCode || compilationErrors)
+
+  if (isCompilationFailure) {
+    logger.warn(`[${requestId}] LaTeX compilation failed`, {
+      status: upstreamResponse.status,
+      errorCode,
+    })
     return NextResponse.json(
-      { error: `LaTeX compilation failed (${errorCode})${details}` },
+      { error: `LaTeX compilation failed (${errorCode || upstreamResponse.status})${details}` },
       { status: 422 }
     )
   }
@@ -177,7 +185,7 @@ async function buildCompileErrorResponse(
     errorCode,
   })
   return NextResponse.json(
-    { error: `LaTeX compile service error: ${upstreamResponse.status}` },
+    { error: `LaTeX compile service error: ${upstreamResponse.status}${details}` },
     { status: 502 }
   )
 }
