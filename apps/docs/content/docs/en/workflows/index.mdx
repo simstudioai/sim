@@ -21,7 +21,7 @@ Here's a simple one. It takes an incoming customer message, classifies its categ
 
 ### Trigger
 
-A **trigger** is where a workflow begins and what it hands in. Every workflow has exactly one. The [Start](/workflows/triggers/start) trigger takes input directly, which is what you use while building. In production you swap in a [chat](/workflows/triggers/start), [webhook](/workflows/triggers/webhook), [schedule](/workflows/triggers/schedule), or API trigger, and the downstream blocks don't change.
+A **trigger** is where a workflow begins and what it hands in. Every workflow has exactly one. The [Start](/workflows/triggers/start) trigger takes input directly — from the editor while you build, and from an API call or a chat once deployed. For runs that should start on an event or a timer, you swap in a [webhook](/workflows/triggers/webhook) or [schedule](/workflows/triggers/schedule) trigger, and the downstream blocks don't change.
 
 <WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="start" />
 

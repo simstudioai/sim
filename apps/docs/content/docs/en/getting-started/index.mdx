@@ -24,7 +24,7 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
 
 <Steps>
   <Step title="Create a workflow and add an Agent">
-    Click **New Workflow** and name it "Getting Started". The **Start block** is already on the canvas — it's the entry point that receives your chat input.
+    In the sidebar, click the **+** next to **Workflows** and name the new workflow "Getting Started". The **Start block** is already on the canvas — it's the entry point that receives your chat input.
 
     Drag an **Agent block** onto the canvas and configure its **Messages**:
     - **System**: "You are a people research agent. When given a person's name, use your search tools to find their location, profession, educational background, and other relevant details."
@@ -38,7 +38,7 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
   </Step>
 
   <Step title="Add search tools">
-    In the Agent block's **Tools** section, add **Exa** and **Linkup**, and provide an API key for each. The agent decides when to call them.
+    In the Agent block's **Tools** section, add **Exa** and **Linkup**. The agent decides when to call them.
 
     <div className="mx-auto w-3/5 overflow-hidden rounded-lg">
       <Video src="getting-started/started-3.mp4" width={700} height={450} />
@@ -98,7 +98,7 @@ Build a people research agent in 10 minutes. It takes a name through a chat inte
 
 <FAQ items={[
   { question: "How long does the getting started tutorial take?", answer: "About 10 minutes. You will have a fully working workflow by the end." },
-  { question: "Do I need API keys to follow this tutorial?", answer: "You need keys for the search tools (Exa and Linkup). For the model, Sim's hosted keys are included with your plan credits, or bring your own provider key. Without search keys you can still build the basic agent." },
+  { question: "Do I need API keys to follow this tutorial?", answer: "No. On hosted Sim, the model and the search tools run on Sim's hosted keys, included with your plan credits. You can bring your own provider keys if you prefer." },
   { question: "Do I need coding experience to complete this tutorial?", answer: "No. The whole tutorial uses the visual builder and the chat panel — no code." },
   { question: "Can I use a different model?", answer: "Yes. The Agent block supports models from OpenAI, Anthropic, Google, Groq, Cerebras, DeepSeek, xAI, and more, plus local models through Ollama if you self-host." },
   { question: "Can I import workflows from other tools?", answer: "Not directly. But you can describe what you want to Mothership in natural language and have it build the workflow for you, which is usually faster than manual recreation." },

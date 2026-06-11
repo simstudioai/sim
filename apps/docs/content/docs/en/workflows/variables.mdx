@@ -29,7 +29,7 @@ Type `<` in any block text field to open the picker and browse everything you ca
 
 Workflow variables are a global store any block can read or update during a run. Open the panel with **⋯ → Variables** in the top-right of the editor. Each variable has a **name**, a **type**, and a **value**.
 
-Reference one anywhere a field accepts input. For an object or array variable, use dot notation to reach a nested value, like `<variable.config.timeout>`. Name matching ignores case and spaces, so a variable named `My Counter` resolves from `<variable.mycounter>`. Consistent names like `camelCase` are still the clearest.
+Reference one anywhere a field accepts input. For an object or array variable, use dot notation to reach a nested value, like `<variable.config.timeout>`. Name matching ignores case and spaces, so a variable named `My Counter` resolves from `<variable.mycounter>` — but a name can't contain a period: everything after the first dot is read as a path into the value, so `<variable.config.timeout>` always means the `timeout` field of `config`, never a variable named `config.timeout`. Consistent names like `camelCase` are the clearest.
 
 ### Types
 
