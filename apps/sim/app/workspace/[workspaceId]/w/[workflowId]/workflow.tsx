@@ -4234,17 +4234,29 @@ const WorkflowContent = React.memo(
             {!embedded && <DiffControls />}
 
             {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
-                at the top-left, matching the title-bar rhythm on other pages.
-                Hidden while a chat is docked — the chat pane's title bar
-                carries both controls. */}
-            {!embedded && !chatDock?.isOpen && (
+                + workflow title at the top-left, matching the title-bar rhythm
+                on other pages. The controls hide while a chat is docked (the
+                chat pane's title bar carries them); the title stays — it's the
+                editor's identity. */}
+            {!embedded && (
               <div className='absolute top-[7px] left-[7px] z-10 flex items-center gap-1'>
-                <SidebarToggle />
-                <ChatSwitcher
-                  iconOnly
-                  navigateOnSelect={!chatDock}
-                  onSelectChat={chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined}
-                />
+                {!chatDock?.isOpen && (
+                  <>
+                    <SidebarToggle />
+                    <ChatSwitcher
+                      iconOnly
+                      navigateOnSelect={!chatDock}
+                      onSelectChat={
+                        chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined
+                      }
+                    />
+                  </>
+                )}
+                {workflowMetadata?.name && (
+                  <span className='max-w-[320px] truncate px-1 font-medium text-[14px] text-[var(--text-primary)]'>
+                    {workflowMetadata.name}
+                  </span>
+                )}
               </div>
             )}
           </div>

@@ -149,16 +149,18 @@ export function ChatSwitcher({
 
   const trigger = iconOnly ? (
     /* Split chip: the icon opens the most recent chat outright; the chevron
-       opens the Recents list. The 1px bg-colored divider only reads when a
-       segment carries its fill, slicing the pill into two buttons. */
-    <span className='flex h-[30px] flex-shrink-0 items-stretch'>
+       opens the Recents list. Hovering either segment tints the whole pill —
+       the hovered (or open) segment at full fill, its sibling lighter — and
+       the 1px bg-colored divider slices the fills into two buttons. The fills
+       are before-pseudos so opacity never dims the glyphs. */
+    <span className='before:-z-10 relative isolate flex h-[30px] flex-shrink-0 items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <button
             type='button'
             aria-label='Open most recent chat'
             onClick={handleOpenMostRecent}
-            className='flex items-center rounded-l-lg px-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='before:-z-10 relative isolate flex items-center rounded-l-lg pr-1.5 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
           >
             {chipIcon}
           </button>
@@ -167,7 +169,7 @@ export function ChatSwitcher({
           <p>Open chat</p>
         </Tooltip.Content>
       </Tooltip.Root>
-      <span aria-hidden='true' className='w-px self-stretch bg-[var(--bg)]' />
+      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <button
@@ -175,9 +177,8 @@ export function ChatSwitcher({
             aria-label='Recents'
             onClick={() => setOpen((prev) => !prev)}
             className={cn(
-              'flex items-center rounded-r-lg px-1 transition-colors',
-              'hover-hover:bg-[var(--surface-active)]',
-              open && 'bg-[var(--surface-active)]'
+              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1.5 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+              open && 'before:opacity-100'
             )}
           >
             <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
