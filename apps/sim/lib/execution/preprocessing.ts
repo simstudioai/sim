@@ -1,6 +1,7 @@
 import type { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import {
   checkOrgMemberUsageLimit,
   checkServerSideUsageLimits,
@@ -313,6 +314,75 @@ export async function preprocessExecution(
       success: false,
       error: {
         message: 'Error resolving billing account',
+        statusCode: 500,
+        logCreated: true,
+        retryable: isRetryableInfrastructureError(error),
+        cause: describeRetryableInfrastructureError(error),
+      },
+    }
+  }
+
+  // ========== STEP 3.5: Reject Banned Accounts ==========
+  // Blocks executions when the billing actor, the workflow owner, or the
+  // caller-provided userId (chat deployer, authenticated caller) has an
+  // active ban or a blocked email domain. The owner comes from the workflow
+  // record so schedules — which pass the 'unknown' sentinel — are covered.
+  const banCandidateIds = [actorUserId]
+  if (userId && userId !== 'unknown' && userId !== actorUserId) {
+    banCandidateIds.push(userId)
+  }
+  if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
+    banCandidateIds.push(workflowRecord.userId)
+  }
+  try {
+    const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)
+    if (bannedUserIds.length > 0) {
+      logger.warn(`[${requestId}] Execution blocked: banned account`, {
+        workflowId,
+        bannedUserIds,
+        triggerType,
+      })
+
+      await recordPreprocessingError({
+        workflowId,
+        executionId,
+        triggerType,
+        requestId,
+        userId: actorUserId,
+        workspaceId,
+        errorMessage: 'This account has been suspended. Workflow executions are blocked.',
+        loggingSession: providedLoggingSession,
+        triggerData,
+      })
+
+      return {
+        success: false,
+        error: {
+          message: 'Account suspended',
+          statusCode: 403,
+          logCreated: true,
+        },
+      }
+    }
+  } catch (error) {
+    logger.error(`[${requestId}] Error checking account ban status`, { error, actorUserId })
+
+    await recordPreprocessingError({
+      workflowId,
+      executionId,
+      triggerType,
+      requestId,
+      userId: actorUserId,
+      workspaceId,
+      errorMessage: 'Unable to verify account status. Execution blocked for security.',
+      loggingSession: providedLoggingSession,
+      triggerData,
+    })
+
+    return {
+      success: false,
+      error: {
+        message: 'Unable to verify account status. Execution blocked for security.',
         statusCode: 500,
         logCreated: true,
         retryable: isRetryableInfrastructureError(error),
