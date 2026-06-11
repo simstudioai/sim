@@ -5,7 +5,7 @@ import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 export const brexUploadReceiptBodySchema = z.object({
   apiKey: z.string().min(1, 'API key is required'),
-  expenseId: z.string().min(1, 'Expense ID cannot be empty').optional(),
+  expenseId: z.string().trim().min(1, 'Expense ID cannot be empty').optional(),
   file: RawFileInputSchema,
   receiptName: z
     .string()

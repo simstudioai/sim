@@ -53,13 +53,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const effectiveReceiptName = receiptName?.trim() || userFile.name
-    const trimmedExpenseId = expenseId?.trim() || undefined
-    const endpoint = trimmedExpenseId
-      ? `${BREX_API_BASE}/v1/expenses/card/${encodeURIComponent(trimmedExpenseId)}/receipt_upload`
+    const endpoint = expenseId
+      ? `${BREX_API_BASE}/v1/expenses/card/${encodeURIComponent(expenseId)}/receipt_upload`
       : `${BREX_API_BASE}/v1/expenses/card/receipt_match`
 
     logger.info(
-      `[${requestId}] Creating Brex ${trimmedExpenseId ? 'receipt upload' : 'receipt match'}: ${effectiveReceiptName} (${fileBuffer.length} bytes)`
+      `[${requestId}] Creating Brex ${expenseId ? 'receipt upload' : 'receipt match'}: ${effectiveReceiptName} (${fileBuffer.length} bytes)`
     )
 
     const createResponse = await fetch(endpoint, {
@@ -116,7 +115,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: {
         receiptId: createData.id,
         receiptName: effectiveReceiptName,
-        expenseId: trimmedExpenseId ?? null,
+        expenseId: expenseId ?? null,
       },
     })
   } catch (error) {

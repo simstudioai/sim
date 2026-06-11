@@ -94,6 +94,29 @@ describe('POST /api/tools/brex/upload-receipt', () => {
     expect(uploadInit.method).toBe('PUT')
   })
 
+  it('rejects a whitespace-only expense ID instead of falling back to receipt match', async () => {
+    const response = await POST(createMockRequest('POST', { ...baseBody, expenseId: '   ' }))
+    expect(response.status).toBe(400)
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('trims a padded expense ID before building the upload URL', async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ id: 'receipt_5', uri: 'https://s3.example.com/presigned' })
+      )
+      .mockResolvedValueOnce(jsonResponse({}))
+
+    const response = await POST(
+      createMockRequest('POST', { ...baseBody, expenseId: '  expense_123  ' })
+    )
+    expect(response.status).toBe(200)
+    const [createUrl] = mockFetch.mock.calls[0]
+    expect(createUrl).toBe('https://api.brex.com/v1/expenses/card/expense_123/receipt_upload')
+    const data = await response.json()
+    expect(data.output.expenseId).toBe('expense_123')
+  })
+
   it('uses receipt match when no expense ID is provided', async () => {
     mockFetch
       .mockResolvedValueOnce(
