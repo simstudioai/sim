@@ -27,7 +27,7 @@ export const CloudFormationBlock: BlockConfig<
     'Integrate AWS CloudFormation into workflows. Describe stacks, list resources, detect drift, view stack events, retrieve templates, and validate templates. Requires AWS access key and secret access key.',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
-  docsLink: 'https://docs.sim.ai/tools/cloudformation',
+  docsLink: 'https://docs.sim.ai/integrations/cloudformation',
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   iconColor: '#FF4F8B',
   icon: CloudFormationIcon,

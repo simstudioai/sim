@@ -1,0 +1,237 @@
+---
+title: CodePipeline
+description: Run, monitor, and approve AWS CodePipeline pipelines
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="codepipeline"
+  color="linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)"
+/>
+
+## Usage Instructions
+
+Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.
+
+
+
+## Actions
+
+### `codepipeline_list_pipelines`
+
+List all CodePipeline pipelines in an AWS account and region
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `maxResults` | number | No | Maximum number of pipelines to return \(1-1000\) |
+| `nextToken` | string | No | Pagination token from a previous call |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelines` | array | List of pipelines with name, version, type, and timestamps |
+|   ↳ `name` | string | Pipeline name |
+|   ↳ `version` | number | Pipeline version number |
+|   ↳ `pipelineType` | string | Pipeline type \(V1 or V2\) |
+|   ↳ `executionMode` | string | Execution mode \(QUEUED, SUPERSEDED, PARALLEL\) |
+|   ↳ `created` | number | Epoch ms when the pipeline was created |
+|   ↳ `updated` | number | Epoch ms when the pipeline was last updated |
+| `nextToken` | string | Pagination token for the next page of results |
+
+### `codepipeline_get_pipeline_state`
+
+Get the current state of a CodePipeline pipeline, including stage and action status and pending approval tokens
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelineName` | string | Pipeline name |
+| `pipelineVersion` | number | Pipeline version number |
+| `created` | number | Epoch ms when the pipeline was created |
+| `updated` | number | Epoch ms when the pipeline was last updated |
+| `stageStates` | array | Per-stage state including latest execution status and action details |
+|   ↳ `stageName` | string | Stage name |
+|   ↳ `status` | string | Latest stage execution status \(InProgress, Succeeded, Failed, Stopped, Cancelled\) |
+|   ↳ `pipelineExecutionId` | string | Pipeline execution ID currently in the stage |
+|   ↳ `inboundTransitionEnabled` | boolean | Whether the inbound transition into the stage is enabled |
+|   ↳ `actionStates` | array | Per-action state with status, summary, error details, and approval token \(for pending manual approvals\) |
+
+### `codepipeline_get_pipeline_execution`
+
+Get details of a CodePipeline execution, including status, trigger, source revisions, and resolved variables
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+| `pipelineExecutionId` | string | Yes | ID of the pipeline execution |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelineExecutionId` | string | Pipeline execution ID |
+| `pipelineName` | string | Pipeline name |
+| `pipelineVersion` | number | Pipeline version number |
+| `status` | string | Execution status \(Cancelled, InProgress, Stopped, Stopping, Succeeded, Superseded, Failed\) |
+| `statusSummary` | string | Status summary for the execution |
+| `executionMode` | string | Execution mode \(QUEUED, SUPERSEDED, PARALLEL\) |
+| `executionType` | string | Execution type \(STANDARD or ROLLBACK\) |
+| `triggerType` | string | What triggered the execution \(e.g., Webhook, StartPipelineExecution\) |
+| `triggerDetail` | string | Detail about the trigger \(e.g., user ARN\) |
+| `artifactRevisions` | array | Source artifact revisions for the execution |
+|   ↳ `name` | string | Artifact name |
+|   ↳ `revisionId` | string | Revision ID \(e.g., commit SHA\) |
+|   ↳ `revisionSummary` | string | Revision summary \(e.g., commit message\) |
+|   ↳ `revisionUrl` | string | URL of the revision |
+|   ↳ `created` | number | Epoch ms when the revision was created |
+| `variables` | array | Resolved pipeline variables for the execution |
+|   ↳ `name` | string | Variable name |
+|   ↳ `resolvedValue` | string | Resolved variable value |
+
+### `codepipeline_list_pipeline_executions`
+
+List recent executions of a CodePipeline pipeline with status and source revisions
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+| `maxResults` | number | No | Maximum number of executions to return \(1-100, default 100\) |
+| `nextToken` | string | No | Pagination token from a previous call |
+| `succeededInStage` | string | No | Only return executions that succeeded in this stage |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `executions` | array | Pipeline execution summaries, most recent first |
+|   ↳ `pipelineExecutionId` | string | Pipeline execution ID |
+|   ↳ `status` | string | Execution status \(Cancelled, InProgress, Stopped, Stopping, Succeeded, Superseded, Failed\) |
+|   ↳ `statusSummary` | string | Status summary for the execution |
+|   ↳ `startTime` | number | Epoch ms when the execution started |
+|   ↳ `lastUpdateTime` | number | Epoch ms when the execution was last updated |
+|   ↳ `executionMode` | string | Execution mode \(QUEUED, SUPERSEDED, PARALLEL\) |
+|   ↳ `executionType` | string | Execution type \(STANDARD or ROLLBACK\) |
+|   ↳ `stopTriggerReason` | string | Reason the execution was stopped, if applicable |
+|   ↳ `triggerType` | string | What triggered the execution |
+|   ↳ `triggerDetail` | string | Detail about the trigger |
+|   ↳ `sourceRevisions` | array | Source revisions \(commit IDs, summaries, URLs\) for the execution |
+| `nextToken` | string | Pagination token for the next page of results |
+
+### `codepipeline_start_execution`
+
+Start a CodePipeline pipeline execution, optionally overriding pipeline variables
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline to start |
+| `clientRequestToken` | string | No | Idempotency token to identify a unique execution request |
+| `variables` | json | No | Pipeline variable overrides as an array of \{ name, value \} objects |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelineExecutionId` | string | ID of the pipeline execution that was started |
+
+### `codepipeline_stop_execution`
+
+Stop a CodePipeline pipeline execution, either finishing in-progress actions or abandoning them
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+| `pipelineExecutionId` | string | Yes | ID of the pipeline execution to stop |
+| `abandon` | boolean | No | Abandon in-progress actions instead of letting them finish \(default false\) |
+| `reason` | string | No | Reason for stopping the execution \(max 200 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelineExecutionId` | string | ID of the pipeline execution that was stopped |
+
+### `codepipeline_retry_stage_execution`
+
+Retry the failed actions (or all actions) of a failed CodePipeline stage
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+| `stageName` | string | Yes | Name of the failed stage to retry |
+| `pipelineExecutionId` | string | Yes | ID of the pipeline execution in the failed stage |
+| `retryMode` | string | Yes | Scope of the retry: FAILED_ACTIONS or ALL_ACTIONS |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pipelineExecutionId` | string | ID of the pipeline execution with the retried stage |
+
+### `codepipeline_put_approval_result`
+
+Approve or reject a pending CodePipeline manual approval action. The approval token is available from Get Pipeline State on the pending approval action
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `awsRegion` | string | Yes | AWS region \(e.g., us-east-1\) |
+| `awsAccessKeyId` | string | Yes | AWS access key ID |
+| `awsSecretAccessKey` | string | Yes | AWS secret access key |
+| `pipelineName` | string | Yes | Name of the pipeline |
+| `stageName` | string | Yes | Name of the stage containing the approval action |
+| `actionName` | string | Yes | Name of the manual approval action |
+| `token` | string | Yes | Approval token from Get Pipeline State for the pending approval |
+| `status` | string | Yes | Approval decision: Approved or Rejected |
+| `summary` | string | Yes | Summary explaining the approval decision \(max 512 characters\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `approvedAt` | number | Epoch ms when the approval or rejection was submitted |
+| `status` | string | The submitted approval decision \(Approved or Rejected\) |
+
+

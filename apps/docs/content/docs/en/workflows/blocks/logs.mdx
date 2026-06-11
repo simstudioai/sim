@@ -1,0 +1,57 @@
+---
+title: Logs
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { FAQ } from '@/components/ui/faq'
+
+The Logs block queries workflow run logs in the current workspace and fetches full details for individual runs — the same data you see on the Logs page, available to your workflows.
+
+## Operations
+
+<Tabs items={['Query Logs', 'Get Run Details']}>
+  <Tab>
+    <p>Find runs matching a set of filters. Returns only the matching <strong>run IDs</strong>, ordered newest-first by default.</p>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>Workflows</strong>: select specific workflows, or leave empty for all (comma-separated IDs in advanced mode)</li>
+      <li><strong>Status</strong>: info, error, running, pending, cancelled (empty for all)</li>
+      <li><strong>Time Range</strong>: presets from the past 30 minutes to the past 30 days, or explicit ISO start/end dates in advanced mode</li>
+      <li><strong>Cost</strong>: compare run cost against a credit threshold (e.g. ≥ 10 credits)</li>
+      <li><strong>Duration</strong>: compare run duration against a millisecond threshold</li>
+      <li><strong>Limit</strong>: maximum run IDs to return (default 100, max 200)</li>
+    </ul>
+  </Tab>
+  <Tab>
+    <p>Fetch everything about a single run by its run ID:</p>
+    <ul className="list-disc space-y-1 pl-6">
+      <li><strong>runId</strong>, <strong>workflowId</strong>, <strong>workflowName</strong></li>
+      <li><strong>status</strong>, <strong>trigger</strong>, <strong>startedAt</strong>, <strong>durationMs</strong></li>
+      <li><strong>cost</strong>: run cost in credits</li>
+      <li><strong>traceSpans</strong>: the full trace — per-block inputs, outputs, timings, and tool calls</li>
+      <li><strong>finalOutput</strong>: the run's final output</li>
+    </ul>
+  </Tab>
+</Tabs>
+
+## Typical Pattern
+
+Query for the runs you care about, then loop over the returned IDs and fetch details for each:
+
+1. **Query Logs** with `Status: error` and `Time Range: Past 24 hours` → `<logs1.runIds>`
+2. Loop over the IDs and call **Get Run Details** → inspect `<logs2.traceSpans>` to find the failing block
+3. Act on it — post a summary to Slack, file a ticket, or feed the trace to an Agent block for diagnosis
+
+This pairs naturally with the [Sim trigger](/workflows/triggers/sim): the trigger hands you the `runId` that fired the event, and Get Run Details gives you the full trace.
+
+<Callout type="info">
+  The block always operates on the current workspace. Costs are denominated in credits, both for
+  the cost filter and the cost output.
+</Callout>
+
+<FAQ items={[
+  { question: "Why does Query Logs only return run IDs?", answer: "To keep payloads small and predictable. Run summaries can be large — fetch only the runs you actually need with Get Run Details." },
+  { question: "Can I query logs from another workspace?", answer: "No. The block is scoped to the workspace the workflow lives in." },
+  { question: "What are trace spans?", answer: "The execution trace for a run: every block that ran, its inputs and outputs, timings, and any tool calls — the same data shown in the Logs page trace view." },
+  { question: "How far back can I query?", answer: "As far as your plan's log retention. Free plans retain logs for 7 days; paid plans retain them indefinitely." },
+]} />

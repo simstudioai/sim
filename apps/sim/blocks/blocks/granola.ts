@@ -7,7 +7,7 @@ export const GranolaBlock: BlockConfig = {
   description: 'Access meeting notes and transcripts from Granola',
   longDescription:
     'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.',
-  docsLink: 'https://docs.sim.ai/tools/granola',
+  docsLink: 'https://docs.sim.ai/integrations/granola',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#B2C147',

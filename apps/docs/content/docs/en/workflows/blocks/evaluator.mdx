@@ -1,0 +1,75 @@
+---
+title: Evaluator
+description: The Evaluator block uses a model to score content against metrics you define.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { BlockPreview, WorkflowPreview, EVALUATOR_GATE_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Evaluator block** uses a model to score content against metrics you define, returning a number per metric. Use it for quality gates, comparing variations, and quality control on AI output.
+
+<BlockPreview type="evaluator" />
+
+## Configuration
+
+### Evaluation Metrics
+
+The metrics to score against. Each metric has a **name**, a **description** of what it measures, and a numeric **range**:
+
+```
+Accuracy (1-5): How factually accurate is the content?
+Clarity  (1-5): How clear and understandable is it?
+Relevance(1-5): How relevant is it to the original query?
+```
+
+The model scores the content on each metric and returns the numbers. Metrics missing a name or range are skipped.
+
+### Content
+
+The content to score. Usually an earlier output like `<agent.content>`. Structured data is formatted to text before scoring; the evaluation is text-based, so it can't score images or audio directly.
+
+### Model
+
+The model that does the scoring, defaulting to `claude-sonnet-4-6`. Stronger reasoning models give more consistent scores. Type or pick any supported model. **Temperature** and a **System Prompt** are available under advanced, and on hosted Sim the API key is supplied for you.
+
+## Outputs
+
+The Evaluator returns a number for each metric, read by the metric's lowercase name:
+
+| Output | What it is |
+| --- | --- |
+| `<evaluator.accuracy>` | The score for a metric (one output per metric you define) |
+| `<evaluator.content>` | The evaluation summary |
+| `<evaluator.model>` | The model that scored |
+| `<evaluator.tokens>` | Token usage |
+| `<evaluator.cost>` | Estimated cost of the call |
+
+The block enforces a JSON Schema built from your metrics, so the model returns only the metric scores as numbers, no extra text.
+
+## Examples
+
+### Gate on a quality score
+
+<WorkflowPreview workflow={EVALUATOR_GATE_WORKFLOW} />
+
+The Evaluator scores the draft, and a [Condition](/workflows/blocks/condition) gates on `<evaluator.accuracy>` — publishing a strong draft or sending a weak one back to revise.
+
+The same shape covers other quality work: score several [parallel](/workflows/blocks/parallel) variations and pick the best, or score every support reply and flag the low ones for review.
+
+## Best Practices
+
+- **Write specific metric descriptions.** A clear definition of what each metric measures produces more consistent scores.
+- **Choose a sensible range.** Enough granularity to act on (1–5 or 0–10), without splitting hairs.
+- **Score Agent output and loop back.** Pair an Evaluator with a Condition to gate on a threshold and route weak output back for another pass.
+- **Keep metrics consistent.** For comparing variations, use the same metrics across each evaluation.
+
+<FAQ items={[
+  { question: "What format does the Evaluator return scores in?", answer: "A JSON object where each key is the lowercase metric name and the value is the numeric score within the range you defined. A metric named 'Accuracy' with range 1-5 appears as { \"accuracy\": 4 }, read downstream as <evaluator.accuracy>." },
+  { question: "Which models work best for evaluation?", answer: "Models with strong reasoning give the most consistent scores. The default is claude-sonnet-4-6; for simple, clearly distinct metrics a faster model is fine." },
+  { question: "Can I evaluate non-text content?", answer: "The content field takes any string. JSON or structured data is detected and formatted before scoring, but the evaluation is text-based, so it can't directly score images or audio." },
+  { question: "What happens if a metric is incomplete?", answer: "Metrics missing a name or a range are skipped. The Evaluator only scores metrics that have both a name and a defined min/max range." },
+  { question: "Does the Evaluator use structured output?", answer: "Yes. It builds a JSON Schema from your metrics and enforces strict mode, so the model returns only the expected metric scores as numbers, with no extra text." },
+  { question: "How are evaluation costs calculated?", answer: "From the underlying model call's token usage. The outputs include token counts and a cost breakdown so you can track spend per evaluation." },
+]} />

@@ -1,0 +1,107 @@
+---
+title: Overview
+description: A workflow is a visual program made of blocks, a saved procedure your AI systems run.
+pageType: concept
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { WorkflowPreview, CLASSIFY_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+Your Sim workspace is where your AI systems live. A system is made of two things. **Workflows** are the procedures it runs. **Resources** are the data those procedures work with: tables, knowledge bases, and files.
+
+A workflow is a visual program made of blocks. Like a recipe, it's a fixed set of steps you write once and run again and again, each time with new input. Each block does one step of work, and connections set the order the blocks run in.
+
+Here's a simple one. It takes an incoming customer message, classifies its category and urgency, and returns the result:
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} />
+
+## The parts of a workflow
+
+### Trigger
+
+A **trigger** is where a workflow begins and what it hands in. Every workflow has exactly one. The [Start](/workflows/triggers/start) trigger takes input directly — from the editor while you build, and from an API call or a chat once deployed. For runs that should start on an event or a timer, you swap in a [webhook](/workflows/triggers/webhook) or [schedule](/workflows/triggers/schedule) trigger, and the downstream blocks don't change.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="start" />
+
+In our example, the Start trigger receives the customer message. Later blocks read it by name, as `<start.input>`.
+
+### Block
+
+A **block** is a single step, and each does one thing: an [Agent](/workflows/blocks/agent) reasons with a model, a [Function](/workflows/blocks/function) runs code, a [Condition](/workflows/blocks/condition) branches, a [Loop](/workflows/blocks/loop) repeats. Some blocks are deterministic (Function, Condition); others are model-driven (Agent) and can vary run to run. That difference is the first thing to know when debugging.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="agent" />
+
+Our example has one Agent block, configured with a model and a prompt, that reads the message and returns a classification.
+
+<Callout type="info">
+A block is not the same as a tool. A **tool** is a capability an agent can call during a step: send a Slack message, search a knowledge base, run a snippet of code. An [Agent](/workflows/blocks/agent) block decides which tools to call and when. Blocks are the workflow's steps; tools are the actions an agent takes inside one.
+</Callout>
+
+### Connection
+
+A **connection** wires one block to the next and sets the execution order: the block at the arrow's head runs after the one at its tail. Once a block has run, the blocks after it can read its output by reference.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightEdge="start-agent" />
+
+You read an earlier output with a **connection tag**, written `<blockName.field>`: name the block, then the value you want. The Agent's prompt reads the message with `<start.input>`; a later block could read the Agent's answer with `<agent.content>`.
+
+Most workflow issues are data issues, not crashed blocks: a reference points at a value that isn't there, or a block on the path didn't run. See [how blocks pass data](/workflows/data-flow) for outputs, references, and types.
+
+### Output
+
+An **output** is what a block produces; later blocks read it through connection tags. By default the workflow's output is its **last block's** output. In our example that's the Agent's `{ category, urgency }`. There's no separate return step.
+
+<WorkflowPreview workflow={CLASSIFY_WORKFLOW} height={170} highlightBlock="agent" />
+
+On reuse, the consumer picks which outputs it wants by name: a [chat deployment](/workflows/deployment/chat), a [table column](/tables/workflow-columns), or an [API call](/workflows/deployment/api) each select block outputs individually. It's the same idea as connection tags, applied at the workflow's edge. (For precise HTTP control, add a [Response block](/workflows/blocks/response).)
+
+## Kinds of blocks [#blocks]
+
+Core blocks come in three kinds: blocks that **do work** ([Agent](/workflows/blocks/agent), [Function](/workflows/blocks/function), [API](/workflows/blocks/api)), blocks that **direct the flow** ([Condition](/workflows/blocks/condition), [Router](/workflows/blocks/router), [Loop](/workflows/blocks/loop), [Parallel](/workflows/blocks/parallel)), and blocks that **shape the run** ([Response](/workflows/blocks/response), [Guardrails](/workflows/blocks/guardrails), [Wait](/workflows/blocks/wait), and more).
+
+Two larger families do more specific jobs:
+
+- **[Integrations](/integrations)** connect to an external service — Gmail, Slack, Notion, a database — with hundreds available. An agent can also call them as tools.
+- **Triggers** are the blocks that start a workflow.
+
+## How a workflow starts [#triggers]
+
+A trigger decides what starts the run and what input it receives. **Native triggers** need no connected account: [Start](/workflows/triggers/start) (manual, API, or chat), [Schedule](/workflows/triggers/schedule) (a timer), [Webhook](/workflows/triggers/webhook) (any inbound HTTP request), [RSS](/workflows/triggers/rss) (a new feed item), and [Table](/workflows/triggers/table) (a row change in a Sim table). **Integration triggers** fire on an event in a connected service — a GitHub push, a new email — and hand it to the workflow.
+
+<Callout type="info">
+Every trigger runs the active [deployment](/workflows/deployment), so redeploy after changing a workflow for it to pick up the new version.
+</Callout>
+
+## How it runs
+
+When a workflow runs, blocks execute in dependency order: a block runs as soon as the blocks it depends on have finished, so independent branches run in parallel. Conditions, loops, and parallel blocks change the path data takes.
+
+<Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, branches, and loops." />
+
+## Workflows in context
+
+A workflow is where the rest of the workspace becomes behavior. On their own, tables, knowledge bases, files, and integrations are just resources. Workflows are where they *do* something.
+
+{/* VISUAL: system-context diagram. Mothership builds; tables/KBs/files/integrations feed; deployments expose; logs verify. */}
+
+- **Mothership** builds and edits workflows in natural language.
+- **Tables, knowledge bases, files, and integrations** feed data, memory, artifacts, and actions into a workflow.
+- **Deployments** expose a workflow as an API, chat, or MCP server.
+- **Logs** record every run so you can verify what happened, step by step.
+
+## Next
+
+<Cards>
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="Outputs, references, and the data types you'll work with." />
+  <Card title="Agent" href="/workflows/blocks/agent" description="The most common block: reason with a model and call tools." />
+  <Card title="Start" href="/workflows/triggers/start" description="The default trigger — run from the editor, an API, or chat." />
+  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, concurrency, and control flow." />
+</Cards>
+
+<FAQ items={[
+  { question: "What is the difference between work blocks and flow blocks?", answer: "Work blocks (Agent, Function, API) transform or generate data. Flow blocks (Condition, Router) decide which path the workflow takes based on the data, without changing it." },
+  { question: "What happens if a block in the middle of a workflow fails?", answer: "The run stops along that path. Blocks that support error handling, like the Router, can route to an error path so you handle the failure instead of halting the whole workflow. Independent paths keep running." },
+  { question: "Can one block's output connect to multiple blocks?", answer: "Yes. A single output can feed several blocks, so you can fan data out from one step to multiple paths without duplicating the block." },
+]} />

@@ -1,0 +1,172 @@
+---
+title: Using MCP tools
+description: Connect external tools and services using the Model Context Protocol
+pageType: guide
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+The Model Context Protocol ([MCP](https://modelcontextprotocol.com/)) is an open standard for connecting AI to external tools and data. Add an MCP server to your workspace and its tools become available to your agents — a way to integrate services Sim doesn't have a built-in integration for.
+
+## Adding an MCP Server as a Tool
+
+MCP servers provide collections of tools that your agents can use.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="mcp/settings-mcp-tools.mp4" width={700} height={450} />
+</div>
+
+To add one:
+
+1. Navigate to **Settings → MCP Tools**
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-settings.png"
+    alt="MCP Tools settings page"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+2. Click **Add** to open the configuration modal
+3. Enter a **Server Name** and **Server URL**
+4. Add any required **Headers** (e.g. API keys)
+5. Click **Add MCP** to save
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-add-modal.png"
+    alt="Add New MCP Server modal"
+    width={450}
+    height={290}
+    className="my-6"
+  />
+</div>
+
+<Callout type="info">
+You can also configure MCP servers directly from the toolbar in an Agent block for quick setup.
+</Callout>
+
+### Server Configuration Options
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Display name for the server |
+| **URL** | The MCP server endpoint |
+| **Transport** | Currently supports `streamable-http` |
+| **Headers** | Key-value pairs for authentication or custom headers |
+| **Timeout** | Connection timeout in milliseconds (default: 30,000) |
+
+### Environment Variables in Configuration
+
+Server URLs and headers support environment variable substitution using `{{VAR_NAME}}` syntax. This keeps sensitive values like API keys out of the server configuration.
+
+```
+URL: https://api.example.com/mcp
+Authorization: Bearer {{MCP_API_TOKEN}}
+```
+
+When you type `{{` in the URL or header fields, a dropdown appears showing available workspace environment variables.
+
+### Testing and Validation
+
+Click **Test Connection** before saving to verify the server is reachable and discover available tools. The test response shows the number of tools found and the protocol version.
+
+After saving, each server displays its available tools with parameter names, types, and required flags. If a server's tools change (e.g., after a server update), click **Refresh** to fetch the latest schemas. This automatically updates any agent blocks using those tools.
+
+Tool validation badges appear on servers with issues — for example, if a tool was removed from the server but is still referenced in a workflow. Click the badge to see which workflows are affected.
+
+### Domain Allowlisting
+
+Self-hosted deployments can restrict which MCP server domains are allowed by setting the `ALLOWED_MCP_DOMAINS` environment variable (comma-separated list). When set, only servers on approved domains can be added. When unset, all domains are allowed.
+
+## Using MCP Tools in Agents
+
+Once MCP servers are configured, their tools become available within your agent blocks:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-agent-dropdown.png"
+    alt="Using MCP Tool in Agent Block"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+1. Open an **Agent** block
+2. In the **Tools** section, click **Add tool…**
+3. Under **MCP Servers**, click a server to see its tools
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-agent-tools.png"
+    alt="MCP tools list for a selected server"
+    width={400}
+    height={400}
+    className="my-6"
+  />
+</div>
+
+4. Select individual tools, or choose **Use all N tools** to add every tool from that server
+5. The agent can now access these tools during execution
+
+<Callout type="info">
+If you haven't configured a server yet, click **Add MCP Server** at the top of the dropdown to open the setup modal without leaving the block.
+</Callout>
+
+## Standalone MCP Tool Block
+
+For more granular control, you can use the dedicated MCP Tool block to execute specific MCP tools:
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/mcp-tool-block.png"
+    alt="Standalone MCP Tool Block"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+The MCP Tool block runs one configured tool with parameters you set explicitly, and its output is readable by later blocks like any other.
+
+## When to Use MCP Tool vs Agent
+
+| | **Agent with MCP tools** | **MCP Tool block** |
+|---|---|---|
+| **Execution** | AI decides which tools to call | Deterministic — runs the tool you pick |
+| **Parameters** | AI chooses at runtime | You set them explicitly |
+| **Best for** | Dynamic, conversational flows | Structured, repeatable steps |
+| **Reasoning** | Handles complex multi-step logic | One tool, one call |
+
+## Permission Requirements
+
+MCP functionality requires specific workspace permissions:
+
+| Action | Required Permission |
+|--------|-------------------|
+| Create or update MCP servers | **Write** or **Admin** |
+| Delete MCP servers | **Admin** |
+| Use MCP tools in agents | **Write** or **Admin** |
+| View available MCP tools | **Read**, **Write**, or **Admin** |
+| Execute MCP Tool blocks | **Read**, **Write**, or **Admin** |
+
+<Callout type="warn">
+MCP servers run with the permissions of the user who configured them — only connect servers you trust, and review a server's tools before handing them to agents.
+</Callout>
+
+import { FAQ } from '@/components/ui/faq'
+
+<FAQ items={[
+  { question: "What is the difference between using MCP tools in an Agent block vs. the standalone MCP Tool block?", answer: "When you add MCP tools to an Agent block, the AI decides which tools to use based on the conversation context and its reasoning. This is best for dynamic, conversational workflows. The standalone MCP Tool block executes a specific tool with explicit parameters every time, giving you deterministic, predictable execution. Use Agent blocks for flexible reasoning and MCP Tool blocks for structured, repeatable steps." },
+  { question: "Who can configure MCP servers in a workspace?", answer: "Users with Write permission can configure (add and update) MCP servers in workspace settings. Only Admin permission is required to delete MCP servers. Users with Read permission can view available MCP tools and execute them in agents and MCP Tool blocks. This means all workspace members with at least Read access can use MCP tools in their workflows." },
+  { question: "Can I use MCP servers from multiple workspaces?", answer: "MCP servers are configured per workspace. Each workspace maintains its own set of MCP server connections. If you need the same MCP server in multiple workspaces, you need to configure it separately in each workspace's settings." },
+  { question: "How do I update MCP tool schemas after a server changes its available tools?", answer: "Click the Refresh button on the MCP server in your workspace settings. This fetches the latest tool schemas from the server and automatically updates any agent blocks that use those tools with the new parameter definitions." },
+  { question: "Can permission groups restrict access to MCP tools?", answer: "Yes. On Enterprise-entitled workspaces, any workspace admin can create a permission group that disables MCP tools for its members using the disableMcpTools option. When this is enabled, affected users will not be able to add or use MCP tools in workflows that belong to that workspace." },
+  { question: "What happens if an MCP server goes offline during workflow execution?", answer: "If the MCP server is unreachable during execution, the tool call will fail and return an error. In an Agent block, the AI may attempt to handle the failure gracefully. In a standalone MCP Tool block, the workflow step will fail. Check MCP server logs and verify the server is running and accessible to troubleshoot connectivity issues." },
+]} />

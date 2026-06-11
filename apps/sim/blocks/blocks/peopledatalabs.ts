@@ -10,7 +10,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Enrich a single person or company with People Data Labs, or search the global person and company datasets with SQL or Elasticsearch DSL. Useful for sales enrichment, contact lookup, and CRM hygiene.',
-  docsLink: 'https://docs.sim.ai/tools/peopledatalabs',
+  docsLink: 'https://docs.sim.ai/integrations/peopledatalabs',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#4831C3',

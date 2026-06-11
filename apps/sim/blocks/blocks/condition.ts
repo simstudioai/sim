@@ -24,7 +24,7 @@ export const ConditionBlock: BlockConfig<ConditionBlockOutput> = {
   - Write the conditions using standard javascript syntax except referencing the outputs of previous blocks using <> syntax, and keep them as simple as possible. No hacky fallbacks.
   - Can reference workflow variables using <blockName.output> syntax as usual within conditions.
   `,
-  docsLink: 'https://docs.sim.ai/blocks/condition',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/condition',
   bgColor: '#FF752F',
   icon: ConditionalIcon,
   category: 'blocks',

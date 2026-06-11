@@ -9,7 +9,7 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate ZeroBounce to validate email deliverability in real time — detect invalid, catch-all, spamtrap, abuse, and do-not-mail addresses — and check your remaining validation credits.',
-  docsLink: 'https://docs.sim.ai/tools/zerobounce',
+  docsLink: 'https://docs.sim.ai/integrations/zerobounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',

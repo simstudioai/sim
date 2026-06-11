@@ -45,8 +45,8 @@ Restrict which workflow blocks appear in the editor. Disable the HTTP block to p
 
 Control access to platform capabilities per permission group:
 
-- **[Knowledge Base](https://docs.sim.ai/blocks/knowledge)** — Disable document uploads if RAG workflows aren't approved
-- **[MCP Tools](https://docs.sim.ai/mcp)** — Block deployment of workflows as external tool endpoints
+- **[Knowledge Base](https://docs.sim.ai/integrations/knowledge)** — Disable document uploads if RAG workflows aren't approved
+- **[MCP Tools](https://docs.sim.ai/agents/mcp)** — Block deployment of workflows as external tool endpoints
 - **Custom Tools** — Prevent creation of arbitrary HTTP integrations
 - **Invitations** — Disable self-service team invitations to maintain centralized control
 
@@ -72,13 +72,13 @@ A healthcare organization can use Azure OpenAI with their BAA-covered subscripti
 
 ![Self-Hosted Architecture](/blog/enterprise/self-hosted.png)
 
-Run Sim entirely on your infrastructure. Deploy with [Docker Compose](https://docs.sim.ai/self-hosting/docker) or [Helm charts](https://docs.sim.ai/self-hosting/kubernetes) for Kubernetes—the application, WebSocket server, and PostgreSQL database all stay within your network.
+Run Sim entirely on your infrastructure. Deploy with [Docker Compose](https://docs.sim.ai/platform/self-hosting/docker) or [Helm charts](https://docs.sim.ai/platform/self-hosting/kubernetes) for Kubernetes—the application, WebSocket server, and PostgreSQL database all stay within your network.
 
 **Single-node** — Docker Compose setup for smaller teams getting started.
 
 **High availability** — Multi-replica Kubernetes deployments with horizontal pod autoscaling.
 
-**Air-gapped** — No external network access required. Pair with [Ollama](https://docs.sim.ai/self-hosting/ollama) or [vLLM](https://docs.sim.ai/self-hosting/vllm) for local model inference.
+**Air-gapped** — No external network access required. Pair with [Ollama](https://docs.sim.ai/platform/self-hosting/ollama) or [vLLM](https://docs.sim.ai/platform/self-hosting/vllm) for local model inference.
 
 Enterprise features like access control, SSO, and organization management are enabled through environment variables—no connection to our billing infrastructure required.
 
@@ -168,7 +168,7 @@ For teams practicing GitOps, export workflows to your repository and use the Adm
 
 ## Get Started
 
-Enterprise features are available now. Check out our [self-hosting](https://docs.sim.ai/self-hosting) and [enterprise](https://docs.sim.ai/enterprise) docs to get started.
+Enterprise features are available now. Check out our [self-hosting](https://docs.sim.ai/platform/self-hosting) and [enterprise](https://docs.sim.ai/platform/enterprise) docs to get started.
 
 *Questions about enterprise deployments?*
 

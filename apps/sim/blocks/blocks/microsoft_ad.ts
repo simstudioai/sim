@@ -10,7 +10,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   description: 'Manage users and groups in Azure AD (Microsoft Entra ID)',
   longDescription:
     'Integrate Azure Active Directory into your workflows. List, create, update, and delete users and groups. Manage group memberships programmatically.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_ad',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_ad',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#0078D4',

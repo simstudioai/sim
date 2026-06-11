@@ -9,7 +9,7 @@ export const GoogleAdsBlock: BlockConfig = {
   description: 'Query campaigns, ad groups, and performance metrics',
   longDescription:
     'Connect to Google Ads to list accessible accounts, list campaigns, view ad group details, get performance metrics, and run custom GAQL queries.',
-  docsLink: 'https://docs.sim.ai/tools/google_ads',
+  docsLink: 'https://docs.sim.ai/integrations/google_ads',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#FFFFFF',

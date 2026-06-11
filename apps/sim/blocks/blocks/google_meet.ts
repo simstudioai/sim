@@ -11,7 +11,7 @@ export const GoogleMeetBlock: BlockConfig<GoogleMeetResponse> = {
   description: 'Create and manage Google Meet meetings',
   longDescription:
     'Integrate Google Meet into your workflow. Create meeting spaces, get space details, end conferences, list conference records, and view participants.',
-  docsLink: 'https://docs.sim.ai/tools/google_meet',
+  docsLink: 'https://docs.sim.ai/integrations/google_meet',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#FFFFFF',

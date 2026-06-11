@@ -1,0 +1,62 @@
+---
+title: Start
+description: The Start block is the default trigger — it collects typed inputs and runs the workflow from the editor, an API call, or chat.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+
+The **Start block** is the default trigger for a workflow. It defines the inputs the workflow takes and runs it from three surfaces with the same shape: a manual run in the editor, an [API deployment](/workflows/deployment/api), and a [chat deployment](/workflows/deployment/chat).
+
+<div className="flex justify-center">
+  <Image src="/static/start.png" alt="Start block with Input Format fields" width={500} height={400} className="my-6" />
+</div>
+
+<Callout type="info">
+Every workflow starts with a Start block in the trigger slot. Keep it when one entry point should serve editor, API, and chat runs. Swap in a [Webhook](/workflows/triggers/webhook) or [Schedule](/workflows/triggers/schedule) trigger when the workflow should only run on an event or a timer.
+</Callout>
+
+## Input Format
+
+Define the fields the workflow accepts. Each field has a name and a type — `string`, `number`, `boolean`, `object`, `array`, or `files` — and becomes available downstream as `<start.fieldName>`. A `customerId` field reads as `<start.customerId>`.
+
+- Give a field a **default value** to prefill the manual-run form. Defaults are ignored on deployed runs.
+- **File** fields accept uploads from both chat and API callers.
+- Reorder fields to control how they appear in the editor form.
+
+## Outputs
+
+The fields you define, plus conversation context when the workflow runs from chat:
+
+| Output | What it is |
+| --- | --- |
+| `<start.fieldName>` | Each Input Format field, by name |
+| `<start.input>` | The latest user message (chat only) |
+| `<start.conversationId>` | The active session id (chat only) |
+| `<start.files>` | Chat attachments (chat only) |
+
+## Per entry point
+
+<Tabs items={['Editor run', 'API', 'Chat']}>
+  <Tab>
+    **Run** renders the Input Format as a form, prefilled with any default values, so you can retest without retyping. Submitting runs the workflow, and the values land on `<start.fieldName>`. File fields upload straight into `<start.fieldName>`.
+  </Tab>
+  <Tab>
+    The Input Format becomes the JSON request body. Each field is part of the body, and Sim coerces primitive types on the way in. File fields expect objects that reference uploaded files, so upload first, then invoke the workflow.
+  </Tab>
+  <Tab>
+    The Start block binds to the active conversation: the latest message fills `<start.input>`, the session id is `<start.conversationId>`, and attachments appear on `<start.files>`, alongside any Input Format fields. Extra structured context passed in at launch merges into the matching `<start.fieldName>` outputs.
+  </Tab>
+</Tabs>
+
+## Multiple triggers
+
+A workflow can have more than one trigger. When you click **Run** in the editor, Sim runs the highest-priority one: the **Start** trigger first, then a [Schedule](/workflows/triggers/schedule), then external triggers (webhooks and integrations). So a workflow with both a Start and a Webhook runs from Start when you click Run. Running an external trigger by hand instead generates a mock payload from its expected shape, so downstream blocks can resolve their references while you test.
+
+## Best Practices
+
+- **Use Start as the single entry point** when one workflow serves both API and chat callers.
+- **Prefer named fields over raw JSON.** Typed Input Format fields are coerced automatically and read by name downstream.
+- **Validate early.** Add a [Condition](/workflows/blocks/condition) right after Start when certain fields are required for the run to succeed.

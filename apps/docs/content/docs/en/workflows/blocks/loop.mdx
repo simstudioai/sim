@@ -1,0 +1,124 @@
+---
+title: Loop
+description: The Loop block is a container that runs the blocks inside it repeatedly — over a collection, a count, or while a condition holds.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Image } from '@/components/ui/image'
+import { WorkflowPreview, LOOP_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Loop block** is a container that runs the blocks inside it repeatedly — over each item in a collection, a fixed number of times, or while a condition holds. Drop blocks inside it, and they run once per iteration. Iterations run **one after another**; for concurrent work, use a [Parallel](/workflows/blocks/parallel) block.
+
+## Loop Types
+
+<Tabs items={['For', 'ForEach', 'While', 'Do-While']}>
+  <Tab>
+    A **For** loop runs a fixed number of times. Set the iteration count.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/loop-1.png" alt="For loop with iterations" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+  <Tab>
+    A **ForEach** loop runs once per item in an array or object, exposing the current item as `<loop.currentItem>`.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/loop-2.png" alt="ForEach loop with a collection" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+  <Tab>
+    A **While** loop runs as long as a condition is true. The condition is checked **before** each iteration, so the body may run zero times.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/loop-3.png" alt="While loop with a condition" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+  <Tab>
+    A **Do-While** loop runs the body once, then repeats while a condition is true. The condition is checked **after** each iteration, so the body always runs at least once.
+
+    <div className="flex justify-center">
+      <Image src="/static/blocks/loop-4.png" alt="Do-While loop with a condition" width={500} height={400} className="my-6" />
+    </div>
+  </Tab>
+</Tabs>
+
+## Configuration
+
+Set the loop type, then the value it needs:
+
+- **Iterations** — how many times to run (For loops)
+- **Collection** — the array or object to iterate (ForEach loops)
+- **Condition** — the boolean expression to check (While and Do-While loops)
+
+## Referencing loop data
+
+References differ inside the loop and after it.
+
+<Tabs items={['Inside the loop', 'After the loop']}>
+  <Tab>
+    Inside the loop, read the current iteration with `<loop.*>`:
+
+    - `<loop.index>` — the iteration number, starting at 0
+    - `<loop.currentItem>` — the current item (ForEach only)
+    - `<loop.items>` — the full collection (ForEach only)
+
+    ```javascript
+    const idx = <loop.index>;        // 0, 1, 2, ...
+    const item = <loop.currentItem>; // the current item
+    ```
+
+    <Callout type="info">
+      These are only available to blocks inside the loop container.
+    </Callout>
+  </Tab>
+  <Tab>
+    After the loop, read the collected results by the loop block's name — not `<loop.*>`:
+
+    ```javascript
+    // a loop named "Process Items"
+    const all = <processitems.results>; // [result1, result2, ...]
+    ```
+
+    <Callout type="info">
+      The name is normalized — lowercase, no spaces. `<loop.*>` only works inside.
+    </Callout>
+  </Tab>
+</Tabs>
+
+## Examples
+
+<WorkflowPreview workflow={LOOP_WORKFLOW} height={340} />
+
+A ForEach loop scores each review and collects the results; after the loop finishes, an Agent summarizes `<loop.results>`. The same container holds the blocks for any loop type:
+
+- **Process API results** — `API (Fetch) → Loop (ForEach) → Agent (Analyze) → Function (Store)`
+- **Generate variations** — `Loop (5×) → Agent (Generate) → Evaluator (Score) → Function (Select best)`
+- **Counter with While** — `Variables (i=0) → Loop (While i<10) → Agent (Process) → Variables (i++)`
+
+## Nesting and limits
+
+<Callout type="info">
+  Containers nest. You can place loops inside loops, parallels inside loops, and any combination, to build multi-dimensional workflows.
+</Callout>
+
+For and ForEach loops are capped at **1,000 iterations**. While and Do-While loops run until their condition is false, with no hard cap — make sure the condition eventually becomes false so the loop ends.
+
+## Best Practices
+
+- **Use ForEach for collections.** When you have an array or object, ForEach is clearer than a For loop with manual indexing.
+- **Keep iteration counts reasonable.** Each iteration adds to total run time, since the loop runs sequentially.
+- **Reach for Parallel when order doesn't matter.** Independent work over a collection runs faster in a [Parallel](/workflows/blocks/parallel) block.
+- **Guarantee an exit.** For While and Do-While loops, make sure the condition will become false.
+
+<FAQ items={[
+  { question: "What is the maximum number of iterations a loop can run?", answer: "For and ForEach loops are capped at 1,000 iterations. While and Do-While loops with a condition have no hard cap — they run until the condition is false. A Do-While without a condition falls back to a fixed count, also capped at 1,000. Always ensure While/Do-While conditions eventually become false to avoid infinite loops." },
+  { question: "Do loops execute iterations in parallel or sequentially?", answer: "Sequentially, one after another. For concurrency across items, use the Parallel block, or nest a Parallel inside a Loop if you need both patterns." },
+  { question: "How do I access the current item inside a ForEach loop?", answer: "Use <loop.currentItem> for the current item and <loop.index> for the zero-based iteration number. These are only available to blocks inside the loop container." },
+  { question: "How do I access loop results after it finishes?", answer: "Reference the loop block by its normalized name (lowercase, no spaces) with <blockname.results>, which returns an array of all iteration results in order. Do not use <loop.*> outside the loop — that only works inside." },
+  { question: "Can I nest loops inside each other?", answer: "Yes. Loops and Parallels fully support nesting in any combination, and each nested container keeps its own scope and iteration context." },
+  { question: "What is the difference between a While loop and a Do-While loop?", answer: "A While loop checks its condition before each iteration, so it can run zero times. A Do-While loop runs the body once, then checks the condition, so it always runs at least once." },
+  { question: "What happens if a ForEach loop receives an empty collection?", answer: "The body is skipped and the loop outputs an empty results array. The workflow continues to whatever is connected after the loop." },
+]} />

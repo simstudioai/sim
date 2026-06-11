@@ -1,5 +1,5 @@
 ---
-title: Automation & Configuration
+title: Automation & configuration
 description: Schedule recurring jobs, take immediate actions, connect integrations, and configure your workspace.
 ---
 
@@ -77,7 +77,7 @@ Once connected, credentials are available to Mothership for direct actions and s
   Connected credentials are shared across the workspace. Any workflow that uses the same integration will automatically use the same credential.
 </Callout>
 
-See [Credentials](/credentials) for managing connected accounts.
+See [Credentials](/platform/credentials) for managing connected accounts.
 
 ## Environment Variables
 
@@ -124,7 +124,7 @@ Custom tools appear in the workflow editor and are callable from any Agent block
 <FAQ items={[
   { question: "What's the difference between a scheduled job and a deployed workflow?", answer: "A scheduled job runs a Mothership prompt on a cron schedule — Mothership decides what to do each time based on current workspace state. A deployed workflow runs a fixed, deterministic graph of blocks. Use jobs when you want Mothership to reason and adapt; use workflows when you want predictable, auditable execution." },
   { question: "Can a scheduled job trigger a workflow?", answer: "Yes. Include it in the job prompt: 'Run the invoice sync workflow and then post the results to Slack.'" },
-  { question: "How do I know what integrations are connected?", answer: "Ask Mothership: 'What integrations are connected to this workspace?' or check Settings → Credentials." },
+  { question: "How do I know what integrations are connected?", answer: "Ask Mothership: 'What integrations are connected to this workspace?' or check the Integrations page." },
   { question: "Can direct actions be undone?", answer: "No. Actions like sending emails, posting to Slack, or creating records are immediate and irreversible. Confirm the details before asking Mothership to act." },
   { question: "Are environment variables visible to all workflows?", answer: "Yes. Environment variables are workspace-scoped and available to every workflow via {{ENV_VAR}} syntax." },
   { question: "What's the difference between MCP servers and custom tools?", answer: "MCP servers expose a set of tools from an external service over the MCP protocol — you connect an existing MCP-compatible server. Custom tools are single HTTP endpoints you define manually — useful for internal APIs that don't have an MCP server." },

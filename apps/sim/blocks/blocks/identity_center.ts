@@ -9,7 +9,7 @@ export const IdentityCenterBlock: BlockConfig<IdentityCenterBaseResponse> = {
   description: 'Manage temporary elevated access in AWS IAM Identity Center',
   longDescription:
     'Provision and revoke temporary access to AWS accounts via IAM Identity Center (SSO). Assign permission sets to users or groups, look up users by email, and list accounts and permission sets for access request workflows.',
-  docsLink: 'https://docs.sim.ai/tools/identity_center',
+  docsLink: 'https://docs.sim.ai/integrations/identity_center',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: 'linear-gradient(45deg, #BD0816 0%, #FF5252 100%)',

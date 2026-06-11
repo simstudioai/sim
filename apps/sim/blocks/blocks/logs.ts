@@ -301,7 +301,7 @@ export const LogsV2Block: BlockConfig = {
   `,
   icon: Library,
   category: 'blocks',
-  docsLink: 'https://docs.sim.ai/blocks/logs',
+  docsLink: 'https://docs.sim.ai/integrations/logs',
   subBlocks: [
     {
       id: 'operation',

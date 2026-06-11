@@ -33,7 +33,7 @@ export const CodePipelineBlock: BlockConfig<
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate AWS CodePipeline into workflows. Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions. Requires AWS access key and secret access key.',
-  docsLink: 'https://docs.sim.ai/tools/codepipeline',
+  docsLink: 'https://docs.sim.ai/integrations/codepipeline',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
