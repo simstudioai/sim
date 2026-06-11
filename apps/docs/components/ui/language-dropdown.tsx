@@ -12,16 +12,16 @@ const languages = {
   zh: { name: '简体中文', flag: '🇨🇳' },
 }
 
-const LANGUAGE_OPTIONS = Object.entries(languages).map(([code, lang]) => ({
-  value: code,
-  label: lang.name,
-  iconElement: <span className='text-[13px]'>{lang.flag}</span>,
-}))
-
 export function LanguageDropdown() {
   const pathname = usePathname()
   const params = useParams()
   const { push } = useRouter()
+
+  const languageOptions = Object.entries(languages).map(([code, lang]) => ({
+    value: code,
+    label: lang.name,
+    iconElement: <span className='text-[13px]'>{lang.flag}</span>,
+  }))
 
   const langFromParams = params?.lang as string
   const currentLang =
@@ -50,7 +50,7 @@ export function LanguageDropdown() {
     <ChipDropdown
       value={currentLang}
       onChange={handleLanguageChange}
-      options={LANGUAGE_OPTIONS}
+      options={languageOptions}
       align='end'
       matchTriggerWidth={false}
       contentClassName='min-w-[160px]'
