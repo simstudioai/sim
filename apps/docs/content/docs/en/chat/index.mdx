@@ -1,0 +1,91 @@
+---
+title: Chat
+description: Open Chat and ask. Sim builds workflows, manages data, runs research, and takes action across your workspace.
+pageType: concept
+---
+
+import { Image } from '@/components/ui/image'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+<Video src="mothership/create-workflow.mp4" width={700} height={450} />
+
+**Chat** is where you work with Sim directly. Describe what you want — build a workflow, run research, generate a presentation, query a table, schedule a recurring job, send a Slack message — and Sim does it. It knows your entire workspace and takes action directly.
+
+Everything Sim builds is a normal workspace resource: a workflow you can open in the builder, a table you can edit, a file you can download. Chat is the fastest way to create and change things; the rest of the docs cover what those things are and how to work them by hand. (Agents *you* build and deploy are a different topic — see [Agents](/agents).)
+
+## What you can ask for
+
+| Area | What to ask |
+|------|-------------|
+| **[Workflows](/workflows/building-in-chat)** | Build, edit, run, debug, deploy, and organize workflows |
+| **[Research](#research)** | Search the web, read pages, crawl sites, produce research reports |
+| **[Files](/files#in-chat)** | Upload, create, edit, and generate documents, presentations, and images |
+| **[Tables](/tables#in-chat)** | Create, query, update, and export workspace tables |
+| **[Scheduled tasks](/chat/tasks)** | Schedule jobs, take immediate actions, connect integrations, manage tools |
+| **[Knowledge bases](/knowledgebase#in-chat)** | Create knowledge bases, add documents, and query content in plain language |
+
+## How it works
+
+Sim receives a snapshot of your entire workspace with every message — all workflows, tables, knowledge bases, files, credentials, jobs, and integrations. That's why you can refer to things by name without specifying IDs or paths:
+
+- "Run the invoice workflow"
+- "Add a row to the leads table"
+- "Deploy the summarizer as a chat"
+
+No configuration, no context-setting. Just describe what you want:
+
+- "Build a lead enrichment workflow that scores inbound signups and writes the results to the leads table"
+- "Research our top 5 competitors and save a battle card for each one"
+- "Schedule a daily job that checks for new high-fit prospects and posts them to #outbound in Slack"
+- "Create a workflow that takes a contract PDF, extracts the key terms, and emails a summary to legal"
+
+For complex tasks, Sim delegates to specialized subagents automatically. You'll see them appear as collapsible sections in the chat while they work — building, researching, writing files, executing actions.
+
+{/* TODO: Screenshot of Chat showing a subagent section expanded mid-task — e.g., the Build or Research subagent actively working, with its collapsible header and steps visible in the thread. */}
+
+## Research [#research]
+
+Ask Sim to research anything and it figures out the best approach — searching the web, reading specific pages, crawling sites, looking up technical docs. It queries live internet data, so results reflect current information, not a training cutoff. (It can only read publicly accessible pages, not ones behind a login.)
+
+<Video src="mothership/research-agent.mp4" width={700} height={450} />
+
+- "What did Salesforce, HubSpot, and Gong each ship in the past 30 days? Summarize the key product updates."
+- "What's Acme Corp's tech stack, recent hires, and open engineering roles?"
+- "What are the current rate limits on the Anthropic API?"
+- "Read [URL] and tell me what changed in this release"
+
+Sim answers directly in the chat. When you need a structured, saved document instead, ask for a report: Sim searches, reads, and cross-references sources until it has enough, then saves the result as a [file](/files) in your workspace and opens it in the resource panel.
+
+- "Research the top 10 AI SDR tools — pricing, features, positioning, and what customers say. Save as a competitive analysis."
+- "Build a battle card for [competitor] — their positioning, pricing, strengths, weaknesses, and how we win against them."
+
+## Adding context
+
+Bring any workspace object into the conversation via the **+** menu, `@`-mentions, or drag-and-drop from the sidebar. Sim also opens resources automatically when it creates or modifies them.
+
+<Video src="mothership/context-menu.mp4" width={700} height={450} />
+
+| What to add | How it appears |
+|-------------|---------------|
+| **Workflow** | Interactive canvas in the resource panel |
+| **Table** | Full table editor in the resource panel |
+| **File** | File viewer with editor, split, and preview modes |
+| **Knowledge Base** | Knowledge base management UI |
+| **Folder** | Folder contents |
+| **Past task** | A previous conversation |
+
+## Layout
+
+Chat has two panes. On the left: the thread, where your messages and Sim's responses appear. On the right: the resource panel, where workflows, tables, files, and knowledge bases open as tabs. The panel is resizable; tabs are draggable and closeable.
+
+<Video src="mothership/split-view.mp4" width={700} height={450} />
+
+<FAQ items={[
+  { question: "Is this the same as a chat deployment?", answer: "No. Chat is where you build and manage your workspace by talking to Sim. A chat deployment publishes one workflow of yours as a chat interface for outside users. See Deployment for the latter." },
+  { question: "What model does Sim use in Chat?", answer: "Chat always uses Claude Opus 4.6. There is no model selector." },
+  { question: "How do I reference an existing workflow or table?", answer: "Type @ followed by the name in the input, use the + menu, or drag the item from the sidebar into the chat." },
+  { question: "How long can a task run?", answer: "Up to one hour. For tasks that exceed that, set up a scheduled job or break the work into steps." },
+  { question: "Can Sim work on multiple things at once?", answer: "Chat processes one message at a time. You can queue messages — they will be processed in order." },
+  { question: "Where are research reports saved?", answer: "Reports are saved as files in your workspace and opened in the resource panel. You can find them in the Files section of the sidebar." },
+]} />

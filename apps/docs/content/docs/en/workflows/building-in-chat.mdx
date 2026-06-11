@@ -1,6 +1,6 @@
 ---
-title: Workflows
-description: Create, edit, run, debug, deploy, and organize workflows from Mothership.
+title: Building in chat
+description: Create, edit, run, debug, deploy, and organize workflows from Chat.
 ---
 
 import { Image } from '@/components/ui/image'
@@ -9,11 +9,11 @@ import { FAQ } from '@/components/ui/faq'
 
 <Video src="mothership/create-workflow.mp4" width={700} height={450} />
 
-Describe a workflow and Mothership builds it. Reference an existing one by name and it edits it. No canvas navigation required — every change appears in the resource panel in real time.
+Describe a workflow and Sim builds it. Reference an existing one by name and it edits it. No canvas navigation required — every change appears in the resource panel in real time.
 
 ## Creating Workflows
 
-Describe what the workflow should do — what triggers it, what it should do, which integrations it needs, and what it should return. Mothership builds it and opens the canvas in the resource panel.
+Describe what the workflow should do — what triggers it, what it should do, which integrations it needs, and what it should return. Sim builds it and opens the canvas in the resource panel.
 
 - "Build a workflow that takes a URL, scrapes the page, summarizes it with Claude, and sends the summary to a Slack channel"
 - "Create a workflow triggered by a webhook that extracts invoice data from a PDF and writes it to the billing table"
@@ -23,9 +23,9 @@ Describe what the workflow should do — what triggers it, what it should do, wh
 
 ## Editing Workflows
 
-{/* TODO: Screenshot of Mothership with the Edit subagent active and a change applied to an open workflow — e.g., a new block added or a configuration updated, visible on the canvas in the resource panel. */}
+{/* TODO: Screenshot of Sim with the Edit subagent active and a change applied to an open workflow — e.g., a new block added or a configuration updated, visible on the canvas in the resource panel. */}
 
-Open an existing workflow with `@workflow-name` or the **+** menu, then describe the change. Mothership reads the current structure before modifying it — you don't need to explain what already exists.
+Open an existing workflow with `@workflow-name` or the **+** menu, then describe the change. Sim reads the current structure before modifying it — you don't need to explain what already exists.
 
 - "Add a condition that routes to a different branch if the confidence score is below 0.7"
 - "Replace the GPT-4o model with Claude Opus 4.6 on the summarizer block"
@@ -35,7 +35,7 @@ Open an existing workflow with `@workflow-name` or the **+** menu, then describe
 
 <Video src="mothership/run-workflow.mp4" width={700} height={450} />
 
-Ask Mothership to run a workflow and it handles the execution:
+ask Sim to run a workflow and it handles the execution:
 
 - "Run the data sync workflow"
 - "Run the invoice processor with this PDF [attach file]"
@@ -45,7 +45,7 @@ Execution streams back to the chat. The workflow in the resource panel shows liv
 
 ## Reading Logs
 
-Mothership can retrieve and interpret execution logs for any workflow in the workspace:
+Sim can retrieve and interpret execution logs for any workflow in the workspace:
 
 - "Show me the last 10 runs of the pipeline workflow"
 - "Why did the invoice workflow fail yesterday?"
@@ -55,18 +55,18 @@ Logs include per-block execution state, outputs, errors, and timing.
 
 ## Debugging
 
-When a workflow fails, tell Mothership to debug it:
+When a workflow fails, tell Sim to debug it:
 
 - "Debug the last failed run of the content pipeline"
 - "The summarizer block is returning empty output — figure out why"
 
-Mothership reads the failure logs, identifies the cause, applies a fix, and can re-run to confirm.
+Sim reads the failure logs, identifies the cause, applies a fix, and can re-run to confirm.
 
-{/* TODO: Screenshot of the Debug subagent section in the Mothership chat showing it reading logs and applying a fix. */}
+{/* TODO: Screenshot of the Debug subagent section in the Sim chat showing it reading logs and applying a fix. */}
 
 ## Deploying
 
-Mothership can deploy a workflow as any of the three deployment types:
+Sim can deploy a workflow as any of the three deployment types:
 
 | Deployment type | What it creates |
 |----------------|----------------|
@@ -76,13 +76,13 @@ Mothership can deploy a workflow as any of the three deployment types:
 
 Ask: "Deploy the invoice workflow as an API and generate an API key."
 
-Mothership can also roll back: "Revert the billing workflow to the version from last Tuesday."
+Sim can also roll back: "Revert the billing workflow to the version from last Tuesday."
 
 See [API Deployment](/workflows/deployment/api) and [Chat Deployment](/workflows/deployment/chat) for full details on each deployment type.
 
 ## Organizing Workflows
 
-Mothership can create and manage folders to keep your workspace organized.
+Sim can create and manage folders to keep your workspace organized.
 
 **Folders:**
 - "Create a folder called 'Data Pipelines'"
@@ -94,11 +94,11 @@ Mothership can create and manage folders to keep your workspace organized.
 - "Rename the 'test_v2' workflow to 'lead-scorer'"
 - "Move the summarizer workflow to the research folder"
 
-{/* TODO: Screenshot showing Mothership confirming a folder or workflow organization action — e.g., a message confirming "Moved 'invoice-processor' into 'billing' folder" with the resource panel showing the folder open. */}
+{/* TODO: Screenshot showing Sim confirming a folder or workflow organization action — e.g., a message confirming "Moved 'invoice-processor' into 'billing' folder" with the resource panel showing the folder open. */}
 
 ## Workflow Variables
 
-Mothership can set global variables on a workflow — values accessible across all blocks in that workflow at runtime:
+Sim can set global variables on a workflow — values accessible across all blocks in that workflow at runtime:
 
 - "Set the API_ENDPOINT variable on the sync workflow to 'https://api.example.com/v2'"
 - "Update the MAX_RETRIES variable on the pipeline workflow to 5"
@@ -111,8 +111,8 @@ Variables set this way are available via `<variable.VARIABLE_NAME>` syntax insid
 - "Delete all workflows in the deprecated folder"
 
 <FAQ items={[
-  { question: "Can Mothership edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Mothership to redeploy to push changes to production." },
-  { question: "Can I run a workflow with specific inputs from Mothership?", answer: "Yes. Describe the inputs in your message and Mothership passes them to the workflow's start block." },
-  { question: "How does Mothership know what my workflow does?", answer: "When you reference a workflow, Mothership loads its full structure — every block, connection, and configuration — before acting on it." },
+  { question: "Can Sim edit a workflow while it's deployed?", answer: "Yes. Editing a workflow does not affect the live deployment. The deployed version is a snapshot — you need to ask Sim to redeploy to push changes to production." },
+  { question: "Can I run a workflow with specific inputs from Chat?", answer: "Yes. Describe the inputs in your message and Sim passes them to the workflow's start block." },
+  { question: "How does Sim know what my workflow does?", answer: "When you reference a workflow, Sim loads its full structure — every block, connection, and configuration — before acting on it." },
   { question: "What happens to a workflow's deployment when I delete it?", answer: "The workflow and all its deployments are permanently removed. Any API endpoints, chat URLs, or MCP tools that pointed to that workflow will stop working." },
 ]} />

@@ -7,7 +7,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Access Control lets workspace admins define permission groups that restrict what each set of workspace members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to a single workspace: a user can be in different groups (or no group) in different workspaces. Restrictions are enforced both in the workflow executor and in Mothership, based on the workflow's workspace.
+Access Control lets workspace admins define permission groups that restrict what each set of workspace members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to a single workspace: a user can be in different groups (or no group) in different workspaces. Restrictions are enforced both in the workflow executor and in Chat, based on the workflow's workspace.
 
 ---
 
@@ -15,10 +15,10 @@ Access Control lets workspace admins define permission groups that restrict what
 
 Access control is built around **permission groups**. Each group belongs to a specific workspace and has a name, an optional description, and a configuration that defines what its members can and cannot do. A user can belong to at most one permission group **per workspace**, but can belong to different groups in different workspaces.
 
-When a user runs a workflow or uses Mothership, Sim reads their group's configuration and applies it:
+When a user runs a workflow or uses Chat, Sim reads their group's configuration and applies it:
 
 - **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
-- **In Mothership:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Mothership attempts to use them.
+- **In Chat:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Sim attempts to use them.
 
 ---
 
@@ -146,12 +146,12 @@ Restrictions are enforced at the point of execution, not at save time. If a grou
 
 This applies regardless of how the workflow is triggered — manually, via API, via schedule, or via webhook.
 
-### Mothership
+### Chat
 
-When a user opens Mothership, their permission group is read before any block or tool suggestions are made:
+When a user opens Chat, their permission group is read before any block or tool suggestions are made:
 
 - Blocks not in the allowed list are filtered out of the block picker entirely — they do not appear as options.
-- If Mothership generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
+- If Sim generates a workflow step that would use a disallowed tool (MCP, custom, or skills), that step is skipped and the reason is noted.
 
 ---
 
@@ -183,8 +183,8 @@ When a user opens Mothership, their permission group is read before any block or
     answer: "Users with no group in a given workspace have no restrictions in that workspace. All blocks, model providers, and platform features are fully available to them there. Restrictions only apply in the specific workspaces where they are assigned to a group."
   },
   {
-    question: "Does Mothership respect the same restrictions as the executor?",
-    answer: "Yes. Mothership reads the user's permission group for the active workspace before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+    question: "Does Chat respect the same restrictions as the executor?",
+    answer: "Yes. Sim reads the user's permission group for the active workspace before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
   },
   {
     question: "Can I restrict access to specific workflows or workspaces?",

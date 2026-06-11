@@ -1,6 +1,6 @@
 ---
 title: Data Drains
-description: Continuously export workflow logs, audit logs, and Mothership data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
+description: Continuously export workflow logs, audit logs, and chat data to your own object store, data warehouse, observability platform, or HTTPS endpoint on a schedule
 ---
 
 import { FAQ } from '@/components/ui/faq'
@@ -37,8 +37,8 @@ A drain exports exactly one source. To export multiple sources, create multiple 
 | **Workflow logs** | Workflow execution records (one row per execution, only after the run reaches a terminal state). |
 | **Job logs** | Background job records (deployed APIs, schedules, webhooks). Only terminal-state rows are exported. |
 | **Audit logs** | Organization- and workspace-scoped audit events — logins, permission changes, resource creation/deletion, drain configuration changes. |
-| **Copilot chats** | Mothership chat history. |
-| **Copilot runs** | Mothership run records (terminal state only). |
+| **Copilot chats** | Chat history. |
+| **Copilot runs** | Chat run records (terminal state only). |
 
 Each row is delivered as a single line of NDJSON. The shape of each row is part of the public schema and stable across versions; every row carries an `id` field that downstream consumers can use to dedupe.
 

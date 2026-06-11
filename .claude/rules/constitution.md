@@ -23,7 +23,7 @@ Sim is the **AI workspace** where teams build and run AI agents. Not a workflow 
 | The product | "AI workspace" | "workflow tool", "automation platform", "agent framework" |
 | Building | "build agents", "create agents" | "create workflows" (unless describing the workflow module specifically) |
 | Visual builder | "workflow builder" or "visual builder" | "canvas", "graph editor" |
-| Mothership | "Mothership" (capitalized) | "chat", "AI assistant", "copilot" |
+| The built-in agent | "Sim" — Sim is the agent. The surface is "Chat" (capitalized) | "Mothership", "AI assistant", "copilot" |
 | Deployment | "deploy", "ship" | "publish", "activate" |
 | Audience | "teams", "builders" | "users", "customers" (in marketing copy) |
 | What agents do | "automate real work" | "automate tasks", "automate workflows" |
@@ -50,7 +50,7 @@ When describing Sim, always lead with the most differentiated claim:
 
 | Module | One-liner |
 |--------|-----------|
-| **Mothership** | Your AI command center. Build and manage everything in natural language. |
+| **Chat** | Open Chat and ask. Sim builds and manages everything in natural language. |
 | **Workflows** | The visual builder. Connect blocks, models, and integrations into agent logic. |
 | **Knowledge Base** | Your agents' memory. Upload docs, sync sources, build vector databases. |
 | **Tables** | A database, built in. Store, query, and wire structured data into agent runs. |
@@ -68,4 +68,4 @@ When describing Sim, always lead with the most differentiated claim:
 
 ## Vision
 
-Sim becomes the default environment where teams build AI agents — not a tool you visit for one task, but a workspace you live in. Workflows are one module; Mothership is another. The workspace is the constant; the interface adapts.
+Sim becomes the default environment where teams build AI agents — not a tool you visit for one task, but a workspace you live in. Workflows are one module; Chat is another. The workspace is the constant; the interface adapts.

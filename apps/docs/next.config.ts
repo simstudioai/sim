@@ -24,8 +24,8 @@ const config: NextConfig = {
       // form deployment removed
       { source: '/deployment/form', destination: '/workflows/deployment', permanent: true },
       // copilot deprecated and removed
-      { source: '/copilot', destination: '/mothership', permanent: true },
-      { source: '/copilot/:path*', destination: '/mothership', permanent: true },
+      { source: '/copilot', destination: '/chat', permanent: true },
+      { source: '/copilot/:path*', destination: '/chat', permanent: true },
       // connections/* and variables/* collapsed into single pages under workflows/
       { source: '/connections', destination: '/workflows/connections', permanent: true },
       { source: '/connections/:path*', destination: '/workflows/connections', permanent: true },
@@ -122,7 +122,24 @@ const config: NextConfig = {
         destination: '/workflows/deployment/:path*',
         permanent: true,
       },
-      { source: '/mailer', destination: '/mothership/mailer', permanent: true },
+      { source: '/mailer', destination: '/chat/mailer', permanent: true },
+      // Mothership section dissolved: the agent is Sim, the surface is Chat.
+      { source: '/mothership', destination: '/chat', permanent: true },
+      { source: '/mothership/research', destination: '/chat#research', permanent: true },
+      { source: '/mothership/tasks', destination: '/chat/tasks', permanent: true },
+      { source: '/mothership/mailer', destination: '/chat/mailer', permanent: true },
+      {
+        source: '/mothership/workflows',
+        destination: '/workflows/building-in-chat',
+        permanent: true,
+      },
+      { source: '/mothership/tables', destination: '/tables#in-chat', permanent: true },
+      {
+        source: '/mothership/knowledge',
+        destination: '/knowledgebase#in-chat',
+        permanent: true,
+      },
+      { source: '/mothership/files', destination: '/files#in-chat', permanent: true },
       { source: '/credentials', destination: '/platform/credentials', permanent: true },
       {
         source: '/credentials/:path*',

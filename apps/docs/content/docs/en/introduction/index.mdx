@@ -9,7 +9,7 @@ import { Image } from '@/components/ui/image'
 import { Video } from '@/components/ui/video'
 import { FAQ } from '@/components/ui/faq'
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. You build by describing what you want to **Mothership**, the natural-language control plane, or visually in the workflow builder, or programmatically with the API. Connect AI models, databases, APIs, and 1,000+ business tools to build agents that automate real work.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. You build by describing what you want in **Chat**, visually in the workflow builder, or programmatically with the API. Connect AI models, databases, APIs, and 1,000+ business tools to build agents that automate real work.
 
 <div className="mx-auto w-full overflow-hidden rounded-lg my-6">
   <Image
@@ -23,23 +23,23 @@ Sim is the open-source AI workspace where teams build, deploy, and manage AI age
 
 ## How you build
 
-When you open Sim, the first thing you meet is **Mothership**, a chat box over your whole workspace. You describe the system you want, and Mothership scaffolds it: workflows, tables, knowledge bases, and the wiring between them. You then open what it built, run it, and refine it.
+When you open Sim, the first thing you meet is **Chat**, a conversation over your whole workspace. You describe the system you want, and Sim scaffolds it: workflows, tables, knowledge bases, and the wiring between them. You then open what it built, run it, and refine it.
 
-- **Mothership.** Describe a system in natural language and it creates and edits the resources for you. The fastest way to start.
+- **Chat.** Describe a system in natural language and Sim creates and edits the resources for you. The fastest way to start.
 - **Workflow builder.** Design agent logic visually by connecting blocks in the builder. The clearest way to see and fine-tune what runs.
 - **API and SDK.** Build and trigger agents programmatically.
 
-You can mix these on one system, scaffolding with Mothership and then fine-tuning in the builder.
+You can mix these on one system, scaffolding in Chat and then fine-tuning in the builder.
 
 <Callout type="info">
-Mothership generates the architecture, and you verify the execution. Even when you build conversationally, it helps to understand the resources Mothership creates, so you can inspect, run, and improve them.
+Sim generates the architecture, and you verify the execution. Even when you build conversationally, it helps to understand the resources Sim creates, so you can inspect, run, and improve them.
 </Callout>
 
 ## The anatomy of a workspace
 
 A Sim system is not a single chat response. It is a set of resources that live in a **workspace** and connect to each other. The sidebar mirrors that anatomy, and these are its parts.
 
-- **[Mothership](/mothership)** is the natural-language control plane. You describe what you want, and it builds and edits the resources for you.
+- **[Chat](/chat)** is where you build conversationally. You describe what you want, and Sim builds and edits the resources for you.
 - **[Workflows](/workflows)** are visual programs made of blocks, where your logic runs. Most other resources become useful through a workflow.
 - **[Agents and tools](/agents)** are how a workflow acts. An agent reasons with a model, and tools let it take actions like sending an email or querying an API.
 - **[Tables](/tables)** hold structured rows your workflows read, write, and process.
@@ -83,7 +83,7 @@ For anything not built in, [MCP support](/agents/mcp) connects any external serv
   <Card title="Quickstart" href="/getting-started">
     Build your first agent in 10 minutes
   </Card>
-  <Card title="Building with Mothership" href="/mothership">
+  <Card title="Chat" href="/chat">
     Create and operate your workspace in natural language
   </Card>
   <Card title="Workflows" href="/workflows">
@@ -98,9 +98,9 @@ For anything not built in, [MCP support](/agents/mcp) connects any external serv
   { question: "Is Sim free to use?", answer: "Sim offers a free Community plan with 1,000 one-time credits to get started. Paid plans start at $25/month (Pro) with 5,000 credits and go up to $100/month (Max) with 20,000 credits. Annual billing is available at a 15% discount. You can also self-host Sim for free on your own infrastructure." },
   { question: "Is Sim open source?", answer: "Yes. Sim is open source under the Apache 2.0 license. The full source code is available on GitHub and you can self-host it, contribute to development, or modify it for your own needs. Enterprise features (SSO, access control) have a separate license that requires a subscription for production use." },
   { question: "Which AI models and providers are supported?", answer: "Sim supports 15+ providers including OpenAI, Anthropic, Google Gemini, Groq, Cerebras, DeepSeek, Mistral, xAI, and OpenRouter. You can also run local models through Ollama or VLLM at no API cost. Bring Your Own Key (BYOK) is supported so you can use your own API keys at base provider pricing with no markup." },
-  { question: "Do I need coding experience to use Sim?", answer: "No. Sim lets you build agents conversationally through Mothership using natural language, or visually by connecting blocks in the workflow builder. For advanced use cases, the Function block lets you write custom JavaScript, and the full API/SDK is available for programmatic access." },
+  { question: "Do I need coding experience to use Sim?", answer: "No. Sim lets you build agents conversationally in Chat using natural language, or visually by connecting blocks in the workflow builder. For advanced use cases, the Function block lets you write custom JavaScript, and the full API/SDK is available for programmatic access." },
   { question: "Can I self-host Sim?", answer: "Yes. Sim provides Docker Compose configurations for self-hosted deployments. The stack includes the Sim application, a PostgreSQL database with pgvector, and a realtime collaboration server. You can also integrate local AI models via Ollama for a fully offline setup." },
   { question: "Is there a limit on how many workflows I can create?", answer: "There is no limit on the number of workflows you can create on any plan. Usage limits apply to execution credits, rate limits, and file storage, which vary by plan tier." },
   { question: "What integrations are available?", answer: "Sim offers 1,000+ native integrations across categories including AI models, communication tools (Gmail, Slack, Teams, Telegram), productivity apps (Notion, Google Workspace, Airtable), development tools (GitHub, Jira, Linear), search services (Google Search, Perplexity, Exa), and databases (PostgreSQL, Supabase, Pinecone). For anything not built in, you can use the MCP (Model Context Protocol) support to connect custom services." },
-  { question: "How does Sim compare to other AI agent builders?", answer: "Sim is an AI workspace, not just a workflow tool or an agent framework. It combines Mothership for natural-language agent creation, a visual workflow builder, knowledge bases, tables, and full observability in one environment. Teams build agents visually, conversationally, or with code, then deploy and manage them with enterprise governance, real-time collaboration, and staging-to-production workflows." },
+  { question: "How does Sim compare to other AI agent builders?", answer: "Sim is an AI workspace, not just a workflow tool or an agent framework. It combines natural-language building in Chat, a visual workflow builder, knowledge bases, tables, and full observability in one environment. Teams build agents visually, conversationally, or with code, then deploy and manage them with enterprise governance, real-time collaboration, and staging-to-production workflows." },
 ]} />

@@ -36,6 +36,17 @@ Open the **Tables** section in the sidebar and click **New table** to create one
 
 A [Table block](/tables/using-in-workflows) reads and writes rows from inside a workflow: query rows for reference data, write results back, or process a batch. A [workflow column](/tables/workflow-columns) goes a step further and runs a workflow against each row on its own. Everything in a table is also available over the [REST API](/api-reference/getting-started).
 
+## In chat [#in-chat]
+
+Everything on this page can be done by asking Sim in [Chat](/chat): create a table from a description or a CSV, query it in plain language, add or update rows, and export results.
+
+- "Create a leads table with columns for name, email, company, status, and created date"
+- "How many rows in the leads table have status 'qualified'?"
+- "Mark all rows in the queue table as processed where created_at is before today"
+- "Export all rows where status is 'closed' and save as a file"
+
+Sim translates the request into the same operations described above; tables it creates are immediately available to the [Table block](/integrations/table) in any workflow.
+
 ## Next
 
 <Cards>
