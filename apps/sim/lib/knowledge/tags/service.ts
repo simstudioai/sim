@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -99,7 +99,7 @@ export async function getNextAvailableSlot(
 export async function getDocumentTagDefinitions(
   knowledgeBaseId: string
 ): Promise<DocumentTagDefinition[]> {
-  const definitions = await db
+  const definitions = await dbReplica
     .select({
       id: knowledgeBaseTagDefinitions.id,
       knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
@@ -123,7 +123,7 @@ export async function getDocumentTagDefinitions(
  * Get all tag definitions for a knowledge base (alias for compatibility)
  */
 export async function getTagDefinitions(knowledgeBaseId: string): Promise<TagDefinition[]> {
-  const tagDefinitions = await db
+  const tagDefinitions = await dbReplica
     .select({
       id: knowledgeBaseTagDefinitions.id,
       tagSlot: knowledgeBaseTagDefinitions.tagSlot,
@@ -655,7 +655,7 @@ export async function getTagUsage(
       whereConditions.push(sql`${sql.raw(tagSlot)} != ''`)
     }
 
-    const documentsWithTag = await db
+    const documentsWithTag = await dbReplica
       .select({
         id: document.id,
         filename: document.filename,
@@ -703,7 +703,7 @@ export async function getTagUsageStats(
     const tagSlot = def.tagSlot
     validateTagSlot(tagSlot)
 
-    const docCountResult = await db
+    const docCountResult = await dbReplica
       .select({ count: sql<number>`count(*)` })
       .from(document)
       .where(
@@ -716,7 +716,7 @@ export async function getTagUsageStats(
         )
       )
 
-    const chunkCountResult = await db
+    const chunkCountResult = await dbReplica
       .select({ count: sql<number>`count(*)` })
       .from(embedding)
       .innerJoin(document, eq(embedding.documentId, document.id))

@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, avg, count, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
@@ -22,7 +22,7 @@ export function excludeSimExecutionsCondition(): SQL {
 }
 
 async function checkConsecutiveFailures(workflowId: string, threshold: number): Promise<boolean> {
-  const recentLogs = await db
+  const recentLogs = await dbReplica
     .select({ level: workflowExecutionLogs.level })
     .from(workflowExecutionLogs)
     .where(and(eq(workflowExecutionLogs.workflowId, workflowId), excludeSimExecutionsCondition()))
@@ -51,7 +51,7 @@ async function checkFailureRate(
 
   // Single DB-side aggregate: the window is user-configured and this runs on
   // the execution-completion path, so never materialize the in-window rows.
-  const result = await db
+  const result = await dbReplica
     .select({
       total: count(),
       errors: count(sql`case when ${workflowExecutionLogs.level} = 'error' then 1 end`),
@@ -82,7 +82,7 @@ async function checkLatencySpike(
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
-  const result = await db
+  const result = await dbReplica
     .select({
       avgDuration: avg(workflowExecutionLogs.totalDurationMs),
       count: count(),
@@ -114,7 +114,7 @@ async function checkErrorCount(
 ): Promise<boolean> {
   const windowStart = new Date(Date.now() - windowHours * 60 * 60 * 1000)
 
-  const result = await db
+  const result = await dbReplica
     .select({ count: count() })
     .from(workflowExecutionLogs)
     .where(

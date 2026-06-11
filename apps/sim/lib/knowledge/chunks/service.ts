@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { document, embedding, knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
@@ -46,7 +46,7 @@ export async function queryChunks(
     conditions.push(ilike(embedding.content, `%${search}%`))
   }
 
-  const chunks = await db
+  const chunks = await dbReplica
     .select({
       id: embedding.id,
       chunkIndex: embedding.chunkIndex,
@@ -82,7 +82,7 @@ export async function queryChunks(
     .limit(limit)
     .offset(offset)
 
-  const totalCount = await db
+  const totalCount = await dbReplica
     .select({ count: sql`count(*)` })
     .from(embedding)
     .where(and(...conditions))
