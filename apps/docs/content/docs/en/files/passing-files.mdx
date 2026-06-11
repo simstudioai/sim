@@ -37,7 +37,8 @@ The **File block** brings a file into a workflow. It accepts files from any sour
 
 **Outputs:**
 - A list of `UserFile` objects with consistent structure (`id`, `name`, `url`, `size`, `type`, `base64`)
-- `combinedContent` - Extracted text content from all files (for documents)
+- `contents` - Extracted text per file (the Get Content operation)
+- `combinedContent` - All fetched files' text merged into one string (the Fetch operation)
 
 **Example usage:**
 
@@ -48,8 +49,8 @@ The **File block** brings a file into a workflow. It accepts files from any sour
 // Get the first file
 <file.files[0]>
 
-// Get combined text content from parsed documents
-<file.combinedContent>
+// Get the first file's extracted text (Get Content operation)
+<file.contents[0]>
 ```
 
 The File block automatically:

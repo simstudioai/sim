@@ -1654,7 +1654,10 @@ export const FILE_SUMMARY_WORKFLOW: PreviewWorkflow = {
       type: 'agent',
       bgColor: '#33C482',
       position: { x: 320, y: 0 },
-      rows: [{ title: 'Messages', value: 'Summarize <file.combinedContent>' }],
+      rows: [
+        { title: 'Messages', value: 'Summarize this document' },
+        { title: 'Files', value: '<file.files[0]>' },
+      ],
     },
     {
       id: 'write',
