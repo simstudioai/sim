@@ -298,43 +298,52 @@ export function MothershipChat({
   return (
     <div className={cn('flex h-full min-h-0 flex-col', className)}>
       {layout === 'mothership-view' && <ChatTitleBar chatId={chatId} onClose={onCloseChat} />}
-      <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
-        {isLoading && !hasMessages ? (
-          <MothershipChatSkeleton layout={layout} />
-        ) : (
-          <div className={styles.content}>
-            {stagedMessages.map((msg, localIndex) => {
-              const index = stagedOffset + localIndex
-              if (msg.role === 'user') {
+      <div className='relative flex min-h-0 flex-1 flex-col'>
+        <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
+          {isLoading && !hasMessages ? (
+            <MothershipChatSkeleton layout={layout} />
+          ) : (
+            <div className={styles.content}>
+              {stagedMessages.map((msg, localIndex) => {
+                const index = stagedOffset + localIndex
+                if (msg.role === 'user') {
+                  return (
+                    <UserMessageRow
+                      key={msg.id}
+                      content={msg.content}
+                      contexts={msg.contexts}
+                      attachments={msg.attachments}
+                      rowClassName={styles.userRow}
+                      bubbleClassName={styles.userBubble}
+                      attachmentWidthClassName={styles.attachmentWidth}
+                    />
+                  )
+                }
+
+                const isLast = index === messages.length - 1
                 return (
-                  <UserMessageRow
+                  <AssistantMessageRow
                     key={msg.id}
-                    content={msg.content}
-                    contexts={msg.contexts}
-                    attachments={msg.attachments}
-                    rowClassName={styles.userRow}
-                    bubbleClassName={styles.userBubble}
-                    attachmentWidthClassName={styles.attachmentWidth}
+                    message={msg}
+                    isStreaming={isStreamActive && isLast}
+                    precedingUserContent={precedingUserContentByIndex[index]}
+                    chatId={chatId}
+                    rowClassName={styles.assistantRow}
+                    onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                    onWorkspaceResourceSelect={stableOnWorkspaceResourceSelect}
                   />
                 )
-              }
-
-              const isLast = index === messages.length - 1
-              return (
-                <AssistantMessageRow
-                  key={msg.id}
-                  message={msg}
-                  isStreaming={isStreamActive && isLast}
-                  precedingUserContent={precedingUserContentByIndex[index]}
-                  chatId={chatId}
-                  rowClassName={styles.assistantRow}
-                  onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                  onWorkspaceResourceSelect={stableOnWorkspaceResourceSelect}
-                />
-              )
-            })}
-          </div>
-        )}
+              })}
+            </div>
+          )}
+        </div>
+        {/* Messages dissolve into the input instead of hard-clipping: a bg
+            fade plus the faintest backdrop blur, both masked so they ramp in
+            toward the bottom edge. */}
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-x-0 bottom-0 h-[40px] bg-gradient-to-t from-[var(--bg)] to-transparent backdrop-blur-[1.5px] [mask-image:linear-gradient(to_top,black_20%,transparent)]'
+        />
       </div>
 
       <div
