@@ -188,6 +188,12 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     chatId,
     getMothershipUseChatOptions({
       onResourceEvent: handleResourceEvent,
+      // The panel follows the conversation: any resource the agent touches —
+      // even one that's already an open tab — surfaces and takes focus, so
+      // "switch to X" in chat actually switches the strip.
+      onResourceTouched: (resource) => {
+        openTabs(workspaceId, [resource], { focusId: resource.id })
+      },
       initialActiveResourceId: initialResourceId,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {

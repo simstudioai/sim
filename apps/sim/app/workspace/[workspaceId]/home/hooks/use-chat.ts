@@ -1443,6 +1443,13 @@ function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined 
 
 export interface UseChatOptions {
   onResourceEvent?: () => void
+  /**
+   * Fired when the agent touches a resource — created, updated, or read —
+   * whether or not it was already an artifact. Lets the host surface and
+   * focus the resource's tab so the panel follows the conversation
+   * ("switch to Telecom_Leads_CRM" actually switches).
+   */
+  onResourceTouched?: (resource: MothershipResource) => void
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1469,7 +1476,11 @@ interface StopGenerationOptions {
 export function getMothershipUseChatOptions(
   options: Pick<
     UseChatOptions,
-    'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId' | 'onRequestStarted'
+    | 'onResourceEvent'
+    | 'onResourceTouched'
+    | 'onStreamEnd'
+    | 'initialActiveResourceId'
+    | 'onRequestStarted'
   > = {}
 ): UseChatOptions {
   return {
@@ -1514,6 +1525,8 @@ export function useChat(
   const onResourceEventRef = useRef(options?.onResourceEvent)
   const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
   onResourceEventRef.current = options?.onResourceEvent
+  const onResourceTouchedRef = useRef(options?.onResourceTouched)
+  onResourceTouchedRef.current = options?.onResourceTouched
   const apiPathRef = useRef(options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH)
   apiPathRef.current = options?.apiPath ?? MOTHERSHIP_CHAT_API_PATH
   const stopPathRef = useRef(options?.stopPath ?? '/api/mothership/chat/stop')
@@ -2204,15 +2217,17 @@ export function useChat(
       }
 
       const meta = getWorkflowById(workspaceId, targetWorkflowId)
-      const wasAdded = addResource({
+      const workflowResource: MothershipResource = {
         type: 'workflow',
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
-      })
+      }
+      const wasAdded = addResource(workflowResource)
       if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
         setActiveResourceId(targetWorkflowId)
       }
       onResourceEventRef.current?.()
+      onResourceTouchedRef.current?.(workflowResource)
 
       return targetWorkflowId
     },
@@ -3199,8 +3214,11 @@ export function useChat(
                     typeof readArgs?.path === 'string' ? readArgs.path : undefined,
                     tc.result.output
                   )
-                  if (resource && addResource(resource)) {
-                    onResourceEventRef.current?.()
+                  if (resource) {
+                    if (addResource(resource)) {
+                      onResourceEventRef.current?.()
+                    }
+                    onResourceTouchedRef.current?.(resource)
                   }
                 }
 
@@ -3453,6 +3471,9 @@ export function useChat(
                 setActiveResourceId(nextResource.id)
               }
               onResourceEventRef.current?.()
+              if (!shouldSuppressFileResourceActivation) {
+                onResourceTouchedRef.current?.(nextResource)
+              }
 
               if (nextResource.type === 'workflow') {
                 const wasRegistered = ensureWorkflowInRegistry(
