@@ -6,57 +6,26 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator'
 import postgres from 'postgres'
 
 /**
- * Concurrent-index convention (avoid write-blocking index builds on large tables)
- * --------------------------------------------------------------------------------
- * drizzle-kit emits plain `CREATE INDEX`, which takes a SHARE lock and blocks all
- * writes for the build duration — on a big, write-hot table (e.g.
- * workflow_execution_logs, usage_log) that stalls every in-flight workflow
- * completion for minutes. drizzle runs migrations inside a transaction, and
- * `CREATE INDEX CONCURRENTLY` cannot run inside a transaction block.
- *
- * So, after generating a migration that adds an index on a large/hot table, edit
- * the generated SQL to end drizzle's transaction first, clear the session
- * `lock_timeout` (set below for fail-fast DDL; it would cancel CONCURRENTLY's
- * legitimate waits on old transactions and leave an INVALID index), build
- * concurrently and idempotently, then RESTORE the fail-fast timeout so later
- * statements and files in the same run keep the protection (the SET is
- * session-level and would otherwise persist):
+ * Concurrent-index convention: plain `CREATE INDEX` write-blocks large/hot
+ * tables, and CONCURRENTLY cannot run inside drizzle's migration transaction.
+ * For indexes on big tables, edit the generated SQL to:
  *
  *   COMMIT;--> statement-breakpoint
  *   SET lock_timeout = 0;--> statement-breakpoint
  *   CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_name" ON "table" (...);--> statement-breakpoint
  *   SET lock_timeout = '5s';
  *
- * Notes:
- *  - Put the `COMMIT` breakpoint AFTER all transactional DDL (ALTER TABLE/TYPE)
- *    in the file and only the concurrent CREATE INDEX statements below it.
- *  - drizzle's migrate() wraps ALL pending files in ONE transaction, so the
- *    embedded `COMMIT` ends that batch transaction: everything after it — in
- *    this file AND any later pending files — runs in autocommit, one statement
- *    at a time. This is why EVERY statement in a file using this convention,
- *    and in any file that can follow it in a batch, must be idempotent
- *    (`IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` / `ADD VALUE IF NOT EXISTS`):
- *    a failure after the COMMIT cannot roll back, and the re-run replays every
- *    file whose journal record has not yet committed.
- *  - CONCURRENTLY only takes a SHARE UPDATE EXCLUSIVE lock (allows reads/writes).
- *  - Always validate on staging before prod; a failed CONCURRENTLY build can
- *    leave an INVALID index that must be dropped and rebuilt — the
- *    `warnOnInvalidIndexes` check below logs any such index after every run.
+ * The embedded COMMIT ends the batch transaction, so everything after it (in
+ * this and later pending files) runs in autocommit and must be idempotent
+ * (`IF NOT EXISTS` etc.) — a failed run replays unjournaled files from the top.
+ * A failed CONCURRENTLY build leaves an INVALID index that `IF NOT EXISTS`
+ * skips; `warnOnInvalidIndexes` below surfaces those.
  */
 
 /**
- * Migrations must run on a DIRECT Postgres connection, never through a
- * transaction-pooling PgBouncer. Session-level advisory locks, session `SET`s
- * (`statement_timeout`/`lock_timeout` below), and `pg_advisory_unlock` are all
- * officially unsupported in transaction pooling — statements can land on
- * different server connections, so the lock may not guard the migration, the
- * unlock can strand the lock on a pooled connection (wedging the NEXT deploy
- * for the full acquisition deadline), and timeout settings can leak into app
- * traffic. This is the same reason Prisma requires `directUrl` for migrate.
- *
- * Set MIGRATION_DATABASE_URL to the direct (non-pooled) DSN in environments
- * where DATABASE_URL points at a PgBouncer; it falls back to DATABASE_URL for
- * dev/self-hosted setups that connect directly anyway.
+ * Prefer a direct (non-pooled) DSN: session advisory locks and session `SET`s
+ * are unsupported through PgBouncer transaction pooling. Falls back to
+ * DATABASE_URL for setups that connect directly anyway.
  */
 const url = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL
 if (!url) {
@@ -66,63 +35,38 @@ if (!url) {
 }
 
 /**
- * The backend-pid session guard below is only sound on a DIRECT connection:
- * through a transaction-pooling PgBouncer, consecutive statements can
- * legitimately run on different server backends, so a pid change does not mean
- * the session was lost and the guard would false-positive on every run.
- * MIGRATION_DATABASE_URL is by contract the direct DSN; when falling back to
- * DATABASE_URL (which may be pooled), the guard is skipped.
+ * The pid guard is only sound on a direct connection — through transaction
+ * pooling, consecutive statements legitimately land on different backends.
  */
 const hasDirectMigrationUrl = Boolean(process.env.MIGRATION_DATABASE_URL)
 
 /**
- * `max_lifetime: null` is load-bearing: postgres-js defaults to recycling the
- * connection after a randomized 30–60 minutes, and a transparent reconnect
- * silently drops the session advisory lock and session `SET`s. The migration
- * session must live exactly as long as the run.
+ * `max_lifetime: null` pins the session for the whole run: the postgres-js
+ * default recycles the connection after 30–60 min, silently dropping the
+ * session advisory lock and `SET`s.
  */
 const client = postgres(url, { max: 1, connect_timeout: 10, max_lifetime: null })
 
 /**
- * Cross-process migration lock key (a stable, app-wide 64-bit constant).
- *
- * drizzle's `migrate()` has no built-in lock, so when a deployment starts N app
- * replicas at once — each with a migration sidecar — all N read
- * `__drizzle_migrations`, all see the same migration pending, and all try to apply
- * it concurrently. One wins; the losers run the same DDL against already-mutated
- * state and die (e.g. `DROP TABLE "form"` → `table "form" does not exist`,
- * exit 1 / TaskFailedToStart).
- *
- * Acquisition is a bounded `pg_try_advisory_lock` retry loop rather than a plain
- * `pg_advisory_lock`: an unbounded wait meant one wedged runner silently hung
- * every other deploy sidecar (and the whole ECS deployment) behind it. With a
- * deadline, a stuck winner turns into a visible non-zero exit on the losers that
- * the deploy orchestrator can retry or surface. Session locks auto-release if
- * the connection drops, so a crashed runner never wedges the lock.
+ * Cross-process migration lock. drizzle's `migrate()` has no built-in lock, so
+ * concurrent runners (one per app replica at deploy time) must be serialized.
+ * Acquisition is a bounded try-lock loop: a plain `pg_advisory_lock` wait let
+ * one wedged runner silently hang every other runner and the whole deploy.
  */
 const MIGRATION_LOCK_KEY = 4_961_002_270n
 const LOCK_ACQUIRE_DEADLINE_MS = 30 * 60_000
 const LOCK_RETRY_INTERVAL_MS = 5_000
 
 /**
- * How long any single migration statement may QUEUE for a table lock before
- * failing with SQLSTATE 55P03. Without this, DDL needing an AccessExclusiveLock
- * (e.g. `DROP TABLE ... CASCADE`) queues indefinitely behind long-running reads
- * — and every other query on that table queues behind the pending exclusive
- * lock, stalling all reads/writes table-wide until the DDL gets its turn
- * (observed in production: a ~15-minute full stall). Failing fast keeps the
- * world unblocked; we retry below, then let the deploy retry.
+ * Max time a migration statement may queue for a table lock (SQLSTATE 55P03 on
+ * expiry). Without it, DDL waiting on an AccessExclusiveLock queues every other
+ * query on the table behind it — a table-wide stall for the whole wait.
  */
 const DDL_LOCK_TIMEOUT = '5s'
 const MAX_MIGRATE_ATTEMPTS = 8
 const MIGRATE_RETRY_BACKOFF = { baseMs: 2_000, maxMs: 30_000 } as const
 
-/**
- * Backend pid of the session that acquired the advisory lock. Re-checked at the
- * top of every migration attempt: if the connection was silently replaced
- * (server restart, network failure), the new session does NOT hold the lock,
- * and running migrations on it would break mutual exclusion — abort loudly.
- */
+/** Backend pid of the lock-holding session; a change means the lock was lost. */
 let lockSessionPid = 0
 
 try {
@@ -166,25 +110,12 @@ async function acquireMigrationLock(): Promise<void> {
 }
 
 /**
- * Run pending migrations, retrying when a statement loses the `lock_timeout`
- * race (SQLSTATE 55P03, detected anywhere in the error's `cause` chain since
- * drizzle wraps driver failures).
- *
- * Every attempt starts by verifying the session still holds the advisory lock
- * (backend pid unchanged) and re-asserting the session timeouts:
- * `statement_timeout = 0` because index builds (esp. CONCURRENTLY on large
- * tables) can run far longer than any app default and must never be killed
- * mid-build, and the fail-fast `lock_timeout` because a prior attempt's
- * migration file may have left the session at `lock_timeout = 0` (the
- * CONCURRENTLY convention above). `SET` is rejected by Postgres when
- * parameterized, so the constants are inlined via `client.unsafe`.
- *
- * Retry safety: drizzle wraps the whole pending batch in one transaction, so a
- * lock-timeout failure rolls the batch back and the retry resumes from the
- * first file whose journal record has not committed. Files using the
- * embedded-`COMMIT` CONCURRENTLY convention break out of that transaction —
- * their post-COMMIT statements are required to be idempotent (see the
- * convention notes above) precisely so a replay is safe.
+ * Run pending migrations, retrying on lock timeout (55P03, found anywhere in
+ * the wrapped `cause` chain). Each attempt re-verifies the lock session (pid)
+ * and re-asserts the session timeouts — a migration file may have changed them,
+ * and `SET` cannot be parameterized, hence `client.unsafe` with constants.
+ * Replays are safe: drizzle rolls the batch back on failure, and post-COMMIT
+ * CONCURRENTLY statements are idempotent by convention.
  */
 async function runMigrationsWithRetry(): Promise<void> {
   for (let attempt = 1; ; attempt++) {
@@ -216,10 +147,8 @@ async function runMigrationsWithRetry(): Promise<void> {
 }
 
 /**
- * A `CREATE INDEX CONCURRENTLY` that fails partway leaves an INVALID index that
- * `IF NOT EXISTS` then silently skips on every future run. Surface any such
- * index loudly (warn, don't fail — the migration itself committed) so it can be
- * dropped and rebuilt.
+ * A failed CONCURRENTLY build leaves an INVALID index that `IF NOT EXISTS`
+ * silently skips forever — surface it (warn only; the migration committed).
  */
 async function warnOnInvalidIndexes(): Promise<void> {
   try {
@@ -242,11 +171,8 @@ async function warnOnInvalidIndexes(): Promise<void> {
 }
 
 /**
- * Release the advisory lock without ever failing the process. The session-level
- * lock auto-releases when the connection closes, so a thrown unlock — e.g. the
- * connection dropped right after `migrate()` committed — must be swallowed.
- * Letting it reach the outer `catch` would exit 1 and falsely report a
- * successful migration as failed to the deploy orchestrator.
+ * Unlock errors are swallowed: the session lock auto-releases on disconnect,
+ * and a thrown unlock would falsely report a committed migration as failed.
  */
 async function releaseMigrationLock(): Promise<void> {
   try {

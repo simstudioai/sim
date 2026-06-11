@@ -19,16 +19,10 @@ const postgresClient = postgres(connectionString, { ...poolOptions, max: 15 })
 export const db = drizzle(postgresClient, { schema })
 
 /**
- * Read-replica client — EXPLICIT OPT-IN.
- *
- * Import `dbReplica` only for reads that tolerate bounded staleness and have no
- * read-your-writes dependency: logs listing/search, audit logs, dashboard
- * aggregations, bulk exports. Never use it for auth/session lookups, workflow
- * state, billing-limit enforcement, or any read inside a write-reconciling
- * flow.
- *
- * Falls back to the primary client when `DATABASE_REPLICA_URL` is unset (dev,
- * self-hosted, realtime), so call sites never need to branch.
+ * Opt-in read-replica client for reads that tolerate bounded staleness and have
+ * no read-your-writes dependency (logs, exports, dashboard aggregations). Never
+ * for auth, workflow state, or billing enforcement. Falls back to the primary
+ * when `DATABASE_REPLICA_URL` is unset, so call sites never branch.
  */
 const replicaUrl = process.env.DATABASE_REPLICA_URL
 if (replicaUrl && !/^postgres(ql)?:\/\//.test(replicaUrl)) {
