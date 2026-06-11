@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
@@ -80,7 +80,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         let offset = 0
         try {
           while (true) {
-            const rows = await db
+            const rows = await dbReplica
               .select(selectColumns)
               .from(workflowExecutionLogs)
               .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))

@@ -9,7 +9,7 @@ export const VercelBlock: BlockConfig = {
   description: 'Manage Vercel deployments, projects, and infrastructure',
   longDescription:
     'Integrate with Vercel to manage deployments, projects, domains, DNS records, environment variables, aliases, edge configs, teams, and more.',
-  docsLink: 'https://docs.sim.ai/tools/vercel',
+  docsLink: 'https://docs.sim.ai/integrations/vercel',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#171717',

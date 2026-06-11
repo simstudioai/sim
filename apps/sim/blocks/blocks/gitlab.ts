@@ -11,7 +11,7 @@ export const GitLabBlock: BlockConfig<GitLabResponse> = {
   triggerAllowed: false,
   longDescription:
     'Integrate GitLab into the workflow. Can manage projects, issues, merge requests, pipelines, and add comments. Supports all core GitLab DevOps operations.',
-  docsLink: 'https://docs.sim.ai/tools/gitlab',
+  docsLink: 'https://docs.sim.ai/integrations/gitlab',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   icon: GitLabIcon,

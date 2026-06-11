@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { usageLog, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -169,7 +169,8 @@ async function resolveBillingContext(
 export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -183,7 +184,7 @@ export async function getBillingPeriodUsageCost(
     )
   }
 
-  const [row] = await db
+  const [row] = await executor
     .select({
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
     })
@@ -196,7 +197,8 @@ export async function getBillingPeriodUsageCost(
 export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
-  source?: UsageLogSource | UsageLogSource[]
+  source?: UsageLogSource | UsageLogSource[],
+  executor: DbOrTx = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -210,7 +212,7 @@ export async function getBillingPeriodUsageCostByUser(
     )
   }
 
-  const rows = await db
+  const rows = await executor
     .select({
       userId: usageLog.userId,
       cost: sql<string>`COALESCE(SUM(${usageLog.cost}), 0)`,
@@ -579,6 +581,9 @@ export async function getUserUsageLogs(
     }
 
     if (cursor) {
+      // Cursor resolution stays on the primary: the page itself reads a
+      // load-balanced replica, and a laggier sibling replica missing the cursor
+      // row would silently restart pagination from page 1.
       const cursorLog = await db
         .select({ createdAt: usageLog.createdAt })
         .from(usageLog)
@@ -592,7 +597,7 @@ export async function getUserUsageLogs(
       }
     }
 
-    const logs = await db
+    const logs = await dbReplica
       .select()
       .from(usageLog)
       .where(and(...conditions))
@@ -621,7 +626,7 @@ export async function getUserUsageLogs(
     if (startDate) summaryConditions.push(gte(usageLog.createdAt, startDate))
     if (endDate) summaryConditions.push(lte(usageLog.createdAt, endDate))
 
-    const summaryResult = await db
+    const summaryResult = await dbReplica
       .select({
         source: usageLog.source,
         totalCost: sql<string>`SUM(${usageLog.cost})`,

@@ -10,7 +10,7 @@ export const MongoDBBlock: BlockConfig<MongoDBResponse | MongoDBIntrospectRespon
   description: 'Connect to MongoDB database',
   longDescription:
     'Integrate MongoDB into the workflow. Can find, insert, update, delete, and aggregate data.',
-  docsLink: 'https://docs.sim.ai/tools/mongodb',
+  docsLink: 'https://docs.sim.ai/integrations/mongodb',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#FFFFFF',

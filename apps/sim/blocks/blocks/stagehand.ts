@@ -11,7 +11,7 @@ export const StagehandBlock: BlockConfig<StagehandResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Stagehand into the workflow. Can extract structured data from webpages or run an autonomous agent to perform tasks.',
-  docsLink: 'https://docs.sim.ai/tools/stagehand',
+  docsLink: 'https://docs.sim.ai/integrations/stagehand',
   category: 'tools',
   integrationType: IntegrationType.AI,
   bgColor: '#FFC83C',

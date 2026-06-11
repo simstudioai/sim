@@ -195,7 +195,7 @@ export const RipplingBlock: BlockConfig = {
   description: 'Manage workers, departments, custom objects, and company data in Rippling',
   longDescription:
     'Integrate Rippling Platform into your workflow. Manage workers, users, departments, teams, titles, work locations, business partners, supergroups, custom objects, custom apps, custom pages, custom settings, object categories, reports, and draft hires.',
-  docsLink: 'https://docs.sim.ai/tools/rippling',
+  docsLink: 'https://docs.sim.ai/integrations/rippling',
   category: 'tools',
   integrationType: IntegrationType.HR,
   bgColor: '#502D3C',

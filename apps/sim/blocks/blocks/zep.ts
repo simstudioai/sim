@@ -13,7 +13,7 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
   icon: ZepIcon,
   category: 'tools',
   integrationType: IntegrationType.AI,
-  docsLink: 'https://docs.sim.ai/tools/zep',
+  docsLink: 'https://docs.sim.ai/integrations/zep',
   subBlocks: [
     {
       id: 'operation',

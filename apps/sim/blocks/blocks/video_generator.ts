@@ -78,7 +78,7 @@ export const VideoGeneratorBlock: BlockConfig<VideoBlockResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Generate high-quality videos from text prompts using leading AI providers. Supports multiple models, aspect ratios, resolutions, and provider-specific features like world consistency, camera controls, and audio generation.',
-  docsLink: 'https://docs.sim.ai/tools/video-generator',
+  docsLink: 'https://docs.sim.ai/integrations/video-generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
@@ -1654,7 +1654,7 @@ export const VideoGeneratorV3Block: BlockConfig<VideoBlockResponse> = {
   description: 'Generate videos from text using AI',
   longDescription:
     'Generate high-quality videos from text prompts using leading AI providers. Supports Runway, Google Veo, Luma, MiniMax, and Fal.ai multi-model generation with provider-specific durations, aspect ratios, resolutions, prompt optimization, and native audio controls.',
-  docsLink: 'https://docs.sim.ai/tools/video_generator',
+  docsLink: 'https://docs.sim.ai/integrations/video_generator',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',

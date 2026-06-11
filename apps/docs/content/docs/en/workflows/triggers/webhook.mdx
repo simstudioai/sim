@@ -1,0 +1,83 @@
+---
+title: Webhook
+description: The Webhook trigger runs a workflow on any inbound HTTP request to a URL Sim generates.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { BlockPreview } from '@/components/workflow-preview'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+The **Webhook trigger** runs a workflow whenever an inbound HTTP request reaches a URL Sim generates for it. Use it to start a workflow from any external service or custom app that can send an HTTP request — when no dedicated [integration trigger](/workflows#triggers) exists.
+
+<BlockPreview type="webhook_trigger" />
+
+## How it works
+
+1. Add the Webhook trigger as the workflow's entry point.
+2. Copy the unique webhook URL Sim generates.
+3. Point your external service at it with a `POST`.
+4. Every request to the URL runs the workflow, with the request payload available downstream.
+
+## Configuration
+
+### Input Format
+
+Optionally define the JSON shape you expect. The fields are documented on the block and read downstream by name. Use a `file[]` field for uploads.
+
+### Authentication
+
+Turn on **Require Authentication** and set a token. Callers send it as a Bearer token in the `Authorization` header, or you name a custom header (like `X-Secret-Key`) and the token is matched against that instead.
+
+### Response
+
+By default the endpoint acknowledges receipt. Switch to a custom response to return your own status code and JSON body to the caller.
+
+## Outputs
+
+The request is parsed and made available to the rest of the workflow — the body's fields by name (a `userId` in the body reads as `<webhook.userId>`), plus the request headers and query parameters. Common fields like `event`, `id`, and `data` are pulled out of the payload when present.
+
+## Behavior
+
+- **Deduplication** — idempotency checks prevent duplicate runs from repeated identical requests.
+- **Rate limiting** — built-in protection against abuse.
+- **Deploy required** — the URL only fires once the workflow is deployed; otherwise it returns not-found.
+- **No auto-disable** — unlike polling triggers (RSS, Gmail, IMAP), a push webhook processes each request independently and doesn't disable itself after failed runs.
+
+<Callout type="warn">
+Validate and sanitize incoming webhook data before you use it downstream.
+</Callout>
+
+## Test it
+
+Send a request to the webhook URL with `curl` (or Postman) and watch the run appear in [Logs](/logs-debugging):
+
+```bash
+curl -X POST "<your webhook URL>" \
+  -H "Content-Type: application/json" \
+  -d '{"event": "test", "userId": "123"}'
+```
+
+Open the run to confirm the payload landed the way downstream blocks expect — that `<webhook.userId>` resolves, and that authentication rejects a request without the token if you turned it on.
+
+## Service triggers
+
+Many integrations can act as triggers too: toggle **Use as Trigger** on a service block (Slack, GitHub, Stripe, and more) to register a service-specific webhook with event filtering and structured data — no generic endpoint to wire up.
+
+<div className="mx-auto w-full overflow-hidden rounded-lg">
+  <Video src="slack-trigger.mp4" width={700} height={450} />
+</div>
+
+See [Triggers](/workflows#triggers) for every service that supports this.
+
+<FAQ items={[
+  { question: "What HTTP methods does the webhook endpoint accept?", answer: "POST triggers workflows. GET is used only for provider-specific verification challenges (such as Microsoft Graph or WhatsApp). Other methods return 405 Method Not Allowed." },
+  { question: "How do I authenticate webhook requests?", answer: "Enable Require Authentication and set an Authentication Token. Callers send it as a Bearer token in the Authorization header, or you specify a custom header name (e.g. X-Secret-Key) and the token is matched against that header." },
+  { question: "Can I define the expected payload structure?", answer: "Yes. The Input Format field lets you define the expected JSON schema. It's optional but documents the structure, and you can use a file[] field for uploads." },
+  { question: "Does the webhook deduplicate requests?", answer: "Yes. The processing pipeline includes idempotency checks that prevent duplicate runs from repeated requests with the same payload." },
+  { question: "What data from the request is available in my workflow?", answer: "All of it — headers, body, and query parameters are parsed and available to downstream blocks. Common fields like event, id, and data are extracted from the payload when present." },
+  { question: "Do I need to deploy my workflow for the webhook URL to work?", answer: "Yes. The endpoint checks that the workflow is deployed before triggering a run; otherwise it returns a not-found response." },
+  { question: "Does the webhook auto-disable after repeated failures?", answer: "No. Unlike polling-based triggers (RSS, Gmail, IMAP), push-based webhooks don't auto-disable — each request is processed independently. If runs fail consistently, check the run logs." },
+]} />

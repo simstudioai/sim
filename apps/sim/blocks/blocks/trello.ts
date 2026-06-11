@@ -59,7 +59,7 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Trello to list board lists, list cards, create cards, update cards, review activity, and add comments.',
-  docsLink: 'https://docs.sim.ai/tools/trello',
+  docsLink: 'https://docs.sim.ai/integrations/trello',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#0052CC',

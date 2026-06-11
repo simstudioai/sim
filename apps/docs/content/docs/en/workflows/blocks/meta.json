@@ -1,0 +1,21 @@
+{
+  "title": "Core Blocks",
+  "pages": [
+    "agent",
+    "api",
+    "function",
+    "condition",
+    "router",
+    "loop",
+    "parallel",
+    "response",
+    "webhook",
+    "workflow",
+    "evaluator",
+    "guardrails",
+    "human-in-the-loop",
+    "variables",
+    "wait",
+    "credential"
+  ]
+}

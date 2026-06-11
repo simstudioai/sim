@@ -10,7 +10,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
-  docsLink: 'https://docs.sim.ai/tools/dub',
+  docsLink: 'https://docs.sim.ai/integrations/dub',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',

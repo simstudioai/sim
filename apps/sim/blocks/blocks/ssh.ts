@@ -10,7 +10,7 @@ export const SSHBlock: BlockConfig<SSHResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Execute commands, transfer files, and manage remote servers via SSH. Supports password and private key authentication for secure server access.',
-  docsLink: 'https://docs.sim.ai/tools/ssh',
+  docsLink: 'https://docs.sim.ai/integrations/ssh',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#000000',

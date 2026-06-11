@@ -14,7 +14,7 @@ export const SimWorkspaceEventBlock: BlockConfig = {
   category: 'triggers',
   icon: SimTriggerIcon,
   bgColor: '#33C482',
-  docsLink: 'https://docs.sim.ai/triggers/sim',
+  docsLink: 'https://docs.sim.ai/workflows/triggers/sim',
   triggerAllowed: true,
   bestPractices: `
   - Events are scoped to this workspace. Pick an event type, then optionally narrow to specific workflows (empty selection watches all).

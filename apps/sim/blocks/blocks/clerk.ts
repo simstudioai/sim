@@ -9,7 +9,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
   description: 'Manage users, organizations, and sessions in Clerk',
   longDescription:
     'Integrate Clerk authentication and user management into your workflow. Create, update, delete, and list users. Manage organizations and their memberships. Monitor and control user sessions.',
-  docsLink: 'https://docs.sim.ai/tools/clerk',
+  docsLink: 'https://docs.sim.ai/integrations/clerk',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#131316',

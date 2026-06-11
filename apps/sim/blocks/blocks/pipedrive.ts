@@ -11,7 +11,7 @@ export const PipedriveBlock: BlockConfig<PipedriveResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Pipedrive into your workflow. Manage deals, contacts, sales pipeline, projects, activities, files, and communications with powerful CRM capabilities.',
-  docsLink: 'https://docs.sim.ai/tools/pipedrive',
+  docsLink: 'https://docs.sim.ai/integrations/pipedrive',
   category: 'tools',
   integrationType: IntegrationType.Sales,
   bgColor: '#2E6936',

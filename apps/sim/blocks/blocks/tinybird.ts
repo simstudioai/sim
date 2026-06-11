@@ -10,7 +10,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Interact with Tinybird: stream JSON or NDJSON events with the Events API, run SQL with the Query API, call published Pipe API Endpoints by name with dynamic parameters, and manage Data Sources by appending from a URL, truncating, or deleting rows by condition.',
-  docsLink: 'https://docs.sim.ai/tools/tinybird',
+  docsLink: 'https://docs.sim.ai/integrations/tinybird',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#2EF598',
