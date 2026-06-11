@@ -110,24 +110,20 @@ export const triggerDevListRunsTool: ToolConfig<
       if (params.pageAfter) query.set('page[after]', params.pageAfter)
       if (params.pageBefore) query.set('page[before]', params.pageBefore)
       if (params.status) {
-        for (const status of splitCommaSeparated(params.status)) {
-          query.append('filter[status]', status.toUpperCase())
-        }
+        const statuses = splitCommaSeparated(params.status).map((status) => status.toUpperCase())
+        if (statuses.length > 0) query.set('filter[status]', statuses.join(','))
       }
       if (params.taskIdentifier) {
-        for (const task of splitCommaSeparated(params.taskIdentifier)) {
-          query.append('filter[taskIdentifier]', task)
-        }
+        const tasks = splitCommaSeparated(params.taskIdentifier)
+        if (tasks.length > 0) query.set('filter[taskIdentifier]', tasks.join(','))
       }
       if (params.version) {
-        for (const version of splitCommaSeparated(params.version)) {
-          query.append('filter[version]', version)
-        }
+        const versions = splitCommaSeparated(params.version)
+        if (versions.length > 0) query.set('filter[version]', versions.join(','))
       }
       if (params.tag) {
-        for (const tag of splitCommaSeparated(params.tag)) {
-          query.append('filter[tag]', tag)
-        }
+        const tags = splitCommaSeparated(params.tag)
+        if (tags.length > 0) query.set('filter[tag]', tags.join(','))
       }
       if (params.schedule) query.set('filter[schedule]', params.schedule)
       if (params.isTest === 'true' || params.isTest === 'false') {

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-interface TriggerDevBaseParams {
+export interface TriggerDevBaseParams {
   apiKey: string
 }
 
@@ -223,6 +223,132 @@ export interface TriggerDevEnvVar {
   value: string
 }
 
+/** Raw run result object returned by the run result and batch results endpoints */
+export interface TriggerDevApiRunResult {
+  ok: boolean
+  id: string
+  taskIdentifier?: string
+  output?: string
+  outputType?: string
+  error?: Record<string, unknown>
+  usage?: {
+    durationMs?: number
+  }
+}
+
+/** Normalized run result returned by the run result and batch results tools */
+export interface TriggerDevRunResult {
+  ok: boolean
+  id: string
+  taskIdentifier: string | null
+  output: unknown
+  outputType: string | null
+  error: Record<string, unknown> | null
+  durationMs: number | null
+}
+
+/** Span event entry attached to a run event or trace span */
+export interface TriggerDevSpanEvent {
+  name: string | null
+  time: string | null
+  properties: Record<string, unknown> | null
+}
+
+/** Normalized run event returned by the run events tool */
+export interface TriggerDevRunEvent {
+  spanId: string | null
+  parentId: string | null
+  runId: string | null
+  message: string | null
+  startTime: string | null
+  duration: number | null
+  isError: boolean
+  isPartial: boolean
+  isCancelled: boolean
+  level: string | null
+  kind: string | null
+  attemptNumber: number | null
+  taskSlug: string | null
+  events: TriggerDevSpanEvent[]
+}
+
+/** Raw deployment object returned by the deployments endpoints */
+export interface TriggerDevApiDeployment {
+  id: string
+  status: string
+  createdAt?: string
+  shortCode?: string
+  version?: string
+  runtime?: string | null
+  runtimeVersion?: string | null
+  deployedAt?: string | null
+  git?: Record<string, unknown> | null
+  error?: Record<string, unknown> | null
+  contentHash?: string
+  imageReference?: string | null
+  errorData?: Record<string, unknown> | null
+  worker?: {
+    id?: string
+    version?: string
+    tasks?: {
+      id?: string
+      slug?: string
+      filePath?: string
+    }[]
+  } | null
+}
+
+/** Normalized deployment returned by the deployment tools */
+export interface TriggerDevDeployment {
+  id: string
+  status: string
+  version: string | null
+  shortCode: string | null
+  createdAt: string | null
+  deployedAt: string | null
+  runtime: string | null
+  runtimeVersion: string | null
+  git: Record<string, unknown> | null
+  error: Record<string, unknown> | null
+  tasks: {
+    id: string | null
+    slug: string | null
+    filePath: string | null
+  }[]
+}
+
+/** Raw waitpoint token object returned by the waitpoint endpoints */
+export interface TriggerDevApiWaitpointToken {
+  id: string
+  url: string
+  status: string
+  idempotencyKey?: string | null
+  idempotencyKeyExpiresAt?: string | null
+  timeoutAt?: string | null
+  completedAt?: string | null
+  output?: string | null
+  outputType?: string | null
+  outputIsError?: boolean | null
+  tags?: string[]
+  createdAt?: string
+}
+
+/** Normalized waitpoint token returned by the waitpoint tools */
+export interface TriggerDevWaitpointToken {
+  id: string
+  url: string
+  status: string
+  idempotencyKey: string | null
+  idempotencyKeyExpiresAt: string | null
+  timeoutAt: string | null
+  completedAt: string | null
+  output: unknown
+  outputType: string | null
+  outputIsError: boolean
+  tags: string[]
+  createdAt: string | null
+}
+
 export interface TriggerDevTriggerTaskParams extends TriggerDevBaseParams {
   taskIdentifier: string
   payload?: string | Record<string, unknown>
@@ -249,6 +375,15 @@ export interface TriggerDevRescheduleRunParams extends TriggerDevBaseParams {
   delay: string
 }
 
+export interface TriggerDevAddRunTagsParams extends TriggerDevBaseParams {
+  runId: string
+  tags: string
+}
+
+export interface TriggerDevBatchIdParams extends TriggerDevBaseParams {
+  batchId: string
+}
+
 export interface TriggerDevUpdateRunMetadataParams extends TriggerDevBaseParams {
   runId: string
   metadata: string | Record<string, unknown>
@@ -272,9 +407,9 @@ export interface TriggerDevListRunsParams extends TriggerDevBaseParams {
 export interface TriggerDevCreateScheduleParams extends TriggerDevBaseParams {
   task: string
   cron: string
+  deduplicationKey: string
   timezone?: string
   externalId?: string
-  deduplicationKey?: string
 }
 
 export interface TriggerDevUpdateScheduleParams extends TriggerDevBaseParams {
@@ -307,9 +442,81 @@ export interface TriggerDevEnvVarWriteParams extends TriggerDevEnvVarNameParams 
   value: string
 }
 
+export interface TriggerDevImportEnvVarsParams extends TriggerDevEnvVarsScopeParams {
+  variables: string | Record<string, unknown>[]
+  override?: string
+}
+
 export interface TriggerDevQueueParams extends TriggerDevBaseParams {
   queueName: string
   queueType?: string
+}
+
+export interface TriggerDevListQueuesParams extends TriggerDevBaseParams {
+  page?: number
+  perPage?: number
+}
+
+export interface TriggerDevOverrideQueueConcurrencyParams extends TriggerDevQueueParams {
+  concurrencyLimit: number
+}
+
+export interface TriggerDevListDeploymentsParams extends TriggerDevBaseParams {
+  status?: string
+  period?: string
+  from?: string
+  to?: string
+  pageSize?: number
+  pageAfter?: string
+}
+
+export interface TriggerDevGetDeploymentParams extends TriggerDevBaseParams {
+  deploymentId: string
+}
+
+export interface TriggerDevPromoteDeploymentParams extends TriggerDevBaseParams {
+  version: string
+}
+
+export interface TriggerDevExecuteQueryParams extends TriggerDevBaseParams {
+  query: string
+  scope?: string
+  period?: string
+  from?: string
+  to?: string
+  format?: string
+}
+
+export interface TriggerDevCreateWaitpointTokenParams extends TriggerDevBaseParams {
+  timeout?: string
+  idempotencyKey?: string
+  idempotencyKeyTTL?: string
+  tags?: string
+}
+
+export interface TriggerDevWaitpointIdParams extends TriggerDevBaseParams {
+  waitpointId: string
+}
+
+export interface TriggerDevCompleteWaitpointTokenParams extends TriggerDevBaseParams {
+  waitpointId: string
+  data?: string | Record<string, unknown>
+}
+
+export interface TriggerDevListWaitpointTokensParams extends TriggerDevBaseParams {
+  status?: string
+  idempotencyKey?: string
+  tags?: string
+  period?: string
+  from?: string
+  to?: string
+  pageSize?: number
+  pageAfter?: string
+  pageBefore?: string
+}
+
+export interface TriggerDevListTimezonesParams extends TriggerDevBaseParams {
+  excludeUtc?: string
 }
 
 export interface TriggerDevTriggerTaskResponse extends ToolResponse {
@@ -322,6 +529,159 @@ export interface TriggerDevBatchTriggerTaskResponse extends ToolResponse {
   output: {
     batchId: string
     runIds: string[]
+  }
+}
+
+/** Normalized batch returned by the get batch tool */
+export interface TriggerDevBatch {
+  id: string
+  status: string
+  idempotencyKey: string | null
+  createdAt: string | null
+  updatedAt: string | null
+  runCount: number | null
+  runIds: string[]
+  successfulRunCount: number | null
+  failedRunCount: number | null
+  errors:
+    | {
+        index: number | null
+        taskIdentifier: string | null
+        error: Record<string, unknown> | null
+        errorCode: string | null
+      }[]
+    | null
+}
+
+export interface TriggerDevGetBatchResponse extends ToolResponse {
+  output: TriggerDevBatch
+}
+
+export interface TriggerDevBatchResultsResponse extends ToolResponse {
+  output: {
+    id: string
+    items: TriggerDevRunResult[]
+  }
+}
+
+export interface TriggerDevRunResultResponse extends ToolResponse {
+  output: TriggerDevRunResult
+}
+
+export interface TriggerDevAddRunTagsResponse extends ToolResponse {
+  output: {
+    message: string
+  }
+}
+
+export interface TriggerDevRunEventsResponse extends ToolResponse {
+  output: {
+    events: TriggerDevRunEvent[]
+  }
+}
+
+export interface TriggerDevRunTraceResponse extends ToolResponse {
+  output: {
+    traceId: string | null
+    rootSpan: Record<string, unknown> | null
+  }
+}
+
+export interface TriggerDevListQueuesResponse extends ToolResponse {
+  output: {
+    queues: TriggerDevQueue[]
+    pagination: {
+      currentPage: number | null
+      totalPages: number | null
+      count: number | null
+    }
+  }
+}
+
+export interface TriggerDevDeploymentResponse extends ToolResponse {
+  output: TriggerDevDeployment
+}
+
+export interface TriggerDevListDeploymentsResponse extends ToolResponse {
+  output: {
+    deployments: TriggerDevDeployment[]
+    pagination: {
+      next: string | null
+    }
+  }
+}
+
+export interface TriggerDevPromoteDeploymentResponse extends ToolResponse {
+  output: {
+    id: string
+    version: string | null
+    shortCode: string | null
+  }
+}
+
+export interface TriggerDevExecuteQueryResponse extends ToolResponse {
+  output: {
+    format: string
+    results: unknown
+  }
+}
+
+export interface TriggerDevQuerySchemaResponse extends ToolResponse {
+  output: {
+    tables: {
+      name: string | null
+      description: string | null
+      timeColumn: string | null
+      columns: {
+        name: string | null
+        type: string | null
+        description: string | null
+        example: string | null
+        allowedValues: string[]
+        coreColumn: boolean
+      }[]
+    }[]
+  }
+}
+
+export interface TriggerDevCreateWaitpointTokenResponse extends ToolResponse {
+  output: {
+    id: string
+    isCached: boolean
+    url: string
+  }
+}
+
+export interface TriggerDevCompleteWaitpointTokenResponse extends ToolResponse {
+  output: {
+    success: boolean
+  }
+}
+
+export interface TriggerDevWaitpointTokenResponse extends ToolResponse {
+  output: TriggerDevWaitpointToken
+}
+
+export interface TriggerDevListWaitpointTokensResponse extends ToolResponse {
+  output: {
+    tokens: TriggerDevWaitpointToken[]
+    pagination: {
+      next: string | null
+      previous: string | null
+    }
+  }
+}
+
+export interface TriggerDevImportEnvVarsResponse extends ToolResponse {
+  output: {
+    success: boolean
+    count: number
+  }
+}
+
+export interface TriggerDevListTimezonesResponse extends ToolResponse {
+  output: {
+    timezones: string[]
   }
 }
 
@@ -397,9 +757,15 @@ export interface TriggerDevDeleteScheduleResponse extends ToolResponse {
 export type TriggerDevResponse =
   | TriggerDevTriggerTaskResponse
   | TriggerDevBatchTriggerTaskResponse
+  | TriggerDevGetBatchResponse
+  | TriggerDevBatchResultsResponse
   | TriggerDevRunResponse
+  | TriggerDevRunResultResponse
   | TriggerDevListRunsResponse
   | TriggerDevRunActionResponse
+  | TriggerDevAddRunTagsResponse
+  | TriggerDevRunEventsResponse
+  | TriggerDevRunTraceResponse
   | TriggerDevUpdateRunMetadataResponse
   | TriggerDevScheduleResponse
   | TriggerDevListSchedulesResponse
@@ -407,4 +773,16 @@ export type TriggerDevResponse =
   | TriggerDevListEnvVarsResponse
   | TriggerDevEnvVarResponse
   | TriggerDevEnvVarActionResponse
+  | TriggerDevImportEnvVarsResponse
   | TriggerDevQueueResponse
+  | TriggerDevListQueuesResponse
+  | TriggerDevDeploymentResponse
+  | TriggerDevListDeploymentsResponse
+  | TriggerDevPromoteDeploymentResponse
+  | TriggerDevExecuteQueryResponse
+  | TriggerDevQuerySchemaResponse
+  | TriggerDevCreateWaitpointTokenResponse
+  | TriggerDevCompleteWaitpointTokenResponse
+  | TriggerDevWaitpointTokenResponse
+  | TriggerDevListWaitpointTokensResponse
+  | TriggerDevListTimezonesResponse

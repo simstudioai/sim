@@ -6,17 +6,23 @@ import type { TriggerDevResponse } from '@/tools/trigger_dev/types'
 const TASK_IDENTIFIER_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_batch_trigger_task']
 const RUN_ID_OPERATIONS = [
   'trigger_dev_get_run',
+  'trigger_dev_get_run_result',
+  'trigger_dev_get_run_events',
+  'trigger_dev_get_run_trace',
   'trigger_dev_cancel_run',
   'trigger_dev_replay_run',
   'trigger_dev_reschedule_run',
+  'trigger_dev_add_run_tags',
   'trigger_dev_update_run_metadata',
 ]
+const BATCH_ID_OPERATIONS = ['trigger_dev_get_batch', 'trigger_dev_get_batch_results']
 const ENV_VAR_OPERATIONS = [
   'trigger_dev_list_env_vars',
   'trigger_dev_create_env_var',
   'trigger_dev_get_env_var',
   'trigger_dev_update_env_var',
   'trigger_dev_delete_env_var',
+  'trigger_dev_import_env_vars',
 ]
 const ENV_VAR_NAME_OPERATIONS = [
   'trigger_dev_create_env_var',
@@ -29,6 +35,8 @@ const QUEUE_OPERATIONS = [
   'trigger_dev_get_queue',
   'trigger_dev_pause_queue',
   'trigger_dev_resume_queue',
+  'trigger_dev_override_queue_concurrency',
+  'trigger_dev_reset_queue_concurrency',
 ]
 const SCHEDULE_ID_OPERATIONS = [
   'trigger_dev_get_schedule',
@@ -41,6 +49,28 @@ const SCHEDULE_DEFINITION_OPERATIONS = [
   'trigger_dev_create_schedule',
   'trigger_dev_update_schedule',
 ]
+const WAITPOINT_ID_OPERATIONS = [
+  'trigger_dev_get_waitpoint_token',
+  'trigger_dev_complete_waitpoint_token',
+]
+const IDEMPOTENCY_KEY_OPERATIONS = [
+  'trigger_dev_trigger_task',
+  'trigger_dev_create_waitpoint_token',
+]
+const TAGS_OPERATIONS = ['trigger_dev_trigger_task', 'trigger_dev_create_waitpoint_token']
+const CREATED_AT_FILTER_OPERATIONS = [
+  'trigger_dev_list_runs',
+  'trigger_dev_list_deployments',
+  'trigger_dev_list_waitpoint_tokens',
+  'trigger_dev_execute_query',
+]
+const CURSOR_PAGE_OPERATIONS = [
+  'trigger_dev_list_runs',
+  'trigger_dev_list_deployments',
+  'trigger_dev_list_waitpoint_tokens',
+]
+const PAGE_BEFORE_OPERATIONS = ['trigger_dev_list_runs', 'trigger_dev_list_waitpoint_tokens']
+const NUMBERED_PAGE_OPERATIONS = ['trigger_dev_list_schedules', 'trigger_dev_list_queues']
 
 export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
   type: 'trigger_dev',
@@ -48,7 +78,7 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
   description: 'Trigger tasks and manage runs and schedules',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks with a JSON payload, retrieve and list runs, cancel, replay, or reschedule runs, manage cron schedules, environment variables, and queues.',
+    'Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks, retrieve and control runs (cancel, replay, reschedule, tags, metadata, events, traces), manage cron schedules, environment variables, queues, deployments, and waitpoint tokens, and query run data with TRQL.',
   docsLink: 'https://docs.sim.ai/integrations/trigger_dev',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
@@ -63,11 +93,17 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
       options: [
         { label: 'Trigger Task', id: 'trigger_dev_trigger_task' },
         { label: 'Batch Trigger Task', id: 'trigger_dev_batch_trigger_task' },
+        { label: 'Get Batch', id: 'trigger_dev_get_batch' },
+        { label: 'Get Batch Results', id: 'trigger_dev_get_batch_results' },
         { label: 'Get Run', id: 'trigger_dev_get_run' },
+        { label: 'Get Run Result', id: 'trigger_dev_get_run_result' },
+        { label: 'Get Run Events', id: 'trigger_dev_get_run_events' },
+        { label: 'Get Run Trace', id: 'trigger_dev_get_run_trace' },
         { label: 'List Runs', id: 'trigger_dev_list_runs' },
         { label: 'Cancel Run', id: 'trigger_dev_cancel_run' },
         { label: 'Replay Run', id: 'trigger_dev_replay_run' },
         { label: 'Reschedule Run', id: 'trigger_dev_reschedule_run' },
+        { label: 'Add Run Tags', id: 'trigger_dev_add_run_tags' },
         { label: 'Update Run Metadata', id: 'trigger_dev_update_run_metadata' },
         { label: 'Create Schedule', id: 'trigger_dev_create_schedule' },
         { label: 'Get Schedule', id: 'trigger_dev_get_schedule' },
@@ -81,9 +117,24 @@ export const TriggerDevBlock: BlockConfig<TriggerDevResponse> = {
         { label: 'Get Env Var', id: 'trigger_dev_get_env_var' },
         { label: 'Update Env Var', id: 'trigger_dev_update_env_var' },
         { label: 'Delete Env Var', id: 'trigger_dev_delete_env_var' },
+        { label: 'Import Env Vars', id: 'trigger_dev_import_env_vars' },
         { label: 'Get Queue', id: 'trigger_dev_get_queue' },
+        { label: 'List Queues', id: 'trigger_dev_list_queues' },
         { label: 'Pause Queue', id: 'trigger_dev_pause_queue' },
         { label: 'Resume Queue', id: 'trigger_dev_resume_queue' },
+        { label: 'Override Queue Concurrency', id: 'trigger_dev_override_queue_concurrency' },
+        { label: 'Reset Queue Concurrency', id: 'trigger_dev_reset_queue_concurrency' },
+        { label: 'List Deployments', id: 'trigger_dev_list_deployments' },
+        { label: 'Get Deployment', id: 'trigger_dev_get_deployment' },
+        { label: 'Get Latest Deployment', id: 'trigger_dev_get_latest_deployment' },
+        { label: 'Promote Deployment', id: 'trigger_dev_promote_deployment' },
+        { label: 'Execute Query', id: 'trigger_dev_execute_query' },
+        { label: 'Get Query Schema', id: 'trigger_dev_get_query_schema' },
+        { label: 'Create Waitpoint Token', id: 'trigger_dev_create_waitpoint_token' },
+        { label: 'Complete Waitpoint Token', id: 'trigger_dev_complete_waitpoint_token' },
+        { label: 'Get Waitpoint Token', id: 'trigger_dev_get_waitpoint_token' },
+        { label: 'List Waitpoint Tokens', id: 'trigger_dev_list_waitpoint_tokens' },
+        { label: 'List Timezones', id: 'trigger_dev_list_timezones' },
       ],
       value: () => 'trigger_dev_trigger_task',
     },
@@ -134,9 +185,9 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       id: 'idempotencyKey',
       title: 'Idempotency Key',
       type: 'short-input',
-      placeholder: 'Unique key to deduplicate triggers',
+      placeholder: 'Unique key to deduplicate requests',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_trigger_task' },
+      condition: { field: 'operation', value: IDEMPOTENCY_KEY_OPERATIONS },
     },
     {
       id: 'queue',
@@ -194,7 +245,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
       type: 'short-input',
       placeholder: 'user_123, org_456 (comma-separated, max 10)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_trigger_task' },
+      condition: { field: 'operation', value: TAGS_OPERATIONS },
     },
     // Batch Trigger Task fields
     {
@@ -225,6 +276,15 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
         generationType: 'json-object',
       },
     },
+    // Batch fields
+    {
+      id: 'batchId',
+      title: 'Batch ID',
+      type: 'short-input',
+      placeholder: 'e.g., batch_abc123',
+      condition: { field: 'operation', value: BATCH_ID_OPERATIONS },
+      required: { field: 'operation', value: BATCH_ID_OPERATIONS },
+    },
     // Run fields
     {
       id: 'runId',
@@ -241,6 +301,14 @@ Return ONLY the valid JSON array - no explanations, no markdown.`,
       placeholder: 'e.g., 30m, 1h, or an ISO 8601 date',
       condition: { field: 'operation', value: 'trigger_dev_reschedule_run' },
       required: { field: 'operation', value: 'trigger_dev_reschedule_run' },
+    },
+    {
+      id: 'runTags',
+      title: 'Tags',
+      type: 'short-input',
+      placeholder: 'user_123, org_456 (comma-separated, max 10 total)',
+      condition: { field: 'operation', value: 'trigger_dev_add_run_tags' },
+      required: { field: 'operation', value: 'trigger_dev_add_run_tags' },
     },
     {
       id: 'metadata',
@@ -283,19 +351,19 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
     },
     {
       id: 'period',
-      title: 'Created Within',
+      title: 'Time Period',
       type: 'short-input',
       placeholder: 'e.g., 1h, 7d',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: CREATED_AT_FILTER_OPERATIONS },
     },
     {
       id: 'from',
-      title: 'Created From',
+      title: 'From',
       type: 'short-input',
       placeholder: '2024-01-01T00:00:00.000Z',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: CREATED_AT_FILTER_OPERATIONS },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -310,11 +378,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     },
     {
       id: 'to',
-      title: 'Created To',
+      title: 'To',
       type: 'short-input',
       placeholder: '2024-12-31T23:59:59.999Z',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: CREATED_AT_FILTER_OPERATIONS },
       wandConfig: {
         enabled: true,
         prompt: `Generate an ISO 8601 timestamp based on the user's description.
@@ -368,25 +436,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'pageSize',
       title: 'Page Size',
       type: 'short-input',
-      placeholder: 'Runs per page (max 100, default 25)',
+      placeholder: 'Items per page (max 100)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: CURSOR_PAGE_OPERATIONS },
     },
     {
       id: 'pageAfter',
       title: 'Page After',
       type: 'short-input',
-      placeholder: 'Run ID to start the page after',
+      placeholder: 'Cursor to start the page after',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: CURSOR_PAGE_OPERATIONS },
     },
     {
       id: 'pageBefore',
       title: 'Page Before',
       type: 'short-input',
-      placeholder: 'Run ID to start the page before',
+      placeholder: 'Cursor to start the page before',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_runs' },
+      condition: { field: 'operation', value: PAGE_BEFORE_OPERATIONS },
     },
     // Schedule fields
     {
@@ -434,25 +502,25 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Deduplication Key',
       type: 'short-input',
       placeholder: 'Key to prevent duplicate schedules',
-      mode: 'advanced',
       condition: { field: 'operation', value: 'trigger_dev_create_schedule' },
+      required: { field: 'operation', value: 'trigger_dev_create_schedule' },
     },
-    // List Schedules pagination
+    // List Schedules / List Queues pagination
     {
       id: 'page',
       title: 'Page',
       type: 'short-input',
       placeholder: 'Page number (default 1)',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_schedules' },
+      condition: { field: 'operation', value: NUMBERED_PAGE_OPERATIONS },
     },
     {
       id: 'perPage',
       title: 'Per Page',
       type: 'short-input',
-      placeholder: 'Schedules per page',
+      placeholder: 'Items per page',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'trigger_dev_list_schedules' },
+      condition: { field: 'operation', value: NUMBERED_PAGE_OPERATIONS },
     },
     // Environment variable fields
     {
@@ -493,6 +561,27 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: ENV_VAR_VALUE_OPERATIONS },
       required: { field: 'operation', value: ENV_VAR_VALUE_OPERATIONS },
     },
+    {
+      id: 'variables',
+      title: 'Variables',
+      type: 'code',
+      language: 'json',
+      placeholder: '[\n  { "name": "SLACK_API_KEY", "value": "slack_123" }\n]',
+      condition: { field: 'operation', value: 'trigger_dev_import_env_vars' },
+      required: { field: 'operation', value: 'trigger_dev_import_env_vars' },
+    },
+    {
+      id: 'override',
+      title: 'Override Existing',
+      type: 'dropdown',
+      options: [
+        { label: 'No (default)', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_import_env_vars' },
+    },
     // Queue fields
     {
       id: 'queueName',
@@ -514,17 +603,207 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       value: () => 'id',
       condition: { field: 'operation', value: QUEUE_OPERATIONS },
     },
+    {
+      id: 'concurrencyLimit',
+      title: 'Concurrency Limit',
+      type: 'short-input',
+      placeholder: 'New concurrency limit (0 to 100000)',
+      condition: { field: 'operation', value: 'trigger_dev_override_queue_concurrency' },
+      required: { field: 'operation', value: 'trigger_dev_override_queue_concurrency' },
+    },
+    // Deployment fields
+    {
+      id: 'deploymentId',
+      title: 'Deployment ID',
+      type: 'short-input',
+      placeholder: 'ID of the deployment',
+      condition: { field: 'operation', value: 'trigger_dev_get_deployment' },
+      required: { field: 'operation', value: 'trigger_dev_get_deployment' },
+    },
+    {
+      id: 'deploymentVersion',
+      title: 'Deployment Version',
+      type: 'short-input',
+      placeholder: 'e.g., 20250228.1',
+      condition: { field: 'operation', value: 'trigger_dev_promote_deployment' },
+      required: { field: 'operation', value: 'trigger_dev_promote_deployment' },
+    },
+    {
+      id: 'deploymentStatus',
+      title: 'Status Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Pending', id: 'PENDING' },
+        { label: 'Building', id: 'BUILDING' },
+        { label: 'Deploying', id: 'DEPLOYING' },
+        { label: 'Deployed', id: 'DEPLOYED' },
+        { label: 'Failed', id: 'FAILED' },
+        { label: 'Canceled', id: 'CANCELED' },
+        { label: 'Timed Out', id: 'TIMED_OUT' },
+      ],
+      value: () => '',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_list_deployments' },
+    },
+    // Query fields
+    {
+      id: 'query',
+      title: 'TRQL Query',
+      type: 'long-input',
+      placeholder: "SELECT run_id, status, triggered_at FROM runs WHERE status = 'Failed' LIMIT 10",
+      condition: { field: 'operation', value: 'trigger_dev_execute_query' },
+      required: { field: 'operation', value: 'trigger_dev_execute_query' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a TRQL query for Trigger.dev run data based on the user's description.
+TRQL is a SQL-like language; the main table is "runs" with columns like run_id, task_identifier, status, triggered_at, duration_ms, cost_in_cents, and tags.
+
+Current input: {context}
+
+Examples:
+- "failed runs from the last day" ->
+SELECT run_id, task_identifier, status, triggered_at FROM runs WHERE status = 'Failed' ORDER BY triggered_at DESC LIMIT 100
+
+- "cost per task this week" ->
+SELECT task_identifier, SUM(cost_in_cents) AS total_cost FROM runs GROUP BY task_identifier ORDER BY total_cost DESC
+
+Return ONLY the TRQL query - no explanations, no markdown.`,
+        placeholder: 'Describe the query you need...',
+        generationType: 'sql-query',
+      },
+    },
+    {
+      id: 'scope',
+      title: 'Scope',
+      type: 'dropdown',
+      options: [
+        { label: 'Environment (default)', id: 'environment' },
+        { label: 'Project', id: 'project' },
+        { label: 'Organization', id: 'organization' },
+      ],
+      value: () => 'environment',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_execute_query' },
+    },
+    {
+      id: 'format',
+      title: 'Format',
+      type: 'dropdown',
+      options: [
+        { label: 'JSON (default)', id: 'json' },
+        { label: 'CSV', id: 'csv' },
+      ],
+      value: () => 'json',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_execute_query' },
+    },
+    // Waitpoint fields
+    {
+      id: 'waitpointId',
+      title: 'Waitpoint ID',
+      type: 'short-input',
+      placeholder: 'e.g., waitpoint_abc123',
+      condition: { field: 'operation', value: WAITPOINT_ID_OPERATIONS },
+      required: { field: 'operation', value: WAITPOINT_ID_OPERATIONS },
+    },
+    {
+      id: 'waitpointData',
+      title: 'Completion Data',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "status": "approved"\n}',
+      condition: { field: 'operation', value: 'trigger_dev_complete_waitpoint_token' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object to pass back to a Trigger.dev run waiting on a waitpoint token.
+The data is returned to the task as the token result.
+
+Current input: {context}
+
+Example:
+- "approve with a comment" ->
+{"status": "approved", "comment": "Looks good"}
+
+Return ONLY the valid JSON object - no explanations, no markdown.`,
+        placeholder: 'Describe the completion data you need...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'timeout',
+      title: 'Timeout',
+      type: 'short-input',
+      placeholder: 'e.g., 30s, 1m, 2h, or an ISO 8601 date',
+      condition: { field: 'operation', value: 'trigger_dev_create_waitpoint_token' },
+    },
+    {
+      id: 'idempotencyKeyTTL',
+      title: 'Idempotency Key TTL',
+      type: 'short-input',
+      placeholder: 'e.g., 30s, 1m, 2h, 3d',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_create_waitpoint_token' },
+    },
+    {
+      id: 'waitpointStatus',
+      title: 'Status Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: '' },
+        { label: 'Waiting', id: 'WAITING' },
+        { label: 'Completed', id: 'COMPLETED' },
+        { label: 'Timed Out', id: 'TIMED_OUT' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'trigger_dev_list_waitpoint_tokens' },
+    },
+    {
+      id: 'filterIdempotencyKey',
+      title: 'Idempotency Key Filter',
+      type: 'short-input',
+      placeholder: 'Idempotency key to filter by',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_list_waitpoint_tokens' },
+    },
+    {
+      id: 'waitpointTags',
+      title: 'Tag Filter',
+      type: 'short-input',
+      placeholder: 'user_123, org_456 (comma-separated)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_list_waitpoint_tokens' },
+    },
+    // Timezone fields
+    {
+      id: 'excludeUtc',
+      title: 'Exclude UTC',
+      type: 'dropdown',
+      options: [
+        { label: 'No (default)', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'trigger_dev_list_timezones' },
+    },
   ],
 
   tools: {
     access: [
       'trigger_dev_trigger_task',
       'trigger_dev_batch_trigger_task',
+      'trigger_dev_get_batch',
+      'trigger_dev_get_batch_results',
       'trigger_dev_get_run',
+      'trigger_dev_get_run_result',
+      'trigger_dev_get_run_events',
+      'trigger_dev_get_run_trace',
       'trigger_dev_list_runs',
       'trigger_dev_cancel_run',
       'trigger_dev_replay_run',
       'trigger_dev_reschedule_run',
+      'trigger_dev_add_run_tags',
       'trigger_dev_update_run_metadata',
       'trigger_dev_create_schedule',
       'trigger_dev_get_schedule',
@@ -538,9 +817,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       'trigger_dev_get_env_var',
       'trigger_dev_update_env_var',
       'trigger_dev_delete_env_var',
+      'trigger_dev_import_env_vars',
       'trigger_dev_get_queue',
+      'trigger_dev_list_queues',
       'trigger_dev_pause_queue',
       'trigger_dev_resume_queue',
+      'trigger_dev_override_queue_concurrency',
+      'trigger_dev_reset_queue_concurrency',
+      'trigger_dev_list_deployments',
+      'trigger_dev_get_deployment',
+      'trigger_dev_get_latest_deployment',
+      'trigger_dev_promote_deployment',
+      'trigger_dev_execute_query',
+      'trigger_dev_get_query_schema',
+      'trigger_dev_create_waitpoint_token',
+      'trigger_dev_complete_waitpoint_token',
+      'trigger_dev_get_waitpoint_token',
+      'trigger_dev_list_waitpoint_tokens',
+      'trigger_dev_list_timezones',
     ],
     config: {
       tool: (params) => params.operation,
@@ -548,6 +842,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         const result: Record<string, unknown> = {}
         if (params.filterTaskIdentifier) result.taskIdentifier = params.filterTaskIdentifier
         if (params.rescheduleDelay) result.delay = params.rescheduleDelay
+        if (params.runTags) result.tags = params.runTags
+        if (params.deploymentVersion) result.version = params.deploymentVersion
+        if (params.deploymentStatus) result.status = params.deploymentStatus
+        if (params.waitpointData) result.data = params.waitpointData
+        if (params.waitpointStatus) result.status = params.waitpointStatus
+        if (params.filterIdempotencyKey) result.idempotencyKey = params.filterIdempotencyKey
+        if (params.waitpointTags) result.tags = params.waitpointTags
+        if (params.concurrencyLimit) result.concurrencyLimit = Number(params.concurrencyLimit)
         if (params.pageSize) result.pageSize = Number(params.pageSize)
         if (params.page) result.page = Number(params.page)
         if (params.perPage) result.perPage = Number(params.perPage)
@@ -574,9 +876,11 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'json',
       description: 'JSON array of batch items, each with a payload and optional options',
     },
+    batchId: { type: 'string', description: 'Batch ID (starts with batch_)' },
     // Runs
     runId: { type: 'string', description: 'Run ID (starts with run_)' },
     rescheduleDelay: { type: 'string', description: 'New delay for a delayed run' },
+    runTags: { type: 'string', description: 'Comma-separated tags to add to a run' },
     metadata: { type: 'json', description: 'JSON object to set as the run metadata' },
     status: { type: 'string', description: 'Comma-separated run statuses to filter by' },
     filterTaskIdentifier: {
@@ -607,6 +911,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     environment: { type: 'string', description: 'Project environment (dev, staging, or prod)' },
     name: { type: 'string', description: 'Name of the environment variable' },
     value: { type: 'string', description: 'Value of the environment variable' },
+    variables: {
+      type: 'json',
+      description: 'JSON array of environment variables to import ({name, value} objects)',
+    },
+    override: {
+      type: 'string',
+      description: 'Whether to override existing variables on import ("true" or "false")',
+    },
     // Queues
     queueName: {
       type: 'string',
@@ -616,14 +928,71 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'string',
       description: 'How to interpret the queue name (id, task, or custom)',
     },
+    concurrencyLimit: {
+      type: 'number',
+      description: 'New concurrency limit for the queue (0 to 100000)',
+    },
+    // Deployments
+    deploymentId: { type: 'string', description: 'ID of the deployment to retrieve' },
+    deploymentVersion: { type: 'string', description: 'Deployment version to promote' },
+    deploymentStatus: { type: 'string', description: 'Deployment status to filter by' },
+    // Query
+    query: { type: 'string', description: 'TRQL query to execute' },
+    scope: {
+      type: 'string',
+      description: 'Scope of data to query (environment, project, or organization)',
+    },
+    format: { type: 'string', description: 'Query response format (json or csv)' },
+    // Waitpoints
+    waitpointId: { type: 'string', description: 'Waitpoint token ID (starts with waitpoint_)' },
+    waitpointData: {
+      type: 'json',
+      description: 'JSON data passed back to the run waiting on the token',
+    },
+    timeout: { type: 'string', description: 'How long before the waitpoint token times out' },
+    idempotencyKeyTTL: {
+      type: 'string',
+      description: 'How long the waitpoint idempotency key is valid',
+    },
+    waitpointStatus: {
+      type: 'string',
+      description: 'Waitpoint status to filter by (WAITING, COMPLETED, or TIMED_OUT)',
+    },
+    filterIdempotencyKey: {
+      type: 'string',
+      description: 'Idempotency key to filter waitpoint tokens by',
+    },
+    waitpointTags: {
+      type: 'string',
+      description: 'Comma-separated tags to filter waitpoint tokens by',
+    },
+    // Timezones
+    excludeUtc: {
+      type: 'string',
+      description: 'Whether to exclude UTC from the timezones ("true" or "false")',
+    },
   },
 
   outputs: {
     // Trigger Task / Cancel Run / Replay Run / schedule operations
     id: { type: 'string', description: 'Run, schedule, or queue ID' },
-    // Batch Trigger Task
+    // Batches
     batchId: { type: 'string', description: 'Batch ID (Batch Trigger Task)' },
-    runIds: { type: 'json', description: 'IDs of the created runs (Batch Trigger Task)' },
+    runIds: { type: 'json', description: 'Run IDs in the batch (batch operations)' },
+    runCount: { type: 'number', description: 'Total number of runs in the batch (Get Batch)' },
+    successfulRunCount: {
+      type: 'number',
+      description: 'Number of successful runs in the batch (Get Batch)',
+    },
+    failedRunCount: {
+      type: 'number',
+      description: 'Number of failed runs in the batch (Get Batch)',
+    },
+    errors: { type: 'json', description: 'Error details for failed batch items (Get Batch)' },
+    items: {
+      type: 'json',
+      description: 'Execution results for each run in the batch (Get Batch Results)',
+    },
     // Get Run
     status: { type: 'string', description: 'Run status (Get Run)' },
     taskIdentifier: { type: 'string', description: 'Task identifier of the run (Get Run)' },
@@ -638,6 +1007,16 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     output: { type: 'json', description: 'Output returned by the run (Get Run)' },
     attempts: { type: 'json', description: 'Attempts made for the run (Get Run)' },
     metadata: { type: 'json', description: 'Run metadata (Get Run, Update Run Metadata)' },
+    ok: { type: 'boolean', description: 'Whether the run succeeded (Get Run Result)' },
+    outputType: {
+      type: 'string',
+      description: 'Content type of the run output (Get Run Result)',
+    },
+    error: { type: 'json', description: 'Error details for a failed run (Get Run Result)' },
+    message: { type: 'string', description: 'Confirmation message (Add Run Tags)' },
+    events: { type: 'json', description: 'Log and span events of the run (Get Run Events)' },
+    traceId: { type: 'string', description: 'OpenTelemetry trace ID (Get Run Trace)' },
+    rootSpan: { type: 'json', description: 'Root span of the run trace (Get Run Trace)' },
     // List Runs / List Schedules
     runs: { type: 'json', description: 'Runs matching the filters (List Runs)' },
     schedules: { type: 'json', description: 'Schedules in the project (List Schedules)' },
@@ -672,9 +1051,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
     value: { type: 'string', description: 'Value of the environment variable (Get Env Var)' },
     success: {
       type: 'boolean',
-      description: 'Whether the env var operation succeeded (Create/Update/Delete Env Var)',
+      description: 'Whether the operation succeeded (env var operations, Complete Waitpoint Token)',
+    },
+    count: {
+      type: 'number',
+      description: 'Number of environment variables submitted (Import Env Vars)',
     },
     // Queues
+    queues: { type: 'json', description: 'Queues in the environment (List Queues)' },
     running: { type: 'number', description: 'Runs currently executing (queue operations)' },
     queued: { type: 'number', description: 'Runs waiting in the queue (queue operations)' },
     paused: { type: 'boolean', description: 'Whether the queue is paused (queue operations)' },
@@ -686,6 +1070,30 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       type: 'json',
       description: 'Concurrency details of the queue (queue operations)',
     },
+    // Deployments
+    deployments: {
+      type: 'json',
+      description: 'Deployments matching the filters (List Deployments)',
+    },
+    version: { type: 'string', description: 'Deployment version (deployment operations)' },
+    shortCode: { type: 'string', description: 'Deployment short code (deployment operations)' },
+    tasks: {
+      type: 'json',
+      description: 'Tasks registered by the deployed worker (deployment operations)',
+    },
+    // Query
+    format: { type: 'string', description: 'Format of the query results (Execute Query)' },
+    results: { type: 'json', description: 'Query results (Execute Query)' },
+    tables: { type: 'json', description: 'Queryable TRQL tables and columns (Get Query Schema)' },
+    // Waitpoints
+    tokens: { type: 'json', description: 'Waitpoint tokens (List Waitpoint Tokens)' },
+    url: { type: 'string', description: 'Waitpoint callback URL (waitpoint operations)' },
+    isCached: {
+      type: 'boolean',
+      description: 'Whether an existing token was returned (Create Waitpoint Token)',
+    },
+    // Timezones
+    timezones: { type: 'json', description: 'Supported IANA timezones (List Timezones)' },
   },
 }
 
@@ -752,11 +1160,31 @@ export const TriggerDevBlockMeta = {
       icon: TriggerDevIcon,
       title: 'Trigger.dev compute cost reporter',
       prompt:
-        'Create a weekly scheduled workflow that lists Trigger.dev runs from the past week, aggregates compute cost and duration per task, and emails a cost report to the team.',
+        'Create a weekly scheduled workflow that uses Trigger.dev Execute Query to aggregate compute cost and duration per task for the past week, and emails a cost report to the team.',
       modules: ['scheduled', 'agent', 'workflows'],
       category: 'operations',
       tags: ['reporting', 'devops'],
       alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: TriggerDevIcon,
+      title: 'Trigger.dev human approval gate',
+      prompt:
+        'Build a workflow where a Trigger.dev task waits on a waitpoint token, an approver reviews the request in Slack, and the workflow completes the waitpoint token with the approval decision so the task resumes.',
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation', 'approvals'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: TriggerDevIcon,
+      title: 'Trigger.dev deploy watchdog',
+      prompt:
+        'Create a workflow that checks the latest Trigger.dev deployment after each release, and if the deployment failed or new runs start crashing, promotes the previous deployment version and alerts the on-call channel.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['slack'],
     },
   ],
   skills: [
@@ -780,6 +1208,13 @@ export const TriggerDevBlockMeta = {
         'Inspect failed Trigger.dev runs and replay the ones whose errors look transient (timeouts, rate limits, network).',
       content:
         '# Replay Transient Failures\n\nRetry failed Trigger.dev runs that are safe to run again.\n\n## Steps\n1. List runs with status FAILED for the relevant period and task filter.\n2. For each run, use Get Run and inspect the attempt errors. Treat timeouts, rate limits, and network errors as transient; treat validation and logic errors as permanent.\n3. Use the Replay Run operation on transient failures only, and record the new run IDs.\n\n## Output\nList the replayed runs (old run ID to new run ID) and the runs skipped as permanent failures, with the reason for each decision.',
+    },
+    {
+      name: 'human-approval-waitpoint',
+      description:
+        'Create a Trigger.dev waitpoint token for a task to wait on, then complete it with approval data once a human decides.',
+      content:
+        '# Human Approval Waitpoint\n\nGate a Trigger.dev task on an external decision using waitpoint tokens.\n\n## Steps\n1. Use Create Waitpoint Token with a timeout (e.g., 1d) and an idempotency key tied to the request, and pass the token ID to the task that should wait.\n2. When the decision arrives, use Complete Waitpoint Token with the token ID and a JSON payload like {"status": "approved"} so the waiting run resumes with that data.\n3. Use Get Waitpoint Token or List Waitpoint Tokens to check for tokens that are still WAITING or have TIMED_OUT.\n\n## Output\nReport the token ID, its status, and the completion data passed to the run. Flag tokens that timed out without a decision.',
     },
     {
       name: 'manage-cron-schedules',

@@ -54,7 +54,7 @@ export const triggerDevCreateScheduleTool: ToolConfig<
     },
     deduplicationKey: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'Key that prevents duplicate schedules; creating again with the same key updates the existing schedule',
@@ -69,10 +69,10 @@ export const triggerDevCreateScheduleTool: ToolConfig<
       const body: Record<string, unknown> = {
         task: params.task,
         cron: params.cron,
+        deduplicationKey: params.deduplicationKey,
       }
       if (params.timezone) body.timezone = params.timezone
       if (params.externalId) body.externalId = params.externalId
-      if (params.deduplicationKey) body.deduplicationKey = params.deduplicationKey
       return body
     },
   },

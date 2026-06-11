@@ -1,14 +1,20 @@
 import type {
   TriggerDevApiAttempt,
+  TriggerDevApiDeployment,
   TriggerDevApiQueue,
   TriggerDevApiRun,
   TriggerDevApiRunDetail,
+  TriggerDevApiRunResult,
   TriggerDevApiSchedule,
+  TriggerDevApiWaitpointToken,
   TriggerDevAttempt,
+  TriggerDevDeployment,
   TriggerDevQueue,
   TriggerDevRunDetail,
+  TriggerDevRunResult,
   TriggerDevRunSummary,
   TriggerDevSchedule,
+  TriggerDevWaitpointToken,
 } from '@/tools/trigger_dev/types'
 import type { OutputProperty, ToolConfig } from '@/tools/types'
 
@@ -150,6 +156,88 @@ export function mapTriggerDevRunDetail(run: TriggerDevApiRunDetail): TriggerDevR
           children: (run.relatedRuns.children ?? []).map(mapTriggerDevRunSummary),
         }
       : null,
+  }
+}
+
+/**
+ * Parses a serialized output value using its declared content type.
+ * Trigger.dev returns run and waitpoint outputs as serialized strings with an
+ * accompanying content type; JSON payloads are parsed so downstream blocks can
+ * reference fields directly. Unparseable values are returned as-is.
+ */
+export function parseSerializedOutput(
+  output: string | null | undefined,
+  outputType: string | null | undefined
+): unknown {
+  if (output === undefined || output === null) return null
+  if (outputType === 'application/json') {
+    try {
+      return JSON.parse(output)
+    } catch {
+      return output
+    }
+  }
+  return output
+}
+
+/**
+ * Maps a raw Trigger.dev run result object (run result and batch results
+ * responses) to the normalized run result shape.
+ */
+export function mapTriggerDevRunResult(result: TriggerDevApiRunResult): TriggerDevRunResult {
+  return {
+    ok: result.ok,
+    id: result.id,
+    taskIdentifier: result.taskIdentifier ?? null,
+    output: parseSerializedOutput(result.output, result.outputType),
+    outputType: result.outputType ?? null,
+    error: result.error ?? null,
+    durationMs: result.usage?.durationMs ?? null,
+  }
+}
+
+/**
+ * Maps a raw Trigger.dev deployment object to the normalized deployment shape.
+ */
+export function mapTriggerDevDeployment(deployment: TriggerDevApiDeployment): TriggerDevDeployment {
+  return {
+    id: deployment.id,
+    status: deployment.status,
+    version: deployment.version ?? null,
+    shortCode: deployment.shortCode ?? null,
+    createdAt: deployment.createdAt ?? null,
+    deployedAt: deployment.deployedAt ?? null,
+    runtime: deployment.runtime ?? null,
+    runtimeVersion: deployment.runtimeVersion ?? null,
+    git: deployment.git ?? null,
+    error: deployment.error ?? deployment.errorData ?? null,
+    tasks: (deployment.worker?.tasks ?? []).map((task) => ({
+      id: task.id ?? null,
+      slug: task.slug ?? null,
+      filePath: task.filePath ?? null,
+    })),
+  }
+}
+
+/**
+ * Maps a raw Trigger.dev waitpoint token object to the normalized token shape.
+ */
+export function mapTriggerDevWaitpointToken(
+  token: TriggerDevApiWaitpointToken
+): TriggerDevWaitpointToken {
+  return {
+    id: token.id,
+    url: token.url,
+    status: token.status,
+    idempotencyKey: token.idempotencyKey ?? null,
+    idempotencyKeyExpiresAt: token.idempotencyKeyExpiresAt ?? null,
+    timeoutAt: token.timeoutAt ?? null,
+    completedAt: token.completedAt ?? null,
+    output: parseSerializedOutput(token.output, token.outputType),
+    outputType: token.outputType ?? null,
+    outputIsError: token.outputIsError ?? false,
+    tags: token.tags ?? [],
+    createdAt: token.createdAt ?? null,
   }
 }
 
@@ -532,5 +620,188 @@ export const TRIGGER_DEV_QUEUE_OUTPUTS: NonNullable<ToolConfig['outputs']> = {
         nullable: true,
       },
     },
+  },
+}
+
+/**
+ * Output schema for a normalized run result, shared by the run result and
+ * batch results tools.
+ */
+export const TRIGGER_DEV_RUN_RESULT_PROPERTIES: Record<string, OutputProperty> = {
+  ok: { type: 'boolean', description: 'Whether the run completed successfully' },
+  id: { type: 'string', description: 'ID of the run (starts with run_)' },
+  taskIdentifier: {
+    type: 'string',
+    description: 'Identifier of the task the run executed',
+    optional: true,
+    nullable: true,
+  },
+  output: {
+    type: 'json',
+    description: 'Output returned by the run, parsed when the output type is JSON',
+    optional: true,
+    nullable: true,
+  },
+  outputType: {
+    type: 'string',
+    description: 'Content type of the serialized output (e.g., application/json)',
+    optional: true,
+    nullable: true,
+  },
+  error: {
+    type: 'json',
+    description: 'Error details when the run failed',
+    optional: true,
+    nullable: true,
+  },
+  durationMs: {
+    type: 'number',
+    description: 'Duration of the run in milliseconds',
+    optional: true,
+    nullable: true,
+  },
+}
+
+/**
+ * Output schema for a normalized deployment, shared by the deployment tools.
+ */
+export const TRIGGER_DEV_DEPLOYMENT_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Unique ID of the deployment' },
+  status: {
+    type: 'string',
+    description:
+      'Deployment status (PENDING, INSTALLING, BUILDING, DEPLOYING, DEPLOYED, FAILED, CANCELED, or TIMED_OUT)',
+  },
+  version: {
+    type: 'string',
+    description: 'Deployment version (e.g., "20250228.1")',
+    optional: true,
+    nullable: true,
+  },
+  shortCode: {
+    type: 'string',
+    description: 'Short code of the deployment',
+    optional: true,
+    nullable: true,
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO timestamp when the deployment was created',
+    optional: true,
+    nullable: true,
+  },
+  deployedAt: {
+    type: 'string',
+    description: 'ISO timestamp when the deployment was promoted to DEPLOYED',
+    optional: true,
+    nullable: true,
+  },
+  runtime: {
+    type: 'string',
+    description: 'Runtime used by the deployment (e.g., "node")',
+    optional: true,
+    nullable: true,
+  },
+  runtimeVersion: {
+    type: 'string',
+    description: 'Runtime version of the deployment',
+    optional: true,
+    nullable: true,
+  },
+  git: {
+    type: 'json',
+    description: 'Git metadata associated with the deployment',
+    optional: true,
+    nullable: true,
+  },
+  error: {
+    type: 'json',
+    description: 'Error details when the deployment failed',
+    optional: true,
+    nullable: true,
+  },
+  tasks: {
+    type: 'array',
+    description: 'Tasks registered by the deployed worker',
+    items: {
+      type: 'object',
+      description: 'Deployed task',
+      properties: {
+        id: { type: 'string', description: 'Task ID', nullable: true },
+        slug: { type: 'string', description: 'Task identifier', nullable: true },
+        filePath: {
+          type: 'string',
+          description: 'File path of the task in the project',
+          nullable: true,
+        },
+      },
+    },
+  },
+}
+
+/**
+ * Output schema for a normalized waitpoint token, shared by the waitpoint tools.
+ */
+export const TRIGGER_DEV_WAITPOINT_TOKEN_PROPERTIES: Record<string, OutputProperty> = {
+  id: { type: 'string', description: 'Unique ID of the waitpoint token (starts with waitpoint_)' },
+  url: {
+    type: 'string',
+    description:
+      'HTTP callback URL; a POST request to this URL completes the waitpoint without an API key',
+  },
+  status: {
+    type: 'string',
+    description: 'Status of the waitpoint token (WAITING, COMPLETED, or TIMED_OUT)',
+  },
+  idempotencyKey: {
+    type: 'string',
+    description: 'Idempotency key used when creating the token',
+    optional: true,
+    nullable: true,
+  },
+  idempotencyKeyExpiresAt: {
+    type: 'string',
+    description: 'ISO timestamp when the idempotency key expires',
+    optional: true,
+    nullable: true,
+  },
+  timeoutAt: {
+    type: 'string',
+    description: 'ISO timestamp when the token times out',
+    optional: true,
+    nullable: true,
+  },
+  completedAt: {
+    type: 'string',
+    description: 'ISO timestamp when the token was completed',
+    optional: true,
+    nullable: true,
+  },
+  output: {
+    type: 'json',
+    description: 'Data passed when completing the token, parsed when the output type is JSON',
+    optional: true,
+    nullable: true,
+  },
+  outputType: {
+    type: 'string',
+    description: 'Content type of the serialized output (e.g., application/json)',
+    optional: true,
+    nullable: true,
+  },
+  outputIsError: {
+    type: 'boolean',
+    description: 'Whether the output represents an error (e.g., a timeout)',
+  },
+  tags: {
+    type: 'array',
+    description: 'Tags attached to the waitpoint',
+    items: { type: 'string', description: 'Waitpoint tag' },
+  },
+  createdAt: {
+    type: 'string',
+    description: 'ISO timestamp when the token was created',
+    optional: true,
+    nullable: true,
   },
 }
