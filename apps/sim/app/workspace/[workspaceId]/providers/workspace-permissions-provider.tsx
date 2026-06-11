@@ -151,6 +151,7 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
 
     try {
       offlineNotificationIdRef.current = toast.error('Connection unavailable', {
+        description: 'Recent changes may not have been saved. Refresh to resync.',
         duration: 0,
         persistAcrossRoutes: true,
         action: { label: 'Refresh', onClick: () => window.location.reload() },

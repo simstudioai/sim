@@ -525,10 +525,6 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             setIsRetryingWorkflowJoin(false)
             setVisibleWorkflowId(workflowId)
             setPresenceUsers(presenceUsers || [])
-            // A successful join is always followed by a workflow-state push that
-            // rehydrates local stores from server truth, so a previously tripped
-            // offline mode is safe to clear here.
-            useOperationQueueStore.getState().clearError()
             logger.info(`Successfully joined workflow room: ${workflowId}`, {
               presenceCount: presenceUsers?.length || 0,
             })
