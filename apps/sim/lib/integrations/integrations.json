@@ -14809,6 +14809,117 @@
     "tags": ["project-management", "ticketing"]
   },
   {
+    "type": "trigger_dev",
+    "slug": "trigger-dev",
+    "name": "Trigger.dev",
+    "description": "Trigger tasks and manage runs and schedules",
+    "longDescription": "Integrate Trigger.dev into the workflow. Trigger and batch trigger background tasks with a JSON payload, retrieve and list runs, cancel, replay, or reschedule runs, manage cron schedules, environment variables, and queues.",
+    "bgColor": "#000000",
+    "iconName": "TriggerDevIcon",
+    "docsUrl": "https://docs.sim.ai/integrations/trigger_dev",
+    "operations": [
+      {
+        "name": "Trigger Task",
+        "description": "Trigger a Trigger.dev task by its identifier with an optional JSON payload. Returns the ID of the created run."
+      },
+      {
+        "name": "Batch Trigger Task",
+        "description": "Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs."
+      },
+      {
+        "name": "Get Run",
+        "description": "Retrieve a Trigger.dev run by its ID, including status, payload, output, attempts, and timing details."
+      },
+      {
+        "name": "List Runs",
+        "description": "List Trigger.dev runs in the environment of the API key, with optional filters for status, task, version, tags, schedule, and creation time."
+      },
+      {
+        "name": "Cancel Run",
+        "description": "Cancel an in-progress Trigger.dev run. Has no effect if the run is already completed."
+      },
+      {
+        "name": "Replay Run",
+        "description": "Replay a Trigger.dev run, creating a new run with the same payload and options as the original."
+      },
+      {
+        "name": "Reschedule Run",
+        "description": "Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run is in the DELAYED state."
+      },
+      {
+        "name": "Update Run Metadata",
+        "description": "Replace the metadata of a Trigger.dev run with a new JSON object."
+      },
+      {
+        "name": "Create Schedule",
+        "description": "Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis."
+      },
+      {
+        "name": "Get Schedule",
+        "description": "Retrieve a Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "List Schedules",
+        "description": "List Trigger.dev schedules in the project, with page-based pagination."
+      },
+      {
+        "name": "Update Schedule",
+        "description": "Update an imperative Trigger.dev schedule by its ID, replacing its task, cron expression, timezone, and external ID."
+      },
+      {
+        "name": "Delete Schedule",
+        "description": "Delete an imperative Trigger.dev schedule by its ID."
+      },
+      {
+        "name": "Activate Schedule",
+        "description": "Activate an imperative Trigger.dev schedule so it resumes triggering its task."
+      },
+      {
+        "name": "Deactivate Schedule",
+        "description": "Deactivate an imperative Trigger.dev schedule so it stops triggering its task."
+      },
+      {
+        "name": "List Env Vars",
+        "description": "List the environment variables of a Trigger.dev project environment, including their values."
+      },
+      {
+        "name": "Create Env Var",
+        "description": "Create an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Get Env Var",
+        "description": "Retrieve an environment variable from a Trigger.dev project environment."
+      },
+      {
+        "name": "Update Env Var",
+        "description": "Update the value of an environment variable in a Trigger.dev project environment."
+      },
+      {
+        "name": "Delete Env Var",
+        "description": "Delete an environment variable from a Trigger.dev project environment."
+      },
+      {
+        "name": "Get Queue",
+        "description": "Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts."
+      },
+      {
+        "name": "Pause Queue",
+        "description": "Pause a Trigger.dev queue so no new runs start. Runs that are currently executing continue to completion."
+      },
+      {
+        "name": "Resume Queue",
+        "description": "Resume a paused Trigger.dev queue so new runs can start again."
+      }
+    ],
+    "operationCount": 23,
+    "triggers": [],
+    "triggerCount": 0,
+    "authType": "api-key",
+    "category": "tools",
+    "integrationType": "devops",
+    "tags": ["automation", "ci-cd", "monitoring"]
+  },
+  {
     "type": "twilio_sms",
     "slug": "twilio-sms",
     "name": "Twilio SMS",
