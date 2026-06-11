@@ -32,7 +32,7 @@ import {
 import { syncLocalDraftFromServer } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/sync-local-draft'
 import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
-import { startsWithUuid } from '@/executor/constants'
+import { normalizeName, startsWithUuid } from '@/executor/constants'
 import { useA2AAgentByWorkflow } from '@/hooks/queries/a2a/agents'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import {
@@ -273,9 +273,7 @@ export function DeployModal({
           const parts = outputId.split('.')
           if (parts.length >= 2) {
             const blockName = parts[0]
-            return blocks.some(
-              (b) => b.name?.toLowerCase().replace(/\s+/g, '') === blockName.toLowerCase()
-            )
+            return blocks.some((b) => b.name && normalizeName(b.name) === blockName.toLowerCase())
           }
           return true
         })

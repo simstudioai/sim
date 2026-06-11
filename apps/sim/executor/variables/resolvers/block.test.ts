@@ -243,6 +243,17 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<My Source Block>', ctx)).toEqual({ message: 'hello' })
     })
 
+    it.concurrent('should resolve blocks whose names contain dots via dot-stripped names', () => {
+      const workflow = createTestWorkflow([{ id: 'block-dot', name: 'Hunter.io 1' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        'block-dot': { email: 'jane@acme.com', score: 92 },
+      })
+
+      expect(resolver.resolve('<hunterio1.email>', ctx)).toBe('jane@acme.com')
+      expect(resolver.resolve('<hunterio1.score>', ctx)).toBe(92)
+    })
+
     it.concurrent('should resolve nested property path', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
