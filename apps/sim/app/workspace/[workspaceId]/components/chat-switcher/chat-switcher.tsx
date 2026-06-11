@@ -132,6 +132,15 @@ export function ChatSwitcher({
     router.push(`/workspace/${workspaceId}/chat/${selectedChatId}`)
   }
 
+  /** The split chip's primary action: jump straight into the latest chat. */
+  const handleOpenMostRecent = () => {
+    if (!mostRecent) {
+      setOpen(true)
+      return
+    }
+    handleSelect(mostRecent.id)
+  }
+
   const chipIcon = isWorking ? (
     <ThinkingLoader size={18} className='flex-shrink-0' />
   ) : (
@@ -139,19 +148,46 @@ export function ChatSwitcher({
   )
 
   const trigger = iconOnly ? (
-    <button
-      type='button'
-      aria-label='Recents'
-      onClick={() => setOpen((prev) => !prev)}
-      className={cn(
-        'flex h-[30px] flex-shrink-0 items-center gap-1 rounded-lg px-1.5 transition-colors',
-        'hover-hover:bg-[var(--surface-active)]',
-        open && 'bg-[var(--surface-active)]'
-      )}
-    >
-      {chipIcon}
-      <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-    </button>
+    /* Split chip: the icon opens the most recent chat outright; the chevron
+       opens the Recents list. The 1px bg-colored divider only reads when a
+       segment carries its fill, slicing the pill into two buttons. */
+    <span className='flex h-[30px] flex-shrink-0 items-stretch'>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            aria-label='Open most recent chat'
+            onClick={handleOpenMostRecent}
+            className='flex items-center rounded-l-lg px-1.5 transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            {chipIcon}
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Open chat</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+      <span aria-hidden='true' className='w-px self-stretch bg-[var(--bg)]' />
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            aria-label='Recents'
+            onClick={() => setOpen((prev) => !prev)}
+            className={cn(
+              'flex items-center rounded-r-lg px-1 transition-colors',
+              'hover-hover:bg-[var(--surface-active)]',
+              open && 'bg-[var(--surface-active)]'
+            )}
+          >
+            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Recents</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </span>
   ) : (
     <button
       type='button'
@@ -173,20 +209,7 @@ export function ChatSwitcher({
 
   return (
     <Popover size='md' open={open} onOpenChange={setOpen}>
-      <PopoverAnchor asChild>
-        {iconOnly ? (
-          <span className='flex flex-shrink-0'>
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>{trigger}</Tooltip.Trigger>
-              <Tooltip.Content side='bottom'>
-                <p>Recents</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          </span>
-        ) : (
-          trigger
-        )}
-      </PopoverAnchor>
+      <PopoverAnchor asChild>{trigger}</PopoverAnchor>
       {/* Mirrors the sidebar flyout's anchor rhythm: the chip sits at y 7..37 in
           the 44px bar, so offset 13 lands the panel 6px below the bar, and the
           -33 align offset walks back from the chip to 8px off the panel edge. */}
