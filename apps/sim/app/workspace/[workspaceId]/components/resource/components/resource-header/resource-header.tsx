@@ -145,7 +145,10 @@ export const ResourceHeader = memo(function ResourceHeader({
       ref={headerRef}
       className={cn(
         'flex items-center gap-2 border-[var(--border)] border-b px-4',
-        panelChrome ? 'py-[7px]' : 'py-[8.5px]'
+        // Panel mode pins the exact chat-title-bar height (not padding-derived:
+        // a 31px chip would push a padded row to 45px and misalign the divider
+        // across the chat/panel split).
+        panelChrome ? 'h-[44px] flex-shrink-0' : 'py-[8.5px]'
       )}
     >
       {/* Chrome controls live outside the overflow-hidden breadcrumb group so
