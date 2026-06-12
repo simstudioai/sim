@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { Button, Input } from '@/components/emcn'
+import { Button, ChipInput } from '@/components/emcn'
 import { Loader, X } from '@/components/emcn/icons'
 
 export interface TableFindProps {
@@ -63,11 +63,11 @@ export function TableFind({
 
   return (
     <div className='absolute top-2 right-2 z-[20] flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1 shadow-medium'>
-      <Input
+      <ChipInput
         ref={inputRef}
         value={query}
         placeholder='Search'
-        className='h-8 w-[200px]'
+        className='w-[200px]'
         onChange={(e) => onQueryChange(e.target.value)}
         onKeyDown={handleKeyDown}
       />

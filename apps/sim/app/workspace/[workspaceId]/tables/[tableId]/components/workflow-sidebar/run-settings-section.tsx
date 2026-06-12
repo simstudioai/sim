@@ -50,7 +50,7 @@ export function RunSettingsSection({
           </span>
         }
       />
-      {error && <p className='pl-0.5 text-[var(--text-danger)] text-xs'>{error}</p>}
+      {error && <p className='pl-0.5 text-[var(--text-error)] text-caption'>{error}</p>}
     </div>
   )
 }

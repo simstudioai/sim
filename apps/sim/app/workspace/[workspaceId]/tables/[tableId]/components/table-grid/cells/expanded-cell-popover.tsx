@@ -40,7 +40,6 @@ export function ExpandedCellPopover({
   const rootRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null)
-  const [draftValue, setDraftValue] = useState<string>('')
 
   const target = useMemo(() => {
     if (!expandedCell) return null
@@ -75,7 +74,6 @@ export function ExpandedCellPopover({
       setRect(null)
       return
     }
-    setDraftValue(isEditable ? formatValueForInput(target.value, target.column.type) : '')
     const selector = `[data-table-scroll] [data-row-id="${target.row.id}"][data-col="${target.colIndex}"]`
     const el = document.querySelector<HTMLElement>(selector)
     if (!el) {
@@ -86,7 +84,7 @@ export function ExpandedCellPopover({
     setRect({ top: r.top, left: r.left, width: r.width })
     // Focus textarea on open so typing works immediately.
     requestAnimationFrame(() => textareaRef.current?.focus())
-  }, [expandedCell, target, isEditable])
+  }, [expandedCell, target])
 
   const onCloseEvent = useEffectEvent(onClose)
 
@@ -136,23 +134,6 @@ export function ExpandedCellPopover({
     ? Math.max(VIEWPORT_PAD, window.innerHeight - EXPANDED_CELL_HEIGHT - VIEWPORT_PAD)
     : rect.top
 
-  const handleSave = () => {
-    if (!isEditable) return
-    // `displayToStorage` only normalizes dates — it returns null for anything else.
-    // Fall back to the raw draft for non-date columns, matching the inline editor.
-    const raw = displayToStorage(draftValue) ?? draftValue
-    const cleaned = cleanCellValue(raw, target.column)
-    onSave(target.row.id, target.column.key, cleaned, 'blur')
-    onClose()
-  }
-
-  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSave()
-    }
-  }
-
   return (
     <div
       ref={rootRef}
@@ -162,30 +143,15 @@ export function ExpandedCellPopover({
       style={{ top, left, width, height: EXPANDED_CELL_HEIGHT }}
     >
       {isEditable ? (
-        <>
-          <textarea
-            ref={textareaRef}
-            value={draftValue}
-            onChange={(e) => setDraftValue(e.target.value)}
-            onKeyDown={handleTextareaKeyDown}
-            className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
-            spellCheck={false}
-            autoCorrect='off'
-          />
-          <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
-            <span className='text-[var(--text-tertiary)] text-caption'>
-              <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
-            </span>
-            <div className='flex items-center gap-1.5'>
-              <Button variant='ghost' size='sm' onClick={onClose}>
-                Cancel
-              </Button>
-              <Button size='sm' variant='primary' onClick={handleSave}>
-                Save
-              </Button>
-            </div>
-          </div>
-        </>
+        <ExpandedCellEditor
+          key={`${expandedCell.rowId}:${expandedCell.columnKey ?? expandedCell.columnName}`}
+          initialValue={formatValueForInput(target.value, target.column.type)}
+          column={target.column}
+          rowId={target.row.id}
+          onSave={onSave}
+          onClose={onClose}
+          textareaRef={textareaRef}
+        />
       ) : (
         <>
           <div className='min-h-0 flex-1 overflow-auto px-2.5 py-2'>
@@ -205,5 +171,73 @@ export function ExpandedCellPopover({
         </>
       )}
     </div>
+  )
+}
+
+interface ExpandedCellEditorProps {
+  initialValue: string
+  column: DisplayColumn
+  rowId: string
+  onSave: ExpandedCellPopoverProps['onSave']
+  onClose: () => void
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+}
+
+/**
+ * Editable body of the popover. Keyed on the edited cell so the draft
+ * survives unrelated row refetches (SSE cache patches, polling) while the
+ * popover is open, and resets only when the target cell changes.
+ */
+function ExpandedCellEditor({
+  initialValue,
+  column,
+  rowId,
+  onSave,
+  onClose,
+  textareaRef,
+}: ExpandedCellEditorProps) {
+  const [draftValue, setDraftValue] = useState(initialValue)
+
+  const handleSave = () => {
+    // `displayToStorage` only normalizes dates — it returns null for anything else.
+    // Fall back to the raw draft for non-date columns, matching the inline editor.
+    const raw = displayToStorage(draftValue) ?? draftValue
+    const cleaned = cleanCellValue(raw, column)
+    onSave(rowId, column.key, cleaned, 'blur')
+    onClose()
+  }
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSave()
+    }
+  }
+
+  return (
+    <>
+      <textarea
+        ref={textareaRef}
+        value={draftValue}
+        onChange={(e) => setDraftValue(e.target.value)}
+        onKeyDown={handleTextareaKeyDown}
+        className='min-h-0 flex-1 resize-none bg-transparent px-2.5 py-2 font-sans text-[var(--text-primary)] text-small outline-none placeholder:text-[var(--text-muted)]'
+        spellCheck={false}
+        autoCorrect='off'
+      />
+      <div className='flex items-center justify-between border-[var(--border)] border-t bg-[var(--surface-2)] px-2 py-1.5'>
+        <span className='text-[var(--text-tertiary)] text-caption'>
+          <kbd className='font-mono'>↵</kbd> save · <kbd className='font-mono'>esc</kbd> cancel
+        </span>
+        <div className='flex items-center gap-1.5'>
+          <Button variant='ghost' size='sm' onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size='sm' variant='primary' onClick={handleSave}>
+            Save
+          </Button>
+        </div>
+      </div>
+    </>
   )
 }
