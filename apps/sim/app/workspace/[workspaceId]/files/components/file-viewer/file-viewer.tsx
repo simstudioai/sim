@@ -20,6 +20,7 @@ import { resolvePreviewType } from './preview-panel'
 import {
   PREVIEW_LOADING_OVERLAY,
   PreviewError,
+  PreviewErrorBoundary,
   PreviewLoadingFrame,
   resolvePreviewError,
 } from './preview-shared'
@@ -145,11 +146,9 @@ const IframePreview = memo(function IframePreview({
   }
 
   return (
-    <PdfViewerCore
-      key={`${file.id}:${preview.dataUpdatedAt}`}
-      source={bufferSource}
-      filename={file.name}
-    />
+    <PreviewErrorBoundary key={`${file.id}:${preview.dataUpdatedAt}`} label='PDF'>
+      <PdfViewerCore source={bufferSource} filename={file.name} />
+    </PreviewErrorBoundary>
   )
 })
 

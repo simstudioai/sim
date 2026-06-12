@@ -25,6 +25,11 @@ import {
   resolveSocketWorkflowTarget,
 } from '@/app/workspace/providers/socket-join-target'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import type {
+  SubblockUpdateEmit,
+  VariableUpdateEmit,
+  WorkflowOperationEmit,
+} from '@/stores/operation-queue/types'
 import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('SocketContext')
@@ -69,33 +74,21 @@ interface SocketContextType {
   isReconnecting: boolean
   isRetryingWorkflowJoin: boolean
   authFailed: boolean
+  /**
+   * Workflow whose room join failed non-retryably (e.g. access denied). The room
+   * is blocked until the user targets a different workflow or refreshes; edits made
+   * while blocked would never persist, so consumers should surface this and block edits.
+   */
+  blockedJoinWorkflowId: string | null
   currentWorkflowId: string | null
   currentSocketId: string | null
   presenceUsers: PresenceUser[]
   joinWorkflow: (workflowId: string) => void
   leaveWorkflow: () => void
   retryConnection: () => void
-  emitWorkflowOperation: (
-    workflowId: string,
-    operation: string,
-    target: string,
-    payload: any,
-    operationId?: string
-  ) => void
-  emitSubblockUpdate: (
-    blockId: string,
-    subblockId: string,
-    value: any,
-    operationId: string | undefined,
-    workflowId: string
-  ) => void
-  emitVariableUpdate: (
-    variableId: string,
-    field: string,
-    value: any,
-    operationId: string | undefined,
-    workflowId: string
-  ) => void
+  emitWorkflowOperation: WorkflowOperationEmit
+  emitSubblockUpdate: SubblockUpdateEmit
+  emitVariableUpdate: VariableUpdateEmit
 
   emitCursorUpdate: (cursor: { x: number; y: number } | null) => void
   emitSelectionUpdate: (selection: { type: 'block' | 'edge' | 'none'; id?: string }) => void
@@ -120,15 +113,16 @@ const SocketContext = createContext<SocketContextType>({
   isReconnecting: false,
   isRetryingWorkflowJoin: false,
   authFailed: false,
+  blockedJoinWorkflowId: null,
   currentWorkflowId: null,
   currentSocketId: null,
   presenceUsers: [],
   joinWorkflow: () => {},
   leaveWorkflow: () => {},
   retryConnection: () => {},
-  emitWorkflowOperation: () => {},
-  emitSubblockUpdate: () => {},
-  emitVariableUpdate: () => {},
+  emitWorkflowOperation: () => false,
+  emitSubblockUpdate: () => false,
+  emitVariableUpdate: () => false,
   emitCursorUpdate: () => {},
   emitSelectionUpdate: () => {},
   onWorkflowOperation: () => {},
@@ -161,6 +155,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   const [currentSocketId, setCurrentSocketId] = useState<string | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<PresenceUser[]>([])
   const [authFailed, setAuthFailed] = useState(false)
+  const [blockedJoinWorkflowId, setBlockedJoinWorkflowId] = useState<string | null>(null)
   const [explicitWorkflowId, setExplicitWorkflowId] = useState<string | null>(null)
   const initializedRef = useRef(false)
   const socketRef = useRef<Socket | null>(null)
@@ -517,6 +512,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             logger.debug(`Ignoring stale join-workflow-success for ${workflowId}`)
           } else {
             setIsRetryingWorkflowJoin(false)
+            setBlockedJoinWorkflowId(null)
             setVisibleWorkflowId(workflowId)
             setPresenceUsers(presenceUsers || [])
             logger.info(`Successfully joined workflow room: ${workflowId}`, {
@@ -547,6 +543,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             if (result.workflowId) {
               useOperationQueueStore.getState().cancelOperationsForWorkflow(result.workflowId)
             }
+            setBlockedJoinWorkflowId(result.workflowId ?? null)
 
             logger.error('Failed to join workflow:', {
               workflowId: result.workflowId,
@@ -806,7 +803,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       return
     }
 
-    executeJoinCommands(joinControllerRef.current.requestWorkflow(getRequestedWorkflowId()))
+    const requestedWorkflowId = getRequestedWorkflowId()
+
+    setBlockedJoinWorkflowId((prev) => (prev && prev !== requestedWorkflowId ? null : prev))
+    executeJoinCommands(joinControllerRef.current.requestWorkflow(requestedWorkflowId))
   }, [
     explicitWorkflowId,
     getRequestedWorkflowId,
@@ -847,7 +847,13 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
   }, [authFailed])
 
   const emitWorkflowOperation = useCallback(
-    (workflowId: string, operation: string, target: string, payload: any, operationId?: string) => {
+    (
+      workflowId: string,
+      operation: string,
+      target: string,
+      payload: any,
+      operationId?: string
+    ): boolean => {
       if (
         !socket ||
         !currentWorkflowId ||
@@ -861,7 +867,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           operation,
           target,
         })
-        return
+        return false
       }
 
       const isPositionUpdate = operation === 'update-position' && target === 'block'
@@ -885,7 +891,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             clearTimeout(timeoutId)
             positionUpdateTimeouts.current.delete(blockId)
           }
-          return
+          return true
         }
 
         pendingPositionUpdates.current.set(blockId, {
@@ -909,16 +915,18 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           positionUpdateTimeouts.current.set(blockId, timeoutId)
         }
-      } else {
-        socket.emit('workflow-operation', {
-          workflowId,
-          operation,
-          target,
-          payload,
-          timestamp: Date.now(),
-          operationId,
-        })
+        return true
       }
+
+      socket.emit('workflow-operation', {
+        workflowId,
+        operation,
+        target,
+        payload,
+        timestamp: Date.now(),
+        operationId,
+      })
+      return true
     },
     [socket, currentWorkflowId, isWorkflowVisible]
   )
@@ -930,7 +938,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => {
+    ): boolean => {
       if (
         !socket ||
         workflowId !== currentWorkflowIdRef.current ||
@@ -949,7 +957,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reason,
           currentWorkflowId: currentWorkflowIdRef.current,
         })
-        return
+        return false
       }
       socket.emit('subblock-update', {
         workflowId,
@@ -959,6 +967,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         timestamp: Date.now(),
         operationId,
       })
+      return true
     },
     [socket]
   )
@@ -970,7 +979,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       value: any,
       operationId: string | undefined,
       workflowId: string
-    ) => {
+    ): boolean => {
       if (
         !socket ||
         workflowId !== currentWorkflowIdRef.current ||
@@ -989,7 +998,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
           reason,
           currentWorkflowId: currentWorkflowIdRef.current,
         })
-        return
+        return false
       }
       socket.emit('variable-update', {
         workflowId,
@@ -999,6 +1008,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
         timestamp: Date.now(),
         operationId,
       })
+      return true
     },
     [socket]
   )
@@ -1087,6 +1097,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isReconnecting,
       isRetryingWorkflowJoin,
       authFailed,
+      blockedJoinWorkflowId,
       currentWorkflowId,
       currentSocketId,
       presenceUsers,
@@ -1117,6 +1128,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
       isReconnecting,
       isRetryingWorkflowJoin,
       authFailed,
+      blockedJoinWorkflowId,
       currentWorkflowId,
       currentSocketId,
       presenceUsers,

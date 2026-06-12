@@ -13,6 +13,26 @@ export const SIM_AGENT_API_URL =
 /** Default timeout for the copilot orchestration stream loop (60 min). */
 export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
 
+/**
+ * Watchdog cap for a single sim-executed copilot tool. A tool that neither
+ * resolves nor rejects within its cap is failed with a timeout error so the
+ * checkpoint loop can resume Go with an error result instead of wedging the
+ * chat (and its pending-stream lock) behind a hung await forever.
+ */
+export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
+
+/**
+ * Watchdog cap for tool classes with legitimately long runtimes (workflow
+ * executions, media/image generation, sandboxed code, deep research). Those
+ * tools carry their own inner budgets (plan execution timeouts, sandbox
+ * timeouts), so this cap only backstops a true hang and sits above all of
+ * them — matching ORCHESTRATION_TIMEOUT_MS so it never undercuts a legal run.
+ */
+export const TOOL_WATCHDOG_LONG_RUNNING_MS = ORCHESTRATION_TIMEOUT_MS
+
+/** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
+export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
+
 /** Timeout for the client-side streaming response handler (60 min). */
 export const STREAM_TIMEOUT_MS = 3_600_000
 

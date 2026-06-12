@@ -8,7 +8,7 @@ import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
 
@@ -77,11 +77,7 @@ interface UsageEntry {
   metadata?: UsageLogMetadata
 }
 
-/**
- * Parameters for the central recordUsage function.
- * This is the single entry point for all billing mutations.
- */
-export interface RecordUsageParams {
+interface RecordUsageBaseParams {
   /** The user being charged */
   userId: string
   /** One or more usage_log entries to record. Total cost is derived from these. */
@@ -92,18 +88,36 @@ export interface RecordUsageParams {
   workflowId?: string
   /** Execution context */
   executionId?: string
-  /** Billing entity scope, resolved by caller when already known. */
-  billingEntity?: BillingEntity
-  /** Billing period bounds, resolved by caller when already known. */
-  billingPeriod?: { start: Date; end: Date }
-  /**
-   * Optional transaction to run the ledger INSERT in. Callers that reconcile a
-   * read-then-insert under a lock (e.g. the per-execution advisory lock in the
-   * workflow completion path) pass their tx so the insert participates in the
-   * same locked transaction. Defaults to the pooled db.
-   */
-  tx?: DbOrTx
 }
+
+/**
+ * Parameters for the central recordUsage function.
+ * This is the single entry point for all billing mutations.
+ *
+ * Callers that pass `tx` (e.g. the per-execution advisory-lock reconciliation
+ * in the workflow completion path) must pre-resolve the billing context before
+ * opening the transaction: resolving it inside would run the subscription
+ * lookups on the global pool while the tx already holds a pooled connection,
+ * starving the pool under load (see recordCumulativeUsage for the history).
+ */
+export type RecordUsageParams = RecordUsageBaseParams &
+  (
+    | {
+        /** Transaction the ledger INSERT participates in. */
+        tx: DbOrTx
+        /** Billing entity scope, resolved before the transaction opened. */
+        billingEntity: BillingEntity
+        /** Billing period bounds, resolved before the transaction opened. */
+        billingPeriod: { start: Date; end: Date }
+      }
+    | {
+        tx?: undefined
+        /** Billing entity scope, resolved by caller when already known. */
+        billingEntity?: BillingEntity
+        /** Billing period bounds, resolved by caller when already known. */
+        billingPeriod?: { start: Date; end: Date }
+      }
+  )
 
 export function stableEventKey(parts: Record<string, unknown>): string {
   const payload = Object.keys(parts)
@@ -170,7 +184,7 @@ export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
   source?: UsageLogSource | UsageLogSource[],
-  executor: DbOrTx = db
+  executor: DbClient = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -198,7 +212,7 @@ export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
   source?: UsageLogSource | UsageLogSource[],
-  executor: DbOrTx = db
+  executor: DbClient = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),

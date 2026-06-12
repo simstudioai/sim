@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { knowledgeBase } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
@@ -454,7 +454,7 @@ async function processKnowledgeFromDb(
     if (currentWorkspaceId) {
       conditions.push(eq(knowledgeBase.workspaceId, currentWorkspaceId))
     }
-    const kbRows = await db
+    const kbRows = await dbReplica
       .select({
         id: knowledgeBase.id,
         name: knowledgeBase.name,
@@ -562,7 +562,6 @@ async function processExecutionLogFromDb(
 ): Promise<AgentContext | null> {
   try {
     const { workflowExecutionLogs, workflow } = await import('@sim/db/schema')
-    const { db } = await import('@sim/db')
     const rows = await db
       .select({
         id: workflowExecutionLogs.id,
