@@ -26,7 +26,6 @@
 
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import {
   Popover,
@@ -34,6 +33,7 @@ import {
   PopoverContent,
 } from '@/components/emcn/components/popover/popover'
 import { TimePicker } from '@/components/emcn/components/time-picker/time-picker'
+import { ChevronDown, ChevronLeft, ChevronRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 /**

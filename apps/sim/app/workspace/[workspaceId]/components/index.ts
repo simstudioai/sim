@@ -1,3 +1,4 @@
+export { ChatSwitcher } from './chat-switcher'
 export { ConversationListItem } from './conversation-list-item'
 export type { ErrorBoundaryProps, ErrorStateProps } from './error'
 export { ErrorShell, ErrorState } from './error'
@@ -34,4 +35,5 @@ export type {
   SelectableConfig,
 } from './resource/resource'
 export { EMPTY_CELL_PLACEHOLDER, Resource } from './resource/resource'
+export { SidebarToggle } from './sidebar-toggle'
 export { SkillTile } from './skill-tile'

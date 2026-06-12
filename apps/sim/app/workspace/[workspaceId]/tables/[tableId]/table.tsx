@@ -173,7 +173,7 @@ export function Table({
   // useCallback because <Resource.Header> is memo-wrapped — these flow into
   // the breadcrumbs / headerActions memos, whose identity drives that re-render.
   const onRequestDeleteTable = useCallback(() => setShowDeleteTableConfirm(true), [])
-  const onRequestImportCsv = useCallback(() => setIsImportCsvOpen(true), [])
+  const onRequestImportCsv = useCallback((): void => setIsImportCsvOpen(true), [])
   // Used inside grid's `useCallback` deps — identity stability prevents the
   // grid's `useCallback` from re-creating on every wrapper re-render.
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
@@ -472,7 +472,7 @@ export function Table({
             {
               label: 'Export CSV',
               icon: Download,
-              onClick: () => void handleExportCsv(),
+              onClick: (): void => void handleExportCsv(),
               disabled: tableData.rowCount === 0,
             },
           ]

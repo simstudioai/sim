@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   ArrowDown,
   ArrowUp,
@@ -20,6 +19,7 @@ import {
   chipContentLabelClass,
   Loader,
 } from '@/components/emcn'
+import { ChevronLeft, ChevronRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'

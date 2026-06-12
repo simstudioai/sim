@@ -3,17 +3,20 @@
 import type { ElementType, ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import {
-  Connections,
+  CalendarClock,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
-  Library,
+  Integration,
+  Layout,
+  Logs,
   Table as TableIcon,
   Task,
   TerminalWindow,
   Workflow,
 } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { isMothershipPageId, type MothershipPageId } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type {
   MothershipResource,
@@ -23,6 +26,7 @@ import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import { knowledgeKeys } from '@/hooks/queries/kb/knowledge'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import { scheduleKeys } from '@/hooks/queries/schedules'
 import { tableKeys } from '@/hooks/queries/tables'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
@@ -91,6 +95,17 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
       <span className='truncate'>{item.name}</span>
     </>
   )
+}
+
+const PAGE_ICONS: Record<MothershipPageId, ElementType> = {
+  tables: TableIcon,
+  knowledge: Database,
+  logs: Logs,
+  'scheduled-tasks': CalendarClock,
+}
+
+function getPageIcon(pageId: string): ElementType {
+  return isMothershipPageId(pageId) ? PAGE_ICONS[pageId] : Layout
 }
 
 function LogDropdownItem({ item }: DropdownItemRenderProps) {
@@ -186,20 +201,32 @@ export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfi
   log: {
     type: 'log',
     label: 'Logs',
-    icon: Library,
+    icon: Logs,
     renderTabIcon: (_resource, className) => (
-      <Library className={cn(className, 'text-[var(--text-icon)]')} />
+      <Logs className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <LogDropdownItem {...props} />,
   },
   integration: {
     type: 'integration',
     label: 'Integrations',
-    icon: Connections,
+    icon: Integration,
     renderTabIcon: (_resource, className) => (
-      <Connections className={cn(className, 'text-[var(--text-icon)]')} />
+      <Integration className={cn(className, 'text-[var(--text-icon)]')} />
     ),
     renderDropdownItem: (props) => <IntegrationDropdownItem {...props} />,
+  },
+  page: {
+    type: 'page',
+    label: 'Pages',
+    icon: Layout,
+    renderTabIcon: (resource, className) => {
+      const PageIcon = getPageIcon(resource.id)
+      return <PageIcon className={cn(className, 'text-[var(--text-icon)]')} />
+    },
+    renderDropdownItem: (props) => (
+      <IconDropdownItem {...props} icon={getPageIcon(props.item.id)} />
+    ),
   },
 } as const
 
@@ -251,6 +278,12 @@ const RESOURCE_INVALIDATORS: Record<
    * invalidate when one is added.
    */
   integration: () => {},
+  page: (qc, wId, id) => {
+    if (id === 'tables') qc.invalidateQueries({ queryKey: tableKeys.lists() })
+    if (id === 'knowledge') qc.invalidateQueries({ queryKey: knowledgeKeys.lists() })
+    if (id === 'logs') qc.invalidateQueries({ queryKey: logKeys.lists() })
+    if (id === 'scheduled-tasks') qc.invalidateQueries({ queryKey: scheduleKeys.list(wId) })
+  },
 }
 
 /**

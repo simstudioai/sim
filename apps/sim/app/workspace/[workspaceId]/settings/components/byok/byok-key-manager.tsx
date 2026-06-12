@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Eye, EyeOff, Search } from 'lucide-react'
 import {
   Button,
   Chip,
@@ -15,6 +14,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
 } from '@/components/emcn'
+import { Eye, EyeOff, Search } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   CHIP_FIELD_INPUT,

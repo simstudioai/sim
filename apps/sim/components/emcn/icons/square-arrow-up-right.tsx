@@ -1,27 +1,32 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * SquareArrowUpRight icon — a rounded square with an arrow pointing top-right inside it.
- * @param props - SVG properties including className, fill, etc.
+ * SquareArrowUpRight icon (Hugeicons stroke-rounded: ArrowUpRight01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function SquareArrowUpRight(props: SVGProps<SVGSVGElement>) {
+export function SquareArrowUpRight({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <rect x='1.25' y='0.75' width='18' height='18' rx='2.5' />
-      <path d='M9.75 5.25H14.25V9.75' />
-      <path d='M14.25 5.25L6.25 14.25' />
+      <path
+        d='M9 6.65032C9 6.65032 15.9383 6.10759 16.9154 7.08463C17.8924 8.06167 17.3496 15 17.3496 15M16.5 7.5L6.5 17.5'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

@@ -1,0 +1,1004 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sim icon update map</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#8a8a8a; --line:#ececec; --bg:#fff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#fafafa; padding:32px 40px 80px; }
+  header h1 { font-size:22px; margin:0 0 2px; }
+  header p { color:var(--muted); margin:0 0 28px; }
+  section { margin:0 0 36px; }
+  h2 { font-size:13px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink); border-bottom:1px solid var(--line); padding-bottom:8px; margin:0 0 4px; }
+  h2 .n { color:var(--muted); font-weight:400; }
+  .note { color:var(--muted); font-size:12px; margin:6px 0 14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:10px; margin-top:14px; }
+  .cell { display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 6px 10px; background:var(--bg); border:1px solid var(--line); border-radius:10px; }
+  .box { width:40px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  .art svg { width:24px; height:24px; display:block; }
+  .art.missing { color:#c00; font-size:20px; }
+  .name { font-size:11px; font-weight:500; text-align:center; word-break:break-word; }
+  .count { font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+</style></head>
+<body>
+  <header>
+    <h1>Sim — icons to update (108)</h1>
+    <p>Counts = emcn usage + lucide sites to migrate. Artwork is the current live glyph.</p>
+  </header>
+  
+  <section>
+    <h2>TIER 1 · Core — Arrows & Chevrons <span class="n">(6)</span></h2>
+    <p class="note">Redesign first. Tier-2 chevrons/arrows are rotations of these.</p>
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 10 6'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M1 1L5 5L9 1'
+        stroke='currentColor'
+        stroke-width='1.2'
+        stroke-linecap='square'
+        stroke-linejoin='miter'
+        fill='none'
+      />
+    </svg></div></div><div class="name">ChevronDown</div><div class="count">21 +24</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M9.25 4L3 10.25L9.25 16.5' />
+      <path d='M3 10.25H17.5' />
+    </svg></div></div><div class="name">ArrowLeft</div><div class="count">14 +5</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M4 9.25L10.25 3L16.5 9.25' />
+      <path d='M10.25 3V17.5' />
+    </svg></div></div><div class="name">ArrowUp</div><div class="count">11 +15</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M4 11.25L10.25 17.5L16.5 11.25' />
+      <path d='M10.25 3V17.5' />
+    </svg></div></div><div class="name">ArrowDown</div><div class="count">10 +6</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M11.25 4L17.5 10.25L11.25 16.5' />
+      <path d='M17.5 10.25H3' />
+    </svg></div></div><div class="name">ArrowRight</div><div class="count">6 +7</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M1.5 8L5.5 4L9.5 8' />
+      <path d='M5.5 4V16.5' />
+      <path d='M11 12.5L15 16.5L19 12.5' />
+      <path d='M15 4V16.5' />
+    </svg></div></div><div class="name">ArrowUpDown</div><div class="count">1 +1</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 1 · Core — Actions & Controls <span class="n">(14)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='8.5' cy='8.5' r='7.5' />
+      <path d='M14 14L18 18' />
+    </svg></div></div><div class="name">Search</div><div class="count">44 +14</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M10.25 3V17.5' />
+      <path d='M3 10.25H17.5' />
+    </svg></div></div><div class="name">Plus</div><div class="count">27 +29</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M15.25 4.75L4.75 15.25' />
+      <path d='M4.75 4.75L15.25 15.25' />
+    </svg></div></div><div class="name">X</div><div class="count">16 +31</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M18.25 2.75L7.25 15.75L1.75 10.25' />
+    </svg></div></div><div class="name">Check</div><div class="count">16 +23</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M14.25 0.75L19.25 5.75L5.75 19.25H0.75V14.25L14.25 0.75Z' />
+      <path d='M10.75 4.25L15.75 9.25' />
+    </svg></div></div><div class="name">Pencil</div><div class="count">16 +7</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 14 14'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M7.02 0.73C7.32 0.73 7.57 0.73 7.77 0.75C7.99 0.77 8.19 0.81 8.38 0.91C8.46 0.95 8.53 1 8.6 1.05C8.78 1.18 8.91 1.34 9.02 1.53C9.12 1.7 9.23 1.93 9.36 2.2L9.64 2.77H12.25C12.49 2.77 12.69 2.97 12.69 3.21C12.69 3.45 12.49 3.65 12.25 3.65H11.79L11.45 9.08C11.4 9.82 11.37 10.41 11.29 10.873C11.22 11.35 11.1 11.74 10.86 12.085C10.64 12.4 10.36 12.67 10.03 12.87C9.67 13.08 9.27 13.18 8.79 13.23C8.32 13.27 7.74 13.27 7 13.27C6.26 13.27 5.67 13.27 5.2 13.23C4.72 13.18 4.32 13.085 3.96 12.87C3.63 12.67 3.35 12.4 3.13 12.082C2.89 11.74 2.77 11.34 2.69 10.87C2.62 10.4 2.59 9.82 2.54 9.08L2.21 3.65H1.75C1.51 3.65 1.31 3.45 1.31 3.21C1.31 2.97 1.51 2.77 1.75 2.77H4.42L4.65 2.25C4.78 1.98 4.88 1.74 4.99 1.56C5.1 1.37 5.22 1.2 5.4 1.06C5.47 1.01 5.55 0.96 5.625 0.92C5.82 0.81 6.03 0.77 6.25 0.75C6.46 0.73 6.72 0.73 7.02 0.73ZM3.41 9.02C3.46 9.78 3.49 10.32 3.56 10.73C3.62 11.14 3.71 11.39 3.85 11.583C4 11.8 4.19 11.98 4.42 12.12C4.62 12.24 4.87 12.316 5.28 12.36C5.7 12.4 6.24 12.4 7 12.4C7.75 12.4 8.29 12.4 8.71 12.36C9.12 12.32 9.37 12.241 9.57 12.12C9.8 11.98 9.99 11.8 10.14 11.585C10.28 11.39 10.37 11.14 10.43 10.74C10.5 10.32 10.53 9.78 10.58 9.03L10.91 3.65H3.09L3.41 9.02ZM5.54 5.69C5.78 5.69 5.98 5.88 5.98 6.125V9.625C5.98 9.87 5.78 10.06 5.54 10.06C5.3 10.06 5.1 9.87 5.1 9.625V6.125C5.1 5.88 5.3 5.69 5.54 5.69ZM8.46 5.69C8.7 5.69 8.9 5.88 8.9 6.125V9.625C8.9 9.87 8.7 10.06 8.46 10.06C8.22 10.06 8.02 9.87 8.02 9.625V6.125C8.02 5.88 8.22 5.69 8.46 5.69ZM7.02 1.6C6.7 1.6 6.49 1.6 6.33 1.62C6.17 1.63 6.09 1.66 6.04 1.69C6 1.71 5.97 1.73 5.93 1.75C5.88 1.8 5.83 1.86 5.75 1.99C5.67 2.13 5.58 2.33 5.45 2.62L5.38 2.77H8.67L8.57 2.58C8.44 2.3 8.35 2.11 8.27 1.98C8.19 1.85 8.13 1.79 8.08 1.75C8.05 1.73 8.02 1.7 7.98 1.69C7.92 1.66 7.85 1.63 7.7 1.62C7.54 1.6 7.33 1.6 7.02 1.6Z'
+        fill='currentColor'
+      />
+    </svg></div></div><div class="name">Trash</div><div class="count">25</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 14 15'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M6.67 0C7.01 0 7.31 0 7.57 0.02C7.942 0.06 8.3 0.17 8.6 0.4C8.82 0.57 8.98 0.77 9.11 0.99C9.24 1.2 9.36 1.46 9.5 1.75L9.79 2.33H12.667C13.035 2.33 13.33 2.63 13.334 3C13.334 3.37 13.04 3.67 12.667 3.67H12.085L11.72 9.6C11.67 10.44 11.63 11.1 11.55 11.63C11.46 12.176 11.32 12.63 11.05 13.02C10.8 13.39 10.48 13.69 10.11 13.92C9.7 14.172 9.24 14.28 8.7 14.33H4.62C4.08 14.28 3.62 14.17 3.21 13.92C2.84 13.69 2.52 13.38 2.27 13.02C1.99 12.63 1.86 12.172 1.77 11.63C1.69 11.1 1.65 10.43 1.6 9.6L1.25 3.67H0.67C0.3 3.67 0 3.37 0 3C0 2.63 0.3 2.33 0.67 2.33H3.61L3.84 1.81C3.98 1.51 4.1 1.25 4.22 1.03C4.36 0.8 4.51 0.59 4.74 0.41C5.05 0.18 5.41 0.06 5.79 0.02C6.08 0 6.38 0 6.67 0ZM5 6.14C4.72 6.14 4.5 6.37 4.5 6.64V10.641C4.5 10.92 4.72 11.14 5 11.141C5.28 11.141 5.5 10.917 5.5 10.641V6.64C5.5 6.365 5.28 6.14 5 6.14ZM8.33 6.14C8.06 6.14 7.83 6.365 7.83 6.64V10.641C7.83 10.917 8.06 11.141 8.33 11.141C8.61 11.14 8.83 10.92 8.83 10.641V6.64C8.83 6.37 8.61 6.14 8.33 6.14ZM6.69 1.33C6.32 1.33 6.09 1.33 5.91 1.35C5.66 1.37 5.51 1.47 5.38 1.69C5.3 1.84 5.21 2.03 5.07 2.33H8.31C8.16 2.02 8.06 1.82 7.97 1.68C7.84 1.47 7.69 1.37 7.45 1.35C7.27 1.33 7.05 1.33 6.69 1.33Z'
+        fill='currentColor'
+      />
+    </svg></div></div><div class="name">Trash2</div><div class="count">2 +4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='12' cy='12' r='3' />
+      <path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' />
+    </svg></div></div><div class="name">Settings</div><div class="count">11 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 12 3'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M10.64 2.72C10.46 2.72 10.29 2.68 10.122 2.61C9.96 2.54 9.81 2.44 9.68 2.32C9.56 2.19 9.46 2.04 9.39 1.88C9.32 1.71 9.28 1.54 9.28 1.36C9.28 1.18 9.32 1 9.39 0.84C9.45 0.67 9.55 0.52 9.68 0.4C9.81 0.27 9.96 0.17 10.12 0.1C10.286 0.04 10.46 5.74e-05 10.641 7.02e-08C11 0 11.35 0.14 11.6 0.4C11.86 0.65 12 1 12 1.36C12 1.72 11.86 2.06 11.6 2.32C11.35 2.57 11 2.72 10.64 2.72Z'
+        fill='currentColor'
+      />
+      <path
+        d='M6 2.72C6.75 2.72 7.36 2.11 7.36 1.36C7.36 0.61 6.75 0 6 0C5.25 0 4.64 0.61 4.64 1.36C4.64 2.11 5.25 2.72 6 2.72Z'
+        fill='currentColor'
+      />
+      <path
+        d='M1.36 2.72C2.11 2.72 2.72 2.11 2.72 1.36C2.72 0.61 2.11 0 1.36 0C0.61 0 0 0.61 0 1.36C0 2.11 0.61 2.72 1.36 2.72Z'
+        fill='currentColor'
+      />
+    </svg></div></div><div class="name">MoreHorizontal</div><div class="count">9 +9</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M19.5 1.5L9 12' />
+      <path d='M19.5 1.5L13.5 19.5L9 12L1.5 8.5L19.5 1.5Z' />
+    </svg></div></div><div class="name">Send</div><div class="count">13</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      
+    >
+      {/* tray — same as Upload */}
+      <path d='M0.75 12.75V16.75C0.75 17.8546 1.64543 18.75 2.75 18.75H17.75C18.8546 18.75 19.75 17.8546 19.75 16.75V12.75' />
+      {/* stem — top to tray */}
+      <path d='M10.25 1.75V12.75' />
+      {/* arrowhead pointing down */}
+      <path d='M5.25 7.75L10.25 12.75L15.25 7.75' />
+    </svg></div></div><div class="name">Download</div><div class="count">18</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 12.75V16.75C0.75 17.8546 1.64543 18.75 2.75 18.75H17.75C18.8546 18.75 19.75 17.8546 19.75 16.75V12.75' />
+      <path d='M10.25 14.75V1.75' />
+      <path d='M5.25 6.75L10.25 1.75L15.25 6.75' />
+    </svg></div></div><div class="name">Upload</div><div class="count">17</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M14.25 0.75H2.75C1.64543 0.75 0.75 1.64543 0.75 2.75V14.25' />
+      <rect x='5.25' y='5.25' width='14' height='14' rx='2' />
+    </svg></div></div><div class="name">Duplicate</div><div class="count">11</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+      
+    >
+      <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8' />
+      <path d='M21 3v5h-5' />
+      <path d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16' />
+      <path d='M8 16H3v5' />
+    </svg></div></div><div class="name">RefreshCw</div><div class="count">3 +5</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 1 · Core — Files, Folders & Data <span class="n">(8)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M12.25 0.75H5.25C4.15 0.75 3.25 1.65 3.25 2.75V16.75C3.25 17.85 4.15 18.75 5.25 18.75H15.25C16.35 18.75 17.25 17.85 17.25 16.75V5.75L12.25 0.75Z' />
+      <path d='M12.25 0.75V5.75H17.25' />
+    </svg></div></div><div class="name">File</div><div class="count">23 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M11.25 1.75H4.25C3.14543 1.75 2.25 2.64543 2.25 3.75V14.75' />
+      <path d='M14.25 4.75H7.25C6.14543 4.75 5.25 5.64543 5.25 6.75V17.75C5.25 18.8546 6.14543 19.75 7.25 19.75H17.25C18.3546 19.75 19.25 18.8546 19.25 17.75V9.75L14.25 4.75Z' />
+      <path d='M14.25 4.75V9.75H19.25' />
+    </svg></div></div><div class="name">Files</div><div class="count">18</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 14.5 13'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M4.32e-07 5.83V3.8C4.32e-07 3.2 0 2.72 0.03 2.33C0.07 1.94 0.14 1.6 0.32 1.28C0.54 0.88 0.88 0.54 1.28 0.32C1.6 0.14 1.94 0.07 2.33 0.03C2.72 0 3.2 5.96e-05 3.8 5.96e-05C4.53 5.93e-05 5.03 -0.01 5.48 0.16C6.47 0.53 6.87 1.45 7.19 2.1L7.48 2.67H10.33C11.025 2.67 11.58 2.67 12.03 2.71C12.48 2.76 12.874 2.86 13.222 3.09C13.495 3.27 13.73 3.51 13.91 3.78C14.14 4.13 14.24 4.52 14.29 4.97C14.33 5.42 14.33 5.98 14.33 6.67C14.33 7.83 14.33 8.73 14.26 9.46C14.19 10.19 14.03 10.78 13.69 11.3C13.41 11.71 13.05 12.07 12.63 12.35C12.11 12.7 11.52 12.85 10.79 12.93C10.07 13 9.16 13 8 13H7.17C5.61 13 4.39 13 3.44 12.87C2.48 12.74 1.72 12.47 1.12 11.877C0.53 11.28 0.26 10.52 0.13 9.56C0 8.61 4.32e-07 7.39 4.32e-07 5.83ZM1 5.83C1 7.42 1 8.56 1.12 9.42C1.23 10.28 1.45 10.79 1.83 11.17C2.21 11.55 2.72 11.77 3.58 11.88C4.44 12 5.58 12 7.17 12H8C9.18 12 10.029 12 10.69 11.93C11.34 11.87 11.75 11.74 12.07 11.52C12.38 11.32 12.65 11.05 12.86 10.74C13.07 10.42 13.2 10.01 13.27 9.35C13.33 8.7 13.33 7.85 13.33 6.67C13.33 5.95 13.33 5.46 13.29 5.07C13.26 4.7 13.19 4.49 13.08 4.33C12.97 4.17 12.83 4.03 12.67 3.92C12.51 3.81 12.3 3.74 11.93 3.71C11.54 3.67 11.046 3.67 10.33 3.67H5.17C4.89 3.67 4.67 3.44 4.67 3.17C4.67 2.89 4.89 2.67 5.17 2.67H6.36L6.3 2.55C5.92 1.8 5.68 1.3 5.12 1.1C4.89 1.01 4.61 1 3.8 1C3.18 1 2.75 1 2.42 1.03C2.1 1.06 1.91 1.11 1.77 1.19C1.53 1.33 1.33 1.53 1.19 1.77C1.11 1.91 1.06 2.1 1.03 2.42C1 2.75 1 3.18 1 3.8V5.83Z'
+        fill='currentColor'
+        stroke='currentColor'
+        stroke-width='0.3'
+      />
+    </svg></div></div><div class="name">Folder</div><div class="count">15 +3</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path
+        d='M10.3 20H4C3.47 20 2.96 19.79 2.59 19.41C2.21 19.04 2 18.53 2 18V5C2 4.47 2.21 3.96 2.59 3.59C2.96 3.21 3.47 3 4 3H7.98C8.31 3 8.64 3.08 8.94 3.23C9.23 3.39 9.49 3.62 9.67 3.9L10.33 5.1C10.51 5.38 10.76 5.6 11.05 5.76C11.343 5.92 11.67 6 12 6H20C20.53 6 21.04 6.21 21.41 6.59C21.79 6.96 22 7.47 22 8V11.3'
+        stroke='currentColor'
+        stroke-width='1.55'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+      />
+      <path
+        d='M18 15V21'
+        stroke='currentColor'
+        stroke-width='1.55'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+      />
+      <path
+        d='M15 18H21'
+        stroke='currentColor'
+        stroke-width='1.55'
+        stroke-linecap='round'
+        stroke-linejoin='round'
+      />
+    </svg></div></div><div class="name">FolderPlus</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 3.25C0.75 1.87 1.87 0.75 3.25 0.75H17.25C18.63 0.75 19.75 1.87 19.75 3.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V3.25Z' />
+      <path d='M0.75 6.75H19.75' />
+      <path d='M0.75 12.75H19.75' />
+      <path d='M10.25 0.75V18.75' />
+    </svg></div></div><div class="name">Table</div><div class="count">21 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <ellipse cx='10.25' cy='3.75' rx='8.5' ry='3' />
+      <path d='M1.75 3.75V9.75C1.75 11.41 5.55 12.75 10.25 12.75C14.95 12.75 18.75 11.41 18.75 9.75V3.75' />
+      <path d='M1.75 9.75V15.75C1.75 17.41 5.55 18.75 10.25 18.75C14.95 18.75 18.75 17.41 18.75 15.75V9.75' />
+    </svg></div></div><div class="name">Database</div><div class="count">19 +3</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 4.75C0.75 3.35 0.75 2.65 1.02 2.12C1.26 1.64 1.64 1.26 2.12 1.02C2.65 0.75 3.35 0.75 4.75 0.75C6.15 0.75 6.85 0.75 7.38 1.02C7.86 1.26 8.24 1.64 8.48 2.12C8.75 2.65 8.75 3.35 8.75 4.75V14.75C8.75 16.15 8.75 16.85 8.48 17.385C8.24 17.86 7.86 18.24 7.38 18.48C6.85 18.75 6.15 18.75 4.75 18.75C3.35 18.75 2.65 18.75 2.12 18.48C1.64 18.24 1.26 17.86 1.02 17.385C0.75 16.85 0.75 16.15 0.75 14.75V4.75Z' />
+      <path d='M0.75 6.75H8.75' />
+      <path d='M10.2 6.02C9.84 4.69 9.67 4.02 9.79 3.45C9.9 2.94 10.16 2.48 10.55 2.13C10.98 1.74 11.64 1.56 12.97 1.2C14.29 0.84 14.96 0.67 15.53 0.79C16.04 0.9 16.49 1.16 16.84 1.55C17.23 1.99 17.41 2.65 17.77 3.98L20.3 13.48C20.66 14.81 20.83 15.48 20.71 16.054C20.604 16.56 20.34 17.02 19.95 17.37C19.52 17.76 18.86 17.94 17.53 18.3C16.21 18.66 15.54 18.83 14.97 18.71C14.46 18.6 14.01 18.34 13.66 17.95C13.27 17.51 13.09 16.85 12.73 15.52L10.2 6.02Z' />
+      <path d='M10.75 7.75L17.25 5.75' />
+    </svg></div></div><div class="name">Library</div><div class="count">12 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.75'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M3.75 4.25C3.75 2.87 4.87 1.75 6.25 1.75H14.25C15.63 1.75 16.75 2.87 16.75 4.25V17.25C16.75 18.63 15.63 19.75 14.25 19.75H6.25C4.87 19.75 3.75 18.63 3.75 17.25V4.25Z' />
+      <path d='M7.75 0.75H12.75V3.25C12.75 3.8 12.3 4.25 11.75 4.25H8.75C8.2 4.25 7.75 3.8 7.75 3.25V0.75Z' />
+    </svg></div></div><div class="name">Clipboard</div><div class="count">4 +12</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 1 · Core — Status & Primitives <span class="n">(19)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 9.75C3 4.25 6.75 1.75 10.25 1.75C13.75 1.75 17.5 4.25 19.75 9.75C17.5 15.25 13.75 17.75 10.25 17.75C6.75 17.75 3 15.25 0.75 9.75Z' />
+      <circle cx='10.25' cy='9.75' r='3.25' />
+    </svg></div></div><div class="name">Eye</div><div class="count">10 +7</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='2'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M9.88 9.88a3 3 0 1 0 4.24 4.24' />
+      <path d='M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68' />
+      <path d='M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61' />
+      <line x1='2' y1='2' x2='22' y2='22' />
+    </svg></div></div><div class="name">EyeOff</div><div class="count">1 +7</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <rect x='2.75' y='8.75' width='15' height='10' rx='2' />
+      <path d='M5.75 8.75V5.75C5.75 3.26 7.76 1.25 10.25 1.25C12.74 1.25 14.75 3.26 14.75 5.75V8.75' />
+    </svg></div></div><div class="name">Lock</div><div class="count">7 +3</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <rect x='2.75' y='8.75' width='15' height='10' rx='2' />
+      <path d='M5.75 8.75V5.75C5.75 3.26 7.76 1.25 10.25 1.25C12.74 1.25 14.75 3.26 14.75 5.75' />
+    </svg></div></div><div class="name">Unlock</div><div class="count">3 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='6.75' cy='10.25' r='3.5' />
+      <path d='M10.25 10.25H19' />
+      <path d='M14.5 10.25V13.5' />
+      <path d='M17.5 10.25V12.5' />
+    </svg></div></div><div class="name">Key</div><div class="count">9 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <circle cx='12' cy='12' r='10' />
+      <path d='M12 16v-4' />
+      <path d='M12 8h.01' />
+    </svg></div></div><div class="name">Info</div><div class="count">5 +10</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.75'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <rect x='3' y='3' width='18' height='18' rx='2' />
+    </svg></div></div><div class="name">Square</div><div class="count">7 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 5.25C0.75 3.87 1.87 2.75 3.25 2.75H17.25C18.63 2.75 19.75 3.87 19.75 5.25V16.25C19.75 17.63 18.63 18.75 17.25 18.75H3.25C1.87 18.75 0.75 17.63 0.75 16.25V5.25Z' />
+      <path d='M0.75 8.25H19.75' />
+      <path d='M6.25 0.25V5.25' />
+      <path d='M14.25 0.25V5.25' />
+    </svg></div></div><div class="name">Calendar</div><div class="count">10</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='10.25' cy='9.75' r='9' />
+      <path d='M10.25 4.75V9.75L13.75 12.25' />
+    </svg></div></div><div class="name">Clock</div><div class="count">2 +4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+      
+    >
+      <path d='M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74' />
+      <path d='M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74' />
+    </svg></div></div><div class="name">Loader</div><div class="count">10</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='10.25' cy='6.25' r='4' />
+      <path d='M2.25 18.75C2.25 14.33 5.83 10.75 10.25 10.75C14.67 10.75 18.25 14.33 18.25 18.75' />
+    </svg></div></div><div class="name">User</div><div class="count">10 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <circle cx='8.25' cy='5.75' r='3.5' />
+      <path d='M0.75 18.75C0.75 14.61 4.11 11.25 8.25 11.25C12.39 11.25 15.75 14.61 15.75 18.75' />
+      <path d='M14.25 0.93C15.11 0.63 16.04 0.73 16.83 1.19C17.62 1.65 18.17 2.42 18.33 3.32C18.49 4.21 18.25 5.13 17.68 5.83C17.11 6.54 16.27 6.95 15.37 6.97' />
+      <path d='M16.75 11.43C18.08 11.67 19.29 12.35 20.17 13.37C21.05 14.39 21.53 15.69 21.53 17.03V18.75' />
+    </svg></div></div><div class="name">Users</div><div class="count">5 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71' />
+      <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71' />
+    </svg></div></div><div class="name">Link</div><div class="count">10</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <path d='M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9' />
+      <path d='M10.3 21a1.94 1.94 0 0 0 3.4 0' />
+    </svg></div></div><div class="name">Bell</div><div class="count">2 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.75'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <path d='M12 17v5' />
+      <path d='M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z' />
+    </svg></div></div><div class="name">Pin</div><div class="count">3 +2</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.75'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <path d='M12 17v5' />
+      <path d='M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89' />
+      <path d='m2 2 20 20' />
+      <path d='M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11' />
+    </svg></div></div><div class="name">PinOff</div><div class="count">2 +1</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <g transform='rotate(-13.6501 10.25 10.25)'>
+        <path d='M18.25 9.75L10.4 17.6C8.46 19.54 5.31 19.54 3.37 17.6C1.43 15.66 1.43 12.51 3.37 10.57L11.22 2.72C12.51 1.43 14.61 1.43 15.9 2.72C17.19 4.01 17.19 6.11 15.9 7.4L8.05 15.25C7.4 15.9 6.35 15.9 5.7 15.25C5.05 14.6 5.05 13.55 5.7 12.9L12.9 5.7' />
+      </g>
+    </svg></div></div><div class="name">Paperclip</div><div class="count">1 +5</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M14.26 5.39C16.17 6.48 17.67 7.33 18.73 8.11C19.81 8.89 20.6 9.71 20.89 10.79C21.09 11.58 21.09 12.42 20.89 13.21C20.6 14.29 19.81 15.11 18.73 15.89C17.67 16.67 16.17 17.52 14.26 18.61C12.42 19.65 10.87 20.53 9.69 21.04C8.51 21.54 7.42 21.8 6.37 21.5C5.6 21.28 4.89 20.86 4.33 20.29C3.56 19.51 3.25 18.44 3.1 17.15C2.96 15.87 2.96 14.19 2.96 12.06V11.94C2.96 9.81 2.96 8.13 3.1 6.85C3.25 5.56 3.56 4.49 4.33 3.71C4.89 3.14 5.6 2.72 6.37 2.5C7.42 2.2 8.51 2.46 9.69 2.96C10.87 3.47 12.42 4.35 14.26 5.39Z' />
+    </svg></div></div><div class="name">PlayOutline</div><div class="count">15</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M6.25 2.75V16.75' />
+      <path d='M14.25 2.75V16.75' />
+    </svg></div></div><div class="name">Pause</div><div class="count">4 +3</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 1 · Core — Type Markers (design as a unified set) <span class="n">(4)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1.75 -1.5 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M3.25 2.25H17.25' />
+      <path d='M10.25 2.25V18.75' />
+      <path d='M7.25 18.75H13.25' />
+    </svg></div></div><div class="name">TypeText</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1.75 -1.5 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M3.25 7.25H17.75' />
+      <path d='M2.75 13.75H17.25' />
+      <path d='M8.25 1.25L6.25 19.75' />
+      <path d='M14.25 1.25L12.25 19.75' />
+    </svg></div></div><div class="name">TypeNumber</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1.75 -1.5 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <rect x='2.5' y='2.75' width='15.5' height='15.5' rx='2.5' />
+      <path d='M6.25 10.75L9.25 13.75L14.25 7.25' />
+    </svg></div></div><div class="name">TypeBoolean</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1.75 -1.75 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M5.75 1.25C3.54 1.25 1.75 3.04 1.75 5.25V7.75C1.75 9.13 0.63 10.25 -0.75 10.25C0.63 10.25 1.75 11.37 1.75 12.75V15.25C1.75 17.46 3.54 19.25 5.75 19.25' />
+      <path d='M14.75 1.25C16.96 1.25 18.75 3.04 18.75 5.25V7.75C18.75 9.13 19.87 10.25 21.25 10.25C19.87 10.25 18.75 11.37 18.75 12.75V15.25C18.75 17.46 16.96 19.25 14.75 19.25' />
+    </svg></div></div><div class="name">TypeJson</div><div class="count">2</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 0 · Name-aliases — no design, just alias existing emcn glyph <span class="n">(8)</span></h2>
+    <p class="note">Shown is the existing emcn glyph each lucide name maps to.</p>
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M15.25 4.75L4.75 15.25' />
+      <path d='M4.75 4.75L15.25 15.25' />
+    </svg></div></div><div class="name">X</div><div class="count">XIcon</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M19.5 1.5L9 12' />
+      <path d='M19.5 1.5L13.5 19.5L9 12L1.5 8.5L19.5 1.5Z' />
+    </svg></div></div><div class="name">Send</div><div class="count">SendIcon</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <rect x='1.75' y='0.75' width='17' height='7.5' rx='1.5' />
+      <rect x='1.75' y='11.25' width='17' height='7.5' rx='1.5' />
+      <circle cx='5.75' cy='4.5' r='0.75' fill='currentColor' />
+      <circle cx='5.75' cy='15' r='0.75' fill='currentColor' />
+    </svg></div></div><div class="name">Server</div><div class="count">ServerIcon</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M15.09 1.41C13.78 0.74 12.25 0.63 10.85 1.11C9.45 1.59 8.3 2.62 7.68 3.96C7.06 5.3 7.02 6.84 7.57 8.2L1.25 14.52C0.86 14.91 0.86 15.54 1.25 15.93L3.57 18.25C3.96 18.64 4.59 18.64 4.98 18.25L11.3 11.93C12.66 12.48 14.2 12.44 15.54 11.82C16.88 11.2 17.91 10.05 18.39 8.65C18.87 7.25 18.76 5.72 18.09 4.41L14.87 7.63L12.25 7.25L11.87 4.63L15.09 1.41Z' />
+    </svg></div></div><div class="name">Wrench</div><div class="count">WrenchIcon</div></div><div class="cell"><div class="box"><div class="art"><svg
+      
+      
+      viewBox='-1 -2 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+    >
+      <path d='M0.75 9.75V3.25C0.75 1.87 1.87 0.75 3.25 0.75H9.75L19.25 10.25L10.25 19.25L0.75 9.75Z' />
+      <circle cx='5.75' cy='5.75' r='1.25' />
+    </svg></div></div><div class="name">TagIcon</div><div class="count">Tag</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <path d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z' />
+      <path d='M12 9v4' />
+      <path d='M12 17h.01' />
+    </svg></div></div><div class="name">TriangleAlert</div><div class="count">AlertTriangle</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <circle cx='12' cy='12' r='10' />
+      <path d='M12 8v4' />
+      <path d='M12 16h.01' />
+    </svg></div></div><div class="name">CircleAlert</div><div class="count">AlertCircle</div></div><div class="cell"><div class="box"><div class="art"><svg
+      xmlns='http://www.w3.org/2000/svg'
+      
+      
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      stroke-width='1.55'
+      stroke-linecap='round'
+      stroke-linejoin='round'
+      
+      
+    >
+      <circle cx='12' cy='12' r='10' />
+      <path d='m9 12 2 2 4-4' />
+    </svg></div></div><div class="name">CircleCheck</div><div class="count">CheckCircle2</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 2 · lucide-only — derivable from a core glyph (rotate / compose / variant) <span class="n">(22)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right"><path d="m9 18 6-6-6-6"></path></svg></div></div><div class="name">ChevronRight</div><div class="count">18</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"></path></svg></div></div><div class="name">ChevronUp</div><div class="count">9</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-left"><path d="m15 18-6-6 6-6"></path></svg></div></div><div class="name">ChevronLeft</div><div class="count">6</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevrons-up-down"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg></div></div><div class="name">ChevronsUpDown</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-ellipsis-vertical"><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg></div></div><div class="name">MoreVertical</div><div class="count">2</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-left-right"><path d="M8 3 4 7l4 4"></path><path d="M4 7h16"></path><path d="m16 21 4-4-4-4"></path><path d="M20 17H4"></path></svg></div></div><div class="name">ArrowLeftRight</div><div class="count">5</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-arrow-up-left"><path d="M7 17V7h10"></path><path d="M17 17 7 7"></path></svg></div></div><div class="name">ArrowUpLeft</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rotate-ccw"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></div></div><div class="name">RotateCcw</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-x"><circle cx="12" cy="12" r="10"></circle><path d="m15 9-6 6"></path><path d="m9 9 6 6"></path></svg></div></div><div class="name">XCircle</div><div class="count">3</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-pause"><circle cx="12" cy="12" r="10"></circle><line x1="10" x2="10" y1="15" y2="9"></line><line x1="14" x2="14" y1="15" y2="9"></line></svg></div></div><div class="name">PauseCircle</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle"><circle cx="12" cy="12" r="10"></circle></svg></div></div><div class="name">Circle</div><div class="count">5</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-off"><path d="m2 2 20 20"></path><path d="M8.35 2.69A10 10 0 0 1 21.3 15.65"></path><path d="M19.08 19.08A10 10 0 1 1 4.92 4.92"></path></svg></div></div><div class="name">CircleOff</div><div class="count">2</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-minus"><path d="M5 12h14"></path></svg></div></div><div class="name">Minus</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings2"><path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle></svg></div></div><div class="name">Settings2</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-key-round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"></path><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"></circle></svg></div></div><div class="name">KeyRound</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-library-big"><rect width="8" height="18" x="3" y="3" rx="1"></rect><path d="M7 3v18"></path><path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"></path></svg></div></div><div class="name">LibraryBig</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-open"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"></path></svg></div></div><div class="name">FolderOpen</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-text"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v4a2 2 0 0 0 2 2h4"></path><path d="M10 9H8"></path><path d="M16 13H8"></path><path d="M16 17H8"></path></svg></div></div><div class="name">FileText</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-mic-off"><line x1="2" x2="22" y1="2" y2="22"></line><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"></path><path d="M5 10v2a7 7 0 0 0 12 5"></path><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"></path><path d="M9 9v3a3 3 0 0 0 5.12 2.12"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></div></div><div class="name">MicOff</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-filter"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg></div></div><div class="name">Filter</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg></div></div><div class="name">Image</div><div class="count">2</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-external-link"><path d="M15 3h6v6"></path><path d="M10 14 21 3"></path><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path></svg></div></div><div class="name">ExternalLink</div><div class="count">8</div></div></div>
+  </section>
+  <section>
+    <h2>TIER 3 · lucide-only — net-new glyphs to design from scratch <span class="n">(27)</span></h2>
+    
+    <div class="grid"><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-repeat"><path d="m17 2 4 4-4 4"></path><path d="M3 11v-1a4 4 0 0 1 4-4h14"></path><path d="m7 22-4-4 4-4"></path><path d="M21 13v1a4 4 0 0 1-4 4H3"></path></svg></div></div><div class="name">RepeatIcon</div><div class="count">10</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-split"><path d="M16 3h5v5"></path><path d="M8 3H3v5"></path><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"></path><path d="m15 9 6-6"></path></svg></div></div><div class="name">SplitIcon</div><div class="count">10</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wand-sparkles"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"></path><path d="m14 7 3 3"></path><path d="M5 6v4"></path><path d="M19 14v4"></path><path d="M10 2v2"></path><path d="M7 8H3"></path><path d="M21 16h-4"></path><path d="M11 3H9"></path></svg></div></div><div class="name">Wand2</div><div class="count">4</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-graduation-cap"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"></path><path d="M22 10v6"></path><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"></path></svg></div></div><div class="name">GraduationCap</div><div class="count">3</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bot"><path d="M12 8V4H8"></path><rect width="16" height="12" x="4" y="8" rx="2"></rect><path d="M2 14h2"></path><path d="M20 14h2"></path><path d="M15 13v2"></path><path d="M9 13v2"></path></svg></div></div><div class="name">Bot</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-building2"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg></div></div><div class="name">Building2</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-camera"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3"></circle></svg></div></div><div class="name">Camera</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-compass"><path d="m16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z"></path><circle cx="12" cy="12" r="10"></circle></svg></div></div><div class="name">Compass</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rectangle-ellipsis"><rect width="20" height="12" x="2" y="6" rx="2"></rect><path d="M12 12h.01"></path><path d="M17 12h.01"></path><path d="M7 12h.01"></path></svg></div></div><div class="name">FormInput</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-git-branch"><line x1="6" x2="6" y1="3" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg></div></div><div class="name">GitBranch</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-github"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg></div></div><div class="name">Github</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-globe"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path><path d="M2 12h20"></path></svg></div></div><div class="name">Globe</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-hash"><line x1="4" x2="20" y1="9" y2="9"></line><line x1="4" x2="20" y1="15" y2="15"></line><line x1="10" x2="8" y1="3" y2="21"></line><line x1="16" x2="14" y1="3" y2="21"></line></svg></div></div><div class="name">Hash</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-history"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg></div></div><div class="name">History</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-message-circle"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"></path></svg></div></div><div class="name">MessageCircle</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-moon"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></div></div><div class="name">Moon</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-music"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></div></div><div class="name">Music</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-phone"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></div></div><div class="name">Phone</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-rss"><path d="M4 11a9 9 0 0 1 9 9"></path><path d="M4 4a16 16 0 0 1 16 16"></path><circle cx="5" cy="19" r="1"></circle></svg></div></div><div class="name">Rss</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scan"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg></div></div><div class="name">Scan</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scissors"><circle cx="6" cy="6" r="3"></circle><path d="M8.12 8.12 12 12"></path><path d="M20 4 8.12 15.88"></path><circle cx="6" cy="18" r="3"></circle><path d="M14.8 14.8 20 20"></path></svg></div></div><div class="name">Scissors</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-send-to-back"><rect x="14" y="14" width="8" height="8" rx="2"></rect><rect x="2" y="2" width="8" height="8" rx="2"></rect><path d="M7 14v1a2 2 0 0 0 2 2h1"></path><path d="M14 7h1a2 2 0 0 1 2 2v1"></path></svg></div></div><div class="name">SendToBack</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-share2"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"></line><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"></line></svg></div></div><div class="name">Share2</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sparkles"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path><path d="M4 17v2"></path><path d="M5 18H3"></path></svg></div></div><div class="name">Sparkles</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-sun"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></div></div><div class="name">Sun</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-webhook"><path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"></path><path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"></path><path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"></path></svg></div></div><div class="name">Webhook</div><div class="count">1</div></div><div class="cell"><div class="box"><div class="art"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-workflow"><rect width="8" height="8" x="3" y="3" rx="2"></rect><path d="M7 11v4a2 2 0 0 0 2 2h4"></path><rect width="8" height="8" x="13" y="13" rx="2"></rect></svg></div></div><div class="name">Workflow</div><div class="count">1</div></div></div>
+  </section>
+</body></html>

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { Check, Clipboard } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Button,
@@ -19,6 +18,7 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
+import { Check, Clipboard } from '@/components/emcn/icons'
 import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'

@@ -2,9 +2,9 @@
 
 import { useCallback, useMemo } from 'react'
 import { useQueries } from '@tanstack/react-query'
-import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

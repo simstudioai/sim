@@ -1,7 +1,7 @@
 /**
  * Available panel tabs
  */
-export type PanelTab = 'copilot' | 'editor' | 'toolbar'
+export type PanelTab = 'editor' | 'toolbar'
 
 /**
  * Panel state interface

@@ -10,9 +10,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ChevronRight } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
 import { List, type RowComponentProps, useDynamicRowHeight, useListRef } from 'react-window'
+import { ChevronRight } from '@/components/emcn/icons'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'

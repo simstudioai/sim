@@ -1,28 +1,39 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * Key icon component
- * @param props - SVG properties including className, fill, etc.
+ * Key icon (Hugeicons stroke-rounded: Key01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function Key(props: SVGProps<SVGSVGElement>) {
+export function Key({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <circle cx='6.75' cy='10.25' r='3.5' />
-      <path d='M10.25 10.25H19' />
-      <path d='M14.5 10.25V13.5' />
-      <path d='M17.5 10.25V12.5' />
+      <path
+        d='M15.5 14.5C18.8137 14.5 21.5 11.8137 21.5 8.5C21.5 5.18629 18.8137 2.5 15.5 2.5C12.1863 2.5 9.5 5.18629 9.5 8.5C9.5 9.38041 9.68962 10.2165 10.0303 10.9697L2.5 18.5V21.5H5.5V19.5H7.5V17.5H9.5L13.0303 13.9697C13.7835 14.3104 14.6196 14.5 15.5 14.5Z'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M17.5 6.5L16.5 7.5'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

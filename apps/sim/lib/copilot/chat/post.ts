@@ -15,6 +15,7 @@ import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  withErrorContentBlock,
   withStoppedContentBlock,
 } from '@/lib/copilot/chat/persisted-message'
 import {
@@ -75,6 +76,8 @@ const ResourceAttachmentSchema = z.object({
     'filefolder',
     'task',
     'log',
+    'integration',
+    'page',
     'generic',
   ]),
   id: z.string().min(1),
@@ -91,6 +94,8 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  integration: 'Integration',
+  page: 'Page',
   generic: 'Resource',
 }
 
@@ -469,15 +474,15 @@ function buildOnComplete(params: {
       }
 
       // On a non-success terminal (e.g. a transient provider error like
-      // "overloaded"), persist whatever streamed before the failure — same as
-      // the cancelled path — instead of dropping the partial assistant output.
-      const assistantMessage = buildPersistedAssistantMessage(result, requestId)
-      const hasPartial =
-        !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
+      // "overloaded"), persist whatever streamed before the failure — wrapped
+      // with an inline error marker so the failure stays visible after the
+      // history refetch — instead of dropping the partial assistant output.
+      const persisted = buildPersistedAssistantMessage(result, requestId)
+      const assistantMessage = result.success ? persisted : withErrorContentBlock(persisted)
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(result.success || hasPartial ? { assistantMessage } : {}),
+        assistantMessage,
         // Match the cancelled path so the partial still persists if onError
         // raced ahead and already cleared the stream marker.
         ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
@@ -513,19 +518,24 @@ function buildOnError(params: {
     if (!chatId) return
 
     try {
-      // Persist whatever streamed before a thrown backend error, mirroring the
-      // cancelled / non-success completion path, so the partial assistant turn
-      // (text + tool calls + subagent work) survives the refetch instead of the
-      // chat collapsing to an empty assistant row.
-      const assistantMessage = result
-        ? buildPersistedAssistantMessage(result, requestId)
-        : undefined
-      const hasPartial =
-        !!assistantMessage?.content?.trim() || (assistantMessage?.contentBlocks?.length ?? 0) > 0
+      // Persist whatever streamed before a thrown backend error — wrapped with
+      // an inline error marker — mirroring the cancelled / non-success
+      // completion path, so the partial assistant turn (text + tool calls)
+      // survives the refetch and the failure stays visible in the transcript.
       await finalizeAssistantTurn({
         chatId,
         userMessageId,
-        ...(hasPartial ? { assistantMessage } : {}),
+        assistantMessage: withErrorContentBlock(
+          result
+            ? buildPersistedAssistantMessage(result, requestId)
+            : {
+                id: generateId(),
+                role: 'assistant',
+                content: '',
+                timestamp: new Date().toISOString(),
+                requestId,
+              }
+        ),
         streamMarkerPolicy: 'active-or-cleared',
       })
 

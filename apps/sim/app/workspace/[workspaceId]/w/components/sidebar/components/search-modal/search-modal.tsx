@@ -11,8 +11,8 @@ import {
   Database,
   File,
   HelpCircle,
-  Home,
   Integration,
+  MessageCircle,
   Settings,
   Table,
 } from '@/components/emcn/icons'
@@ -110,7 +110,7 @@ export function SearchModal({
         {
           id: 'home',
           name: 'New chat',
-          icon: Home,
+          icon: MessageCircle,
           href: `/workspace/${workspaceId}/home`,
         },
         {

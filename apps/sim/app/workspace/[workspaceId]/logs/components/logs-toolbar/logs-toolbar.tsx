@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
@@ -16,7 +15,7 @@ import {
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
-import { Workflow } from '@/components/emcn/icons'
+import { ArrowUp, Library, MoreHorizontal, RefreshCw, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'

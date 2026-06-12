@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { Webhook } from 'lucide-react'
+import { Webhook } from '@/components/emcn/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { getTrigger } from '@/triggers'
 

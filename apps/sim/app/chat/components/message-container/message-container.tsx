@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, type RefObject } from 'react'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown } from '@/components/emcn/icons'
 import { Button } from '@/components/ui/button'
 import { type ChatMessage, ClientChatMessage } from '@/app/chat/components/message/message'
 

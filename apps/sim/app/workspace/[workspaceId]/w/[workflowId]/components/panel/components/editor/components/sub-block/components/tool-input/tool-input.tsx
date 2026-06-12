@@ -1,7 +1,6 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeft, ChevronRight, ServerIcon, WrenchIcon, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -16,6 +15,7 @@ import {
   Switch,
   Tooltip,
 } from '@/components/emcn'
+import { ArrowLeft, ChevronRight, Server, Wrench, X } from '@/components/emcn/icons'
 import { McpIcon, WorkflowIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -1375,7 +1375,7 @@ export const ToolInput = memo(function ToolInput({
         serverToolItems.push({
           label: `Use all ${toolCount} tools`,
           value: `mcp-server-all-${mcpServerDrilldown}`,
-          iconElement: createToolIcon('#6366F1', ServerIcon),
+          iconElement: createToolIcon('#6366F1', Server),
           onSelect: () => {
             if (allAlreadySelected) return
             // Remove existing individual tools from this server to avoid duplicates
@@ -1453,7 +1453,7 @@ export const ToolInput = memo(function ToolInput({
       actionItems.push({
         label: 'Create Tool',
         value: 'action-create-tool',
-        icon: WrenchIcon,
+        icon: Wrench,
         onSelect: () => {
           setCustomToolModalOpen(true)
           setOpen(false)
@@ -1485,7 +1485,7 @@ export const ToolInput = memo(function ToolInput({
           return {
             label: customTool.title,
             value: `custom-${customTool.id}`,
-            iconElement: createToolIcon('#3B82F6', WrenchIcon),
+            iconElement: createToolIcon('#3B82F6', Wrench),
             disabled: isPreview || alreadySelected,
             onSelect: () => {
               if (alreadySelected) return
@@ -1518,7 +1518,7 @@ export const ToolInput = memo(function ToolInput({
         serverItems.push({
           label: `${serverName} (${toolCount} tools)`,
           value: `mcp-server-folder-${serverId}`,
-          iconElement: createToolIcon('#6366F1', ServerIcon),
+          iconElement: createToolIcon('#6366F1', Server),
           suffixElement: <ChevronRight className='size-[12px] text-[var(--text-tertiary)]' />,
           onSelect: () => {
             setMcpServerDrilldown(serverId)
@@ -1813,7 +1813,7 @@ export const ToolInput = memo(function ToolInput({
                     }}
                   >
                     {isCustomTool ? (
-                      <WrenchIcon className='size-[10px] text-white' />
+                      <Wrench className='size-[10px] text-white' />
                     ) : isMcpTool ? (
                       <IconComponent icon={McpIcon} className='size-[10px] text-white' />
                     ) : isWorkflowTool ? (
@@ -1942,7 +1942,7 @@ export const ToolInput = memo(function ToolInput({
                           className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                           aria-label='Remove tool'
                         >
-                          <XIcon className='size-[13px]' />
+                          <X className='size-[13px]' />
                         </button>
                       </PopoverTrigger>
                       <PopoverContent
@@ -1980,7 +1980,7 @@ export const ToolInput = memo(function ToolInput({
                       className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                       aria-label='Remove tool'
                     >
-                      <XIcon className='size-[13px]' />
+                      <X className='size-[13px]' />
                     </button>
                   )}
                 </div>

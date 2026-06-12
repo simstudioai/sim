@@ -1,9 +1,10 @@
 'use client'
 
-import { forwardRef, memo, useState } from 'react'
+import { forwardRef, memo, type ReactNode, useState } from 'react'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { SidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -48,6 +49,13 @@ interface MothershipViewProps {
   className?: string
   previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
+  /** Controls rendered before the tab strip (see {@link ResourceTabs}). */
+  tabsLeading?: ReactNode
+  /**
+   * `type:id` keys of the artifacts the active chat has surfaced — used to
+   * group the resource switcher dropdown by provenance.
+   */
+  chatArtifactKeys?: ReadonlySet<string>
 }
 
 export const MothershipView = memo(
@@ -61,12 +69,14 @@ export const MothershipView = memo(
       className,
       previewSession,
       genericResourceData,
+      tabsLeading,
+      chatArtifactKeys,
     }: MothershipViewProps,
     ref
   ) {
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
-    const { removeResource } = useMothershipResources()
+    const { addResource, removeResource } = useMothershipResources()
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
@@ -100,6 +110,8 @@ export const MothershipView = memo(
           <ResourceTabs
             workspaceId={workspaceId}
             chatId={chatId}
+            leading={tabsLeading}
+            chatArtifactKeys={chatArtifactKeys}
             resources={resources}
             activeId={active?.id ?? null}
             actions={
@@ -110,15 +122,18 @@ export const MothershipView = memo(
           />
           <div className='min-h-0 flex-1 overflow-hidden'>
             {active ? (
-              <ResourceContent
-                workspaceId={workspaceId}
-                resource={active}
-                previewMode={isActivePreviewable ? previewMode : undefined}
-                previewSession={previewForActive}
-                genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
-                previewContextKey={chatId}
-                onNotFound={(resourceId) => removeResource('log', resourceId)}
-              />
+              <SidebarToggleHidden>
+                <ResourceContent
+                  workspaceId={workspaceId}
+                  resource={active}
+                  previewMode={isActivePreviewable ? previewMode : undefined}
+                  previewSession={previewForActive}
+                  genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
+                  previewContextKey={chatId}
+                  onNotFound={(resourceId) => removeResource('log', resourceId)}
+                  onAddResource={addResource}
+                />
+              </SidebarToggleHidden>
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
                 Click "+" above to add a resource

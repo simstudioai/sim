@@ -152,7 +152,6 @@
     "jszip": "3.10.1",
     "jwt-decode": "^4.0.0",
     "lru-cache": "11.3.6",
-    "lucide-react": "^0.479.0",
     "mammoth": "^1.9.0",
     "mermaid": "11.15.0",
     "micromatch": "4.0.8",
@@ -208,6 +207,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@hugeicons/core-free-icons": "4.2.0",
     "@sim/testing": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@tailwindcss/typography": "0.5.19",

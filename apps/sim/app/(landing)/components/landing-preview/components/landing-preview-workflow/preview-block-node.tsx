@@ -2,9 +2,9 @@
 
 import { memo } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Database } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { Blimp } from '@/components/emcn'
+import { Database } from '@/components/emcn/icons'
 import {
   AgentIcon,
   AnthropicIcon,

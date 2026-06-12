@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { ArrowUp } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { ArrowUp } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureClientEvent } from '@/lib/posthog/client'

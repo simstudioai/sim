@@ -155,6 +155,11 @@ export {
 } from './table/table'
 export { type FileInputOptions, TagInput, type TagItem } from './tag-input/tag-input'
 export { Textarea } from './textarea/textarea'
+export {
+  ThinkingLoader,
+  type ThinkingLoaderProps,
+  type ThinkingLoaderVariant,
+} from './thinking-loader/thinking-loader'
 export { TimePicker, timePickerVariants } from './time-picker/time-picker'
 export { ToastProvider, toast, useToast } from './toast/toast'
 export {

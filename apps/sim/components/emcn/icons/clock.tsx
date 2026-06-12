@@ -1,26 +1,33 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * Clock icon component - circular clock face with hour and minute hands
- * @param props - SVG properties including className, fill, etc.
+ * Clock icon (Hugeicons stroke-rounded: Clock01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function Clock(props: SVGProps<SVGSVGElement>) {
+export function Clock({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <circle cx='10.25' cy='9.75' r='9' />
-      <path d='M10.25 4.75V9.75L13.75 12.25' />
+      <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='1.5' />
+      <path
+        d='M12 8V12L14 14'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

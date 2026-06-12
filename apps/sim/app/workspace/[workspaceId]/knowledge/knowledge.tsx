@@ -119,17 +119,26 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
   }
 }
 
-export function Knowledge() {
+interface KnowledgeProps {
+  /**
+   * When provided (embedded in a chat's resource panel), opening a knowledge
+   * base goes through this callback instead of navigating to its route.
+   */
+  onOpenKnowledgeBase?: (knowledgeBaseId: string, knowledgeBaseName: string) => void
+}
+
+export function Knowledge({ onOpenKnowledgeBase }: KnowledgeProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
   const { config: permissionConfig } = usePermissionConfig()
+  const isEmbedded = Boolean(onOpenKnowledgeBase)
   useEffect(() => {
-    if (permissionConfig.hideKnowledgeBaseTab) {
+    if (permissionConfig.hideKnowledgeBaseTab && !isEmbedded) {
       router.replace(`/workspace/${workspaceId}`)
     }
-  }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
+  }, [permissionConfig.hideKnowledgeBaseTab, isEmbedded, router, workspaceId])
 
   const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
@@ -323,10 +332,14 @@ export function Knowledge() {
       if (isRowContextMenuOpenRef.current) return
       const kb = knowledgeBasesRef.current.find((k) => k.id === rowId)
       if (!kb) return
+      if (onOpenKnowledgeBase) {
+        onOpenKnowledgeBase(kb.id, kb.name)
+        return
+      }
       const urlParams = new URLSearchParams({ kbName: kb.name })
       router.push(`/workspace/${workspaceId}/knowledge/${rowId}?${urlParams.toString()}`)
     },
-    [router, workspaceId]
+    [onOpenKnowledgeBase, router, workspaceId]
   )
 
   const handleRowContextMenu = useCallback(

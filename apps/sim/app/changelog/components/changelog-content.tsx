@@ -1,5 +1,6 @@
-import { BookOpen, Github, Rss } from 'lucide-react'
 import Link from 'next/link'
+import { BookOpen, Rss } from '@/components/emcn/icons'
+import { GithubIcon } from '@/components/icons'
 import ChangelogList from '@/app/changelog/components/timeline-list'
 
 export interface ChangelogEntry {
@@ -65,7 +66,7 @@ export default async function ChangelogContent() {
                 rel='noopener noreferrer'
                 className='inline-flex items-center gap-2 rounded-[5px] border border-[var(--white)] bg-[var(--white)] px-[9px] py-[5px] text-[13.5px] text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
               >
-                <Github className='size-4' />
+                <GithubIcon className='size-4' />
                 View on GitHub
               </Link>
               <Link

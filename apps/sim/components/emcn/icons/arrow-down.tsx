@@ -1,26 +1,32 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * ArrowDown icon component
- * @param props - SVG properties including className, fill, etc.
+ * ArrowDown icon (Hugeicons stroke-rounded: ArrowDown01Icon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function ArrowDown(props: SVGProps<SVGSVGElement>) {
+export function ArrowDown({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <path d='M4 11.25L10.25 17.5L16.5 11.25' />
-      <path d='M10.25 3V17.5' />
+      <path
+        d='M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

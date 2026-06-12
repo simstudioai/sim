@@ -22,8 +22,8 @@ const API_ENDPOINTS = {
 export const SIDEBAR_WIDTH = {
   DEFAULT: 248,
   MIN: 248,
-  /** Width when sidebar is collapsed to icon-only mode */
-  COLLAPSED: 51,
+  /** Collapsed sidebar is fully hidden; the toggle lives in the page title bar */
+  COLLAPSED: 0,
   /** Maximum is 30% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.3,
 } as const

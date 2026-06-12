@@ -3,8 +3,8 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/emcn'
+import { ChevronDown } from '@/components/emcn/icons'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 

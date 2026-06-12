@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { Search, X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Badge, Button } from '@/components/emcn'
+import { Search, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery } from '@/lib/logs/query-parser'

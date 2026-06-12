@@ -1,15 +1,15 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'es-toolkit'
+import { useParams } from 'next/navigation'
+import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
 import {
-  AlertTriangle,
   ArrowLeftRight,
   ArrowUp,
   Check,
   Clipboard,
   ExternalLink,
-} from 'lucide-react'
-import { useParams } from 'next/navigation'
-import { Button, Input, Label, Tooltip } from '@/components/emcn/components'
+  TriangleAlert,
+} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import {
@@ -260,7 +260,7 @@ const renderLabel = (
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <span className='inline-flex'>
-                  <AlertTriangle className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
+                  <TriangleAlert className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
                 </span>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>

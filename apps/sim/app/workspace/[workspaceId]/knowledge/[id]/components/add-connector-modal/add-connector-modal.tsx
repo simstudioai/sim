@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   ArrowRight,
@@ -20,6 +19,7 @@ import {
   type ComboboxOption,
   Search,
 } from '@/components/emcn'
+import { ArrowLeft, Plus } from '@/components/emcn/icons'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'

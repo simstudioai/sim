@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import {
   keepPreviousData,
   skipToken,
@@ -264,6 +265,25 @@ export function useMothershipChatHistory(chatId: string | undefined) {
     queryFn: chatId ? ({ signal }) => fetchMothershipChatHistory(chatId, signal) : skipToken,
     staleTime: 30 * 1000,
   })
+}
+
+/**
+ * Returns a stable callback that warms the chat-history cache for a chat id.
+ * Call it on hover so opening that chat inline renders instantly — the
+ * `useMothershipChatHistory` query resolves from cache with no fetch flash.
+ */
+export function usePrefetchChatHistory() {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (chatId: string) => {
+      void queryClient.prefetchQuery({
+        queryKey: mothershipChatKeys.detail(chatId),
+        queryFn: ({ signal }) => fetchMothershipChatHistory(chatId, signal),
+        staleTime: 30 * 1000,
+      })
+    },
+    [queryClient]
+  )
 }
 
 async function deleteChat(chatId: string): Promise<void> {

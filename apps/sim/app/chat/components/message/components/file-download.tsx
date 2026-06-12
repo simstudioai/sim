@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
-import { Music } from 'lucide-react'
 import { Button, Download, Loader } from '@/components/emcn'
+import { Music } from '@/components/emcn/icons'
 import { DefaultFileIcon, getDocumentIcon } from '@/components/icons/document-icons'
 import type { ChatFile } from '@/app/chat/components/message/message'
 

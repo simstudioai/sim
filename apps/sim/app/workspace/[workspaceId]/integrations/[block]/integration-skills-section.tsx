@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { Check, Plus } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
 import { Chip, toast } from '@/components/emcn'
+import { Check, Plus } from '@/components/emcn/icons'
 import { captureEvent } from '@/lib/posthog/client'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import type { SuggestedSkill } from '@/blocks/types'

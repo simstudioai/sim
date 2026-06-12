@@ -230,7 +230,7 @@ export function ChipSelect({
             aria-hidden
             className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
           >
-            <ChevronDown className='h-[6px] w-[10px]' />
+            <ChevronDown className='size-[14px]' />
           </span>
         </button>
       </DropdownMenuTrigger>

@@ -85,7 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     var isCollapsed = state && state.isCollapsed;
 
                     if (isCollapsed) {
-                      document.documentElement.style.setProperty('--sidebar-width', '51px');
+                      document.documentElement.style.setProperty('--sidebar-width', '0px');
                       document.documentElement.setAttribute('data-sidebar-collapsed', '');
                     } else {
                       var width = state && state.sidebarWidth;
@@ -119,6 +119,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     }
 
                     var activeTab = panelState && panelState.activeTab;
+                    if (activeTab && activeTab !== 'toolbar' && activeTab !== 'editor') {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }

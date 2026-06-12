@@ -22,8 +22,8 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { Check, ChevronRight, Circle, Search } from 'lucide-react'
 import { chipFieldSurfaceClass } from '@/components/emcn/components/chip/chip-chrome'
+import { Check, ChevronRight, Circle, Search } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 const ANIMATION_CLASSES =

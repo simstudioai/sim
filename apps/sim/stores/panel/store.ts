@@ -6,7 +6,13 @@ import type { PanelState, PanelTab } from '@/stores/panel/types'
 /**
  * Default panel tab
  */
-const DEFAULT_TAB: PanelTab = 'copilot'
+const DEFAULT_TAB: PanelTab = 'toolbar'
+
+/**
+ * Set of valid panel tabs used to sanitize persisted state from older
+ * versions (e.g. a persisted 'copilot' tab that no longer exists)
+ */
+const VALID_TABS: ReadonlySet<string> = new Set<PanelTab>(['editor', 'toolbar'])
 
 export const usePanelStore = create<PanelState>()(
   persist(
@@ -40,6 +46,14 @@ export const usePanelStore = create<PanelState>()(
     }),
     {
       name: 'panel-state',
+      version: 1,
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<PanelState>
+        if (typeof state?.activeTab !== 'string' || !VALID_TABS.has(state.activeTab)) {
+          return { ...state, activeTab: DEFAULT_TAB }
+        }
+        return state
+      },
       onRehydrateStorage: () => (state) => {
         // Sync CSS variables with stored state after rehydration
         if (state && typeof window !== 'undefined') {

@@ -3,7 +3,9 @@ import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { truncate } from '@sim/utils/string'
 import { eq } from 'drizzle-orm'
+import { getBYOKKey } from '@/lib/api-key/byok'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
@@ -41,6 +43,7 @@ import {
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
+import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 
 export { SSE_RESPONSE_HEADERS }
@@ -519,13 +522,105 @@ export async function requestChatTitle(params: {
         status: response.status,
         error: payload,
       })
-      return null
+      return generateChatTitleLocally({ message, workspaceId })
     }
 
     const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
-    return title || null
+    return title || generateChatTitleLocally({ message, workspaceId })
   } catch (error) {
     logger.error('Error generating chat title:', error)
-    return null
+    return generateChatTitleLocally({ message, workspaceId })
   }
+}
+
+/**
+ * Fast, cheap models to try (in order) when generating a title without the
+ * copilot backend. A candidate is usable when a key resolves from the
+ * workspace's BYOK keys, the singular env key, or the hosted rotation pool.
+ */
+const LOCAL_TITLE_MODELS = [
+  { providerId: 'anthropic', model: 'claude-haiku-4-5', rotationId: 'anthropic' },
+  { providerId: 'openai', model: 'gpt-4.1-mini', rotationId: 'openai' },
+  { providerId: 'google', model: 'gemini-2.5-flash-lite', rotationId: 'gemini' },
+] as const
+
+const LOCAL_TITLE_SYSTEM_PROMPT =
+  'Generate a concise title (2-6 words) for a conversation that starts with the ' +
+  'user message below. Capture the topic, not the phrasing. Respond with the ' +
+  'title only — no quotes, no trailing punctuation, no explanation.'
+
+function resolveLocalTitleEnvKey(providerId: string): string | undefined {
+  if (providerId === 'openai') return env.OPENAI_API_KEY
+  if (providerId === 'google') return env.GEMINI_API_KEY
+  return undefined
+}
+
+/**
+ * Fallback title generation that runs against the app's own provider
+ * integrations, so self-hosted deployments (and any copilot-backend outage)
+ * still get named chats instead of a permanent "New chat".
+ */
+async function generateChatTitleLocally(params: {
+  message: string
+  workspaceId?: string
+}): Promise<string | null> {
+  const { message, workspaceId } = params
+
+  for (const candidate of LOCAL_TITLE_MODELS) {
+    let apiKey = (await getBYOKKey(workspaceId, candidate.providerId))?.apiKey
+    apiKey ??= resolveLocalTitleEnvKey(candidate.providerId)
+    if (!apiKey) {
+      try {
+        apiKey = getRotatingApiKey(candidate.rotationId)
+      } catch {
+        continue
+      }
+    }
+
+    try {
+      const { executeProviderRequest } = await import('@/providers')
+      const response = await executeProviderRequest(candidate.providerId, {
+        model: candidate.model,
+        apiKey,
+        systemPrompt: LOCAL_TITLE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: truncate(message, 600) }],
+        temperature: 0.3,
+        maxTokens: 64,
+        stream: false,
+      })
+      if (!response || typeof response !== 'object' || !('content' in response)) continue
+      const title = sanitizeGeneratedTitle(response.content)
+      if (title) {
+        logger.info('Generated chat title via local provider fallback', {
+          provider: candidate.providerId,
+          model: candidate.model,
+        })
+        return title
+      }
+    } catch (error) {
+      logger.warn('Local chat title generation failed', {
+        provider: candidate.providerId,
+        model: candidate.model,
+        error: getErrorMessage(error),
+      })
+    }
+  }
+
+  return null
+}
+
+/**
+ * Normalizes model output into a clean single-line title: first line only,
+ * surrounding quotes and trailing punctuation stripped, capped at the
+ * 200-character limit the chat update contract enforces.
+ */
+function sanitizeGeneratedTitle(raw: string): string | null {
+  const firstLine = raw.trim().split('\n')[0] ?? ''
+  const cleaned = firstLine
+    .replace(/^["'“”‘’`]+/, '')
+    .replace(/["'“”‘’`]+$/, '')
+    .replace(/[.。!?]+$/, '')
+    .trim()
+  if (!cleaned) return null
+  return truncate(cleaned, 200)
 }

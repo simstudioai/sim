@@ -26,8 +26,10 @@ import type {
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useAutoHideScrollbar } from '@/hooks/use-autohide-scrollbar'
 import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
+import { ChatTitleBar } from './components/chat-title-bar'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 
 interface MothershipChatProps {
@@ -58,6 +60,15 @@ interface MothershipChatProps {
   initialScrollBlocked?: boolean
   animateInput?: boolean
   onInputAnimationEnd?: () => void
+  /** Shows the title bar's close (×) control that hides the chat pane. */
+  onCloseChat?: () => void
+  /** Forwarded to the title bar's chat switcher. */
+  onSelectChat?: (chatId: string) => void
+  /**
+   * Forwarded to the title bar's chat switcher: when false, selecting a chat
+   * only fires {@link onSelectChat} (docked-chat hosts swap in place).
+   */
+  switcherNavigates?: boolean
   className?: string
 }
 
@@ -86,6 +97,17 @@ const LAYOUT_STYLES = {
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
+
+/**
+ * Hides the scroll thumb by default and reveals it (color fade) only while the
+ * container carries `data-scrolling="true"` — toggled by {@link useAutoHideScrollbar}.
+ * Local override of the always-visible global scrollbar; covers WebKit + Firefox.
+ */
+const SCROLLBAR_AUTOHIDE = cn(
+  '[&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb]:transition-colors [&::-webkit-scrollbar-thumb]:duration-300',
+  'data-[scrolling=true]:[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb-color)]',
+  '[scrollbar-color:transparent_transparent] data-[scrolling=true]:[scrollbar-color:var(--scrollbar-thumb-color)_transparent]'
+)
 
 interface UserMessageRowProps {
   content: string
@@ -197,6 +219,9 @@ export function MothershipChat({
   initialScrollBlocked = false,
   animateInput = false,
   onInputAnimationEnd,
+  onCloseChat,
+  onSelectChat,
+  switcherNavigates,
   className,
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
@@ -204,6 +229,14 @@ export function MothershipChat({
   const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive, {
     scrollOnMount: true,
   })
+  const attachAutoHideScrollbar = useAutoHideScrollbar()
+  const setScrollContainer = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollContainerRef(el)
+      attachAutoHideScrollbar(el)
+    },
+    [scrollContainerRef, attachAutoHideScrollbar]
+  )
   const hasMessages = messages.length > 0
   const stagingKey = chatId ?? 'pending-chat'
   const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
@@ -284,41 +317,59 @@ export function MothershipChat({
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        <div ref={scrollContainerRef} className={styles.scrollContainer}>
-          {isLoading && !hasMessages ? (
-            <MothershipChatSkeleton layout={layout} />
-          ) : (
-            <div className={styles.content}>
-              {stagedMessages.map((msg, localIndex) => {
-                const index = stagedOffset + localIndex
-                if (msg.role === 'user') {
+        {layout === 'mothership-view' && (
+          <ChatTitleBar
+            chatId={chatId}
+            onClose={onCloseChat}
+            onSelectChat={onSelectChat}
+            navigateOnSelect={switcherNavigates}
+            isWorking={isStreamActive}
+          />
+        )}
+        <div className='relative flex min-h-0 flex-1 flex-col'>
+          <div ref={setScrollContainer} className={cn(styles.scrollContainer, SCROLLBAR_AUTOHIDE)}>
+            {isLoading && !hasMessages ? (
+              <MothershipChatSkeleton layout={layout} />
+            ) : (
+              <div className={styles.content}>
+                {stagedMessages.map((msg, localIndex) => {
+                  const index = stagedOffset + localIndex
+                  if (msg.role === 'user') {
+                    return (
+                      <UserMessageRow
+                        key={msg.id}
+                        content={msg.content}
+                        contexts={msg.contexts}
+                        attachments={msg.attachments}
+                        rowClassName={styles.userRow}
+                        bubbleClassName={styles.userBubble}
+                        attachmentWidthClassName={styles.attachmentWidth}
+                      />
+                    )
+                  }
+
+                  const isLast = index === messages.length - 1
                   return (
-                    <UserMessageRow
-                      key={msg.id}
-                      content={msg.content}
-                      contexts={msg.contexts}
-                      attachments={msg.attachments}
-                      rowClassName={styles.userRow}
-                      bubbleClassName={styles.userBubble}
-                      attachmentWidthClassName={styles.attachmentWidth}
+                    <AssistantMessageRow
+                      key={assistantTurnKeyByIndex[index] ?? msg.id}
+                      message={msg}
+                      isStreaming={isStreamActive && isLast}
+                      precedingUserContent={precedingUserContentByIndex[index]}
+                      rowClassName={styles.assistantRow}
+                      onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                     />
                   )
-                }
-
-                const isLast = index === messages.length - 1
-                return (
-                  <AssistantMessageRow
-                    key={assistantTurnKeyByIndex[index] ?? msg.id}
-                    message={msg}
-                    isStreaming={isStreamActive && isLast}
-                    precedingUserContent={precedingUserContentByIndex[index]}
-                    rowClassName={styles.assistantRow}
-                    onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                  />
-                )
-              })}
-            </div>
-          )}
+                })}
+              </div>
+            )}
+          </div>
+          {/* Messages dissolve into the input instead of hard-clipping: a bg
+              fade plus the faintest backdrop blur, both masked so they ramp in
+              toward the bottom edge. */}
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-x-0 bottom-0 h-[40px] bg-gradient-to-t from-[var(--bg)] to-transparent backdrop-blur-[1.5px] [mask-image:linear-gradient(to_top,black_20%,transparent)]'
+          />
         </div>
 
         <div

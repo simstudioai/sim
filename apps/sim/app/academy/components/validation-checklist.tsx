@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckCircle2, Circle } from 'lucide-react'
+import { Circle, CircleCheck } from '@/components/emcn/icons'
 import type { ValidationRuleResult } from '@/lib/academy/types'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -30,7 +30,7 @@ export function ValidationChecklist({ results, allPassed }: ValidationChecklistP
         {results.map((result) => (
           <li key={result.message} className='flex items-start gap-2'>
             {result.passed ? (
-              <CheckCircle2 className='mt-0.5 size-3.5 flex-shrink-0 text-[#4CAF50]' />
+              <CircleCheck className='mt-0.5 size-3.5 flex-shrink-0 text-[#4CAF50]' />
             ) : (
               <Circle className='mt-0.5 size-3.5 flex-shrink-0 text-[#444]' />
             )}

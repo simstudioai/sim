@@ -45,4 +45,4 @@ next-env.d.ts
 # Uploads
 /uploads
 
-.trigger
+.trigger.env.local.bak*

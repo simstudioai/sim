@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Duplicate } from '@/components/emcn/icons'
+import { Duplicate, Share2 } from '@/components/emcn/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 
 interface ShareButtonProps {

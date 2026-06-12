@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import 'prismjs/components/prism-json'
-import { Wand2 } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import {
   CODE_LINE_HEIGHT_PX,
@@ -11,6 +10,7 @@ import {
   highlight,
   languages,
 } from '@/components/emcn'
+import { Wand2 } from '@/components/emcn/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import {

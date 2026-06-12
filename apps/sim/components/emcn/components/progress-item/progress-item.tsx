@@ -1,7 +1,6 @@
 import { forwardRef, type HTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { AlertTriangle } from 'lucide-react'
-import { Check, Loader, Square, X } from '@/components/emcn/icons'
+import { Check, Loader, Square, TriangleAlert, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 const progressItemVariants = cva('flex items-start gap-2.5 px-3 py-3 text-[12px]', {
@@ -23,7 +22,7 @@ function StatusIcon({ status }: { status: ProgressStatus }) {
   if (status === 'success')
     return <Check className={cn(ICON_CLASS, 'text-[var(--badge-success-text)]')} />
   if (status === 'error')
-    return <AlertTriangle className={cn(ICON_CLASS, 'text-[var(--text-error)]')} />
+    return <TriangleAlert className={cn(ICON_CLASS, 'text-[var(--text-error)]')} />
   return <Loader animate className={cn(ICON_CLASS, 'text-[var(--text-icon)]')} />
 }
 

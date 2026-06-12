@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
@@ -14,6 +13,7 @@ import {
   ModalTitle,
   ModalTrigger,
 } from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
 import { GithubIcon, GoogleIcon } from '@/components/icons'
 import { requestJson } from '@/lib/api/client/request'
 import { type AuthProviderStatusResponse, getAuthProvidersContract } from '@/lib/api/contracts/auth'

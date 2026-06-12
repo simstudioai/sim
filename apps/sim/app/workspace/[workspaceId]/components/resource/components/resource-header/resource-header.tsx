@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Chip,
@@ -29,9 +28,12 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@/components/emcn'
+import { ArrowUpLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
 export interface DropdownOption {
   label: string
@@ -128,8 +130,19 @@ export const ResourceHeader = memo(function ResourceHeader({
         : -1
 
   return (
-    <div ref={headerRef} className='border-[var(--border)] border-b px-4 py-[8.5px]'>
-      <div className='flex min-w-0 items-center justify-between gap-3'>
+    <div
+      ref={headerRef}
+      className='flex items-center gap-2 border-[var(--border)] border-b px-4 py-[8.5px]'
+    >
+      {/* Chrome controls live outside the overflow-hidden breadcrumb group so
+          the toggle's 9px pull-out (7px edge inset, matching the chat title
+          bar) isn't clipped. The gap-1 cluster matches the chat title bar's
+          toggle+switcher rhythm so the pair never shifts between pages. */}
+      <div className='flex flex-shrink-0 items-center gap-1'>
+        <SidebarToggle className='-ml-[9px]' />
+        <ChatSwitcher iconOnly />
+      </div>
+      <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {

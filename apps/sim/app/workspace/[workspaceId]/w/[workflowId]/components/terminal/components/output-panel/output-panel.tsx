@@ -2,19 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  Clipboard,
-  Database,
-  MoreHorizontal,
-  Palette,
-  Pause,
-  Search,
-  Trash2,
-  X,
-} from 'lucide-react'
 import Link from 'next/link'
 import {
   Button,
@@ -26,7 +13,20 @@ import {
   PopoverTrigger,
   Tooltip,
 } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Clipboard,
+  Database,
+  Download,
+  MoreHorizontal,
+  Palette,
+  Pause,
+  Search,
+  Trash2,
+  X,
+} from '@/components/emcn/icons'
 import {
   OutputContextMenu,
   StructuredOutput,

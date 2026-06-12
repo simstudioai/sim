@@ -53,17 +53,37 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-export function Tables() {
+interface TablesProps {
+  /**
+   * When provided (embedded in a chat's resource panel), opening a table goes
+   * through this callback instead of navigating to the table's route.
+   */
+  onOpenTable?: (tableId: string, tableName: string) => void
+}
+
+export function Tables({ onOpenTable }: TablesProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
 
+  const openTable = useCallback(
+    (tableId: string, tableName: string) => {
+      if (onOpenTable) {
+        onOpenTable(tableId, tableName)
+        return
+      }
+      router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+    },
+    [onOpenTable, router, workspaceId]
+  )
+
   const { config: permissionConfig } = usePermissionConfig()
+  const isEmbedded = Boolean(onOpenTable)
   useEffect(() => {
-    if (permissionConfig.hideTablesTab) {
+    if (permissionConfig.hideTablesTab && !isEmbedded) {
       router.replace(`/workspace/${workspaceId}`)
     }
-  }, [permissionConfig.hideTablesTab, router, workspaceId])
+  }, [permissionConfig.hideTablesTab, isEmbedded, router, workspaceId])
 
   const userPermissions = useUserPermissionsContext()
 
@@ -373,10 +393,11 @@ export function Tables() {
   const handleRowClick = useCallback(
     (rowId: string) => {
       if (!isRowContextMenuOpen) {
-        router.push(`/workspace/${workspaceId}/tables/${rowId}`)
+        const table = tables.find((t) => t.id === rowId)
+        openTable(rowId, table?.name ?? 'Table')
       }
     },
-    [isRowContextMenuOpen, router, workspaceId]
+    [isRowContextMenuOpen, tables, openTable]
   )
 
   const handleRowContextMenu = useCallback(
@@ -468,9 +489,9 @@ export function Tables() {
             const result = await uploadCsv.mutateAsync({ workspaceId, file })
 
             if (syncFiles.length === 1 && asyncFiles.length === 0) {
-              const tableId = result?.data?.table?.id
-              if (tableId) {
-                router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+              const createdTable = result?.data?.table
+              if (createdTable?.id) {
+                openTable(createdTable.id, createdTable.name ?? file.name)
               }
             }
           } catch (err) {
@@ -500,7 +521,7 @@ export function Tables() {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-    [workspaceId, router]
+    [workspaceId, openTable]
   )
 
   const handleListUploadCsv = useCallback(() => {
@@ -528,12 +549,12 @@ export function Tables() {
       })
       const tableId = result?.data?.table?.id
       if (tableId) {
-        router.push(`/workspace/${workspaceId}/tables/${tableId}`)
+        openTable(tableId, name)
       }
     } catch (err) {
       logger.error('Failed to create table:', err)
     }
-  }, [tables, createTable, router, workspaceId])
+  }, [tables, createTable, openTable])
 
   const headerActions: ResourceAction[] = useMemo(
     () => [

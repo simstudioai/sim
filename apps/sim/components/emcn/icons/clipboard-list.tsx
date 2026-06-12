@@ -1,29 +1,67 @@
 import type { SVGProps } from 'react'
 
+interface IconProps extends SVGProps<SVGSVGElement> {
+  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
+  size?: number | string
+}
+
 /**
- * ClipboardList icon component - clipboard with checklist lines
- * @param props - SVG properties including className, fill, etc.
+ * ClipboardList icon (Hugeicons stroke-rounded: ClipboardListIcon)
+ * @param props - SVG properties including className, size, fill, etc.
  */
-export function ClipboardList(props: SVGProps<SVGSVGElement>) {
+export function ClipboardList({ size = 24, width, height, ...props }: IconProps) {
   return (
     <svg
-      width='24'
-      height='24'
-      viewBox='-1 -2 24 24'
-      fill='none'
-      stroke='currentColor'
-      strokeWidth='1.55'
-      strokeLinecap='round'
-      strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
+      width={width ?? size}
+      height={height ?? size}
+      viewBox='0 0 24 24'
+      fill='none'
       aria-hidden='true'
       {...props}
     >
-      <path d='M3.75 4.25C3.75 2.87 4.87 1.75 6.25 1.75H14.25C15.63 1.75 16.75 2.87 16.75 4.25V17.25C16.75 18.63 15.63 19.75 14.25 19.75H6.25C4.87 19.75 3.75 18.63 3.75 17.25V4.25Z' />
-      <path d='M7.75 0.75H12.75V3.25C12.75 3.8 12.3 4.25 11.75 4.25H8.75C8.2 4.25 7.75 3.8 7.75 3.25V0.75Z' />
-      <path d='M7.75 8.75H12.75' />
-      <path d='M7.75 11.75H12.75' />
-      <path d='M7.75 14.75H10.75' />
+      <path
+        d='M12 11H16'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M12 16H16'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M8 11H8.01'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M8 16H8.01'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M14.5 2H9.5C8.67157 2 8 2.67157 8 3.5C8 4.32843 8.67157 5 9.5 5H14.5C15.3284 5 16 4.32843 16 3.5C16 2.67157 15.3284 2 14.5 2Z'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
+      <path
+        d='M16 3.5C17.5535 3.54681 18.48 3.72007 19.1213 4.36137C20 5.24004 20 6.65424 20 9.48263L20 15.9995C20 18.8279 20 20.2421 19.1213 21.1208C18.2426 21.9995 16.8284 21.9995 14 21.9995L10 21.9995C7.17158 21.9995 5.75737 21.9995 4.87869 21.1208C4.00001 20.2421 4.00001 18.8279 4 15.9995L4.00001 9.48269C4.00001 6.65425 4 5.24004 4.87868 4.36136C5.51997 3.72007 6.44651 3.54681 7.9999 3.5'
+        stroke='currentColor'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+        strokeWidth='1.5'
+      />
     </svg>
   )
 }

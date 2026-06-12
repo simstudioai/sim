@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
-import { ArrowLeftRight, ArrowUp } from 'lucide-react'
 import { Button, Input, Label, Tooltip } from '@/components/emcn'
+import { ArrowLeftRight, ArrowUp } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
-import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import { WorkflowWithChat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/docked-chat'
 
 export const metadata: Metadata = {
   title: 'Workflow',
 }
 
-export default Workflow
+export default WorkflowWithChat

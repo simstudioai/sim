@@ -1,9 +1,9 @@
 'use client'
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { ChevronLeft, ChevronRight } from '@/components/emcn/icons'
 import { getCourse } from '@/lib/academy/content'
 import { markLessonComplete } from '@/lib/academy/local-progress'
 import type { Lesson } from '@/lib/academy/types'

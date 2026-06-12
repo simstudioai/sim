@@ -305,6 +305,64 @@ export function withStoppedContentBlock(message: PersistedMessage): PersistedMes
   })
 }
 
+/**
+ * Matches the generic display message the live stream renders for an
+ * orchestration failure, so the persisted turn looks identical after a refetch.
+ */
+const ERROR_DISPLAY_MESSAGE = 'An unexpected error occurred while processing the response.'
+
+/**
+ * Marks a failed turn so it survives history refetches instead of vanishing:
+ * appends an inline `<mothership-error>` tag (rendered by the message
+ * special-tags pipeline) and a terminal `complete` block with `status: error`.
+ * Partial content/tool blocks from before the failure are preserved.
+ */
+export function withErrorContentBlock(message: PersistedMessage): PersistedMessage {
+  const contentBlocks = message.contentBlocks ?? []
+  if (
+    contentBlocks.some(
+      (block) =>
+        block.type === MothershipStreamV1EventType.complete &&
+        block.status === MothershipStreamV1CompletionStatus.error
+    )
+  ) {
+    return message
+  }
+
+  const hasAssistantText = contentBlocks.some(
+    (block) =>
+      block.type === MothershipStreamV1EventType.text &&
+      block.channel !== MothershipStreamV1TextChannel.thinking &&
+      block.content?.trim()
+  )
+  const errorTag = `<mothership-error>${JSON.stringify({ message: ERROR_DISPLAY_MESSAGE })}</mothership-error>`
+
+  return normalizeMessage({
+    ...message,
+    contentBlocks: [
+      ...(hasAssistantText || !message.content.trim()
+        ? []
+        : [
+            {
+              type: MothershipStreamV1EventType.text,
+              channel: MothershipStreamV1TextChannel.assistant,
+              content: message.content,
+            },
+          ]),
+      ...contentBlocks,
+      {
+        type: MothershipStreamV1EventType.text,
+        channel: MothershipStreamV1TextChannel.assistant,
+        content: errorTag,
+      },
+      {
+        type: MothershipStreamV1EventType.complete,
+        status: MothershipStreamV1CompletionStatus.error,
+      },
+    ],
+  })
+}
+
 export interface UserMessageParams {
   id: string
   content: string

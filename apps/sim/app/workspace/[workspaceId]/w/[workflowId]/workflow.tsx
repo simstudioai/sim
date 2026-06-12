@@ -23,6 +23,7 @@ import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/creden
 import type { OAuthProvider } from '@/lib/oauth'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@/lib/workflows/blocks/block-dimensions'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { ChatSwitcher, SidebarToggle } from '@/app/workspace/[workspaceId]/components'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -213,12 +214,21 @@ interface AddBlockFromToolbarDetail {
  * Main workflow canvas content component.
  * Renders the ReactFlow canvas with blocks, edges, and all interactive features.
  */
+interface WorkflowChatDock {
+  /** The chat pane is docked beside the canvas — the canvas chrome hides. */
+  isOpen: boolean
+  /** Docks the picked chat (undefined for a new chat) without navigating. */
+  onSelectChat: (chatId?: string) => void
+}
+
 interface WorkflowContentProps {
   workspaceId?: string
   workflowId?: string
   embedded?: boolean
   /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
   sandbox?: boolean
+  /** Host-provided chat docking — chat opens beside the editor, never away from it. */
+  chatDock?: WorkflowChatDock
 }
 
 const WorkflowContent = React.memo(
@@ -227,6 +237,7 @@ const WorkflowContent = React.memo(
     workflowId: propWorkflowId,
     embedded,
     sandbox,
+    chatDock,
   }: WorkflowContentProps = {}) => {
     const [isCanvasReady, setIsCanvasReady] = useState(false)
     const [potentialParentId, setPotentialParentId] = useState<string | null>(null)
@@ -4221,6 +4232,49 @@ const WorkflowContent = React.memo(
             )}
 
             {!embedded && <DiffControls />}
+
+            {/* Top fade between the canvas and the chrome row: nodes panning
+                under the toggle/switcher/title dissolve into the page bg
+                instead of colliding with them. Solid through the 44px chrome
+                zone, faded out by 72px. Gradient only — a backdrop blur here
+                would tax every canvas pan/zoom repaint. */}
+            {!embedded && (
+              <div
+                aria-hidden='true'
+                className='pointer-events-none absolute inset-x-0 top-0 z-[9] h-[72px] bg-gradient-to-b from-40% from-[var(--bg)] to-transparent'
+              />
+            )}
+
+            {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
+                + workflow title at the top-left, matching the title-bar rhythm
+                on other pages. The controls hide while a chat is docked (the
+                chat pane's title bar carries them); the title stays — it's the
+                editor's identity. */}
+            {!embedded && (
+              /* Fixed 30px height so the title centers on the same midline
+                 (y=22) whether or not the 30px control pills render — without
+                 it the docked state floats the title to the text's own
+                 line-height. */
+              <div className='absolute top-[7px] left-[7px] z-10 flex h-[30px] items-center gap-1'>
+                {!chatDock?.isOpen && (
+                  <>
+                    <SidebarToggle />
+                    <ChatSwitcher
+                      iconOnly
+                      navigateOnSelect={!chatDock}
+                      onSelectChat={
+                        chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined
+                      }
+                    />
+                  </>
+                )}
+                {workflowMetadata?.name && (
+                  <span className='max-w-[320px] truncate px-1 font-medium text-[14px] text-[var(--text-primary)]'>
+                    {workflowMetadata.name}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
 
           <Terminal />
@@ -4258,11 +4312,13 @@ interface WorkflowProps {
   embedded?: boolean
   /** Sandbox mode: full editing enabled but no workspace API calls (used by Sim Academy). */
   sandbox?: boolean
+  /** Host-provided chat docking — chat opens beside the editor, never away from it. */
+  chatDock?: WorkflowChatDock
 }
 
 /** Workflow page with ReactFlowProvider and error boundary wrapper. */
 const Workflow = React.memo(
-  ({ workspaceId, workflowId, embedded, sandbox }: WorkflowProps = {}) => {
+  ({ workspaceId, workflowId, embedded, sandbox, chatDock }: WorkflowProps = {}) => {
     return (
       <ReactFlowProvider>
         <ErrorBoundary>
@@ -4271,6 +4327,7 @@ const Workflow = React.memo(
             workflowId={workflowId}
             embedded={embedded}
             sandbox={sandbox}
+            chatDock={chatDock}
           />
         </ErrorBoundary>
       </ReactFlowProvider>

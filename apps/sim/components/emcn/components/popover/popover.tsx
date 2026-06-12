@@ -6,7 +6,7 @@
  * Basic usage with folders:
  * ```tsx
  * import { Popover, PopoverAnchor, PopoverBackButton, PopoverContent, PopoverFolder, PopoverItem } from '@/components/emcn'
- * import { Workflow, Bot } from 'lucide-react'
+ * import { Workflow, Bot } from '@/components/emcn/icons'
  *
  * function MyMenu() {
  *   const [workflows, setWorkflows] = useState([])
@@ -52,8 +52,8 @@
 import * as React from 'react'
 import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
-import { Check, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { Check, ChevronLeft, ChevronRight, Search } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
 type PopoverSize = 'sm' | 'md'
@@ -400,6 +400,11 @@ interface PopoverContentProps
   /** Offset from anchor. Defaults to 20px for top, 14px for other sides. */
   sideOffset?: number
   /**
+   * Offset along the alignment axis, in pixels
+   * @default 0
+   */
+  alignOffset?: number
+  /**
    * Padding from viewport edges
    * @default 8
    */
@@ -447,6 +452,7 @@ const PopoverContent = React.forwardRef<
       side = 'bottom',
       align = 'start',
       sideOffset,
+      alignOffset = 0,
       collisionPadding = 8,
       border = false,
       avoidCollisions = true,
@@ -596,6 +602,7 @@ const PopoverContent = React.forwardRef<
         side={side}
         align={align}
         sideOffset={effectiveSideOffset}
+        alignOffset={alignOffset}
         collisionPadding={collisionPadding}
         avoidCollisions={avoidCollisions}
         sticky='partial'

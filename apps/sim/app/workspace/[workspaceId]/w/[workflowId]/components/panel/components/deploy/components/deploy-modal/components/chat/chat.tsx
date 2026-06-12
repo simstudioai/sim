@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { AlertTriangle, Check, Clipboard, Eye, EyeOff, RefreshCw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
@@ -19,6 +18,7 @@ import {
   Textarea,
   Tooltip,
 } from '@/components/emcn'
+import { Check, Clipboard, Eye, EyeOff, RefreshCw, TriangleAlert } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { generatePassword } from '@/lib/core/security/encryption'
 import { cn } from '@/lib/core/utils/cn'
@@ -314,7 +314,7 @@ export function ChatDeploy({
       >
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
-            <AlertTriangle className='size-4 flex-shrink-0' />
+            <TriangleAlert className='size-4 flex-shrink-0' />
             <span>{errors.general}</span>
           </div>
         )}

@@ -1,12 +1,5 @@
 import type React from 'react'
-import {
-  AlertTriangleIcon,
-  BanIcon,
-  NetworkIcon,
-  RepeatIcon,
-  SplitIcon,
-  XCircleIcon,
-} from 'lucide-react'
+import { Ban, Network, Repeat, Split, TriangleAlert, XCircle } from '@/components/emcn/icons'
 import { getBlock } from '@/blocks'
 import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
@@ -43,27 +36,27 @@ export function getBlockIcon(
   }
 
   if (blockType === 'loop') {
-    return RepeatIcon
+    return Repeat
   }
 
   if (blockType === 'parallel') {
-    return SplitIcon
+    return Split
   }
 
   if (blockType === 'workflow') {
-    return NetworkIcon
+    return Network
   }
 
   if (blockType === 'error') {
-    return XCircleIcon
+    return XCircle
   }
 
   if (blockType === 'validation') {
-    return AlertTriangleIcon
+    return TriangleAlert
   }
 
   if (blockType === 'cancelled') {
-    return BanIcon
+    return Ban
   }
 
   return null

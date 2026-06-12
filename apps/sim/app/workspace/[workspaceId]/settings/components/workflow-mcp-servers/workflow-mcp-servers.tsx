@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { Check, Clipboard, Plus, Server } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -26,7 +25,7 @@ import {
   Label,
   Tooltip,
 } from '@/components/emcn'
-import { ArrowLeft, Search } from '@/components/emcn/icons'
+import { ArrowLeft, Check, Clipboard, Plus, Search, Server } from '@/components/emcn/icons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'

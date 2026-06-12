@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowRight, ChevronRight } from 'lucide-react'
+import { ArrowRight, ChevronRight } from '@/components/emcn/icons'
 
 interface ContactButtonProps {
   href: string

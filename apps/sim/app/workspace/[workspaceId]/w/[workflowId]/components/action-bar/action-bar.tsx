@@ -1,7 +1,15 @@
 import { memo, useCallback } from 'react'
-import { ArrowLeftRight, ArrowUpDown, Circle, CircleOff, Lock, LogOut, Unlock } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Button, Duplicate, PlayOutline, Tooltip, Trash2, toast } from '@/components/emcn'
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  Circle,
+  CircleOff,
+  Lock,
+  LogOut,
+  Unlock,
+} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'

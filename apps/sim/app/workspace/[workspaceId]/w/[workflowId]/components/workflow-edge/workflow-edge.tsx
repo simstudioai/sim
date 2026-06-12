@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
-import { X } from 'lucide-react'
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps, getSmoothStepPath } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
+import { X } from '@/components/emcn/icons'
 import type { EdgeDiffStatus } from '@/lib/workflows/diff/types'
 import { useLastRunEdges } from '@/stores/execution'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'

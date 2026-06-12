@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
 import { Duplicate, Tooltip } from '@/components/emcn'
+import { Check, File as FileIcon, FileText, Image as ImageIcon } from '@/components/emcn/icons'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,

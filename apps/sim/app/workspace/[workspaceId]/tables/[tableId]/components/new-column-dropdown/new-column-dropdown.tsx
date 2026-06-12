@@ -1,6 +1,5 @@
 'use client'
 
-import { Sparkles } from 'lucide-react'
 import {
   ChipChevronDown,
   chipContentIconClass,
@@ -11,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Plus,
 } from '@/components/emcn'
+import { Plus, Sparkles } from '@/components/emcn/icons'
 import { isWorkflowColumnsEnabledClient } from '@/lib/core/config/feature-flags'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'

@@ -1,8 +1,7 @@
 'use client'
 
-import { FileText } from 'lucide-react'
 import { Plus } from '@/components/emcn'
-import { Database } from '@/components/emcn/icons'
+import { Database, FileText } from '@/components/emcn/icons'
 import {
   type BreadcrumbItem,
   type ChromeActionSpec,
