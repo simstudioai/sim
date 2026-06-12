@@ -169,7 +169,7 @@ export function ChatSwitcher({
             type='button'
             aria-label='Open most recent chat'
             onClick={handleOpenMostRecent}
-            className='before:-z-10 relative isolate flex items-center rounded-l-lg pr-1.5 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+            className='before:-z-10 relative isolate flex items-center rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
           >
             {chipIcon}
           </button>
@@ -186,7 +186,7 @@ export function ChatSwitcher({
             aria-label='Recents'
             onClick={() => setOpen((prev) => !prev)}
             className={cn(
-              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1.5 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
               open && 'before:opacity-100'
             )}
           >
@@ -208,7 +208,7 @@ export function ChatSwitcher({
             type='button'
             aria-label='Open chat'
             onClick={onOpenChat}
-            className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1.5 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+            className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
           >
             {chipIcon}
             <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
@@ -228,7 +228,7 @@ export function ChatSwitcher({
             aria-label='Recents'
             onClick={() => setOpen((prev) => !prev)}
             className={cn(
-              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1.5 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
               open && 'before:opacity-100'
             )}
           >
@@ -241,22 +241,44 @@ export function ChatSwitcher({
       </Tooltip.Root>
     </span>
   ) : (
-    <button
-      type='button'
-      aria-label='Switch chat'
-      onClick={() => setOpen((prev) => !prev)}
-      className={cn(
-        'flex h-[30px] min-w-0 items-center gap-1.5 rounded-lg px-2 transition-colors',
-        'hover-hover:bg-[var(--surface-active)]',
-        open && 'bg-[var(--surface-active)]'
-      )}
-    >
-      {chipIcon}
-      <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-        {title}
-      </span>
-      <ChevronDown className='ml-0.5 size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-    </button>
+    /* Open-chat chip: the same split pill as the other states (divider and
+       all) so the control never changes design between surfaces. Both
+       segments open Recents — the split here is purely the family look. */
+    <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
+      <button
+        type='button'
+        aria-label='Switch chat'
+        onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          'before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+          open && 'before:opacity-100'
+        )}
+      >
+        {chipIcon}
+        <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+          {title}
+        </span>
+      </button>
+      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button
+            type='button'
+            aria-label='Recents'
+            onClick={() => setOpen((prev) => !prev)}
+            className={cn(
+              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+              open && 'before:opacity-100'
+            )}
+          >
+            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <p>Recents</p>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </span>
   )
 
   return (
