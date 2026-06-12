@@ -2,6 +2,7 @@ import type { DaytonaGetSandboxParams, DaytonaSandboxResponse } from '@/tools/da
 import {
   DAYTONA_API_BASE_URL,
   DAYTONA_SANDBOX_OUTPUT_PROPERTIES,
+  encodeSandboxId,
   extractDaytonaError,
   mapDaytonaSandbox,
 } from '@/tools/daytona/utils'
@@ -29,8 +30,7 @@ export const daytonaGetSandboxTool: ToolConfig<DaytonaGetSandboxParams, DaytonaS
   },
 
   request: {
-    url: (params) =>
-      `${DAYTONA_API_BASE_URL}/sandbox/${encodeURIComponent(params.sandboxId.trim())}`,
+    url: (params) => `${DAYTONA_API_BASE_URL}/sandbox/${encodeSandboxId(params.sandboxId)}`,
     method: 'GET',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,

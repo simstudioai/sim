@@ -82,14 +82,17 @@ export const daytonaExecuteCommandTool: ToolConfig<
     return {
       success: true,
       output: {
-        exitCode: data.exitCode ?? 0,
+        exitCode: data.exitCode ?? -1,
         result: data.result ?? '',
       },
     }
   },
 
   outputs: {
-    exitCode: { type: 'number', description: 'Exit code of the command' },
+    exitCode: {
+      type: 'number',
+      description: 'Exit code of the command (-1 if missing from the response)',
+    },
     result: { type: 'string', description: 'Combined stdout/stderr output of the command' },
   },
 }

@@ -2,8 +2,10 @@ import type { DaytonaDeleteSandboxParams, DaytonaSandboxResponse } from '@/tools
 import {
   DAYTONA_API_BASE_URL,
   DAYTONA_SANDBOX_OUTPUT_PROPERTIES,
+  encodeSandboxId,
   extractDaytonaError,
   mapDaytonaSandbox,
+  parseDaytonaJson,
 } from '@/tools/daytona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -32,8 +34,7 @@ export const daytonaDeleteSandboxTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${DAYTONA_API_BASE_URL}/sandbox/${encodeURIComponent(params.sandboxId.trim())}`,
+    url: (params) => `${DAYTONA_API_BASE_URL}/sandbox/${encodeSandboxId(params.sandboxId)}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -44,7 +45,7 @@ export const daytonaDeleteSandboxTool: ToolConfig<
     if (!response.ok) {
       throw new Error(await extractDaytonaError(response, 'Failed to delete sandbox'))
     }
-    const data = await response.json()
+    const data = await parseDaytonaJson(response)
     return {
       success: true,
       output: {

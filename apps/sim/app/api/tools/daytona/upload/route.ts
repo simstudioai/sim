@@ -51,6 +51,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
       if (denied) return denied
 
+      if (userFile.size > MAX_UPLOAD_SIZE_BYTES) {
+        const sizeMB = (userFile.size / (1024 * 1024)).toFixed(2)
+        return NextResponse.json(
+          { success: false, error: `File size (${sizeMB}MB) exceeds upload limit of 100MB` },
+          { status: 400 }
+        )
+      }
+
       logger.info(`[${requestId}] Downloading file: ${userFile.name} (${userFile.size} bytes)`)
       fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
       fileName = params.fileName || userFile.name
@@ -70,9 +78,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const destinationPath = params.destinationPath.endsWith('/')
-      ? `${params.destinationPath}${fileName}`
-      : params.destinationPath
+    const requestedPath = params.destinationPath.trim()
+    if (!requestedPath) {
+      return NextResponse.json(
+        { success: false, error: 'Destination path is required' },
+        { status: 400 }
+      )
+    }
+    const destinationPath = requestedPath.endsWith('/')
+      ? `${requestedPath}${fileName}`
+      : requestedPath
 
     logger.info(
       `[${requestId}] Uploading to Daytona sandbox ${params.sandboxId}: ${destinationPath} (${fileBuffer.length} bytes)`

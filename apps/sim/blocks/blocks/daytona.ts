@@ -62,7 +62,9 @@ export const DaytonaBlock: BlockConfig = {
       id: 'sandboxId',
       title: 'Sandbox ID',
       type: 'short-input',
-      placeholder: 'ID or name of the sandbox',
+      placeholder: 'ID of the sandbox',
+      description:
+        'Get, start, stop, and delete also accept the sandbox name; all other operations require the ID',
       condition: { field: 'operation', value: SANDBOX_SCOPED_OPERATIONS },
       required: { field: 'operation', value: SANDBOX_SCOPED_OPERATIONS },
     },
@@ -430,13 +432,17 @@ export const DaytonaBlock: BlockConfig = {
             baseParams.code = rest.code
             baseParams.language = rest.language
             if (rest.runEnv) baseParams.env = rest.runEnv
-            if (rest.timeout) baseParams.timeout = Number(rest.timeout)
+            if (rest.timeout !== undefined && rest.timeout !== '') {
+              baseParams.timeout = Number(rest.timeout)
+            }
             break
           case 'execute_command':
             baseParams.command = rest.command
             if (rest.cwd) baseParams.cwd = rest.cwd
             if (rest.runEnv) baseParams.env = rest.runEnv
-            if (rest.timeout) baseParams.timeout = Number(rest.timeout)
+            if (rest.timeout !== undefined && rest.timeout !== '') {
+              baseParams.timeout = Number(rest.timeout)
+            }
             break
           case 'upload_file': {
             const normalizedFile = normalizeFileInput(rest.file, { single: true })
@@ -475,7 +481,11 @@ export const DaytonaBlock: BlockConfig = {
   inputs: {
     operation: { type: 'string', description: 'Operation to perform' },
     apiKey: { type: 'string', description: 'Daytona API key' },
-    sandboxId: { type: 'string', description: 'ID or name of the sandbox' },
+    sandboxId: {
+      type: 'string',
+      description:
+        'Sandbox ID (get, start, stop, and delete operations also accept the sandbox name)',
+    },
     snapshot: { type: 'string', description: 'Snapshot to create the sandbox from' },
     sandboxName: { type: 'string', description: 'Name for the sandbox' },
     target: { type: 'string', description: 'Region for the sandbox' },

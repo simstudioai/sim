@@ -79,7 +79,7 @@ List Daytona sandboxes in the organization
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Daytona API key |
-| `limit` | number | No | Maximum number of sandboxes to return |
+| `limit` | number | No | Maximum number of sandboxes to return \(1-200\) |
 | `name` | string | No | Filter sandboxes by name prefix \(case-insensitive\) |
 | `labels` | json | No | Filter sandboxes by labels as key-value pairs |
 | `cursor` | string | No | Pagination cursor from a previous response |
@@ -178,7 +178,7 @@ Execute a shell command inside a Daytona sandbox
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `exitCode` | number | Exit code of the command |
+| `exitCode` | number | Exit code of the command \(-1 if missing from the response\) |
 | `result` | string | Combined stdout/stderr output of the command |
 
 ### `daytona_run_code`
@@ -200,7 +200,7 @@ Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `exitCode` | number | Exit code of the code run |
+| `exitCode` | number | Exit code of the code run \(-1 if missing from the response\) |
 | `result` | string | Combined stdout/stderr output of the code run |
 | `artifacts` | json | Artifacts produced by the run \(e.g., matplotlib charts\) |
 

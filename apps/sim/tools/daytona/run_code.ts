@@ -76,7 +76,7 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
     return {
       success: true,
       output: {
-        exitCode: data.exitCode ?? 0,
+        exitCode: data.exitCode ?? -1,
         result: data.result ?? '',
         artifacts: data.artifacts ?? null,
       },
@@ -84,7 +84,10 @@ export const daytonaRunCodeTool: ToolConfig<DaytonaRunCodeParams, DaytonaRunCode
   },
 
   outputs: {
-    exitCode: { type: 'number', description: 'Exit code of the code run' },
+    exitCode: {
+      type: 'number',
+      description: 'Exit code of the code run (-1 if missing from the response)',
+    },
     result: { type: 'string', description: 'Combined stdout/stderr output of the code run' },
     artifacts: {
       type: 'json',

@@ -5,10 +5,36 @@ export const DAYTONA_API_BASE_URL = 'https://app.daytona.io/api'
 export const DAYTONA_TOOLBOX_BASE_URL = 'https://proxy.app.daytona.io/toolbox'
 
 /**
+ * Trims and URL-encodes a sandbox identifier, rejecting empty values so a
+ * blank ID can never resolve to a different API route.
+ */
+export function encodeSandboxId(sandboxId: string): string {
+  const trimmed = sandboxId?.trim()
+  if (!trimmed) {
+    throw new Error('Sandbox ID is required')
+  }
+  return encodeURIComponent(trimmed)
+}
+
+/**
  * Builds a toolbox API URL for a sandbox-scoped endpoint.
  */
 export function daytonaToolboxUrl(sandboxId: string, path: string): string {
-  return `${DAYTONA_TOOLBOX_BASE_URL}/${encodeURIComponent(sandboxId.trim())}${path}`
+  return `${DAYTONA_TOOLBOX_BASE_URL}/${encodeSandboxId(sandboxId)}${path}`
+}
+
+/**
+ * Parses a Daytona API JSON response, tolerating empty bodies (e.g., 204 or
+ * empty 200 responses from lifecycle endpoints).
+ */
+export async function parseDaytonaJson(response: Response): Promise<Record<string, any>> {
+  const text = await response.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return {}
+  }
 }
 
 /**
@@ -43,7 +69,10 @@ export function toOptionalNumber(value: unknown): number | undefined {
 export function toOptionalBoolean(value: unknown): boolean | undefined {
   if (value === undefined || value === null || value === '') return undefined
   if (typeof value === 'boolean') return value
-  return value === 'true'
+  const normalized = String(value).trim().toLowerCase()
+  if (normalized === 'true') return true
+  if (normalized === 'false') return false
+  return undefined
 }
 
 /**

@@ -32,7 +32,7 @@ export const daytonaListSandboxesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of sandboxes to return',
+      description: 'Maximum number of sandboxes to return (1-200)',
     },
     name: {
       type: 'string',
@@ -58,7 +58,9 @@ export const daytonaListSandboxesTool: ToolConfig<
     url: (params) => {
       const query = new URLSearchParams()
       const limit = toOptionalNumber(params.limit)
-      if (limit !== undefined) query.set('limit', String(limit))
+      if (limit !== undefined) {
+        query.set('limit', String(Math.min(Math.max(Math.trunc(limit), 1), 200)))
+      }
       if (params.name) query.set('name', params.name)
       const labels = transformTable(params.labels ?? null)
       if (Object.keys(labels).length > 0) query.set('labels', JSON.stringify(labels))

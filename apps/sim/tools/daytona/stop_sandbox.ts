@@ -2,8 +2,10 @@ import type { DaytonaSandboxResponse, DaytonaStopSandboxParams } from '@/tools/d
 import {
   DAYTONA_API_BASE_URL,
   DAYTONA_SANDBOX_OUTPUT_PROPERTIES,
+  encodeSandboxId,
   extractDaytonaError,
   mapDaytonaSandbox,
+  parseDaytonaJson,
 } from '@/tools/daytona/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,8 +32,7 @@ export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, Dayton
     },
 
     request: {
-      url: (params) =>
-        `${DAYTONA_API_BASE_URL}/sandbox/${encodeURIComponent(params.sandboxId.trim())}/stop`,
+      url: (params) => `${DAYTONA_API_BASE_URL}/sandbox/${encodeSandboxId(params.sandboxId)}/stop`,
       method: 'POST',
       headers: (params) => ({
         Authorization: `Bearer ${params.apiKey}`,
@@ -42,7 +43,7 @@ export const daytonaStopSandboxTool: ToolConfig<DaytonaStopSandboxParams, Dayton
       if (!response.ok) {
         throw new Error(await extractDaytonaError(response, 'Failed to stop sandbox'))
       }
-      const data = await response.json()
+      const data = await parseDaytonaJson(response)
       return {
         success: true,
         output: {
