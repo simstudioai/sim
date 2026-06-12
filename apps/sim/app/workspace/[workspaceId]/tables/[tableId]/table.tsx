@@ -428,8 +428,11 @@ export function Table({
     if (!tableData) return
     try {
       // Big tables export as a background job (the file downloads when the job completes via the
-      // SSE stream); small ones keep the instant synchronous stream.
-      if (tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
+      // SSE stream); small ones keep the instant synchronous stream. While a delete job runs,
+      // rowCount is a doomed-estimate-adjusted number — not ground truth — so always take the
+      // async path (safe at any size; exports bypass the one-job-per-table gate).
+      const deleteRunning = tableData.jobType === 'delete' && tableData.jobStatus === 'running'
+      if (deleteRunning || tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
         await exportTableAsync.mutateAsync({ format: 'csv' })
         toast.success('Export started — the download will begin when it finishes')
       } else {
