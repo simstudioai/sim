@@ -415,10 +415,10 @@ async function runCheckpointLoop(
       // unknown — can park the checkpoint loop (and the chat's pending-stream
       // lock) forever.
       const waitBudgetMs =
-        Math.max(
-          ...Array.from(context.pendingToolPromises.keys(), (toolCallId) =>
-            toolWatchdogTimeoutMs(context.toolCalls.get(toolCallId)?.name)
-          )
+        Array.from(context.pendingToolPromises.keys()).reduce(
+          (max, toolCallId) =>
+            Math.max(max, toolWatchdogTimeoutMs(context.toolCalls.get(toolCallId)?.name)),
+          0
         ) + TOOL_WATCHDOG_RESUME_GRACE_MS
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
