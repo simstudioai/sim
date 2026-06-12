@@ -572,18 +572,34 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 }
 
 /**
+ * Length-preserving copy of `content` with string-literal and comment
+ * interiors blanked out, so delimiter scans cannot be tripped by braces or
+ * quotes inside them. Indices into the result line up with indices into
+ * `content`.
+ */
+function blankStringsAndComments(content: string): string {
+  return content.replace(
+    /(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1|\/\/[^\n]*|\/\*[\s\S]*?\*\//g,
+    (match) => match[0] + match.slice(1, -1).replace(/[^\n]/g, ' ') + match[match.length - 1]
+  )
+}
+
+/**
  * Extract the OAuth service id from the block's `oauth-input` credential
  * subBlock. Scoped to that subBlock's object literal so `serviceId` fields on
- * other subBlocks (e.g. file selectors) are never picked up.
+ * other subBlocks (e.g. file selectors) are never picked up. Brace matching
+ * runs on a blanked copy of the content so string literals and comments
+ * containing braces cannot skew it.
  */
 function extractOAuthServiceId(blockContent: string): string | undefined {
   const typeMatch = /type\s*:\s*['"]oauth-input['"]/.exec(blockContent)
   if (!typeMatch) return undefined
 
+  const scannable = blankStringsAndComments(blockContent)
   let depth = 0
   let objectStart = -1
   for (let i = typeMatch.index; i >= 0; i--) {
-    const char = blockContent[i]
+    const char = scannable[i]
     if (char === '}') depth++
     else if (char === '{') {
       if (depth === 0) {
@@ -595,7 +611,7 @@ function extractOAuthServiceId(blockContent: string): string | undefined {
   }
   if (objectStart === -1) return undefined
 
-  const objectEnd = findMatchingClose(blockContent, objectStart)
+  const objectEnd = findMatchingClose(scannable, objectStart)
   if (objectEnd === -1) return undefined
   const subBlockContent = blockContent.substring(objectStart, objectEnd)
   return /serviceId\s*:\s*['"]([^'"]+)['"]/.exec(subBlockContent)?.[1]
