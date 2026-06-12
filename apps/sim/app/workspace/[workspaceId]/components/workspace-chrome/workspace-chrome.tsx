@@ -172,12 +172,18 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
               popover surface (rounded-xl, --border-1, --bg, shadow-sm) and enter
               motion (fade + zoom + slide from top, 150ms ease-out). Content-fit
               like a dropdown: height tracks the menu, capped so it scrolls
-              internally instead of overflowing the viewport. */}
+              internally instead of overflowing the viewport. In floating-stage
+              mode the toggle sits ~28px lower (under the peek bar, inside the
+              front card), so the flyout drops with it instead of covering the
+              stack. */}
           <div
             onMouseEnter={openFlyout}
             onMouseLeave={scheduleFlyoutClose}
             className={cn(
-              'absolute top-[50px] left-[8px] z-50 flex max-h-[calc(100%-58px)] w-[var(--sidebar-width)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm',
+              'absolute left-[8px] z-50 flex w-[var(--sidebar-width)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm',
+              isStageFloating
+                ? 'top-[78px] max-h-[calc(100%-86px)]'
+                : 'top-[50px] max-h-[calc(100%-58px)]',
               'origin-top-left transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none',
               isFlyoutOpen
                 ? 'translate-y-0 scale-100 opacity-100'
