@@ -510,11 +510,14 @@ export function Tables() {
     ? `${uploadProgress.completed}/${uploadProgress.total}`
     : 'Import CSV'
 
+  // `mutateAsync` is stable in TanStack Query v5 — extract it so the callback
+  // can list it as a dep instead of the unstable mutation object.
+  const createTableAsync = createTable.mutateAsync
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
     const name = generateUniqueTableName(existingNames)
     try {
-      const result = await createTable.mutateAsync({
+      const result = await createTableAsync({
         name,
         schema: {
           columns: [{ name: 'name', type: 'string' }],
@@ -528,8 +531,7 @@ export function Tables() {
     } catch (err) {
       logger.error('Failed to create table:', err)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
-  }, [tables, router, workspaceId])
+  }, [tables, router, workspaceId, createTableAsync])
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
