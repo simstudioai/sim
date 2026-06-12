@@ -71,6 +71,9 @@ export type TableUndoAction =
       columnName: string
       previousType: ColumnDefinition['type']
       newType: ColumnDefinition['type']
+      /** Options to restore when undoing back to a select column (the server
+       *  strips them on the way out of select). */
+      previousOptions?: string[]
     }
   | {
       type: 'toggle-column-constraint'

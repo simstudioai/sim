@@ -38,8 +38,9 @@ export type CellRenderKind =
   | { kind: 'url'; text: string; href: string; domain: string }
   | { kind: 'email'; text: string; href: string }
   | { kind: 'phone'; text: string; href: string }
-  /** `known` — value is one of the column's predefined options (drives tag color). */
-  | { kind: 'select'; text: string; known: boolean }
+  /** `option` — canonical predefined option matched case-insensitively;
+   *  undefined means an off-list value (renders as a gray tag). */
+  | { kind: 'select'; text: string; option?: string }
   | { kind: 'rating'; value: number }
   | {
       kind: 'sim-resource'
@@ -150,7 +151,9 @@ export function resolveCellRender({
     case 'select': {
       if (isEmpty) return { kind: 'empty' }
       const text = stringifyValue(value)
-      return { kind: 'select', text, known: (column.options ?? []).includes(text) }
+      const lower = text.toLowerCase()
+      const option = (column.options ?? []).find((o) => o.toLowerCase() === lower)
+      return { kind: 'select', text, option }
     }
     case 'currency':
       return {
@@ -444,7 +447,7 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
       return (
         <span className={cn('flex min-w-0 items-center', isEditing && 'invisible')}>
           <Badge
-            variant={kind.known ? selectBadgeVariant(kind.text) : 'gray'}
+            variant={kind.option !== undefined ? selectBadgeVariant(kind.option) : 'gray'}
             size='sm'
             className='max-w-full'
           >
