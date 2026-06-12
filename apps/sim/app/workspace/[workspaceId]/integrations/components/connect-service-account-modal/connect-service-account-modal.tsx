@@ -25,10 +25,10 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
 
-/** Provider docs for creating the credential, docked bottom-left of each modal. */
-const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://cloud.google.com/iam/docs/keys-create-delete'
+/** Sim setup guides for each provider, docked bottom-left of each modal. */
+const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
 const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
-  'https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/'
+  'https://docs.sim.ai/integrations/atlassian-service-account'
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
