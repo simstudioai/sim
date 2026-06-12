@@ -3,50 +3,47 @@ title: 'Tools: Giving Agents Capabilities'
 description: How tools let agents act beyond text generation.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Tools: Giving Agents Capabilities"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/07-custom-tools.mp4" />
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Custom Tools" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/07-custom-tools.mp4" className="mt-2" />
 
-## Video timeline (1:06)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — A tool in action
-- **0:12** — The schema
-- **0:28** — The code
-- **0:45** — Onto the table
-- **0:53** — The agent decides
+## Custom Tools
 
+Agents act through tools, and you can write your own. A custom tool is two parts — a schema the model reads, and code that runs when the agent calls it. This lesson builds one and puts it on the agent's tool line.
 
-**Learning outcome.** The learner understands how tools let agents act beyond text generation.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Write the schema",
+      body: "Name, description, parameters \u2014 the only part the model ever sees.",
+    },
+    {
+      title: "Return results from code",
+      body: "Parameters arrive as variables; whatever you return is what the agent reads.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. The problem
+<CourseProgress
+  course="Agents, Tools, MCP, Skills"
+  durationLabel="Approx. 11 min"
+  progress={0}
+  lessons={[
+    { title: "Agents", duration: "1:14" },
+    { title: "Custom Tools", duration: "1:06", active: true },
+    { title: "MCP & Workflow as Tool", duration: "1:15" },
+    { title: "Skills", duration: "3:30" },
+    { title: "Choosing a Capability", duration: "3:45" },
+  ]}
+/>
 
-An agent without tools can reason. An agent with tools can search, call APIs, access services, trigger actions, or use workspace capabilities.
-
-### 2. What a tool is
-
-A capability the agent can call during its reasoning — a search, an API call, an integration action, a workflow, or an MCP tool.
-
-### 3. Auto vs. force
-
-- **Auto** — the model decides whether to call the tool.
-- **Force** — the model must call the tool.
-
-Use force when the workflow requires that capability.
-
-### 4. Tool parameters
-
-- **Prefilled parameters** = fixed by the builder.
-- **Empty / model-filled parameters** = the agent decides based on context.
-
-This matters for predictable behavior.
-
-### 5. Tool outputs
-
-Tool calls appear in the agent's output and logs. The final content is separate from the tool-call trace.
-
-<Callout type="warn">
-Open product questions: what happens on failed tool calls, whether the agent retries, how loops / tool retries should be explained, and how much of the tool-call trace is visible in the UI.
-</Callout>
+</div>
+</div>

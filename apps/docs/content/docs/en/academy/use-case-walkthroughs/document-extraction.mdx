@@ -4,38 +4,46 @@ description: Process documents into structured outputs and generated reports.
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Document Extraction / Report Generator"  src="/static/academy-preview/21-document-extraction.mp4" />
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="Document Extraction" src="/static/academy-preview/21-document-extraction.mp4" className="mt-2" />
 
-**Learning outcome.** The learner understands how to process documents into structured outputs. Bridges files, tables, agents, and structured outputs.
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-## Problem
+## Document Extraction
 
-Documents contain useful information but are hard to process manually.
+Invoices arrive as documents; rows land in a database. This walkthrough follows the product's OCR template end to end — extraction with Textract, structured fields, and the table filling row by row.
 
-## System sketch
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Extract structure from paper",
+      body: "See what the OCR tool call actually returns, confidences included.",
+    },
+    {
+      title: "Map fields to columns",
+      body: "The agent's extraction lands in the table, one invoice per row.",
+    },
+  ]}
+/>
 
-```
-upload file
-→ extract fields
-→ write structured data to a table
-→ generate a summary/report
-```
+</div>
+<div>
 
-## Modules used
+<CourseProgress
+  course="Use-Case Walkthroughs"
+  durationLabel="Approx. 15 min"
+  progress={0}
+  lessons={[
+    { title: "GTM / Lead Enrichment", duration: "1:05" },
+    { title: "Document Extraction", duration: "1:02", active: true },
+    { title: "Slack IT Bot", duration: "4:30" },
+    { title: "Codebase Docs Q&A", duration: "4:00" },
+    { title: "Polymarket Research", duration: "4:20" },
+  ]}
+/>
 
-Files · workflow · agent · structured output · table · logs.
-
-## Key distinction
-
-- **File** = the artifact.
-- **Table** = the extracted structured result.
-- **Knowledge Base** = searchable memory, if many docs need retrieval.
-
-## Deployment
-
-Manual upload, API, or chat depending on the use case.
-
-## Takeaways
-
-The upload → extract → structure → generate shape underlies most document-processing systems.
+</div>
+</div>

@@ -3,44 +3,45 @@ title: Workspaces Intro
 description: What a workspace contains and why workspace organization matters.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Workspaces, Credentials, Permissions" title="Workspaces Intro"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/17-workspaces.mp4" />
+<VideoPlaceholder eyebrow="Workspaces & Credentials" title="Workspaces Intro" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/17-workspaces.mp4" className="mt-2" />
 
-## Video timeline (1:20)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — One box
-- **0:12** — Members join
-- **0:25** — The boundary
-- **0:38** — Connect an account
-- **0:51** — One credential three blocks
-- **1:11** — The unit
+## Workspaces Intro
 
+A workspace is one box: objects, members, and connected credentials all live inside it. This lesson shows the boundary, how people join, and how one credential serves every block that references it.
 
-**Learning outcome.** The learner understands what a workspace contains and why workspace organization matters.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Think in boundaries",
+      body: "Resources do not cross workspaces; people join the box with a permission level.",
+    },
+    {
+      title: "Connect accounts once",
+      body: "One Google credential unlocks Gmail, Drive, and Calendar for everyone inside.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. Workspace as system boundary
+<CourseProgress
+  course="Workspaces & Credentials"
+  durationLabel="Approx. 9 min"
+  progress={0}
+  lessons={[
+    { title: "Workspaces Intro", duration: "1:20", active: true },
+    { title: "Credentials & Integrations", duration: "4:10" },
+    { title: "Permissions & Handoff", duration: "3:50" },
+  ]}
+/>
 
-A workspace contains the resources for a system: workflows, tables, files, knowledge bases, integrations, credentials, deployments, and logs.
-
-### 2. Personal vs. team / customer workspace
-
-- **Personal** — your own experiments and resources.
-- **Team / customer** — a shared environment where multiple people access and operate systems.
-
-### 3. Workspace organization
-
-Organize workflows and resources so systems are understandable. Hierarchy matters for bigger systems; the desired pattern is folders across all resource types to make subsystems easier to manage.
-
-### 4. Workspace as customer app
-
-For partners and enterprise, the workspace is effectively the customer's app environment — what they'll use, own, and maintain.
-
-## Avoid
-
-- Don't deep-dive credential security yet.
-- Don't explain every settings page.
-- Don't make this a beginner-intro priority unless needed.
+</div>
+</div>

@@ -3,56 +3,47 @@ title: Mothership Intro
 description: What Mothership is and the role it plays in Sim.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder title="Mothership Intro"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/02-mothership.mp4" />
+<VideoPlaceholder eyebrow="Mothership" title="Mothership Intro" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/02-mothership.mp4" className="mt-2" />
 
-## Video timeline (2:15)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — The chat beside the canvas
-- **0:14** — Describe it
-- **0:35** — Mothership builds
-- **0:59** — Run it
-- **1:20** — Edit it
-- **1:42** — Every object same loop
-- **2:02** — The workspace you described
+## Mothership Intro
 
+Mothership is a chat that sits beside your workspace: you describe what you want, and the real objects appear and change as you talk. This lesson shows the describe, build, run, and edit loop on a real workflow.
 
-**Purpose.** Teach what Mothership is and what role it plays.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Describe a system into existence",
+      body: "Watch one sentence become real blocks, wired into a workflow that lives in your workspace.",
+    },
+    {
+      title: "Edit by describing the change",
+      body: "Swap a model on one block in place \u2014 without rebuilding anything.",
+    },
+  ]}
+/>
 
-**Learning outcome.** The learner understands Mothership as a natural-language builder and control plane — not just a chatbot.
+</div>
+<div>
 
-## What to say
+<CourseProgress
+  course="Mothership"
+  durationLabel="Approx. 18 min"
+  progress={0}
+  lessons={[
+    { title: "Mothership Intro", duration: "2:15", active: true },
+    { title: "Building with Mothership", duration: "4:30" },
+    { title: "Debugging with Mothership", duration: "3:50" },
+    { title: "Non-determinism", duration: "3:10" },
+    { title: "Prototype, Refine, Promote", duration: "4:00" },
+  ]}
+/>
 
-Teach Mothership as:
-
-- a natural-language interface over the workspace
-- something that can create workflows and resources
-- something that can edit and refactor systems
-- something that can help inspect and debug
-- a layer that sits above the primitives, but does not replace understanding them
-
-> Mothership is how you describe the system you want before you manually reason about every block.
-
-## Key beats
-
-- natural-language builder and control plane
-- creates workflows and resources
-- works over workspace primitives
-- not just a chatbot
-- not every output will be perfect on the first try
-
-## What Mothership can see and do
-
-Frame this carefully — without over-indexing on internal implementation:
-
-> Mothership can reason over different parts of your workspace and use internal product capabilities to create, inspect, and revise systems.
-
-What the learner needs to know: Mothership operates over workspace resources, knows about the workflows and objects in the workspace, has more local context in scoped workflow-editing (Copilot), and can often inspect logs and help fix issues. It is not omniscient — it still works through the product's available primitives and resource visibility.
-
-## What not to do
-
-- Don't imply Mothership always produces a perfect first build.
-- Don't position it as replacing knowledge of the primitives.
-- Don't lean on internal-implementation terms (e.g. "subagents") unless that becomes official product language.
+</div>
+</div>

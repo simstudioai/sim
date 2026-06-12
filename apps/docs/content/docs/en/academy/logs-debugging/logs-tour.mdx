@@ -3,52 +3,45 @@ title: 'Logs Tour: Understanding a Workflow Run'
 description: The logs interface — inspect a workflow run block by block.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Logs & Debugging" title="Logs Tour"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/16-logs.mp4" />
+<VideoPlaceholder eyebrow="Logs & Debugging" title="Logs Tour" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/16-logs.mp4" className="mt-2" />
 
-## Video timeline (1:16)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — A run happens
-- **0:14** — The record
-- **0:25** — What it really did
-- **0:43** — Read it backwards
-- **1:07** — Every run writes one
+## Logs Tour
 
+Every run produces a log: every block in order, with timing, tool calls, and tokens. This lesson tours one real record and shows how to read it backwards from a value to its source.
 
-**Learning outcome.** The learner understands the logs interface and can inspect a workflow run.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Read where the time went",
+      body: "Per-block durations show exactly where the twelve seconds of a run were spent.",
+    },
+    {
+      title: "Trace a value to its source",
+      body: "Debugging is reading the log backwards, step by step.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. Why logs matter
+<CourseProgress
+  course="Logs & Debugging"
+  durationLabel="Approx. 9 min"
+  progress={0}
+  lessons={[
+    { title: "Logs Tour", duration: "1:16", active: true },
+    { title: "Debugging Strategies", duration: "4:00" },
+    { title: "Debugging with Mothership", duration: "3:30" },
+  ]}
+/>
 
-Workflows can fail or produce unexpected outputs. Logs show what actually happened.
-
-### 2. Open a workflow run
-
-Show the run list / logs page, and select a run.
-
-### 3. Timeline / run structure
-
-Show the sequence of blocks, explain successful vs. failed blocks, and point out that a failed block is highlighted.
-
-### 4. Block details
-
-Click a block and show its input, output, error (if any), timing, and model / tool details where relevant.
-
-### 5. Basic interpretation
-
-Logs answer:
-
-```
-What ran?
-In what order?
-What did each block receive?
-What did each block return?
-Where did it fail?
-```
-
-<Callout type="info">
-Keep it light — the goal here is interface literacy, not deep debugging or cost analysis.
-</Callout>
+</div>
+</div>

@@ -3,62 +3,47 @@ title: 'How Workflows Run: Triggers, Branches, Loops, and Parallel Steps'
 description: A high-level model of how a workflow executes, for builders who need to reason about why a run behaved the way it did.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder title="How Workflows Run"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/10-loops-and-parallel.mp4" />
+<VideoPlaceholder eyebrow="Workflows" title="Loops & Parallel" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/10-loops-and-parallel.mp4" className="mt-2" />
 
-## Video timeline (1:28)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — A block that holds blocks
-- **0:16** — What the loop knows
-- **0:26** — One at a time
-- **0:42** — The results come out
-- **0:54** — Swap the container
-- **1:08** — All at once
-- **1:21** — Two schedules one shape
+## Loops & Parallel
 
+Some jobs are a list — the same steps for every item. This lesson covers the Loop container, which runs its inside once per item, and Parallel, which runs every copy at the same time.
 
-**Purpose.** Explain how workflows execute at a high level. Partners and serious builders need to reason about *why* a workflow ran the way it did — it may be too advanced for the first intro, but it's an important workflow follow-up.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Iterate with a Loop",
+      body: "Watch the current-item reference resolve to a new value on every pass.",
+    },
+    {
+      title: "Fan out with Parallel",
+      body: "Same steps, run simultaneously \u2014 and the same results array out.",
+    },
+  ]}
+/>
 
-**Learning outcome.** The learner understands that workflows start from a trigger or input, blocks run based on dependencies, branches and conditions affect the path, loops repeat work, parallel blocks may run independently, and the response/output determines the result.
+</div>
+<div>
 
-**Core message.**
+<CourseProgress
+  course="Workflows"
+  durationLabel="Approx. 12 min"
+  progress={0}
+  lessons={[
+    { title: "Workflows Intro", duration: "1:55" },
+    { title: "Common Blocks & Branching", duration: "1:28" },
+    { title: "Data Flow & References", duration: "3:30" },
+    { title: "Loops & Parallel", duration: "1:28", active: true },
+    { title: "Testing & Debugging", duration: "3:45" },
+  ]}
+/>
 
-> A block can run when the data it depends on is available.
-
-## 1. Trigger / start
-
-A workflow begins from a manual run, a webhook, a schedule, a table workflow group, or a deployed API / chat / MCP surface. Keep this high level.
-
-## 2. Dependency-based execution
-
-A block runs when the data it depends on is ready. Don't overcomplicate this with full topological execution unless the audience needs it.
-
-## 3. Branching
-
-Condition blocks (and routers, where applicable) select which path runs.
-
-## 4. Loops
-
-Loops repeat work over a list, pages, or rows.
-
-> An API returns 20 items per page; a loop fetches pages until done.
-
-## 5. Parallel
-
-Parallel steps run independent work at the same time — useful for multiple calls at once. Be explicit about how this differs from a loop: a loop repeats the same step over items; parallel runs different steps concurrently.
-
-## 6. Response / output behavior
-
-The final response block, selected outputs, and deployed workflows determine what the run returns.
-
-## 7. Logs show the execution path
-
-Tie back to logs — the run record shows which branches, loops, and parallel steps actually executed.
-
-## What to avoid
-
-- Don't go too theoretical.
-- Don't teach every trigger.
-- Don't make this required for beginner orientation.
+</div>
+</div>

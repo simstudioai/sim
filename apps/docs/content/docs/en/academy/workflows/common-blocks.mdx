@@ -3,60 +3,47 @@ title: Common Workflow Blocks and When to Use Them
 description: A practical, role-based map of the blocks you'll reach for most.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder title="Common Workflow Blocks"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/09-branching.mp4" />
+<VideoPlaceholder eyebrow="Workflows" title="Common Blocks & Branching" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/09-branching.mp4" className="mt-2" />
 
-## Video timeline (1:28)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — A fork in the flow
-- **0:10** — The rule decides
-- **0:27** — The other path
-- **0:42** — Swap the decider
-- **0:55** — The model decides
-- **1:08** — The run record
-- **1:19** — Still one workflow
+## Common Blocks & Branching
 
+A workflow does not have to be a straight line — it can fork. This lesson shows the two deciders: the Condition block, which picks a branch with a rule, and the Router, which picks with a model.
 
-**Purpose.** Give a practical map of common workflow building blocks — grouped by role, not listed alphabetically.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Branch with a rule",
+      body: "Conditions check top to bottom; the first true branch wins, instantly.",
+    },
+    {
+      title: "Branch by meaning",
+      body: "A Router reads the input and picks a named route with a real model call.",
+    },
+  ]}
+/>
 
-**Learning outcome.** The learner recognizes common block types and knows when they'd use each.
+</div>
+<div>
 
-## Grouping by role
+<CourseProgress
+  course="Workflows"
+  durationLabel="Approx. 12 min"
+  progress={0}
+  lessons={[
+    { title: "Workflows Intro", duration: "1:55" },
+    { title: "Common Blocks & Branching", duration: "1:28", active: true },
+    { title: "Data Flow & References", duration: "3:30" },
+    { title: "Loops & Parallel", duration: "1:28" },
+    { title: "Testing & Debugging", duration: "3:45" },
+  ]}
+/>
 
-### Input / trigger
-
-Start, webhook, schedule, table trigger.
-
-### Reasoning
-
-Agent, and possibly Evaluator.
-
-### Data / transformation
-
-Function, API, Table.
-
-### Control flow
-
-Condition, Router, Loop, Parallel.
-
-### Human / output
-
-Response, human-in-the-loop, and Slack / email / message blocks.
-
-### Capability / tool
-
-Integrations, MCP, and the Workflow block.
-
-## Teaching strategy
-
-For each group, answer three questions: what problem does it solve, when would you use it, and what common mistake happens? For example:
-
-> Use Function blocks when the data is almost right but needs reshaping.
-
-## What to avoid
-
-- Don't make this exhaustive — the block list changes.
-- Don't over-index on exact UI names.
-- Keep it a mental map, not a catalog. See [Blocks](/blocks) for the complete reference.
+</div>
+</div>

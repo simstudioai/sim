@@ -3,49 +3,51 @@ title: MCP & Workflow-as-Tool
 description: How Sim connects to other AI tools and exposes workflows as tools (optional, advanced).
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="MCP & Workflow-as-Tool" label="Optional"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/11-subworkflows.mp4" />
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="MCP & Workflow as Tool" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/11-subworkflows.mp4" className="mt-2" />
 
-## Video timeline (1:15)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — The workflow you know
-- **0:08** — It becomes a block
-- **0:24** — The call begins
-- **0:33** — Inside the call
-- **0:51** — Back with the result
-- **1:02** — Workflows all the way up
+## MCP & Workflow as Tool
 
+Two ways to extend an agent without writing a tool yourself: connect an MCP server that brings its own tools, or hand the agent a whole workflow as a single callable step.
 
-## MCP servers
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Connect an MCP server",
+      body: "Point the workspace at a server URL and its tools land on the agent's table.",
+    },
+    {
+      title: "Call a workflow like a block",
+      body: "The parent run halts at the call while the child runs \u2014 then continues with its result.",
+    },
+  ]}
+/>
 
-<VideoPlaceholder title="Connecting MCP Servers" src="/static/academy-preview/19-mcp.mp4" />
+</div>
+<div>
 
-<Callout type="info">Optional, advanced.</Callout>
+<CourseProgress
+  course="Agents, Tools, MCP, Skills"
+  durationLabel="Approx. 11 min"
+  progress={0}
+  lessons={[
+    { title: "Agents", duration: "1:14" },
+    { title: "Custom Tools", duration: "1:06" },
+    { title: "MCP & Workflow as Tool", duration: "1:15", active: true },
+    { title: "Skills", duration: "3:30" },
+    { title: "Choosing a Capability", duration: "3:45" },
+  ]}
+/>
 
-**Learning outcome.** The learner understands how Sim connects to other AI tools and exposes workflows as tools.
+</div>
+</div>
 
-## Key beats
+## Connecting MCP servers
 
-### 1. MCP
-
-A standard way for AI systems to call external tools. Sim can connect MCP tools into agents and workflows.
-
-### 2. Workflow as tool
-
-A workflow can be used as a callable capability — useful for modular systems.
-
-### 3. Deploy a workflow as MCP
-
-Expose a Sim workflow to Claude, Cursor, Codex, and other clients.
-
-> Bringing Sim into your other AI tools.
-
-### 4. Agent-facing metadata
-
-The tool name and description matter — they help external agents know when to use the tool.
-
-<Callout type="warn">
-Open product questions: the tool-name validation issue, how much MCP belongs in Academy v0, and which clients the docs / videos should show first.
-</Callout>
+<VideoPlaceholder eyebrow="Agents, Tools, MCP, Skills" title="Connecting MCP Servers" src="/static/academy-preview/19-mcp.mp4" />

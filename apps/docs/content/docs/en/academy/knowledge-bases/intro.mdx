@@ -3,57 +3,46 @@ title: 'Knowledge Bases Intro: Searchable Memory for AI Systems'
 description: What knowledge bases are, when to use them, and how they differ from tables and files.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases Intro"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/04-knowledge-base.mp4" />
+<VideoPlaceholder eyebrow="Knowledge Bases" title="Knowledge Bases Intro" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/04-knowledge-base.mp4" className="mt-2" />
 
-## Video timeline (1:39)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — Answer from docs
-- **0:11** — The knowledge base
-- **0:27** — Split into passages
-- **0:45** — The closest passages
-- **0:56** — Into the context
-- **1:14** — The search record
-- **1:30** — Still your documents
+## Knowledge Bases Intro
 
+A knowledge base makes your documents searchable, so a workflow can put the relevant passages in front of the model before it answers. This lesson follows one question end to end.
 
-**Learning outcome.** The learner understands what knowledge bases are, when to use them, and how they differ from tables and files.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "See documents become chunks",
+      body: "The key unit is the document; Sim processes it into searchable chunks.",
+    },
+    {
+      title: "Ground an answer",
+      body: "Watch retrieved chunks enter the model's context before it writes a word.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. Start with the problem
+<CourseProgress
+  course="Knowledge Bases"
+  durationLabel="Approx. 12 min"
+  progress={0}
+  lessons={[
+    { title: "Knowledge Bases Intro", duration: "1:39", active: true },
+    { title: "Using a KB in a Workflow", duration: "3:50" },
+    { title: "KB vs Table vs File", duration: "3:20" },
+    { title: "Debugging Retrieval", duration: "3:40" },
+  ]}
+/>
 
-AI systems often need context from documents. Prompting everything by hand doesn't scale. Knowledge bases let systems retrieve relevant information when they need it.
-
-### 2. Define a knowledge base
-
-A knowledge base stores documents as searchable memory. Documents are processed into searchable chunks, and agents or workflows retrieve the relevant pieces during a run.
-
-### 3. When to use one
-
-Support docs, company policies, product docs, code docs, research notes, manuals, customer knowledge.
-
-### 4. Distinguish from tables and files
-
-- **Tables** = structured rows and fields.
-- **Files** = artifacts, documents, media.
-- **Knowledge Bases** = searchable context over document contents.
-
-> Use a knowledge base when the question is "find relevant information from a body of documents."
-
-### 5. Connect to workflows
-
-Workflows and agents can query a knowledge base, which grounds answers in actual source material:
-
-```
-user question → agent searches the KB → answer with relevant context
-```
-
-## Avoid
-
-- Don't overexplain vector databases.
-- Don't turn it into retrieval theory.
-- Don't teach every connector.
-- Don't go deep on chunk tuning in the intro.
+</div>
+</div>

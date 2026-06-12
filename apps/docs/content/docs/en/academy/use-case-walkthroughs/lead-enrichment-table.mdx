@@ -4,37 +4,46 @@ description: A table-backed enrichment and qualification pipeline using workflow
 ---
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="GTM / Lead Enrichment Table"  src="/static/academy-preview/20-lead-enrichment.mp4" />
+<VideoPlaceholder eyebrow="Use-Case Walkthroughs" title="GTM / Lead Enrichment" src="/static/academy-preview/20-lead-enrichment.mp4" className="mt-2" />
 
-**Learning outcome.** The learner understands table-backed enrichment and qualification. Shows active tables / workflow columns and maps to Clay-like use cases.
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-## Problem
+## GTM / Lead Enrichment
 
-Sales and recruiting teams have rows of leads or candidates and need enrichment, scoring, prioritization, and outreach.
+A complete enrichment pipeline on the product's own template: incomplete records in a table, one run fanning into parallel lanes, an agent enriching each row, and results written back.
 
-## System sketch
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Run a table-driven pipeline",
+      body: "One run, one lane per row, all at the same time.",
+    },
+    {
+      title: "Watch a row become agent input",
+      body: "The current-item reference resolves to a real lead inside one lane.",
+    },
+  ]}
+/>
 
-```
-lead row
-→ enrich company/contact
-→ qualify with an agent
-→ write reason/confidence
-→ optionally generate outreach
-```
+</div>
+<div>
 
-## Modules used
+<CourseProgress
+  course="Use-Case Walkthroughs"
+  durationLabel="Approx. 15 min"
+  progress={0}
+  lessons={[
+    { title: "GTM / Lead Enrichment", duration: "1:05", active: true },
+    { title: "Document Extraction", duration: "1:02" },
+    { title: "Slack IT Bot", duration: "4:30" },
+    { title: "Codebase Docs Q&A", duration: "4:00" },
+    { title: "Polymarket Research", duration: "4:20" },
+  ]}
+/>
 
-Table · workflow columns · agent · tools / integrations · structured output · logs.
-
-## Key concept
-
-> The pipeline comes to the data.
-
-## Deployment
-
-The table is the control surface — not necessarily an external API.
-
-## Takeaways
-
-Any "many records that each need enrichment and a decision" problem fits this table-backed shape.
+</div>
+</div>

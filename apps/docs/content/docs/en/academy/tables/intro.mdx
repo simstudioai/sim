@@ -3,55 +3,46 @@ title: 'Tables Intro: Structured State for AI Systems'
 description: What tables are for, when to use them, and how they relate to workflows.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Tables" title="Tables Intro"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/03-tables.mp4" />
+<VideoPlaceholder eyebrow="Tables" title="Tables Intro" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/03-tables.mp4" className="mt-2" />
 
-## Video timeline (1:26)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — The table
-- **0:14** — Rows and fields
-- **0:25** — The workflow
-- **0:36** — The read
-- **0:47** — The write
-- **1:00** — The record
-- **1:10** — Queue and record
+## Tables Intro
 
+Tables are the workspace's structured data: typed columns over rows. This lesson shows a workflow reading rows out, writing results back, and the table serving as both queue and record.
 
-**Learning outcome.** The learner understands what tables are for, when to use them, and how they relate to workflows.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Connect a workflow to a table",
+      body: "Query rows out through a Table block and write results back.",
+    },
+    {
+      title: "Use the table as queue and record",
+      body: "Run twice and see why nothing matches the second time.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. Start with the use case
+<CourseProgress
+  course="Tables"
+  durationLabel="Approx. 13 min"
+  progress={0}
+  lessons={[
+    { title: "Tables Intro", duration: "1:26", active: true },
+    { title: "Using Tables in Workflows", duration: "4:00" },
+    { title: "Workflow Columns", duration: "3:30" },
+    { title: "Table-backed Systems", duration: "4:15" },
+  ]}
+/>
 
-Many systems operate over lists — leads, tickets, candidates, companies, docs, markets. Tables give those records a persistent, inspectable home.
-
-### 2. Define a table
-
-- Rows = records / items.
-- Columns = fields / properties.
-- Column types: text, number, boolean, date, JSON.
-- Framing: spreadsheet-like visually, but really closer to **structured state** / a datatable.
-
-### 3. What belongs in tables
-
-Statuses, scores, categories, structured extraction results, research targets, workflow outputs — anything you want to filter, update, compare, or process repeatedly.
-
-### 4. Connect to workflows
-
-Workflows can read, write, and update tables, and tables make workflow outputs visible.
-
-> Workflows do the work. Tables keep the work inspectable.
-
-### 5. Preview active tables
-
-A workflow can run across rows and write outputs back into columns. Don't deep-dive yet — just plant the idea.
-
-> Instead of moving data into a pipeline, the pipeline can come to the data.
-
-## Avoid
-
-- Don't teach workflow columns deeply here.
-- Don't lean too hard on the spreadsheet comparison.
-- Don't dwell on other tools — at most, a brief "similar row-wise AI work pattern."
+</div>
+</div>

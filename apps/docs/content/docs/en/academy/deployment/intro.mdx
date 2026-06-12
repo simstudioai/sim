@@ -3,42 +3,47 @@ title: Deployments Intro
 description: What deployment means in Sim and the main deployment surfaces.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder eyebrow="Deployment" title="Deployments Intro"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/15-deployment.mp4" />
+<VideoPlaceholder eyebrow="Deployment" title="Deployment Intro" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/15-deployment.mp4" className="mt-2" />
 
-## Video timeline (1:55)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — A working workflow
-- **0:18** — Deploy
-- **0:38** — A call from outside
-- **1:03** — The chat surface
-- **1:36** — Runs when they run it
+## Deployment Intro
 
+Deploying does not change your workflow — it gives the same chain an address, so runs arrive from the outside. This lesson shows the editor run, the API call, and the chat surface, all on one workflow.
 
-**Learning outcome.** The learner understands what deployment means in Sim and the main deployment surfaces.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Give a workflow an address",
+      body: "The entry becomes an endpoint; nothing downstream changes.",
+    },
+    {
+      title: "See outside runs arrive",
+      body: "The same chain, the same blocks \u2014 only the caller is different.",
+    },
+  ]}
+/>
 
-## Key beats
+</div>
+<div>
 
-### 1. Start with the problem
+<CourseProgress
+  course="Deployment"
+  durationLabel="Approx. 16 min"
+  progress={0}
+  lessons={[
+    { title: "Deployment Intro", duration: "1:55", active: true },
+    { title: "Deploy as API", duration: "3:40" },
+    { title: "Deploy as Chat", duration: "3:30" },
+    { title: "Deploy as MCP", duration: "3:20" },
+    { title: "Versions & Rollback", duration: "3:50" },
+  ]}
+/>
 
-A workflow on the canvas is internal. Deployment makes it usable externally.
-
-### 2. Define deployment
-
-A deployed workflow can be called or interacted with outside the editor. The main surfaces are **API**, **Chat**, and **MCP**.
-
-### 3. Deployment snapshot
-
-Deploying creates a version / snapshot. Updating the workflow doesn't necessarily mean the live deployment changed — important for reliability.
-
-### 4. When deployments matter
-
-Customer-facing systems, internal tools, API endpoints, chat apps, and workflows used by other AI tools.
-
-## Avoid
-
-- Don't deep-dive every API parameter in the intro.
-- Don't turn it into partner versioning yet.
-- Don't start with MCP if the audience is non-technical.
+</div>
+</div>

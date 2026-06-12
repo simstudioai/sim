@@ -3,44 +3,47 @@ title: What is Sim?
 description: The macro object — Sim is a workbench for building AI systems.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder title="What is Sim?"  src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/01-intro.mp4" />
+<VideoPlaceholder eyebrow="Introduction" title="What is Sim?" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/01-intro.mp4" className="mt-2" />
 
-## Video timeline (1:37)
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-- **0:00** — One surface
-- **0:19** — Two kinds
-- **0:37** — Wired together
-- **1:00** — The series
-- **1:19** — Into the workflow
+## What is Sim?
 
+Sim is a workbench for building AI systems. This opening lesson gives you the macro picture — the workspace, Mothership, and the persistent resources your systems are made of — so the rest of the Academy makes sense.
 
-**Purpose.** Give the learner the macro object.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Recognize the main surfaces",
+      body: "Open Sim and identify the workspace, Mothership, and the resources your systems are built from.",
+    },
+    {
+      title: "Understand the object model",
+      body: "See how workflows, tables, knowledge bases, files, tools, logs, and deployments fit together.",
+    },
+  ]}
+/>
 
-**Learning outcome.** By the end, the learner can say:
+</div>
+<div>
 
-> Sim is a workspace for building AI systems. You can use Mothership to help create and modify systems, and you can inspect the actual workflows and resources that get created.
+<CourseProgress
+  course="Introduction"
+  durationLabel="Approx. 16 min"
+  progress={0}
+  lessons={[
+    { title: "What is Sim?", duration: "1:37", active: true },
+    { title: "Mothership & Workflows", duration: "4:10" },
+    { title: "Main Workspace Objects", duration: "5:05" },
+    { title: "Running & Inspecting Something", duration: "3:40" },
+    { title: "How to Explore Next", duration: "1:45" },
+  ]}
+/>
 
-## What to say
-
-- Sim is a workbench for building AI systems.
-- A Sim workspace contains the things your system uses: workflows, tables, files, knowledge bases, integrations and tools, logs, and deployments.
-- Mothership helps you operate that workspace in natural language.
-- The important idea: Sim systems are not just chat responses. They're persistent systems made of resources you can inspect, run, and improve.
-
-## Suggested order
-
-1. Open on the Sim workspace.
-2. State the one-line definition: *Sim is a workbench for building AI systems.*
-3. Show Mothership briefly: *This is the natural-language interface for creating and editing things in your workspace.*
-4. Show that there are actual resources behind it: *Workflows, tables, files, knowledge bases, logs, and more.*
-5. Close with the promise: *In the next few videos, we'll quickly tour the main objects so you know what you're looking at and where to start.*
-
-## What not to do
-
-- Don't compare too much to Zapier / n8n / Clay.
-- Don't explain every module yet.
-- Don't get philosophical about Mothership.
-- Don't talk about blank-chatbox confusion directly to the learner.
+</div>
+</div>
