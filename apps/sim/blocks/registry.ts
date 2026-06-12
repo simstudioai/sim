@@ -38,6 +38,7 @@ import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
+import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
@@ -363,6 +364,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
+  convex: ConvexBlock,
   credential: CredentialBlock,
   crowdstrike: CrowdStrikeBlock,
   cursor: CursorBlock,
@@ -657,6 +659,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   cloudwatch: CloudWatchBlockMeta,
   codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
+  convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
   cursor: CursorBlockMeta,
   dagster: DagsterBlockMeta,
