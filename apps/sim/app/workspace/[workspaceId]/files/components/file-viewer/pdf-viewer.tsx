@@ -28,8 +28,8 @@ const PDF_ZOOM_MIN = 0.5
 const PDF_ZOOM_MAX = 3
 const PDF_ZOOM_DEFAULT = 1
 const PDF_ZOOM_STEP = 1.25
-const PDF_PAGE_MAX_WIDTH = 816
 const PDF_VIEWER_PADDING = 24
+const PDF_RESIZE_DEBOUNCE_MS = 150
 
 export type PdfDocumentSource =
   | { kind: 'url'; url: string }
@@ -66,25 +66,53 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const sourceValue = source.kind === 'url' ? source.url : source.buffer
+  /**
+   * The buffer copy (`slice(0)`) is load-bearing: pdf.js transfers — and
+   * detaches — the ArrayBuffer it receives to its worker, so handing over the
+   * caller's buffer would leave it unusable on the next render or remount.
+   */
   const file = useMemo(
     () => (source.kind === 'url' ? source.url : { data: new Uint8Array(source.buffer.slice(0)) }),
     [sourceValue]
   )
 
+  /**
+   * The first non-zero measurement applies immediately so the document renders
+   * without delay (a hidden container reports zero width and must not consume
+   * the immediate slot); subsequent ones (panel-divider drags) are debounced
+   * because every pageWidth change makes pdf.js re-rasterise all page canvases
+   * — per-tick updates during a drag would re-render the whole document
+   * continuously.
+   */
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    let hasMeasured = false
+    let debounce: ReturnType<typeof setTimeout> | undefined
     const observer = new ResizeObserver(([entry]) => {
-      setContainerWidth(entry.contentRect.width)
+      const { width } = entry.contentRect
+      if (!hasMeasured) {
+        if (width <= 0) return
+        hasMeasured = true
+        setContainerWidth(width)
+        return
+      }
+      clearTimeout(debounce)
+      debounce = setTimeout(() => setContainerWidth(width), PDF_RESIZE_DEBOUNCE_MS)
     })
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      clearTimeout(debounce)
+      observer.disconnect()
+    }
   }, [])
 
-  const pageWidth =
-    containerWidth > 0
-      ? Math.min(containerWidth - 2 * PDF_VIEWER_PADDING, PDF_PAGE_MAX_WIDTH)
-      : undefined
+  /**
+   * 100% zoom fits the page to the panel width (pdf.js re-renders the canvas
+   * at the target width, so upscaling past the page's natural print size
+   * stays crisp). Matches the DOCX preview's fit-to-width semantics.
+   */
+  const pageWidth = containerWidth > 0 ? containerWidth - 2 * PDF_VIEWER_PADDING : undefined
   pageWidthRef.current = pageWidth
 
   const applyZoomAt = useCallback((next: number, anchorX: number, anchorY: number) => {
