@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
 import type { Filter } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
@@ -38,12 +39,17 @@ export interface TableDeletePayload {
 }
 
 /**
- * Background worker for large filtered row deletes. Runs detached on the web container (see the
- * delete-async kickoff route). Deletes in keyset-paginated pages — `created_at <= cutoff` spares
- * rows inserted while the job runs, and `excludeRowIds` spares specific rows (the
- * "select all then deselect a few" case). Ownership-gated per page so a cancel/supersede stops
- * it within one page; committed pages are never rolled back. Progress and the terminal state are
- * surfaced via the table-events SSE stream.
+ * Background worker for large filtered row deletes (trigger.dev task, or detached on the web
+ * container when trigger.dev is disabled — see the delete-async kickoff route). Deletes in
+ * keyset-paginated pages — `created_at <= cutoff` spares rows inserted while the job runs, and
+ * `excludeRowIds` spares specific rows (the "select all then deselect a few" case).
+ * Ownership-gated per page so a cancel/supersede stops it within one page; committed batches are
+ * never rolled back. Progress and the terminal state are surfaced via the table-events SSE
+ * stream.
+ *
+ * Unexpected errors are rethrown so the caller's retry machinery sees them — the caller marks
+ * the job failed via `markTableDeleteFailed` once it gives up. A superseded run (cancel, or a
+ * newer job took the table) returns quietly.
  */
 export async function runTableDelete(payload: TableDeletePayload): Promise<void> {
   const { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff } = payload
@@ -128,19 +134,33 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
   } catch (err) {
     if (err instanceof JobSupersededError) {
       logger.info(`[${requestId}] Delete superseded by a newer run; stopping`, { tableId, jobId })
-    } else {
-      const message = getErrorMessage(err, 'Delete failed')
-      logger.error(`[${requestId}] Delete failed for table ${tableId}:`, err)
-      // Scoped to jobId — a no-op if a newer job has taken over.
-      await markJobFailed(tableId, jobId, message).catch(() => {})
-      void appendTableEvent({
-        kind: 'job',
-        type: 'delete',
-        tableId,
-        jobId,
-        status: 'failed',
-        error: message,
-      })
+      return
     }
+    // Log the cause, not the wrapper — drizzle query errors embed the full SQL + params list
+    // (tens of KB for a batch delete) in `message`.
+    logger.error(`[${requestId}] Delete failed for table ${tableId}:`, toError(err).cause ?? err)
+    throw err
   }
+}
+
+/**
+ * Marks the delete job failed and emits the failed SSE event. Called once the caller gives up on
+ * the run: the trigger.dev task's `onFailure` (after retries are exhausted) or the detached
+ * web-container fallback (no retries). Scoped to jobId — a no-op if a newer job has taken over.
+ */
+export async function markTableDeleteFailed(
+  tableId: string,
+  jobId: string,
+  error: unknown
+): Promise<void> {
+  const message = truncate(getErrorMessage(toError(error).cause ?? error, 'Delete failed'), 500)
+  await markJobFailed(tableId, jobId, message).catch(() => {})
+  void appendTableEvent({
+    kind: 'job',
+    type: 'delete',
+    tableId,
+    jobId,
+    status: 'failed',
+    error: message,
+  })
 }

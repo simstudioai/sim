@@ -1,5 +1,9 @@
 import { task } from '@trigger.dev/sdk'
-import { runTableDelete, type TableDeletePayload } from '@/lib/table/delete-runner'
+import {
+  markTableDeleteFailed,
+  runTableDelete,
+  type TableDeletePayload,
+} from '@/lib/table/delete-runner'
 
 /**
  * `TableDeletePayload` with the cutoff as an ISO string — task payloads cross a JSON boundary, so
@@ -10,10 +14,12 @@ export interface TableDeleteTaskPayload extends Omit<TableDeletePayload, 'cutoff
 }
 
 /**
- * Trigger.dev wrapper around `runTableDelete`. Retry-safe: the worker keysets by id with a
- * `created_at <= cutoff` floor and pages are committed independently, so a retried attempt simply
- * re-walks and deletes whatever remains. The `table_jobs` ownership gate stops a retried run that
- * lost the job (canceled / janitor-failed) within one page.
+ * Trigger.dev wrapper around `runTableDelete`. Errors propagate out of `run` so the retry policy
+ * actually fires; the job is marked failed only in `onFailure`, after the final attempt. Retry-
+ * safe: the worker keysets by id with a `created_at <= cutoff` floor and batches are committed
+ * independently, so a retried attempt simply re-walks and deletes whatever remains. The
+ * `table_jobs` ownership gate stops a retried run that lost the job (canceled / janitor-failed)
+ * within one page.
  */
 export const tableDeleteTask = task({
   id: 'table-delete',
@@ -25,5 +31,8 @@ export const tableDeleteTask = task({
   },
   run: async (payload: TableDeleteTaskPayload) => {
     await runTableDelete({ ...payload, cutoff: new Date(payload.cutoff) })
+  },
+  onFailure: async ({ payload, error }) => {
+    await markTableDeleteFailed(payload.tableId, payload.jobId, error)
   },
 })

@@ -8,7 +8,7 @@ import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { runTableDelete } from '@/lib/table/delete-runner'
+import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
 import type { TableDeleteJobPayload } from '@/lib/table/types'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
@@ -110,6 +110,10 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         filter,
         excludeRowIds,
         cutoff,
+      }).catch(async (error) => {
+        // No retry machinery on the detached path — fail the job immediately.
+        await markTableDeleteFailed(tableId, jobId, error)
+        throw error
       })
     )
   }

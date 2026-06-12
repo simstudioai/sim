@@ -26,9 +26,9 @@ export const TABLE_LIMITS = {
   MAX_BULK_OPERATION_SIZE: 1000,
   /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
   MAX_COPY_ROWS: 50000,
-  /** Rows selected + deleted per page in the async background delete-job loop. Each page is one
-   *  transaction (chunked into DELETE_BATCH_SIZE statements inside it); the page is also the
-   *  cancel/ownership-check granularity. */
+  /** Rows selected + deleted per page in the async background delete-job loop. Each
+   *  DELETE_BATCH_SIZE chunk inside the page commits in its own transaction; the page is the
+   *  keyset-select and cancel/ownership-check granularity. */
   DELETE_PAGE_SIZE: 10000,
   /** Row count above which an export runs as a background job instead of a synchronous stream.
    *  Matches the default per-table row cap, so non-enterprise tables keep instant downloads. */
