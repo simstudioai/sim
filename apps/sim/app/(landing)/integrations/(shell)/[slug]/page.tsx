@@ -86,10 +86,7 @@ const AUTH_STEP: Record<AuthType, (name: string) => string> = {
   none: () => 'No authentication is needed — the block works as soon as you drop it in.',
 }
 
-/**
- * Human-readable catalog refresh date, shown on the page and emitted as
- * `dateModified` so search and answer engines can see content freshness.
- */
+/** Human-readable catalog refresh date for the visible last-updated line. */
 const UPDATED_AT_DISPLAY = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`).toLocaleDateString(
   'en-US',
   { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }
@@ -134,10 +131,7 @@ function mentionifyPromptForNames(prompt: string, names: readonly string[]): str
   return prompt.replace(regex, (match) => `@${match}`)
 }
 
-/**
- * Lowercases only the first character so acronyms inside tool names survive
- * ("Get PR Details" → "get PR Details").
- */
+/** Lowercases only the first character so acronyms in tool names survive. */
 function lowercaseFirst(value: string): string {
   return value.charAt(0).toLowerCase() + value.slice(1)
 }
@@ -149,26 +143,15 @@ function toProseList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
 }
 
-/**
- * "a" vs "an" for a service name. Vowel-letter heuristic, except U-names,
- * which almost always read as "you" ("a Unipile block").
- */
+/** "a" vs "an" for a service name; U-names read as "you", so they take "a". */
 function articleFor(name: string): string {
   return /^[aeio]/i.test(name) ? 'an' : 'a'
 }
 
 /**
- * Generates the per-integration FAQ from catalog metadata.
- *
- * Authoring constraints (SEO/GEO):
- * - Every answer opens with a direct, self-contained answer and carries
- *   integration-specific facts (tool counts and names, trigger events, auth
- *   mode, related integrations), so no two pages share an identical answer.
- * - Catalog-generic questions (pricing, agent tool use) live once on the
- *   /integrations index FAQ instead of repeating across every page —
- *   duplicated Q&A across many pages is a scaled-content anti-pattern.
- * - The full Q&A text is server-rendered by `LandingFAQ` and mirrored 1:1
- *   into the page's FAQPage JSON-LD.
+ * Generates the per-integration FAQ. Answers lead with a direct answer and
+ * carry integration-specific facts; catalog-generic questions live once on
+ * the /integrations index FAQ instead of repeating across every page.
  */
 function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] {
   const { name, description, operations, triggers, authType } = integration
@@ -294,9 +277,8 @@ export async function generateMetadata({
       'AI agent integrations',
       'AI agent builder',
     ],
-    // og:image / twitter:image come from the sibling `opengraph-image.tsx`
-    // file convention — Next serves it at a hash-suffixed URL, so hardcoding
-    // the URL here would 404. File-based metadata is injected automatically.
+    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
       title: `${name} Integration | Sim AI Workspace`,
       description: `Connect ${name} to ${INTEGRATION_COUNT - 1}+ tools using AI agents. ${sentenceWithTerminalPunctuation(truncate(description, 100))}`,
@@ -454,7 +436,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           {description}
         </p>
 
-        {/* Atomic product summary for AI citation (see .claude/rules/landing-seo-geo.md) */}
         <p className='sr-only'>
           {name} is a {categoryLabel} integration for Sim, the AI workspace where teams build and
           deploy AI agents. Sim&apos;s {name} integration provides{' '}

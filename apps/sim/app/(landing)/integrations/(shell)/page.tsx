@@ -20,12 +20,8 @@ const TRIGGER_INTEGRATION_COUNT = allIntegrations.filter((i) => i.triggerCount >
 const TOTAL_TOOL_COUNT = allIntegrations.reduce((sum, i) => sum + i.operationCount, 0)
 
 /**
- * Catalog-level FAQ. Questions that read the same for every integration
- * (pricing, agent tool use, how integrations work) live here exactly once —
- * repeating identical Q&A across every per-integration page is a
- * scaled-content anti-pattern, and Google's FAQ guidance says repeated FAQs
- * should be marked up on a single page. Answers lead with a direct answer and
- * concrete catalog numbers for AI-engine extraction.
+ * Catalog-level FAQ. Questions that read the same for every integration live
+ * here exactly once instead of repeating across all per-integration pages.
  */
 const CATALOG_FAQS: FAQItem[] = [
   {
@@ -76,9 +72,8 @@ export const metadata: Metadata = {
     ...TOP_NAMES.flatMap((n) => [`${n} integration`, `${n} automation`]),
     ...allIntegrations.slice(0, 20).map((i) => `${i.name} automation`),
   ],
-  // og:image / twitter:image come from the sibling `opengraph-image.tsx` file
-  // convention — Next serves it at a hash-suffixed URL, so hardcoding the URL
-  // here would 404. File-based metadata is injected automatically.
+  // og:image/twitter:image come from the sibling opengraph-image.tsx —
+  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
   openGraph: {
     title: 'Integrations | Sim AI Workspace',
     description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace. Build agents that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
@@ -215,7 +210,7 @@ export default function IntegrationsPage() {
 
         <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
-        {/* FAQ — catalog-level questions, asked once for all integrations */}
+        {/* FAQ */}
         <section aria-labelledby='integrations-faq-heading' className='px-6 py-10'>
           <h2
             id='integrations-faq-heading'

@@ -851,30 +851,27 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
     // JSON formatter inlines short arrays of primitive strings. Pre-collapse those
     // arrays here so the emitted file is already in Biome's canonical shape and
     // `bun run check` does not churn it on every commit.
-    const json = JSON.stringify(integrations, null, 2).replace(
-      /\[\n(\s+"[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g,
-      (_match, inner) => {
-        const items = (inner as string).split(',\n').map((s: string) => s.trim())
-        return `[${items.join(', ')}]`
-      }
-    )
-    const content = `${json}\n`
-    const previousContent = fs.existsSync(jsonPath) ? fs.readFileSync(jsonPath, 'utf-8') : null
+    const serialize = (value: unknown) =>
+      JSON.stringify(value, null, 2).replace(
+        /\[\n(\s+"[^"\n]*"(?:,\n\s+"[^"\n]*")*)\n\s+\]/g,
+        (_match, inner) => {
+          const items = (inner as string).split(',\n').map((s: string) => s.trim())
+          return `[${items.join(', ')}]`
+        }
+      )
 
-    if (previousContent === content) {
+    // `updatedAt` is re-stamped only when the integrations content actually
+    // changes, so sitemap/JSON-LD freshness never churns on no-op regens.
+    const previous = fs.existsSync(jsonPath)
+      ? (JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as { integrations?: unknown })
+      : null
+    if (previous?.integrations && serialize(previous.integrations) === serialize(integrations)) {
       console.log(`✓ Integration data unchanged: ${integrations.length} integrations → ${jsonPath}`)
       return
     }
 
-    fs.writeFileSync(jsonPath, content)
-
-    // Stamp the catalog freshness date only on real content changes — it feeds
-    // sitemap `lastModified`, JSON-LD `dateModified`, and the visible
-    // last-updated line on /integrations pages, so it must never churn on
-    // no-op regenerations (fabricated freshness is a search spam signal).
-    const metaPath = path.join(INTEGRATIONS_DATA_PATH, 'integrations-meta.json')
-    const catalogUpdatedAt = new Date().toISOString().slice(0, 10)
-    fs.writeFileSync(metaPath, `${JSON.stringify({ catalogUpdatedAt }, null, 2)}\n`)
+    const updatedAt = new Date().toISOString().slice(0, 10)
+    fs.writeFileSync(jsonPath, `${serialize({ updatedAt, integrations })}\n`)
     console.log(`✓ Integration data written: ${integrations.length} integrations → ${jsonPath}`)
   } catch (error) {
     // Surface taxonomy violations (missing/invalid `integrationType`) loudly —

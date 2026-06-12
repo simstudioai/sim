@@ -9,12 +9,8 @@ export const size = {
   height: 630,
 }
 
-/**
- * Reads the raw catalog JSON instead of the `@/lib/integrations` barrel: the
- * barrel imports `@/blocks/registry`, which is far too heavy for the edge OG
- * bundle. The JSON is the same generated source of truth.
- */
-const integrations = integrationsJson as readonly Integration[]
+/** Raw catalog JSON, not the barrel — keeps `@/blocks/registry` out of the OG bundle. */
+const integrations = integrationsJson.integrations as readonly Integration[]
 const bySlug = new Map(integrations.map((i) => [i.slug, i]))
 
 const AUTH_LABEL: Record<AuthType, string> = {

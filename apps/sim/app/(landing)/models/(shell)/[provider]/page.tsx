@@ -55,9 +55,8 @@ export async function generateMetadata({
       `${provider.name} AI models`,
       ...provider.models.slice(0, 6).map((model) => model.displayName),
     ],
-    // og:image / twitter:image come from the sibling `opengraph-image.tsx`
-    // file convention — Next serves it at a hash-suffixed URL, so hardcoding
-    // the URL here would 404. File-based metadata is injected automatically.
+    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
       title: `${provider.name} Models | Sim`,
       description: `Explore ${provider.modelCount} ${provider.name} models with pricing and capability details.`,

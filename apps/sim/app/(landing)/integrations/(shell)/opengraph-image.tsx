@@ -8,12 +8,8 @@ export const size = {
   height: 630,
 }
 
-/**
- * Reads the raw catalog JSON instead of the `@/lib/integrations` barrel: the
- * barrel imports `@/blocks/registry`, which is far too heavy for the edge OG
- * bundle. The JSON is the same generated source of truth.
- */
-const integrations = integrationsJson as readonly Integration[]
+/** Raw catalog JSON, not the barrel — keeps `@/blocks/registry` out of the OG bundle. */
+const integrations = integrationsJson.integrations as readonly Integration[]
 const TOTAL_TOOL_COUNT = integrations.reduce((sum, i) => sum + i.operationCount, 0)
 const OAUTH_COUNT = integrations.filter((i) => i.authType === 'oauth').length
 const TRIGGER_INTEGRATION_COUNT = integrations.filter((i) => i.triggerCount > 0).length

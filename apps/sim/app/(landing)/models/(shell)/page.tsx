@@ -63,9 +63,8 @@ export const metadata: Metadata = {
     'Mistral models',
     ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
   ],
-  // og:image / twitter:image come from the sibling `opengraph-image.tsx` file
-  // convention — Next serves it at a hash-suffixed URL, so hardcoding the URL
-  // here would 404. File-based metadata is injected automatically.
+  // og:image/twitter:image come from the sibling opengraph-image.tsx —
+  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
   openGraph: {
     title: 'AI Models Directory | Sim',
     description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,

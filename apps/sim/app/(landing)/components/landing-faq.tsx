@@ -15,15 +15,9 @@ interface LandingFAQProps {
 }
 
 /**
- * Accordion FAQ for landing pages.
- *
- * Every answer stays mounted and is collapsed via animated height rather than
- * being rendered on demand: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) and
- * non-rendering search crawlers only read the served HTML, so the full Q&A
- * text must exist in the initial document to be indexed or cited. Keeping the
- * answers in the DOM also keeps the FAQPage JSON-LD emitted by consuming pages
- * aligned with visible content, as Google's structured-data policy requires.
- * Questions render as h3 headings so each Q&A forms an extractable section.
+ * Accordion FAQ for landing pages. Answers stay mounted (collapsed via
+ * animated height) so non-JS crawlers see the full Q&A text and FAQPage
+ * JSON-LD always matches visible content.
  */
 export function LandingFAQ({ faqs }: LandingFAQProps) {
   const baseId = useId()

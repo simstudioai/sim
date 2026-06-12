@@ -69,11 +69,7 @@ interface LandingOgImageProps {
   domainLabel?: string
 }
 
-/**
- * Shared dynamic OG image for landing catalog pages (models, integrations).
- * Used from edge OG routes — callers must keep heavy registries (blocks,
- * tools, icons) out of their import graph.
- */
+/** Shared dynamic OG image for landing catalog pages (models, integrations). */
 export async function createLandingOgImage({
   eyebrow,
   title,
