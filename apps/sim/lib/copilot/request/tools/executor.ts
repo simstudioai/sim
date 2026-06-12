@@ -9,10 +9,7 @@ import {
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
-import {
-  TOOL_WATCHDOG_DEFAULT_MS,
-  TOOL_WATCHDOG_LONG_RUNNING_MS,
-} from '@/lib/copilot/constants'
+import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1AsyncToolRecordStatus,
   MothershipStreamV1EventType,

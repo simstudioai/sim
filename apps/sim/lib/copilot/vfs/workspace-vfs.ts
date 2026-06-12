@@ -75,7 +75,6 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { ensureWorkflowAliasBackingQuietly } from '@/lib/copilot/vfs/workflow-alias-backing'
 import {
   buildWorkflowAliasLinks,
   isWorkflowAliasBackingPath,
@@ -984,18 +983,12 @@ export class WorkspaceVFS {
 
     const folderPaths = this.buildFolderPaths(folderRows)
 
-    if (workflowArtifactsEnabled) {
-      await Promise.all(
-        workflowRows.map((wf) =>
-          ensureWorkflowAliasBackingQuietly({
-            workspaceId,
-            userId,
-            workflowId: wf.id,
-            workflowName: wf.name,
-          })
-        )
-      )
-    }
+    // NOTE: materialization is a pure READ. Alias backing (changelog/plan
+    // folders + files) is ensured at write time — workflow create/rename
+    // (lib/workflows/utils) and alias writes (vfs/resource-writer,
+    // tools/server/files/workspace-file) — never here. Ensuring per workflow
+    // on every materialize meant N storage/DB writes per read tool call, and
+    // concurrent materializations contending on the same rows.
     const workspaceFiles = workflowArtifactsEnabled
       ? await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
       : []
