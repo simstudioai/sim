@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { member, organization, settings, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import {
   getEmailSubject,
   renderCreditsExhaustedEmail,
@@ -495,6 +495,11 @@ export async function updateUserUsageLimit(
  * Get usage limit for a user (used by checkUsageStatus for server-side
  * checks). Org-scoped subs return the organization limit;
  * personally-scoped subs return the individual user limit from userStats.
+ *
+ * Org-scoped members carry a null `currentUsageLimit` by design (see
+ * `syncUsageLimitsFromSubscription`). A user whose subscription stops being
+ * org-scoped without a resync would otherwise stay null and fail closed on
+ * every execution, so a null limit self-heals to the plan default here.
  */
 export async function getUserUsageLimit(
   userId: string,
@@ -537,9 +542,26 @@ export async function getUserUsageLimit(
   }
 
   if (!userStatsQuery[0].currentUsageLimit) {
-    throw new Error(
-      `Invalid null usage limit for ${subscription?.plan || 'free'} user: ${userId}. User stats must be properly initialized.`
-    )
+    const fallbackLimit =
+      subscription && hasPaidSubscriptionStatus(subscription.status)
+        ? getPerUserMinimumLimit(subscription)
+        : getFreeTierLimit()
+
+    await db
+      .update(userStats)
+      .set({
+        currentUsageLimit: fallbackLimit.toString(),
+        usageLimitUpdatedAt: new Date(),
+      })
+      .where(and(eq(userStats.userId, userId), isNull(userStats.currentUsageLimit)))
+
+    logger.warn('Healed null usage limit to plan default', {
+      userId,
+      plan: subscription?.plan || 'free',
+      fallbackLimit,
+    })
+
+    return fallbackLimit
   }
 
   return toNumber(toDecimal(userStatsQuery[0].currentUsageLimit))
