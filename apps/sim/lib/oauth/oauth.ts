@@ -515,12 +515,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:me',
           'offline_access',
           'read:issue.vote:jira',
+          'read:user:jira',
           'delete:issue:jira',
           'delete:comment:jira',
           'delete:attachment:jira',
           'delete:issue-worklog:jira',
           'delete:issue-link:jira',
-          // Jira Service Management scopes
+          // Jira Service Management scopes. The classic scopes are required: Atlassian
+          // enforces an endpoint's granular scope set as all-of, and several JSM request
+          // endpoints include scopes outside this list in their granular sets.
+          'read:servicedesk-request',
+          'write:servicedesk-request',
+          'manage:servicedesk-customer',
           'read:servicedesk:jira-service-management',
           'read:requesttype:jira-service-management',
           'read:request:jira-service-management',
