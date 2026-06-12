@@ -72,10 +72,12 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   )
 
   /**
-   * The first measurement applies immediately so the document renders without
-   * delay; subsequent ones (panel-divider drags) are debounced because every
-   * pageWidth change makes pdf.js re-rasterise all page canvases — per-tick
-   * updates during a drag would re-render the whole document continuously.
+   * The first non-zero measurement applies immediately so the document renders
+   * without delay (a hidden container reports zero width and must not consume
+   * the immediate slot); subsequent ones (panel-divider drags) are debounced
+   * because every pageWidth change makes pdf.js re-rasterise all page canvases
+   * — per-tick updates during a drag would re-render the whole document
+   * continuously.
    */
   useEffect(() => {
     const container = containerRef.current
@@ -85,6 +87,7 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
     const observer = new ResizeObserver(([entry]) => {
       const { width } = entry.contentRect
       if (!hasMeasured) {
+        if (width <= 0) return
         hasMeasured = true
         setContainerWidth(width)
         return
