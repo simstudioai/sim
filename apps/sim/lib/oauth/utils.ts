@@ -168,6 +168,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'delete:issue-link:jira': 'Delete links between Jira issues',
 
   // Jira Service Management scopes
+  'read:servicedesk-request': 'View service desk requests',
+  'write:servicedesk-request': 'Create and update service desk requests',
+  'manage:servicedesk-customer': 'Manage service desk customers and organizations',
   'read:servicedesk:jira-service-management': 'View service desks and their settings',
   'read:requesttype:jira-service-management': 'View request types available in service desks',
   'read:request:jira-service-management': 'View customer requests in service desks',

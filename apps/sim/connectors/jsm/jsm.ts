@@ -334,6 +334,12 @@ export const jsmConnector: ConnectorConfig = {
     mode: 'oauth',
     provider: 'jira',
     requiredScopes: [
+      /**
+       * Atlassian enforces granular scope sets all-or-nothing; the classic scope
+       * alone authorizes the request read endpoints, so require it to flag stale
+       * credentials that predate it in the provider scope list.
+       */
+      'read:servicedesk-request',
       'read:servicedesk:jira-service-management',
       'read:request:jira-service-management',
       'read:request.comment:jira-service-management',
