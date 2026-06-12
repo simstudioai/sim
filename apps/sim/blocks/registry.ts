@@ -22,6 +22,7 @@ import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
 import { AzureDevOpsBlock, AzureDevOpsBlockMeta } from '@/blocks/blocks/azure_devops'
 import { BoxBlock, BoxBlockMeta } from '@/blocks/blocks/box'
 import { BrandfetchBlock, BrandfetchBlockMeta } from '@/blocks/blocks/brandfetch'
+import { BrexBlock, BrexBlockMeta } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataBlockMeta } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseBlockMeta } from '@/blocks/blocks/browser_use'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
@@ -345,6 +346,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   azure_devops: AzureDevOpsBlock,
   box: BoxBlock,
   brandfetch: BrandfetchBlock,
+  brex: BrexBlock,
   brightdata: BrightDataBlock,
   browser_use: BrowserUseBlock,
   calcom: CalComBlock,
@@ -641,6 +643,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   azure_devops: AzureDevOpsBlockMeta,
   box: BoxBlockMeta,
   brandfetch: BrandfetchBlockMeta,
+  brex: BrexBlockMeta,
   brightdata: BrightDataBlockMeta,
   browser_use: BrowserUseBlockMeta,
   calcom: CalComBlockMeta,
