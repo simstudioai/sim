@@ -72,7 +72,7 @@ function EnrichmentsSidebarBody({
   if (editGroup && !editEnrichment) {
     return (
       <div className='flex h-full flex-col'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+        <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
           <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
           <Button
             variant='ghost'
@@ -118,7 +118,7 @@ function EnrichmentsSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichments</h2>
         <Button
           variant='ghost'
