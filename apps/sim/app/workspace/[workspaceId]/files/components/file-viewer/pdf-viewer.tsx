@@ -28,7 +28,6 @@ const PDF_ZOOM_MIN = 0.5
 const PDF_ZOOM_MAX = 3
 const PDF_ZOOM_DEFAULT = 1
 const PDF_ZOOM_STEP = 1.25
-const PDF_PAGE_MAX_WIDTH = 816
 const PDF_VIEWER_PADDING = 24
 
 export type PdfDocumentSource =
@@ -81,10 +80,12 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
     return () => observer.disconnect()
   }, [])
 
-  const pageWidth =
-    containerWidth > 0
-      ? Math.min(containerWidth - 2 * PDF_VIEWER_PADDING, PDF_PAGE_MAX_WIDTH)
-      : undefined
+  /**
+   * 100% zoom fits the page to the panel width (pdf.js re-renders the canvas
+   * at the target width, so upscaling past the page's natural print size
+   * stays crisp). Matches the DOCX preview's fit-to-width semantics.
+   */
+  const pageWidth = containerWidth > 0 ? containerWidth - 2 * PDF_VIEWER_PADDING : undefined
   pageWidthRef.current = pageWidth
 
   const applyZoomAt = useCallback((next: number, anchorX: number, anchorY: number) => {

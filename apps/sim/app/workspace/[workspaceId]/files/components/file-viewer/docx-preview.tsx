@@ -20,7 +20,9 @@ const DOCX_ZOOM_WHEEL_SENSITIVITY = 0.005
 /**
  * Fit the rendered docx pages to the host container width using a CSS scale.
  * The library renders `<section class="docx">` at the document's natural page
- * width (in cm), which overflows narrow panels.
+ * width (in cm), which overflows narrow panels. 100% zoom means fit-to-width —
+ * pages upscale past their natural print size in wide panels (CSS zoom of HTML
+ * stays crisp), matching the PDF preview's semantics.
  */
 function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercent: number) {
   const wrapper = host.querySelector<HTMLElement>('.docx-wrapper')
@@ -48,7 +50,7 @@ function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercen
     Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
   const naturalWrapperWidth = naturalPageWidth + horizontalPadding
   const available = viewport.clientWidth
-  const fitScale = Math.min(1, available / naturalWrapperWidth)
+  const fitScale = available / naturalWrapperWidth
   const scale = fitScale * (zoomPercent / 100)
   const scaledWrapperWidth = naturalWrapperWidth * scale
 
