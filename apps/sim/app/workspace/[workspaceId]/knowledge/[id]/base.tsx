@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   ChipConfirmModal,
+  type ChipConfirmTextSegment,
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
@@ -1194,17 +1195,16 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
         title='Delete Knowledge Base'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-            <span className='text-[var(--text-error)]'>
-              The knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: knowledgeBaseName, bold: true },
+          '? ',
+          {
+            text: `The knowledge base and all ${pagination.total} document${pagination.total === 1 ? '' : 's'} within it will be removed.`,
+            error: true,
+          },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete Knowledge Base',
           onClick: handleDeleteKnowledgeBase,
@@ -1221,30 +1221,26 @@ export function KnowledgeBase({
         }}
         srTitle='Delete Document'
         title='Delete Document'
-        description={(() => {
+        text={(() => {
           const docToDelete = documents.find((doc) => doc.id === documentToDelete)
-          return (
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {docToDelete?.filename ?? 'this document'}
-              </span>
-              ?{' '}
-              {docToDelete?.connectorId ? (
-                <span className='text-[var(--text-error)]'>
-                  This document is synced from a connector. Deleting it will permanently exclude it
-                  from future syncs. To temporarily hide it from search, disable it instead.
-                </span>
-              ) : (
-                <>
-                  <span className='text-[var(--text-error)]'>
-                    This will permanently delete the document.
-                  </span>{' '}
-                  This action cannot be undone.
-                </>
-              )}
-            </>
-          )
+          const base: ChipConfirmTextSegment[] = [
+            'Are you sure you want to delete ',
+            { text: docToDelete?.filename ?? 'this document', bold: true },
+            '? ',
+          ]
+          return docToDelete?.connectorId
+            ? [
+                ...base,
+                {
+                  text: 'This document is synced from a connector. Deleting it will permanently exclude it from future syncs. To temporarily hide it from search, disable it instead.',
+                  error: true,
+                },
+              ]
+            : [
+                ...base,
+                { text: 'This will permanently delete the document.', error: true },
+                ' This action cannot be undone.',
+              ]
         })()}
         confirm={{
           label: 'Delete Document',
@@ -1257,17 +1253,14 @@ export function KnowledgeBase({
         onOpenChange={setShowBulkDeleteModal}
         srTitle='Delete Documents'
         title='Delete Documents'
-        description={
-          <>
-            Are you sure you want to delete {selectedDocuments.size} document
-            {selectedDocuments.size === 1 ? '' : 's'}?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently delete the selected document
-              {selectedDocuments.size === 1 ? '' : 's'}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          {
+            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,

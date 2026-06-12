@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
+import { chipPrimaryFillTokens } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { CalendarEventChip } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-event-chip'
 import {
@@ -14,6 +15,7 @@ import {
 import {
   type CalendarEvent,
   hourKey,
+  type ScheduledTask,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 const GUTTER_WIDTH = 56
@@ -26,6 +28,9 @@ interface TimeGridProps {
   days: CalendarDayCell[]
   hours: number[]
   onSelectSlot: (date: Date, time: string) => void
+  onSelectTask: (task: ScheduledTask) => void
+  /** A task pill was right-clicked — open its context menu at the cursor. */
+  onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
   eventsByHour?: Map<string, CalendarEvent[]>
 }
 
@@ -55,34 +60,49 @@ function CurrentTimeIndicator() {
   )
 }
 
-/** One hour cell in a day column. Clicking opens the create modal. */
+/**
+ * One hour cell in a day column. Clicking empty space opens the create modal;
+ * the cell is a plain clickable `<div>` so the task pills inside can be real
+ * `<button>`s without nesting interactive elements. Concurrent tasks share the
+ * slot side-by-side — each pill flexes to an equal share of the row and
+ * truncates, so any number of simultaneous tasks stays clickable.
+ */
 function TimeSlot({
   date,
   hour,
   events,
   isLastColumn,
   onSelect,
+  onSelectTask,
+  onTaskContextMenu,
 }: {
   date: Date
   hour: number
   events: CalendarEvent[]
   isLastColumn: boolean
   onSelect: (date: Date, time: string) => void
+  onSelectTask: (task: ScheduledTask) => void
+  onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
 }) {
   return (
-    <button
-      type='button'
+    <div
       onClick={() => onSelect(date, formatSlotTime(hour))}
       style={{ height: TIME_SLOT_HEIGHT }}
       className={cn(
-        'flex flex-col gap-0.5 overflow-hidden border-[var(--border)] border-r border-b p-0.5 text-left transition-colors hover-hover:bg-[var(--surface-active)]',
+        'flex cursor-pointer items-start gap-0.5 overflow-hidden border-[var(--border)] border-r border-b p-0.5 transition-colors hover-hover:bg-[var(--surface-active)]',
         isLastColumn && 'pr-6'
       )}
     >
       {events.map((event) => (
-        <CalendarEventChip key={event.id} event={event} />
+        <CalendarEventChip
+          key={event.id}
+          event={event}
+          onSelect={onSelectTask}
+          onContextMenu={onTaskContextMenu}
+          className='min-w-0 flex-1'
+        />
       ))}
-    </button>
+    </div>
   )
 }
 
@@ -96,7 +116,14 @@ function TimeSlot({
  * {@link CurrentTimeIndicator}. Events flow in via `eventsByHour` — the single
  * injection point the container fills.
  */
-export function TimeGrid({ days, hours, onSelectSlot, eventsByHour }: TimeGridProps) {
+export function TimeGrid({
+  days,
+  hours,
+  onSelectSlot,
+  onSelectTask,
+  onTaskContextMenu,
+  eventsByHour,
+}: TimeGridProps) {
   const columnsStyle = {
     gridTemplateColumns: `${GUTTER_WIDTH}px repeat(${days.length}, minmax(0, 1fr))`,
   }
@@ -116,10 +143,8 @@ export function TimeGrid({ days, hours, onSelectSlot, eventsByHour }: TimeGridPr
             <span className='text-[var(--text-muted)] text-caption'>{format(day.date, 'EEE')}</span>
             <span
               className={cn(
-                'flex size-[22px] items-center justify-center rounded-lg text-sm',
-                day.isToday
-                  ? 'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
-                  : 'text-[var(--text-body)]'
+                'flex size-[26px] items-center justify-center rounded-lg text-caption',
+                day.isToday ? chipPrimaryFillTokens : 'text-[var(--text-body)]'
               )}
             >
               {format(day.date, 'd')}
@@ -154,6 +179,8 @@ export function TimeGrid({ days, hours, onSelectSlot, eventsByHour }: TimeGridPr
                 events={eventsByHour?.get(hourKey(day.date, hour)) ?? []}
                 isLastColumn={dayIndex === days.length - 1}
                 onSelect={onSelectSlot}
+                onSelectTask={onSelectTask}
+                onTaskContextMenu={onTaskContextMenu}
               />
             ))}
           </div>

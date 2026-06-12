@@ -289,7 +289,7 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
         title='Unsaved Changes'
-        description='You have unsaved changes. Are you sure you want to discard them?'
+        text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{
           label: 'Discard Changes',

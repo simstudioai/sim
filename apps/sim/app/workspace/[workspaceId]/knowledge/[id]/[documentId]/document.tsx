@@ -64,7 +64,7 @@ function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedChangesMo
       onOpenChange={onOpenChange}
       srTitle='Unsaved Changes'
       title='Unsaved Changes'
-      description='You have unsaved changes. Are you sure you want to discard them?'
+      text='You have unsaved changes. Are you sure you want to discard them?'
       dismissLabel='Keep editing'
       confirm={{ label: 'Discard Changes', onClick: onDiscard }}
     />
@@ -1183,25 +1183,22 @@ export function Document({
         onOpenChange={setShowDeleteDocumentDialog}
         srTitle='Delete Document'
         title='Delete Document'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{effectiveDocumentName}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently delete the document and all {documentData?.chunkCount ?? 0}{' '}
-              chunk
-              {documentData?.chunkCount === 1 ? '' : 's'} within it.
-            </span>{' '}
-            {documentData?.connectorId ? (
-              <span className='text-[var(--text-error)]'>
-                This document is synced from a connector. Deleting it will permanently exclude it
-                from future syncs. To temporarily hide it from search, disable it instead.
-              </span>
-            ) : (
-              <>This action cannot be undone.</>
-            )}
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: effectiveDocumentName, bold: true },
+          '? ',
+          {
+            text: `This will permanently delete the document and all ${documentData?.chunkCount ?? 0} chunk${documentData?.chunkCount === 1 ? '' : 's'} within it.`,
+            error: true,
+          },
+          ' ',
+          documentData?.connectorId
+            ? {
+                text: 'This document is synced from a connector. Deleting it will permanently exclude it from future syncs. To temporarily hide it from search, disable it instead.',
+                error: true,
+              }
+            : 'This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete Document',
           onClick: handleDeleteDocument,

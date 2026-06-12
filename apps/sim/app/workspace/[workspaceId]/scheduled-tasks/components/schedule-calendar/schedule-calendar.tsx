@@ -12,7 +12,10 @@ import {
   formatScopeLabel,
   timeToOffset,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
-import type { CalendarEvent } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
+import type {
+  CalendarEvent,
+  ScheduledTask,
+} from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface ScheduleCalendarProps {
   scope: CalendarScope
@@ -22,10 +25,17 @@ interface ScheduleCalendarProps {
   onPrev: () => void
   onNext: () => void
   onToday: () => void
+  onSelectDate: (date: Date) => void
   onSelectSlot: (date: Date, time?: string) => void
-  /** Day-bucketed events for the month grid. Empty until injection is wired. */
+  /** A task pill was clicked — open its details modal. */
+  onSelectTask: (task: ScheduledTask) => void
+  /** A task pill was right-clicked — open its context menu at the cursor. */
+  onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
+  /** A month cell's overflow line was clicked — jump to that day's view. */
+  onShowDay: (date: Date) => void
+  /** Day-bucketed events for the month grid. */
   eventsByDay?: Map<string, CalendarEvent[]>
-  /** Hour-bucketed events for the time grid. Empty until injection is wired. */
+  /** Hour-bucketed events for the time grid. */
   eventsByHour?: Map<string, CalendarEvent[]>
 }
 
@@ -54,7 +64,11 @@ export function ScheduleCalendar({
   onPrev,
   onNext,
   onToday,
+  onSelectDate,
   onSelectSlot,
+  onSelectTask,
+  onTaskContextMenu,
+  onShowDay,
   eventsByDay,
   eventsByHour,
 }: ScheduleCalendarProps) {
@@ -90,10 +104,12 @@ export function ScheduleCalendar({
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
       <CalendarToolbar
         scope={scope}
+        anchor={anchor}
         label={label}
         onPrev={onPrev}
         onNext={onNext}
         onToday={handleToday}
+        onSelectDate={onSelectDate}
         onScopeChange={onScopeChange}
       />
       <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto overscroll-none'>
@@ -101,6 +117,9 @@ export function ScheduleCalendar({
           <MonthGrid
             grid={grid}
             onSelectDay={(date) => onSelectSlot(date)}
+            onSelectTask={onSelectTask}
+            onTaskContextMenu={onTaskContextMenu}
+            onShowDay={onShowDay}
             eventsByDay={eventsByDay}
           />
         ) : (
@@ -108,6 +127,8 @@ export function ScheduleCalendar({
             days={grid.kind === 'week' ? grid.days : [grid.day]}
             hours={grid.hours}
             onSelectSlot={(date, time) => onSelectSlot(date, time)}
+            onSelectTask={onSelectTask}
+            onTaskContextMenu={onTaskContextMenu}
             eventsByHour={eventsByHour}
           />
         )}

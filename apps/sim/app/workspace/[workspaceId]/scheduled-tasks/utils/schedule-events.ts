@@ -1,18 +1,40 @@
 import { truncate } from '@sim/utils/string'
 import { format, getHours } from 'date-fns'
-import type { WorkspaceScheduleData } from '@/hooks/queries/schedules'
+import type { ChatContext } from '@/stores/panel'
+
+/**
+ * Lifecycle of a scheduled task: `pending` has not run yet, `running` is
+ * executing now, and `error`/`completed` are terminal outcomes of a past run.
+ */
+export type ScheduledTaskStatus = 'pending' | 'running' | 'error' | 'completed'
+
+/**
+ * A scheduled task as the calendar renders it. Held in local state this phase
+ * (`useScheduledTasks`); persistence swaps in behind the same shape later.
+ */
+export interface ScheduledTask {
+  id: string
+  /** The instruction Sim runs. Doubles as the calendar title. */
+  prompt: string
+  /** Resources the prompt `@`-mentions / skills it `/`-invokes, when any. */
+  contexts?: ChatContext[]
+  /** When the task runs (`pending`/`running`) or ran (`completed`/`error`). */
+  runAt: Date
+  /** IANA timezone the launch time was captured in. */
+  timezone: string
+  status: ScheduledTaskStatus
+}
 
 /**
  * A scheduled task positioned on the calendar. Derived from a
- * {@link WorkspaceScheduleData} row via {@link toCalendarEvent}; keeps the raw
- * `source` row for click-through once schedule interaction is wired.
+ * {@link ScheduledTask} via {@link taskToCalendarEvent}; keeps the full `task`
+ * for the click-through details modal.
  */
 export interface CalendarEvent {
   id: string
   start: Date
   title: string
-  isRecurring: boolean
-  source: WorkspaceScheduleData
+  task: ScheduledTask
 }
 
 /** Bucket key for a day cell (`yyyy-MM-dd`). */
@@ -26,25 +48,17 @@ export function hourKey(date: Date, hour: number): string {
 }
 
 /**
- * Adapts a schedule row into a positioned calendar event. Returns `null` when
- * the row has no parseable `nextRunAt` so callers can `.filter(Boolean)` it out.
- * This is the single coupling point between the schedule data model and the
- * calendar view.
+ * Adapts a task into a positioned calendar event. This is the single coupling
+ * point between the task model and the calendar view — every task renders
+ * identically regardless of status; the details modal carries the state.
  */
-export function toCalendarEvent(schedule: WorkspaceScheduleData): CalendarEvent | null {
-  if (!schedule.nextRunAt) return null
-  const start = new Date(schedule.nextRunAt)
-  if (Number.isNaN(start.getTime())) return null
-  const title =
-    schedule.jobTitle?.trim() ||
-    (schedule.prompt ? truncate(schedule.prompt, 60) : '') ||
-    'Scheduled task'
+export function taskToCalendarEvent(task: ScheduledTask): CalendarEvent {
+  const prompt = task.prompt.trim()
   return {
-    id: schedule.id,
-    start,
-    title,
-    isRecurring: schedule.cronExpression != null,
-    source: schedule,
+    id: task.id,
+    start: task.runAt,
+    title: prompt ? truncate(prompt, 60) : 'Scheduled task',
+    task,
   }
 }
 

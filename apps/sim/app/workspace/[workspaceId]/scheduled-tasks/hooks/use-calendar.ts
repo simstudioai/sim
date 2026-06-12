@@ -29,6 +29,10 @@ export interface UseCalendarReturn {
   next: () => void
   prev: () => void
   goToday: () => void
+  /** Jumps the view to an arbitrary day, keeping the current scope. */
+  goToDate: (date: Date) => void
+  /** Jumps to a day AND switches to the day scope (month-cell overflow drill-in). */
+  openDay: (date: Date) => void
   selectSlot: (date: Date, time?: string) => void
   openCreate: () => void
   closeCreate: () => void
@@ -59,6 +63,12 @@ export function useCalendar(): UseCalendarReturn {
   const next = useCallback(() => setAnchor((current) => advanceAnchor(current, scope, 1)), [scope])
   const prev = useCallback(() => setAnchor((current) => advanceAnchor(current, scope, -1)), [scope])
   const goToday = useCallback(() => setAnchor(new Date()), [])
+  const goToDate = useCallback((date: Date) => setAnchor(date), [])
+
+  const openDay = useCallback((date: Date) => {
+    setAnchor(date)
+    setScope('day')
+  }, [])
 
   const selectSlot = useCallback((date: Date, time?: string) => {
     setSelectedSlot({ date, time })
@@ -85,6 +95,8 @@ export function useCalendar(): UseCalendarReturn {
     next,
     prev,
     goToday,
+    goToDate,
+    openDay,
     selectSlot,
     openCreate,
     closeCreate,

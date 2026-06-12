@@ -118,10 +118,10 @@ export function buildCalendarGrid(scope: CalendarScope, anchor: Date, today: Dat
   }
 }
 
-/** Toolbar period label, e.g. `June 2026`, `Jun 7 – 13, 2026`, `Wednesday, June 10, 2026`. */
+/** Toolbar period label, e.g. `June 2026`, `Jun 7 – 13, 2026`, `June 10, 2026`. */
 export function formatScopeLabel(scope: CalendarScope, anchor: Date): string {
   if (scope === 'month') return format(anchor, 'MMMM yyyy')
-  if (scope === 'day') return format(anchor, 'EEEE, MMMM d, yyyy')
+  if (scope === 'day') return format(anchor, 'MMMM d, yyyy')
   const start = startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON })
   const end = endOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON })
   if (isSameMonth(start, end)) return `${format(start, 'MMM d')} – ${format(end, 'd, yyyy')}`

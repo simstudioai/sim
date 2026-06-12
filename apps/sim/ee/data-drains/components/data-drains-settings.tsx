@@ -333,13 +333,11 @@ function DrainRow({ drain, organizationId, expanded, onToggleExpand }: DrainRowP
         onOpenChange={setShowDeleteConfirm}
         srTitle='Delete Drain'
         title='Delete Drain'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{drain.name}</span>? This
-            action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: drain.name, bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleConfirmDelete,

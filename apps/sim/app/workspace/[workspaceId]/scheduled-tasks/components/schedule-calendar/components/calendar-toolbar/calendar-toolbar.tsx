@@ -1,9 +1,11 @@
 'use client'
 
+import { format, parseISO } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   Check,
   Chip,
+  ChipDatePicker,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -19,25 +21,30 @@ const SCOPE_OPTIONS: { value: CalendarScope; label: string }[] = [
 
 interface CalendarToolbarProps {
   scope: CalendarScope
+  anchor: Date
   label: string
   onPrev: () => void
   onNext: () => void
   onToday: () => void
+  onSelectDate: (date: Date) => void
   onScopeChange: (scope: CalendarScope) => void
 }
 
 /**
- * Calendar ribbon: a "Today" jump and the period label on the left; the prev/next
- * chevrons and the scope picker on the right. The controls are bare chips and the
- * scope picker is a `DropdownMenu`, matching the Filter/Sort menus on the
- * resource options bar.
+ * Calendar ribbon: a "Today" jump and the period-label date picker on the left;
+ * the prev/next chevrons and the scope picker on the right. The controls are
+ * bare chips — the period label is a ghost `ChipDatePicker` that jumps the view
+ * to any picked date — and the scope picker is a `DropdownMenu`, matching the
+ * Filter/Sort menus on the resource options bar.
  */
 export function CalendarToolbar({
   scope,
+  anchor,
   label,
   onPrev,
   onNext,
   onToday,
+  onSelectDate,
   onScopeChange,
 }: CalendarToolbarProps) {
   const scopeLabel = SCOPE_OPTIONS.find((option) => option.value === scope)?.label ?? 'Week'
@@ -46,7 +53,12 @@ export function CalendarToolbar({
     <div className='flex items-center justify-between border-[var(--border)] border-b px-4 py-2.5'>
       <div className='flex items-center'>
         <Chip onClick={onToday}>Today</Chip>
-        <span className='ml-0.5 text-[var(--text-body)] text-sm'>{label}</span>
+        <ChipDatePicker
+          variant='ghost'
+          label={label}
+          value={format(anchor, 'yyyy-MM-dd')}
+          onChange={(value) => onSelectDate(parseISO(value))}
+        />
       </div>
       <div className='flex items-center'>
         <Chip leftIcon={ChevronLeft} aria-label='Previous' onClick={onPrev} />

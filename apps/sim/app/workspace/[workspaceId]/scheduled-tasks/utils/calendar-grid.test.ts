@@ -68,7 +68,7 @@ describe('formatScopeLabel', () => {
   it('formats per scope', () => {
     expect(formatScopeLabel('month', ANCHOR)).toBe('June 2026')
     expect(formatScopeLabel('week', ANCHOR)).toBe('Jun 7 – 13, 2026')
-    expect(formatScopeLabel('day', ANCHOR)).toBe('Wednesday, June 10, 2026')
+    expect(formatScopeLabel('day', ANCHOR)).toBe('June 10, 2026')
   })
 })
 

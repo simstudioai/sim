@@ -4,6 +4,7 @@ import { forwardRef, useState } from 'react'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { Calendar, formatDateLabel } from '@/components/emcn/components/calendar/calendar'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
+import { chipContentLabelClass } from '@/components/emcn/components/chip/chip-chrome'
 import { POPOVER_ANIMATION_CLASSES } from '@/components/emcn/components/popover/popover-animation'
 import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -13,6 +14,17 @@ export interface ChipDatePickerProps {
   value?: string
   /** Called with the picked date in `YYYY-MM-DD` format. */
   onChange?: (value: string) => void
+  /**
+   * Trigger chrome. `filled` (default) is the bordered field chip with the owned
+   * chevron; `ghost` is the bare toolbar pill — no border, no chevron — for
+   * visual parity with neighboring `Chip` buttons.
+   */
+  variant?: 'filled' | 'ghost'
+  /**
+   * Overrides the formatted date as the trigger text, e.g. a calendar period
+   * label ("June 2026") whose granularity differs from the selected day.
+   */
+  label?: string
   /** Shown in the trigger when no date is selected. */
   placeholder?: string
   /** Aligns the calendar popover relative to the trigger. */
@@ -29,16 +41,23 @@ export interface ChipDatePickerProps {
 
 /**
  * Date counterpart to {@link ChipDropdown} — a chip-styled trigger that opens a
- * {@link Calendar} in a popover. The trigger reuses `chipVariants` (filled +
- * border) and the owned chevron for visual parity with the other chip controls.
+ * {@link Calendar} in a popover. The default `filled` trigger reuses
+ * `chipVariants` (filled + border) and the owned chevron for visual parity with
+ * the other chip field controls; `ghost` renders the bare toolbar pill instead.
  *
  * @example
  * <ChipDatePicker value={value} onChange={setValue} placeholder='Select date' fullWidth />
+ *
+ * @example
+ * // Toolbar period label that opens the calendar
+ * <ChipDatePicker variant='ghost' label='June 2026' value={anchor} onChange={goToDate} />
  */
 const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(function ChipDatePicker(
   {
     value,
     onChange,
+    variant = 'filled',
+    label,
     placeholder = 'Select date',
     align = 'start',
     disabled,
@@ -49,7 +68,7 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(functi
   ref
 ) {
   const [open, setOpen] = useState(false)
-  const label = formatDateLabel(value)
+  const triggerText = label ?? formatDateLabel(value)
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -59,25 +78,29 @@ const ChipDatePicker = forwardRef<HTMLButtonElement, ChipDatePickerProps>(functi
           type='button'
           disabled={disabled}
           className={cn(
-            chipVariants({ variant: 'filled', fullWidth, flush }),
-            TRIGGER_BORDER_CLASS,
+            variant === 'ghost'
+              ? chipVariants({ fullWidth, flush })
+              : cn(chipVariants({ variant: 'filled', fullWidth, flush }), TRIGGER_BORDER_CLASS),
             className
           )}
         >
           <span
             className={cn(
-              'min-w-0 flex-1 truncate text-sm',
-              label ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)]'
+              chipContentLabelClass,
+              'flex-1',
+              !triggerText && 'text-[var(--text-muted)]'
             )}
           >
-            {label || placeholder}
+            {triggerText || placeholder}
           </span>
-          <span
-            aria-hidden
-            className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
-          >
-            <ChevronDown className='h-[6px] w-[10px]' />
-          </span>
+          {variant === 'filled' && (
+            <span
+              aria-hidden
+              className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
+            >
+              <ChevronDown className='h-[6px] w-[10px]' />
+            </span>
+          )}
         </button>
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
