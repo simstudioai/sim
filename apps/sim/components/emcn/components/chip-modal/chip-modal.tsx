@@ -583,31 +583,46 @@ function ChipModalEmailsControl({
   const [items, setItems] = React.useState<TagItem[]>([])
 
   /**
+   * Synchronous mirror of `items`. Pasting multiple values calls `handleAdd`
+   * once per value within a single event, before React re-renders — reading
+   * the `items` state there would make every call see the same stale array
+   * and each add overwrite the previous one (only the last pasted email
+   * survives). All reads and writes go through the ref so consecutive adds
+   * compose; `commitItems` keeps state and ref in lockstep.
+   */
+  const itemsRef = React.useRef<TagItem[]>(items)
+
+  const commitItems = React.useCallback((next: TagItem[]) => {
+    itemsRef.current = next
+    setItems(next)
+  }, [])
+
+  /**
    * Reconcile internal `items` with the consumer's `value` when the latter
    * changes externally (programmatic clear, partial-failure reseed, etc.).
    * When our own `onChange` is the source of the update, the valid items in
    * `items` already match `value` and this is a no-op.
    */
   React.useEffect(() => {
-    setItems((prev) => {
-      const prevValid = prev.filter((item) => item.isValid).map((item) => item.value)
-      if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
-        return prev
-      }
-      return value.map((v) => ({ value: v, isValid: true }))
-    })
+    const prevValid = itemsRef.current.filter((item) => item.isValid).map((item) => item.value)
+    if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
+      return
+    }
+    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
+    setItems(itemsRef.current)
   }, [value])
 
   const handleAdd = React.useCallback(
     (raw: string): boolean => {
       const email = raw.trim().toLowerCase()
       if (!email) return false
-      if (items.some((item) => item.value === email)) return false
+      const current = itemsRef.current
+      if (current.some((item) => item.value === email)) return false
 
       const formatCheck = quickValidateEmail(email)
       if (!formatCheck.isValid) {
-        setItems((prev) => [
-          ...prev,
+        commitItems([
+          ...current,
           { value: email, isValid: false, error: formatCheck.reason ?? 'Invalid email format' },
         ])
         return false
@@ -615,28 +630,29 @@ function ChipModalEmailsControl({
 
       const reason = validate?.(email)
       if (reason) {
-        setItems((prev) => [...prev, { value: email, isValid: false, error: reason }])
+        commitItems([...current, { value: email, isValid: false, error: reason }])
         return false
       }
 
-      const next = [...items, { value: email, isValid: true }]
-      setItems(next)
+      const next = [...current, { value: email, isValid: true }]
+      commitItems(next)
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
       return true
     },
-    [items, validate, onChange]
+    [validate, onChange, commitItems]
   )
 
   const handleRemove = React.useCallback(
     (_removed: string, index: number) => {
-      const wasValid = items[index]?.isValid ?? false
-      const next = items.filter((_, i) => i !== index)
-      setItems(next)
+      const current = itemsRef.current
+      const wasValid = current[index]?.isValid ?? false
+      const next = current.filter((_, i) => i !== index)
+      commitItems(next)
       if (wasValid) {
         onChange(next.filter((item) => item.isValid).map((item) => item.value))
       }
     },
-    [items, onChange]
+    [onChange, commitItems]
   )
 
   return (

@@ -41,7 +41,7 @@ const emailTemplates = {
   'workspace-invitation': () =>
     renderWorkspaceInvitationEmail(
       'John Smith',
-      'Engineering Team',
+      ['Engineering Team'],
       'https://sim.ai/workspace/invite/abc123'
     ),
 
