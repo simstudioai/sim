@@ -19,7 +19,7 @@ Most generated files start as the output of an earlier block. Two patterns are c
 
 A block returns **text content** you want to keep. An [Agent](/workflows/blocks/agent) writes an analysis or summary; a [Function](/workflows/blocks/function) builds a CSV or formats a report. That text is part of the block's output, read by reference as `<agent.content>` or `<function.result>`. To make it a file, you pass that value into a File block set to Write.
 
-A block returns a **file object** directly. ElevenLabs text-to-speech returns an `audioFile`; an image generator returns a generated image; the File block's own Read operation returns parsed files. These are already [UserFile](/files/passing-files) objects (an object with `id`, `name`, `url`, `size`, and `type`), so they appear in the output panel as files with no Write step. You can hand one to a downstream block, or write its content to the Files store to persist it.
+A block returns a **file object** directly. ElevenLabs text-to-speech returns an `audioFile`; an image generator returns a generated image; the File block's own Read operation returns workspace file objects. These are already [UserFile](/files/passing-files) objects (an object with `id`, `name`, `url`, `size`, and `type`), so they appear in the output panel as files with no Write step. You can hand one to a downstream block, or write its content to the Files store to persist it.
 
 <Callout type="info">
 A block's output is remembered under the block's name for the rest of the run, and a later block reads it by key, like `<elevenlabs.audioFile>` or `<agent.content>`. Producing content and saving it are two separate steps: the producing block holds the value, the File block persists it.
@@ -48,7 +48,7 @@ A saved file lands in the workspace [Files](/files) store, the same place upload
 
 {/* VISUAL: Files panel UI: generated files listed with name, size, type icon, owner, modified date, folder */}
 
-Files are scoped to the workspace, not to one workflow. A file written by one workflow is visible to every other workflow in the same workspace. Any later run can read it back with the File block's Read or Get operation, or by selecting it in a file picker.
+Files are scoped to the workspace, not to one workflow. A file written by one workflow is visible to every other workflow in the same workspace. Any later run can read it back with the File block — Read for the file object, Get Content for its text — or by selecting it in a file picker.
 
 During a run, the file also appears in the output panel as the File block's output, shown as a structured object with its `id`, `name`, `url`, and `size`. The output panel shows you one run as it happens, while the Files store is where the file stays afterward.
 
@@ -62,7 +62,7 @@ When a workflow is deployed as an [API](/workflows/deployment/api), a generated 
 
 <Cards>
   <Card title="Files overview" href="/files" description="The artifact layer of your workspace." />
-  <Card title="Using files in workflows" href="/files/passing-files" description="Provide files to a workflow and receive files back." />
-  <Card title="File block" href="/files" description="Read, Get, Write, and Append operations in full." />
+  <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file's contents, pass files between blocks, and write results." />
+  <Card title="File block reference" href="/integrations/file" description="Read, Get Content, Fetch, Write, and Append in full." />
   <Card title="API deployment" href="/workflows/deployment/api" description="Expose a workflow as an API and return file references." />
 </Cards>
