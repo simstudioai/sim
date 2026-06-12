@@ -81,6 +81,13 @@ interface DocumentProps {
   documentId: string
   knowledgeBaseName?: string
   documentName?: string
+  /**
+   * Panel-embedded mode: back-navigation to the knowledge base (breadcrumb,
+   * post-delete) is delegated to the host instead of routing the page away.
+   */
+  onNavigateToKnowledgeBase?: () => void
+  /** Embedded counterpart for the root "Knowledge Base" breadcrumb. */
+  onNavigateToRoot?: () => void
 }
 
 function truncateContent(content: string, maxLength = 150, searchQuery = ''): string {
@@ -123,6 +130,8 @@ export function Document({
   documentId,
   knowledgeBaseName,
   documentName,
+  onNavigateToKnowledgeBase,
+  onNavigateToRoot,
 }: DocumentProps) {
   const { workspaceId } = useParams()
   const router = useRouter()
@@ -436,12 +445,20 @@ export function Document({
   )
 
   const handleNavToKB = useCallback(() => {
+    if (onNavigateToRoot) {
+      onNavigateToRoot()
+      return
+    }
     router.push(`/workspace/${workspaceId}/knowledge`)
-  }, [router, workspaceId])
+  }, [router, workspaceId, onNavigateToRoot])
 
   const handleNavToKBDetail = useCallback(() => {
+    if (onNavigateToKnowledgeBase) {
+      onNavigateToKnowledgeBase()
+      return
+    }
     router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }, [router, workspaceId, knowledgeBaseId])
+  }, [router, workspaceId, knowledgeBaseId, onNavigateToKnowledgeBase])
 
   const handleStartDocRename = useCallback(() => {
     docRename.startRename(documentId, effectiveDocumentName)
@@ -708,6 +725,10 @@ export function Document({
       { knowledgeBaseId, documentId },
       {
         onSuccess: () => {
+          if (onNavigateToKnowledgeBase) {
+            onNavigateToKnowledgeBase()
+            return
+          }
           router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
         },
       }

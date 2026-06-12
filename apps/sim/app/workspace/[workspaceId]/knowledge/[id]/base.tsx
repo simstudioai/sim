@@ -48,6 +48,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { Document } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/document'
 import {
   ActionBar,
   AddConnectorModal,
@@ -108,6 +109,17 @@ interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
   workspaceId?: string
+  /**
+   * Panel-embedded mode (the chat's resource panel): opening a document swaps
+   * to the document view inside the panel instead of routing to the full
+   * page, so the chat beside it never closes.
+   */
+  embedded?: boolean
+  /**
+   * Embedded: where the root breadcrumb and KB deletion land (the host stages
+   * the Knowledge Base page) instead of routing to `/knowledge`.
+   */
+  onNavigateToRoot?: () => void
 }
 
 const AnimatedLoader = ({ className }: { className?: string }) => (
@@ -203,7 +215,13 @@ export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
   workspaceId: propWorkspaceId,
+  embedded = false,
+  onNavigateToRoot,
 }: KnowledgeBaseProps) {
+  /** Embedded only: the document opened inside the panel (null = the KB list). */
+  const [embeddedDocument, setEmbeddedDocument] = useState<{ id: string; name: string } | null>(
+    null
+  )
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const router = useRouter()
@@ -571,9 +589,14 @@ export function KnowledgeBase({
   const handleDocumentClick = (docId: string) => {
     const document = documents.find((doc) => doc.id === docId)
     if (document?.processingStatus !== 'completed') return
+    const docName = document?.filename || 'Document'
+    if (embedded) {
+      setEmbeddedDocument({ id: docId, name: docName })
+      return
+    }
     const urlParams = new URLSearchParams({
       kbName: knowledgeBaseName,
-      docName: document?.filename || 'Document',
+      docName,
     })
     router.push(`/workspace/${workspaceId}/knowledge/${id}/${docId}?${urlParams.toString()}`)
   }
@@ -589,6 +612,10 @@ export function KnowledgeBase({
       {
         onSuccess: () => {
           removeKnowledgeBase(id)
+          if (onNavigateToRoot) {
+            onNavigateToRoot()
+            return
+          }
           router.push(`/workspace/${workspaceId}/knowledge`)
         },
       }
@@ -799,7 +826,7 @@ export function KnowledgeBase({
     {
       label: 'Knowledge Base',
       icon: Database,
-      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
+      onClick: onNavigateToRoot ?? (() => router.push(`/workspace/${workspaceId}/knowledge`)),
     },
     {
       label: knowledgeBaseName,
@@ -1137,6 +1164,21 @@ export function KnowledgeBase({
     )
   }
 
+  // Embedded: the opened document takes the panel in place (its own header
+  // absorbs the panel chrome); its breadcrumbs walk back here, not the router.
+  if (embedded && embeddedDocument) {
+    return (
+      <Document
+        knowledgeBaseId={id}
+        documentId={embeddedDocument.id}
+        knowledgeBaseName={knowledgeBaseName}
+        documentName={embeddedDocument.name}
+        onNavigateToKnowledgeBase={() => setEmbeddedDocument(null)}
+        onNavigateToRoot={onNavigateToRoot}
+      />
+    )
+  }
+
   return (
     <>
       <Resource onContextMenu={handleEmptyContextMenu}>
@@ -1391,9 +1433,14 @@ export function KnowledgeBase({
         onViewTags={
           contextMenuDocument && selectedDocuments.size === 1
             ? () => {
+                const docName = contextMenuDocument.filename || 'Document'
+                if (embedded) {
+                  setEmbeddedDocument({ id: contextMenuDocument.id, name: docName })
+                  return
+                }
                 const urlParams = new URLSearchParams({
                   kbName: knowledgeBaseName,
-                  docName: contextMenuDocument.filename || 'Document',
+                  docName,
                 })
                 router.push(
                   `/workspace/${workspaceId}/knowledge/${id}/${contextMenuDocument.id}?${urlParams.toString()}`

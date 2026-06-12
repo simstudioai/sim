@@ -218,6 +218,10 @@ export const ResourceContent = memo(function ResourceContent({
           id={resource.id}
           knowledgeBaseName={resource.title}
           workspaceId={workspaceId}
+          embedded
+          onNavigateToRoot={() =>
+            onAddResource?.({ type: 'page', id: 'knowledge', title: 'Knowledge Base' })
+          }
         />
       )
 
