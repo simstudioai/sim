@@ -16,7 +16,7 @@ import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
 
@@ -52,7 +52,7 @@ export async function computeDailyRefreshConsumed(
     userBounds?: Record<string, PerUserBounds>
     billingEntity?: { type: 'user' | 'organization'; id: string }
   },
-  executor: DbOrTx = db
+  executor: DbClient = db
 ): Promise<number> {
   const {
     userIds,
@@ -157,9 +157,10 @@ export function getDailyRefreshDollars(planDollars: number): number {
 
 export async function getOrgMemberRefreshBounds(
   organizationId: string,
-  periodStart: Date
+  periodStart: Date,
+  executor: DbClient = db
 ): Promise<Record<string, { userStart: Date }>> {
-  const rows = await db
+  const rows = await executor
     .select({
       userId: member.userId,
       snapshotAt: userStats.proPeriodCostSnapshotAt,

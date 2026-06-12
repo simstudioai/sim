@@ -721,7 +721,7 @@ describe('Schedule Deploy Utilities', () => {
 
       setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(true)
       expect(mockTransaction).not.toHaveBeenCalled()
@@ -742,7 +742,7 @@ describe('Schedule Deploy Utilities', () => {
 
       setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(true)
       expect(result.scheduleId).toBe('test-uuid')
@@ -767,11 +767,35 @@ describe('Schedule Deploy Utilities', () => {
 
       setupMockTransaction()
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Time is required for daily schedules')
       expect(mockTransaction).not.toHaveBeenCalled()
+    })
+
+    it('should write through a provided transaction without opening a new one', async () => {
+      const blocks: Record<string, BlockState> = {
+        'block-1': {
+          id: 'block-1',
+          type: 'schedule',
+          subBlocks: {
+            scheduleType: { value: 'daily' },
+            dailyTime: { value: '09:00' },
+            timezone: { value: 'UTC' },
+          },
+        } as BlockState,
+      }
+
+      setupMockTransaction()
+      const callerTx = { insert: mockInsert, delete: mockDelete, select: mockSelect } as any
+
+      const result = await createSchedulesForDeploy('workflow-1', blocks, callerTx)
+
+      expect(result.success).toBe(true)
+      expect(mockTransaction).not.toHaveBeenCalled()
+      expect(mockInsert).toHaveBeenCalled()
+      expect(mockOnConflictDoUpdate).toHaveBeenCalled()
     })
 
     it('should use onConflictDoUpdate for existing schedules', async () => {
@@ -789,7 +813,7 @@ describe('Schedule Deploy Utilities', () => {
 
       setupMockTransaction()
 
-      await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+      await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(mockOnConflictDoUpdate).toHaveBeenCalledWith({
         target: expect.any(Array),
@@ -818,7 +842,7 @@ describe('Schedule Deploy Utilities', () => {
 
       mockTransaction.mockRejectedValueOnce(new Error('Database error'))
 
-      const result = await createSchedulesForDeploy('workflow-1', blocks, {} as any)
+      const result = await createSchedulesForDeploy('workflow-1', blocks)
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Database error')
