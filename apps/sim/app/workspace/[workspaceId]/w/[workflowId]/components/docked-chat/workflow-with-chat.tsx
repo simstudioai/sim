@@ -341,14 +341,40 @@ export function WorkflowWithChat() {
         </>
       )}
       <div className='relative h-full min-w-0 flex-1'>
-        {/* When the editor is the front of the stack it wears card chrome —
-            inset above the tucked resource tab so the stack stays visible.
-            The wrappers are permanent (classes toggle) so the editor never
-            remounts across flips. */}
-        <div className={cn('h-full w-full', isEditorCard && 'p-2 pb-[36px]')}>
+        {/* When the editor is the front of the stack, the resource pane peeks
+            behind it as the same slim identity bar the workflow shows on the
+            other side of the flip. Rendered before the card so the card
+            paints over its lower half. */}
+        {isEditorCard && activeStageTab && (
+          <button
+            type='button'
+            aria-label='Show resources'
+            onClick={() => setStageFront('card')}
+            className='absolute inset-x-4 top-2 z-0 flex h-[38px] items-start rounded-t-lg border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
+          >
+            <span className='flex h-[26px] min-w-0 items-center gap-1.5'>
+              {getResourceConfig(activeStageTab.type).renderTabIcon(
+                activeStageTab,
+                'size-[12px] flex-shrink-0 text-[var(--text-icon)]'
+              )}
+              <span className='truncate font-medium text-[12px] text-[var(--text-body)]'>
+                {activeStageTab.title}
+              </span>
+              {stageTabs.length > 1 && (
+                <span className='text-[11px] text-[var(--text-muted)]'>
+                  +{stageTabs.length - 1}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
+        {/* Editor card chrome when it's the front of the stack. The wrappers
+            are permanent (classes toggle) so the editor never remounts
+            across flips. */}
+        <div className={cn('h-full w-full', isEditorCard && 'px-2 pt-[32px] pb-2')}>
           <div
             className={cn(
-              'h-full w-full',
+              'relative h-full w-full',
               isEditorCard &&
                 'overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'
             )}
@@ -419,32 +445,6 @@ export function WorkflowWithChat() {
               </Tooltip.Root>
             </div>
           </>
-        )}
-        {stackOpen && stageFront === 'editor' && activeStageTab && (
-          /* The resource card tucked at the bottom edge while the editor is
-             forward — same identity-bar treatment as the workflow's, so the
-             two sides of the stack stay one click apart. */
-          <button
-            type='button'
-            aria-label='Show resources'
-            onClick={() => setStageFront('card')}
-            className='absolute right-4 bottom-0 z-30 flex h-[32px] items-start rounded-t-lg border border-[var(--border-1)] border-b-0 bg-[var(--bg)] px-3 shadow-sm transition-colors hover-hover:bg-[var(--surface-active)]'
-          >
-            <span className='flex h-[30px] min-w-0 items-center gap-1.5'>
-              {getResourceConfig(activeStageTab.type).renderTabIcon(
-                activeStageTab,
-                'size-[12px] flex-shrink-0 text-[var(--text-icon)]'
-              )}
-              <span className='max-w-[200px] truncate font-medium text-[12px] text-[var(--text-body)]'>
-                {activeStageTab.title}
-              </span>
-              {stageTabs.length > 1 && (
-                <span className='text-[11px] text-[var(--text-muted)]'>
-                  +{stageTabs.length - 1}
-                </span>
-              )}
-            </span>
-          </button>
         )}
       </div>
     </div>
