@@ -217,10 +217,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
             : t.archivedAt
               ? String(t.archivedAt)
               : null,
-        importStatus: t.importStatus ?? null,
-        importId: t.importId ?? null,
-        importError: t.importError ?? null,
-        importRowsProcessed: t.importRowsProcessed ?? 0,
+        jobStatus: t.jobStatus ?? null,
+        jobId: t.jobId ?? null,
+        jobType: t.jobType ?? null,
+        jobError: t.jobError ?? null,
+        jobRowsProcessed: t.jobRowsProcessed ?? 0,
       }
     })
 

@@ -191,8 +191,60 @@ export interface TableMetadata {
   pinnedColumns?: string[]
 }
 
-/** Async-import lifecycle state for a table. NULL/undefined = normal (no async import). */
-export type TableImportStatus = 'importing' | 'ready' | 'failed' | 'canceled'
+/** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
+export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
+
+/**
+ * Which kind of background job a `table_jobs` row tracks. `import`, `delete`, and `backfill`
+ * mutate row data and share the single-running-job gate; `export` is read-only and bypasses it
+ * (the partial-unique index excludes it), so an export can run alongside any other job.
+ */
+export type TableJobType = 'import' | 'delete' | 'export' | 'backfill'
+
+/**
+ * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
+ * `matches(filter) AND created_at <= cutoff AND id NOT IN excludeRowIds` — so the rows read-path
+ * can mask those rows out while the job runs, making mid-job reads (refresh, other clients)
+ * consistent with the eventual result.
+ */
+export interface TableDeleteJobPayload {
+  filter?: Filter
+  excludeRowIds?: string[]
+  /** ISO timestamp; rows created after it are spared. */
+  cutoff: string
+  /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+  doomedCount?: number
+}
+
+/**
+ * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
+ * on completion — the storage key of the generated file, served to the client via a presigned URL
+ * and deleted by the janitor when the terminal job is pruned.
+ */
+export interface TableExportJobPayload {
+  format: 'csv' | 'json'
+  resultKey?: string
+}
+
+/**
+ * Keyset cursor for paginating a table's default row order, `(order_key, id)`. The grid's
+ * infinite scroll threads this instead of an OFFSET — offset paging re-scans every prior row per
+ * page (O(N²) to drain a table); the cursor makes each page an index seek on
+ * `(table_id, order_key, id)`. Only valid for the default order: sorted views fall back to offset.
+ */
+export interface TableRowsCursor {
+  orderKey: string
+  id: string
+}
+
+/** Persisted scope of an output-column backfill job (`table_jobs.payload`). */
+export interface TableBackfillJobPayload {
+  groupId: string
+  outputs: WorkflowGroupOutput[]
+  /** Remaps overwrite existing cell values; added columns never clobber hand-edits. */
+  overwrite: boolean
+}
 
 export interface TableDefinition {
   id: string
@@ -207,12 +259,15 @@ export interface TableDefinition {
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
-  /** Async-import state (see `apps/sim/lib/table/import-runner.ts`). */
-  importStatus?: TableImportStatus | null
-  importId?: string | null
-  importError?: string | null
-  importRowsProcessed?: number
-  importStartedAt?: Date | string | null
+  /**
+   * Async background-job state, derived from the table's latest `table_jobs` row (running if any,
+   * else the most recent terminal). See `import-runner.ts` / `delete-runner.ts`.
+   */
+  jobStatus?: TableJobStatus | null
+  jobId?: string | null
+  jobType?: TableJobType | null
+  jobError?: string | null
+  jobRowsProcessed?: number
 }
 
 /** Minimal table info for UI components. */
@@ -316,6 +371,9 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
+   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+  after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
    * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
@@ -355,10 +413,12 @@ export interface CreateTableData {
   maxTables?: number
   /** Number of empty rows to create with the table. Defaults to 0. */
   initialRowCount?: number
-  /** When set, the table is created in this async-import state (rows hidden until ready). */
-  importStatus?: TableImportStatus
-  /** Async-import id stamped on the table when `importStatus` is set. */
-  importId?: string
+  /** When set, the table is created with this job already running (rows hidden until ready). */
+  jobStatus?: TableJobStatus
+  /** Job kind, paired with `jobStatus` (create-mode import sets `'import'`). */
+  jobType?: TableJobType
+  /** Async job id stamped on the table when `jobStatus` is set. */
+  jobId?: string
 }
 
 export interface InsertRowData {

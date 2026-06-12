@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import {
   createTableColumnBodySchema,
@@ -6,11 +7,96 @@ import {
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import type { MultipartError } from '@/lib/core/utils/multipart'
-import type { ColumnDefinition, TableDefinition } from '@/lib/table'
-import { getTableById } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableDefinition } from '@/lib/table'
+import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
+/**
+ * Validates a `filter` against the table's column schema, returning a 400 response on a bad field
+ * (or `null` when the filter is valid or absent). Shared by the routes that accept a filter
+ * (`delete-async`, `columns/run`) so a bad field fails fast with a clear message.
+ */
+export function tableFilterError(
+  filter: Filter | undefined,
+  columns: ColumnDefinition[]
+): NextResponse | null {
+  if (!filter) return null
+  try {
+    buildFilterClause(filter, USER_TABLE_ROWS_SQL_NAME, columns)
+    return null
+  } catch (error) {
+    if (error instanceof TableQueryValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
+    throw error
+  }
+}
+
 const logger = createLogger('TableUtils')
+
+/**
+ * Deepest `Error` message in the cause chain. Drizzle wraps DB errors (e.g. the
+ * row-limit trigger's RAISE) in a `DrizzleQueryError` whose own message is just
+ * the failed SQL — substring classification must look at the root cause.
+ */
+export function rootErrorMessage(error: unknown): string {
+  let current: unknown = error
+  while (current instanceof Error && current.cause instanceof Error) {
+    current = current.cause
+  }
+  return toError(current).message
+}
+
+/**
+ * Known user-facing row-write failures (service validation + the DB row-limit
+ * trigger). Anything outside this list stays a generic 500 — unknown errors can
+ * carry SQL/internals that don't belong in a toast.
+ */
+const ROW_WRITE_ERROR_PATTERNS = [
+  'row limit',
+  'Insufficient capacity',
+  'Schema validation',
+  'must be unique',
+  'must be valid',
+  'must be string',
+  'must be number',
+  'must be boolean',
+  'unique column',
+  'Unique constraint violation',
+  'Row size exceeds',
+  'conflictTarget',
+  'Upsert requires',
+  'Rows not found',
+  'Filter is required',
+] as const
+
+/**
+ * Maps a known user-facing row-write failure to a 400 carrying the real message
+ * (so client toasts can show the actual reason); `null` when the error is
+ * unrecognized and the caller should log it and return its generic 500.
+ */
+export function rowWriteErrorResponse(error: unknown): NextResponse | null {
+  const message = rootErrorMessage(error)
+
+  // Trigger message reads `Maximum row limit (N) reached for table tbl_...` —
+  // rewrite it for the toast instead of leaking the internal table id.
+  const limitMatch = message.match(/Maximum row limit \((\d+)\) reached/)
+  if (limitMatch) {
+    return NextResponse.json(
+      {
+        error: `Row limit exceeded — this table is capped at ${Number(limitMatch[1]).toLocaleString('en-US')} rows`,
+      },
+      { status: 400 }
+    )
+  }
+
+  if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {
+    return NextResponse.json({ error: message }, { status: 400 })
+  }
+
+  return null
+}
 
 /**
  * Next.js buffers the request body for the proxy and silently truncates it past this

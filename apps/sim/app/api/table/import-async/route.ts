@@ -4,19 +4,22 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
+  deleteTable,
   getWorkspaceTableLimits,
   listTables,
+  releaseJobClaim,
   sanitizeName,
   TABLE_LIMITS,
   TableConflictError,
 } from '@/lib/table'
-import { runTableImport } from '@/lib/table/import-runner'
+import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableImportAsync')
@@ -83,8 +86,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         userId,
         maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
-        importStatus: 'importing',
-        importId,
+        jobStatus: 'running',
+        jobType: 'import',
+        jobId: importId,
       },
       requestId
     )
@@ -98,18 +102,38 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     throw error
   }
 
-  runDetached('table-import', () =>
-    runTableImport({
-      importId,
-      tableId: table.id,
-      workspaceId,
-      userId,
-      fileKey,
-      fileName,
-      delimiter,
-      mode: 'create',
-    })
-  )
+  const importPayload: TableImportPayload = {
+    importId,
+    tableId: table.id,
+    workspaceId,
+    userId,
+    fileKey,
+    fileName,
+    delimiter,
+    mode: 'create',
+  }
+  if (isTriggerDevEnabled) {
+    // Trigger.dev runs the import outside the web container, so it survives app deploys.
+    try {
+      const [{ tableImportTask }, { tasks }] = await Promise.all([
+        import('@/background/table-import'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
+        tags: [`tableId:${table.id}`, `jobId:${importId}`],
+      })
+    } catch (error) {
+      // A failed dispatch must not leave a ghost `running` job holding the
+      // table's one-write-job slot — nor, in create mode, the placeholder
+      // table itself: the user never saw it, so archive it back out of the
+      // workspace (no hard-delete surface exists; archived is invisible).
+      await releaseJobClaim(table.id, importId).catch(() => {})
+      await deleteTable(table.id, requestId).catch(() => {})
+      throw error
+    }
+  } else {
+    runDetached('table-import', () => runTableImport(importPayload))
+  }
 
   captureServerEvent(
     userId,

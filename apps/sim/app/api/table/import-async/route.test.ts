@@ -84,7 +84,7 @@ describe('POST /api/table/import-async', () => {
     expect(response.status).toBe(200)
     expect(data.data).toEqual({ tableId: 'tbl_async', importId: 'import-id-123' })
     expect(mockCreateTable).toHaveBeenCalledWith(
-      expect.objectContaining({ importStatus: 'importing', importId: 'import-id-123' }),
+      expect.objectContaining({ jobStatus: 'running', jobType: 'import', jobId: 'import-id-123' }),
       expect.any(String)
     )
     expect(mockRunTableImport).toHaveBeenCalledWith(

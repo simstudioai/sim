@@ -27,7 +27,7 @@ import {
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
-  cancelTableImport,
+  cancelTableJob,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
@@ -448,7 +448,7 @@ export function Tables() {
               useImportTrayStore.getState().consumeCanceled(pendingId)
             ) {
               useImportTrayStore.getState().cancel(result.tableId)
-              void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
+              void cancelTableJob(workspaceId, result.tableId, result.importId).catch(() => {})
             }
           } catch {
             // The hook's onError surfaces the toast; just clear the tray indicator here.
