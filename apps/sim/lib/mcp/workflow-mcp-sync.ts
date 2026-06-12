@@ -143,7 +143,6 @@ interface SyncOptionsBase {
   requestId: string
   /** Context for logging (e.g., 'deploy', 'revert', 'activate') */
   context?: string
-  notify?: boolean
   throwOnError?: boolean
 }
 
@@ -151,11 +150,17 @@ interface SyncOptionsBase {
  * Callers running inside a transaction must preload the workflow state:
  * loading it lazily would issue queries on the global pool while the
  * transaction already holds a pooled connection.
+ *
+ * Server notification is strictly post-commit. The standalone arm notifies
+ * after its own transaction commits (`notify` defaults to true); the `tx` arm
+ * never notifies — publishing before the caller's transaction commits would
+ * announce state that may still roll back, so the transaction owner notifies
+ * after commit (see deployment-outbox).
  */
 type SyncOptions = SyncOptionsBase &
   (
-    | { tx: DbOrTx; state: { blocks?: Record<string, unknown> } }
-    | { tx?: undefined; state?: { blocks?: Record<string, unknown> } }
+    | { tx: DbOrTx; state: { blocks?: Record<string, unknown> }; notify?: false }
+    | { tx?: undefined; state?: { blocks?: Record<string, unknown> }; notify?: boolean }
   )
 
 /**
@@ -193,21 +198,11 @@ export async function syncMcpToolsForWorkflow(
     return tools
   }
 
-  const {
-    workflowId,
-    requestId,
-    state,
-    context = 'sync',
-    tx,
-    notify = true,
-    throwOnError = false,
-  } = options
+  const { workflowId, requestId, state, context = 'sync', tx, throwOnError = false } = options
 
   try {
     if (!hasValidStartBlockInState(state as WorkflowState | null)) {
-      const affectedTools = await removeMcpToolsForWorkflow(workflowId, requestId, tx, false, true)
-      if (notify) notifyMcpToolServers(affectedTools)
-      return affectedTools
+      return await removeMcpToolsForWorkflow(workflowId, requestId, tx, true)
     }
 
     const generatedParameterSchema = state.blocks
@@ -324,9 +319,7 @@ export async function syncMcpToolsForWorkflow(
       `[${requestId}] Synced ${syncedToolCount} MCP tool(s) for workflow (${context}): ${workflowId}`
     )
 
-    const affectedTools = [...affectedServerIds].map((serverId) => ({ serverId }))
-    if (notify) notifyMcpToolServers(affectedTools)
-    return affectedTools
+    return [...affectedServerIds].map((serverId) => ({ serverId }))
   } catch (error) {
     logger.error(`[${requestId}] Error syncing MCP tools (${context}):`, error)
     if (throwOnError) throw error
@@ -336,20 +329,23 @@ export async function syncMcpToolsForWorkflow(
 
 /**
  * Remove all MCP tools for a workflow (used when undeploying).
- * Queries affected tools before deleting so we can notify their servers.
+ * Queries affected tools before deleting so their servers can be notified.
+ *
+ * Server notification is strictly post-commit: the standalone path notifies
+ * after the transaction opened here commits; when `tx` is provided the
+ * transaction owner notifies after commit using the returned server ids.
  */
 export async function removeMcpToolsForWorkflow(
   workflowId: string,
   requestId: string,
   tx?: DbOrTx,
-  notify = true,
   throwOnError = false
 ): Promise<Array<{ serverId: string }>> {
   if (!tx) {
     const tools = await db.transaction((transaction) =>
-      removeMcpToolsForWorkflow(workflowId, requestId, transaction, false, throwOnError)
+      removeMcpToolsForWorkflow(workflowId, requestId, transaction, throwOnError)
     )
-    if (notify) notifyMcpToolServers(tools)
+    notifyMcpToolServers(tools)
     return tools
   }
 
@@ -365,7 +361,6 @@ export async function removeMcpToolsForWorkflow(
     await tx.delete(workflowMcpTool).where(eq(workflowMcpTool.workflowId, workflowId))
     logger.info(`[${requestId}] Removed MCP tools for workflow: ${workflowId}`)
 
-    if (notify) notifyMcpToolServers(tools)
     return tools
   } catch (error) {
     logger.error(`[${requestId}] Error removing MCP tools:`, error)
