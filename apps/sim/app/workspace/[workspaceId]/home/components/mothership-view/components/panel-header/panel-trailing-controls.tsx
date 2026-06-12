@@ -2,10 +2,7 @@
 
 import { Button, Tooltip } from '@/components/emcn'
 import { X } from '@/components/emcn/icons'
-import {
-  PANEL_ICON_BUTTON_CLASS,
-  PANEL_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
+import { PANEL_ICON_BUTTON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
 import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/resource-panel-toggle'
 
 /**
@@ -46,7 +43,9 @@ export function PanelCloseButton({ label, onClose, className }: PanelCloseButton
           className={`${PANEL_ICON_BUTTON_CLASS} ${className ?? ''}`}
           aria-label={label}
         >
-          <X className={PANEL_ICON_CLASS} />
+          {/* Close glyphs run 14px everywhere (chat close, modal closes): the
+              X reads optically larger than other glyphs at the 16px icon size. */}
+          <X className='size-[14px] text-[var(--text-icon)]' />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
