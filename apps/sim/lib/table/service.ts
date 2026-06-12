@@ -4303,44 +4303,55 @@ export async function updateColumnType(
     }
 
     const column = schema.columns[columnIndex]
-    if (column.type === data.newType) {
+    if (column.type === data.newType && data.options === undefined) {
       return table
     }
-    const columnKey = getColumnId(column)
 
-    // Validate existing data is compatible with the new type
-    const rows = await trx
-      .select({ id: userTableRows.id, data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.tableId, data.tableId),
-          sql`${userTableRows.data} ? ${columnKey}`,
-          sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
-        )
-      )
-
-    let incompatibleCount = 0
-    for (const row of rows) {
-      const rowData = row.data as RowData
-      const value = rowData[columnKey]
-      if (value === null || value === undefined) continue
-
-      if (!isValueCompatibleWithType(value, data.newType)) {
-        incompatibleCount++
+    if (data.options !== undefined) {
+      const optionsValidation = validateColumnOptions(data.options, column.name, data.newType)
+      if (!optionsValidation.valid) {
+        throw new Error(`Invalid column options: ${optionsValidation.errors.join('; ')}`)
       }
     }
 
-    if (incompatibleCount > 0) {
-      throw new Error(
-        `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
-      )
+    const columnKey = getColumnId(column)
+
+    if (column.type !== data.newType) {
+      // Validate existing data is compatible with the new type
+      const rows = await trx
+        .select({ id: userTableRows.id, data: userTableRows.data })
+        .from(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, data.tableId),
+            sql`${userTableRows.data} ? ${columnKey}`,
+            sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
+          )
+        )
+
+      let incompatibleCount = 0
+      for (const row of rows) {
+        const rowData = row.data as RowData
+        const value = rowData[columnKey]
+        if (value === null || value === undefined) continue
+
+        if (!isValueCompatibleWithType(value, data.newType)) {
+          incompatibleCount++
+        }
+      }
+
+      if (incompatibleCount > 0) {
+        throw new Error(
+          `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
+        )
+      }
     }
 
     const updatedColumns = schema.columns.map((c, i) => {
       if (i !== columnIndex) return c
       const next = { ...c, type: data.newType }
-      return data.newType === 'select' ? next : omit(next, ['options'])
+      if (data.newType !== 'select') return omit(next, ['options'])
+      return data.options !== undefined ? { ...next, options: data.options } : next
     })
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()

@@ -559,6 +559,11 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /**
+   * Replacement option set applied atomically with the type change (same
+   * locked transaction). Only valid when `newType` is `select`.
+   */
+  options?: string[]
 }
 
 export interface UpdateColumnOptionsData {

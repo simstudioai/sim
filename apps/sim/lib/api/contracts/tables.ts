@@ -179,8 +179,7 @@ export const updateTableColumnBodySchema = z.object({
       (updates) =>
         updates.options === undefined || updates.type === undefined || updates.type === 'select',
       {
-        message:
-          'options can only be set when the column type is (or is being changed to) select',
+        message: 'options can only be set when the column type is (or is being changed to) select',
         path: ['options'],
       }
     ),

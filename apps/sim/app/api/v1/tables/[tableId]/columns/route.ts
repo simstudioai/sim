@@ -141,7 +141,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
 
     if (updates.type) {
       updatedTable = await updateColumnType(
-        { tableId, columnName: updates.name ?? validated.columnName, newType: updates.type },
+        {
+          tableId,
+          columnName: updates.name ?? validated.columnName,
+          newType: updates.type,
+          // Applied inside updateColumnType's transaction so a combined
+          // type+options change is atomic.
+          ...(updates.options !== undefined ? { options: updates.options } : {}),
+        },
         requestId
       )
     }
@@ -158,7 +165,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       )
     }
 
-    if (updates.options !== undefined) {
+    if (updates.options !== undefined && !updates.type) {
       updatedTable = await updateColumnOptions(
         { tableId, columnName: updates.name ?? validated.columnName, options: updates.options },
         requestId
