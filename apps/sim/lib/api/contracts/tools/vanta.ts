@@ -678,6 +678,7 @@ export const vantaUploadBodySchema = vantaBaseBodySchema.extend({
   file: FileInputSchema.optional().nullable(),
   fileContent: z.string().nullish(),
   fileName: z.string().nullish(),
+  mimeType: z.string().nullish(),
   description: z.string().nullish(),
   effectiveAtDate: z.string().nullish(),
 })

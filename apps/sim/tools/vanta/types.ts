@@ -76,6 +76,7 @@ export interface VantaUploadDocumentFileParams extends VantaBaseParams {
   file?: unknown
   fileContent?: string
   fileName?: string
+  mimeType?: string
   description?: string
   effectiveAtDate?: string
 }

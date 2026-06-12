@@ -332,6 +332,7 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 | `file` | file | No | The evidence file to upload |
 | `fileContent` | string | No | Base64-encoded file content \(alternative to file\) |
 | `fileName` | string | No | Optional file name override |
+| `mimeType` | string | No | MIME type of the file \(e.g., application/pdf\); used when uploading base64 content, since uploaded files already carry their own type |
 | `description` | string | No | Description of the uploaded evidence \(e.g., "Q3 access review evidence"\) |
 | `effectiveAtDate` | string | No | ISO 8601 date indicating when the document is effective from |
 

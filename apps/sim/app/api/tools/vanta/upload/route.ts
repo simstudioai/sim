@@ -72,11 +72,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
       fileName = params.fileName || userFile.name
-      mimeType = userFile.type || 'application/octet-stream'
+      mimeType = userFile.type || params.mimeType || 'application/octet-stream'
     } else if (params.fileContent) {
       fileBuffer = Buffer.from(params.fileContent, 'base64')
       fileName = params.fileName || 'file'
-      mimeType = 'application/octet-stream'
+      mimeType = params.mimeType || 'application/octet-stream'
     } else {
       return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
     }

@@ -59,6 +59,13 @@ export const vantaUploadDocumentFileTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Optional file name override',
     },
+    mimeType: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'MIME type of the file (e.g., application/pdf); used when uploading base64 content, since uploaded files already carry their own type',
+    },
     description: {
       type: 'string',
       required: false,
@@ -85,6 +92,7 @@ export const vantaUploadDocumentFileTool: ToolConfig<
       file: params.file,
       fileContent: params.fileContent,
       fileName: params.fileName,
+      mimeType: params.mimeType,
       description: params.description,
       effectiveAtDate: params.effectiveAtDate,
     }),

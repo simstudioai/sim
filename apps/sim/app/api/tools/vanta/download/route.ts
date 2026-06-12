@@ -75,18 +75,18 @@ function getFileNameFromContentDisposition(header: string | null): string | null
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
-  const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
-  if (!authResult.success) {
-    logger.warn(`[${requestId}] Unauthorized Vanta download attempt`, {
-      error: authResult.error || 'Unauthorized',
-    })
-    return NextResponse.json(
-      { success: false, error: authResult.error || 'Unauthorized' },
-      { status: 401 }
-    )
-  }
-
   try {
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success) {
+      logger.warn(`[${requestId}] Unauthorized Vanta download attempt`, {
+        error: authResult.error || 'Unauthorized',
+      })
+      return NextResponse.json(
+        { success: false, error: authResult.error || 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
     const parsed = await parseRequest(vantaDownloadContract, request, {})
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
