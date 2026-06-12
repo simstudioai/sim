@@ -102,6 +102,7 @@ describe('getUserUsageLimit', () => {
 
   it('heals a null limit to the free-tier default for free users', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ currentUsageLimit: '10' }])
     mockGetFreeTierLimit.mockReturnValue(10)
 
     const limit = await getUserUsageLimit('user-1', null)
@@ -121,6 +122,7 @@ describe('getUserUsageLimit', () => {
 
   it('heals a null limit to the plan minimum for paid personal subscriptions', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ currentUsageLimit: '40' }])
     mockHasPaidSubscriptionStatus.mockReturnValue(true)
     mockGetPerUserMinimumLimit.mockReturnValue(40)
 
@@ -132,5 +134,24 @@ describe('getUserUsageLimit', () => {
       currentUsageLimit: '40',
       usageLimitUpdatedAt: expect.any(Date),
     })
+  })
+
+  it('returns a concurrently written limit when the guarded heal matches no rows', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '30' }])
+    mockGetFreeTierLimit.mockReturnValue(10)
+
+    const limit = await getUserUsageLimit('user-1', null)
+
+    expect(limit).toBe(30)
+  })
+
+  it('still returns the fallback when the heal write fails', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
+    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection lost'))
+    mockGetFreeTierLimit.mockReturnValue(10)
+
+    await expect(getUserUsageLimit('user-1', null)).resolves.toBe(10)
   })
 })

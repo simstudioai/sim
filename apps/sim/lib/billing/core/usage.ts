@@ -499,7 +499,9 @@ export async function updateUserUsageLimit(
  * Org-scoped members carry a null `currentUsageLimit` by design (see
  * `syncUsageLimitsFromSubscription`). A user whose subscription stops being
  * org-scoped without a resync would otherwise stay null and fail closed on
- * every execution, so a null limit self-heals to the plan default here.
+ * every execution, so a null limit self-heals to the plan default here. The
+ * write-back is best-effort: a limit written concurrently wins, and a failed
+ * write still resolves to the fallback instead of blocking execution.
  */
 export async function getUserUsageLimit(
   userId: string,
@@ -547,19 +549,36 @@ export async function getUserUsageLimit(
         ? getPerUserMinimumLimit(subscription)
         : getFreeTierLimit()
 
-    await db
-      .update(userStats)
-      .set({
-        currentUsageLimit: fallbackLimit.toString(),
-        usageLimitUpdatedAt: new Date(),
-      })
-      .where(and(eq(userStats.userId, userId), isNull(userStats.currentUsageLimit)))
+    try {
+      const healed = await db
+        .update(userStats)
+        .set({
+          currentUsageLimit: fallbackLimit.toString(),
+          usageLimitUpdatedAt: new Date(),
+        })
+        .where(and(eq(userStats.userId, userId), isNull(userStats.currentUsageLimit)))
+        .returning({ currentUsageLimit: userStats.currentUsageLimit })
 
-    logger.warn('Healed null usage limit to plan default', {
-      userId,
-      plan: subscription?.plan || 'free',
-      fallbackLimit,
-    })
+      if (healed.length === 0) {
+        const concurrent = await db
+          .select({ currentUsageLimit: userStats.currentUsageLimit })
+          .from(userStats)
+          .where(eq(userStats.userId, userId))
+          .limit(1)
+
+        if (concurrent[0]?.currentUsageLimit) {
+          return toNumber(toDecimal(concurrent[0].currentUsageLimit))
+        }
+      }
+
+      logger.warn('Healed null usage limit to plan default', {
+        userId,
+        plan: subscription?.plan || 'free',
+        fallbackLimit,
+      })
+    } catch (error) {
+      logger.error('Failed to heal null usage limit', { userId, fallbackLimit, error })
+    }
 
     return fallbackLimit
   }
