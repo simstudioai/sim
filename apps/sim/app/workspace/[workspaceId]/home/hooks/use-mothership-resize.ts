@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
+import { useMothershipPanelStore } from '@/stores/mothership-panel/store'
 
 /**
  * Hook for managing resize of the MothershipView resource panel.
@@ -8,7 +9,9 @@ import { MOTHERSHIP_WIDTH } from '@/stores/constants'
  * Pointer Events + setPointerCapture for unified mouse/touch/stylus support.
  * Attach `mothershipRef` to the MothershipView root div and bind
  * `handleResizePointerDown` to the drag handle's onPointerDown.
- * Call `clearWidth` when the panel collapses so the CSS class retakes control.
+ * Call `clearWidth` when the panel collapses so the CSS class retakes control,
+ * and `applyStoredWidth` when it (re)opens so the user's last resize sticks
+ * across view switches, route changes, and reloads.
  */
 export function useMothershipResize() {
   const mothershipRef = useRef<HTMLDivElement | null>(null)
@@ -49,7 +52,7 @@ export function useMothershipResize() {
       'pointermove',
       (moveEvent: PointerEvent) => {
         const newWidth = window.innerWidth - moveEvent.clientX
-        const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
+        const maxWidth = window.innerWidth - MOTHERSHIP_WIDTH.CHAT_MIN
         el.style.width = `${Math.min(Math.max(newWidth, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
       },
       { signal }
@@ -59,6 +62,7 @@ export function useMothershipResize() {
       'pointerup',
       (upEvent: PointerEvent) => {
         handle.releasePointerCapture(upEvent.pointerId)
+        useMothershipPanelStore.getState().setPanelWidth(el.getBoundingClientRect().width)
         cleanup()
       },
       { signal }
@@ -81,7 +85,7 @@ export function useMothershipResize() {
     const handleWindowResize = () => {
       const el = mothershipRef.current
       if (!el || !el.style.width) return
-      const maxWidth = window.innerWidth * MOTHERSHIP_WIDTH.MAX_PERCENTAGE
+      const maxWidth = window.innerWidth - MOTHERSHIP_WIDTH.CHAT_MIN
       const current = el.getBoundingClientRect().width
       if (current > maxWidth) {
         el.style.width = `${maxWidth}px`
@@ -96,5 +100,18 @@ export function useMothershipResize() {
     mothershipRef.current?.style.removeProperty('width')
   }, [])
 
-  return { mothershipRef, handleResizePointerDown, clearWidth }
+  /**
+   * Re-applies the persisted width (clamped to the current viewport).
+   * No-op until the user has resized at least once — the CSS default rules.
+   */
+  const applyStoredWidth = useCallback(() => {
+    const el = mothershipRef.current
+    if (!el) return
+    const stored = useMothershipPanelStore.getState().panelWidth
+    if (!stored) return
+    const maxWidth = window.innerWidth - MOTHERSHIP_WIDTH.CHAT_MIN
+    el.style.width = `${Math.min(Math.max(stored, MOTHERSHIP_WIDTH.MIN), maxWidth)}px`
+  }, [])
+
+  return { mothershipRef, handleResizePointerDown, clearWidth, applyStoredWidth }
 }

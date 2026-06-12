@@ -60,8 +60,11 @@ export const OUTPUT_PANEL_WIDTH = {
 /** Home chat resource panel (MothershipView) width constraints */
 export const MOTHERSHIP_WIDTH = {
   MIN: 280,
-  /** Maximum is 65% of viewport, enforced dynamically */
-  MAX_PERCENTAGE: 0.65,
+  /**
+   * The panel's maximum is whatever leaves the chat pane its floor — the
+   * chat can narrow all the way down to CHAT_MIN on any viewport.
+   */
+  CHAT_MIN: 280,
 } as const
 
 /** Terminal block column width - minimum width for the logs column */

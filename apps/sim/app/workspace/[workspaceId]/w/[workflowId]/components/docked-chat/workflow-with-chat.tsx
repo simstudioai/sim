@@ -11,7 +11,7 @@ import { DockedChat } from './docked-chat'
 const NEW_CHAT_PARAM = 'new'
 
 /** Drag bounds for the docked chat pane. */
-const CHAT_PANE = { MIN: 360, MAX_PERCENTAGE: 0.55 } as const
+const CHAT_PANE = { MIN: 280, MAX_PERCENTAGE: 0.55 } as const
 
 interface DockState {
   open: boolean
@@ -160,7 +160,7 @@ export function WorkflowWithChat() {
         <>
           <div
             ref={chatPaneRef}
-            className='flex h-full w-[clamp(360px,34%,520px)] flex-shrink-0 flex-col border-[var(--border)] border-r'
+            className='flex h-full w-[clamp(280px,34%,520px)] flex-shrink-0 flex-col border-[var(--border)] border-r'
           >
             <DockedChat
               key={dock.chatId ?? 'new'}

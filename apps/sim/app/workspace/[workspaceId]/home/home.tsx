@@ -586,7 +586,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     <div className='relative flex h-full flex-col bg-[var(--bg)]'>
       <div className='relative flex min-h-0 flex-1'>
         {!isChatCollapsed && (
-          <div className='flex h-full min-w-[320px] flex-1 flex-col'>
+          <div className='flex h-full min-w-[280px] flex-1 flex-col'>
             <MothershipChat
               messages={messages}
               isSending={isSending}
