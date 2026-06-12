@@ -25,7 +25,7 @@ import { resolve } from 'path'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
-import { index, json, jsonb, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { index, json, jsonb, pgTable, text, timestamp } from 'drizzle-orm/pg-core'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 
@@ -196,7 +196,7 @@ const workspaceBYOKKeys = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
+    workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
       table.providerId
     ),
@@ -497,14 +497,12 @@ async function processWorkspace(
     stats.workspacesProcessed++
 
     const existingBYOKProviders = new Set<string>()
-    if (DRY_RUN) {
-      const existingRows = await db
-        .select({ providerId: workspaceBYOKKeys.providerId })
-        .from(workspaceBYOKKeys)
-        .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
-      for (const row of existingRows) {
-        existingBYOKProviders.add(row.providerId)
-      }
+    const existingRows = await db
+      .select({ providerId: workspaceBYOKKeys.providerId })
+      .from(workspaceBYOKKeys)
+      .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
+    for (const row of existingRows) {
+      existingBYOKProviders.add(row.providerId)
     }
 
     let hasNewInserts = false
@@ -565,29 +563,25 @@ async function processWorkspace(
         continue
       }
 
+      if (existingBYOKProviders.has(providerId)) {
+        console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
+        stats.skippedExisting++
+        continue
+      }
+
       try {
         const encrypted = await encryptSecret(chosen.key)
-        const result = await db
-          .insert(workspaceBYOKKeys)
-          .values({
-            id: generateId(),
-            workspaceId,
-            providerId,
-            encryptedApiKey: encrypted,
-            createdBy: chosen.ref.userId,
-          })
-          .onConflictDoNothing({
-            target: [workspaceBYOKKeys.workspaceId, workspaceBYOKKeys.providerId],
-          })
-          .returning({ id: workspaceBYOKKeys.id })
+        await db.insert(workspaceBYOKKeys).values({
+          id: generateId(),
+          workspaceId,
+          providerId,
+          encryptedApiKey: encrypted,
+          createdBy: chosen.ref.userId,
+        })
 
-        if (result.length === 0) {
-          console.log(`  [SKIP] BYOK already exists for provider "${providerId}"`)
-          stats.skippedExisting++
-        } else {
-          console.log(`  [INSERT] BYOK for provider "${providerId}": ${maskKey(chosen.key)}`)
-          stats.inserted++
-        }
+        existingBYOKProviders.add(providerId)
+        console.log(`  [INSERT] BYOK for provider "${providerId}": ${maskKey(chosen.key)}`)
+        stats.inserted++
       } catch (error) {
         console.error(`  [ERROR] Failed to insert BYOK for provider "${providerId}":`, error)
         stats.errors++

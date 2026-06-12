@@ -713,6 +713,9 @@ export const copilotChatAbortContract = defineRouteContract({
     schema: z.object({
       aborted: z.boolean(),
       settled: z.boolean().optional(),
+      // True when the stream did not settle within the grace window and the
+      // chat stream lock was force-broken so the chat is immediately usable.
+      forceReleased: z.boolean().optional(),
     }),
   },
 })

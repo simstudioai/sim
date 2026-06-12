@@ -20,6 +20,7 @@ import {
   CHIP_FIELD_INPUT,
   CHIP_FIELD_SHELL,
 } from '@/app/workspace/[workspaceId]/components/credential-detail/components/chip-field'
+import { BYOKProviderKeysModal } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-provider-keys-modal'
 import { BYOKKeySkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -33,26 +34,27 @@ export interface BYOKManagerProvider {
   placeholder: string
 }
 
+/** A stored key as rendered by the manager in multi-key mode. */
+export interface BYOKManagerKey {
+  id: string
+  name: string | null
+  maskedKey: string
+}
+
 /**
  * Optional provider grouping. Each provider id should belong to exactly one
- * section; rows keep their {@link BYOKKeyManagerProps.providers} order within a
- * group. When omitted, providers render as a single flat list.
+ * section; rows keep their {@link BYOKKeyManagerBaseProps.providers} order
+ * within a group. When omitted, providers render as a single flat list.
  */
 export interface BYOKProviderSection {
   label: string
   ids: string[]
 }
 
-interface BYOKKeyManagerProps {
+interface BYOKKeyManagerBaseProps {
   /** Providers to render, in display order. */
   providers: BYOKManagerProvider[]
-  /** Provider ids that currently have a stored key. */
-  configuredProviderIds: Set<string>
   isLoading: boolean
-  /** Persist a key. Throw to surface an error in the modal. */
-  onSave: (providerId: string, apiKey: string) => Promise<void>
-  /** Remove a key. */
-  onDelete: (providerId: string) => Promise<void>
   isSaving?: boolean
   isDeleting?: boolean
   /** Labeled provider groups. When omitted, renders a single flat list. */
@@ -63,32 +65,83 @@ interface BYOKKeyManagerProps {
   showSearch?: boolean
 }
 
+/** One key per provider; saving replaces the stored key. */
+interface BYOKSingleKeyModeProps {
+  multiKey?: false
+  /** Provider ids that currently have a stored key. */
+  configuredProviderIds: Set<string>
+  /** Persist a key. Throw to surface an error in the modal. */
+  onSave: (providerId: string, apiKey: string) => Promise<void>
+  /** Remove a key. */
+  onDelete: (providerId: string) => Promise<void>
+}
+
+/** Multiple keys per provider; requests round-robin across them. */
+interface BYOKMultiKeyModeProps {
+  multiKey: true
+  /** Stored keys grouped by provider id, in rotation order. */
+  keysByProvider: ReadonlyMap<string, BYOKManagerKey[]>
+  /** Maximum keys allowed per provider. */
+  maxKeysPerProvider: number
+  /**
+   * Persist a key. `keyId` updates that key in place; otherwise a new key is
+   * added. Throw to surface an error in the modal.
+   */
+  onSaveKey: (params: {
+    providerId: string
+    apiKey: string
+    keyId?: string
+    name: string
+  }) => Promise<void>
+  /** Remove a single key. */
+  onDeleteKey: (providerId: string, keyId: string) => Promise<void>
+}
+
+type BYOKKeyManagerProps = BYOKKeyManagerBaseProps &
+  (BYOKSingleKeyModeProps | BYOKMultiKeyModeProps)
+
+interface EditingState {
+  providerId: string
+  /** Set when updating an existing key in multi-key mode. */
+  keyId?: string
+}
+
+interface DeleteConfirmState {
+  providerId: string
+  /** Set when deleting a single key in multi-key mode. */
+  keyId?: string
+}
+
+const NO_KEYS: BYOKManagerKey[] = []
+
 /**
  * Shared BYOK key list + add/update/delete modals. Used by both the workspace
- * BYOK settings page and the enterprise mothership BYOK tab so the two stay
+ * BYOK settings page (multi-key mode, with per-provider round-robin pools)
+ * and the enterprise mothership BYOK tab (single-key mode) so the two stay
  * visually identical; only the provider set and the backing store differ.
  *
  * Renders content only (search, provider sections, modals) — the caller owns
  * the page chrome (background, scroll container, and `max-w` centering).
  */
-export function BYOKKeyManager({
-  providers,
-  configuredProviderIds,
-  isLoading,
-  onSave,
-  onDelete,
-  isSaving = false,
-  isDeleting = false,
-  sections,
-  description,
-  showSearch = true,
-}: BYOKKeyManagerProps) {
+export function BYOKKeyManager(props: BYOKKeyManagerProps) {
+  const {
+    providers,
+    isLoading,
+    isSaving = false,
+    isDeleting = false,
+    sections,
+    description,
+    showSearch = true,
+  } = props
+
   const [searchTerm, setSearchTerm] = useState('')
-  const [editingProvider, setEditingProvider] = useState<string | null>(null)
+  const [editing, setEditing] = useState<EditingState | null>(null)
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [nameInput, setNameInput] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [deleteConfirmProvider, setDeleteConfirmProvider] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null)
+  const [managingProviderId, setManagingProviderId] = useState<string | null>(null)
 
   const filteredProviders = useMemo(() => {
     if (!searchTerm.trim()) return providers
@@ -105,30 +158,64 @@ export function BYOKKeyManager({
     [filteredProviders]
   )
 
-  const showNoResults = searchTerm.trim() !== '' && filteredProviders.length === 0
-  const editingMeta = providers.find((p) => p.id === editingProvider)
-  const deleteMeta = providers.find((p) => p.id === deleteConfirmProvider)
+  const getProviderKeys = (providerId: string): BYOKManagerKey[] =>
+    props.multiKey ? (props.keysByProvider.get(providerId) ?? NO_KEYS) : NO_KEYS
 
-  const openEditModal = (providerId: string) => {
-    setEditingProvider(providerId)
+  const hasStoredKey = (providerId: string): boolean =>
+    props.multiKey
+      ? getProviderKeys(providerId).length > 0
+      : props.configuredProviderIds.has(providerId)
+
+  const showNoResults = searchTerm.trim() !== '' && filteredProviders.length === 0
+  const editingMeta = providers.find((p) => p.id === editing?.providerId)
+  const deleteMeta = providers.find((p) => p.id === deleteConfirm?.providerId)
+  const managingMeta = providers.find((p) => p.id === managingProviderId) ?? null
+  const isUpdatingExistingKey = props.multiKey
+    ? !!editing?.keyId
+    : !!editing && hasStoredKey(editing.providerId)
+  const isDeletingLastKey =
+    !!deleteConfirm &&
+    (!props.multiKey ||
+      !deleteConfirm.keyId ||
+      getProviderKeys(deleteConfirm.providerId).length === 1)
+
+  const openEditModal = (providerId: string, key?: BYOKManagerKey) => {
+    setManagingProviderId(null)
+    setEditing({ providerId, keyId: key?.id })
     setApiKeyInput('')
+    setNameInput(key?.name ?? '')
     setShowApiKey(false)
     setError(null)
   }
 
   const closeEditModal = () => {
-    setEditingProvider(null)
+    setEditing(null)
     setApiKeyInput('')
+    setNameInput('')
     setShowApiKey(false)
     setError(null)
   }
 
+  const openDeleteConfirm = (providerId: string, keyId?: string) => {
+    setManagingProviderId(null)
+    setDeleteConfirm({ providerId, keyId })
+  }
+
   const handleSave = async () => {
-    if (!editingProvider || !apiKeyInput.trim()) return
+    if (!editing || !apiKeyInput.trim() || isSaving) return
 
     setError(null)
     try {
-      await onSave(editingProvider, apiKeyInput.trim())
+      if (props.multiKey) {
+        await props.onSaveKey({
+          providerId: editing.providerId,
+          apiKey: apiKeyInput.trim(),
+          keyId: editing.keyId,
+          name: nameInput.trim(),
+        })
+      } else {
+        await props.onSave(editing.providerId, apiKeyInput.trim())
+      }
       closeEditModal()
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to save API key'))
@@ -137,18 +224,56 @@ export function BYOKKeyManager({
   }
 
   const handleDelete = async () => {
-    if (!deleteConfirmProvider) return
+    if (!deleteConfirm) return
 
     try {
-      await onDelete(deleteConfirmProvider)
-      setDeleteConfirmProvider(null)
+      if (props.multiKey) {
+        const { providerId, keyId } = deleteConfirm
+        if (!keyId) {
+          logger.error('Delete confirmation is missing a keyId in multi-key mode', { providerId })
+          setDeleteConfirm(null)
+          return
+        }
+        await props.onDeleteKey(providerId, keyId)
+      } else {
+        await props.onDelete(deleteConfirm.providerId)
+      }
+      setDeleteConfirm(null)
     } catch (err) {
       logger.error('Failed to delete BYOK key', { error: err })
     }
   }
 
+  const renderActions = (provider: BYOKManagerProvider) => {
+    if (!hasStoredKey(provider.id)) {
+      return (
+        <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
+          Add Key
+        </Chip>
+      )
+    }
+
+    if (props.multiKey) {
+      const keyCount = getProviderKeys(provider.id).length
+      return (
+        <div className='flex flex-shrink-0 items-center gap-2'>
+          <span className='text-[12px] text-[var(--text-muted)]'>
+            {keyCount} {keyCount === 1 ? 'key' : 'keys'}
+          </span>
+          <Chip onClick={() => setManagingProviderId(provider.id)}>Manage</Chip>
+        </div>
+      )
+    }
+
+    return (
+      <div className='flex flex-shrink-0 items-center gap-2'>
+        <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
+        <Chip onClick={() => openDeleteConfirm(provider.id)}>Delete</Chip>
+      </div>
+    )
+  }
+
   const renderRow = (provider: BYOKManagerProvider) => {
-    const hasKey = configuredProviderIds.has(provider.id)
     const Icon = provider.icon
 
     return (
@@ -165,16 +290,7 @@ export function BYOKKeyManager({
           </div>
         </div>
 
-        {hasKey ? (
-          <div className='flex flex-shrink-0 items-center gap-2'>
-            <Chip onClick={() => openEditModal(provider.id)}>Update</Chip>
-            <Chip onClick={() => setDeleteConfirmProvider(provider.id)}>Delete</Chip>
-          </div>
-        ) : (
-          <Chip variant='primary' onClick={() => openEditModal(provider.id)}>
-            Add Key
-          </Chip>
-        )}
+        {renderActions(provider)}
       </div>
     )
   }
@@ -230,8 +346,23 @@ export function BYOKKeyManager({
         )}
       </div>
 
+      {props.multiKey && (
+        <BYOKProviderKeysModal
+          open={!!managingProviderId}
+          onOpenChange={(open) => {
+            if (!open) setManagingProviderId(null)
+          }}
+          provider={managingMeta}
+          keys={managingProviderId ? getProviderKeys(managingProviderId) : NO_KEYS}
+          maxKeys={props.maxKeysPerProvider}
+          onAddKey={() => managingProviderId && openEditModal(managingProviderId)}
+          onUpdateKey={(key) => managingProviderId && openEditModal(managingProviderId, key)}
+          onDeleteKey={(key) => managingProviderId && openDeleteConfirm(managingProviderId, key.id)}
+        />
+      )}
+
       <ChipModal
-        open={!!editingProvider}
+        open={!!editing}
         onOpenChange={(open) => {
           if (!open) closeEditModal()
         }}
@@ -240,15 +371,15 @@ export function BYOKKeyManager({
         <ChipModalHeader onClose={closeEditModal}>
           {editingMeta && (
             <>
-              {configuredProviderIds.has(editingMeta.id) ? 'Update' : 'Add'} {editingMeta.name} API
-              Key
+              {isUpdatingExistingKey ? 'Update' : 'Add'} {editingMeta.name} API Key
             </>
           )}
         </ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            This key will be used for all {editingMeta?.name} requests in this workspace. Your key
-            is encrypted and stored securely.
+            {props.multiKey
+              ? `Requests are distributed evenly across all ${editingMeta?.name} keys in this workspace. Your key is encrypted and stored securely.`
+              : `This key will be used for all ${editingMeta?.name} requests in this workspace. Your key is encrypted and stored securely.`}
           </p>
           <ChipModalField type='custom' title='API Key' required>
             {/* Hidden decoy fields to prevent browser autofill */}
@@ -275,6 +406,9 @@ export function BYOKKeyManager({
                 }}
                 placeholder={editingMeta?.placeholder}
                 className={CHIP_FIELD_INPUT}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSave()
+                }}
                 name='byok_api_key'
                 autoComplete='off'
                 autoCorrect='off'
@@ -292,6 +426,17 @@ export function BYOKKeyManager({
               </Button>
             </div>
           </ChipModalField>
+          {props.multiKey && (
+            <ChipModalField
+              type='input'
+              title='Name'
+              value={nameInput}
+              onChange={setNameInput}
+              placeholder='e.g. Production key'
+              maxLength={120}
+              onSubmit={handleSave}
+            />
+          )}
           <ChipModalError>{error}</ChipModalError>
         </ChipModalBody>
         <ChipModalFooter
@@ -306,9 +451,9 @@ export function BYOKKeyManager({
       </ChipModal>
 
       <ChipConfirmModal
-        open={!!deleteConfirmProvider}
+        open={!!deleteConfirm}
         onOpenChange={(open) => {
-          if (!open) setDeleteConfirmProvider(null)
+          if (!open) setDeleteConfirm(null)
         }}
         srTitle='Delete API Key'
         title='Delete API Key'
@@ -317,9 +462,13 @@ export function BYOKKeyManager({
             Are you sure you want to delete the{' '}
             <span className='font-medium text-[var(--text-primary)]'>{deleteMeta?.name}</span> API
             key?{' '}
-            <span className='text-[var(--text-error)]'>
-              This workspace will revert to using platform hosted keys.
-            </span>{' '}
+            {isDeletingLastKey ? (
+              <span className='text-[var(--text-error)]'>
+                This workspace will revert to using platform hosted keys.
+              </span>
+            ) : (
+              <>Requests will continue using the remaining {deleteMeta?.name} keys.</>
+            )}{' '}
             This action cannot be undone.
           </>
         }

@@ -10,6 +10,7 @@ const { mockFetch, envRef, flagRef } = vi.hoisted(() => ({
     APPCONFIG_APPLICATION: 'sim-staging' as string | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
     BLOCKED_SIGNUP_DOMAINS: undefined as string | undefined,
+    BLOCKED_EMAILS: undefined as string | undefined,
     ALLOWED_LOGIN_EMAILS: undefined as string | undefined,
     ALLOWED_LOGIN_DOMAINS: undefined as string | undefined,
     BLOCKED_EMAIL_MX_HOSTS: undefined as string | undefined,
@@ -33,10 +34,15 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   },
 }))
 
-import { getAccessControlConfig } from '@/lib/auth/access-control'
+import {
+  getAccessControlConfig,
+  isEmailBlockedByAccessControl,
+  isEmailInDenylist,
+} from '@/lib/auth/access-control'
 
 const empty: AccessControlConfig = {
   blockedSignupDomains: [],
+  blockedEmails: [],
   allowedLoginEmails: [],
   allowedLoginDomains: [],
   blockedEmailMxHosts: [],
@@ -48,6 +54,7 @@ describe('getAccessControlConfig', () => {
     flagRef.isAppConfigEnabled = false
     Object.assign(envRef, {
       BLOCKED_SIGNUP_DOMAINS: undefined,
+      BLOCKED_EMAILS: undefined,
       ALLOWED_LOGIN_EMAILS: undefined,
       ALLOWED_LOGIN_DOMAINS: undefined,
       BLOCKED_EMAIL_MX_HOSTS: undefined,
@@ -62,9 +69,11 @@ describe('getAccessControlConfig', () => {
 
     it('parses, trims, lowercases, and dedupes csv env vars', async () => {
       envRef.BLOCKED_SIGNUP_DOMAINS = 'Gmail.com, yahoo.com ,gmail.com,'
+      envRef.BLOCKED_EMAILS = 'Spam@Evil.com, spam@evil.com'
       envRef.ALLOWED_LOGIN_DOMAINS = 'Sim.ai'
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['gmail.com', 'yahoo.com'])
+      expect(result.blockedEmails).toEqual(['spam@evil.com'])
       expect(result.allowedLoginDomains).toEqual(['sim.ai'])
       expect(mockFetch).not.toHaveBeenCalled()
     })
@@ -102,5 +111,73 @@ describe('getAccessControlConfig', () => {
       const result = await getAccessControlConfig()
       expect(result.blockedSignupDomains).toEqual(['spam.example'])
     })
+  })
+})
+
+describe('isEmailInDenylist', () => {
+  it('returns false when denylist is null, empty, or email is missing', () => {
+    expect(isEmailInDenylist('a@example.com', null)).toBe(false)
+    expect(isEmailInDenylist('a@example.com', [])).toBe(false)
+    expect(isEmailInDenylist(null, ['example.com'])).toBe(false)
+    expect(isEmailInDenylist(undefined, ['example.com'])).toBe(false)
+    expect(isEmailInDenylist('', ['example.com'])).toBe(false)
+  })
+
+  it('returns false when email has no @', () => {
+    expect(isEmailInDenylist('not-an-email', ['example.com'])).toBe(false)
+  })
+
+  it('matches exact domain', () => {
+    expect(isEmailInDenylist('user@dpdns.org', ['dpdns.org'])).toBe(true)
+    expect(isEmailInDenylist('user@DPDNS.ORG', ['dpdns.org'])).toBe(true)
+  })
+
+  it('matches arbitrary-depth subdomains of a listed parent zone', () => {
+    expect(isEmailInDenylist('user@xx.lucky04.dpdns.org', ['dpdns.org'])).toBe(true)
+    expect(isEmailInDenylist('user@a.b.c.qzz.io', ['qzz.io'])).toBe(true)
+  })
+
+  it('does not match look-alike domains', () => {
+    expect(isEmailInDenylist('user@xdpdns.org', ['dpdns.org'])).toBe(false)
+    expect(isEmailInDenylist('user@notdpdns.org', ['dpdns.org'])).toBe(false)
+  })
+
+  it('does not match disallowed domains', () => {
+    expect(isEmailInDenylist('user@gmail.com', ['dpdns.org', 'qzz.io'])).toBe(false)
+    expect(isEmailInDenylist('user@example.com', ['dpdns.org'])).toBe(false)
+  })
+
+  it('handles multiple denylist entries', () => {
+    const denylist = ['dpdns.org', 'qzz.io', 'cc.cd']
+    expect(isEmailInDenylist('user@foo.dpdns.org', denylist)).toBe(true)
+    expect(isEmailInDenylist('user@bar.qzz.io', denylist)).toBe(true)
+    expect(isEmailInDenylist('user@baz.cc.cd', denylist)).toBe(true)
+    expect(isEmailInDenylist('user@example.com', denylist)).toBe(false)
+  })
+})
+
+describe('isEmailBlockedByAccessControl', () => {
+  const config: AccessControlConfig = {
+    ...empty,
+    blockedSignupDomains: ['bad.com'],
+    blockedEmails: ['spam@evil.com'],
+  }
+
+  it('matches individually blocked emails case-insensitively', () => {
+    expect(isEmailBlockedByAccessControl('spam@evil.com', config)).toBe(true)
+    expect(isEmailBlockedByAccessControl(' Spam@Evil.com ', config)).toBe(true)
+    expect(isEmailBlockedByAccessControl('other@evil.com', config)).toBe(false)
+  })
+
+  it('matches blocked domains and subdomains', () => {
+    expect(isEmailBlockedByAccessControl('a@bad.com', config)).toBe(true)
+    expect(isEmailBlockedByAccessControl('a@mail.bad.com', config)).toBe(true)
+    expect(isEmailBlockedByAccessControl('a@good.com', config)).toBe(false)
+  })
+
+  it('returns false for missing emails and empty config', () => {
+    expect(isEmailBlockedByAccessControl(null, config)).toBe(false)
+    expect(isEmailBlockedByAccessControl(undefined, config)).toBe(false)
+    expect(isEmailBlockedByAccessControl('a@bad.com', empty)).toBe(false)
   })
 })

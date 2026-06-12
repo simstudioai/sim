@@ -95,10 +95,16 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
         actorUserId: 'u-1',
       })
     ).rejects.toThrow('Knowledge base kb-missing not found')
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
+    // The target-workspace permission is resolved before the transaction
+    // opens (pool safety), so the lookup runs even when the KB is missing.
+    expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(
+      'u-1',
+      'workspace',
+      'ws-target'
+    )
   })
 
-  it('locks the knowledge base row (SELECT … FOR UPDATE) before the permission check', async () => {
+  it('locks the knowledge base row (SELECT … FOR UPDATE) and enforces the pre-resolved permission', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }])
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce(null)
 

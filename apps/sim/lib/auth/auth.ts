@@ -31,7 +31,7 @@ import {
   renderPasswordResetEmail,
   renderWelcomeEmail,
 } from '@/components/emails'
-import { getAccessControlConfig } from '@/lib/auth/access-control'
+import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { sendPlanWelcomeEmail } from '@/lib/billing'
 import { authorizeSubscriptionReference } from '@/lib/billing/authorization'
 import {
@@ -139,16 +139,6 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
   }
 }
 
-export function isEmailInDenylist(
-  email: string | undefined | null,
-  denylist: readonly string[] | null
-): boolean {
-  if (!denylist || denylist.length === 0 || !email) return false
-  const domain = email.split('@')[1]?.toLowerCase()
-  if (!domain) return false
-  return denylist.some((entry) => domain === entry || domain.endsWith(`.${entry}`))
-}
-
 const additionalTrustedOrigins = parseOriginList(env.TRUSTED_ORIGINS, (value) =>
   logger.warn('Ignoring invalid entry in TRUSTED_ORIGINS', { value })
 )
@@ -235,8 +225,8 @@ export const auth = betterAuth({
       create: {
         before: async (user) => {
           const accessControl = await getAccessControlConfig()
-          if (isEmailInDenylist(user.email, accessControl.blockedSignupDomains)) {
-            throw new Error('Sign-ups from this email domain are not allowed.')
+          if (isEmailBlockedByAccessControl(user.email, accessControl)) {
+            throw new Error('Sign-ups from this email are not allowed.')
           }
           return { data: user }
         },
@@ -593,6 +583,29 @@ export const auth = betterAuth({
     session: {
       create: {
         before: async (session) => {
+          // Blocked emails/domains must not establish sessions, regardless of
+          // provider (email/password, OAuth, SSO). Deliberately outside the
+          // try below — a thrown APIError must propagate, not be swallowed.
+          const accessControl = await getAccessControlConfig()
+          if (
+            accessControl.blockedSignupDomains.length > 0 ||
+            accessControl.blockedEmails.length > 0
+          ) {
+            const [sessionUser] = await db
+              .select({ email: schema.user.email })
+              .from(schema.user)
+              .where(eq(schema.user.id, session.userId))
+              .limit(1)
+            if (isEmailBlockedByAccessControl(sessionUser?.email, accessControl)) {
+              logger.warn('Blocking session creation for blocked account', {
+                userId: session.userId,
+              })
+              throw new APIError('FORBIDDEN', {
+                message: 'Access restricted. Please contact your administrator.',
+              })
+            }
+          }
+
           try {
             // Find the first organization this user is a member of
             const members = await db
@@ -886,9 +899,13 @@ export const auth = betterAuth({
           }
         }
 
-        if (isSignUp && isEmailInDenylist(ctx.body?.email, accessControl.blockedSignupDomains)) {
+        // Blocked emails/domains gate both signup and sign-in. OAuth/SSO sign-ins
+        // have no email in the body here; the session.create.before hook covers them.
+        if (isEmailBlockedByAccessControl(requestEmail, accessControl)) {
           throw new APIError('FORBIDDEN', {
-            message: 'Sign-ups from this email domain are not allowed.',
+            message: isSignUp
+              ? 'Sign-ups from this email are not allowed.'
+              : 'Access restricted. Please contact your administrator.',
           })
         }
 

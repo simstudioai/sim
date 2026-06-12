@@ -1,5 +1,10 @@
 'use client'
 
+/**
+ * Must precede the react-pdf import: pdf.js calls the polyfilled APIs while
+ * its module evaluates, which throws on Safari < 17.4 without them.
+ */
+import '@/lib/core/utils/browser-polyfills'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
@@ -8,8 +13,12 @@ import { PREVIEW_LOADING_OVERLAY } from '@/app/workspace/[workspaceId]/files/com
 import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 import { bindPreviewWheelZoom } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
 
+/**
+ * The worker runs in its own context that browser-polyfills cannot reach, so
+ * serve the legacy worker build, which bundles its own polyfills.
+ */
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
+  'pdfjs-dist/legacy/build/pdf.worker.min.mjs',
   import.meta.url
 ).href
 

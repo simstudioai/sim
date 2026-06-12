@@ -19,7 +19,7 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  bgColor: '#181C1E',
+  bgColor: '#FFFFFF',
   icon: NotionIcon,
   subBlocks: [
     {
@@ -430,7 +430,7 @@ export const NotionV2Block: BlockConfig<any> = {
   docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  bgColor: '#181C1E',
+  bgColor: '#FFFFFF',
   icon: NotionIcon,
   hideFromToolbar: false,
   subBlocks: [
