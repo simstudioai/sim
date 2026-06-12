@@ -136,19 +136,21 @@ export async function authenticateApiKeyFromHeader(
   }
 }
 
-const LAST_USED_DEBOUNCE_MS = 60_000
+const LAST_USED_STALENESS_WINDOW_MS = 10 * 60 * 1000
 
 /**
  * Update the last used timestamp for an API key.
  *
- * `lastUsed` is display-only, so the write is debounced: it only fires when
- * the stored value is older than {@link LAST_USED_DEBOUNCE_MS}. High-traffic
- * keys otherwise rewrite the same row on every request, serializing
- * concurrent requests behind row locks.
+ * `lastUsed` is display-only, so the write uses a staleness window: it only
+ * fires when the stored value is older than
+ * {@link LAST_USED_STALENESS_WINDOW_MS}. High-traffic keys otherwise rewrite
+ * the same row on every request, serializing concurrent requests behind row
+ * locks. The 10-minute window matches GitLab's personal-access-token
+ * last-used tracking.
  */
 export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
   try {
-    const staleBefore = new Date(Date.now() - LAST_USED_DEBOUNCE_MS)
+    const staleBefore = new Date(Date.now() - LAST_USED_STALENESS_WINDOW_MS)
     await db
       .update(apiKeyTable)
       .set({ lastUsed: new Date() })
