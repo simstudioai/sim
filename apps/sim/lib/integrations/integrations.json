@@ -3330,6 +3330,53 @@
       "tags": ["knowledge-base", "content-management", "note-taking"]
     },
     {
+      "type": "convex",
+      "slug": "convex",
+      "name": "Convex",
+      "description": "Use Convex database",
+      "longDescription": "Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.",
+      "bgColor": "#FFFFFF",
+      "iconName": "ConvexIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/convex",
+      "operations": [
+        {
+          "name": "Run Query",
+          "description": "Run a Convex query function and return its result"
+        },
+        {
+          "name": "Run Mutation",
+          "description": "Run a Convex mutation function to write data and return its result"
+        },
+        {
+          "name": "Run Action",
+          "description": "Run a Convex action function and return its result"
+        },
+        {
+          "name": "Run Function",
+          "description": "Run any Convex function (query, mutation, or action) by path without specifying its type"
+        },
+        {
+          "name": "List Tables",
+          "description": "List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans."
+        },
+        {
+          "name": "List Documents",
+          "description": "List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans."
+        },
+        {
+          "name": "Document Deltas",
+          "description": "List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans."
+        }
+      ],
+      "operationCount": 7,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["cloud"]
+    },
+    {
       "type": "crowdstrike",
       "slug": "crowdstrike",
       "name": "CrowdStrike",
