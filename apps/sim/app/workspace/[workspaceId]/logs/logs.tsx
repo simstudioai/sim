@@ -18,11 +18,10 @@ import {
   ChipCombobox,
   type ComboboxOption,
   DatePicker,
-  Library,
   RefreshCw,
   toast,
 } from '@/components/emcn'
-import { Download, Workflow } from '@/components/emcn/icons'
+import { Download, Logs as LogsIcon, Workflow } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -1103,7 +1102,7 @@ export default function Logs() {
   return (
     <>
       <Resource>
-        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
+        <Resource.Header icon={LogsIcon} title='Logs' actions={headerActions} />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}

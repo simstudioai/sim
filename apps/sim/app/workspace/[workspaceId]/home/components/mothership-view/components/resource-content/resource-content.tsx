@@ -9,7 +9,7 @@ import {
   Download,
   FileX,
   Folder as FolderIcon,
-  Library,
+  Logs as LogsIcon,
   Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
@@ -735,7 +735,7 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
   if (!log) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <Library className='size-[32px] text-[var(--text-icon)]' />
+        <LogsIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
           <p className='text-[var(--text-body)] text-small'>
