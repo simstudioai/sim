@@ -180,6 +180,10 @@ export default {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        'logo-shimmer': {
+          from: { transform: 'translateX(0)' },
+          to: { transform: 'translateX(1592px)' },
+        },
         'slide-in-right': {
           from: { transform: 'translateX(40px)' },
           to: { transform: 'translateX(0)' },
@@ -205,6 +209,7 @@ export default {
         'placeholder-pulse': 'placeholder-pulse 1.5s ease-in-out infinite',
         'ring-pulse': 'ring-pulse 1.5s ease-in-out infinite',
         'stream-fade-in': 'stream-fade-in 300ms ease-out forwards',
+        'logo-shimmer': 'logo-shimmer 1.4s ease-in-out 400ms forwards',
         'stream-fade-in-delayed': 'stream-fade-in 300ms ease-out 1.5s forwards',
         'slide-in-right': 'slide-in-right 350ms ease-out forwards',
         'slide-in-bottom': 'slide-in-bottom 400ms cubic-bezier(0.16, 1, 0.3, 1)',
