@@ -24,8 +24,14 @@ export const deploymentsListVersionsTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `/api/tools/deployments/versions?workflowId=${encodeURIComponent(params.workflowId)}`,
+    url: (params) => {
+      const workspaceId = params._context?.workspaceId
+      if (!workspaceId) {
+        throw new Error('workspaceId is required in execution context')
+      }
+      const qs = new URLSearchParams({ workflowId: params.workflowId, workspaceId })
+      return `/api/tools/deployments/versions?${qs.toString()}`
+    },
     method: 'GET',
     headers: () => ({ 'Content-Type': 'application/json' }),
   },
@@ -37,7 +43,7 @@ export const deploymentsListVersionsTool: ToolConfig<
     versions: {
       type: 'array',
       description:
-        'Deployment versions, newest first (id, version, name, isActive, createdAt, createdBy, deployedByName)',
+        'Deployment versions, newest first (id, version, name, description, isActive, createdAt, createdBy, deployedByName)',
     },
   },
 }

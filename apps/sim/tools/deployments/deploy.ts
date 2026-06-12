@@ -34,11 +34,18 @@ export const deploymentsDeployTool: ToolConfig<DeploymentsDeployParams, Deployme
       url: '/api/tools/deployments/deploy',
       method: 'POST',
       headers: () => ({ 'Content-Type': 'application/json' }),
-      body: (params) => ({
-        workflowId: params.workflowId,
-        ...(params.name ? { name: params.name } : {}),
-        ...(params.description ? { description: params.description } : {}),
-      }),
+      body: (params) => {
+        const workspaceId = params._context?.workspaceId
+        if (!workspaceId) {
+          throw new Error('workspaceId is required in execution context')
+        }
+        return {
+          workflowId: params.workflowId,
+          workspaceId,
+          ...(params.name ? { name: params.name } : {}),
+          ...(params.description ? { description: params.description } : {}),
+        }
+      },
     },
 
     transformResponse: async (response) => response.json(),
@@ -46,8 +53,15 @@ export const deploymentsDeployTool: ToolConfig<DeploymentsDeployParams, Deployme
     outputs: {
       workflowId: { type: 'string', description: 'ID of the deployed workflow' },
       isDeployed: { type: 'boolean', description: 'Whether the workflow is now deployed' },
-      deployedAt: { type: 'string', description: 'ISO 8601 timestamp of the deployment' },
-      version: { type: 'number', description: 'The deployment version that is now active' },
+      deployedAt: {
+        type: 'string',
+        description: 'ISO 8601 timestamp of the deployment (null if unavailable)',
+      },
+      version: {
+        type: 'number',
+        description: 'The deployment version that is now active',
+        optional: true,
+      },
       warnings: {
         type: 'array',
         description: 'Non-fatal warnings (e.g. trigger or schedule sync still in progress)',

@@ -11,13 +11,13 @@ import { WorkflowLockedError } from '@sim/workflow-authz'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockEnforceUserOrIpRateLimit,
+  mockEnforceUserRateLimit,
   mockPerformFullDeploy,
   mockPerformFullUndeploy,
   mockPerformActivateVersion,
   mockListWorkflowVersions,
 } = vi.hoisted(() => ({
-  mockEnforceUserOrIpRateLimit: vi.fn(),
+  mockEnforceUserRateLimit: vi.fn(),
   mockPerformFullDeploy: vi.fn(),
   mockPerformFullUndeploy: vi.fn(),
   mockPerformActivateVersion: vi.fn(),
@@ -25,7 +25,7 @@ const {
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserOrIpRateLimit: mockEnforceUserOrIpRateLimit,
+  enforceUserRateLimit: mockEnforceUserRateLimit,
 }))
 
 vi.mock('@/lib/workflows/orchestration', () => ({
@@ -76,7 +76,7 @@ beforeEach(() => {
     userId: 'user-1',
     authType: 'internal_jwt',
   })
-  mockEnforceUserOrIpRateLimit.mockResolvedValue(null)
+  mockEnforceUserRateLimit.mockResolvedValue(null)
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue(authorized())
   workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
 })
@@ -96,7 +96,9 @@ describe('POST /api/tools/deployments/deploy', () => {
       error: 'Unauthorized',
     })
 
-    const response = await deployPost(makePost('deploy', { workflowId: WORKFLOW_ID }))
+    const response = await deployPost(
+      makePost('deploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(401)
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
@@ -111,7 +113,9 @@ describe('POST /api/tools/deployments/deploy', () => {
       workspacePermission: 'write',
     })
 
-    const response = await deployPost(makePost('deploy', { workflowId: WORKFLOW_ID }))
+    const response = await deployPost(
+      makePost('deploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(403)
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
@@ -126,6 +130,7 @@ describe('POST /api/tools/deployments/deploy', () => {
     const response = await deployPost(
       makePost('deploy', {
         workflowId: WORKFLOW_ID,
+        workspaceId: 'ws-1',
         name: 'Release 4',
         description: 'Fixes the agent prompt',
       })
@@ -157,9 +162,29 @@ describe('POST /api/tools/deployments/deploy', () => {
   it('returns 423 when the workflow is locked', async () => {
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedError())
 
-    const response = await deployPost(makePost('deploy', { workflowId: WORKFLOW_ID }))
+    const response = await deployPost(
+      makePost('deploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(423)
+    expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a request without a workflowId', async () => {
+    const response = await deployPost(makePost('deploy', { workspaceId: 'ws-1' }))
+
+    expect(response.status).toBe(400)
+    expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+  })
+
+  it('returns 404 when the workflow belongs to a different workspace', async () => {
+    const response = await deployPost(
+      makePost('deploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-other' })
+    )
+
+    expect(response.status).toBe(404)
+    const body = await response.json()
+    expect(body.error).toBe('Workflow not found in this workspace')
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
 })
@@ -175,14 +200,18 @@ describe('POST /api/tools/deployments/undeploy', () => {
       workflow: { ...WORKFLOW_RECORD, isDeployed: false },
     })
 
-    const response = await undeployPost(makePost('undeploy', { workflowId: WORKFLOW_ID }))
+    const response = await undeployPost(
+      makePost('undeploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(400)
     expect(mockPerformFullUndeploy).not.toHaveBeenCalled()
   })
 
   it('undeploys a deployed workflow', async () => {
-    const response = await undeployPost(makePost('undeploy', { workflowId: WORKFLOW_ID }))
+    const response = await undeployPost(
+      makePost('undeploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(200)
     expect(mockPerformFullUndeploy).toHaveBeenCalledWith(
@@ -208,7 +237,9 @@ describe('POST /api/tools/deployments/promote', () => {
   })
 
   it('promotes the given version to live', async () => {
-    const response = await promotePost(makePost('promote', { workflowId: WORKFLOW_ID, version: 3 }))
+    const response = await promotePost(
+      makePost('promote', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1', version: 3 })
+    )
 
     expect(response.status).toBe(200)
     expect(mockPerformActivateVersion).toHaveBeenCalledWith(
@@ -226,7 +257,9 @@ describe('POST /api/tools/deployments/promote', () => {
   })
 
   it('rejects a missing version', async () => {
-    const response = await promotePost(makePost('promote', { workflowId: WORKFLOW_ID }))
+    const response = await promotePost(
+      makePost('promote', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
 
     expect(response.status).toBe(400)
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
@@ -240,7 +273,7 @@ describe('POST /api/tools/deployments/promote', () => {
     })
 
     const response = await promotePost(
-      makePost('promote', { workflowId: WORKFLOW_ID, version: 99 })
+      makePost('promote', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1', version: 99 })
     )
 
     expect(response.status).toBe(404)
@@ -254,6 +287,7 @@ describe('GET /api/tools/deployments/versions', () => {
         id: 'v-2',
         version: 2,
         name: null,
+        description: null,
         isActive: true,
         createdAt: '2026-06-12T00:00:00.000Z',
         createdBy: 'user-1',
@@ -262,7 +296,9 @@ describe('GET /api/tools/deployments/versions', () => {
     ]
     mockListWorkflowVersions.mockResolvedValue({ versions })
 
-    const response = await listVersionsGet(makeGet('versions', `workflowId=${WORKFLOW_ID}`))
+    const response = await listVersionsGet(
+      makeGet('versions', `workflowId=${WORKFLOW_ID}&workspaceId=ws-1`)
+    )
 
     expect(response.status).toBe(200)
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
@@ -298,7 +334,9 @@ describe('GET /api/tools/deployments/version', () => {
       },
     ])
 
-    const response = await getVersionGet(makeGet('version', `workflowId=${WORKFLOW_ID}&version=3`))
+    const response = await getVersionGet(
+      makeGet('version', `workflowId=${WORKFLOW_ID}&workspaceId=ws-1&version=3`)
+    )
 
     expect(response.status).toBe(200)
     const body = await response.json()
@@ -316,7 +354,9 @@ describe('GET /api/tools/deployments/version', () => {
   it('returns 404 when the version does not exist', async () => {
     mockVersionRow([])
 
-    const response = await getVersionGet(makeGet('version', `workflowId=${WORKFLOW_ID}&version=9`))
+    const response = await getVersionGet(
+      makeGet('version', `workflowId=${WORKFLOW_ID}&workspaceId=ws-1&version=9`)
+    )
 
     expect(response.status).toBe(404)
   })

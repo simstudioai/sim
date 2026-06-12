@@ -192,6 +192,7 @@ export async function checkWorkspaceScope(
   return null
 }
 
+/** Orders workspace permission levels for at-least comparisons. */
 const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
 
 /**

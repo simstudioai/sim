@@ -5,7 +5,7 @@ import {
 } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
+import { enforceUserRateLimit } from '@/lib/core/rate-limiter'
 
 const logger = createLogger('DeploymentToolsAPI')
 
@@ -36,7 +36,7 @@ export async function authenticateDeploymentToolRequest(
     }
   }
 
-  const rateLimited = await enforceUserOrIpRateLimit('deployment-tools', auth.userId, request)
+  const rateLimited = await enforceUserRateLimit('deployment-tools', auth.userId)
   if (rateLimited) return { ok: false, response: rateLimited }
 
   return { ok: true, userId: auth.userId }
@@ -44,12 +44,15 @@ export async function authenticateDeploymentToolRequest(
 
 /**
  * Verifies the user holds the required workspace permission on the target
- * workflow. Deployment mutations require `admin`, reads require `read`,
- * matching the UI deploy routes.
+ * workflow and that the workflow belongs to the calling workspace. Deployment
+ * mutations require `admin`, reads require `read`, matching the UI deploy
+ * routes. The workspace binding keeps workflow-driven executions (schedules,
+ * webhooks) from reaching into other workspaces the actor administers.
  */
 export async function authorizeDeploymentWorkflow(
   userId: string,
   workflowId: string,
+  workspaceId: string,
   action: 'read' | 'admin'
 ): Promise<
   { ok: true; workflow: AuthorizedDeploymentWorkflow } | { ok: false; response: NextResponse }
@@ -64,6 +67,13 @@ export async function authorizeDeploymentWorkflow(
     return {
       ok: false,
       response: deploymentToolError(authorization.message || 'Access denied', authorization.status),
+    }
+  }
+
+  if (authorization.workflow.workspaceId !== workspaceId) {
+    return {
+      ok: false,
+      response: deploymentToolError('Workflow not found in this workspace', 404),
     }
   }
 

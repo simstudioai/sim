@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { deploymentVersionMetadataFieldsSchema } from '@/lib/api/contracts/deployments'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workflowIdParamsSchema } from '@/lib/api/contracts/workflows'
@@ -53,56 +54,64 @@ export const v1GetWorkflowContract = defineRouteContract({
 })
 
 /**
- * Optional version metadata accepted by the v1 deploy endpoint. The route
- * tolerates an absent/empty body, so this schema is validated by the handler
- * against a tolerant raw-JSON read instead of being attached to the contract.
+ * Optional version metadata accepted by the v1 deploy endpoint. Field bounds
+ * are shared with the UI deployment surface via
+ * {@link deploymentVersionMetadataFieldsSchema}. The route tolerates an
+ * absent/empty body, so this schema is validated by the handler against
+ * `parseOptionalJsonBody` instead of being attached to the contract.
  */
 export const v1DeployWorkflowBodySchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, 'name cannot be empty')
-    .max(100, 'name must be 100 characters or less')
-    .optional(),
-  description: z
-    .string()
-    .trim()
-    .max(2000, 'description must be 2000 characters or less')
-    .optional(),
+  name: deploymentVersionMetadataFieldsSchema.shape.name,
+  description: deploymentVersionMetadataFieldsSchema.shape.description,
 })
 
 export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
 
+/** Bounded to the Postgres `integer` range of `workflow_deployment_version.version`. */
+const deploymentVersionNumberSchema = z
+  .number()
+  .int('version must be an integer')
+  .min(1, 'version must be a positive integer')
+  .max(2147483647, 'version is out of range')
+
 /**
  * Optional rollback target accepted by the v1 rollback endpoint. When
  * `version` is omitted the route rolls back to the deployment version that
- * precedes the currently active one. Validated by the handler against a
- * tolerant raw-JSON read, so it is not attached to the contract.
+ * precedes the currently active one. Validated by the handler against
+ * `parseOptionalJsonBody`, so it is not attached to the contract.
  */
 export const v1RollbackWorkflowBodySchema = z.object({
-  version: z
-    .number()
-    .int('version must be an integer')
-    .min(1, 'version must be a positive integer')
-    .optional(),
+  version: deploymentVersionNumberSchema.optional(),
 })
 
 export type V1RollbackWorkflowBody = z.input<typeof v1RollbackWorkflowBodySchema>
 
-export const v1WorkflowDeploymentDataSchema = z.object({
+const v1DeploymentStateSchema = z.object({
   id: z.string(),
   isDeployed: z.boolean(),
   deployedAt: z.string().nullable(),
-  version: z.number().optional(),
   warnings: z.array(z.string()),
 })
 
-export type V1WorkflowDeploymentData = z.output<typeof v1WorkflowDeploymentDataSchema>
-
-const v1WorkflowDeploymentResponseSchema = z.object({
-  data: v1WorkflowDeploymentDataSchema,
-  limits: z.unknown().optional(),
+export const v1DeployWorkflowDataSchema = v1DeploymentStateSchema.extend({
+  version: z.number().optional(),
 })
+
+export type V1DeployWorkflowData = z.output<typeof v1DeployWorkflowDataSchema>
+
+export const v1RollbackWorkflowDataSchema = v1DeploymentStateSchema.extend({
+  version: z.number(),
+})
+
+export type V1RollbackWorkflowData = z.output<typeof v1RollbackWorkflowDataSchema>
+
+export type V1UndeployWorkflowData = z.output<typeof v1DeploymentStateSchema>
+
+const withV1Limits = <T extends z.ZodType>(data: T) =>
+  z.object({
+    data,
+    limits: z.unknown().optional(),
+  })
 
 export const v1DeployWorkflowContract = defineRouteContract({
   method: 'POST',
@@ -110,7 +119,7 @@ export const v1DeployWorkflowContract = defineRouteContract({
   params: workflowIdParamsSchema,
   response: {
     mode: 'json',
-    schema: v1WorkflowDeploymentResponseSchema,
+    schema: withV1Limits(v1DeployWorkflowDataSchema),
   },
 })
 
@@ -120,7 +129,7 @@ export const v1UndeployWorkflowContract = defineRouteContract({
   params: workflowIdParamsSchema,
   response: {
     mode: 'json',
-    schema: v1WorkflowDeploymentResponseSchema,
+    schema: withV1Limits(v1DeploymentStateSchema),
   },
 })
 
@@ -130,6 +139,6 @@ export const v1RollbackWorkflowContract = defineRouteContract({
   params: workflowIdParamsSchema,
   response: {
     mode: 'json',
-    schema: v1WorkflowDeploymentResponseSchema,
+    schema: withV1Limits(v1RollbackWorkflowDataSchema),
   },
 })

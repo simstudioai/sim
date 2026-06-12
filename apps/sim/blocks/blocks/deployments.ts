@@ -11,7 +11,7 @@ export const DeploymentsBlock: BlockConfig = {
   bestPractices: `
   - The block operates on workflows in the current workspace; pick one with the selector or pass an ID.
   - Deploy publishes the workflow's current draft as a new live version. Undeploy takes it offline.
-  - 'Promote Version to Live' re-activates an existing version without creating a new one — use it to roll back to a known-good version.
+  - 'Promote Version to Live' re-activates an existing version without creating a new one — use it to roll back to a known-good version. It also works on an undeployed workflow, re-deploying it live at that version.
   - Use 'List Versions' to discover version numbers, then feed one into 'Promote Version to Live' or 'Get Version Details'.
   - Deploy, undeploy, and promote require admin permission on the workspace; the read operations require workspace access.
   `,
@@ -43,6 +43,7 @@ export const DeploymentsBlock: BlockConfig = {
       mode: 'basic',
       canonicalParamId: 'workflowId',
       required: true,
+      autoSelectFirstOption: false,
       fetchOptions: () => fetchWorkspaceWorkflowOptions(),
     },
     {
@@ -103,8 +104,8 @@ export const DeploymentsBlock: BlockConfig = {
         if (operation === 'deployments_deploy') {
           return {
             workflowId,
-            name: params.versionName || undefined,
-            description: params.versionDescription || undefined,
+            name: params.versionName?.trim() || undefined,
+            description: params.versionDescription?.trim() || undefined,
           }
         }
 
@@ -170,7 +171,7 @@ export const DeploymentsBlock: BlockConfig = {
     versions: {
       type: 'json',
       description:
-        'Deployment versions, newest first (id, version, name, isActive, createdAt, createdBy, deployedByName)',
+        'Deployment versions, newest first (id, version, name, description, isActive, createdAt, createdBy, deployedByName)',
       condition: { field: 'operation', value: 'deployments_list_versions' },
     },
     name: {

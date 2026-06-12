@@ -36,9 +36,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workflowId, version } = parsed.data.query
+    const { workflowId, workspaceId, version } = parsed.data.query
 
-    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, 'read')
+    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, workspaceId, 'read')
     if (!access.ok) return access.response
 
     const [row] = await db

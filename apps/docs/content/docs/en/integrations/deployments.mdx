@@ -36,7 +36,7 @@ Deploy a workflow’s current draft state, creating a new deployment version and
 | --------- | ---- | ----------- |
 | `workflowId` | string | ID of the deployed workflow |
 | `isDeployed` | boolean | Whether the workflow is now deployed |
-| `deployedAt` | string | ISO 8601 timestamp of the deployment |
+| `deployedAt` | string | ISO 8601 timestamp of the deployment \(null if unavailable\) |
 | `version` | number | The deployment version that is now active |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
@@ -61,7 +61,7 @@ Take a deployed workflow offline. API execution stops and schedules, webhooks, a
 
 ### `deployments_promote`
 
-Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Requires admin permission on the workflow’s workspace.
+Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.
 
 #### Input
 
@@ -76,7 +76,7 @@ Make a specific deployment version the live one without creating a new version �
 | --------- | ---- | ----------- |
 | `workflowId` | string | ID of the workflow |
 | `isDeployed` | boolean | Whether the workflow is now deployed |
-| `deployedAt` | string | ISO 8601 timestamp of the active deployment |
+| `deployedAt` | string | ISO 8601 timestamp of the active deployment \(null if unavailable\) |
 | `version` | number | The deployment version that is now live |
 | `warnings` | array | Non-fatal warnings \(e.g. trigger or schedule sync still in progress\) |
 
@@ -95,7 +95,7 @@ List every deployment version of a workflow, newest first, including which versi
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `workflowId` | string | ID of the workflow |
-| `versions` | array | Deployment versions, newest first \(id, version, name, isActive, createdAt, createdBy, deployedByName\) |
+| `versions` | array | Deployment versions, newest first \(id, version, name, description, isActive, createdAt, createdBy, deployedByName\) |
 
 ### `deployments_get_version`
 

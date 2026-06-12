@@ -36,9 +36,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workflowId, version } = parsed.data.body
+    const { workflowId, workspaceId, version } = parsed.data.body
 
-    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, 'admin')
+    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, workspaceId, 'admin')
     if (!access.ok) return access.response
 
     await assertWorkflowMutable(workflowId)

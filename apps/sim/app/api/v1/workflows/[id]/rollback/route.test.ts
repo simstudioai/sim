@@ -6,6 +6,7 @@
  * and the mapping of activation results to v1 API responses.
  */
 import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
+import { WorkflowLockedError } from '@sim/workflow-authz'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -82,12 +83,30 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     })
   })
 
+  it('rejects unauthenticated requests', async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: 'Invalid API key' })
+
+    const response = await POST(makeRequest(), makeContext())
+
+    expect(response.status).toBe(401)
+    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
+  })
+
   it('returns 404 when the workflow does not exist', async () => {
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(null)
 
     const response = await POST(makeRequest(), makeContext())
 
     expect(response.status).toBe(404)
+    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
+  })
+
+  it('returns 423 when the workflow is locked', async () => {
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedError())
+
+    const response = await POST(makeRequest(), makeContext())
+
+    expect(response.status).toBe(423)
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
   })
 
@@ -177,14 +196,14 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     expect(response.status).toBe(404)
   })
 
-  it('requires admin workspace permission', async () => {
+  it('masks missing admin permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )
 
     const response = await POST(makeRequest(), makeContext())
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
     expect(mockValidateWorkspaceAccess).toHaveBeenCalledWith(
       expect.objectContaining({ allowed: true }),
       'user-1',

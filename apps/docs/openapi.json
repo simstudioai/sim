@@ -1108,7 +1108,7 @@
       "post": {
         "operationId": "deployWorkflow",
         "summary": "Deploy Workflow",
-        "description": "Deploy the workflow's current draft state. Creates a new deployment version, makes it live for API execution, and activates any schedules and triggers. Optionally accepts a name and description for the new version. Requires admin permission on the workflow's workspace.",
+        "description": "Deploy the workflow's current draft state. Creates a new deployment version, makes it live for API execution, and activates any schedules and triggers. Optionally accepts a name and description for the new version. Requires admin permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -1179,7 +1179,8 @@
                     "id": "wf_abc123",
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00Z",
-                    "version": 4
+                    "version": 4,
+                    "warnings": []
                   }
                 }
               }
@@ -1190,9 +1191,6 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1221,7 +1219,7 @@
       "delete": {
         "operationId": "undeployWorkflow",
         "summary": "Undeploy Workflow",
-        "description": "Take the workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Deployment versions are retained, so the workflow can be deployed again later. Requires admin permission on the workflow's workspace.",
+        "description": "Take the workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Deployment versions are retained, so the workflow can be deployed again later. Requires admin permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -1265,7 +1263,8 @@
                   "data": {
                     "id": "wf_abc123",
                     "isDeployed": false,
-                    "deployedAt": null
+                    "deployedAt": null,
+                    "warnings": []
                   }
                 }
               }
@@ -1276,9 +1275,6 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1309,7 +1305,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Roll the live deployment back to a previous deployment version. The workflow must currently be deployed. By default the version immediately preceding the currently active one is re-activated; pass `version` to target a specific deployment version instead. The workflow's draft state is not modified. Requires admin permission on the workflow's workspace.",
+        "description": "Roll the live deployment back to a previous deployment version. The workflow must currently be deployed. By default the version immediately preceding the currently active one is re-activated; pass `version` to target a specific deployment version instead. The workflow's draft state is not modified. Requires admin permission on the workflow's workspace. Returns 404 when the workflow does not exist or you do not have access to it.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {
@@ -1343,7 +1339,8 @@
                     "type": "integer",
                     "minimum": 1,
                     "description": "The deployment version to re-activate. Defaults to the version immediately preceding the active one.",
-                    "example": 3
+                    "example": 3,
+                    "maximum": 2147483647
                   }
                 }
               }
@@ -1373,7 +1370,8 @@
                     "id": "wf_abc123",
                     "isDeployed": true,
                     "deployedAt": "2026-06-12T10:30:00Z",
-                    "version": 3
+                    "version": 3,
+                    "warnings": []
                   }
                 }
               }
@@ -1384,9 +1382,6 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"

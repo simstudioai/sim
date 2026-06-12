@@ -30,8 +30,18 @@ export const deploymentsGetVersionTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `/api/tools/deployments/version?workflowId=${encodeURIComponent(params.workflowId)}&version=${params.version}`,
+    url: (params) => {
+      const workspaceId = params._context?.workspaceId
+      if (!workspaceId) {
+        throw new Error('workspaceId is required in execution context')
+      }
+      const qs = new URLSearchParams({
+        workflowId: params.workflowId,
+        workspaceId,
+        version: String(params.version),
+      })
+      return `/api/tools/deployments/version?${qs.toString()}`
+    },
     method: 'GET',
     headers: () => ({ 'Content-Type': 'application/json' }),
   },

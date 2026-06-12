@@ -1191,6 +1191,7 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
     id: string
     version: number
     name: string | null
+    description: string | null
     isActive: boolean
     createdAt: Date
     createdBy: string | null
@@ -1199,11 +1200,12 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
-  const versions = await db
+  const rows = await db
     .select({
       id: workflowDeploymentVersion.id,
       version: workflowDeploymentVersion.version,
       name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
       isActive: workflowDeploymentVersion.isActive,
       createdAt: workflowDeploymentVersion.createdAt,
       createdBy: workflowDeploymentVersion.createdBy,
@@ -1214,5 +1216,10 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
     .where(eq(workflowDeploymentVersion.workflowId, workflowId))
     .orderBy(desc(workflowDeploymentVersion.version))
 
-  return { versions }
+  return {
+    versions: rows.map((row) => ({
+      ...row,
+      deployedByName: row.deployedByName ?? (row.createdBy === 'admin-api' ? 'Admin' : null),
+    })),
+  }
 }

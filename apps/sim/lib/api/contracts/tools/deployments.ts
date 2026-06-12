@@ -1,26 +1,21 @@
 import { z } from 'zod'
-import { workflowIdSchema } from '@/lib/api/contracts/primitives'
+import { deploymentVersionMetadataFieldsSchema } from '@/lib/api/contracts/deployments'
+import { workflowIdSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
+/** Bounded to the Postgres `integer` range of `workflow_deployment_version.version`. */
 const versionSchema = z
   .number()
   .int('Version must be an integer')
   .min(1, 'Version must be a positive integer')
+  .max(2147483647, 'Version is out of range')
 
 export const deploymentsDeployBodySchema = z.object({
   workflowId: workflowIdSchema,
-  name: z
-    .string()
-    .trim()
-    .min(1, 'Name cannot be empty')
-    .max(100, 'Name must be 100 characters or less')
-    .optional(),
-  description: z
-    .string()
-    .trim()
-    .max(2000, 'Description must be 2000 characters or less')
-    .optional(),
+  workspaceId: workspaceIdSchema,
+  name: deploymentVersionMetadataFieldsSchema.shape.name,
+  description: deploymentVersionMetadataFieldsSchema.shape.description,
 })
 
 export type DeploymentsDeployBody = z.input<typeof deploymentsDeployBodySchema>
@@ -37,6 +32,7 @@ export const deploymentsDeployContract = defineRouteContract({
 
 export const deploymentsUndeployBodySchema = z.object({
   workflowId: workflowIdSchema,
+  workspaceId: workspaceIdSchema,
 })
 
 export type DeploymentsUndeployBody = z.input<typeof deploymentsUndeployBodySchema>
@@ -53,6 +49,7 @@ export const deploymentsUndeployContract = defineRouteContract({
 
 export const deploymentsPromoteBodySchema = z.object({
   workflowId: workflowIdSchema,
+  workspaceId: workspaceIdSchema,
   version: versionSchema,
 })
 
@@ -70,6 +67,7 @@ export const deploymentsPromoteContract = defineRouteContract({
 
 export const deploymentsListVersionsQuerySchema = z.object({
   workflowId: workflowIdSchema,
+  workspaceId: workspaceIdSchema,
 })
 
 export type DeploymentsListVersionsQuery = z.input<typeof deploymentsListVersionsQuerySchema>
@@ -86,6 +84,7 @@ export const deploymentsListVersionsContract = defineRouteContract({
 
 export const deploymentsGetVersionQuerySchema = z.object({
   workflowId: workflowIdSchema,
+  workspaceId: workspaceIdSchema,
   version: z.coerce.number().pipe(versionSchema),
 })
 

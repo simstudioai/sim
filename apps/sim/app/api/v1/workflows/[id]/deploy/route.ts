@@ -11,7 +11,7 @@ import {
   v1DeployWorkflowContract,
   v1UndeployWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { parseOptionalJsonBody, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -48,9 +48,9 @@ export const POST = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      // boundary-raw-json: the deploy body is optional version metadata; tolerate an absent or empty body
-      const rawBody = await request.json().catch(() => ({}))
-      const body = v1DeployWorkflowBodySchema.safeParse(rawBody ?? {})
+      const rawBody = await parseOptionalJsonBody(request)
+      if (!rawBody.success) return rawBody.response
+      const body = v1DeployWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) {
         return validationErrorResponse(body.error)
       }
@@ -59,14 +59,12 @@ export const POST = withRouteHandler(
       if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
+      const workspaceId = workflowData.workspaceId
 
-      const accessError = await validateWorkspaceAccess(
-        rateLimit,
-        userId,
-        workflowData.workspaceId,
-        'admin'
-      )
-      if (accessError) return accessError
+      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
 
       await assertWorkflowMutable(id)
 
@@ -77,7 +75,7 @@ export const POST = withRouteHandler(
         userId,
         workflowName: workflowData.name || undefined,
         versionName: body.data.name,
-        versionDescription: body.data.description,
+        versionDescription: body.data.description ?? undefined,
         requestId,
         request,
       })
@@ -91,9 +89,9 @@ export const POST = withRouteHandler(
       captureServerEvent(
         userId,
         'workflow_deployed',
-        { workflow_id: id, workspace_id: workflowData.workspaceId ?? '' },
+        { workflow_id: id, workspace_id: workspaceId },
         {
-          groups: workflowData.workspaceId ? { workspace: workflowData.workspaceId } : undefined,
+          groups: { workspace: workspaceId },
           setOnce: { first_workflow_deployed_at: new Date().toISOString() },
         }
       )
@@ -148,14 +146,12 @@ export const DELETE = withRouteHandler(
       if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
+      const workspaceId = workflowData.workspaceId
 
-      const accessError = await validateWorkspaceAccess(
-        rateLimit,
-        userId,
-        workflowData.workspaceId,
-        'admin'
-      )
-      if (accessError) return accessError
+      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
 
       if (!workflowData.isDeployed) {
         return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })
@@ -176,8 +172,8 @@ export const DELETE = withRouteHandler(
       captureServerEvent(
         userId,
         'workflow_undeployed',
-        { workflow_id: id, workspace_id: workflowData.workspaceId ?? '' },
-        workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
+        { workflow_id: id, workspace_id: workspaceId },
+        { groups: { workspace: workspaceId } }
       )
 
       const limits = await getUserLimits(userId)

@@ -27,7 +27,13 @@ export const deploymentsUndeployTool: ToolConfig<
     url: '/api/tools/deployments/undeploy',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({ workflowId: params.workflowId }),
+    body: (params) => {
+      const workspaceId = params._context?.workspaceId
+      if (!workspaceId) {
+        throw new Error('workspaceId is required in execution context')
+      }
+      return { workflowId: params.workflowId, workspaceId }
+    },
   },
 
   transformResponse: async (response) => response.json(),

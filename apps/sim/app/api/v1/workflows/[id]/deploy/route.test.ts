@@ -7,7 +7,7 @@
  */
 import { createMockRequest, workflowAuthzMockFns } from '@sim/testing'
 import { WorkflowLockedError } from '@sim/workflow-authz'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -102,20 +102,36 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
 
-  it('requires admin workspace permission', async () => {
+  it('masks missing admin permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )
 
     const response = await POST(makeRequest('POST'), makeContext())
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
     expect(mockValidateWorkspaceAccess).toHaveBeenCalledWith(
       expect.objectContaining({ allowed: true }),
       'user-1',
       'ws-1',
       'admin'
     )
+    expect(mockPerformFullDeploy).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed JSON body', async () => {
+    const request = new NextRequest(
+      new URL(`http://localhost:3000/api/v1/workflows/${WORKFLOW_ID}/deploy`),
+      {
+        method: 'POST',
+        headers: new Headers({ 'Content-Type': 'application/json' }),
+        body: '{"name": "Release 4"',
+      }
+    )
+
+    const response = await POST(request, makeContext())
+
+    expect(response.status).toBe(400)
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
 
@@ -241,14 +257,14 @@ describe('DELETE /api/v1/workflows/[id]/deploy', () => {
     )
   })
 
-  it('requires admin workspace permission', async () => {
+  it('masks missing admin permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )
 
     const response = await DELETE(makeRequest('DELETE'), makeContext())
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
     expect(mockPerformFullUndeploy).not.toHaveBeenCalled()
   })
 })

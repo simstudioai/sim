@@ -58,6 +58,8 @@ interface DropdownProps {
   placeholder?: string
   /** Enable multi-select mode */
   multiSelect?: boolean
+  /** When false, an empty value stays unset instead of auto-selecting the first option */
+  autoSelectFirstOption?: boolean
   /** Async function to fetch options dynamically */
   fetchOptions?: (blockId: string) => Promise<Array<{ label: string; id: string }>>
   /** Async function to fetch a single option's label by ID (for hydration) */
@@ -91,6 +93,7 @@ export const Dropdown = memo(function Dropdown({
   disabled,
   placeholder = 'Select an option...',
   multiSelect = false,
+  autoSelectFirstOption = true,
   fetchOptions,
   fetchOptionById,
   dependsOn,
@@ -237,12 +240,12 @@ export const Dropdown = memo(function Dropdown({
       return defaultValue
     }
 
-    if (comboboxOptions.length > 0) {
+    if (autoSelectFirstOption && comboboxOptions.length > 0) {
       return comboboxOptions[0].value
     }
 
     return undefined
-  }, [defaultValue, comboboxOptions, multiSelect])
+  }, [defaultValue, comboboxOptions, multiSelect, autoSelectFirstOption])
 
   useEffect(() => {
     if (multiSelect || defaultOptionValue === undefined) {

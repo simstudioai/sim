@@ -10,7 +10,7 @@ import {
   v1RollbackWorkflowBodySchema,
   v1RollbackWorkflowContract,
 } from '@/lib/api/contracts/v1/workflows'
-import { parseRequest, validationErrorResponse } from '@/lib/api/server'
+import { parseOptionalJsonBody, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -48,9 +48,9 @@ export const POST = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      // boundary-raw-json: the rollback body is an optional target version; tolerate an absent or empty body
-      const rawBody = await request.json().catch(() => ({}))
-      const body = v1RollbackWorkflowBodySchema.safeParse(rawBody ?? {})
+      const rawBody = await parseOptionalJsonBody(request)
+      if (!rawBody.success) return rawBody.response
+      const body = v1RollbackWorkflowBodySchema.safeParse(rawBody.data ?? {})
       if (!body.success) {
         return validationErrorResponse(body.error)
       }
@@ -59,14 +59,12 @@ export const POST = withRouteHandler(
       if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
+      const workspaceId = workflowData.workspaceId
 
-      const accessError = await validateWorkspaceAccess(
-        rateLimit,
-        userId,
-        workflowData.workspaceId,
-        'admin'
-      )
-      if (accessError) return accessError
+      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      }
 
       if (!workflowData.isDeployed) {
         return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })
@@ -113,8 +111,8 @@ export const POST = withRouteHandler(
       captureServerEvent(
         userId,
         'deployment_version_activated',
-        { workflow_id: id, workspace_id: workflowData.workspaceId ?? '', version: targetVersion },
-        workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
+        { workflow_id: id, workspace_id: workspaceId, version: targetVersion },
+        { groups: { workspace: workspaceId } }
       )
 
       const limits = await getUserLimits(userId)

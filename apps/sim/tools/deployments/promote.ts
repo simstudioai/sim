@@ -11,7 +11,7 @@ export const deploymentsPromoteTool: ToolConfig<
   id: 'deployments_promote',
   name: 'Promote Version to Live',
   description:
-    'Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Requires admin permission on the workflow’s workspace.',
+    'Make a specific deployment version the live one without creating a new version — the same operation as Promote to live in the deploy modal. Useful for rolling back to a known-good version. Also works on an undeployed workflow: it re-deploys the workflow live at that version. Requires admin permission on the workflow’s workspace.',
   version: '1.0.0',
 
   params: {
@@ -33,10 +33,17 @@ export const deploymentsPromoteTool: ToolConfig<
     url: '/api/tools/deployments/promote',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => ({
-      workflowId: params.workflowId,
-      version: params.version,
-    }),
+    body: (params) => {
+      const workspaceId = params._context?.workspaceId
+      if (!workspaceId) {
+        throw new Error('workspaceId is required in execution context')
+      }
+      return {
+        workflowId: params.workflowId,
+        workspaceId,
+        version: Number(params.version),
+      }
+    },
   },
 
   transformResponse: async (response) => response.json(),
@@ -44,7 +51,10 @@ export const deploymentsPromoteTool: ToolConfig<
   outputs: {
     workflowId: { type: 'string', description: 'ID of the workflow' },
     isDeployed: { type: 'boolean', description: 'Whether the workflow is now deployed' },
-    deployedAt: { type: 'string', description: 'ISO 8601 timestamp of the active deployment' },
+    deployedAt: {
+      type: 'string',
+      description: 'ISO 8601 timestamp of the active deployment (null if unavailable)',
+    },
     version: { type: 'number', description: 'The deployment version that is now live' },
     warnings: {
       type: 'array',

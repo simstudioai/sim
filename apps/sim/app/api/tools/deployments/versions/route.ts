@@ -34,9 +34,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     )
     if (!parsed.success) return parsed.response
 
-    const { workflowId } = parsed.data.query
+    const { workflowId, workspaceId } = parsed.data.query
 
-    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, 'read')
+    const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, workspaceId, 'read')
     if (!access.ok) return access.response
 
     const { versions } = await listWorkflowVersions(workflowId)
