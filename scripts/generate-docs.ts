@@ -222,6 +222,7 @@ interface IntegrationEntry {
   triggers: TriggerInfo[]
   triggerCount: number
   authType: 'oauth' | 'api-key' | 'none'
+  oauthServiceId?: string
   category: BlockCategory
   integrationType: IntegrationType
   tags?: string[]
@@ -571,6 +572,36 @@ function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
 }
 
 /**
+ * Extract the OAuth service id from the block's `oauth-input` credential
+ * subBlock. Scoped to that subBlock's object literal so `serviceId` fields on
+ * other subBlocks (e.g. file selectors) are never picked up.
+ */
+function extractOAuthServiceId(blockContent: string): string | undefined {
+  const typeMatch = /type\s*:\s*['"]oauth-input['"]/.exec(blockContent)
+  if (!typeMatch) return undefined
+
+  let depth = 0
+  let objectStart = -1
+  for (let i = typeMatch.index; i >= 0; i--) {
+    const char = blockContent[i]
+    if (char === '}') depth++
+    else if (char === '{') {
+      if (depth === 0) {
+        objectStart = i
+        break
+      }
+      depth--
+    }
+  }
+  if (objectStart === -1) return undefined
+
+  const objectEnd = findMatchingClose(blockContent, objectStart)
+  if (objectEnd === -1) return undefined
+  const subBlockContent = blockContent.substring(objectStart, objectEnd)
+  return /serviceId\s*:\s*['"]([^'"]+)['"]/.exec(subBlockContent)?.[1]
+}
+
+/**
  * Extract the list of trigger IDs from the block's `triggers.available` array.
  * Handles blocks that declare `triggers: { enabled: true, available: [...] }`.
  */
@@ -820,6 +851,16 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           .replace(/^-|-$/g, '')
 
         const authType = extractAuthType(fileContent)
+        const oauthServiceId = authType === 'oauth' ? extractOAuthServiceId(fileContent) : undefined
+        // OAuth integrations resolve their connect UI through the service id
+        // (see `resolveOAuthServiceForIntegration`), so fail loudly rather than
+        // shipping a catalog entry that silently falls back to the API-key path.
+        if (authType === 'oauth' && !oauthServiceId) {
+          throw new Error(
+            `Block "${blockType}" is an OAuth integration but no \`serviceId\` could be ` +
+              `extracted from its \`oauth-input\` subBlock.`
+          )
+        }
 
         integrations.push({
           type: blockType,
@@ -835,6 +876,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           triggers,
           triggerCount: triggers.length,
           authType,
+          ...(oauthServiceId ? { oauthServiceId } : {}),
           category: 'tools',
           integrationType,
           ...(config.tags ? { tags: config.tags } : {}),
