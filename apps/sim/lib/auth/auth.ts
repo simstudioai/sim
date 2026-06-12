@@ -21,6 +21,7 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
+import { validateEmail as validateEmailWithMailchecker } from 'better-auth-harmony/email'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -78,6 +79,7 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { isDisposableEmailDomain } from '@/lib/messaging/email/disposable-domains.server'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -930,7 +932,14 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
+    ...(isSignupEmailValidationEnabled
+      ? [
+          emailHarmony({
+            validator: (email) =>
+              validateEmailWithMailchecker(email) && !isDisposableEmailDomain(email),
+          }),
+        ]
+      : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({
