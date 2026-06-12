@@ -30,8 +30,10 @@ import {
   WizaIcon,
   ZeroBounceIcon,
 } from '@/components/icons'
+import { MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
 import {
   BYOKKeyManager,
+  type BYOKManagerKey,
   type BYOKManagerProvider,
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
@@ -281,30 +283,43 @@ export function BYOK() {
   const upsertKey = useUpsertBYOKKey()
   const deleteKey = useDeleteBYOKKey()
 
-  const configuredProviderIds = useMemo(() => new Set(keys.map((k) => k.providerId)), [keys])
+  const keysByProvider = useMemo(() => {
+    const grouped = new Map<string, BYOKManagerKey[]>()
+    for (const key of keys) {
+      const providerKeys = grouped.get(key.providerId) ?? []
+      providerKeys.push({ id: key.id, name: key.name, maskedKey: key.maskedKey })
+      grouped.set(key.providerId, providerKeys)
+    }
+    return grouped
+  }, [keys])
 
   return (
     <div className='flex h-full flex-col bg-[var(--bg)]'>
       <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
         <div className='mx-auto flex max-w-[48rem] flex-col pt-6 pb-6'>
           <BYOKKeyManager
+            multiKey
             providers={PROVIDERS}
             sections={PROVIDER_SECTIONS}
-            configuredProviderIds={configuredProviderIds}
+            keysByProvider={keysByProvider}
+            maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
             isLoading={isLoading}
             isSaving={upsertKey.isPending}
             isDeleting={deleteKey.isPending}
-            onSave={async (providerId, apiKey) => {
+            onSaveKey={async ({ providerId, apiKey, keyId, name }) => {
               await upsertKey.mutateAsync({
                 workspaceId,
                 providerId: providerId as BYOKProviderId,
                 apiKey,
+                keyId,
+                name,
               })
             }}
-            onDelete={async (providerId) => {
+            onDeleteKey={async (providerId, keyId) => {
               await deleteKey.mutateAsync({
                 workspaceId,
                 providerId: providerId as BYOKProviderId,
+                keyId,
               })
             }}
           />

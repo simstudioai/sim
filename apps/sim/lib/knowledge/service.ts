@@ -272,6 +272,17 @@ export async function updateKnowledgeBase(
     )
   }
 
+  // Resolved before the transaction: the target workspace comes from the
+  // request input, so checking it inside the FOR UPDATE tx would only issue a
+  // second pooled-connection checkout while the first is held.
+  const targetWorkspacePermission = updates.workspaceId
+    ? await getUserEntityPermissions(
+        options?.actorUserId as string,
+        'workspace',
+        updates.workspaceId
+      )
+    : null
+
   try {
     await db.transaction(async (tx) => {
       const [currentKb] = await tx
@@ -297,17 +308,13 @@ export async function updateKnowledgeBase(
                 'Only the knowledge base owner can remove it from a workspace'
               )
             }
-          } else {
-            const targetPermission = await getUserEntityPermissions(
-              actorUserId,
-              'workspace',
-              targetWorkspaceId
+          } else if (
+            targetWorkspacePermission !== 'write' &&
+            targetWorkspacePermission !== 'admin'
+          ) {
+            throw new KnowledgeBasePermissionError(
+              'User does not have permission on the target workspace'
             )
-            if (targetPermission !== 'write' && targetPermission !== 'admin') {
-              throw new KnowledgeBasePermissionError(
-                'User does not have permission on the target workspace'
-              )
-            }
           }
         }
       }

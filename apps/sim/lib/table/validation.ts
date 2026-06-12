@@ -406,12 +406,17 @@ export function validateUniqueConstraints(
  * Checks unique constraints using targeted database queries.
  * Only queries for specific conflicting values instead of loading all rows.
  * This reduces memory usage from O(n) to O(1) where n is the number of rows.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the
+ * lookup runs on the transaction's connection and observes its uncommitted
+ * writes; otherwise the default `db` connection only observes committed state.
  */
 export async function checkUniqueConstraintsDb(
   tableId: string,
   data: RowData,
   schema: TableSchema,
-  excludeRowId?: string
+  excludeRowId?: string,
+  executor: UniqueCheckExecutor = db
 ): Promise<ValidationResult> {
   const errors: string[] = []
   const uniqueColumns = getUniqueColumns(schema)
@@ -455,8 +460,11 @@ export async function checkUniqueConstraintsDb(
   // Query for each unique column separately to provide specific error messages.
   // Tenant-bounded: `lower(data->>'col') = ...` is unestimatable, so the planner
   // otherwise seq-scans the whole shared relation per check — 3.5s on every
-  // insert/edit when the value is unique (no early exit). See withSeqscanOff.
-  await withSeqscanOff(async (trx) => {
+  // insert/edit when the value is unique (no early exit). With an external
+  // transaction the flag is set on it directly — opening our own transaction
+  // inside the caller's would be the nested pool checkout the migration-
+  // hardening work eliminated (self-deadlock under pool exhaustion).
+  const checkConditions = async (ex: UniqueCheckExecutor) => {
     for (const condition of conditions) {
       const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
 
@@ -464,7 +472,7 @@ export async function checkUniqueConstraintsDb(
         ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
         : baseCondition
 
-      const conflictingRow = await trx
+      const conflictingRow = await ex
         .select({ id: userTableRows.id, position: userTableRows.position })
         .from(userTableRows)
         .where(whereClause)
@@ -476,7 +484,14 @@ export async function checkUniqueConstraintsDb(
         )
       }
     }
-  })
+  }
+
+  if (executor === db) {
+    await withSeqscanOff(async (trx) => checkConditions(trx))
+  } else {
+    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
+    await checkConditions(executor)
+  }
 
   return { valid: errors.length === 0, errors }
 }

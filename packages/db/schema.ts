@@ -554,12 +554,13 @@ export const workspaceBYOKKeys = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     providerId: text('provider_id').notNull(),
     encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
+    workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
       table.providerId
     ),

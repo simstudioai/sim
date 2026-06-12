@@ -14,6 +14,7 @@ import { i18n } from '@/lib/i18n'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { source } from '@/lib/source'
 import { DOCS_BASE_URL } from '@/lib/urls'
+import { season } from '@/app/fonts/season'
 import '../global.css'
 
 const inter = Inter({
@@ -84,7 +85,7 @@ export default async function Layout({ children, params }: LayoutProps) {
   return (
     <html
       lang={lang}
-      className={`${inter.variable} ${geistMono.variable}`}
+      className={`${inter.variable} ${geistMono.variable} ${season.variable}`}
       suppressHydrationWarning
     >
       <head>

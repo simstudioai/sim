@@ -43,7 +43,18 @@ export class BlockResolver implements Resolver {
     for (const block of workflow.blocks) {
       this.blockById.set(block.id, block)
       if (block.metadata?.name) {
-        this.nameToBlockId.set(normalizeName(block.metadata.name), block.id)
+        // Name uniqueness is enforced at the normalized level on create/rename,
+        // but legacy workflows may contain names that collide only now that
+        // normalizeName strips dots. Dot-free names keep ownership of the key so
+        // previously working references never change targets.
+        const normalizedName = normalizeName(block.metadata.name)
+        const incumbentId = this.nameToBlockId.get(normalizedName)
+        const incumbentName = incumbentId
+          ? this.blockById.get(incumbentId)?.metadata?.name
+          : undefined
+        if (!incumbentId || incumbentName?.includes('.')) {
+          this.nameToBlockId.set(normalizedName, block.id)
+        }
       }
     }
     for (const loop of Object.values(workflow.loops ?? {})) {

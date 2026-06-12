@@ -53,17 +53,21 @@ export async function listWorkflows(workspaceId: string, options?: { scope?: Wor
 /**
  * Generates a unique workflow name within a workspace+folder scope.
  * If the name already exists among active workflows, appends (2), (3), etc.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the
+ * lookup observes workflows inserted earlier in the same transaction.
  */
 export async function deduplicateWorkflowName(
   name: string,
   workspaceId: string,
-  folderId: string | null | undefined
+  folderId: string | null | undefined,
+  executor: Pick<typeof db, 'select'> = db
 ): Promise<string> {
   const folderCondition = folderId
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
 
-  const [existing] = await db
+  const [existing] = await executor
     .select({ id: workflowTable.id })
     .from(workflowTable)
     .where(
@@ -82,7 +86,7 @@ export async function deduplicateWorkflowName(
 
   for (let i = 2; i < 100; i++) {
     const candidate = `${name} (${i})`
-    const [dup] = await db
+    const [dup] = await executor
       .select({ id: workflowTable.id })
       .from(workflowTable)
       .where(

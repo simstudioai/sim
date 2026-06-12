@@ -81,6 +81,11 @@ export interface CredentialSetWebhookSyncResult {
  * 3. Creates webhooks for new credentials
  * 4. Updates config for existing webhooks (preserving state)
  * 5. Deletes webhooks for credentials no longer in the set
+ *
+ * Must run OUTSIDE any open transaction: credential resolution can trigger an
+ * OAuth token refresh (external HTTP + its own committed writes) and webhook
+ * cleanup can call external provider APIs, neither of which may execute while
+ * a pooled connection is held.
  */
 export async function syncWebhooksForCredentialSet(params: {
   workflowId: string
@@ -91,7 +96,6 @@ export async function syncWebhooksForCredentialSet(params: {
   oauthProviderId: string
   providerConfig: Record<string, unknown>
   requestId: string
-  tx?: DbOrTx
   deploymentVersionId?: string
 }): Promise<CredentialSetWebhookSyncResult> {
   const {
@@ -103,11 +107,8 @@ export async function syncWebhooksForCredentialSet(params: {
     oauthProviderId,
     providerConfig,
     requestId,
-    tx,
     deploymentVersionId,
   } = params
-
-  const dbCtx = tx ?? db
 
   const syncLogger = createLogger('CredentialSetWebhookSync')
   syncLogger.info(
@@ -129,7 +130,7 @@ export async function syncWebhooksForCredentialSet(params: {
     `[${requestId}] Found ${credentials.length} credentials in set ${credentialSetId}`
   )
 
-  const existingWebhooks = await dbCtx
+  const existingWebhooks = await db
     .select()
     .from(webhook)
     .where(
@@ -201,7 +202,7 @@ export async function syncWebhooksForCredentialSet(params: {
           userId: cred.userId,
         }
 
-        await dbCtx
+        await db
           .update(webhook)
           .set({
             ...(deploymentVersionId ? { deploymentVersionId } : {}),
@@ -235,7 +236,7 @@ export async function syncWebhooksForCredentialSet(params: {
           userId: cred.userId,
         }
 
-        await dbCtx.insert(webhook).values({
+        await db.insert(webhook).values({
           id: webhookId,
           workflowId,
           blockId,
@@ -278,7 +279,7 @@ export async function syncWebhooksForCredentialSet(params: {
         if (workflowRecord) {
           await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
         }
-        await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+        await db.delete(webhook).where(eq(webhook.id, existingWebhook.id))
         result.deleted++
 
         syncLogger.debug(
@@ -309,17 +310,16 @@ export async function syncWebhooksForCredentialSet(params: {
  * Called when credential set membership changes (member added/removed).
  *
  * This finds all workflows with webhooks using this credential set and resyncs them.
+ * Must run OUTSIDE any open transaction — see {@link syncWebhooksForCredentialSet}.
  */
 export async function syncAllWebhooksForCredentialSet(
   credentialSetId: string,
-  requestId: string,
-  tx?: DbOrTx
+  requestId: string
 ): Promise<{ workflowsUpdated: number; totalCreated: number; totalDeleted: number }> {
-  const dbCtx = tx ?? db
   const syncLogger = createLogger('CredentialSetMembershipSync')
   syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
 
-  const webhooksForSet = await dbCtx
+  const webhooksForSet = await db
     .select({ webhook })
     .from(webhook)
     .leftJoin(
@@ -385,7 +385,6 @@ export async function syncAllWebhooksForCredentialSet(
         oauthProviderId,
         providerConfig: baseConfig,
         requestId,
-        tx: dbCtx,
         deploymentVersionId: representativeWebhook.deploymentVersionId || undefined,
       })
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ChipLink } from '@/components/ui/chip'
 import { LanguageDropdown } from '@/components/ui/language-dropdown'
 import { SearchTrigger } from '@/components/ui/search-trigger'
 import { SimLogoFull } from '@/components/ui/sim-logo'
@@ -27,7 +28,7 @@ export function Navbar() {
   const pathname = usePathname()
 
   return (
-    <nav className='sticky top-0 z-50 bg-background/80 backdrop-blur-md backdrop-saturate-150'>
+    <nav className='sticky top-0 z-50 bg-[var(--bg)]/80 backdrop-blur-md backdrop-saturate-150'>
       <div className='hidden w-full flex-col lg:flex'>
         {/* Top row: logo, search, controls */}
         <div
@@ -48,18 +49,15 @@ export function Navbar() {
           <div className='flex items-center gap-1'>
             <LanguageDropdown />
             <ThemeToggle />
-            <Link
-              href='https://sim.ai'
-              className='ml-1 flex items-center rounded-[8px] bg-[#33c482] px-2.5 py-1.5 text-[13px] text-white transition-colors duration-200 hover:bg-[#2DAC72]'
-            >
+            <ChipLink href='https://sim.ai' variant='brand' className='ml-1'>
               Get started
-            </Link>
+            </ChipLink>
           </div>
         </div>
 
         {/* Bottom row: navigation tabs — border on row, tabs overlap it */}
         <div
-          className='flex h-[40px] items-stretch gap-6 border-border/20 border-b'
+          className='flex h-[40px] items-stretch gap-6 border-[var(--border)]/20 border-b'
           style={{
             paddingLeft: 'calc(var(--sidebar-offset) + var(--nav-inset))',
           }}
@@ -74,8 +72,8 @@ export function Navbar() {
                 className={cn(
                   '-mb-px relative flex items-center border-b text-[14px] tracking-[-0.01em] transition-colors',
                   isActive
-                    ? 'border-neutral-400 font-[480] text-neutral-800 dark:border-neutral-500 dark:text-neutral-200'
-                    : 'border-transparent font-[430] text-neutral-500 hover:border-neutral-300 hover:text-neutral-600 dark:text-neutral-400 dark:hover:border-neutral-600 dark:hover:text-neutral-300'
+                    ? 'border-[var(--text-muted)] font-[480] text-[var(--text-primary)]'
+                    : 'border-transparent font-[430] text-[var(--text-muted)] hover:border-[var(--border-1)] hover:text-[var(--text-secondary)]'
                 )}
               >
                 {/* Invisible bold text reserves width to prevent layout shift */}

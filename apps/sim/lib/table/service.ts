@@ -2555,7 +2555,8 @@ export async function upsertRow(
       data.tableId,
       data.data,
       schema,
-      existingRow?.id // exclude the matched row on updates
+      existingRow?.id, // exclude the matched row on updates
+      trx
     )
     if (!uniqueValidation.valid) {
       throw new Error(`Unique constraint violation: ${uniqueValidation.errors.join(', ')}`)

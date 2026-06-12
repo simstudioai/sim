@@ -1,4 +1,4 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, runOutsideTransactionContext, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -159,6 +159,7 @@ export async function loadDeployedWorkflowState(
 interface MigrationContext {
   blocks: Record<string, BlockState>
   workspaceId: string
+  executor: DbOrTx
   migrated: boolean
 }
 
@@ -167,9 +168,10 @@ type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<Migr
 function createMigrationPipeline(migrations: BlockMigration[]) {
   return async (
     blocks: Record<string, BlockState>,
-    workspaceId: string
+    workspaceId: string,
+    executor: DbOrTx = db
   ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
-    let ctx: MigrationContext = { blocks, workspaceId, migrated: false }
+    let ctx: MigrationContext = { blocks, workspaceId, executor, migrated: false }
     for (const migration of migrations) {
       ctx = await migration(ctx)
     }
@@ -194,7 +196,11 @@ const applyBlockMigrations = createMigrationPipeline([
   },
 
   async (ctx) => {
-    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
+    const { blocks, migrated } = await migrateCredentialIds(
+      ctx.blocks,
+      ctx.workspaceId,
+      ctx.executor
+    )
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
@@ -273,7 +279,8 @@ export const CREDENTIAL_SUBBLOCK_IDS = new Set([
 
 async function migrateCredentialIds(
   blocks: Record<string, BlockState>,
-  workspaceId: string
+  workspaceId: string,
+  executor: DbOrTx
 ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
   const potentialLegacyIds = new Set<string>()
 
@@ -305,7 +312,7 @@ async function migrateCredentialIds(
     return { blocks, migrated: false }
   }
 
-  const rows = await db
+  const rows = await executor
     .select({ id: credential.id, accountId: credential.accountId })
     .from(credential)
     .where(
@@ -379,12 +386,21 @@ export async function loadWorkflowFromNormalizedTables(
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
 
-  const { blocks: finalBlocks, migrated } = await applyBlockMigrations(raw.blocks, raw.workspaceId)
+  const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
+    raw.blocks,
+    raw.workspaceId,
+    externalTx ?? db
+  )
 
   if (migrated) {
-    Promise.resolve().then(() =>
-      persistMigratedBlocks(workflowId, raw.blocks, finalBlocks, raw.blockUpdatedAtById)
-    )
+    // Deliberate fire-and-forget persistence on the global pool: it must not
+    // join (or block) a read transaction this load may be running inside, so
+    // it escapes the transaction context instead of tripping the wire.
+    runOutsideTransactionContext(() => {
+      Promise.resolve().then(() =>
+        persistMigratedBlocks(workflowId, raw.blocks, finalBlocks, raw.blockUpdatedAtById)
+      )
+    })
   }
 
   const patchedLoops: Record<string, Loop> = { ...raw.loops }
@@ -556,7 +572,8 @@ export async function deployWorkflow(params: {
   name?: string | null
   workflowState?: WorkflowState
   validateWorkflowState?: (
-    workflowState: WorkflowState
+    workflowState: WorkflowState,
+    executor: DbOrTx
   ) => DeployWorkflowValidationResult | Promise<DeployWorkflowValidationResult>
   onDeployTransaction?: (
     tx: DbOrTx,
@@ -596,7 +613,7 @@ export async function deployWorkflow(params: {
         }
       }
 
-      const validationError = await params.validateWorkflowState?.(currentState)
+      const validationError = await params.validateWorkflowState?.(currentState, tx)
       if (validationError && !validationError.success) {
         return {
           success: false as const,
