@@ -9,8 +9,16 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
+<<<<<<< HEAD
   totalRoutes: 816,
   zodRoutes: 816,
+||||||| parent of a65122b455 (feat(integrations): add Vanta integration with compliance, evidence file, people, vendor, vulnerability, and risk tools)
+  totalRoutes: 812,
+  zodRoutes: 812,
+=======
+  totalRoutes: 815,
+  zodRoutes: 815,
+>>>>>>> a65122b455 (feat(integrations): add Vanta integration with compliance, evidence file, people, vendor, vulnerability, and risk tools)
   nonZodRoutes: 0,
 } as const
 
