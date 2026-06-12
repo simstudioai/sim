@@ -328,15 +328,26 @@ export function WorkflowWithChat() {
               onStageResource={stageResource}
             />
           </div>
-          {/* Zero-width flex child whose absolute child straddles the border. */}
+          {/* Zero-width flex child whose absolute child straddles the border.
+              A small grab pill fades in on hover so the affordance is
+              discoverable without adding a permanent line. */}
           <div className='relative z-20 w-0 flex-none'>
-            <div
-              className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
-              role='separator'
-              aria-orientation='vertical'
-              aria-label='Resize chat pane'
-              onPointerDown={handleResizePointerDown}
-            />
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <div
+                  className='group absolute inset-y-0 left-[-4px] flex w-[8px] cursor-ew-resize items-center justify-center'
+                  role='separator'
+                  aria-orientation='vertical'
+                  aria-label='Resize chat pane'
+                  onPointerDown={handleResizePointerDown}
+                >
+                  <div className='h-[48px] w-[4px] rounded-full bg-[var(--text-subtle)] opacity-0 transition-opacity hover-hover:group-hover:opacity-100' />
+                </div>
+              </Tooltip.Trigger>
+              <Tooltip.Content side='right'>
+                <p>Resize</p>
+              </Tooltip.Content>
+            </Tooltip.Root>
           </div>
         </>
       )}
