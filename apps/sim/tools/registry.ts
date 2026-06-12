@@ -626,6 +626,13 @@ import {
   daytonaUploadFileTool,
 } from '@/tools/daytona'
 import {
+  deploymentsDeployTool,
+  deploymentsGetVersionTool,
+  deploymentsListVersionsTool,
+  deploymentsPromoteTool,
+  deploymentsUndeployTool,
+} from '@/tools/deployments'
+import {
   devinAppendSessionTagsTool,
   devinArchiveSessionTool,
   devinCreateSessionTool,
@@ -4634,6 +4641,11 @@ export const tools: Record<string, ToolConfig> = {
   daytona_start_sandbox: daytonaStartSandboxTool,
   daytona_stop_sandbox: daytonaStopSandboxTool,
   daytona_upload_file: daytonaUploadFileTool,
+  deployments_deploy: deploymentsDeployTool,
+  deployments_get_version: deploymentsGetVersionTool,
+  deployments_list_versions: deploymentsListVersionsTool,
+  deployments_promote: deploymentsPromoteTool,
+  deployments_undeploy: deploymentsUndeployTool,
   dub_bulk_create_links: dubBulkCreateLinksTool,
   dub_bulk_delete_links: dubBulkDeleteLinksTool,
   dub_bulk_update_links: dubBulkUpdateLinksTool,
