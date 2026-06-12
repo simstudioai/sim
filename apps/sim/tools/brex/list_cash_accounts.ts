@@ -75,13 +75,11 @@ export const brexListCashAccountsTool: ToolConfig<
           current_balance: {
             type: 'json',
             description: 'Current balance',
-            optional: true,
             properties: BREX_MONEY_PROPERTIES,
           },
           available_balance: {
             type: 'json',
             description: 'Available balance',
-            optional: true,
             properties: BREX_MONEY_PROPERTIES,
           },
           account_number: { type: 'string', description: 'Bank account number' },

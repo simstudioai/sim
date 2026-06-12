@@ -4,6 +4,24 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { BrexResponse } from '@/tools/brex/types'
 
+const PAGINATED_OPERATIONS = new Set([
+  'list_expenses',
+  'list_card_transactions',
+  'list_cash_transactions',
+  'list_cash_accounts',
+  'list_card_statements',
+  'list_cash_statements',
+  'list_users',
+  'list_departments',
+  'list_locations',
+  'list_titles',
+  'list_cards',
+  'list_budgets',
+  'list_spend_limits',
+  'list_vendors',
+  'list_transfers',
+])
+
 export const BrexBlock: BlockConfig<BrexResponse> = {
   type: 'brex',
   name: 'Brex',
@@ -430,8 +448,10 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
             break
         }
 
-        if (params.cursor) result.cursor = String(params.cursor)
-        if (params.limit) result.limit = String(params.limit)
+        if (PAGINATED_OPERATIONS.has(operation)) {
+          if (params.cursor) result.cursor = String(params.cursor)
+          if (params.limit) result.limit = String(params.limit)
+        }
 
         return result
       },
@@ -609,6 +629,7 @@ export const BrexBlockMeta = {
       modules: ['workflows', 'scheduled', 'tables'],
       category: 'operations',
       tags: ['automation'],
+      alsoIntegrations: ['gmail'],
     },
     {
       icon: BrexIcon,

@@ -1,5 +1,5 @@
 import type { BrexGetSpendLimitParams, BrexGetSpendLimitResponse } from '@/tools/brex/types'
-import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
+import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -76,9 +76,9 @@ export const brexGetSpendLimitTool: ToolConfig<BrexGetSpendLimitParams, BrexGetS
       memberUserIds: { type: 'array', description: 'User IDs of the spend limit members' },
       currentPeriodBalance: {
         type: 'json',
-        description: 'Balance for the current period',
+        description: 'Spend and rollover amounts for the current period',
         optional: true,
-        properties: BREX_MONEY_PROPERTIES,
+        properties: BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES,
       },
       authorizationSettings: {
         type: 'json',

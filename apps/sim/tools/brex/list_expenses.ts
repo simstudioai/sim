@@ -62,7 +62,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Only include expenses purchased before this ISO 8601 timestamp',
+      description: 'Only include expenses purchased at or before this ISO 8601 timestamp',
     },
     cursor: {
       type: 'string',
@@ -74,7 +74,7 @@ export const brexListExpensesTool: ToolConfig<BrexListExpensesParams, BrexListEx
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of expenses to return (default 100, max 1000)',
+      description: 'Number of expenses to return (max 100)',
     },
   },
 

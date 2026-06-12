@@ -1,5 +1,5 @@
 import type { BrexListSpendLimitsParams, BrexListSpendLimitsResponse } from '@/tools/brex/types'
-import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
+import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import {
   appendBrexArrayParam,
   appendBrexPagination,
@@ -85,16 +85,16 @@ export const brexListSpendLimitsTool: ToolConfig<
           status: { type: 'string', description: 'Spend limit status' },
           period_recurrence_type: {
             type: 'string',
-            description: 'Period recurrence (e.g., MONTHLY, QUARTERLY, YEARLY, ONE_TIME)',
+            description: 'Period recurrence (PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME)',
           },
           spend_type: { type: 'string', description: 'Spend type of the limit' },
           owner_user_ids: { type: 'array', description: 'User IDs of the spend limit owners' },
           member_user_ids: { type: 'array', description: 'User IDs of the spend limit members' },
           current_period_balance: {
             type: 'json',
-            description: 'Balance for the current period',
+            description: 'Spend and rollover amounts for the current period',
             optional: true,
-            properties: BREX_MONEY_PROPERTIES,
+            properties: BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES,
           },
         },
       },

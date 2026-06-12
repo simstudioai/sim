@@ -60,7 +60,8 @@ export const brexGetTransferTool: ToolConfig<BrexGetTransferParams, BrexGetTrans
     description: { type: 'string', description: 'Transfer description', optional: true },
     paymentType: {
       type: 'string',
-      description: 'Payment type (ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER)',
+      description:
+        'Payment type (ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN)',
     },
     amount: {
       type: 'json',

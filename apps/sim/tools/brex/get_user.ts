@@ -54,7 +54,8 @@ export const brexGetUserTool: ToolConfig<BrexGetUserParams, BrexGetUserResponse>
     email: { type: 'string', description: 'Email address' },
     status: {
       type: 'string',
-      description: 'User status (e.g., INVITED, ACTIVE, CLOSED, DISABLED)',
+      description:
+        'User status (INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
       optional: true,
     },
     managerId: { type: 'string', description: 'ID of the manager', optional: true },

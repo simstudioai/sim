@@ -75,7 +75,8 @@ export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTra
           description: { type: 'string', description: 'Transfer description', optional: true },
           payment_type: {
             type: 'string',
-            description: 'Payment type (e.g., ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE)',
+            description:
+              'Payment type (ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN)',
           },
           amount: {
             type: 'json',
@@ -93,7 +94,8 @@ export const brexListTransfersTool: ToolConfig<BrexPaginationParams, BrexListTra
           },
           status: {
             type: 'string',
-            description: 'Transfer status (e.g., SCHEDULED, PROCESSING, COMPLETED, FAILED)',
+            description:
+              'Transfer status (PROCESSING, SCHEDULED, PENDING_APPROVAL, FAILED, PROCESSED)',
           },
           cancellation_reason: {
             type: 'string',

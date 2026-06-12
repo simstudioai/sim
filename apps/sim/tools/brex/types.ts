@@ -79,11 +79,20 @@ export interface BrexCashAccount {
   id: string
   name: string
   status: string | null
-  current_balance: BrexMoney | null
-  available_balance: BrexMoney | null
+  current_balance: BrexMoney
+  available_balance: BrexMoney
   account_number: string
   routing_number: string
   primary: boolean
+}
+
+export interface BrexSpendLimitPeriodBalance {
+  start_date: string | null
+  end_date: string | null
+  start_time: string | null
+  end_time: string | null
+  amount_spent: BrexMoney | null
+  rollover_amount: BrexMoney | null
 }
 
 export interface BrexUser {
@@ -136,7 +145,7 @@ export interface BrexSpendLimit {
   spend_type: string
   owner_user_ids: string[]
   member_user_ids: string[]
-  current_period_balance: BrexMoney | null
+  current_period_balance: BrexSpendLimitPeriodBalance | null
 }
 
 export interface BrexVendor {
@@ -465,8 +474,8 @@ export interface BrexGetCashAccountResponse extends ToolResponse {
     id: string
     name: string
     status: string | null
-    currentBalance: BrexMoney | null
-    availableBalance: BrexMoney | null
+    currentBalance: BrexMoney
+    availableBalance: BrexMoney
     accountNumber: string
     routingNumber: string
     primary: boolean
@@ -511,7 +520,7 @@ export interface BrexGetSpendLimitResponse extends ToolResponse {
     endDate: string | null
     ownerUserIds: string[]
     memberUserIds: string[]
-    currentPeriodBalance: BrexMoney | null
+    currentPeriodBalance: BrexSpendLimitPeriodBalance | null
     authorizationSettings: Record<string, unknown> | null
   }
 }
@@ -584,6 +593,33 @@ export const BREX_MONEY_PROPERTIES: Record<string, OutputProperty> = {
   },
 }
 
+export const BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES: Record<string, OutputProperty> = {
+  start_date: { type: 'string', description: 'Start date of the current period', optional: true },
+  end_date: { type: 'string', description: 'End date of the current period', optional: true },
+  start_time: {
+    type: 'string',
+    description: 'Start time of the current period (ISO 8601)',
+    optional: true,
+  },
+  end_time: {
+    type: 'string',
+    description: 'End time of the current period (ISO 8601)',
+    optional: true,
+  },
+  amount_spent: {
+    type: 'json',
+    description: 'Amount spent in the current period',
+    optional: true,
+    properties: BREX_MONEY_PROPERTIES,
+  },
+  rollover_amount: {
+    type: 'json',
+    description: 'Amount rolled over from previous periods',
+    optional: true,
+    properties: BREX_MONEY_PROPERTIES,
+  },
+}
+
 export const BREX_EXPENSE_ITEM_PROPERTIES: Record<string, OutputProperty> = {
   id: { type: 'string', description: 'Unique expense ID' },
   memo: { type: 'string', description: 'Memo on the expense', optional: true },
@@ -604,7 +640,12 @@ export const BREX_EXPENSE_ITEM_PROPERTIES: Record<string, OutputProperty> = {
     description: 'Expense type (CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET)',
     optional: true,
   },
-  category: { type: 'string', description: 'Merchant category of the expense', optional: true },
+  category: {
+    type: 'string',
+    description:
+      'Expense category (e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES)',
+    optional: true,
+  },
   merchant: {
     type: 'json',
     description: 'Merchant details',
@@ -739,7 +780,8 @@ export const BREX_USER_PROPERTIES: Record<string, OutputProperty> = {
   email: { type: 'string', description: 'Email address' },
   status: {
     type: 'string',
-    description: 'User status (e.g., INVITED, ACTIVE, CLOSED, DISABLED)',
+    description:
+      'User status (INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED)',
     optional: true,
   },
   manager_id: { type: 'string', description: 'ID of the manager', optional: true },

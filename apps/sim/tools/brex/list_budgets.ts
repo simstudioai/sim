@@ -74,7 +74,7 @@ export const brexListBudgetsTool: ToolConfig<BrexPaginationParams, BrexListBudge
           owner_user_ids: { type: 'array', description: 'User IDs of the budget owners' },
           period_recurrence_type: {
             type: 'string',
-            description: 'Budget period recurrence (e.g., MONTHLY, QUARTERLY, YEARLY, ONE_TIME)',
+            description: 'Budget period recurrence (WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME)',
           },
           start_date: { type: 'string', description: 'Budget start date', optional: true },
           end_date: { type: 'string', description: 'Budget end date', optional: true },

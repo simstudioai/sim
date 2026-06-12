@@ -47,9 +47,9 @@ List expenses in the Brex account with optional filters for user, status, paymen
 | `statuses` | string | No | Comma-separated expense statuses to filter by: DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED |
 | `paymentStatuses` | string | No | Comma-separated payment statuses to filter by: NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED |
 | `purchasedAtStart` | string | No | Only include expenses purchased at or after this ISO 8601 timestamp |
-| `purchasedAtEnd` | string | No | Only include expenses purchased before this ISO 8601 timestamp |
+| `purchasedAtEnd` | string | No | Only include expenses purchased at or before this ISO 8601 timestamp |
 | `cursor` | string | No | Pagination cursor from a previous response |
-| `limit` | string | No | Number of expenses to return \(default 100, max 1000\) |
+| `limit` | string | No | Number of expenses to return \(max 100\) |
 
 #### Output
 
@@ -61,7 +61,7 @@ List expenses in the Brex account with optional filters for user, status, paymen
 |   ↳ `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
 |   ↳ `payment_status` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
 |   ↳ `expense_type` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
-|   ↳ `category` | string | Merchant category of the expense |
+|   ↳ `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 |   ↳ `merchant` | json | Merchant details |
 |     ↳ `raw_descriptor` | string | Raw merchant descriptor |
 |     ↳ `mcc` | string | Merchant category code |
@@ -116,7 +116,7 @@ Get a single Brex expense by its ID, including merchant, user, and receipt detai
 | `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
 | `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
 | `expenseType` | string | Expense type \(CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET\) |
-| `category` | string | Merchant category of the expense |
+| `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 | `merchantId` | string | Merchant ID |
 | `merchant` | json | Merchant details \(raw descriptor, MCC, country\) |
 |   ↳ `raw_descriptor` | string | Raw merchant descriptor |
@@ -179,7 +179,7 @@ Update the memo of a Brex card expense
 | `memo` | string | Updated memo on the expense |
 | `status` | string | Expense status \(DRAFT, SUBMITTED, APPROVED, OUT_OF_POLICY, VOID, CANCELED, SPLIT, SETTLED\) |
 | `paymentStatus` | string | Payment status \(NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED\) |
-| `category` | string | Merchant category of the expense |
+| `category` | string | Expense category \(e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES\) |
 | `merchantId` | string | Merchant ID |
 | `budgetId` | string | Budget ID |
 | `originalAmount` | json | Original transaction amount |
@@ -461,7 +461,7 @@ List users in the Brex account, optionally filtered by email
 |   ↳ `first_name` | string | First name |
 |   ↳ `last_name` | string | Last name |
 |   ↳ `email` | string | Email address |
-|   ↳ `status` | string | User status \(e.g., INVITED, ACTIVE, CLOSED, DISABLED\) |
+|   ↳ `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 |   ↳ `manager_id` | string | ID of the manager |
 |   ↳ `department_id` | string | Department ID |
 |   ↳ `location_id` | string | Location ID |
@@ -487,7 +487,7 @@ Get a Brex user by their ID
 | `firstName` | string | First name |
 | `lastName` | string | Last name |
 | `email` | string | Email address |
-| `status` | string | User status \(e.g., INVITED, ACTIVE, CLOSED, DISABLED\) |
+| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 | `managerId` | string | ID of the manager |
 | `departmentId` | string | Department ID |
 | `locationId` | string | Location ID |
@@ -511,7 +511,7 @@ Get the Brex user associated with the API token
 | `firstName` | string | First name |
 | `lastName` | string | Last name |
 | `email` | string | Email address |
-| `status` | string | User status \(e.g., INVITED, ACTIVE, CLOSED, DISABLED\) |
+| `status` | string | User status \(INVITED, ACTIVE, CLOSED, DISABLED, DELETED, PENDING_ACTIVATION, INACTIVE, ARCHIVED\) |
 | `managerId` | string | ID of the manager |
 | `departmentId` | string | Department ID |
 | `locationId` | string | Location ID |
@@ -658,7 +658,7 @@ List budgets in the Brex account
 |   ↳ `description` | string | Budget description |
 |   ↳ `parent_budget_id` | string | Parent budget ID |
 |   ↳ `owner_user_ids` | array | User IDs of the budget owners |
-|   ↳ `period_recurrence_type` | string | Budget period recurrence \(e.g., MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+|   ↳ `period_recurrence_type` | string | Budget period recurrence \(WEEKLY, MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
 |   ↳ `start_date` | string | Budget start date |
 |   ↳ `end_date` | string | Budget end date |
 |   ↳ `amount` | json | Budget amount |
@@ -722,13 +722,21 @@ List spend limits in the Brex account, optionally filtered by member user
 |   ↳ `description` | string | Spend limit description |
 |   ↳ `parent_budget_id` | string | Parent budget ID |
 |   ↳ `status` | string | Spend limit status |
-|   ↳ `period_recurrence_type` | string | Period recurrence \(e.g., MONTHLY, QUARTERLY, YEARLY, ONE_TIME\) |
+|   ↳ `period_recurrence_type` | string | Period recurrence \(PER_WEEK, PER_MONTH, PER_QUARTER, PER_YEAR, ONE_TIME\) |
 |   ↳ `spend_type` | string | Spend type of the limit |
 |   ↳ `owner_user_ids` | array | User IDs of the spend limit owners |
 |   ↳ `member_user_ids` | array | User IDs of the spend limit members |
-|   ↳ `current_period_balance` | json | Balance for the current period |
-|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
-|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `current_period_balance` | json | Spend and rollover amounts for the current period |
+|     ↳ `start_date` | string | Start date of the current period |
+|     ↳ `end_date` | string | End date of the current period |
+|     ↳ `start_time` | string | Start time of the current period \(ISO 8601\) |
+|     ↳ `end_time` | string | End time of the current period \(ISO 8601\) |
+|     ↳ `amount_spent` | json | Amount spent in the current period |
+|       ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|       ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|     ↳ `rollover_amount` | json | Amount rolled over from previous periods |
+|       ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|       ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 | `nextCursor` | string | Cursor for fetching the next page of results |
 
 ### `brex_get_spend_limit`
@@ -758,9 +766,17 @@ Get a Brex spend limit by its ID
 | `endDate` | string | Spend limit end date |
 | `ownerUserIds` | array | User IDs of the spend limit owners |
 | `memberUserIds` | array | User IDs of the spend limit members |
-| `currentPeriodBalance` | json | Balance for the current period |
-|   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
-|   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+| `currentPeriodBalance` | json | Spend and rollover amounts for the current period |
+|   ↳ `start_date` | string | Start date of the current period |
+|   ↳ `end_date` | string | End date of the current period |
+|   ↳ `start_time` | string | Start time of the current period \(ISO 8601\) |
+|   ↳ `end_time` | string | End time of the current period \(ISO 8601\) |
+|   ↳ `amount_spent` | json | Amount spent in the current period |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
+|   ↳ `rollover_amount` | json | Amount rolled over from previous periods |
+|     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
+|     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 | `authorizationSettings` | json | Authorization settings \(base limit, authorization type, rollover refresh\) |
 
 ### `brex_list_vendors`
@@ -829,13 +845,13 @@ List money transfers in the Brex account
 |   ↳ `id` | string | Unique transfer ID |
 |   ↳ `counterparty` | json | Transfer counterparty details |
 |   ↳ `description` | string | Transfer description |
-|   ↳ `payment_type` | string | Payment type \(e.g., ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE\) |
+|   ↳ `payment_type` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN\) |
 |   ↳ `amount` | json | Transfer amount |
 |     ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
 |     ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |
 |   ↳ `process_date` | string | Date the transfer processes |
 |   ↳ `originating_account` | json | Account the transfer originates from |
-|   ↳ `status` | string | Transfer status \(e.g., SCHEDULED, PROCESSING, COMPLETED, FAILED\) |
+|   ↳ `status` | string | Transfer status \(PROCESSING, SCHEDULED, PENDING_APPROVAL, FAILED, PROCESSED\) |
 |   ↳ `cancellation_reason` | string | Reason the transfer was canceled |
 |   ↳ `estimated_delivery_date` | string | Estimated delivery date |
 |   ↳ `creator_user_id` | string | ID of the user who created the transfer |
@@ -862,7 +878,7 @@ Get a Brex money transfer by its ID
 | `id` | string | Unique transfer ID |
 | `counterparty` | json | Transfer counterparty details |
 | `description` | string | Transfer description |
-| `paymentType` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER\) |
+| `paymentType` | string | Payment type \(ACH, DOMESTIC_WIRE, CHEQUE, INTERNATIONAL_WIRE, BOOK_TRANSFER, STABLECOIN\) |
 | `amount` | json | Transfer amount |
 |   ↳ `amount` | number | Amount in the smallest unit of the currency \(e.g., cents for USD\) |
 |   ↳ `currency` | string | ISO 4217 currency code \(e.g., USD\) |

@@ -99,7 +99,12 @@ export const brexGetExpenseTool: ToolConfig<BrexGetExpenseParams, BrexGetExpense
       description: 'Expense type (CARD, BILLPAY, REIMBURSEMENT, CLAWBACK, UNSET)',
       optional: true,
     },
-    category: { type: 'string', description: 'Merchant category of the expense', optional: true },
+    category: {
+      type: 'string',
+      description:
+        'Expense category (e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES)',
+      optional: true,
+    },
     merchantId: { type: 'string', description: 'Merchant ID', optional: true },
     merchant: {
       type: 'json',

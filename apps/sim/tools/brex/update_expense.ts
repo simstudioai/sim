@@ -74,7 +74,12 @@ export const brexUpdateExpenseTool: ToolConfig<BrexUpdateExpenseParams, BrexUpda
           'Payment status (NOT_STARTED, PROCESSING, CANCELED, DECLINED, CLEARED, REFUNDING, REFUNDED, CASH_ADVANCE, CREDITED, AWAITING_PAYMENT, SCHEDULED)',
         optional: true,
       },
-      category: { type: 'string', description: 'Merchant category of the expense', optional: true },
+      category: {
+        type: 'string',
+        description:
+          'Expense category (e.g., RESTAURANTS, RECURRING_SOFTWARE_AND_SAAS, AIRLINE_EXPENSES)',
+        optional: true,
+      },
       merchantId: { type: 'string', description: 'Merchant ID', optional: true },
       budgetId: { type: 'string', description: 'Budget ID', optional: true },
       originalAmount: {
