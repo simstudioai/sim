@@ -1,1 +1,6 @@
-export { SidebarToggle, SidebarToggleHidden, useSidebarToggleHidden } from './sidebar-toggle'
+export {
+  SidebarToggle,
+  SidebarToggleHidden,
+  SidebarToggleRevealed,
+  useSidebarToggleHidden,
+} from './sidebar-toggle'

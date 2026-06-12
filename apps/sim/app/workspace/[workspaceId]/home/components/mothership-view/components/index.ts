@@ -3,6 +3,7 @@ export {
   PANEL_ICON_BUTTON_CLASS,
   PANEL_ICON_CLASS,
   PanelHeader,
+  PanelTrailingControls,
   ResourcePanelToggle,
 } from './panel-header'
 export { ResourceActions, ResourceContent } from './resource-content'

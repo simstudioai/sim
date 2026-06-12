@@ -24,6 +24,19 @@ export function SidebarToggleHidden({ children }: SidebarToggleHiddenProps) {
   )
 }
 
+/**
+ * Re-enables chrome controls inside a {@link SidebarToggleHidden} subtree —
+ * for the spot where an embedded page's header doubles as the title bar
+ * (e.g. the resource panel while the chat pane is hidden).
+ */
+export function SidebarToggleRevealed({ children }: SidebarToggleHiddenProps) {
+  return (
+    <SidebarToggleHiddenContext.Provider value={false}>
+      {children}
+    </SidebarToggleHiddenContext.Provider>
+  )
+}
+
 /** Whether title-bar chrome controls are suppressed by {@link SidebarToggleHidden}. */
 export function useSidebarToggleHidden(): boolean {
   return useContext(SidebarToggleHiddenContext)

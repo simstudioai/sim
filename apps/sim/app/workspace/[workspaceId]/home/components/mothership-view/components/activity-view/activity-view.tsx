@@ -146,7 +146,7 @@ const ArtifactPreview = memo(function ArtifactPreview({
   const Icon = artifactIcon(artifact.type)
   const showSkeleton = building && artifact.state !== 'ready'
   return (
-    <div className='ml-[30px] mt-[4px] animate-stream-fade-in overflow-hidden rounded-[8px] border border-[var(--divider)]'>
+    <div className='mt-[4px] ml-[30px] animate-stream-fade-in overflow-hidden rounded-[8px] border border-[var(--divider)]'>
       <div className='flex items-center gap-[6px] border-[var(--divider)] border-b bg-[var(--surface-4)] px-[10px] py-[6px]'>
         <Icon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' />
         <span className='flex-1 truncate text-[12px] text-[var(--text-secondary)]'>
@@ -197,7 +197,7 @@ const ActorLane = memo(function ActorLane({
         </span>
         <span
           className={cn(
-            'flex-1 text-[13px] font-[500]',
+            'flex-1 font-[500] text-[13px]',
             isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
           )}
         >
@@ -239,7 +239,7 @@ export const ActivityView = memo(function ActivityView({ model, className }: Act
   return (
     <div className={cn('flex h-full flex-col overflow-y-auto px-[20px] py-[18px]', className)}>
       <div className='mb-[16px] flex items-center gap-[8px]'>
-        <span className='truncate text-[14px] font-[600] text-[var(--text-primary)]'>
+        <span className='truncate font-[600] text-[14px] text-[var(--text-primary)]'>
           {model.title ?? 'Mothership'}
         </span>
         <span className='flex items-center gap-[6px]'>

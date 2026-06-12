@@ -32,8 +32,12 @@ import { ArrowUpLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
+import { usePanelChrome } from '@/app/workspace/[workspaceId]/components/panel-chrome-context'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
+import {
+  SidebarToggle,
+  SidebarToggleRevealed,
+} from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 
 export interface DropdownOption {
   label: string
@@ -111,6 +115,13 @@ export const ResourceHeader = memo(function ResourceHeader({
 }: ResourceHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null)
   /**
+   * Inside the chat's resource panel this header IS the panel header: it
+   * swaps the standalone chrome cluster for the panel's leading, compacts to
+   * the panel bar's 44px rhythm, and appends the panel controls (close +
+   * collapse-toggle spacer) after the actions.
+   */
+  const panelChrome = usePanelChrome()
+  /**
    * Breadcrumb mode is reserved for nested pages (length > 1). A single-crumb
    * "breadcrumb" is just the current page, so it falls through to the static
    * title below — keeping the top-left non-interactive and hover-free,
@@ -132,16 +143,27 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex items-center gap-2 border-[var(--border)] border-b px-4 py-[8.5px]'
+      className={cn(
+        'flex items-center gap-2 border-[var(--border)] border-b px-4',
+        panelChrome ? 'py-[7px]' : 'py-[8.5px]'
+      )}
     >
       {/* Chrome controls live outside the overflow-hidden breadcrumb group so
           the toggle's 9px pull-out (7px edge inset, matching the chat title
           bar) isn't clipped. The gap-1 cluster matches the chat title bar's
-          toggle+switcher rhythm so the pair never shifts between pages. */}
-      <div className='flex flex-shrink-0 items-center gap-1'>
-        <SidebarToggle className='-ml-[9px]' />
-        <ChatSwitcher iconOnly />
-      </div>
+          toggle+switcher rhythm so the pair never shifts between pages. In
+          the panel the cluster comes from the panel itself (only while the
+          chat pane is hidden) and must escape the content's hidden scope. */}
+      {panelChrome ? (
+        panelChrome.leading ? (
+          <SidebarToggleRevealed>{panelChrome.leading}</SidebarToggleRevealed>
+        ) : null
+      ) : (
+        <div className='flex flex-shrink-0 items-center gap-1'>
+          <SidebarToggle className='-ml-[9px]' />
+          <ChatSwitcher iconOnly />
+        </div>
+      )}
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
@@ -222,6 +244,9 @@ export const ResourceHeader = memo(function ResourceHeader({
           </div>
         )}
       </div>
+      {panelChrome && (
+        <div className='flex flex-shrink-0 items-center gap-1.5'>{panelChrome.controls}</div>
+      )}
     </div>
   )
 })

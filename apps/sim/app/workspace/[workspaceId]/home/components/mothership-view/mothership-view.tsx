@@ -2,8 +2,10 @@
 
 import { forwardRef, memo, type ReactNode, useState } from 'react'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
+import type { MothershipResourceType } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { PanelChromeProvider } from '@/app/workspace/[workspaceId]/components/panel-chrome-context'
 import { SidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -14,13 +16,24 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { PanelHeader, ResourceActions, ResourceContent } from './components'
+import { PanelHeader, PanelTrailingControls, ResourceActions, ResourceContent } from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',
   split: 'preview',
   preview: 'editor',
 } as const
+
+/**
+ * Staged views that render their own `Resource.Header` (workspace area pages,
+ * knowledge base detail). The panel skips its header for these and injects its
+ * controls into theirs via {@link PanelChromeProvider}, so there is exactly
+ * one header row either way.
+ */
+const OWN_HEADER_RESOURCE_TYPES: ReadonlySet<MothershipResourceType> = new Set([
+  'page',
+  'knowledgebase',
+])
 
 /**
  * Whether the active resource should show the in-progress file stream.
@@ -95,6 +108,23 @@ export const MothershipView = memo(
       active?.type === 'file' &&
       RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
 
+    const hasOwnHeader = Boolean(active && OWN_HEADER_RESOURCE_TYPES.has(active.type))
+
+    const content = active && (
+      <SidebarToggleHidden>
+        <ResourceContent
+          workspaceId={workspaceId}
+          resource={active}
+          previewMode={isActivePreviewable ? previewMode : undefined}
+          previewSession={previewForActive}
+          genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
+          previewContextKey={chatId}
+          onNotFound={closeResource}
+          onAddResource={openResource}
+        />
+      </SidebarToggleHidden>
+    )
+
     return (
       <div
         ref={ref}
@@ -105,7 +135,7 @@ export const MothershipView = memo(
         )}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
-          {active && (
+          {active && !hasOwnHeader && (
             <PanelHeader
               workspaceId={workspaceId}
               resource={active}
@@ -116,19 +146,15 @@ export const MothershipView = memo(
             />
           )}
           <div className='min-h-0 flex-1 overflow-hidden'>
-            {active && (
-              <SidebarToggleHidden>
-                <ResourceContent
-                  workspaceId={workspaceId}
-                  resource={active}
-                  previewMode={isActivePreviewable ? previewMode : undefined}
-                  previewSession={previewForActive}
-                  genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
-                  previewContextKey={chatId}
-                  onNotFound={closeResource}
-                  onAddResource={openResource}
-                />
-              </SidebarToggleHidden>
+            {hasOwnHeader ? (
+              <PanelChromeProvider
+                leading={headerLeading}
+                controls={<PanelTrailingControls closeLabel={`Close ${active?.title ?? 'view'}`} />}
+              >
+                {content}
+              </PanelChromeProvider>
+            ) : (
+              content
             )}
           </div>
         </div>

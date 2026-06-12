@@ -1,17 +1,16 @@
 'use client'
 
 import { type ComponentProps, type ReactNode, useMemo } from 'react'
-import { Button, Tooltip } from '@/components/emcn'
-import { Columns3, Eye, Pencil, X } from '@/components/emcn/icons'
+import { Button, chipGeometryClass, Tooltip } from '@/components/emcn'
+import { Columns3, Eye, Pencil } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import {
   PANEL_HEADER_GAP_CLASS,
   PANEL_ICON_BUTTON_CLASS,
   PANEL_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
-import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/resource-panel-toggle'
+import { PanelTrailingControls } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-trailing-controls'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
@@ -85,7 +84,6 @@ export function PanelHeader({
 }: PanelHeaderProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
-  const { closeResource } = useMothershipResources()
   const config = getResourceConfig(resource.type)
   const displayName = nameLookup.get(`${resource.type}:${resource.id}`) ?? resource.title
 
@@ -97,10 +95,12 @@ export function PanelHeader({
       )}
     >
       {leading}
-      <div className={cn('flex min-w-0 flex-1 items-center', PANEL_HEADER_GAP_CLASS)}>
-        {config.renderTabIcon(resource, 'size-[16px] shrink-0')}
-        <span className='min-w-0 truncate font-medium text-[13px] text-[var(--text-body)]'>
-          {displayName}
+      <div className='flex min-w-0 flex-1 items-center overflow-hidden'>
+        {/* Same title treatment as Resource.Header (chip geometry, 14px icon,
+            body text) so every staged view's header reads identically. */}
+        <span className={cn(chipGeometryClass, 'inline-flex min-w-0 cursor-default justify-start')}>
+          {config.renderTabIcon(resource, 'size-[14px] shrink-0')}
+          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{displayName}</span>
         </span>
       </div>
       <div className={cn('ml-auto flex shrink-0 items-center', PANEL_HEADER_GAP_CLASS)}>
@@ -122,27 +122,7 @@ export function PanelHeader({
             </Tooltip.Content>
           </Tooltip.Root>
         )}
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='subtle'
-              onClick={closeResource}
-              className={PANEL_ICON_BUTTON_CLASS}
-              aria-label={`Close ${displayName}`}
-            >
-              <X className={PANEL_ICON_CLASS} />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='bottom'>
-            <p>Close</p>
-          </Tooltip.Content>
-        </Tooltip.Root>
-        {/* Inert spacer reserving the toggle's exact footprint at the far right.
-            The real, interactive toggle is rendered absolutely in home.tsx and
-            overlays this spot, so it never moves when the panel collapses. Pulled
-            out 9px so the hover pill sits 7px from the edge (equal to its 7px
-            top/bottom gap in the bar). */}
-        <ResourcePanelToggle placeholder className='-mr-[9px]' />
+        <PanelTrailingControls closeLabel={`Close ${displayName}`} />
       </div>
     </div>
   )
