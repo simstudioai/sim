@@ -328,14 +328,20 @@ export function WorkflowWithChat() {
               onStageResource={stageResource}
             />
           </div>
-          {/* Zero-width flex child whose absolute child straddles the border.
-              A small grab pill fades in on hover so the affordance is
-              discoverable without adding a permanent line. */}
-          <div className='relative z-20 w-0 flex-none'>
+          {/* Zero-width flex child whose absolute child carries the drag.
+              Flush mode: it straddles the border. Stack mode: it owns the
+              visible gap between the chat module and the front card (and
+              sits above the stage's z-30 layers). A small grab pill fades in
+              on hover so the affordance is discoverable without adding a
+              permanent line. */}
+          <div className='relative z-40 w-0 flex-none'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <div
-                  className='group absolute inset-y-0 left-[-4px] flex w-[8px] cursor-ew-resize items-center justify-center'
+                  className={cn(
+                    'group absolute inset-y-0 flex cursor-ew-resize items-center justify-center',
+                    isStackMode ? 'left-0 w-[8px]' : 'left-[-4px] w-[8px]'
+                  )}
                   role='separator'
                   aria-orientation='vertical'
                   aria-label='Resize chat pane'
