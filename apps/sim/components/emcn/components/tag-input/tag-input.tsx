@@ -334,26 +334,22 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       [inputValue, triggerKeys, onAdd, items, onRemove]
     )
 
+    /**
+     * Pasted values are committed through `onAdd` exactly like typing + Enter:
+     * consumers render rejected values as flagged invalid chips, so nothing is
+     * re-staged into the input afterwards — doing so would display the same
+     * value twice (the invalid chip plus the raw text in the typing buffer).
+     */
     const handlePaste = React.useCallback(
       (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault()
         const pastedText = e.clipboardData.getData('text')
         const pastedValues = pastedText.split(/[\s,;]+/).filter(Boolean)
-
-        let addedCount = 0
         pastedValues.forEach((value) => {
-          if (onAdd(value.trim())) {
-            addedCount++
-          }
+          onAdd(value.trim())
         })
-
-        if (addedCount === 0 && pastedValues.length === 1) {
-          const newValue = inputValue + pastedValues[0]
-          setInputValue(newValue)
-          onInputChange?.(newValue)
-        }
       },
-      [onAdd, inputValue, onInputChange]
+      [onAdd]
     )
 
     const handleBlur = React.useCallback(() => {

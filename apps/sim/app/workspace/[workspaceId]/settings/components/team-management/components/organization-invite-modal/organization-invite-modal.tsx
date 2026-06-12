@@ -29,21 +29,31 @@ interface OrganizationInviteModalProps {
   organizationId: string
   /** Workspaces the inviter can grant access to. */
   workspaces: Array<{ id: string; name: string }>
-  /** Emails that already belong to the organization (rejected as duplicates). */
-  existingEmails?: string[]
+  /** Emails of external collaborators (rejected — they cannot join the organization). */
+  externalEmails?: string[]
+  /**
+   * Non-member emails with a pending invitation (rejected as duplicates).
+   * Member emails are always allowed — they receive workspace invitations for
+   * the selected workspaces they aren't in yet, deduped per workspace by the
+   * server — so the parent excludes them from this list.
+   */
+  pendingEmails?: string[]
 }
 
 /**
  * Organization-level invite modal: enter emails, pick one or more workspaces to
  * grant access to, choose a role applied to every selected workspace, and send
- * through the organization invite path.
+ * through the organization invite path. Emails of existing organization
+ * members are accepted — the server sends them workspace-only invitations for
+ * the selected workspaces they don't already have access to.
  */
 export function OrganizationInviteModal({
   open,
   onOpenChange,
   organizationId,
   workspaces,
-  existingEmails = [],
+  externalEmails = [],
+  pendingEmails = [],
 }: OrganizationInviteModalProps) {
   const [emails, setEmails] = useState<string[]>([])
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([])
@@ -59,9 +69,14 @@ export function OrganizationInviteModal({
     [workspaces]
   )
 
-  const existingEmailSet = useMemo(
-    () => new Set(existingEmails.map((email) => email.toLowerCase())),
-    [existingEmails]
+  const externalEmailSet = useMemo(
+    () => new Set(externalEmails.map((email) => email.toLowerCase())),
+    [externalEmails]
+  )
+
+  const pendingEmailSet = useMemo(
+    () => new Set(pendingEmails.map((email) => email.toLowerCase())),
+    [pendingEmails]
   )
 
   const validateEmail = useCallback(
@@ -69,12 +84,15 @@ export function OrganizationInviteModal({
       if (session?.user?.email && session.user.email.toLowerCase() === email) {
         return 'You cannot invite yourself'
       }
-      if (existingEmailSet.has(email)) {
-        return `${email} is already in this organization`
+      if (externalEmailSet.has(email)) {
+        return `${email} belongs to another organization and can't be invited. Invite them to individual workspaces from the Teammates tab.`
+      }
+      if (pendingEmailSet.has(email)) {
+        return `${email} already has a pending invitation`
       }
       return null
     },
-    [session?.user?.email, existingEmailSet]
+    [session?.user?.email, externalEmailSet, pendingEmailSet]
   )
 
   const handleEmailsChange = useCallback((next: string[]) => {
