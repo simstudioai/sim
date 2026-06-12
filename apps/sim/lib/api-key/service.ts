@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { apiKey as apiKeyTable, user as userTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceBillingSettings, type WorkspaceBillingSettings } from '@/lib/workspaces/utils'
@@ -136,12 +136,30 @@ export async function authenticateApiKeyFromHeader(
   }
 }
 
+const LAST_USED_STALENESS_WINDOW_MS = 10 * 60 * 1000
+
 /**
- * Update the last used timestamp for an API key
+ * Update the last used timestamp for an API key.
+ *
+ * `lastUsed` is display-only, so the write uses a staleness window: it only
+ * fires when the stored value is older than
+ * {@link LAST_USED_STALENESS_WINDOW_MS}. High-traffic keys otherwise rewrite
+ * the same row on every request, serializing concurrent requests behind row
+ * locks. The 10-minute window matches GitLab's personal-access-token
+ * last-used tracking.
  */
 export async function updateApiKeyLastUsed(keyId: string): Promise<void> {
   try {
-    await db.update(apiKeyTable).set({ lastUsed: new Date() }).where(eq(apiKeyTable.id, keyId))
+    const staleBefore = new Date(Date.now() - LAST_USED_STALENESS_WINDOW_MS)
+    await db
+      .update(apiKeyTable)
+      .set({ lastUsed: new Date() })
+      .where(
+        and(
+          eq(apiKeyTable.id, keyId),
+          or(isNull(apiKeyTable.lastUsed), lt(apiKeyTable.lastUsed, staleBefore))
+        )
+      )
   } catch (error) {
     logger.error('Error updating API key last used:', error)
   }
