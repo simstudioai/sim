@@ -153,8 +153,20 @@ const vantaTokenExchanges = new Map<string, Promise<string>>()
 /** Evict cached tokens well before their one-hour expiry. */
 const VANTA_TOKEN_EXPIRY_BUFFER_MS = 10 * 60 * 1000
 
-function vantaTokenCacheKey(params: VantaTokenParams): string {
-  return [params.region ?? 'us', params.scope, params.clientId, params.clientSecret].join('|')
+/**
+ * Derives the cache key for a credential set. The client secret is included
+ * only as a SHA-256 digest so plaintext secrets never persist in the
+ * long-lived cache maps.
+ */
+async function vantaTokenCacheKey(params: VantaTokenParams): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(`${params.clientId}:${params.clientSecret}`)
+  )
+  const secretHash = Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+  return [params.region ?? 'us', params.scope, params.clientId, secretHash].join('|')
 }
 
 async function exchangeVantaToken(params: VantaTokenParams, cacheKey: string): Promise<string> {
@@ -205,7 +217,7 @@ export async function getVantaAccessToken(
   params: VantaTokenParams,
   options?: { forceRefresh?: boolean }
 ): Promise<string> {
-  const cacheKey = vantaTokenCacheKey(params)
+  const cacheKey = await vantaTokenCacheKey(params)
   if (!options?.forceRefresh) {
     const cached = vantaTokenCache.get(cacheKey)
     if (cached && cached.expiresAt > Date.now()) {
