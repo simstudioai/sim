@@ -372,7 +372,7 @@ const VANTA_REGIONS = ['us', 'gov'] as const
 const vantaBaseBodySchema = z.object({
   clientId: z.string().min(1, 'Client ID is required'),
   clientSecret: z.string().min(1, 'Client secret is required'),
-  region: z.enum(VANTA_REGIONS).optional(),
+  region: z.enum(VANTA_REGIONS).nullish(),
 })
 
 const vantaPaginationBodySchema = z.object({
@@ -381,8 +381,8 @@ const vantaPaginationBodySchema = z.object({
     .int()
     .min(1, 'pageSize must be at least 1')
     .max(100, 'pageSize must be at most 100')
-    .optional(),
-  pageCursor: z.string().min(1, 'pageCursor cannot be empty').optional(),
+    .nullish(),
+  pageCursor: z.string().min(1, 'pageCursor cannot be empty').nullish(),
 })
 
 const vantaListBaseBodySchema = vantaBaseBodySchema.extend(vantaPaginationBodySchema.shape)
@@ -405,7 +405,7 @@ const listFrameworkControlsSchema = vantaListBaseBodySchema.extend({
 
 const listControlsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_controls'),
-  frameworkMatchesAny: z.string().optional(),
+  frameworkMatchesAny: z.string().nullish(),
 })
 
 const getControlSchema = vantaBaseBodySchema.extend({
@@ -427,11 +427,11 @@ const listTestsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_tests'),
   statusFilter: z
     .enum(['OK', 'DEACTIVATED', 'NEEDS_ATTENTION', 'IN_PROGRESS', 'INVALID', 'NOT_APPLICABLE'])
-    .optional(),
-  frameworkFilter: z.string().optional(),
-  integrationFilter: z.string().optional(),
-  controlFilter: z.string().optional(),
-  ownerFilter: z.string().optional(),
+    .nullish(),
+  frameworkFilter: z.string().nullish(),
+  integrationFilter: z.string().nullish(),
+  controlFilter: z.string().nullish(),
+  ownerFilter: z.string().nullish(),
   categoryFilter: z
     .enum([
       'ACCOUNTS_ACCESS',
@@ -453,8 +453,8 @@ const listTestsSchema = vantaListBaseBodySchema.extend({
       'VENDORS',
       'VULNERABILITY_MANAGEMENT',
     ])
-    .optional(),
-  isInRollout: z.boolean().optional(),
+    .nullish(),
+  isInRollout: z.boolean().nullish(),
 })
 
 const getTestSchema = vantaBaseBodySchema.extend({
@@ -465,13 +465,13 @@ const getTestSchema = vantaBaseBodySchema.extend({
 const listTestEntitiesSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_test_entities'),
   testId: requiredId('Test ID'),
-  entityStatus: z.enum(['FAILING', 'DEACTIVATED']).optional(),
+  entityStatus: z.enum(['FAILING', 'DEACTIVATED']).nullish(),
 })
 
 const listDocumentsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_documents'),
-  frameworkMatchesAny: z.string().optional(),
-  statusMatchesAny: z.string().optional(),
+  frameworkMatchesAny: z.string().nullish(),
+  statusMatchesAny: z.string().nullish(),
 })
 
 const getDocumentSchema = vantaBaseBodySchema.extend({
@@ -491,12 +491,12 @@ const submitDocumentSchema = vantaBaseBodySchema.extend({
 
 const listPeopleSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_people'),
-  emailAndNameFilter: z.string().optional(),
-  employmentStatus: z.enum(['UPCOMING', 'CURRENT', 'ON_LEAVE', 'INACTIVE', 'FORMER']).optional(),
-  groupIdsMatchesAny: z.string().optional(),
-  tasksSummaryStatusMatchesAny: z.string().optional(),
-  taskTypeMatchesAny: z.string().optional(),
-  taskStatusMatchesAny: z.string().optional(),
+  emailAndNameFilter: z.string().nullish(),
+  employmentStatus: z.enum(['UPCOMING', 'CURRENT', 'ON_LEAVE', 'INACTIVE', 'FORMER']).nullish(),
+  groupIdsMatchesAny: z.string().nullish(),
+  tasksSummaryStatusMatchesAny: z.string().nullish(),
+  taskTypeMatchesAny: z.string().nullish(),
+  taskStatusMatchesAny: z.string().nullish(),
 })
 
 const getPersonSchema = vantaBaseBodySchema.extend({
@@ -515,8 +515,8 @@ const getPolicySchema = vantaBaseBodySchema.extend({
 
 const listVendorsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_vendors'),
-  name: z.string().optional(),
-  statusMatchesAny: z.string().optional(),
+  name: z.string().nullish(),
+  statusMatchesAny: z.string().nullish(),
 })
 
 const getVendorSchema = vantaBaseBodySchema.extend({
@@ -526,37 +526,37 @@ const getVendorSchema = vantaBaseBodySchema.extend({
 
 const listMonitoredComputersSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_monitored_computers'),
-  complianceStatusFilterMatchesAny: z.string().optional(),
+  complianceStatusFilterMatchesAny: z.string().nullish(),
 })
 
 const listVulnerabilitiesSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_vulnerabilities'),
-  q: z.string().optional(),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
-  isFixAvailable: z.boolean().optional(),
-  isDeactivated: z.boolean().optional(),
-  includeVulnerabilitiesWithoutSlas: z.boolean().optional(),
-  packageIdentifier: z.string().optional(),
-  externalVulnerabilityId: z.string().optional(),
-  integrationId: z.string().optional(),
-  vulnerableAssetId: z.string().optional(),
-  slaDeadlineAfterDate: z.string().optional(),
-  slaDeadlineBeforeDate: z.string().optional(),
+  q: z.string().nullish(),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullish(),
+  isFixAvailable: z.boolean().nullish(),
+  isDeactivated: z.boolean().nullish(),
+  includeVulnerabilitiesWithoutSlas: z.boolean().nullish(),
+  packageIdentifier: z.string().nullish(),
+  externalVulnerabilityId: z.string().nullish(),
+  integrationId: z.string().nullish(),
+  vulnerableAssetId: z.string().nullish(),
+  slaDeadlineAfterDate: z.string().nullish(),
+  slaDeadlineBeforeDate: z.string().nullish(),
 })
 
 const listVulnerabilityRemediationsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_vulnerability_remediations'),
-  integrationId: z.string().optional(),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
-  isRemediatedOnTime: z.boolean().optional(),
-  remediatedAfterDate: z.string().optional(),
-  remediatedBeforeDate: z.string().optional(),
+  integrationId: z.string().nullish(),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).nullish(),
+  isRemediatedOnTime: z.boolean().nullish(),
+  remediatedAfterDate: z.string().nullish(),
+  remediatedBeforeDate: z.string().nullish(),
 })
 
 const listVulnerableAssetsSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_vulnerable_assets'),
-  q: z.string().optional(),
-  integrationId: z.string().optional(),
+  q: z.string().nullish(),
+  integrationId: z.string().nullish(),
   assetType: z
     .enum([
       'SERVER',
@@ -569,8 +569,8 @@ const listVulnerableAssetsSchema = vantaListBaseBodySchema.extend({
       'WORKSTATION',
       'OTHER',
     ])
-    .optional(),
-  assetExternalAccountId: z.string().optional(),
+    .nullish(),
+  assetExternalAccountId: z.string().nullish(),
 })
 
 const getVulnerableAssetSchema = vantaBaseBodySchema.extend({
@@ -580,17 +580,17 @@ const getVulnerableAssetSchema = vantaBaseBodySchema.extend({
 
 const listRiskScenariosSchema = vantaListBaseBodySchema.extend({
   operation: z.literal('vanta_list_risk_scenarios'),
-  searchString: z.string().optional(),
-  includeIgnored: z.boolean().optional(),
-  type: z.enum(['Risk Scenario', 'Enterprise Risk']).optional(),
-  ownerMatchesAny: z.string().optional(),
-  categoryMatchesAny: z.string().optional(),
-  ciaCategoryMatchesAny: z.string().optional(),
-  treatmentTypeMatchesAny: z.string().optional(),
-  inherentScoreGroupMatchesAny: z.string().optional(),
-  residualScoreGroupMatchesAny: z.string().optional(),
-  reviewStatusMatchesAny: z.string().optional(),
-  orderBy: z.enum(['description', 'createdAt']).optional(),
+  searchString: z.string().nullish(),
+  includeIgnored: z.boolean().nullish(),
+  type: z.enum(['Risk Scenario', 'Enterprise Risk']).nullish(),
+  ownerMatchesAny: z.string().nullish(),
+  categoryMatchesAny: z.string().nullish(),
+  ciaCategoryMatchesAny: z.string().nullish(),
+  treatmentTypeMatchesAny: z.string().nullish(),
+  inherentScoreGroupMatchesAny: z.string().nullish(),
+  residualScoreGroupMatchesAny: z.string().nullish(),
+  reviewStatusMatchesAny: z.string().nullish(),
+  orderBy: z.enum(['description', 'createdAt']).nullish(),
 })
 
 const getRiskScenarioSchema = vantaBaseBodySchema.extend({

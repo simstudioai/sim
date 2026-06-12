@@ -45,7 +45,7 @@ export const VANTA_WRITE_SCOPE = 'vanta-api.all:read vanta-api.all:write'
 export const VANTA_DOCUMENT_UPLOAD_SCOPE =
   'vanta-api.all:read vanta-api.all:write vanta-api.documents:upload'
 
-export function getVantaBaseUrl(region: VantaRegion | undefined): string {
+export function getVantaBaseUrl(region: VantaRegion | null | undefined): string {
   return VANTA_API_BASE_URLS[region ?? 'us']
 }
 
@@ -126,7 +126,7 @@ export function extractVantaError(data: unknown, fallback: string): string {
 export interface VantaTokenParams {
   clientId: string
   clientSecret: string
-  region?: VantaRegion
+  region?: VantaRegion | null
   scope: string
 }
 
