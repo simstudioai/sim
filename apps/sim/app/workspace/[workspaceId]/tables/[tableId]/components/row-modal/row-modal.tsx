@@ -255,15 +255,19 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
   if (column.type === 'select') {
     const options = column.options ?? []
     const current = typeof value === 'string' ? value : ''
+    // Match the stored value case-insensitively (same as the grid's tag
+    // rendering) so a casing variant selects its canonical option instead of
+    // appearing as a duplicate entry.
+    const matched = options.find((option) => option.toLowerCase() === current.toLowerCase())
     const selectOptions = [
       ...options.map((option) => ({ label: option, value: option })),
-      ...(current && !options.includes(current) ? [{ label: current, value: current }] : []),
+      ...(current && matched === undefined ? [{ label: current, value: current }] : []),
     ]
     return (
       <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
         <ChipCombobox
           options={selectOptions}
-          value={current}
+          value={matched ?? current}
           onChange={(v) => onChange(v)}
           placeholder='Select option'
           maxHeight={260}

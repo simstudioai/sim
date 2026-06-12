@@ -386,6 +386,21 @@ describe('Validation', () => {
         expect(result.valid).toBe(false)
         expect(result.errors[0]).toContain('must be number')
       })
+
+      it('should round and clamp rating values to 0..RATING_MAX on coercion', () => {
+        const data = { score: 9.6, price: 9.6 }
+        coerceRowValues(data, richSchema)
+        expect(data.score).toBe(5)
+        expect(data.price).toBe(9.6)
+
+        const low = { score: -3 }
+        coerceRowValues(low, richSchema)
+        expect(low.score).toBe(0)
+
+        const fractional = { score: '3.4' }
+        coerceRowValues(fractional, richSchema)
+        expect(fractional.score).toBe(3)
+      })
     })
   })
 

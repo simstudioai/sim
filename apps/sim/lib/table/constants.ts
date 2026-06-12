@@ -137,6 +137,9 @@ export const COLUMN_TYPES = [
   'rating',
 ] as const
 
+/** Ratings range 0..RATING_MAX; `rating` cells render as RATING_MAX stars. */
+export const RATING_MAX = 5
+
 /** Storage primitives — the value shapes actually persisted in row data. */
 export const STORAGE_COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
 

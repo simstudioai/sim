@@ -8,11 +8,11 @@ import { Badge, Checkbox, Tooltip } from '@/components/emcn'
 import { Mail } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
+import { RATING_MAX } from '@/lib/table/constants'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   formatCurrencyDisplay,
   formatPercentDisplay,
-  RATING_MAX,
   selectBadgeVariant,
   storageToDisplay,
 } from '../../../utils'

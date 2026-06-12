@@ -1,29 +1,34 @@
 import type { ColumnDefinition } from '@/lib/table'
-import { getColumnStorageType } from '@/lib/table/constants'
-
-/** Ratings range 0..RATING_MAX and render as RATING_MAX stars. */
-export const RATING_MAX = 5
-
-/** Browser locale for number formatting; `en-US` outside the browser. */
-const DISPLAY_LOCALE = typeof navigator === 'undefined' ? 'en-US' : navigator.language
-
-const CURRENCY_FORMATTER = new Intl.NumberFormat(DISPLAY_LOCALE, {
-  style: 'currency',
-  currency: 'USD',
-})
-const PERCENT_FORMATTER = new Intl.NumberFormat(DISPLAY_LOCALE, { maximumFractionDigits: 2 })
+import { getColumnStorageType, RATING_MAX } from '@/lib/table/constants'
 
 /**
- * Formats a currency cell's numeric value for display in the user's locale.
- * USD is the default display currency until per-column currency config exists.
+ * Number formatters for currency/percent cells, created lazily on first
+ * format call. Cell values only render after the client-side row fetch, so
+ * these always initialize in the browser with `navigator.language` — never at
+ * module load during SSR, where the locale would diverge and risk hydration
+ * mismatches. USD is the default display currency until per-column currency
+ * config exists.
  */
+let currencyFormatter: Intl.NumberFormat | undefined
+let percentFormatter: Intl.NumberFormat | undefined
+
+function displayLocale(): string {
+  return typeof navigator === 'undefined' ? 'en-US' : navigator.language
+}
+
+/** Formats a currency cell's numeric value for display in the user's locale. */
 export function formatCurrencyDisplay(value: number): string {
-  return CURRENCY_FORMATTER.format(value)
+  currencyFormatter ??= new Intl.NumberFormat(displayLocale(), {
+    style: 'currency',
+    currency: 'USD',
+  })
+  return currencyFormatter.format(value)
 }
 
 /** Formats a percent cell's numeric value for display, e.g. `12.5` → `12.5%`. */
 export function formatPercentDisplay(value: number): string {
-  return `${PERCENT_FORMATTER.format(value)}%`
+  percentFormatter ??= new Intl.NumberFormat(displayLocale(), { maximumFractionDigits: 2 })
+  return `${percentFormatter.format(value)}%`
 }
 
 /**

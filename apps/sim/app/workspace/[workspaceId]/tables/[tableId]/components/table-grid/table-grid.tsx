@@ -13,7 +13,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { getColumnStorageType, TABLE_LIMITS } from '@/lib/table/constants'
+import { getColumnStorageType, RATING_MAX, TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
@@ -38,7 +38,6 @@ import {
   cleanCellValue,
   formatCurrencyDisplay,
   formatPercentDisplay,
-  RATING_MAX,
   generateColumnName as sharedGenerateColumnName,
   storageToDisplay,
 } from '../../utils'

@@ -7,7 +7,13 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from './column-keys'
-import { COLUMN_TYPES, getColumnStorageType, NAME_PATTERN, TABLE_LIMITS } from './constants'
+import {
+  COLUMN_TYPES,
+  getColumnStorageType,
+  NAME_PATTERN,
+  RATING_MAX,
+  TABLE_LIMITS,
+} from './constants'
 import { withSeqscanOff } from './planner'
 import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
 
@@ -279,15 +285,21 @@ function coerceValueToColumnType(
         return { ok: true, value: String(value) }
       }
       return { ok: false }
-    case 'number':
-      if (typeof value === 'number') {
-        return Number.isFinite(value) ? { ok: true, value } : { ok: false }
+    case 'number': {
+      const num =
+        typeof value === 'number'
+          ? value
+          : typeof value === 'string' && value.trim() !== ''
+            ? Number(value)
+            : Number.NaN
+      if (!Number.isFinite(num)) return { ok: false }
+      // Ratings normalize to whole stars in 0..RATING_MAX on every write path
+      // (API, batch, CSV import) so storage always matches what the grid renders.
+      if (type === 'rating') {
+        return { ok: true, value: Math.min(RATING_MAX, Math.max(0, Math.round(num))) }
       }
-      if (typeof value === 'string' && value.trim() !== '') {
-        const parsed = Number(value)
-        return Number.isFinite(parsed) ? { ok: true, value: parsed } : { ok: false }
-      }
-      return { ok: false }
+      return { ok: true, value: num }
+    }
     case 'boolean':
       if (typeof value === 'boolean') return { ok: true, value }
       if (typeof value === 'string') {
