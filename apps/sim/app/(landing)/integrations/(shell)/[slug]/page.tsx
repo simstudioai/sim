@@ -460,10 +460,6 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
           Free to start at sim.ai.
         </p>
 
-        <p className='mb-8 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
-          Last updated <time dateTime={INTEGRATIONS_UPDATED_AT}>{UPDATED_AT_DISPLAY}</time>
-        </p>
-
         {/* CTAs */}
         <div className='flex flex-wrap gap-2'>
           <IntegrationCtaButton
@@ -507,6 +503,10 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
             </svg>
           </a>
         </div>
+
+        <p className='mt-5 text-[var(--landing-text-secondary)] text-xs'>
+          Last updated <time dateTime={INTEGRATIONS_UPDATED_AT}>{UPDATED_AT_DISPLAY}</time>
+        </p>
       </div>
 
       {/* Full-width divider */}
