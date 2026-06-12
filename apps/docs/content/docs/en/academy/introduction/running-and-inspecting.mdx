@@ -3,36 +3,47 @@ title: Running & Inspecting Something
 description: What using Sim feels like at the most basic level — run it, see output, check logs.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { CourseProgress } from '@/components/ui/course-progress'
 
-<VideoPlaceholder title="Running & Inspecting Something" />
+<VideoPlaceholder eyebrow="Introduction" title="Running & Inspecting Something" src="/static/academy-preview/23-running-and-inspecting.mp4" className="mt-2" />
 
-**Purpose.** Show the learner what "using Sim" feels like at the most basic level.
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_340px]">
+<div>
 
-**Learning outcome.** The learner understands how to run a workflow, where output appears, where to look if something fails, and that Sim systems are inspectable.
+## Running & Inspecting Something
 
-## What to say
+Your first run, end to end: press Run, watch the workflow execute, read the output on the canvas, and open the run record to see what every step did.
 
-- Once you have a workflow, you can run it.
-- When it runs, Sim records what happened.
-- You can inspect the output.
-- If something fails, logs show where and why.
-- This matters because AI systems should be inspectable, not just magical.
+<WhatYouWillLearn
+  items={[
+    {
+      title: "Run a workflow and read its output",
+      body: "Watch a sample input cross the chain and the result land in the last block.",
+    },
+    {
+      title: "Open the run record",
+      body: "See per-block timing, the output tree, and where a failure would show — every run is inspectable.",
+    },
+  ]}
+/>
 
-## Suggested order
+</div>
+<div>
 
-1. Use the simple workflow from the previous video.
-2. Enter a sample input.
-3. Run it.
-4. Show the output.
-5. Open logs.
-6. Show a successful run, block outputs, and where errors would appear.
-7. Keep it light: *You don't need to master logs yet. Just know this is where you go to see what happened.*
+<CourseProgress
+  course="Introduction"
+  durationLabel="Approx. 14 min"
+  progress={0}
+  lessons={[
+    { title: "What is Sim?", duration: "1:05" },
+    { title: "Mothership & Workflows", duration: "4:10" },
+    { title: "Main Workspace Objects", duration: "5:05" },
+    { title: "Running & Inspecting Something", duration: "1:23", active: true },
+    { title: "How to Explore Next", duration: "1:45" },
+  ]}
+/>
 
-## What not to do
-
-- Don't create a long debugging session.
-- Don't teach advanced logs.
-- Don't inspect cost or model details unless it naturally appears.
-- Don't turn this into an operations lesson.
+</div>
+</div>
