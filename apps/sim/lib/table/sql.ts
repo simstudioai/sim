@@ -8,7 +8,7 @@
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
 import { getColumnId } from './column-keys'
-import { NAME_PATTERN } from './constants'
+import { getColumnStorageType, NAME_PATTERN } from './constants'
 import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
 
 /**
@@ -27,12 +27,15 @@ type ColumnTypeMap = ReadonlyMap<string, ColumnType>
 
 /**
  * Returns the Postgres cast needed to compare a JSONB text value of the given
- * column type, or `null` when text comparison is correct. Single source of
- * truth for both filter range operators and sort ordering — keeps the two
- * paths from drifting apart.
+ * column type, or `null` when text comparison is correct. Keys off the storage
+ * primitive so number-backed rich types (currency, percent, rating) compare
+ * numerically and string-backed ones (url, email, …) compare as text. Single
+ * source of truth for both filter range operators and sort ordering — keeps
+ * the two paths from drifting apart.
  */
 function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestamptz' | null {
-  switch (type) {
+  if (type === undefined) return null
+  switch (getColumnStorageType(type)) {
     case 'number':
       return 'numeric'
     case 'date':

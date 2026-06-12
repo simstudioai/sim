@@ -271,6 +271,7 @@ export function useTableUndo({
                   type: action.columnType,
                   required: action.columnRequired,
                   unique: action.columnUnique,
+                  ...(action.columnOptions !== undefined ? { options: action.columnOptions } : {}),
                   position: action.columnPosition,
                 },
                 {

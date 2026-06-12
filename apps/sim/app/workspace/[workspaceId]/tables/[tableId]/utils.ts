@@ -1,6 +1,45 @@
 import type { ColumnDefinition } from '@/lib/table'
+import { getColumnStorageType } from '@/lib/table/constants'
 
-type BadgeVariant = 'green' | 'blue' | 'purple' | 'orange' | 'teal' | 'gray'
+/** Ratings range 0..RATING_MAX and render as RATING_MAX stars. */
+export const RATING_MAX = 5
+
+const CURRENCY_FORMATTER = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+const PERCENT_FORMATTER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+
+/** Formats a currency cell's numeric value for display (USD, the default display currency). */
+export function formatCurrencyDisplay(value: number): string {
+  return CURRENCY_FORMATTER.format(value)
+}
+
+/** Formats a percent cell's numeric value for display, e.g. `12.5` → `12.5%`. */
+export function formatPercentDisplay(value: number): string {
+  return `${PERCENT_FORMATTER.format(value)}%`
+}
+
+/**
+ * Tag palette for select values. The variant is derived from a hash of the
+ * value so a given option keeps its color across rows, reloads, and option
+ * reordering without persisting color state.
+ */
+const SELECT_BADGE_VARIANTS = [
+  'green',
+  'blue',
+  'purple',
+  'orange',
+  'teal',
+  'cyan',
+  'pink',
+  'amber',
+] as const
+
+export function selectBadgeVariant(value: string): (typeof SELECT_BADGE_VARIANTS)[number] {
+  let hash = 0
+  for (let i = 0; i < value.length; i++) {
+    hash = (hash * 31 + value.charCodeAt(i)) | 0
+  }
+  return SELECT_BADGE_VARIANTS[Math.abs(hash) % SELECT_BADGE_VARIANTS.length]
+}
 
 /**
  * Pick a fresh "untitled[_N]" name not already taken by `columns`. Used by
@@ -18,46 +57,33 @@ export function generateColumnName(columns: ReadonlyArray<{ name: string }>): st
 }
 
 /**
- * Returns the appropriate badge color variant for a column type
- */
-export function getTypeBadgeVariant(type: string): BadgeVariant {
-  switch (type) {
-    case 'string':
-      return 'green'
-    case 'number':
-      return 'blue'
-    case 'boolean':
-      return 'purple'
-    case 'json':
-      return 'orange'
-    case 'date':
-      return 'teal'
-    default:
-      return 'gray'
-  }
-}
-
-/**
- * Coerce a raw input value to the appropriate type for a column.
- * Throws on invalid JSON.
+ * Coerce a raw input value to the appropriate storage primitive for a column.
+ * Rich types coerce as their primitive (e.g. `currency` parses as a number);
+ * `rating` additionally rounds and clamps to 0..{@link RATING_MAX} so star
+ * edits always land on a renderable value. Throws on invalid JSON.
  */
 export function cleanCellValue(value: unknown, column: ColumnDefinition): unknown {
-  if (column.type === 'number') {
+  const storageType = getColumnStorageType(column.type)
+  if (storageType === 'number') {
     if (value === '') return null
     const num = Number(value)
-    return Number.isNaN(num) ? null : num
+    if (Number.isNaN(num)) return null
+    if (column.type === 'rating') {
+      return Math.min(RATING_MAX, Math.max(0, Math.round(num)))
+    }
+    return num
   }
-  if (column.type === 'json') {
+  if (storageType === 'json') {
     if (typeof value === 'string') {
       if (value === '') return null
       return JSON.parse(value)
     }
     return value
   }
-  if (column.type === 'boolean') {
+  if (storageType === 'boolean') {
     return Boolean(value)
   }
-  if (column.type === 'date') {
+  if (storageType === 'date') {
     if (value === '' || value === null || value === undefined) return null
     const str = String(value)
     return Number.isNaN(Date.parse(str)) ? null : str
@@ -74,10 +100,11 @@ export function cleanCellValue(value: unknown, column: ColumnDefinition): unknow
  */
 export function formatValueForInput(value: unknown, type: string): string {
   if (value === null || value === undefined) return ''
-  if (type === 'json') {
+  const storageType = getColumnStorageType(type)
+  if (storageType === 'json') {
     return typeof value === 'string' ? value : JSON.stringify(value)
   }
-  if (type === 'date' && value) {
+  if (storageType === 'date' && value) {
     const str = String(value)
     const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
     if (match) return match[0]

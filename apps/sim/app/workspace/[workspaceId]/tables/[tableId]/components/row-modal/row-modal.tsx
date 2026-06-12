@@ -6,6 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Checkbox,
+  ChipCombobox,
   ChipConfirmModal,
   ChipModal,
   ChipModalBody,
@@ -17,6 +18,7 @@ import {
   Label,
 } from '@/components/emcn'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
+import { getColumnStorageType } from '@/lib/table/constants'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
 import { cleanCellValue, formatValueForInput } from '../../utils'
 
@@ -250,16 +252,61 @@ function ColumnField({ column, value, onChange }: ColumnFieldProps) {
     )
   }
 
+  if (column.type === 'select') {
+    const options = column.options ?? []
+    const current = typeof value === 'string' ? value : ''
+    const selectOptions = [
+      ...options.map((option) => ({ label: option, value: option })),
+      ...(current && !options.includes(current) ? [{ label: current, value: current }] : []),
+    ]
+    return (
+      <ChipModalField type='custom' title={title} required={column.required} hint={hint}>
+        <ChipCombobox
+          options={selectOptions}
+          value={current}
+          onChange={(v) => onChange(v)}
+          placeholder='Select option'
+          maxHeight={260}
+        />
+      </ChipModalField>
+    )
+  }
+
+  if (column.type === 'email') {
+    return (
+      <ChipModalField
+        type='email'
+        title={title}
+        required={column.required}
+        hint={hint}
+        value={formatValueForInput(value, column.type)}
+        onChange={onChange}
+        placeholder={`Enter ${column.name}`}
+      />
+    )
+  }
+
+  const inputType =
+    getColumnStorageType(column.type) === 'number'
+      ? 'number'
+      : (FIELD_INPUT_TYPES[column.type] ?? 'text')
+
   return (
     <ChipModalField
       type='input'
       title={title}
       required={column.required}
       hint={hint}
-      inputType={column.type === 'number' ? 'number' : 'text'}
+      inputType={inputType}
       value={formatValueForInput(value, column.type)}
       onChange={onChange}
       placeholder={`Enter ${column.name}`}
     />
   )
+}
+
+/** Browser input types for rich string-backed columns (default: `text`). */
+const FIELD_INPUT_TYPES: Partial<Record<ColumnDefinition['type'], 'url' | 'tel'>> = {
+  url: 'url',
+  phone: 'tel',
 }

@@ -13,6 +13,7 @@
 
 import { type Options as CsvParseOptions, type Parser, parse as parseCsvStream } from 'csv-parse'
 import { getColumnId } from '@/lib/table/column-keys'
+import { getColumnStorageType, type StorageColumnType } from '@/lib/table/constants'
 import type { ColumnDefinition, RowData, TableSchema } from '@/lib/table/types'
 
 /**
@@ -43,9 +44,6 @@ export function csvParseOptions(delimiter = ','): CsvParseOptions {
 export function createCsvParser(delimiter = ','): Parser {
   return parseCsvStream(csvParseOptions(delimiter))
 }
-
-/** Narrower type than `COLUMN_TYPES` used internally for coercion. */
-export type CsvColumnType = 'string' | 'number' | 'boolean' | 'date' | 'json'
 
 /** Number of CSV rows sampled when inferring column types for a new table. */
 export const CSV_SCHEMA_SAMPLE_SIZE = 100
@@ -132,7 +130,7 @@ export async function parseCsvBuffer(
  * prefer narrower types (number > boolean > ISO date) and fall back to string.
  * JSON is never inferred automatically.
  */
-export function inferColumnType(values: unknown[]): Exclude<CsvColumnType, 'json'> {
+export function inferColumnType(values: unknown[]): Exclude<StorageColumnType, 'json'> {
   const nonEmpty = values.filter((v) => v !== null && v !== undefined && v !== '')
   if (nonEmpty.length === 0) return 'string'
 
@@ -218,7 +216,7 @@ export function inferSchemaFromCsv(
  */
 export function coerceValue(
   value: unknown,
-  colType: CsvColumnType
+  colType: StorageColumnType
 ): string | number | boolean | null | Record<string, unknown> | unknown[] {
   if (value === null || value === undefined || value === '') return null
   switch (colType) {
@@ -418,8 +416,10 @@ export function coerceRowsForTable(
       if (!colName) continue
       const col = colByName.get(colName)
       if (!col) continue
-      const colType = (col.type as CsvColumnType) ?? 'string'
-      coerced[getColumnId(col)] = coerceValue(value, colType) as RowData[string]
+      coerced[getColumnId(col)] = coerceValue(
+        value,
+        getColumnStorageType(col.type)
+      ) as RowData[string]
     }
     return coerced
   })

@@ -7,7 +7,7 @@ import { userTableRows } from '@sim/db/schema'
 import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from './column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
+import { COLUMN_TYPES, getColumnStorageType, NAME_PATTERN, TABLE_LIMITS } from './constants'
 import { withSeqscanOff } from './planner'
 import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
 
@@ -204,7 +204,12 @@ export function validateTableSchema(schema: TableSchema): ValidationResult {
   return { valid: errors.length === 0, errors }
 }
 
-/** Validates row data matches schema column types and required fields. */
+/**
+ * Validates row data matches schema column types and required fields. Rich
+ * column types (url, select, currency, …) validate as their storage primitive
+ * — formatting is a display concern, so e.g. an `email` cell only has to be a
+ * string, not a syntactically valid address.
+ */
 export function validateRowAgainstSchema(data: RowData, schema: TableSchema): ValidationResult {
   const errors: string[] = []
 
@@ -218,7 +223,7 @@ export function validateRowAgainstSchema(data: RowData, schema: TableSchema): Va
 
     if (value === null || value === undefined) continue
 
-    switch (column.type) {
+    switch (getColumnStorageType(column.type)) {
       case 'string':
         if (typeof value !== 'string') {
           errors.push(`${column.name} must be string, got ${typeof value}`)
@@ -267,7 +272,7 @@ function coerceValueToColumnType(
   value: JsonValue,
   type: ColumnDefinition['type']
 ): { ok: true; value: JsonValue } | { ok: false } {
-  switch (type) {
+  switch (getColumnStorageType(type)) {
     case 'string':
       if (typeof value === 'string') return { ok: true, value }
       if (typeof value === 'number' || typeof value === 'boolean') {
@@ -587,7 +592,7 @@ export async function checkBatchUniqueConstraintsDb(
       const valueConditions = valueArray.map((normalizedValue) => {
         // Check if the original values are strings (normalized values for strings are lowercase)
         // We need to determine the type from the column definition or the first row that has this value
-        const isStringColumn = column.type === 'string'
+        const isStringColumn = getColumnStorageType(column.type) === 'string'
 
         if (isStringColumn) {
           return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
@@ -678,6 +683,57 @@ export function validateColumnDefinition(column: ColumnDefinition): ValidationRe
     errors.push(
       `Column "${column.name}" has invalid type "${column.type}". Valid types: ${COLUMN_TYPES.join(', ')}`
     )
+  }
+
+  if (column.options !== undefined) {
+    errors.push(...validateColumnOptions(column.options, column.name, column.type).errors)
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
+/**
+ * Validates the predefined options of a `select` column: select-only, every
+ * entry a bounded non-empty string, no case-insensitive duplicates. Option
+ * membership of cell values is intentionally NOT validated anywhere — options
+ * are a soft constraint so removing one never invalidates existing rows.
+ */
+export function validateColumnOptions(
+  options: string[],
+  columnName: string,
+  columnType: ColumnDefinition['type']
+): ValidationResult {
+  const errors: string[] = []
+
+  if (columnType !== 'select') {
+    errors.push(
+      `Column "${columnName}" has type "${columnType}" — only select columns take options`
+    )
+    return { valid: false, errors }
+  }
+
+  if (options.length > TABLE_LIMITS.MAX_SELECT_OPTIONS) {
+    errors.push(
+      `Column "${columnName}" exceeds maximum options (${TABLE_LIMITS.MAX_SELECT_OPTIONS})`
+    )
+  }
+
+  const seen = new Set<string>()
+  for (const option of options) {
+    if (typeof option !== 'string' || option.trim() === '') {
+      errors.push(`Column "${columnName}" options must be non-empty strings`)
+      break
+    }
+    if (option.length > TABLE_LIMITS.MAX_SELECT_OPTION_LENGTH) {
+      errors.push(
+        `Column "${columnName}" option "${option}" exceeds maximum length (${TABLE_LIMITS.MAX_SELECT_OPTION_LENGTH} characters)`
+      )
+    }
+    const normalized = option.toLowerCase()
+    if (seen.has(normalized)) {
+      errors.push(`Column "${columnName}" has duplicate option "${option}"`)
+    }
+    seen.add(normalized)
   }
 
   return { valid: errors.length === 0, errors }

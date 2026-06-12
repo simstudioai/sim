@@ -15,6 +15,7 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
 import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
@@ -131,6 +132,13 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
         },
+        requestId
+      )
+    }
+
+    if (updates.options !== undefined) {
+      updatedTable = await updateColumnOptions(
+        { tableId, columnName: updates.name ?? validated.columnName, options: updates.options },
         requestId
       )
     }

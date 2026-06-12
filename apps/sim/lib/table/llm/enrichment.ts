@@ -5,7 +5,16 @@
  * with table-specific information so LLMs can construct proper queries.
  */
 
+import { getColumnStorageType } from '../constants'
 import type { TableSummary } from '../types'
+
+/** Example cell value for a column type, used in LLM-facing data examples. */
+function exampleValueForType(type: string): unknown {
+  const storageType = getColumnStorageType(type)
+  if (storageType === 'number') return 123
+  if (storageType === 'boolean') return true
+  return 'example'
+}
 
 /**
  * Operations that use filters and need filter-specific enrichment.
@@ -41,8 +50,8 @@ export function enrichTableToolDescription(
   const columnList = table.columns.map((col) => `  - ${col.name} (${col.type})`).join('\n')
 
   if (FILTER_OPERATIONS.has(toolId)) {
-    const stringCols = table.columns.filter((c) => c.type === 'string')
-    const numberCols = table.columns.filter((c) => c.type === 'number')
+    const stringCols = table.columns.filter((c) => getColumnStorageType(c.type) === 'string')
+    const numberCols = table.columns.filter((c) => getColumnStorageType(c.type) === 'number')
 
     let filterExample = ''
     if (stringCols.length > 0 && numberCols.length > 0) {
@@ -91,7 +100,7 @@ ${filterExample}${sortExample}`
     const exampleCols = table.columns.slice(0, 3)
     const dataExample = exampleCols.reduce(
       (obj, col) => {
-        obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'example'
+        obj[col.name] = exampleValueForType(col.type)
         return obj
       },
       {} as Record<string, unknown>
@@ -168,7 +177,7 @@ export function enrichTableToolParameters(
     const exampleCols = table.columns.slice(0, 2)
     const exampleData = exampleCols.reduce(
       (obj: Record<string, unknown>, col: { name: string; type: string }) => {
-        obj[col.name] = col.type === 'number' ? 123 : col.type === 'boolean' ? true : 'value'
+        obj[col.name] = exampleValueForType(col.type)
         return obj
       },
       {} as Record<string, unknown>

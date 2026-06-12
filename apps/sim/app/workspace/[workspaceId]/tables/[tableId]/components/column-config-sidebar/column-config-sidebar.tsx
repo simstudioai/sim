@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
+import { generateShortId } from '@sim/utils/id'
 import {
   Button,
   ChipCombobox,
@@ -11,7 +12,7 @@ import {
   Switch,
   toast,
 } from '@/components/emcn'
-import { X } from '@/components/emcn/icons'
+import { Plus, X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
@@ -79,6 +80,79 @@ function configKey(config: ColumnConfig): string {
   return config.mode === 'edit' ? `edit:${config.columnName}` : `create:${config.proposedName}`
 }
 
+/** Local editing row for one select option — `id` keys the input across edits. */
+interface OptionDraft {
+  id: string
+  value: string
+}
+
+function toOptionDrafts(options: string[]): OptionDraft[] {
+  return options.map((value) => ({ id: generateShortId(), value }))
+}
+
+/** Trims drafts, drops empties, and de-dupes case-insensitively (first wins). */
+function cleanOptionDrafts(drafts: OptionDraft[]): string[] {
+  const seen = new Set<string>()
+  const cleaned: string[] = []
+  for (const draft of drafts) {
+    const value = draft.value.trim()
+    if (!value) continue
+    const normalized = value.toLowerCase()
+    if (seen.has(normalized)) continue
+    seen.add(normalized)
+    cleaned.push(value)
+  }
+  return cleaned
+}
+
+interface SelectOptionsFieldProps {
+  options: OptionDraft[]
+  onChange: (options: OptionDraft[]) => void
+}
+
+/** Editable list of a select column's predefined options. */
+function SelectOptionsField({ options, onChange }: SelectOptionsFieldProps) {
+  return (
+    <div className='flex flex-col gap-[9.5px]'>
+      <Label>Options</Label>
+      {options.map((option, index) => (
+        <div key={option.id} className='flex items-center gap-1.5'>
+          <ChipInput
+            value={option.value}
+            onChange={(e) =>
+              onChange(
+                options.map((o) => (o.id === option.id ? { ...o, value: e.target.value } : o))
+              )
+            }
+            placeholder={`Option ${index + 1}`}
+            spellCheck={false}
+            autoComplete='off'
+            className='min-w-0 flex-1'
+          />
+          <Button
+            variant='ghost'
+            size='sm'
+            onClick={() => onChange(options.filter((o) => o.id !== option.id))}
+            className='!p-1 size-7 shrink-0'
+            aria-label='Remove option'
+          >
+            <X className='size-[12px]' />
+          </Button>
+        </div>
+      ))}
+      <Button
+        variant='default'
+        size='sm'
+        onClick={() => onChange([...options, { id: generateShortId(), value: '' }])}
+        className='self-start'
+      >
+        <Plus className='mr-1 size-[10px]' />
+        Add option
+      </Button>
+    </div>
+  )
+}
+
 interface ColumnConfigBodyProps extends Omit<ColumnConfigSidebarProps, 'config'> {
   config: ColumnConfig
 }
@@ -103,6 +177,9 @@ function ColumnConfigBody({
   const [uniqueInput, setUniqueInput] = useState<boolean>(() =>
     config.mode === 'edit' ? !!existingColumn?.unique : false
   )
+  const [optionDrafts, setOptionDrafts] = useState<OptionDraft[]>(() =>
+    config.mode === 'edit' ? toOptionDrafts(existingColumn?.options ?? []) : []
+  )
   const [showValidation, setShowValidation] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
 
@@ -115,12 +192,17 @@ function ColumnConfigBody({
       return
     }
 
+    const cleanedOptions = cleanOptionDrafts(optionDrafts)
+
     try {
       if (config.mode === 'create') {
         await addColumn.mutateAsync({
           name: trimmedName,
           type: typeInput,
           ...(uniqueInput ? { unique: true } : {}),
+          ...(typeInput === 'select' && cleanedOptions.length > 0
+            ? { options: cleanedOptions }
+            : {}),
         })
         toast.success(`Added "${trimmedName}"`)
         onClose()
@@ -132,11 +214,20 @@ function ColumnConfigBody({
       const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
+      const optionsChanged =
+        typeInput === 'select' &&
+        JSON.stringify(cleanedOptions) !== JSON.stringify(existingColumn?.options ?? [])
 
-      const updates: { name?: string; type?: ColumnDefinition['type']; unique?: boolean } = {
+      const updates: {
+        name?: string
+        type?: ColumnDefinition['type']
+        unique?: boolean
+        options?: string[]
+      } = {
         ...(renamed ? { name: trimmedName } : {}),
         ...(typeChanged ? { type: typeInput } : {}),
         ...(uniqueChanged ? { unique: uniqueInput } : {}),
+        ...(optionsChanged ? { options: cleanedOptions } : {}),
       }
       if (Object.keys(updates).length === 0) {
         onClose()
@@ -213,6 +304,13 @@ function ColumnConfigBody({
                 maxHeight={260}
               />
             </div>
+          </>
+        )}
+
+        {typeInput === 'select' && (
+          <>
+            <FieldDivider />
+            <SelectOptionsField options={optionDrafts} onChange={setOptionDrafts} />
           </>
         )}
 

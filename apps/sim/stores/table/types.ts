@@ -57,6 +57,8 @@ export type TableUndoAction =
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
+      /** Predefined options to restore on re-create (select columns). */
+      columnOptions?: string[]
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null
