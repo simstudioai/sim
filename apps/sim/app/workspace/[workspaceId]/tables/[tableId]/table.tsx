@@ -377,7 +377,9 @@ export function Table({
   /** Select-all Stop — filter-scoped when a filter is active; deselected rows keep running. */
   const onStopAllRows = useCallback(
     (filter?: Filter, excludeRowIds?: string[]) => {
-      cancelRunsMutate({ scope: 'all', filter, excludeRowIds })
+      // `sort` scopes the optimistic flip to the active view's cache (filtered stops
+      // only cancel matching rows server-side).
+      cancelRunsMutate({ scope: 'all', filter, sort: queryOptions.sort, excludeRowIds })
       captureEvent(posthogRef.current, 'table_workflow_stopped', {
         table_id: tableId,
         workspace_id: workspaceId,
@@ -385,7 +387,7 @@ export function Table({
         row_count: null,
       })
     },
-    [cancelRunsMutate, tableId, workspaceId]
+    [cancelRunsMutate, tableId, workspaceId, queryOptions.sort]
   )
 
   const onSelectionChange = (next: SelectionSnapshot) => {
