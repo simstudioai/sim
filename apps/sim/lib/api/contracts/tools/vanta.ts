@@ -676,7 +676,10 @@ export const vantaQueryContract = defineRouteContract({
 export const vantaUploadBodySchema = vantaBaseBodySchema.extend({
   documentId: requiredId('Document ID'),
   file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().nullish(),
+  fileContent: z
+    .string()
+    .max(140 * 1024 * 1024, 'fileContent exceeds the 100MB upload limit')
+    .nullish(),
   fileName: z.string().nullish(),
   mimeType: z.string().nullish(),
   description: z.string().nullish(),
