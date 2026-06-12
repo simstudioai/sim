@@ -51,3 +51,85 @@ export const v1GetWorkflowContract = defineRouteContract({
     schema: v1WorkflowApiResponseWithLimitsSchema,
   },
 })
+
+/**
+ * Optional version metadata accepted by the v1 deploy endpoint. The route
+ * tolerates an absent/empty body, so this schema is validated by the handler
+ * against a tolerant raw-JSON read instead of being attached to the contract.
+ */
+export const v1DeployWorkflowBodySchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'name cannot be empty')
+    .max(100, 'name must be 100 characters or less')
+    .optional(),
+  description: z
+    .string()
+    .trim()
+    .max(2000, 'description must be 2000 characters or less')
+    .optional(),
+})
+
+export type V1DeployWorkflowBody = z.input<typeof v1DeployWorkflowBodySchema>
+
+/**
+ * Optional rollback target accepted by the v1 rollback endpoint. When
+ * `version` is omitted the route rolls back to the deployment version that
+ * precedes the currently active one. Validated by the handler against a
+ * tolerant raw-JSON read, so it is not attached to the contract.
+ */
+export const v1RollbackWorkflowBodySchema = z.object({
+  version: z
+    .number()
+    .int('version must be an integer')
+    .min(1, 'version must be a positive integer')
+    .optional(),
+})
+
+export type V1RollbackWorkflowBody = z.input<typeof v1RollbackWorkflowBodySchema>
+
+export const v1WorkflowDeploymentDataSchema = z.object({
+  id: z.string(),
+  isDeployed: z.boolean(),
+  deployedAt: z.string().nullable(),
+  version: z.number().optional(),
+  warnings: z.array(z.string()).optional(),
+})
+
+export type V1WorkflowDeploymentData = z.output<typeof v1WorkflowDeploymentDataSchema>
+
+const v1WorkflowDeploymentResponseSchema = z.object({
+  data: v1WorkflowDeploymentDataSchema,
+  limits: z.unknown().optional(),
+})
+
+export const v1DeployWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/workflows/[id]/deploy',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v1WorkflowDeploymentResponseSchema,
+  },
+})
+
+export const v1UndeployWorkflowContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v1/workflows/[id]/deploy',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v1WorkflowDeploymentResponseSchema,
+  },
+})
+
+export const v1RollbackWorkflowContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/v1/workflows/[id]/rollback',
+  params: workflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v1WorkflowDeploymentResponseSchema,
+  },
+})

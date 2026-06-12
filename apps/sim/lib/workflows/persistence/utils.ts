@@ -12,7 +12,7 @@ import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } f
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -1141,6 +1141,49 @@ async function activateWorkflowVersionById(params: {
       error: getErrorMessage(error, 'Failed to activate version'),
     }
   }
+}
+
+/**
+ * Resolves the deployment version that precedes the currently active one —
+ * the default rollback target when no explicit version is given.
+ */
+export async function findPreviousDeploymentVersion(
+  workflowId: string
+): Promise<
+  { ok: true; version: number } | { ok: false; reason: 'no_active_version' | 'no_previous_version' }
+> {
+  const [activeRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!activeRow) {
+    return { ok: false, reason: 'no_active_version' }
+  }
+
+  const [previousRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        lt(workflowDeploymentVersion.version, activeRow.version)
+      )
+    )
+    .orderBy(desc(workflowDeploymentVersion.version))
+    .limit(1)
+
+  if (!previousRow) {
+    return { ok: false, reason: 'no_previous_version' }
+  }
+
+  return { ok: true, version: previousRow.version }
 }
 
 export async function listWorkflowVersions(workflowId: string): Promise<{

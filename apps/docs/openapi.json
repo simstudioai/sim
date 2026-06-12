@@ -1104,6 +1104,315 @@
         }
       }
     },
+    "/api/v1/workflows/{id}/deploy": {
+      "post": {
+        "operationId": "deployWorkflow",
+        "summary": "Deploy Workflow",
+        "description": "Deploy the workflow's current draft state. Creates a new deployment version, makes it live for API execution, and activates any schedules and triggers. Optionally accepts a name and description for the new version. Requires admin permission on the workflow's workspace.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/workflows/{id}/deploy\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"Release 4\", \"description\": \"Fixes the agent prompt\"}'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Optional metadata for the new deployment version. The request body may be omitted entirely.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Optional label for the new deployment version.",
+                    "example": "Release 4"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "Optional summary of what changed in this version.",
+                    "example": "Fixes the agent prompt"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflow deployed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The resulting deployment state of the workflow.",
+                      "$ref": "#/components/schemas/WorkflowDeployment"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_abc123",
+                    "isDeployed": true,
+                    "deployedAt": "2026-06-12T10:30:00Z",
+                    "version": 4
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "description": "The workflow is locked and cannot be modified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "undeployWorkflow",
+        "summary": "Undeploy Workflow",
+        "description": "Take the workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Deployment versions are retained, so the workflow can be deployed again later. Requires admin permission on the workflow's workspace.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X DELETE \\\n  \"https://www.sim.ai/api/v1/workflows/{id}/deploy\" \\\n  -H \"X-API-Key: YOUR_API_KEY\""
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workflow undeployed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The resulting deployment state of the workflow.",
+                      "$ref": "#/components/schemas/WorkflowDeployment"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_abc123",
+                    "isDeployed": false,
+                    "deployedAt": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "description": "The workflow is locked and cannot be modified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v1/workflows/{id}/rollback": {
+      "post": {
+        "operationId": "rollbackWorkflow",
+        "summary": "Rollback Workflow",
+        "description": "Roll the live deployment back to a previous deployment version. By default the version immediately preceding the currently active one is re-activated; pass `version` to target a specific deployment version instead. The workflow's draft state is not modified. Requires admin permission on the workflow's workspace.",
+        "tags": ["Workflows"],
+        "x-codeSamples": [
+          {
+            "id": "curl",
+            "label": "cURL",
+            "lang": "bash",
+            "source": "curl -X POST \\\n  \"https://www.sim.ai/api/v1/workflows/{id}/rollback\" \\\n  -H \"X-API-Key: YOUR_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"version\": 3}'"
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "example": "wf_1a2b3c4d5e"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Optional rollback target. The request body may be omitted entirely to roll back to the previous version.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "The deployment version to re-activate. Defaults to the version immediately preceding the active one.",
+                    "example": 3
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Workflow rolled back successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "description": "The resulting deployment state of the workflow.",
+                      "$ref": "#/components/schemas/WorkflowDeployment"
+                    },
+                    "limits": {
+                      "$ref": "#/components/schemas/Limits",
+                      "description": "Rate limit and usage information for the current API key."
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "wf_abc123",
+                    "isDeployed": true,
+                    "deployedAt": "2026-06-12T10:30:00Z",
+                    "version": 3
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "423": {
+            "description": "The workflow is locked and cannot be modified.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Human-readable error message."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/api/jobs/{jobId}": {
       "get": {
         "operationId": "getJobStatus",
@@ -5521,6 +5830,41 @@
             "format": "date-time",
             "description": "ISO 8601 timestamp when the workflow was last modified.",
             "example": "2025-06-18T16:45:00Z"
+          }
+        }
+      },
+      "WorkflowDeployment": {
+        "type": "object",
+        "description": "Deployment state of a workflow after a deploy, undeploy, or rollback operation.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique workflow identifier.",
+            "example": "wf_1a2b3c4d5e"
+          },
+          "isDeployed": {
+            "type": "boolean",
+            "description": "Whether the workflow is deployed and available for API execution after the operation.",
+            "example": true
+          },
+          "deployedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "ISO 8601 timestamp of the active deployment. null after an undeploy.",
+            "example": "2026-06-12T10:30:00Z"
+          },
+          "version": {
+            "type": "integer",
+            "description": "The deployment version that is now active. Omitted for undeploy.",
+            "example": 4
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Non-fatal warnings. Present when trigger, schedule, or MCP side-effect sync is still in progress or needs a redeploy."
           }
         }
       },
