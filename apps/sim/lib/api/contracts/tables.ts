@@ -165,15 +165,25 @@ export const createTableColumnBodySchema = z.object({
 export const updateTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   columnName: columnNameSchema,
-  updates: z.object({
-    name: columnNameSchema.optional(),
-    type: columnTypeSchema.optional(),
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-    /** Full replacement option set for a `select` column; the server rejects
-     *  options on any other column type. */
-    options: columnOptionsSchema.optional(),
-  }),
+  updates: z
+    .object({
+      name: columnNameSchema.optional(),
+      type: columnTypeSchema.optional(),
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      /** Full replacement option set for a `select` column; the server rejects
+       *  options on any other column type. */
+      options: columnOptionsSchema.optional(),
+    })
+    .refine(
+      (updates) =>
+        updates.options === undefined || updates.type === undefined || updates.type === 'select',
+      {
+        message:
+          'options can only be set when the column type is (or is being changed to) select',
+        path: ['options'],
+      }
+    ),
 })
 
 export const deleteTableColumnBodySchema = z.object({

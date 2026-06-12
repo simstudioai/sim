@@ -4,10 +4,19 @@ import { getColumnStorageType } from '@/lib/table/constants'
 /** Ratings range 0..RATING_MAX and render as RATING_MAX stars. */
 export const RATING_MAX = 5
 
-const CURRENCY_FORMATTER = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
-const PERCENT_FORMATTER = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 })
+/** Browser locale for number formatting; `en-US` outside the browser. */
+const DISPLAY_LOCALE = typeof navigator === 'undefined' ? 'en-US' : navigator.language
 
-/** Formats a currency cell's numeric value for display (USD, the default display currency). */
+const CURRENCY_FORMATTER = new Intl.NumberFormat(DISPLAY_LOCALE, {
+  style: 'currency',
+  currency: 'USD',
+})
+const PERCENT_FORMATTER = new Intl.NumberFormat(DISPLAY_LOCALE, { maximumFractionDigits: 2 })
+
+/**
+ * Formats a currency cell's numeric value for display in the user's locale.
+ * USD is the default display currency until per-column currency config exists.
+ */
 export function formatCurrencyDisplay(value: number): string {
   return CURRENCY_FORMATTER.format(value)
 }
