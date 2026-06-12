@@ -61,6 +61,7 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
   const openFlyout = useSidebarStore((s) => s.openFlyout)
   const scheduleFlyoutClose = useSidebarStore((s) => s.scheduleFlyoutClose)
   const closeFlyout = useSidebarStore((s) => s.closeFlyout)
+  const isStageFloating = useSidebarStore((s) => s.isStageFloating)
 
   // Hide the flyout after navigating from it.
   useEffect(() => {
@@ -134,8 +135,13 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
       >
         <div
           className={cn(
-            'flex-1 overflow-hidden bg-[var(--bg)]',
-            (isFullscreen || !isCollapsed) && 'rounded-[8px] border border-[var(--border)]'
+            'flex-1 overflow-hidden',
+            // Floating-stage mode: the content renders as detached cards on
+            // the chrome backdrop, so the content card frame disappears.
+            isStageFloating ? 'bg-[var(--surface-1)]' : 'bg-[var(--bg)]',
+            (isFullscreen || !isCollapsed) &&
+              !isStageFloating &&
+              'rounded-[8px] border border-[var(--border)]'
           )}
         >
           {children}

@@ -18,6 +18,7 @@ import type {
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 import { DockedChat } from './docked-chat'
 
 /** Sentinel `?chat=` value for a docked chat that hasn't been created yet. */
@@ -281,11 +282,18 @@ export function WorkflowWithChat() {
     return () => window.removeEventListener('resize', handleWindowResize)
   }, [])
 
-  if (!workspaceId || !workflowId) return null
-
   // Stacked-card mode: the stage stops being a panel — everything floats as
   // detached modules on the workspace chrome backdrop, chat included.
   const isStackMode = stackOpen && stageFront === 'card'
+
+  // The workspace chrome drops its content card frame while modules float.
+  const setStageFloating = useSidebarStore((s) => s.setStageFloating)
+  useEffect(() => {
+    setStageFloating(isStackMode)
+    return () => setStageFloating(false)
+  }, [isStackMode, setStageFloating])
+
+  if (!workspaceId || !workflowId) return null
 
   return (
     <div className={cn('flex h-full w-full', isStackMode && 'bg-[var(--surface-1)]')}>
