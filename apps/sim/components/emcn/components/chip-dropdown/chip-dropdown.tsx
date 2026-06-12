@@ -1,6 +1,13 @@
 'use client'
 
-import { type ComponentType, forwardRef, type ReactNode, useMemo, useState } from 'react'
+import {
+  type ComponentType,
+  forwardRef,
+  type ReactNode,
+  useContext,
+  useMemo,
+  useState,
+} from 'react'
 import type { VariantProps } from 'class-variance-authority'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import {
@@ -10,6 +17,7 @@ import {
   DropdownMenuSearchInput,
   DropdownMenuTrigger,
 } from '@/components/emcn/components/dropdown-menu/dropdown-menu'
+import { InsideModalContext } from '@/components/emcn/components/modal/modal'
 import { Check, ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -168,6 +176,15 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
       [isMultiple, props.value]
     )
 
+    /**
+     * Inside a modal dialog the menu must be modal too: a non-modal menu
+     * portaled to `body` inherits the dialog's `pointer-events: none` body
+     * lock and outside-scroll lock (unclickable, unscrollable), and the
+     * dialog's still-active focus trap fights item focus. Outside dialogs we
+     * stay non-modal so filter chips don't lock page scroll while open.
+     */
+    const insideModal = useContext(InsideModalContext)
+
     const [open, setOpen] = useState(false)
     const [search, setSearch] = useState('')
     const searchable = isMultiple && props.searchable === true
@@ -254,7 +271,7 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
 
     return (
       <DropdownMenu
-        modal={false}
+        modal={insideModal}
         {...(isMultiple
           ? {
               open,

@@ -98,11 +98,26 @@ export function TeamManagement() {
       }
     : null
 
-  const existingEmails = useMemo(() => {
-    const memberEmails = (roster?.members ?? []).map((member) => member.email)
-    const pendingEmails = (roster?.pendingInvitations ?? []).map((invitation) => invitation.email)
-    return [...memberEmails, ...pendingEmails]
-  }, [roster])
+  const memberEmails = useMemo(
+    () =>
+      (roster?.members ?? [])
+        .filter((member) => member.role !== 'external')
+        .map((member) => member.email),
+    [roster]
+  )
+
+  const externalEmails = useMemo(
+    () =>
+      (roster?.members ?? [])
+        .filter((member) => member.role === 'external')
+        .map((member) => member.email),
+    [roster]
+  )
+
+  const pendingEmails = useMemo(
+    () => (roster?.pendingInvitations ?? []).map((invitation) => invitation.email),
+    [roster]
+  )
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -344,7 +359,9 @@ export function TeamManagement() {
         onOpenChange={setInviteModalOpen}
         organizationId={displayOrganization.id}
         workspaces={roster?.workspaces ?? []}
-        existingEmails={existingEmails}
+        memberEmails={memberEmails}
+        externalEmails={externalEmails}
+        pendingEmails={pendingEmails}
       />
 
       <TransferOwnershipDialog

@@ -203,7 +203,7 @@ export async function renderCreditPurchaseEmail(params: {
 
 export async function renderWorkspaceInvitationEmail(
   inviterName: string,
-  workspaceName: string,
+  workspaceName: string | string[],
   invitationLink: string
 ): Promise<string> {
   return await render(
