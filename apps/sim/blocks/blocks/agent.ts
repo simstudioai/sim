@@ -417,6 +417,28 @@ Return ONLY the JSON array.`,
       title: 'Temperature',
       type: 'slider',
       min: 0,
+      max: 1.5,
+      defaultValue: 0.3,
+      mode: 'advanced',
+      condition: () => ({
+        field: 'model',
+        value: (() => {
+          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
+          const allModels = Object.keys(getBaseModelProviders())
+          return allModels.filter(
+            (model) =>
+              supportsTemperature(model) &&
+              getMaxTemperature(model) === 1.5 &&
+              !deepResearch.has(model.toLowerCase())
+          )
+        })(),
+      }),
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      min: 0,
       max: 2,
       defaultValue: 0.3,
       mode: 'advanced',
