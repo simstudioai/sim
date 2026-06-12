@@ -6,7 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRunColumnAPI')
 
@@ -25,9 +25,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(runColumnContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, groupIds, runMode, rowIds, limit } = parsed.data.body
+    const { workspaceId, groupIds, runMode, rowIds, filter, excludeRowIds, limit } =
+      parsed.data.body
     const access = await checkAccess(tableId, auth.userId, 'write')
     if (!access.ok) return accessError(access, requestId, tableId)
+
+    // Validate the filter up front (the dispatcher reuses it) so a bad field fails fast.
+    const filterError = tableFilterError(filter, access.table.schema.columns)
+    if (filterError) return filterError
 
     const { dispatchId } = await runWorkflowColumn({
       tableId,
@@ -35,6 +40,8 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       groupIds,
       mode: runMode,
       rowIds,
+      filter,
+      excludeRowIds,
       limit,
       requestId,
       triggeredByUserId: auth.userId,

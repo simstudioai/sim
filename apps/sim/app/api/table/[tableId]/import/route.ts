@@ -28,8 +28,8 @@ import {
   importAppendRows,
   importReplaceRows,
   inferColumnType,
-  markTableImporting,
-  releaseImportClaim,
+  markTableJobRunning,
+  releaseJobClaim,
   sanitizeName,
   type TableDefinition,
   type TableSchema,
@@ -128,11 +128,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (table.archivedAt) {
       return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
     }
-    // Don't run a sync import on top of an in-flight background import — concurrent writers
+    // Don't run a sync import on top of an in-flight background job — concurrent writers
     // would insert at colliding row positions.
-    if (table.importStatus === 'importing') {
+    if (table.jobStatus === 'running') {
       return NextResponse.json(
-        { error: 'An import is already in progress for this table' },
+        { error: 'A job is already in progress for this table' },
         { status: 409 }
       )
     }
@@ -253,12 +253,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     // Atomically claim the table before writing. The pre-check above reads a checkAccess snapshot
     // taken before the parse/validation; a background import could claim the table in that window.
-    // markTableImporting is the single atomic gate (same one the async kickoff uses) — released in
+    // markTableJobRunning is the single atomic gate (same one the async kickoff uses) — released in
     // the finally so a sync import can't write concurrently with a background one (corrupts replace).
     const syncImportId = generateId()
-    if (!(await markTableImporting(tableId, syncImportId))) {
+    if (!(await markTableJobRunning(tableId, syncImportId, 'import'))) {
       return NextResponse.json(
-        { error: 'An import is already in progress for this table' },
+        { error: 'A job is already in progress for this table' },
         { status: 409 }
       )
     }
@@ -399,6 +399,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   } finally {
     fileStream?.destroy()
     // Release before the response returns, so a client refetch never observes the transient claim.
-    if (claimedImportId) await releaseImportClaim(tableId, claimedImportId).catch(() => {})
+    if (claimedImportId) await releaseJobClaim(tableId, claimedImportId).catch(() => {})
   }
 })

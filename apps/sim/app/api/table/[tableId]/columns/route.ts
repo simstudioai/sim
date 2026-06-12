@@ -17,7 +17,7 @@ import {
   updateColumnConstraints,
   updateColumnType,
 } from '@/lib/table'
-import { accessError, checkAccess, normalizeColumn } from '@/app/api/table/utils'
+import { accessError, checkAccess, normalizeColumn, rootErrorMessage } from '@/app/api/table/utils'
 
 const logger = createLogger('TableColumnsAPI')
 
@@ -63,13 +63,17 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    if (error instanceof Error) {
-      if (error.message.includes('already exists') || error.message.includes('maximum column')) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      if (error.message === 'Table not found') {
-        return NextResponse.json({ error: error.message }, { status: 404 })
-      }
+    const msg = rootErrorMessage(error)
+    if (
+      msg.includes('already exists') ||
+      msg.includes('maximum column') ||
+      msg.includes('Invalid column') ||
+      msg.includes('exceeds maximum')
+    ) {
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+    if (msg === 'Table not found') {
+      return NextResponse.json({ error: msg }, { status: 404 })
     }
 
     logger.error(`[${requestId}] Error adding column to table ${tableId}:`, error)
@@ -146,22 +150,21 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       return validationErrorResponse(error, 'Invalid request data')
     }
 
-    if (error instanceof Error) {
-      const msg = error.message
-      if (msg.includes('not found') || msg.includes('Table not found')) {
-        return NextResponse.json({ error: msg }, { status: 404 })
-      }
-      if (
-        msg.includes('already exists') ||
-        msg.includes('Cannot delete the last column') ||
-        msg.includes('Cannot set column') ||
-        msg.includes('Invalid column') ||
-        msg.includes('exceeds maximum') ||
-        msg.includes('incompatible') ||
-        msg.includes('duplicate')
-      ) {
-        return NextResponse.json({ error: msg }, { status: 400 })
-      }
+    const msg = rootErrorMessage(error)
+    if (msg.includes('not found') || msg.includes('Table not found')) {
+      return NextResponse.json({ error: msg }, { status: 404 })
+    }
+    if (
+      msg.includes('already exists') ||
+      msg.includes('Cannot delete the last column') ||
+      msg.includes('Cannot set column') ||
+      msg.includes('Cannot set unique column') ||
+      msg.includes('Invalid column') ||
+      msg.includes('exceeds maximum') ||
+      msg.includes('incompatible') ||
+      msg.includes('duplicate')
+    ) {
+      return NextResponse.json({ error: msg }, { status: 400 })
     }
 
     logger.error(`[${requestId}] Error updating column in table ${tableId}:`, error)
@@ -211,13 +214,12 @@ export const DELETE = withRouteHandler(
         return validationErrorResponse(error, 'Invalid request data')
       }
 
-      if (error instanceof Error) {
-        if (error.message.includes('not found') || error.message === 'Table not found') {
-          return NextResponse.json({ error: error.message }, { status: 404 })
-        }
-        if (error.message.includes('Cannot delete') || error.message.includes('last column')) {
-          return NextResponse.json({ error: error.message }, { status: 400 })
-        }
+      const msg = rootErrorMessage(error)
+      if (msg.includes('not found') || msg === 'Table not found') {
+        return NextResponse.json({ error: msg }, { status: 404 })
+      }
+      if (msg.includes('Cannot delete') || msg.includes('last column')) {
+        return NextResponse.json({ error: msg }, { status: 400 })
       }
 
       logger.error(`[${requestId}] Error deleting column from table ${tableId}:`, error)

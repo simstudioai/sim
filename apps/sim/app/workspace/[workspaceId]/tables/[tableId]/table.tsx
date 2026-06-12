@@ -10,6 +10,7 @@ import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
+import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   type ColumnOption,
   Resource,
@@ -24,6 +25,8 @@ import {
   downloadTableExport,
   useCancelTableRuns,
   useDeleteTable,
+  useDeleteTableRowsAsync,
+  useExportTableAsync,
   useRenameTable,
   useRunColumn,
 } from '@/hooks/queries/tables'
@@ -137,6 +140,10 @@ export function Table({
   const [isImportCsvOpen, setIsImportCsvOpen] = useState(false)
   const [editingRow, setEditingRow] = useState<TableRowType | null>(null)
   const [deletingRows, setDeletingRows] = useState<DeletedRowSnapshot[]>([])
+  const [deletingAll, setDeletingAll] = useState<{
+    excludeRowIds: string[]
+    estimatedCount: number
+  } | null>(null)
   const [deletingColumns, setDeletingColumns] = useState<string[] | null>(null)
   const [selection, setSelection] = useState<SelectionSnapshot>({
     actionBarRowIds: [],
@@ -179,6 +186,12 @@ export function Table({
   const onRequestDeleteRows = useCallback((snapshots: DeletedRowSnapshot[]) => {
     setDeletingRows(snapshots)
   }, [])
+  const onRequestDeleteAllByFilter = useCallback(
+    (params: { excludeRowIds: string[]; estimatedCount: number }) => {
+      setDeletingAll(params)
+    },
+    []
+  )
   const onRequestDeleteColumns = useCallback((names: string[]) => {
     setDeletingColumns(names)
   }, [])
@@ -199,6 +212,9 @@ export function Table({
    * mutation succeeds.
    */
   const afterDeleteRowsSinkRef = useRef<((snapshots: DeletedRowSnapshot[]) => void) | null>(null)
+
+  /** Sink the grid populates with its post-select-all-delete cleanup (clear selection). */
+  const afterDeleteAllSinkRef = useRef<(() => void) | null>(null)
 
   /**
    * Sink the grid populates with its full delete-columns cascade (per-column
@@ -236,6 +252,8 @@ export function Table({
     (args: {
       groupIds: string[]
       rowIds?: string[]
+      filter?: Filter
+      excludeRowIds?: string[]
       runMode: RunMode
       limit?: RunLimit
       source: 'row' | 'rows' | 'column'
@@ -268,15 +286,37 @@ export function Table({
   )
 
   const onRunColumn = useCallback(
-    (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => {
-      runScope({ groupIds: [groupId], rowIds, runMode, limit, source: 'column' })
+    (
+      groupId: string,
+      runMode: RunMode,
+      rowIds?: string[],
+      limit?: RunLimit,
+      filter?: Filter,
+      excludeRowIds?: string[]
+    ) => {
+      runScope({
+        groupIds: [groupId],
+        rowIds,
+        filter,
+        excludeRowIds,
+        runMode,
+        limit,
+        source: 'column',
+      })
     },
     [runScope]
   )
 
   const onRunRows = useCallback(
-    (rowIds: string[], runMode: RunMode) => {
-      runScope({ groupIds: tableWorkflowGroups.map((g) => g.id), rowIds, runMode, source: 'rows' })
+    (rowIds: string[] | undefined, runMode: RunMode, filter?: Filter, excludeRowIds?: string[]) => {
+      runScope({
+        groupIds: tableWorkflowGroups.map((g) => g.id),
+        rowIds,
+        filter,
+        excludeRowIds,
+        runMode,
+        source: 'rows',
+      })
     },
     [runScope, tableWorkflowGroups]
   )
@@ -321,7 +361,9 @@ export function Table({
     })
   }
 
-  // useCallback because <RunStatusControl> is memo-wrapped.
+  // useCallback because <RunStatusControl> is memo-wrapped. Zero-arg on
+  // purpose — RunStatusControl passes it straight to onClick, which would
+  // otherwise leak the MouseEvent into `filter`.
   const onStopAll = useCallback(() => {
     cancelRunsMutate({ scope: 'all' })
     captureEvent(posthogRef.current, 'table_workflow_stopped', {
@@ -331,6 +373,20 @@ export function Table({
       row_count: null,
     })
   }, [cancelRunsMutate, tableId, workspaceId])
+
+  /** Select-all Stop — filter-scoped when a filter is active; deselected rows keep running. */
+  const onStopAllRows = useCallback(
+    (filter?: Filter, excludeRowIds?: string[]) => {
+      cancelRunsMutate({ scope: 'all', filter, excludeRowIds })
+      captureEvent(posthogRef.current, 'table_workflow_stopped', {
+        table_id: tableId,
+        workspace_id: workspaceId,
+        scope: 'all',
+        row_count: null,
+      })
+    },
+    [cancelRunsMutate, tableId, workspaceId]
+  )
 
   const onSelectionChange = (next: SelectionSnapshot) => {
     setSelection(next)
@@ -371,7 +427,17 @@ export function Table({
   const handleExportCsv = useCallback(async () => {
     if (!tableData) return
     try {
-      await downloadTableExport(tableData.id, tableData.name)
+      // Big tables export as a background job (the file downloads when the job completes via the
+      // SSE stream); small ones keep the instant synchronous stream. While a delete job runs,
+      // rowCount is a doomed-estimate-adjusted number — not ground truth — so always take the
+      // async path (safe at any size; exports bypass the one-job-per-table gate).
+      const deleteRunning = tableData.jobType === 'delete' && tableData.jobStatus === 'running'
+      if (deleteRunning || tableData.rowCount > TABLE_LIMITS.EXPORT_ASYNC_THRESHOLD_ROWS) {
+        await exportTableAsync.mutateAsync({ format: 'csv' })
+        toast.success('Export started — the download will begin when it finishes')
+      } else {
+        await downloadTableExport(tableData.id, tableData.name)
+      }
       captureEvent(posthogRef.current, 'table_exported', {
         table_id: tableData.id,
         workspace_id: workspaceId,
@@ -499,6 +565,8 @@ export function Table({
         : 0
 
   const deleteTableMutation = useDeleteTable(workspaceId)
+  const deleteRowsAsyncMutation = useDeleteTableRowsAsync({ workspaceId, tableId })
+  const exportTableAsync = useExportTableAsync({ workspaceId, tableId })
   const handleDeleteTable = async () => {
     try {
       await deleteTableMutation.mutateAsync(tableId)
@@ -595,16 +663,19 @@ export function Table({
         onOpenExecutionDetails={onOpenExecutionDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
+        onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
         onRequestDeleteColumns={onRequestDeleteColumns}
         onRunColumn={onRunColumn}
         onRunRow={onRunRow}
         onRunRows={onRunRows}
         onStopRows={onStopRows}
+        onStopAllRows={onStopAllRows}
         onStopRow={onStopRow}
         onSelectionChange={onSelectionChange}
         queryOptions={queryOptions}
         columnRenameSinkRef={columnRenameSinkRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}
+        afterDeleteAllSinkRef={afterDeleteAllSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
         pushTableRenameUndoSinkRef={pushTableRenameUndoSinkRef}
       />
@@ -612,8 +683,7 @@ export function Table({
         <TableActionBar
           selectedCellCount={
             selection.selectedRunScope
-              ? selection.selectedRunScope.groupIds.length *
-                selection.selectedRunScope.rowIds.length
+              ? selection.selectedRunScope.groupIds.length * selection.selectedRunScope.rowCount
               : 0
           }
           runningCount={selection.runningInActionBarSelection}
@@ -626,6 +696,9 @@ export function Table({
             runScope({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
+              // `filter`/`excludeRowIds` are only populated on select-all.
+              filter: scope.filter,
+              excludeRowIds: scope.excludeRowIds,
               runMode: 'incomplete',
               source: 'rows',
             })
@@ -636,6 +709,8 @@ export function Table({
             runScope({
               groupIds: scope.groupIds,
               rowIds: scope.allRows ? undefined : scope.rowIds,
+              filter: scope.filter,
+              excludeRowIds: scope.excludeRowIds,
               runMode: 'all',
               source: 'rows',
             })
@@ -643,7 +718,13 @@ export function Table({
           onStopWorkflows={() => {
             const scope = selection.selectedRunScope
             if (!scope) return
-            scope.allRows ? onStopAll() : onStopRows(scope.rowIds)
+            if (scope.allRows) {
+              scope.filter || scope.excludeRowIds?.length
+                ? onStopAllRows(scope.filter, scope.excludeRowIds)
+                : onStopAll()
+            } else {
+              onStopRows(scope.rowIds)
+            }
           }}
           onViewExecution={
             selection.singleWorkflowCell?.canViewExecution &&
@@ -722,6 +803,38 @@ export function Table({
           }}
         />
       )}
+      <ChipConfirmModal
+        open={deletingAll !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeletingAll(null)
+        }}
+        srTitle='Delete rows'
+        title='Delete rows'
+        description={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
+          deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
+        }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
+        confirm={{
+          label: 'Delete',
+          pending: deleteRowsAsyncMutation.isPending,
+          pendingLabel: 'Deleting...',
+          onClick: () => {
+            if (!deletingAll) return
+            const { excludeRowIds, estimatedCount } = deletingAll
+            deleteRowsAsyncMutation.mutate({
+              filter: queryOptions.filter ?? undefined,
+              sort: queryOptions.sort,
+              excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
+              estimatedCount,
+            })
+            // Clear at click so the header checkbox doesn't linger in its
+            // select-all state over the optimistically-emptied grid. If the
+            // kickoff fails the rows visibly return with an error toast —
+            // re-selecting is cheaper than a stale-looking selection.
+            afterDeleteAllSinkRef.current?.()
+            setDeletingAll(null)
+          },
+        }}
+      />
       <ChipConfirmModal
         open={deletingColumns !== null}
         onOpenChange={(open) => {

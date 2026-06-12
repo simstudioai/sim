@@ -74,7 +74,7 @@ describe('findRowMatches', () => {
   })
 
   it('maps rows to matches, coercing the bigint ordinal and renaming the column', async () => {
-    dbChainMockFns.execute.mockResolvedValueOnce([
+    dbChainMockFns.execute.mockResolvedValue([
       { ordinal: '2', id: 'r2', column_name: 'name' },
       { ordinal: 5, id: 'r5', column_name: 'email' },
     ])
@@ -92,14 +92,14 @@ describe('findRowMatches', () => {
       id: `r${i}`,
       column_name: 'name',
     }))
-    dbChainMockFns.execute.mockResolvedValueOnce(over)
+    dbChainMockFns.execute.mockResolvedValue(over)
     const result = await findRowMatches(TABLE, { q: 'a' }, 'req')
     expect(result.truncated).toBe(true)
     expect(result.matches).toHaveLength(1000)
   })
 
   it('threads filter and sort through the SQL builders', async () => {
-    dbChainMockFns.execute.mockResolvedValueOnce([])
+    dbChainMockFns.execute.mockResolvedValue([])
     await findRowMatches(
       TABLE,
       { q: 'a', filter: { name: { $contains: 'a' } }, sort: { name: 'asc' } },

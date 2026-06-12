@@ -55,8 +55,8 @@ vi.mock('@/lib/table/service', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-  markTableImporting: mockMarkTableImporting,
-  releaseImportClaim: mockReleaseImportClaim,
+  markTableJobRunning: mockMarkTableImporting,
+  releaseJobClaim: mockReleaseImportClaim,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -184,7 +184,7 @@ describe('POST /api/table/[tableId]/import', () => {
   it('releases the import claim after a successful write', async () => {
     const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
     expect(response.status).toBe(200)
-    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d', 'import')
     expect(mockReleaseImportClaim).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
   })
 

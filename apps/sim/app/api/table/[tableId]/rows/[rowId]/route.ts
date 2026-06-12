@@ -16,7 +16,12 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import {
+  accessError,
+  checkAccess,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -167,21 +172,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       },
     })
   } catch (error) {
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
+    if (rootErrorMessage(error) === 'Row not found') {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })
