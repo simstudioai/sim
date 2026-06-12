@@ -164,10 +164,12 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   const pairings = relatedNames.slice(0, 2)
   const toolsPhrase = `${opCount} ${name} tool${opCount === 1 ? '' : 's'}`
   const triggersPhrase = `${triggerCount} real-time trigger${triggerCount === 1 ? '' : 's'}`
-  const capabilityPhrase =
-    [opCount > 0 ? toolsPhrase : null, triggerCount > 0 ? triggersPhrase : null]
-      .filter((part): part is string => part !== null)
-      .join(' and ') || `${name} tools`
+  const capabilityPhrase = [
+    opCount > 0 ? toolsPhrase : null,
+    triggerCount > 0 ? triggersPhrase : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' and ')
   const triggerNames = triggers.map((t) => t.name)
   const triggerListPhrase =
     triggerCount > 6
@@ -183,7 +185,7 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
   const faqs: FAQItem[] = [
     {
       question: `What is Sim's ${name} integration?`,
-      answer: `Sim's ${name} integration adds ${capabilityPhrase} to the AI agents you build in Sim's visual workflow builder — no code required. ${faqDescription}${
+      answer: `Sim's ${name} integration ${capabilityPhrase ? `adds ${capabilityPhrase} to` : `connects ${name} to`} the AI agents you build in Sim's visual workflow builder — no code required. ${faqDescription}${
         pairings.length === 2
           ? ` Teams often pair ${name} with ${pairings[0]} and ${pairings[1]} in the same agent.`
           : ''
@@ -195,7 +197,7 @@ function buildFAQs(integration: Integration, relatedNames: string[]): FAQItem[] 
             question: `What can I automate with ${name} in Sim?`,
             answer: `You can ${toProseList(topOpNames.map(lowercaseFirst))} with ${name} in Sim${
               opCount > 5 ? `, plus ${opCount - 5} more ${name} tools listed on this page` : ''
-            }. Each runs as a tool inside an AI agent block, so an agent can chain ${name} with ${
+            }. ${opCount === 1 ? 'It runs' : 'Each runs'} as a tool inside an AI agent block, so an agent can chain ${name} with ${
               pairings.length === 2
                 ? `services like ${pairings[0]} and ${pairings[1]}`
                 : 'any other connected service'
@@ -439,13 +441,17 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
         <p className='sr-only'>
           {name} is a {categoryLabel} integration for Sim, the AI workspace where teams build and
           deploy AI agents. Sim&apos;s {name} integration provides{' '}
-          {operations.length > 0
-            ? `${operations.length} ${name} tool${operations.length === 1 ? '' : 's'}`
-            : `${name} tools`}
-          {triggers.length > 0
-            ? ` and ${triggers.length} real-time trigger${triggers.length === 1 ? '' : 's'}`
-            : ''}{' '}
-          that AI agents can call inside Sim&apos;s visual workflow builder.{' '}
+          {[
+            operations.length > 0
+              ? `${operations.length} ${name} tool${operations.length === 1 ? '' : 's'}`
+              : null,
+            triggers.length > 0
+              ? `${triggers.length} real-time trigger${triggers.length === 1 ? '' : 's'}`
+              : null,
+          ]
+            .filter((part): part is string => part !== null)
+            .join(' and ') || `a ${name} connection`}{' '}
+          that AI agents can use inside Sim&apos;s visual workflow builder.{' '}
           {authType === 'oauth'
             ? `${name} connects with one-click OAuth.`
             : authType === 'api-key'
