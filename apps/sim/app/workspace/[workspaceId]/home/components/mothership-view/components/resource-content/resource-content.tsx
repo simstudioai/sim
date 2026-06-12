@@ -3,25 +3,19 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
-import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
+import { Button, Skeleton, Tooltip } from '@/components/emcn'
 import {
   Connections,
   Download,
   FileX,
   Folder as FolderIcon,
   Library,
-  Square,
   Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { FilePreviewSession } from '@/lib/copilot/request/session'
-import {
-  cancelRunToolExecution,
-  markRunToolManuallyStopped,
-  reportManualRunToolStop,
-} from '@/lib/copilot/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { INTEGRATIONS, type Integration } from '@/lib/integrations'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
@@ -44,21 +38,14 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
-import {
-  useUserPermissionsContext,
-  useWorkspacePermissionsContext,
-} from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
-import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
-import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useExecutionStore } from '@/stores/execution/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]/workflow'))
@@ -363,8 +350,6 @@ interface ResourceActionsProps {
  */
 export function ResourceActions({ workspaceId, resource }: ResourceActionsProps) {
   switch (resource.type) {
-    case 'workflow':
-      return <EmbeddedWorkflowActions workflowId={resource.id} />
     case 'file':
       return (
         <EmbeddedFileActions
@@ -378,70 +363,6 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     default:
       return null
   }
-}
-
-interface EmbeddedWorkflowActionsProps {
-  workflowId: string
-}
-
-function EmbeddedWorkflowActions({ workflowId }: EmbeddedWorkflowActionsProps) {
-  const { navigateToSettings } = useSettingsNavigation()
-  const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
-  const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
-  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
-  const isExecuting = useExecutionStore(
-    (state) => state.workflowExecutions.get(workflowId)?.isExecuting ?? false
-  )
-  const { usageExceeded } = useUsageLimits()
-
-  useEffect(() => {
-    void setActiveWorkflow(workflowId)
-  }, [workflowId, setActiveWorkflow])
-
-  const isRunButtonDisabled =
-    !isExecuting && !effectivePermissions.canRead && !effectivePermissions.isLoading
-
-  const handleRun = async () => {
-    setActiveWorkflow(workflowId)
-
-    if (isExecuting) {
-      const toolCallId = markRunToolManuallyStopped(workflowId)
-      cancelRunToolExecution(workflowId)
-      await handleCancelExecution()
-      await reportManualRunToolStop(workflowId, toolCallId)
-      return
-    }
-
-    if (usageExceeded) {
-      navigateToSettings({ section: 'billing' })
-      return
-    }
-
-    await handleRunWorkflow()
-  }
-
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='subtle'
-          onClick={() => void handleRun()}
-          disabled={isRunButtonDisabled}
-          className={PANEL_ICON_BUTTON_CLASS}
-          aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
-        >
-          {isExecuting ? (
-            <Square className={PANEL_ICON_CLASS} />
-          ) : (
-            <PlayOutline className={PANEL_ICON_CLASS} />
-          )}
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='bottom'>
-        <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
 }
 
 const tableLogger = createLogger('EmbeddedTableActions')

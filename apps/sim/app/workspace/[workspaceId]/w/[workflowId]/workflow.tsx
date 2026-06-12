@@ -247,7 +247,7 @@ const WorkflowContent = React.memo(
     const embeddedFitFrameRef = useRef<number | null>(null)
     const hasCompletedInitialEmbeddedFitRef = useRef(false)
     const canvasMode = useCanvasModeStore((state) => state.mode)
-    const isHandMode = embedded ? true : canvasMode === 'hand'
+    const isHandMode = canvasMode === 'hand'
     const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
     const [oauthModal, setOauthModal] = useState<{
       provider: OAuthProvider
@@ -402,6 +402,8 @@ const WorkflowContent = React.memo(
       embeddedFitFrameRef.current = requestAnimationFrame(() => {
         embeddedFitFrameRef.current = null
 
+        if (hasCompletedInitialEmbeddedFitRef.current) return
+
         const container = canvasContainerRef.current
         if (!container) return
 
@@ -413,10 +415,8 @@ const WorkflowContent = React.memo(
           void reactFlowInstance.fitView(embeddedResizeFitViewOptions)
         }
 
-        if (!hasCompletedInitialEmbeddedFitRef.current) {
-          hasCompletedInitialEmbeddedFitRef.current = true
-          setIsCanvasReady(true)
-        }
+        hasCompletedInitialEmbeddedFitRef.current = true
+        setIsCanvasReady(true)
       })
     }, [embedded, isWorkflowReady, reactFlowInstance])
 
@@ -2560,7 +2560,6 @@ const WorkflowContent = React.memo(
             name: block.name,
             isActive,
             isPending,
-            ...(embedded && { isEmbedded: true }),
             ...(sandbox && { isSandbox: true }),
             isWorkflowLocked: workflowReadOnly,
           },
@@ -4017,8 +4016,11 @@ const WorkflowContent = React.memo(
 
       scheduleEmbeddedFit()
 
+      // Only until the first successful fit: the panel may still be width-
+      // animating open when the workflow turns ready, so retry on resize —
+      // after that the user owns the viewport (it's a full editor).
       const resizeObserver = new ResizeObserver(() => {
-        scheduleEmbeddedFit()
+        if (!hasCompletedInitialEmbeddedFitRef.current) scheduleEmbeddedFit()
       })
 
       resizeObserver.observe(container)
@@ -4032,14 +4034,6 @@ const WorkflowContent = React.memo(
         }
       }
     }, [embedded, isWorkflowReady, scheduleEmbeddedFit])
-
-    useEffect(() => {
-      if (!embedded || !isWorkflowReady) {
-        return
-      }
-
-      scheduleEmbeddedFit()
-    }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
       <div className='flex h-full w-full overflow-hidden'>
@@ -4067,13 +4061,9 @@ const WorkflowContent = React.memo(
                   edges={edgesWithSelection}
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
-                  onConnect={!embedded && effectivePermissions.canEdit ? onConnect : undefined}
-                  onConnectStart={
-                    !embedded && effectivePermissions.canEdit ? onConnectStart : undefined
-                  }
-                  onConnectEnd={
-                    !embedded && effectivePermissions.canEdit ? onConnectEnd : undefined
-                  }
+                  onConnect={effectivePermissions.canEdit ? onConnect : undefined}
+                  onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
+                  onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
                   nodeTypes={nodeTypes}
                   edgeTypes={edgeTypes}
                   onMouseDown={handleCanvasMouseDown}
@@ -4106,25 +4096,25 @@ const WorkflowContent = React.memo(
                   connectionLineStyle={connectionLineStyle}
                   connectionLineType={ConnectionLineType.SmoothStep}
                   onPaneClick={onPaneClick}
-                  onEdgeClick={embedded ? undefined : onEdgeClick}
+                  onEdgeClick={onEdgeClick}
                   onNodeClick={handleNodeClick}
                   onPaneContextMenu={handlePaneContextMenu}
                   onNodeContextMenu={handleNodeContextMenu}
                   onSelectionContextMenu={handleSelectionContextMenu}
                   onPointerMove={handleCanvasPointerMove}
                   onPointerLeave={handleCanvasPointerLeave}
-                  elementsSelectable={!embedded}
-                  selectionOnDrag={embedded ? false : selectionProps.selectionOnDrag}
+                  elementsSelectable
+                  selectionOnDrag={selectionProps.selectionOnDrag}
                   selectionMode={SelectionMode.Partial}
-                  panOnDrag={embedded ? true : selectionProps.panOnDrag}
-                  selectionKeyCode={embedded ? null : selectionProps.selectionKeyCode}
-                  multiSelectionKeyCode={embedded ? null : ['Meta', 'Control', 'Shift']}
-                  nodesConnectable={!embedded && effectivePermissions.canEdit}
-                  nodesDraggable={!embedded && effectivePermissions.canEdit}
+                  panOnDrag={selectionProps.panOnDrag}
+                  selectionKeyCode={selectionProps.selectionKeyCode}
+                  multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+                  nodesConnectable={effectivePermissions.canEdit}
+                  nodesDraggable={effectivePermissions.canEdit}
                   draggable={false}
                   noWheelClassName='allow-scroll'
-                  edgesFocusable={!embedded}
-                  edgesUpdatable={!embedded && effectivePermissions.canEdit}
+                  edgesFocusable
+                  edgesUpdatable={effectivePermissions.canEdit}
                   className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
                   onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
                   onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
@@ -4148,90 +4138,85 @@ const WorkflowContent = React.memo(
 
                 <Cursors />
 
-                {!embedded && (
-                  <>
-                    <WorkflowControls />
-                    <Suspense fallback={null}>
-                      <LazyChat />
-                    </Suspense>
+                <>
+                  <WorkflowControls />
+                  <Suspense fallback={null}>
+                    <LazyChat />
+                  </Suspense>
 
-                    <BlockMenu
-                      isOpen={isBlockMenuOpen}
-                      position={contextMenuPosition}
-                      menuRef={contextMenuRef}
-                      onClose={closeContextMenu}
-                      selectedBlocks={contextMenuBlocks}
-                      onCopy={handleContextCopy}
-                      onCut={handleContextCut}
-                      onPaste={handleContextPaste}
-                      onDuplicate={handleContextDuplicate}
-                      onDelete={handleContextDelete}
-                      onToggleEnabled={handleContextToggleEnabled}
-                      onToggleHandles={handleContextToggleHandles}
-                      onRemoveFromSubflow={handleContextRemoveFromSubflow}
-                      onOpenEditor={handleContextOpenEditor}
-                      onRename={handleContextRename}
-                      onRunFromBlock={handleContextRunFromBlock}
-                      onRunUntilBlock={handleContextRunUntilBlock}
-                      hasClipboard={hasClipboard()}
-                      showRemoveFromSubflow={contextMenuBlocks.some(
-                        (b) =>
-                          b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
-                      )}
-                      canRunFromBlock={runFromBlockState.canRun}
-                      disableEdit={
-                        !effectivePermissions.canEdit ||
-                        contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
-                      }
-                      userCanEdit={effectivePermissions.canEdit}
-                      isExecuting={isExecuting}
-                      isPositionalTrigger={
-                        contextMenuBlocks.length === 1 &&
-                        edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
-                      }
-                      onToggleLocked={handleContextToggleLocked}
-                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
-                    />
+                  <BlockMenu
+                    isOpen={isBlockMenuOpen}
+                    position={contextMenuPosition}
+                    menuRef={contextMenuRef}
+                    onClose={closeContextMenu}
+                    selectedBlocks={contextMenuBlocks}
+                    onCopy={handleContextCopy}
+                    onCut={handleContextCut}
+                    onPaste={handleContextPaste}
+                    onDuplicate={handleContextDuplicate}
+                    onDelete={handleContextDelete}
+                    onToggleEnabled={handleContextToggleEnabled}
+                    onToggleHandles={handleContextToggleHandles}
+                    onRemoveFromSubflow={handleContextRemoveFromSubflow}
+                    onOpenEditor={handleContextOpenEditor}
+                    onRename={handleContextRename}
+                    onRunFromBlock={handleContextRunFromBlock}
+                    onRunUntilBlock={handleContextRunUntilBlock}
+                    hasClipboard={hasClipboard()}
+                    showRemoveFromSubflow={contextMenuBlocks.some(
+                      (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
+                    )}
+                    canRunFromBlock={runFromBlockState.canRun}
+                    disableEdit={
+                      !effectivePermissions.canEdit ||
+                      contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
+                    }
+                    userCanEdit={effectivePermissions.canEdit}
+                    isExecuting={isExecuting}
+                    isPositionalTrigger={
+                      contextMenuBlocks.length === 1 &&
+                      edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
+                    }
+                    onToggleLocked={handleContextToggleLocked}
+                    canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
+                  />
 
-                    <CanvasMenu
-                      isOpen={isPaneMenuOpen}
-                      position={contextMenuPosition}
-                      menuRef={contextMenuRef}
-                      onClose={closeContextMenu}
-                      onUndo={undo}
-                      onRedo={redo}
-                      onPaste={handleContextPaste}
-                      onAddBlock={handleContextAddBlock}
-                      onAutoLayout={handleAutoLayout}
-                      onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
-                      onOpenLogs={handleContextOpenLogs}
-                      onOpenSearchReplace={handleContextOpenSearchReplace}
-                      onToggleVariables={handleContextToggleVariables}
-                      onToggleChat={handleContextToggleChat}
-                      isVariablesOpen={isVariablesOpen}
-                      isChatOpen={isChatOpen}
-                      hasClipboard={hasClipboard()}
-                      disableEdit={!effectivePermissions.canEdit}
-                      canUndo={canUndo}
-                      canRedo={canRedo}
-                      hasLockedBlocks={hasLockedBlocks}
-                      onToggleWorkflowLock={handleToggleWorkflowLock}
-                      allBlocksLocked={allBlocksLocked}
-                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
-                      hasBlocks={hasBlocks}
-                    />
-                  </>
-                )}
+                  <CanvasMenu
+                    isOpen={isPaneMenuOpen}
+                    position={contextMenuPosition}
+                    menuRef={contextMenuRef}
+                    onClose={closeContextMenu}
+                    onUndo={undo}
+                    onRedo={redo}
+                    onPaste={handleContextPaste}
+                    onAddBlock={handleContextAddBlock}
+                    onAutoLayout={handleAutoLayout}
+                    onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
+                    onOpenLogs={handleContextOpenLogs}
+                    onOpenSearchReplace={handleContextOpenSearchReplace}
+                    onToggleVariables={handleContextToggleVariables}
+                    onToggleChat={handleContextToggleChat}
+                    isVariablesOpen={isVariablesOpen}
+                    isChatOpen={isChatOpen}
+                    hasClipboard={hasClipboard()}
+                    disableEdit={!effectivePermissions.canEdit}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    hasLockedBlocks={hasLockedBlocks}
+                    onToggleWorkflowLock={handleToggleWorkflowLock}
+                    allBlocksLocked={allBlocksLocked}
+                    canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
+                    hasBlocks={hasBlocks}
+                  />
+                </>
               </>
             )}
 
-            {!embedded && <WorkflowSearchReplace />}
+            <WorkflowSearchReplace />
 
-            {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
-              <CommandList />
-            )}
+            {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}
 
-            {!embedded && <DiffControls />}
+            <DiffControls />
 
             {/* Top fade between the canvas and the chrome row: nodes panning
                 under the toggle/switcher/title dissolve into the page bg
@@ -4280,9 +4265,9 @@ const WorkflowContent = React.memo(
           <Terminal />
         </div>
 
-        {(!embedded || sandbox) && <Panel workspaceId={sandbox ? workspaceId : undefined} />}
+        <Panel workspaceId={sandbox ? workspaceId : undefined} />
 
-        {!embedded && !sandbox && oauthModal && (
+        {!sandbox && oauthModal && (
           <ConnectOAuthModal
             mode='reauthorize'
             open={true}
