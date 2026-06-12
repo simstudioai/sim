@@ -103,11 +103,11 @@ export function FileViewer({
   }
 
   if (category === 'audio-previewable') {
-    return <AudioPreview key={file.id} file={file} workspaceId={workspaceId} />
+    return <MediaPreview key={file.id} file={file} workspaceId={workspaceId} kind='audio' />
   }
 
   if (category === 'video-previewable') {
-    return <VideoPreview key={file.id} file={file} workspaceId={workspaceId} />
+    return <MediaPreview key={file.id} file={file} workspaceId={workspaceId} kind='video' />
   }
 
   if (category === 'docx-previewable') {
@@ -177,12 +177,21 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-const AudioPreview = memo(function AudioPreview({
+const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
+
+/**
+ * Shared blob-backed preview for audio and video files — the fetch, blob-URL
+ * lifecycle, and error/loading handling are identical; only the rendered
+ * player differs.
+ */
+const MediaPreview = memo(function MediaPreview({
   file,
   workspaceId,
+  kind,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
+  kind: 'audio' | 'video'
 }) {
   const {
     fileData,
@@ -194,55 +203,31 @@ const AudioPreview = memo(function AudioPreview({
 
   useEffect(() => {
     if (!fileData) return
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'audio/mpeg' })))
-  }, [file.type, fileData, replaceBlobUrl])
+    replaceBlobUrl(
+      URL.createObjectURL(new Blob([fileData], { type: file.type || MEDIA_FALLBACK_MIME[kind] }))
+    )
+  }, [file.type, fileData, kind, replaceBlobUrl])
 
   const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
-  if (error) return <PreviewError label='audio' error={error} />
+  if (error) return <PreviewError label={kind} error={error} />
 
   if (isLoading && !blobUrl) {
     return <PreviewLoadingFrame className='h-full' tone='surface' />
   }
 
-  return (
-    <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
-      <div className='flex flex-col items-center gap-2 text-center'>
-        <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
-        <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+  if (kind === 'audio') {
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
+        <div className='flex flex-col items-center gap-2 text-center'>
+          <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
+          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+        </div>
+        {blobUrl && (
+          // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
+          <audio src={blobUrl} controls className='w-full max-w-[480px]' />
+        )}
       </div>
-      {blobUrl && (
-        // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
-        <audio src={blobUrl} controls className='w-full max-w-[480px]' />
-      )}
-    </div>
-  )
-})
-
-const VideoPreview = memo(function VideoPreview({
-  file,
-  workspaceId,
-}: {
-  file: WorkspaceFileRecord
-  workspaceId: string
-}) {
-  const {
-    fileData,
-    isLoading,
-    error: fetchError,
-    blobUrl,
-    replaceBlobUrl,
-  } = useBlobUrl(workspaceId, file.id, file.key)
-
-  useEffect(() => {
-    if (!fileData) return
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'video/mp4' })))
-  }, [file.type, fileData, replaceBlobUrl])
-
-  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
-  if (error) return <PreviewError label='video' error={error} />
-
-  if (isLoading && !blobUrl) {
-    return <PreviewLoadingFrame className='h-full' tone='surface' />
+    )
   }
 
   return (

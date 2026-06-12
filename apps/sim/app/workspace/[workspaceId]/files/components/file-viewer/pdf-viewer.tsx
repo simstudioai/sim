@@ -66,6 +66,11 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const sourceValue = source.kind === 'url' ? source.url : source.buffer
+  /**
+   * The buffer copy (`slice(0)`) is load-bearing: pdf.js transfers — and
+   * detaches — the ArrayBuffer it receives to its worker, so handing over the
+   * caller's buffer would leave it unusable on the next render or remount.
+   */
   const file = useMemo(
     () => (source.kind === 'url' ? source.url : { data: new Uint8Array(source.buffer.slice(0)) }),
     [sourceValue]
