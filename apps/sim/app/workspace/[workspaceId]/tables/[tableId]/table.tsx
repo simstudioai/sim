@@ -592,6 +592,18 @@ export function Table({
   // a one-line query forward.
   const { data: executionLog } = useLogByExecutionId(workspaceId, executionId)
 
+  // Stable identity so the memoized Resource.Options can bail — an inline
+  // object literal (with an inline arrow) would defeat its memo every render.
+  const handleToggleFilter = useCallback(() => setFilterOpen((prev) => !prev), [])
+  const filterConfig = useMemo(
+    () => ({
+      mode: 'toggle' as const,
+      active: filterOpen || !!queryOptions.filter,
+      onToggle: handleToggleFilter,
+    }),
+    [filterOpen, queryOptions.filter, handleToggleFilter]
+  )
+
   return (
     <div className='relative flex h-full flex-col overflow-hidden'>
       {!embedded && (
@@ -628,11 +640,7 @@ export function Table({
           bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
       <Resource.Options
         sort={sortConfig}
-        filter={{
-          mode: 'toggle',
-          active: filterOpen || !!queryOptions.filter,
-          onToggle: () => setFilterOpen((prev) => !prev),
-        }}
+        filter={filterConfig}
         aside={
           embedded && (selection.totalRunning > 0 || selection.hasActiveDispatch) ? (
             <RunStatusControl

@@ -5,22 +5,22 @@ import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon, X } from 'lucide-react'
+import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
   ChipCombobox,
+  ChipInput,
   type ComboboxOptionGroup,
   FieldDivider,
-  Input,
   Label,
   Loader,
   Switch,
   Tooltip,
   toast,
 } from '@/components/emcn'
-import { ArrowLeft, ChevronDown } from '@/components/emcn/icons'
+import { ArrowLeft, ChevronDown, X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -51,6 +51,10 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import {
+  FieldError,
+  RequiredLabel,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks'
 import {
@@ -166,19 +170,6 @@ function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefine
     default:
       return 'string'
   }
-}
-
-function RequiredLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
-  return (
-    <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
-      {children}
-      <span className='ml-0.5'>*</span>
-    </Label>
-  )
-}
-
-function FieldError({ message }: { message: string }) {
-  return <p className='pl-0.5 text-caption text-destructive'>{message}</p>
 }
 
 const TagIcon: React.FC<{
@@ -835,7 +826,7 @@ export function WorkflowSidebarBody({
           <>
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel htmlFor='workflow-sidebar-column-name'>Column name</RequiredLabel>
-              <Input
+              <ChipInput
                 id='workflow-sidebar-column-name'
                 value={columnNameInput}
                 onChange={(e) => {
@@ -844,6 +835,7 @@ export function WorkflowSidebarBody({
                 }}
                 spellCheck={false}
                 autoComplete='off'
+                error={Boolean((showValidation && !columnNameInput.trim()) || nameError)}
                 aria-invalid={
                   (showValidation && !columnNameInput.trim()) || nameError ? true : undefined
                 }
@@ -954,7 +946,6 @@ export function WorkflowSidebarBody({
             maxHeight={260}
             searchable
             searchPlaceholder='Search workflows...'
-            error={showValidation && !selectedWorkflowId ? 'Select a workflow' : null}
           />
           {showValidation && !selectedWorkflowId && <FieldError message='Select a workflow' />}
         </div>

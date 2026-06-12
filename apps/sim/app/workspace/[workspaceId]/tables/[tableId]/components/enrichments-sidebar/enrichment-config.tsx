@@ -7,16 +7,15 @@ import {
   Badge,
   Button,
   ChipCombobox,
+  ChipInput,
   CollapsibleCard,
   FieldDivider,
-  Input,
   Label,
   Switch,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft, X } from '@/components/emcn/icons'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
@@ -280,12 +279,10 @@ export function EnrichmentConfig({
                     onChange={(columnName: string) =>
                       setInputMappings((prev) => ({ ...prev, [input.id]: columnName }))
                     }
-                    error={
-                      showValidation && input.required && !inputMappings[input.id]
-                        ? 'Required'
-                        : null
-                    }
                   />
+                  {showValidation && input.required && !inputMappings[input.id] && (
+                    <p className='text-[var(--text-error)] text-caption'>Required</p>
+                  )}
                 </CollapsibleCard>
               ))}
             </div>
@@ -317,14 +314,14 @@ export function EnrichmentConfig({
                   }
                 >
                   <Label className='text-small'>Column name</Label>
-                  <Input
+                  <ChipInput
                     value={outputNames[output.id] ?? ''}
                     onChange={(e) =>
                       setOutputNames((prev) => ({ ...prev, [output.id]: e.target.value }))
                     }
                     spellCheck={false}
                     autoComplete='off'
-                    className={cn(outErr && 'border-[var(--text-error)]')}
+                    error={Boolean(outErr)}
                   />
                   {outErr && <p className='text-[var(--text-error)] text-caption'>{outErr}</p>}
                 </CollapsibleCard>
