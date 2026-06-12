@@ -1,7 +1,5 @@
 import { db } from '@sim/db'
 import { workspaceFileFolder, workspaceFiles } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import {
   WORKFLOW_CHANGELOG_BACKING_FOLDER,
@@ -18,8 +16,6 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-
-const logger = createLogger('WorkflowAliasBacking')
 
 export interface WorkflowAliasBacking {
   changelogFolderId: string
@@ -94,24 +90,6 @@ export async function ensureWorkflowAliasBacking(args: {
     workflowPlansFolderId,
     workspacePlansFolderId,
     changelogFile,
-  }
-}
-
-export async function ensureWorkflowAliasBackingQuietly(args: {
-  workspaceId: string
-  userId: string
-  workflowId: string
-  workflowName?: string
-}): Promise<WorkflowAliasBacking | null> {
-  try {
-    return await ensureWorkflowAliasBacking(args)
-  } catch (error) {
-    logger.warn('Failed to ensure workflow alias backing', {
-      workspaceId: args.workspaceId,
-      workflowId: args.workflowId,
-      error: toError(error).message,
-    })
-    return null
   }
 }
 

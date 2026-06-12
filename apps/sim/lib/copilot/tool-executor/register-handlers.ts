@@ -24,6 +24,7 @@ import {
   Glob as GlobTool,
   Grep as GrepTool,
   ListFolders,
+  ListIntegrationTools,
   ListUserWorkspaces,
   ListWorkspaceMcpServers,
   LoadDeployment,
@@ -74,6 +75,7 @@ import {
   executeUpdateWorkspaceMcpServer,
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
+import { executeListIntegrationTools } from '../tools/handlers/integration-tools'
 import {
   executeCompleteJob,
   executeManageJob,
@@ -192,6 +194,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),
     [GetPlatformActions.id]: h(executeGetPlatformActions),
+    [ListIntegrationTools.id]: h(executeListIntegrationTools),
     [MaterializeFile.id]: h(executeMaterializeFile),
     [FunctionExecute.id]: h(executeFunctionExecute),
 
