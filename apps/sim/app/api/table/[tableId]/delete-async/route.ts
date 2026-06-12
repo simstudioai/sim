@@ -42,7 +42,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   const parsed = await parseRequest(deleteTableRowsAsyncContract, request, { params })
   if (!parsed.success) return parsed.response
   const { tableId } = parsed.data.params
-  const { workspaceId, filter, excludeRowIds } = parsed.data.body
+  const { workspaceId, filter, excludeRowIds, estimatedCount } = parsed.data.body
 
   const access = await checkAccess(tableId, userId, 'write')
   if (!access.ok) return accessError(access, requestId, tableId)
@@ -66,7 +66,14 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   // import is in flight (and vice versa). The scope is persisted to the job's payload so read
   // paths can mask the doomed rows while the job runs (see `pendingDeleteMask`).
   const jobId = generateId()
-  const payload: TableDeleteJobPayload = { filter, excludeRowIds, cutoff: cutoff.toISOString() }
+  const payload: TableDeleteJobPayload = {
+    filter,
+    excludeRowIds,
+    cutoff: cutoff.toISOString(),
+    // Clamp the client's display estimate to reality so a stale/bogus value
+    // can't drive counts negative or hide more than the table holds.
+    ...(estimatedCount != null ? { doomedCount: Math.min(estimatedCount, table.rowCount) } : {}),
+  }
   const claimed = await markTableJobRunning(tableId, jobId, 'delete', payload)
   if (!claimed) {
     return NextResponse.json(

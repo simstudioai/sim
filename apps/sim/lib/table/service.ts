@@ -257,6 +257,13 @@ interface DerivedJobFields {
   jobType: TableDefinition['jobType']
   jobError: string | null
   jobRowsProcessed: number
+  /**
+   * Rows a running delete job still has to remove (its doomed estimate minus
+   * deletions so far). Internal to count adjustment — callers subtract it from
+   * the raw `row_count` so list/detail counts match the read path's delete
+   * mask (a mid-delete refresh must not resurrect the count). Not on the wire.
+   */
+  pendingDeleteRemaining: number
 }
 
 const EMPTY_JOB_FIELDS: DerivedJobFields = {
@@ -265,20 +272,33 @@ const EMPTY_JOB_FIELDS: DerivedJobFields = {
   jobType: null,
   jobError: null,
   jobRowsProcessed: 0,
+  pendingDeleteRemaining: 0,
 }
 
 function mapJobRow(
   row:
-    | { id: string; type: string; status: string; rowsProcessed: number; error: string | null }
+    | {
+        id: string
+        type: string
+        status: string
+        rowsProcessed: number
+        error: string | null
+        payload: unknown
+      }
     | undefined
 ): DerivedJobFields {
   if (!row) return EMPTY_JOB_FIELDS
+  const doomedCount =
+    row.type === 'delete' && row.status === 'running'
+      ? ((row.payload as TableDeleteJobPayload | null)?.doomedCount ?? 0)
+      : 0
   return {
     jobStatus: row.status as TableDefinition['jobStatus'],
     jobId: row.id,
     jobType: row.type as TableDefinition['jobType'],
     jobError: row.error,
     jobRowsProcessed: row.rowsProcessed,
+    pendingDeleteRemaining: Math.max(0, doomedCount - row.rowsProcessed),
   }
 }
 
@@ -288,6 +308,7 @@ const JOB_PROJECTION = {
   status: tableJobs.status,
   rowsProcessed: tableJobs.rowsProcessed,
   error: tableJobs.error,
+  payload: tableJobs.payload,
 } as const
 
 /**
@@ -355,20 +376,21 @@ export async function getTableById(
 
   const table = results[0]
   const metadata = (table.metadata as TableMetadata) ?? null
+  const { pendingDeleteRemaining, ...jobFields } = await latestJobForTable(tableId, executor)
   return {
     id: table.id,
     name: table.name,
     description: table.description,
     schema: applyColumnOrderToSchema(table.schema as TableSchema, metadata),
     metadata,
-    rowCount: table.rowCount,
+    rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
     createdBy: table.createdBy,
     archivedAt: table.archivedAt,
     createdAt: table.createdAt,
     updatedAt: table.updatedAt,
-    ...(await latestJobForTable(tableId, executor)),
+    ...jobFields,
   }
 }
 
@@ -431,20 +453,21 @@ export async function listTables(
 
   return tables.map((t) => {
     const metadata = (t.metadata as TableMetadata) ?? null
+    const { pendingDeleteRemaining, ...jobFields } = jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS
     return {
       id: t.id,
       name: t.name,
       description: t.description,
       schema: applyColumnOrderToSchema(t.schema as TableSchema, metadata),
       metadata,
-      rowCount: t.rowCount,
+      rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
       createdBy: t.createdBy,
       archivedAt: t.archivedAt,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
-      ...(jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS),
+      ...jobFields,
     }
   })
 }

@@ -816,12 +816,13 @@ export function Table({
           pendingLabel: 'Deleting...',
           onClick: () => {
             if (!deletingAll) return
-            const { excludeRowIds } = deletingAll
+            const { excludeRowIds, estimatedCount } = deletingAll
             deleteRowsAsyncMutation.mutate(
               {
                 filter: queryOptions.filter ?? undefined,
                 sort: queryOptions.sort,
                 excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
+                estimatedCount,
               },
               {
                 // Clear the selection only once the kickoff succeeds — on

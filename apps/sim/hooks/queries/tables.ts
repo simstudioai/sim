@@ -1071,6 +1071,9 @@ interface DeleteTableRowsAsyncVariables {
   sort?: Sort | null
   /** Rows deselected after "select all" — spared by the job. */
   excludeRowIds?: string[]
+  /** Doomed-row estimate shown in the confirm — persisted on the job so server counts can
+   *  subtract the not-yet-deleted remainder mid-job. */
+  estimatedCount?: number
 }
 
 /**
@@ -1085,13 +1088,17 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ filter, excludeRowIds }: DeleteTableRowsAsyncVariables) => {
+    mutationFn: async ({
+      filter,
+      excludeRowIds,
+      estimatedCount,
+    }: DeleteTableRowsAsyncVariables) => {
       return requestJson(deleteTableRowsAsyncContract, {
         params: { tableId },
-        body: { workspaceId, filter, excludeRowIds },
+        body: { workspaceId, filter, excludeRowIds, estimatedCount },
       })
     },
-    onMutate: async ({ filter, sort, excludeRowIds }) => {
+    onMutate: async ({ filter, sort, excludeRowIds, estimatedCount }) => {
       // Target the exact infinite-rows query for the view the user is on — not every cached view.
       const activeKey = tableKeys.infiniteRows(
         tableId,
@@ -1102,6 +1109,9 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
         queryClient.getQueryData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(activeKey)
       const previousDetail = queryClient.getQueryData<TableDefinition>(tableKeys.detail(tableId))
       const keep = new Set(excludeRowIds ?? [])
+      // The active view's post-delete total is exactly the kept (deselected) rows — every other
+      // matching row is doomed. Without this the footer / select-all label stays at the old total
+      // until the job's terminal refetch.
       queryClient.setQueryData<InfiniteData<TableRowsResponse, TableRowsPageParam>>(
         activeKey,
         (old) =>
@@ -1111,10 +1121,16 @@ export function useDeleteTableRowsAsync({ workspaceId, tableId }: RowMutationCon
                 pages: old.pages.map((page) => ({
                   ...page,
                   rows: page.rows.filter((r) => keep.has(r.id)),
+                  ...(page.totalCount != null ? { totalCount: keep.size } : {}),
                 })),
               }
             : old
       )
+      if (estimatedCount != null) {
+        queryClient.setQueryData<TableDefinition>(tableKeys.detail(tableId), (p) =>
+          p ? { ...p, rowCount: Math.max(0, p.rowCount - estimatedCount) } : p
+        )
+      }
       return { activeKey, previousRows, previousDetail }
     },
     onSuccess: ({ data }) => {

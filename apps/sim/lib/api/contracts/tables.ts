@@ -935,6 +935,10 @@ export const deleteTableRowsAsyncBodySchema = z.object({
       `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
     )
     .optional(),
+  /** Display-only doomed-row estimate (the filtered total minus deselections the client just
+   *  showed). Persisted on the job so list/detail counts can subtract the not-yet-deleted
+   *  remainder mid-job; clamped server-side, never used to scope the delete itself. */
+  estimatedCount: z.number().int().min(0).optional(),
 })
 
 export type DeleteTableRowsAsyncBody = z.input<typeof deleteTableRowsAsyncBodySchema>

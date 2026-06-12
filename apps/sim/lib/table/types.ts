@@ -212,6 +212,9 @@ export interface TableDeleteJobPayload {
   excludeRowIds?: string[]
   /** ISO timestamp; rows created after it are spared. */
   cutoff: string
+  /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+  doomedCount?: number
 }
 
 /**
