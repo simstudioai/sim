@@ -28,6 +28,8 @@ Sim's Convex integration connects your workflows to any Convex deployment with t
 - **Inspect your data model:** List Tables returns every table in the deployment with the JSON schema of its documents.
 - **Export and sync data:** List Documents pages through a consistent snapshot of a table, and Document Deltas returns only the documents that changed since a snapshot — including deletions — making incremental syncs to warehouses, search indexes, or other tools straightforward.
 
+The Run Query, Run Mutation, Run Action, and Run Function operations work on every Convex plan. List Tables, List Documents, and Document Deltas use Convex's streaming export API, which is available on Convex paid plans.
+
 Typical patterns include agents that read and write application data through your existing Convex functions, scheduled exports to analytics destinations, and change-driven automations that react to new or updated documents.
 {/* MANUAL-CONTENT-END */}
 
@@ -122,7 +124,7 @@ Run any Convex function (query, mutation, or action) by path without specifying 
 
 ### `convex_list_tables`
 
-List all tables in a Convex deployment along with their JSON schemas
+List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.
 
 #### Input
 
@@ -140,7 +142,7 @@ List all tables in a Convex deployment along with their JSON schemas
 
 ### `convex_list_documents`
 
-List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page.
+List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.
 
 #### Input
 
@@ -163,7 +165,7 @@ List documents from a Convex table via a paginated snapshot. Pass the returned s
 
 ### `convex_document_deltas`
 
-List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag.
+List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.
 
 #### Input
 

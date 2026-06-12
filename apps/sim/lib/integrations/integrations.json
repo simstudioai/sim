@@ -3224,15 +3224,15 @@
       },
       {
         "name": "List Tables",
-        "description": "List all tables in a Convex deployment along with their JSON schemas"
+        "description": "List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans."
       },
       {
         "name": "List Documents",
-        "description": "List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page."
+        "description": "List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans."
       },
       {
         "name": "Document Deltas",
-        "description": "List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag."
+        "description": "List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans."
       }
     ],
     "operationCount": 7,

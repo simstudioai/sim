@@ -5,7 +5,8 @@ import type { ToolConfig } from '@/tools/types'
 export const listTablesTool: ToolConfig<ConvexListTablesParams, ConvexListTablesResponse> = {
   id: 'convex_list_tables',
   name: 'Convex List Tables',
-  description: 'List all tables in a Convex deployment along with their JSON schemas',
+  description:
+    'List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
 
   params: {

@@ -13,7 +13,7 @@ export const documentDeltasTool: ToolConfig<
   id: 'convex_document_deltas',
   name: 'Convex Document Deltas',
   description:
-    'List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag.',
+    'List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.',
   version: '1.0.0',
 
   params: {
