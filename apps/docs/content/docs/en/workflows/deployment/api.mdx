@@ -248,8 +248,8 @@ Workflow execution responses are capped by platform request and response limits.
   "id": "lv_abc123DEF456",
   "kind": "array",
   "size": 12582912,
-  "key": "execution/workspace-id/workflow-id/exec_xyz/large-value-lv_abc123DEF456.json",
-  "executionId": "exec_xyz",
+  "key": "execution/workspace-id/workflow-id/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74/large-value-lv_abc123DEF456.json",
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
   "preview": { "length": 25000 }
 }
 ```
@@ -276,7 +276,7 @@ curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
   "success": true,
   "async": true,
   "jobId": "run_abc123",
-  "executionId": "exec_xyz",
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
   "message": "Workflow execution queued",
   "statusUrl": "https://sim.ai/api/jobs/run_abc123"
 }
