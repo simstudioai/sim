@@ -123,17 +123,52 @@ export function extractVantaError(data: unknown, fallback: string): string {
   )
 }
 
-/**
- * Exchanges Vanta OAuth client credentials for a bearer token. Vanta tokens
- * live for one hour and only one token per application is active at a time,
- * so a fresh token is requested per API call and used immediately.
- */
-export async function getVantaAccessToken(params: {
+export interface VantaTokenParams {
   clientId: string
   clientSecret: string
   region?: VantaRegion
   scope: string
-}): Promise<string> {
+}
+
+interface VantaCachedToken {
+  token: string
+  expiresAt: number
+}
+
+/**
+ * In-memory token cache. Vanta only keeps one access token active per
+ * application — requesting a new token revokes the previous one — so reusing
+ * a cached token keeps concurrent tool executions with the same credentials
+ * from revoking each other's tokens mid-flight.
+ */
+const vantaTokenCache = new Map<string, VantaCachedToken>()
+
+/** Evict cached tokens well before their one-hour expiry. */
+const VANTA_TOKEN_EXPIRY_BUFFER_MS = 10 * 60 * 1000
+
+function vantaTokenCacheKey(params: VantaTokenParams): string {
+  return [params.region ?? 'us', params.scope, params.clientId, params.clientSecret].join('|')
+}
+
+/**
+ * Returns a bearer token for the Vanta API, exchanging OAuth client
+ * credentials and caching the result until shortly before expiry. Pass
+ * `forceRefresh` when a cached token has been revoked (e.g., by another
+ * process exchanging the same credentials).
+ */
+export async function getVantaAccessToken(
+  params: VantaTokenParams,
+  options?: { forceRefresh?: boolean }
+): Promise<string> {
+  const cacheKey = vantaTokenCacheKey(params)
+  if (!options?.forceRefresh) {
+    const cached = vantaTokenCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.token
+    }
+  }
+  vantaTokenCache.delete(cacheKey)
+
   const response = await fetch(`${getVantaBaseUrl(params.region)}/oauth/token`, {
     method: 'POST',
     headers: {
@@ -158,7 +193,34 @@ export async function getVantaAccessToken(params: {
     throw new Error('Vanta authentication did not return an access token')
   }
 
+  const expiresInMs = (getNumber(data.expires_in) ?? 0) * 1000
+  if (expiresInMs > VANTA_TOKEN_EXPIRY_BUFFER_MS) {
+    vantaTokenCache.set(cacheKey, {
+      token: data.access_token,
+      expiresAt: Date.now() + expiresInMs - VANTA_TOKEN_EXPIRY_BUFFER_MS,
+    })
+  }
+
   return data.access_token
+}
+
+/**
+ * Performs an authenticated Vanta API request. When the request comes back
+ * 401 — typically because another process exchanged the same credentials and
+ * revoked the cached token — it retries once with a freshly exchanged token.
+ */
+export async function fetchVantaWithAuth(
+  tokenParams: VantaTokenParams,
+  doFetch: (accessToken: string) => Promise<Response>
+): Promise<Response> {
+  const accessToken = await getVantaAccessToken(tokenParams)
+  const response = await doFetch(accessToken)
+  if (response.status !== 401) {
+    return response
+  }
+
+  const freshToken = await getVantaAccessToken(tokenParams, { forceRefresh: true })
+  return doFetch(freshToken)
 }
 
 /**

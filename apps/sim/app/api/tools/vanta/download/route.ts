@@ -9,7 +9,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   buildVantaUrl,
   extractVantaError,
-  getVantaAccessToken,
+  fetchVantaWithAuth,
   getVantaBaseUrl,
   VANTA_READ_SCOPE,
 } from '@/tools/vanta/utils'
@@ -91,13 +91,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const accessToken = await getVantaAccessToken({
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
-      scope: VANTA_READ_SCOPE,
-    })
-
     const mediaUrl = buildVantaUrl(
       getVantaBaseUrl(params.region),
       `/documents/${encodeURIComponent(params.documentId)}/uploads/${encodeURIComponent(params.uploadedFileId)}/media`
@@ -108,11 +101,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       uploadedFileId: params.uploadedFileId,
     })
 
-    const response = await fetch(mediaUrl, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      cache: 'no-store',
-    })
+    const response = await fetchVantaWithAuth(
+      {
+        clientId: params.clientId,
+        clientSecret: params.clientSecret,
+        region: params.region,
+        scope: VANTA_READ_SCOPE,
+      },
+      (accessToken) =>
+        fetch(mediaUrl, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          cache: 'no-store',
+        })
+    )
 
     if (!response.ok) {
       const errorData: unknown = await response.json().catch(() => null)

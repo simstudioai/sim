@@ -13,7 +13,7 @@ import {
   asVantaRecord,
   buildVantaUrl,
   extractVantaError,
-  getVantaAccessToken,
+  fetchVantaWithAuth,
   getVantaBaseUrl,
   normalizeVantaUploadedFile,
   VANTA_DOCUMENT_UPLOAD_SCOPE,
@@ -85,38 +85,44 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return uploadSizeError(fileBuffer.length)
     }
 
-    const accessToken = await getVantaAccessToken({
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
-      scope: VANTA_DOCUMENT_UPLOAD_SCOPE,
-    })
-
     logger.info(`[${requestId}] Uploading file to Vanta document`, {
       documentId: params.documentId,
       fileName,
       size: fileBuffer.length,
     })
 
-    const formData = new FormData()
-    formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), fileName)
-    if (params.description) {
-      formData.append('description', params.description)
-    }
-    if (params.effectiveAtDate) {
-      formData.append('effectiveAtDate', params.effectiveAtDate)
-    }
-
     const uploadUrl = buildVantaUrl(
       getVantaBaseUrl(params.region),
       `/documents/${encodeURIComponent(params.documentId)}/uploads`
     )
-    const response = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}` },
-      body: formData,
-      cache: 'no-store',
-    })
+    const response = await fetchVantaWithAuth(
+      {
+        clientId: params.clientId,
+        clientSecret: params.clientSecret,
+        region: params.region,
+        scope: VANTA_DOCUMENT_UPLOAD_SCOPE,
+      },
+      (accessToken) => {
+        const formData = new FormData()
+        formData.append(
+          'file',
+          new Blob([new Uint8Array(fileBuffer)], { type: mimeType }),
+          fileName
+        )
+        if (params.description) {
+          formData.append('description', params.description)
+        }
+        if (params.effectiveAtDate) {
+          formData.append('effectiveAtDate', params.effectiveAtDate)
+        }
+        return fetch(uploadUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+          cache: 'no-store',
+        })
+      }
+    )
 
     const data: unknown = await response.json().catch(() => null)
     if (!response.ok) {

@@ -11,7 +11,7 @@ import {
   asVantaRecord,
   buildVantaUrl,
   extractVantaError,
-  getVantaAccessToken,
+  fetchVantaWithAuth,
   getVantaBaseUrl,
   getVantaListResults,
   normalizeVantaControl,
@@ -383,24 +383,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const baseUrl = getVantaBaseUrl(params.region)
     const scope =
       params.operation === 'vanta_submit_document' ? VANTA_WRITE_SCOPE : VANTA_READ_SCOPE
-    const accessToken = await getVantaAccessToken({
-      clientId: params.clientId,
-      clientSecret: params.clientSecret,
-      region: params.region,
-      scope,
-    })
 
     logger.info(`[${requestId}] Vanta query request`, { operation: params.operation })
 
     const apiRequest = buildVantaApiRequest(baseUrl, params)
-    const response = await fetch(apiRequest.url, {
-      method: apiRequest.method,
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
+    const response = await fetchVantaWithAuth(
+      {
+        clientId: params.clientId,
+        clientSecret: params.clientSecret,
+        region: params.region,
+        scope,
       },
-      cache: 'no-store',
-    })
+      (accessToken) =>
+        fetch(apiRequest.url, {
+          method: apiRequest.method,
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${accessToken}`,
+          },
+          cache: 'no-store',
+        })
+    )
 
     if (!response.ok) {
       const errorData: unknown = await response.json().catch(() => null)
