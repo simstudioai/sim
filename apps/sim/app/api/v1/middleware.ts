@@ -16,6 +16,8 @@ export type V1Endpoint =
   | 'logs-detail'
   | 'workflows'
   | 'workflow-detail'
+  | 'workflow-deploy'
+  | 'workflow-rollback'
   | 'audit-logs'
   | 'tables'
   | 'table-detail'
@@ -190,6 +192,9 @@ export async function checkWorkspaceScope(
   return null
 }
 
+/** Orders workspace permission levels for at-least comparisons. */
+const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
+
 /**
  * Validates workspace-scoped API key bounds and the user's workspace permission.
  * Returns null on success, NextResponse on failure.
@@ -198,16 +203,13 @@ export async function validateWorkspaceAccess(
   rateLimit: RateLimitResult,
   userId: string,
   workspaceId: string,
-  level: 'read' | 'write' = 'read'
+  level: keyof typeof PERMISSION_RANK = 'read'
 ): Promise<NextResponse | null> {
   const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
   if (scopeError) return scopeError
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-  if (permission === null) {
-    return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-  }
-  if (level === 'write' && permission === 'read') {
+  if (permission === null || PERMISSION_RANK[permission] < PERMISSION_RANK[level]) {
     return NextResponse.json({ error: 'Access denied' }, { status: 403 })
   }
   return null

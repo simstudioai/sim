@@ -47,7 +47,14 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
  * integration page. The writer's filter and the stale-doc cleanup must both
  * honor this set, or cleanup deletes what the writer emits (losing manual content).
  */
-const NATIVE_RESOURCE_BLOCK_TYPES = new Set(['memory', 'knowledge', 'table', 'enrichment', 'logs'])
+const NATIVE_RESOURCE_BLOCK_TYPES = new Set([
+  'memory',
+  'knowledge',
+  'table',
+  'enrichment',
+  'logs',
+  'deployments',
+])
 
 /** Trigger doc pages that are hand-written and must never be overwritten. */
 const HANDWRITTEN_TRIGGER_DOCS = new Set([
