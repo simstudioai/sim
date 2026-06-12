@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import { useMothershipPanelStore } from '@/stores/mothership-panel/store'
 import { DockedChat } from './docked-chat'
 
 /** Sentinel `?chat=` value for a docked chat that hasn't been created yet. */
@@ -116,6 +117,7 @@ export function WorkflowWithChat() {
       'pointerup',
       (upEvent: PointerEvent) => {
         handle.releasePointerCapture(upEvent.pointerId)
+        useMothershipPanelStore.getState().setChatPaneWidth(el.getBoundingClientRect().width)
         cleanup()
       },
       { signal }
@@ -124,6 +126,18 @@ export function WorkflowWithChat() {
   }, [])
 
   useEffect(() => () => dragCleanupRef.current?.(), [])
+
+  // The user's chat width is sticky: restore the persisted pane width
+  // (clamped to the viewport) whenever the dock opens.
+  useEffect(() => {
+    if (!dock.open) return
+    const el = chatPaneRef.current
+    if (!el) return
+    const stored = useMothershipPanelStore.getState().chatPaneWidth
+    if (!stored) return
+    const maxWidth = window.innerWidth * CHAT_PANE.MAX_PERCENTAGE
+    el.style.width = `${Math.min(Math.max(stored, CHAT_PANE.MIN), maxWidth)}px`
+  }, [dock.open])
 
   useEffect(() => {
     const handleWindowResize = () => {
