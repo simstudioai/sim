@@ -350,7 +350,7 @@ export function WorkflowWithChat() {
             type='button'
             aria-label='Show resources'
             onClick={() => setStageFront('card')}
-            className='absolute inset-x-4 top-2 z-0 flex h-[38px] items-start rounded-t-lg border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
+            className='absolute inset-x-4 top-2 z-0 flex h-[38px] items-start rounded-t-xl border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
           >
             <span className='flex h-[26px] min-w-0 items-center gap-1.5'>
               {getResourceConfig(activeStageTab.type).renderTabIcon(
@@ -400,7 +400,7 @@ export function WorkflowWithChat() {
               type='button'
               aria-label='Back to workflow'
               onClick={() => setStageFront('editor')}
-              className='absolute inset-x-4 top-2 z-30 flex h-[38px] items-start rounded-t-lg border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
+              className='absolute inset-x-4 top-2 z-30 flex h-[38px] items-start rounded-t-xl border border-[var(--border-1)] bg-[var(--bg)] px-3 transition-colors hover-hover:bg-[var(--surface-active)]'
             >
               <span className='flex h-[26px] min-w-0 items-center gap-1.5'>
                 <WorkflowIcon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' />
