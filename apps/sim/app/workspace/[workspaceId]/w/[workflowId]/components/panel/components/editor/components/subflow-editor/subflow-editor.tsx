@@ -2,7 +2,14 @@
 
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
-import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
+import {
+  Code as CodeEditor,
+  Combobox,
+  FieldDivider,
+  getCodeEditorProps,
+  Input,
+  Label,
+} from '@/components/emcn'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {
   formatDisplayText,
@@ -136,15 +143,7 @@ export function SubflowEditor({
             />
           </div>
 
-          <div className='px-0.5 pt-4 pb-2.5'>
-            <div
-              className='h-[1.25px]'
-              style={{
-                backgroundImage:
-                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-              }}
-            />
-          </div>
+          <FieldDivider className='pb-2.5' />
 
           <div
             data-workflow-search-subblock-id={configSearchFieldId}

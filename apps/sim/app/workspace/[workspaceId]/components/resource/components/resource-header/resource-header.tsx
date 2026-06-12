@@ -128,8 +128,11 @@ export const ResourceHeader = memo(function ResourceHeader({
         : -1
 
   return (
-    <div ref={headerRef} className='border-[var(--border)] border-b px-4 py-[8.5px]'>
-      <div className='flex min-w-0 items-center justify-between gap-3'>
+    <div
+      ref={headerRef}
+      className='flex min-h-[48px] items-center border-[var(--border)] border-b px-4 py-[8.5px]'
+    >
+      <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
           {hasBreadcrumbs ? (
             breadcrumbs.map((crumb, i) => {

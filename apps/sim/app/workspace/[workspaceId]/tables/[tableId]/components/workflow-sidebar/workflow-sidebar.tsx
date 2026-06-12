@@ -13,6 +13,7 @@ import {
   ChipCombobox,
   ChipInput,
   type ComboboxOptionGroup,
+  DashedDividerLine,
   FieldDivider,
   Label,
   Loader,
@@ -116,13 +117,6 @@ interface WorkflowSidebarProps {
    *  that returns to the enrichments list. */
   onBack?: () => void
 }
-
-/** Dashed hairline flanking the "Show additional fields" disclosure — mirrors
- *  the workflow editor's advanced-mode divider. */
-const DASHED_DIVIDER_STYLE = {
-  backgroundImage:
-    'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-} as const
 
 const OUTPUT_VALUE_SEPARATOR = '::'
 
@@ -794,7 +788,7 @@ export function WorkflowSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <div className='flex min-w-0 items-center gap-1.5'>
           {showBackButton && (
             <Button
@@ -1015,8 +1009,8 @@ export function WorkflowSidebarBody({
             )}
             {selectedWorkflowId && (
               <>
-                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-1'>
-                  <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
+                  <DashedDividerLine className='flex-1' />
                   <button
                     type='button'
                     onClick={() => setShowAdvanced((v) => !v)}
@@ -1030,7 +1024,7 @@ export function WorkflowSidebarBody({
                       )}
                     />
                   </button>
-                  <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                  <DashedDividerLine className='flex-1' />
                 </div>
                 {showAdvanced && (
                   <>
