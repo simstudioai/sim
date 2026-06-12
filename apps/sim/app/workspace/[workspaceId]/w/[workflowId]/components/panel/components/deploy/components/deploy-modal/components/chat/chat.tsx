@@ -657,7 +657,7 @@ function AuthSelector({
     } else {
       setInvalidEmailItems((prev) => [
         ...prev,
-        { value: normalized, isValid, error: validation.reason },
+        { value: normalized, isValid, error: validation.reason ?? 'Invalid email format' },
       ])
     }
 

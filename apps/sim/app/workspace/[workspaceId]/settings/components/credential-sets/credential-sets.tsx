@@ -136,7 +136,11 @@ export function CredentialSets() {
 
       setEmailItems((prev) => [
         ...prev,
-        { value: normalized, isValid, error: isValid ? undefined : validation.reason },
+        {
+          value: normalized,
+          isValid,
+          error: isValid ? undefined : (validation.reason ?? 'Invalid email format'),
+        },
       ])
 
       if (isValid) {
