@@ -108,6 +108,10 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizeCss: !isDev,
+    // Turbopack's persistent dev cache writes ~9GB per cold compile on this
+    // app and grows unbounded across sessions (observed 29-58GB), so trade
+    // faster restarts for bounded disk.
+    turbopackFileSystemCacheForDev: false,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',
