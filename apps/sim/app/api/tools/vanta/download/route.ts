@@ -29,6 +29,33 @@ function downloadSizeError(bytes: number): NextResponse {
 }
 
 /**
+ * Reads a response body incrementally, aborting as soon as the accumulated
+ * size exceeds the limit so oversized files are never fully buffered.
+ * Returns null when the limit is exceeded.
+ */
+async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer | null> {
+  const reader = response.body?.getReader()
+  if (!reader) {
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return buffer.length > maxBytes ? null : buffer
+  }
+
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
+/**
  * Extracts the filename from a Content-Disposition header, if present.
  */
 function getFileNameFromContentDisposition(header: string | null): string | null {
@@ -99,9 +126,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return downloadSizeError(contentLength)
     }
 
-    const buffer = Buffer.from(await response.arrayBuffer())
-    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
-      return downloadSizeError(buffer.length)
+    const buffer = await readBodyWithLimit(response, MAX_DOWNLOAD_SIZE_BYTES)
+    if (buffer === null) {
+      return NextResponse.json(
+        { success: false, error: 'File exceeds download limit of 100MB' },
+        { status: 400 }
+      )
     }
 
     const mimeType = response.headers.get('content-type') || 'application/octet-stream'

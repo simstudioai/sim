@@ -32,8 +32,8 @@ import {
   normalizeVantaVulnerabilityRemediation,
   normalizeVantaVulnerableAsset,
   splitVantaCommaList,
-  VANTA_DOCUMENT_UPLOAD_SCOPE,
   VANTA_READ_SCOPE,
+  VANTA_WRITE_SCOPE,
 } from '@/tools/vanta/utils'
 
 export const dynamic = 'force-dynamic'
@@ -382,7 +382,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const baseUrl = getVantaBaseUrl(params.region)
     const scope =
-      params.operation === 'vanta_submit_document' ? VANTA_DOCUMENT_UPLOAD_SCOPE : VANTA_READ_SCOPE
+      params.operation === 'vanta_submit_document' ? VANTA_WRITE_SCOPE : VANTA_READ_SCOPE
     const accessToken = await getVantaAccessToken({
       clientId: params.clientId,
       clientSecret: params.clientSecret,

@@ -35,6 +35,9 @@ export const VANTA_API_BASE_URLS: Record<VantaRegion, string> = {
 /** Read-only scope used by every query and download operation. */
 export const VANTA_READ_SCOPE = 'vanta-api.all:read'
 
+/** Read-write scope used by write operations that do not upload files. */
+export const VANTA_WRITE_SCOPE = 'vanta-api.all:read vanta-api.all:write'
+
 /**
  * Scope string for document evidence uploads, taken verbatim from Vanta's
  * "Upload a document" guide (the upload scope cannot be requested alone).
