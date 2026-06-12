@@ -876,7 +876,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'azure-openai',
     name: 'Azure OpenAI',
     description: 'Microsoft Azure OpenAI Service models',
-    defaultModel: 'azure/gpt-4o',
+    defaultModel: 'azure/gpt-5.4',
     modelPatterns: [/^azure\//],
     capabilities: {
       toolUsageControl: true,
