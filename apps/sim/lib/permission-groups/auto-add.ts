@@ -3,7 +3,6 @@ import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 
 const logger = createLogger('PermissionGroupsAutoAdd')
 
@@ -17,14 +16,20 @@ type Client = DbClient | TransactionClient
  * already a member of a group in that workspace. Safe to call unconditionally
  * on any workspace-permission grant; no-ops when access control isn't
  * available or no auto-add group is configured.
+ *
+ * `entitled` is the result of `isWorkspaceOnEnterprisePlan(workspaceId)`,
+ * resolved by the caller. Callers running inside a transaction must resolve it
+ * before opening the tx: the entitlement check queries billing tables on the
+ * global pool, which would require a second pooled connection while the
+ * transaction holds the first.
  */
 export async function applyWorkspaceAutoAddGroup(
   client: Client,
   workspaceId: string,
-  userId: string
+  userId: string,
+  entitled: boolean
 ): Promise<void> {
   try {
-    const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
     if (!entitled) return
 
     const [autoAddGroup] = await client

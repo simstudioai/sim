@@ -336,135 +336,152 @@ export async function updateChunk(
   requestId: string,
   workspaceId?: string | null
 ): Promise<ChunkData> {
-  const dbUpdateData: {
-    updatedAt: Date
-    content?: string
-    contentLength?: number
-    tokenCount?: number
-    chunkHash?: string
-    embedding?: number[]
-    enabled?: boolean
-  } = {
-    updatedAt: new Date(),
-  }
-
-  // Use transaction if content is being updated to ensure consistent document statistics
+  // Content updates run in a transaction to keep document statistics
+  // consistent. The embedding API call happens BEFORE the transaction opens so
+  // a held pooled connection never waits on external I/O; the transaction then
+  // re-reads the chunk under a row lock and retries the whole flow in the rare
+  // case a concurrent edit invalidated the regeneration decision.
   if (updateData.content !== undefined && typeof updateData.content === 'string') {
-    return await db.transaction(async (tx) => {
-      // Get current chunk data for character count calculation and content comparison
-      const currentChunk = await tx
-        .select({
-          documentId: embedding.documentId,
-          content: embedding.content,
-          contentLength: embedding.contentLength,
-          tokenCount: embedding.tokenCount,
-        })
+    const content = updateData.content
+    const MAX_UPDATE_ATTEMPTS = 3
+
+    for (let attempt = 1; attempt <= MAX_UPDATE_ATTEMPTS; attempt++) {
+      const [preRead] = await db
+        .select({ documentId: embedding.documentId, content: embedding.content })
         .from(embedding)
         .where(eq(embedding.id, chunkId))
         .limit(1)
 
-      if (currentChunk.length === 0) {
+      if (!preRead) {
         throw new Error(`Chunk ${chunkId} not found`)
       }
 
-      const oldContentLength = currentChunk[0].contentLength
-      const oldTokenCount = currentChunk[0].tokenCount
-      const content = updateData.content! // We know it's defined from the if check above
-      const newContentLength = content.length
-
-      // Only regenerate embedding if content actually changed
-      if (content !== currentChunk[0].content) {
-        logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
-
-        const kbRow = await tx
+      // The embedding is a function of the new content alone, so generating it
+      // outside the transaction is always valid.
+      let regenerated: { embedding: number[]; tokenCount: number } | null = null
+      if (content !== preRead.content) {
+        const kbRow = await db
           .select({ embeddingModel: knowledgeBase.embeddingModel })
           .from(knowledgeBase)
           .innerJoin(document, eq(document.knowledgeBaseId, knowledgeBase.id))
-          .where(eq(document.id, currentChunk[0].documentId))
+          .where(eq(document.id, preRead.documentId))
           .limit(1)
         const chunkEmbeddingModel = kbRow[0]?.embeddingModel
         if (!chunkEmbeddingModel) {
           throw new Error('Knowledge base for chunk not found')
         }
-        const { embeddings } = await generateEmbeddings([content], chunkEmbeddingModel, workspaceId)
 
-        const tokenCount = estimateTokenCount(
+        logger.info(`[${requestId}] Content changed, regenerating embedding for chunk ${chunkId}`)
+        const { embeddings } = await generateEmbeddings([content], chunkEmbeddingModel, workspaceId)
+        regenerated = {
+          embedding: embeddings[0],
+          tokenCount: estimateTokenCount(
+            content,
+            getEmbeddingModelInfo(chunkEmbeddingModel).tokenizerProvider
+          ).count,
+        }
+      }
+
+      const result = await db.transaction(async (tx) => {
+        const currentChunk = await tx
+          .select({
+            documentId: embedding.documentId,
+            content: embedding.content,
+            contentLength: embedding.contentLength,
+            tokenCount: embedding.tokenCount,
+          })
+          .from(embedding)
+          .where(eq(embedding.id, chunkId))
+          .limit(1)
+          .for('update')
+
+        if (currentChunk.length === 0) {
+          throw new Error(`Chunk ${chunkId} not found`)
+        }
+
+        // A concurrent edit landed between the pre-read and this row lock and
+        // we skipped regeneration based on stale content; retry so the
+        // decision is re-made against the committed content.
+        if (!regenerated && currentChunk[0].content !== content) {
+          return null
+        }
+
+        const oldContentLength = currentChunk[0].contentLength
+        const oldTokenCount = currentChunk[0].tokenCount
+        const newContentLength = content.length
+
+        const chunkUpdate = {
+          updatedAt: new Date(),
           content,
-          getEmbeddingModelInfo(chunkEmbeddingModel).tokenizerProvider
+          contentLength: newContentLength,
+          chunkHash: sha256Hex(content),
+          tokenCount: regenerated ? regenerated.tokenCount : oldTokenCount,
+          ...(regenerated ? { embedding: regenerated.embedding } : {}),
+          ...(updateData.enabled !== undefined ? { enabled: updateData.enabled } : {}),
+        }
+
+        await tx.update(embedding).set(chunkUpdate).where(eq(embedding.id, chunkId))
+
+        const charDiff = newContentLength - oldContentLength
+        const tokenDiff = chunkUpdate.tokenCount - oldTokenCount
+
+        await tx
+          .update(document)
+          .set({
+            characterCount: sql`${document.characterCount} + ${charDiff}`,
+            tokenCount: sql`${document.tokenCount} + ${tokenDiff}`,
+          })
+          .where(eq(document.id, currentChunk[0].documentId))
+
+        const updatedChunk = await tx
+          .select({
+            id: embedding.id,
+            chunkIndex: embedding.chunkIndex,
+            content: embedding.content,
+            contentLength: embedding.contentLength,
+            tokenCount: embedding.tokenCount,
+            enabled: embedding.enabled,
+            startOffset: embedding.startOffset,
+            endOffset: embedding.endOffset,
+            tag1: embedding.tag1,
+            tag2: embedding.tag2,
+            tag3: embedding.tag3,
+            tag4: embedding.tag4,
+            tag5: embedding.tag5,
+            tag6: embedding.tag6,
+            tag7: embedding.tag7,
+            createdAt: embedding.createdAt,
+            updatedAt: embedding.updatedAt,
+          })
+          .from(embedding)
+          .where(eq(embedding.id, chunkId))
+          .limit(1)
+
+        logger.info(
+          `[${requestId}] Updated chunk: ${chunkId}${regenerated ? ' (regenerated embedding)' : ''}`
         )
 
-        dbUpdateData.content = content
-        dbUpdateData.contentLength = newContentLength
-        dbUpdateData.tokenCount = tokenCount.count
-        dbUpdateData.chunkHash = sha256Hex(content)
-        // Add the embedding field to the update data
-        dbUpdateData.embedding = embeddings[0]
-      } else {
-        // Content hasn't changed, just update other fields if needed
-        dbUpdateData.content = content
-        dbUpdateData.contentLength = newContentLength
-        dbUpdateData.tokenCount = oldTokenCount // Keep the same token count if content is identical
-        dbUpdateData.chunkHash = sha256Hex(content)
+        return updatedChunk[0] as ChunkData
+      })
+
+      if (result) {
+        return result
       }
+    }
 
-      if (updateData.enabled !== undefined) {
-        dbUpdateData.enabled = updateData.enabled
-      }
-
-      // Update the chunk
-      await tx.update(embedding).set(dbUpdateData).where(eq(embedding.id, chunkId))
-
-      // Update document statistics for the character and token count changes
-      const charDiff = newContentLength - oldContentLength
-      const tokenDiff = dbUpdateData.tokenCount! - oldTokenCount
-
-      await tx
-        .update(document)
-        .set({
-          characterCount: sql`${document.characterCount} + ${charDiff}`,
-          tokenCount: sql`${document.tokenCount} + ${tokenDiff}`,
-        })
-        .where(eq(document.id, currentChunk[0].documentId))
-
-      // Fetch and return the updated chunk
-      const updatedChunk = await tx
-        .select({
-          id: embedding.id,
-          chunkIndex: embedding.chunkIndex,
-          content: embedding.content,
-          contentLength: embedding.contentLength,
-          tokenCount: embedding.tokenCount,
-          enabled: embedding.enabled,
-          startOffset: embedding.startOffset,
-          endOffset: embedding.endOffset,
-          tag1: embedding.tag1,
-          tag2: embedding.tag2,
-          tag3: embedding.tag3,
-          tag4: embedding.tag4,
-          tag5: embedding.tag5,
-          tag6: embedding.tag6,
-          tag7: embedding.tag7,
-          createdAt: embedding.createdAt,
-          updatedAt: embedding.updatedAt,
-        })
-        .from(embedding)
-        .where(eq(embedding.id, chunkId))
-        .limit(1)
-
-      logger.info(
-        `[${requestId}] Updated chunk: ${chunkId}${updateData.content !== currentChunk[0].content ? ' (regenerated embedding)' : ''}`
-      )
-
-      return updatedChunk[0] as ChunkData
-    })
+    throw new Error(
+      `Chunk ${chunkId} was concurrently modified ${MAX_UPDATE_ATTEMPTS} times; retry the update`
+    )
   }
 
   // If only enabled status is being updated, no need for transaction
-  if (updateData.enabled !== undefined) {
-    dbUpdateData.enabled = updateData.enabled
-  }
-
-  await db.update(embedding).set(dbUpdateData).where(eq(embedding.id, chunkId))
+  await db
+    .update(embedding)
+    .set({
+      updatedAt: new Date(),
+      ...(updateData.enabled !== undefined ? { enabled: updateData.enabled } : {}),
+    })
+    .where(eq(embedding.id, chunkId))
 
   // Fetch the updated chunk
   const updatedChunk = await db

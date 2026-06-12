@@ -50,6 +50,10 @@ vi.mock('@/lib/billing/core/usage', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({
   recordUsage: vi.fn(() => Promise.resolve()),
   stableEventKey: vi.fn((parts: Record<string, unknown>) => JSON.stringify(parts)),
+  deriveBillingContext: vi.fn((userId: string) => ({
+    billingEntity: { type: 'user', id: userId },
+    billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
+  })),
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
