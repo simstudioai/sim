@@ -15667,6 +15667,141 @@
       "tags": ["cloud"]
     },
     {
+      "type": "vanta",
+      "slug": "vanta",
+      "name": "Vanta",
+      "description": "Query compliance status and manage evidence in Vanta",
+      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.",
+      "bgColor": "#F8F4F3",
+      "iconName": "VantaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/vanta",
+      "operations": [
+        {
+          "name": "List Frameworks",
+          "description": "List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts"
+        },
+        {
+          "name": "Get Framework",
+          "description": "Get a Vanta compliance framework by ID, including its requirement categories and mapped controls"
+        },
+        {
+          "name": "List Framework Controls",
+          "description": "List the controls that belong to a specific Vanta compliance framework"
+        },
+        {
+          "name": "List Controls",
+          "description": "List the security controls in a Vanta account, optionally filtered by framework"
+        },
+        {
+          "name": "Get Control",
+          "description": "Get a Vanta security control by ID, including its status and evidence pass/fail counts"
+        },
+        {
+          "name": "List Control Tests",
+          "description": "List the automated tests mapped to a specific Vanta control"
+        },
+        {
+          "name": "List Control Documents",
+          "description": "List the evidence documents mapped to a specific Vanta control"
+        },
+        {
+          "name": "List Tests",
+          "description": "List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category"
+        },
+        {
+          "name": "Get Test",
+          "description": "Get a Vanta automated compliance test by ID, including its status and remediation info"
+        },
+        {
+          "name": "List Test Entities",
+          "description": "List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation"
+        },
+        {
+          "name": "List Documents",
+          "description": "List the evidence documents in a Vanta account, optionally filtered by framework or document status"
+        },
+        {
+          "name": "Get Document",
+          "description": "Get a Vanta evidence document by ID, including its renewal schedule and deactivation status"
+        },
+        {
+          "name": "List Document Uploads",
+          "description": "List the files uploaded to a specific Vanta evidence document"
+        },
+        {
+          "name": "Upload Document File",
+          "description": "Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope."
+        },
+        {
+          "name": "Download Document File",
+          "description": "Download a file previously uploaded to a Vanta evidence document and store it in execution files"
+        },
+        {
+          "name": "Submit Document",
+          "description": "Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access."
+        },
+        {
+          "name": "List People",
+          "description": "List the people tracked in a Vanta account with employment status, group membership, and security task completion"
+        },
+        {
+          "name": "Get Person",
+          "description": "Get a person tracked in Vanta by ID, including employment, leave, and security task status"
+        },
+        {
+          "name": "List Policies",
+          "description": "List the security policies in a Vanta account with approval status and version info"
+        },
+        {
+          "name": "Get Policy",
+          "description": "Get a Vanta security policy by ID, including its approval status and latest approved version documents"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules"
+        },
+        {
+          "name": "Get Vendor",
+          "description": "Get a Vanta vendor by ID, including risk levels, contract details, and authentication info"
+        },
+        {
+          "name": "List Monitored Computers",
+          "description": "List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes"
+        },
+        {
+          "name": "List Vulnerabilities",
+          "description": "List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration"
+        },
+        {
+          "name": "List Vulnerability Remediations",
+          "description": "List remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates"
+        },
+        {
+          "name": "List Vulnerable Assets",
+          "description": "List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)"
+        },
+        {
+          "name": "Get Vulnerable Asset",
+          "description": "Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details"
+        },
+        {
+          "name": "List Risk Scenarios",
+          "description": "List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status"
+        },
+        {
+          "name": "Get Risk Scenario",
+          "description": "Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status"
+        }
+      ],
+      "operationCount": 29,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["monitoring", "automation", "document-processing"]
+    },
+    {
       "type": "vercel",
       "slug": "vercel",
       "name": "Vercel",
