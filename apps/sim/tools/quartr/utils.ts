@@ -29,9 +29,11 @@ export const QUARTR_API_BASE_URL = 'https://api.quartr.com/public/v3'
  * Normalizes a comma-separated list value by trimming whitespace around each
  * entry, since the Quartr API expects lists without blank spaces.
  */
-function normalizeCommaList(value: string | undefined): string | undefined {
-  if (!value) return undefined
-  const normalized = value
+export function normalizeQuartrCommaList(
+  value: string | number | null | undefined
+): string | undefined {
+  if (value == null || value === '') return undefined
+  const normalized = String(value)
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean)
@@ -40,16 +42,24 @@ function normalizeCommaList(value: string | undefined): string | undefined {
 }
 
 /**
+ * Interprets a boolean-ish tool param, accepting boolean true or the string
+ * "true" (agent tool configuration serializes switch values as strings).
+ */
+export function isQuartrToggleEnabled(value: boolean | string | null | undefined): boolean {
+  return value === true || value === 'true'
+}
+
+/**
  * Builds a Quartr API URL, appending only query parameters that have a value.
  */
 export function buildQuartrUrl(
   path: string,
-  query?: Record<string, string | number | boolean | undefined>
+  query?: Record<string, string | number | boolean | null | undefined>
 ): string {
   const url = new URL(`${QUARTR_API_BASE_URL}${path}`)
   if (query) {
     for (const [key, value] of Object.entries(query)) {
-      if (value === undefined || value === '') continue
+      if (value == null || value === '') continue
       url.searchParams.set(key, String(value))
     }
   }
@@ -64,24 +74,17 @@ export function buildQuartrListQuery(
   params: QuartrCompanyFilterParams & QuartrPaginationParams & QuartrUpdatedRangeParams
 ): Record<string, string | number | boolean | undefined> {
   return {
-    tickers: normalizeCommaList(params.tickers),
-    isins: normalizeCommaList(params.isins),
-    ciks: normalizeCommaList(params.ciks),
-    countries: normalizeCommaList(params.countries),
-    exchanges: normalizeCommaList(params.exchanges),
+    tickers: normalizeQuartrCommaList(params.tickers),
+    isins: normalizeQuartrCommaList(params.isins),
+    ciks: normalizeQuartrCommaList(params.ciks),
+    countries: normalizeQuartrCommaList(params.countries),
+    exchanges: normalizeQuartrCommaList(params.exchanges),
     limit: params.limit,
     cursor: params.cursor,
     direction: params.direction,
     updatedAfter: params.updatedAfter,
     updatedBefore: params.updatedBefore,
   }
-}
-
-/**
- * Normalizes a comma-separated identifier list for query usage.
- */
-export function normalizeQuartrIdList(value: string | undefined): string | undefined {
-  return normalizeCommaList(value)
 }
 
 /**
@@ -93,13 +96,13 @@ export function buildQuartrDocumentListQuery(
 ): Record<string, string | number | boolean | undefined> {
   return {
     ...buildQuartrListQuery(params),
-    companyIds: normalizeCommaList(params.companyIds),
-    eventIds: normalizeCommaList(params.eventIds),
-    typeIds: normalizeCommaList(params.documentTypeIds),
-    documentGroupIds: normalizeCommaList(params.documentGroupIds),
+    companyIds: normalizeQuartrCommaList(params.companyIds),
+    eventIds: normalizeQuartrCommaList(params.eventIds),
+    typeIds: normalizeQuartrCommaList(params.documentTypeIds),
+    documentGroupIds: normalizeQuartrCommaList(params.documentGroupIds),
     startDate: params.startDate,
     endDate: params.endDate,
-    expand: params.expandEvent === true ? 'event' : undefined,
+    expand: isQuartrToggleEnabled(params.expandEvent) ? 'event' : undefined,
   }
 }
 
@@ -116,9 +119,21 @@ export async function parseQuartrResponse<T>(response: Response, operation: stri
   }
 
   if (!response.ok) {
-    const body = data as { message?: string | string[]; error?: string } | undefined
+    const body = data as
+      | { message?: string | Array<string | { field?: string; message?: string }>; error?: string }
+      | undefined
     const rawMessage = body?.message ?? body?.error ?? `HTTP ${response.status}`
-    const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : rawMessage
+    const message = Array.isArray(rawMessage)
+      ? rawMessage
+          .map((entry) => {
+            if (typeof entry === 'string') return entry
+            if (typeof entry?.message === 'string') {
+              return entry.field ? `${entry.field}: ${entry.message}` : entry.message
+            }
+            return JSON.stringify(entry)
+          })
+          .join('; ')
+      : rawMessage
     throw new Error(`Quartr ${operation} failed (${response.status}): ${message}`)
   }
 

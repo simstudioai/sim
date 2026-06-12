@@ -8,8 +8,9 @@ import {
 import {
   buildQuartrListQuery,
   buildQuartrUrl,
+  isQuartrToggleEnabled,
   mapQuartrAudio,
-  normalizeQuartrIdList,
+  normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -105,7 +106,7 @@ export const quartrListAudioTool: ToolConfig<QuartrListAudioParams, QuartrListAu
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return in a single request (default: 10)',
+      description: 'Maximum number of items to return in a single request (default: 10, max: 500)',
     },
     cursor: {
       type: 'number',
@@ -125,11 +126,11 @@ export const quartrListAudioTool: ToolConfig<QuartrListAudioParams, QuartrListAu
     url: (params) =>
       buildQuartrUrl('/audio', {
         ...buildQuartrListQuery(params),
-        companyIds: normalizeQuartrIdList(params.companyIds),
-        eventIds: normalizeQuartrIdList(params.eventIds),
+        companyIds: normalizeQuartrCommaList(params.companyIds),
+        eventIds: normalizeQuartrCommaList(params.eventIds),
         startDate: params.startDate,
         endDate: params.endDate,
-        expand: params.expandEvent === true ? 'event' : undefined,
+        expand: isQuartrToggleEnabled(params.expandEvent) ? 'event' : undefined,
       }),
     method: 'GET',
     headers: (params) => ({ 'x-api-key': params.apiKey }),

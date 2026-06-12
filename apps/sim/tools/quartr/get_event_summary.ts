@@ -5,7 +5,12 @@ import {
   type QuartrSingleDto,
   type QuartrSummaryDto,
 } from '@/tools/quartr/types'
-import { buildQuartrUrl, mapQuartrSummarySource, parseQuartrResponse } from '@/tools/quartr/utils'
+import {
+  buildQuartrUrl,
+  isQuartrToggleEnabled,
+  mapQuartrSummarySource,
+  parseQuartrResponse,
+} from '@/tools/quartr/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetEventSummaryTool: ToolConfig<
@@ -49,7 +54,7 @@ export const quartrGetEventSummaryTool: ToolConfig<
     url: (params) =>
       buildQuartrUrl(`/events/${encodeURIComponent(String(params.eventId).trim())}/summary`, {
         length: params.summaryLength,
-        plain: params.plainSummary === true ? true : undefined,
+        plain: isQuartrToggleEnabled(params.plainSummary) ? true : undefined,
       }),
     method: 'GET',
     headers: (params) => ({ 'x-api-key': params.apiKey }),
@@ -77,7 +82,8 @@ export const quartrGetEventSummaryTool: ToolConfig<
   outputs: {
     summary: {
       type: 'string',
-      description: 'AI-generated event summary in Markdown',
+      description:
+        'AI-generated event summary in Markdown (includes embedded document source tags unless a plain-text summary is requested)',
     },
     sources: {
       type: 'array',

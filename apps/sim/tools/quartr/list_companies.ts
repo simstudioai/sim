@@ -9,7 +9,7 @@ import {
   buildQuartrListQuery,
   buildQuartrUrl,
   mapQuartrCompany,
-  normalizeQuartrIdList,
+  normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -91,7 +91,7 @@ export const quartrListCompaniesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return in a single request (default: 10)',
+      description: 'Maximum number of items to return in a single request (default: 10, max: 500)',
     },
     cursor: {
       type: 'number',
@@ -111,8 +111,8 @@ export const quartrListCompaniesTool: ToolConfig<
     url: (params) =>
       buildQuartrUrl('/companies', {
         ...buildQuartrListQuery(params),
-        ids: normalizeQuartrIdList(params.companyIds),
-        openfigis: normalizeQuartrIdList(params.openfigis),
+        ids: normalizeQuartrCommaList(params.companyIds),
+        openfigis: normalizeQuartrCommaList(params.openfigis),
       }),
     method: 'GET',
     headers: (params) => ({ 'x-api-key': params.apiKey }),

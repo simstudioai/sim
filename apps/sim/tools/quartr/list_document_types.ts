@@ -29,7 +29,7 @@ export const quartrListDocumentTypesTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return in a single request (default: 10)',
+      description: 'Maximum number of items to return in a single request (default: 10, max: 500)',
     },
     cursor: {
       type: 'number',

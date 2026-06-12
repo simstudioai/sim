@@ -43,6 +43,8 @@ const DATE_RANGE_LIST_OPERATIONS = [
   'list_live_events',
 ]
 
+const UPDATED_RANGE_LIST_OPERATIONS = ['list_companies', ...DATE_RANGE_LIST_OPERATIONS]
+
 export const QuartrBlock: BlockConfig<ToolResponse> = {
   type: 'quartr',
   name: 'Quartr',
@@ -302,7 +304,7 @@ export const QuartrBlock: BlockConfig<ToolResponse> = {
       title: 'Updated After',
       type: 'short-input',
       placeholder: 'ISO 8601 date (e.g., 2024-01-01)',
-      condition: { field: 'operation', value: ALL_LIST_OPERATIONS },
+      condition: { field: 'operation', value: UPDATED_RANGE_LIST_OPERATIONS },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -316,7 +318,7 @@ export const QuartrBlock: BlockConfig<ToolResponse> = {
       title: 'Updated Before',
       type: 'short-input',
       placeholder: 'ISO 8601 date (e.g., 2024-12-31)',
-      condition: { field: 'operation', value: ALL_LIST_OPERATIONS },
+      condition: { field: 'operation', value: UPDATED_RANGE_LIST_OPERATIONS },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
@@ -443,7 +445,8 @@ export const QuartrBlock: BlockConfig<ToolResponse> = {
     },
     summary: {
       type: 'string',
-      description: 'AI-generated event summary in Markdown',
+      description:
+        'AI-generated event summary in Markdown (includes embedded document source tags unless a plain-text summary is requested)',
       condition: { field: 'operation', value: 'get_event_summary' },
     },
     sources: {

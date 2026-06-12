@@ -324,7 +324,7 @@ export interface QuartrGetEventSummaryParams {
   apiKey: string
   eventId: number | string
   summaryLength?: string
-  plainSummary?: boolean
+  plainSummary?: boolean | string
 }
 
 export interface QuartrListEventTypesParams extends QuartrPaginationParams {
@@ -347,7 +347,7 @@ export interface QuartrListDocumentsParams
   documentGroupIds?: string
   startDate?: string
   endDate?: string
-  expandEvent?: boolean
+  expandEvent?: boolean | string
 }
 
 export interface QuartrGetReportParams {
@@ -374,7 +374,7 @@ export interface QuartrListAudioParams
   eventIds?: string
   startDate?: string
   endDate?: string
-  expandEvent?: boolean
+  expandEvent?: boolean | string
 }
 
 export interface QuartrGetAudioParams {
@@ -634,7 +634,7 @@ export const QUARTR_LIVE_EVENT_OUTPUT_PROPERTIES = {
   state: {
     type: 'string',
     description:
-      'Live state (notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, recordingAvailable)',
+      'Live state (notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable)',
     nullable: true,
   },
   audio: {

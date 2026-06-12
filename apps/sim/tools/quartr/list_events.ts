@@ -9,7 +9,7 @@ import {
   buildQuartrListQuery,
   buildQuartrUrl,
   mapQuartrEvent,
-  normalizeQuartrIdList,
+  normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -105,7 +105,7 @@ export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrList
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return in a single request (default: 10)',
+      description: 'Maximum number of items to return in a single request (default: 10, max: 500)',
     },
     cursor: {
       type: 'number',
@@ -117,7 +117,7 @@ export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrList
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Sort direction by id: "asc" or "desc" (default: asc)',
+      description: 'Sort direction applied to the sortBy field: "asc" or "desc" (default: asc)',
     },
   },
 
@@ -125,8 +125,8 @@ export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrList
     url: (params) =>
       buildQuartrUrl('/events', {
         ...buildQuartrListQuery(params),
-        companyIds: normalizeQuartrIdList(params.companyIds),
-        typeIds: normalizeQuartrIdList(params.eventTypeIds),
+        companyIds: normalizeQuartrCommaList(params.companyIds),
+        typeIds: normalizeQuartrCommaList(params.eventTypeIds),
         startDate: params.startDate,
         endDate: params.endDate,
         sortBy: params.sortBy,

@@ -55,7 +55,7 @@ List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, cou
 | `openfigis` | string | No | Comma-separated list of OpenFIGI codes \(figi, compositeFigi, or shareClassFigi\) |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -130,9 +130,9 @@ List corporate events (earnings calls, capital markets days, etc.) from Quartr, 
 | `sortBy` | string | No | Field to sort by: "id" or "date" \(default: id\) |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
-| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+| `direction` | string | No | Sort direction applied to the sortBy field: "asc" or "desc" \(default: asc\) |
 
 #### Output
 
@@ -197,7 +197,7 @@ Retrieve the AI-generated summary of a corporate event from Quartr, with selecta
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `summary` | string | AI-generated event summary in Markdown |
+| `summary` | string | AI-generated event summary in Markdown \(includes embedded document source tags unless a plain-text summary is requested\) |
 | `sources` | array | Source documents referenced by the summary |
 |   ↳ `sourceId` | string | ID linking the source document to tags embedded in the summary |
 |   ↳ `documentId` | number | Quartr document ID of the source |
@@ -217,7 +217,7 @@ List the event types available in Quartr (e.g., earnings calls), useful for filt
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Quartr API key |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -256,7 +256,7 @@ List documents of all kinds (reports, slide decks, and transcripts) from Quartr,
 | `expandEvent` | boolean | No | Include expanded event details on each document |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -290,7 +290,7 @@ List the document types available in Quartr (e.g., 10-Q quarterly reports), usef
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Quartr API key |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -332,7 +332,7 @@ List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filt
 | `expandEvent` | boolean | No | Include expanded event details on each document |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -413,7 +413,7 @@ List slide presentations from Quartr, filterable by company, event, document typ
 | `expandEvent` | boolean | No | Include expanded event details on each document |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -494,7 +494,7 @@ List event transcripts from Quartr, filterable by company, event, document type,
 | `expandEvent` | boolean | No | Include expanded event details on each document |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -573,7 +573,7 @@ List archived event audio recordings from Quartr, filterable by company, event, 
 | `expandEvent` | boolean | No | Include expanded event details on each audio recording |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -657,13 +657,13 @@ List live and upcoming events from Quartr with live audio and transcript stream 
 | `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
 | `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
 | `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
-| `states` | string | No | Comma-separated list of live states to filter by: notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess |
+| `states` | string | No | Comma-separated list of live states to filter by: notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable |
 | `startDate` | string | No | Only return events on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `endDate` | string | No | Only return events on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
 | `transcriptVersion` | string | No | Version of the live transcript stream: "1.6" or "1.7" \(default: 1.6\) |
 | `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
 | `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
-| `limit` | number | No | Maximum number of items to return in a single request \(default: 10\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
 | `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
 | `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
 
@@ -677,7 +677,7 @@ List live and upcoming events from Quartr with live audio and transcript stream 
 |   ↳ `companyId` | number | Quartr company ID |
 |   ↳ `date` | string | Scheduled event date \(ISO 8601\) |
 |   ↳ `wentLiveAt` | string | Timestamp when the event went live \(ISO 8601\) |
-|   ↳ `state` | string | Live state \(notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, recordingAvailable\) |
+|   ↳ `state` | string | Live state \(notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable\) |
 |   ↳ `audio` | string | URL of the live audio stream or recording |
 |   ↳ `transcript` | string | URL of the live transcript stream \(JSON Lines\) |
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |

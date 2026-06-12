@@ -9,7 +9,7 @@ import {
   buildQuartrListQuery,
   buildQuartrUrl,
   mapQuartrLiveEvent,
-  normalizeQuartrIdList,
+  normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -79,7 +79,7 @@ export const quartrListLiveEventsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of live states to filter by: notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess',
+        'Comma-separated list of live states to filter by: notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable',
     },
     startDate: {
       type: 'string',
@@ -115,7 +115,7 @@ export const quartrListLiveEventsTool: ToolConfig<
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Maximum number of items to return in a single request (default: 10)',
+      description: 'Maximum number of items to return in a single request (default: 10, max: 500)',
     },
     cursor: {
       type: 'number',
@@ -135,9 +135,9 @@ export const quartrListLiveEventsTool: ToolConfig<
     url: (params) =>
       buildQuartrUrl('/live', {
         ...buildQuartrListQuery(params),
-        companyIds: normalizeQuartrIdList(params.companyIds),
-        eventIds: normalizeQuartrIdList(params.eventIds),
-        states: normalizeQuartrIdList(params.states),
+        companyIds: normalizeQuartrCommaList(params.companyIds),
+        eventIds: normalizeQuartrCommaList(params.eventIds),
+        states: normalizeQuartrCommaList(params.states),
         startDate: params.startDate,
         endDate: params.endDate,
         transcriptVersion: params.transcriptVersion,
