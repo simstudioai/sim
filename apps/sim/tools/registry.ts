@@ -523,6 +523,15 @@ import {
   confluenceUploadAttachmentTool,
 } from '@/tools/confluence'
 import {
+  convexActionTool,
+  convexDocumentDeltasTool,
+  convexListDocumentsTool,
+  convexListTablesTool,
+  convexMutationTool,
+  convexQueryTool,
+  convexRunFunctionTool,
+} from '@/tools/convex'
+import {
   crowdstrikeGetSensorAggregatesTool,
   crowdstrikeGetSensorDetailsTool,
   crowdstrikeQuerySensorsTool,
@@ -4480,6 +4489,13 @@ export const tools: Record<string, ToolConfig> = {
   codepipeline_retry_stage_execution: codepipelineRetryStageExecutionTool,
   codepipeline_start_execution: codepipelineStartExecutionTool,
   codepipeline_stop_execution: codepipelineStopExecutionTool,
+  convex_query: convexQueryTool,
+  convex_mutation: convexMutationTool,
+  convex_action: convexActionTool,
+  convex_run_function: convexRunFunctionTool,
+  convex_list_tables: convexListTablesTool,
+  convex_list_documents: convexListDocumentsTool,
+  convex_document_deltas: convexDocumentDeltasTool,
   crowdstrike_get_sensor_aggregates: crowdstrikeGetSensorAggregatesTool,
   crowdstrike_get_sensor_details: crowdstrikeGetSensorDetailsTool,
   crowdstrike_query_sensors: crowdstrikeQuerySensorsTool,
