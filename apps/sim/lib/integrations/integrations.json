@@ -11645,6 +11645,93 @@
       "tags": ["vector-search", "knowledge-base"]
     },
     {
+      "type": "quartr",
+      "slug": "quartr",
+      "name": "Quartr",
+      "description": "Access earnings calls, transcripts, filings, and slides",
+      "longDescription": "Integrate Quartr into the workflow. Look up public companies, corporate events, and event types; fetch AI-generated event summaries; list and download filings, reports, slide decks, and transcripts; and access archived audio and live event streams. Requires API Key.",
+      "bgColor": "#000000",
+      "iconName": "QuartrIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/quartr",
+      "operations": [
+        {
+          "name": "List Companies",
+          "description": "List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange."
+        },
+        {
+          "name": "Get Company",
+          "description": "Retrieve a single company from Quartr by its company ID."
+        },
+        {
+          "name": "List Events",
+          "description": "List corporate events (earnings calls, capital markets days, etc.) from Quartr, filterable by company, event type, and date range."
+        },
+        {
+          "name": "Get Event",
+          "description": "Retrieve a single corporate event from Quartr by its event ID."
+        },
+        {
+          "name": "Get Event Summary",
+          "description": "Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting."
+        },
+        {
+          "name": "List Event Types",
+          "description": "List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID."
+        },
+        {
+          "name": "List Documents",
+          "description": "List documents of all kinds (reports, slide decks, and transcripts) from Quartr, filterable by company, event, document type, document group, and date range."
+        },
+        {
+          "name": "List Document Types",
+          "description": "List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID."
+        },
+        {
+          "name": "List Reports",
+          "description": "List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filterable by company, event, document type, document group, and date range."
+        },
+        {
+          "name": "Get Report",
+          "description": "Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file."
+        },
+        {
+          "name": "List Slide Decks",
+          "description": "List slide presentations from Quartr, filterable by company, event, document type, document group, and date range."
+        },
+        {
+          "name": "Get Slide Deck",
+          "description": "Retrieve a slide presentation from Quartr by its document ID and download the PDF file."
+        },
+        {
+          "name": "List Transcripts",
+          "description": "List event transcripts from Quartr, filterable by company, event, document type, document group, and date range."
+        },
+        {
+          "name": "Get Transcript",
+          "description": "Retrieve an event transcript from Quartr by its document ID and download the transcript JSON file (paragraphs, sentences, timestamps, and speaker identification)."
+        },
+        {
+          "name": "List Audio",
+          "description": "List archived event audio recordings from Quartr, filterable by company, event, and date range. Returns download (MPEG) and streaming (M3U8) URLs."
+        },
+        {
+          "name": "Get Audio",
+          "description": "Retrieve an archived event audio recording from Quartr by its audio ID. Returns download (MPEG) and streaming (M3U8) URLs."
+        },
+        {
+          "name": "List Live Events",
+          "description": "List live and upcoming events from Quartr with live audio and transcript stream URLs, filterable by company, live state, and date range."
+        }
+      ],
+      "operationCount": 17,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics", "enrichment", "document-processing"]
+    },
+    {
       "type": "quiver",
       "slug": "quiver",
       "name": "Quiver",
