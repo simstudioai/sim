@@ -809,7 +809,7 @@ export function Table({
         title='Delete rows'
         description={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
-        }${queryOptions.filter ? ' matching the current filter' : ''}? This runs in the background and can't be undone.`}
+        }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
         confirm={{
           label: 'Delete',
           pending: deleteRowsAsyncMutation.isPending,
