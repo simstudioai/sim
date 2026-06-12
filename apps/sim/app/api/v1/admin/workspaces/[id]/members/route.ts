@@ -47,6 +47,7 @@ import {
   adminV1ListWorkspaceMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -247,7 +248,12 @@ export const POST = withRouteHandler(
         updatedAt: now,
       })
 
-      await applyWorkspaceAutoAddGroup(db, workspaceId, userId)
+      await applyWorkspaceAutoAddGroup(
+        db,
+        workspaceId,
+        userId,
+        await isWorkspaceOnEnterprisePlan(workspaceId)
+      )
 
       logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
         permissions: permissionLevel,

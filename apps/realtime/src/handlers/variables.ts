@@ -118,7 +118,7 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
           socket.emit('operation-failed', {
             operationId,
             error: 'User session not found',
-            retryable: false,
+            retryable: true,
           })
         }
         return
@@ -236,7 +236,7 @@ async function flushVariableUpdate(
         io.to(socketId).emit('operation-failed', {
           operationId: opId,
           error: 'Workflow not found',
-          retryable: false,
+          retryable: true,
         })
       })
       return
@@ -318,7 +318,7 @@ async function flushVariableUpdate(
         io.to(socketId).emit('operation-failed', {
           operationId: opId,
           error: 'Variable no longer exists',
-          retryable: false,
+          retryable: true,
         })
       })
     }

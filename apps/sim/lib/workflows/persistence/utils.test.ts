@@ -95,6 +95,7 @@ const { mockDb, mockWorkflowBlocks, mockWorkflowEdges, mockWorkflowSubflows } = 
 
 vi.mock('@sim/db', () => ({
   db: mockDb,
+  runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
   workflowBlocks: mockWorkflowBlocks,
   workflowEdges: mockWorkflowEdges,
   workflowSubflows: mockWorkflowSubflows,

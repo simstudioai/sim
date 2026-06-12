@@ -138,17 +138,25 @@ export async function getDeployedWorkflowInputFormat(
   return extractInputFormatFromBlocks(deployed.blocks as Record<string, unknown>) ?? []
 }
 
-interface SyncOptions {
+interface SyncOptionsBase {
   workflowId: string
   requestId: string
-  /** If provided, use this state instead of loading from DB */
-  state?: { blocks?: Record<string, unknown> }
   /** Context for logging (e.g., 'deploy', 'revert', 'activate') */
   context?: string
-  tx?: DbOrTx
   notify?: boolean
   throwOnError?: boolean
 }
+
+/**
+ * Callers running inside a transaction must preload the workflow state:
+ * loading it lazily would issue queries on the global pool while the
+ * transaction already holds a pooled connection.
+ */
+type SyncOptions = SyncOptionsBase &
+  (
+    | { tx: DbOrTx; state: { blocks?: Record<string, unknown> } }
+    | { tx?: undefined; state?: { blocks?: Record<string, unknown> } }
+  )
 
 /**
  * Sync MCP tools for a workflow with the latest parameter schema.
@@ -164,8 +172,22 @@ export async function syncMcpToolsForWorkflow(
   options: SyncOptions
 ): Promise<Array<{ serverId: string }>> {
   if (!options.tx) {
+    let state = options.state
+    if (!state) {
+      try {
+        state = await loadDeployedWorkflowState(options.workflowId)
+      } catch (error) {
+        logger.error(
+          `[${options.requestId}] Error loading deployed state for MCP tool sync (${options.context ?? 'sync'}):`,
+          error
+        )
+        if (options.throwOnError) throw error
+        return []
+      }
+    }
+    const resolvedState = state
     const tools = await db.transaction((tx) =>
-      syncMcpToolsForWorkflow({ ...options, tx, notify: false })
+      syncMcpToolsForWorkflow({ ...options, state: resolvedState, tx, notify: false })
     )
     if (options.notify ?? true) notifyMcpToolServers(tools)
     return tools
@@ -182,19 +204,14 @@ export async function syncMcpToolsForWorkflow(
   } = options
 
   try {
-    let workflowState: { blocks?: Record<string, unknown> } | null = state ?? null
-    if (!workflowState) {
-      workflowState = await loadDeployedWorkflowState(workflowId)
-    }
-
-    if (!hasValidStartBlockInState(workflowState as WorkflowState | null)) {
+    if (!hasValidStartBlockInState(state as WorkflowState | null)) {
       const affectedTools = await removeMcpToolsForWorkflow(workflowId, requestId, tx, false, true)
       if (notify) notifyMcpToolServers(affectedTools)
       return affectedTools
     }
 
-    const generatedParameterSchema = workflowState?.blocks
-      ? generateSchemaFromBlocks(workflowState.blocks)
+    const generatedParameterSchema = state.blocks
+      ? generateSchemaFromBlocks(state.blocks)
       : EMPTY_SCHEMA
     const schemaLimitError = validateMcpToolMetadataForStorage({
       parameterSchema: generatedParameterSchema,

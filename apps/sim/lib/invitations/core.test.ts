@@ -15,6 +15,7 @@ const {
   mockSyncUsageLimitsFromSubscription,
   mockSyncWorkspaceEnvCredentials,
   mockApplyWorkspaceAutoAddGroup,
+  mockIsWorkspaceOnEnterprisePlan,
   mockFeatureFlags,
 } = vi.hoisted(() => ({
   mockEnsureUserInOrganization: vi.fn(),
@@ -27,6 +28,7 @@ const {
   mockSyncUsageLimitsFromSubscription: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
   mockApplyWorkspaceAutoAddGroup: vi.fn(),
+  mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
   mockFeatureFlags: { isBillingEnabled: true },
 }))
 
@@ -58,6 +60,10 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 
 vi.mock('@/lib/auth/active-organization', () => ({
   setActiveOrganizationForCurrentSession: mockSetActiveOrganizationForCurrentSession,
+}))
+
+vi.mock('@/lib/billing/core/subscription', () => ({
+  isWorkspaceOnEnterprisePlan: mockIsWorkspaceOnEnterprisePlan,
 }))
 
 vi.mock('@/lib/billing/core/usage', () => ({
