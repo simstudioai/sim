@@ -1,3 +1,4 @@
+export { PanelEmptyState } from './panel-empty-state'
 export {
   PANEL_HEADER_GAP_CLASS,
   PANEL_ICON_BUTTON_CLASS,

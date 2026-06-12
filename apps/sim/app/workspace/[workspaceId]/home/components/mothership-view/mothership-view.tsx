@@ -16,7 +16,13 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { PanelHeader, PanelTrailingControls, ResourceActions, ResourceContent } from './components'
+import {
+  PanelEmptyState,
+  PanelHeader,
+  PanelTrailingControls,
+  ResourceActions,
+  ResourceContent,
+} from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',
@@ -156,6 +162,10 @@ export const MothershipView = memo(
             ) : (
               content
             )}
+            {/* Opened with nothing staged: a quick-open surface instead of a
+                blank pane. Gated on the expanded state so the hidden panel
+                never mounts it. */}
+            {!active && !isCollapsed && <PanelEmptyState workspaceId={workspaceId} />}
           </div>
         </div>
       </div>

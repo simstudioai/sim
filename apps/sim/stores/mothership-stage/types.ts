@@ -3,6 +3,12 @@ import type { MothershipResource } from '@/lib/copilot/resources/types'
 /** A workspace's staged resource: the single thing the panel is showing. */
 export interface WorkspaceStageState {
   resource: MothershipResource | null
+  /**
+   * Most-recently staged resources, newest first (deduped by `type:id`,
+   * capped). Feeds the panel's empty state so reopening something the chat
+   * or the user recently had on stage is one click.
+   */
+  recents: MothershipResource[]
 }
 
 /**
