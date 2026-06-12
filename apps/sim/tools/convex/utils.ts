@@ -1,4 +1,5 @@
 import { truncate } from '@sim/utils/string'
+import { validateExternalUrl } from '@/lib/core/security/input-validation'
 import type {
   ConvexFunctionCallApiResponse,
   ConvexFunctionCallResponse,
@@ -7,13 +8,16 @@ import type {
 /**
  * Builds a Convex deployment API URL from the user-provided deployment URL.
  * Accepts URLs with or without a trailing slash.
+ *
+ * The deployment URL is validated with the shared SSRF guard so invalid hosts
+ * fail fast with a clear message; the tool executor additionally re-validates
+ * with DNS resolution and pins the resolved IP for the actual request.
  */
 export function convexApiUrl(deploymentUrl: string, path: string): string {
   const trimmed = deploymentUrl.trim().replace(/\/+$/, '')
-  if (!/^https?:\/\//.test(trimmed)) {
-    throw new Error(
-      'Deployment URL must start with https:// (e.g., https://your-deployment.convex.cloud) or http:// for self-hosted deployments'
-    )
+  const validation = validateExternalUrl(trimmed, 'Deployment URL')
+  if (!validation.isValid) {
+    throw new Error(`${validation.error} (e.g., https://your-deployment.convex.cloud)`)
   }
   return `${trimmed}${path}`
 }
