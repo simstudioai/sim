@@ -25,6 +25,15 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
 
+/** Provider docs for creating the credential, docked bottom-left of each modal. */
+const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://cloud.google.com/iam/docs/keys-create-delete'
+const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
+  'https://support.atlassian.com/user-management/docs/manage-api-tokens-for-service-accounts/'
+
+function openDocs(url: string): void {
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 /**
  * Atlassian site domain hint — surfaced inline when the user types something
  * that doesn't look like `<tenant>.atlassian.net`.
@@ -278,6 +287,10 @@ function GoogleServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryAction={{
+          label: 'Documentation',
+          onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
+        }}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,
@@ -414,6 +427,10 @@ function AtlassianServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryAction={{
+          label: 'Documentation',
+          onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+        }}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,
