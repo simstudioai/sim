@@ -487,6 +487,18 @@ export function getProviderIdFromServiceId(serviceId: string): string {
   return serviceId
 }
 
+/**
+ * Looks up the OAuth service registered under the given service id (the key in
+ * a provider's `services` map). Returns `null` when no provider registers it.
+ */
+export function getServiceConfigByServiceId(serviceId: string): OAuthServiceConfig | null {
+  for (const provider of Object.values(OAUTH_PROVIDERS)) {
+    const service = provider.services[serviceId]
+    if (service) return service
+  }
+  return null
+}
+
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {
   for (const provider of Object.values(OAUTH_PROVIDERS)) {
     for (const [key, service] of Object.entries(provider.services)) {
