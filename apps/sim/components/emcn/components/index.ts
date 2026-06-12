@@ -90,7 +90,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { FieldDivider } from './field-divider/field-divider'
+export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
   InfoCard,
