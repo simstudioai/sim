@@ -122,7 +122,7 @@ export function PanelHeader({
             </Tooltip.Content>
           </Tooltip.Root>
         )}
-        <PanelTrailingControls closeLabel={`Close ${displayName}`} />
+        <PanelTrailingControls />
       </div>
     </div>
   )

@@ -2,51 +2,56 @@
 
 import { Button, Tooltip } from '@/components/emcn'
 import { X } from '@/components/emcn/icons'
-import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import {
   PANEL_ICON_BUTTON_CLASS,
   PANEL_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
 import { ResourcePanelToggle } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/resource-panel-toggle'
 
-interface PanelTrailingControlsProps {
+/**
+ * Inert spacers reserving the panel's trailing controls (close + collapse
+ * toggle) inside a header row. The REAL controls are host-owned overlays
+ * pinned to the panel's top-right corner (see home.tsx) so they exist on
+ * every staged view — including loading skeletons, error states, and views
+ * that render no header at all. Headers only reserve the footprint.
+ */
+export function PanelTrailingControls() {
+  return (
+    <>
+      <span aria-hidden='true' className='block size-[30px] shrink-0' />
+      <ResourcePanelToggle placeholder className='-mr-[9px]' />
+    </>
+  )
+}
+
+interface PanelCloseButtonProps {
   /** Accessible label for the close control (e.g. `Close Tables`). */
-  closeLabel: string
+  label: string
+  onClose: () => void
+  className?: string
 }
 
 /**
- * The resource panel's trailing header controls: the close button that clears
- * the stage, plus the inert spacer reserving the collapse toggle's footprint
- * (the real toggle is absolutely pinned by the host and overlays it). Rendered
- * by {@link PanelHeader}, and injected into an embedded page's own header when
- * that header is the panel's single header.
+ * The panel's real close control — clears the stage (dropping the panel to
+ * its quick-open empty state). Rendered by the host as an overlay beside the
+ * collapse toggle, over the footprint {@link PanelTrailingControls} reserves.
  */
-export function PanelTrailingControls({ closeLabel }: PanelTrailingControlsProps) {
-  const { closeResource } = useMothershipResources()
-
+export function PanelCloseButton({ label, onClose, className }: PanelCloseButtonProps) {
   return (
-    <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            onClick={closeResource}
-            className={PANEL_ICON_BUTTON_CLASS}
-            aria-label={closeLabel}
-          >
-            <X className={PANEL_ICON_CLASS} />
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Close</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      {/* Inert spacer reserving the toggle's exact footprint at the far right.
-          The real, interactive toggle is rendered absolutely in home.tsx and
-          overlays this spot, so it never moves when the panel collapses. Pulled
-          out 9px so the hover pill sits 7px from the edge (equal to its 7px
-          top/bottom gap in the bar). */}
-      <ResourcePanelToggle placeholder className='-mr-[9px]' />
-    </>
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={onClose}
+          className={`${PANEL_ICON_BUTTON_CLASS} ${className ?? ''}`}
+          aria-label={label}
+        >
+          <X className={PANEL_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Close</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }

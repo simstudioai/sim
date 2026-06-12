@@ -165,10 +165,7 @@ export const MothershipView = memo(
           )}
           <div className='min-h-0 flex-1 overflow-hidden'>
             {hasOwnHeader ? (
-              <PanelChromeProvider
-                leading={headerLeading}
-                controls={<PanelTrailingControls closeLabel={`Close ${active?.title ?? 'view'}`} />}
-              >
+              <PanelChromeProvider leading={headerLeading} controls={<PanelTrailingControls />}>
                 {content}
               </PanelChromeProvider>
             ) : (

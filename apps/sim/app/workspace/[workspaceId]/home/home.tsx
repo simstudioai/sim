@@ -50,6 +50,7 @@ import {
   type UserInputHandle,
 } from './components'
 import { ChatTitleBar } from './components/mothership-chat/components/chat-title-bar'
+import { PanelCloseButton } from './components/mothership-view/components/panel-header/panel-trailing-controls'
 import { ResourcePanelToggle } from './components/mothership-view/components/panel-header/resource-panel-toggle'
 import { getMothershipUseChatOptions, useChat, useMothershipResize } from './hooks'
 import type { FileAttachmentForApi, MothershipResource, MothershipResourceType } from './types'
@@ -677,14 +678,25 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
         </MothershipResourcesProvider>
       </div>
 
-      {/* Single, stationary collapse/expand toggle. Lives OUTSIDE the animating
-          panel and is always rendered at the fixed top-right corner, overlaying
-          the header's spacer when open — so it never moves as the panel slides. */}
-      <ResourcePanelToggle
-        isCollapsed={isResourceCollapsed}
-        onToggle={() => (isResourceCollapsed ? setIsResourceCollapsed(false) : collapseResource())}
-        className='absolute top-[7px] right-[7px] z-30'
-      />
+      {/* Stationary panel controls. They live OUTSIDE the animating panel,
+          pinned to the fixed top-right corner over the footprints the header
+          spacers reserve — so close and collapse exist on EVERY staged view
+          (loading skeletons and headerless states included) and never move
+          as the panel slides. */}
+      <div className='absolute top-[7px] right-[7px] z-30 flex items-center gap-1.5'>
+        {displayResource && !isResourceCollapsed && (
+          <PanelCloseButton
+            label={`Close ${displayResource.title || 'view'}`}
+            onClose={closeStagedResource}
+          />
+        )}
+        <ResourcePanelToggle
+          isCollapsed={isResourceCollapsed}
+          onToggle={() =>
+            isResourceCollapsed ? setIsResourceCollapsed(false) : collapseResource()
+          }
+        />
+      </div>
     </div>
   )
 }

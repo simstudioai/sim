@@ -4,5 +4,5 @@ export {
   PANEL_ICON_CLASS,
 } from './panel-controls'
 export { PanelHeader } from './panel-header'
-export { PanelTrailingControls } from './panel-trailing-controls'
+export { PanelCloseButton, PanelTrailingControls } from './panel-trailing-controls'
 export { ResourcePanelToggle } from './resource-panel-toggle'
