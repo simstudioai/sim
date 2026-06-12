@@ -384,11 +384,11 @@ export function useTableUndo({
 
           case 'update-column-type': {
             const type = direction === 'undo' ? action.previousType : action.newType
-            const restoreOptions =
-              direction === 'undo' && type === 'select' && action.previousOptions !== undefined
+            const options = direction === 'undo' ? action.previousOptions : action.newOptions
+            const restoreOptions = type === 'select' && options !== undefined
             updateColumnMutation.mutate({
               columnName: action.columnName,
-              updates: { type, ...(restoreOptions ? { options: action.previousOptions } : {}) },
+              updates: { type, ...(restoreOptions ? { options } : {}) },
             })
             break
           }

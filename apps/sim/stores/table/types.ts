@@ -74,6 +74,8 @@ export type TableUndoAction =
       /** Options to restore when undoing back to a select column (the server
        *  strips them on the way out of select). */
       previousOptions?: string[]
+      /** Options to re-apply when redoing a change to a select column. */
+      newOptions?: string[]
     }
   | {
       type: 'toggle-column-constraint'

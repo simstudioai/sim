@@ -198,6 +198,14 @@ function InlineSelectEditor({
     [draft, onSave]
   )
 
+  // The option Enter/Tab/blur should apply: the highlighted one once the user
+  // has arrow-navigated or typed a non-empty filter, else the raw draft.
+  const resolvePick = useCallback(
+    () =>
+      highlighted !== undefined && (navigated || (typed && query !== '')) ? highlighted : undefined,
+    [highlighted, navigated, typed, query]
+  )
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -209,8 +217,7 @@ function InlineSelectEditor({
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
         const reason: SaveReason = e.key === 'Tab' ? (e.shiftKey ? 'shift-tab' : 'tab') : 'enter'
-        const pick = highlighted !== undefined && (navigated || (typed && query !== ''))
-        doSave(reason, pick ? highlighted : undefined)
+        doSave(reason, resolvePick())
       } else if (e.key === 'Escape') {
         e.preventDefault()
         doneRef.current = true
@@ -218,12 +225,12 @@ function InlineSelectEditor({
         onCancel()
       }
     },
-    [doSave, onCancel, filtered.length, highlighted, query, typed, navigated]
+    [doSave, onCancel, filtered.length, resolvePick]
   )
 
   const handleBlur = useCallback(() => {
-    blurTimeoutRef.current = setTimeout(() => doSave('blur'), 200)
-  }, [doSave])
+    blurTimeoutRef.current = setTimeout(() => doSave('blur', resolvePick()), 200)
+  }, [doSave, resolvePick])
 
   return (
     <Popover open>
