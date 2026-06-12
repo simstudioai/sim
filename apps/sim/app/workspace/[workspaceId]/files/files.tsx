@@ -1293,15 +1293,24 @@ export function Files() {
     closeListContextMenu()
   }, [canEdit, uploading, closeListContextMenu])
 
-  const prevFileIdRef = useRef(fileIdFromRoute)
+  /**
+   * Tracks the route target whose preview mode has been applied. Starts unset
+   * (rather than at the initial route id) because on a hard load the files
+   * list may not have arrived when the mode initializer ran — a deep-linked
+   * previewable file would otherwise be locked into the code editor.
+   */
+  const appliedModeFileIdRef = useRef<string | null | undefined>(undefined)
+  const routedFileLoaded =
+    fileIdFromRoute != null && files.some((file) => file.id === fileIdFromRoute)
   useEffect(() => {
-    if (fileIdFromRoute === prevFileIdRef.current) return
-    prevFileIdRef.current = fileIdFromRoute
+    if (fileIdFromRoute === appliedModeFileIdRef.current) return
     const isJustCreated =
       isNewFile || (fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute)
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
+    if (fileIdFromRoute != null && !routedFileLoaded && !isJustCreated) return
+    appliedModeFileIdRef.current = fileIdFromRoute
     const nextMode: PreviewMode = isJustCreated
       ? 'editor'
       : (() => {
@@ -1311,7 +1320,7 @@ export function Files() {
           return file && isPreviewable(file) ? 'preview' : 'editor'
         })()
     setPreviewMode((current) => (nextMode === current ? current : nextMode))
-  }, [fileIdFromRoute, isNewFile])
+  }, [fileIdFromRoute, isNewFile, routedFileLoaded])
 
   useEffect(() => {
     if (isNewFile && fileIdFromRoute) {
