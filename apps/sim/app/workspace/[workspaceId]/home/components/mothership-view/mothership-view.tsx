@@ -22,6 +22,7 @@ import {
   PanelTrailingControls,
   ResourceActions,
   ResourceContent,
+  ResourcePanelToggle,
 } from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
@@ -150,6 +151,17 @@ export const MothershipView = memo(
               previewMode={isActivePreviewable ? previewMode : undefined}
               onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
             />
+          )}
+          {/* Empty state with the chat pane hidden: the panel is the whole
+              view, so a slim chrome bar keeps the sidebar toggle and chat
+              switcher (the way back to the conversation) reachable. */}
+          {!active && !isCollapsed && headerLeading && (
+            <div className='flex h-[44px] shrink-0 items-center gap-1.5 border-[var(--border)] border-b px-4'>
+              {headerLeading}
+              <div className='ml-auto flex shrink-0 items-center'>
+                <ResourcePanelToggle placeholder className='-mr-[9px]' />
+              </div>
+            </div>
           )}
           <div className='min-h-0 flex-1 overflow-hidden'>
             {hasOwnHeader ? (

@@ -522,15 +522,17 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const showChatSkeleton = Boolean(activeChatId) && !hasMessages && isActiveChatHistoryPending
   const showChatView = hasMessages || showChatSkeleton || Boolean(resolvedChatId)
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
-  const canCloseChat = Boolean(displayResource) && !isResourceCollapsed
+  // The chat can hide whenever the panel is visible — staged content and the
+  // quick-open empty state both count as something to look at.
+  const canCloseChat = !isResourceCollapsed
 
-  // The chat pane can only hide while the resource panel is visible; restore it
-  // when the panel collapses or the stage clears so the view never blanks.
+  // Restore the chat pane only when the panel collapses, so the view never
+  // blanks (the stage clearing just drops the panel to its empty state).
   useEffect(() => {
-    if (isChatCollapsed && (!displayResource || isResourceCollapsed)) {
+    if (isChatCollapsed && isResourceCollapsed) {
       setIsChatCollapsed(false)
     }
-  }, [isChatCollapsed, displayResource, isResourceCollapsed])
+  }, [isChatCollapsed, isResourceCollapsed])
 
   // Opening a different chat from anywhere (title-bar dropdown, search, deep
   // link) is an explicit "open this chat" — always show its conversation pane.
