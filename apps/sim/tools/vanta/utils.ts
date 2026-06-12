@@ -143,6 +143,13 @@ interface VantaCachedToken {
  */
 const vantaTokenCache = new Map<string, VantaCachedToken>()
 
+/**
+ * In-flight token exchanges, keyed like the cache. Concurrent callers that
+ * miss the cache join the same exchange instead of issuing competing ones
+ * that would revoke each other's tokens.
+ */
+const vantaTokenExchanges = new Map<string, Promise<string>>()
+
 /** Evict cached tokens well before their one-hour expiry. */
 const VANTA_TOKEN_EXPIRY_BUFFER_MS = 10 * 60 * 1000
 
@@ -150,25 +157,7 @@ function vantaTokenCacheKey(params: VantaTokenParams): string {
   return [params.region ?? 'us', params.scope, params.clientId, params.clientSecret].join('|')
 }
 
-/**
- * Returns a bearer token for the Vanta API, exchanging OAuth client
- * credentials and caching the result until shortly before expiry. Pass
- * `forceRefresh` when a cached token has been revoked (e.g., by another
- * process exchanging the same credentials).
- */
-export async function getVantaAccessToken(
-  params: VantaTokenParams,
-  options?: { forceRefresh?: boolean }
-): Promise<string> {
-  const cacheKey = vantaTokenCacheKey(params)
-  if (!options?.forceRefresh) {
-    const cached = vantaTokenCache.get(cacheKey)
-    if (cached && cached.expiresAt > Date.now()) {
-      return cached.token
-    }
-  }
-  vantaTokenCache.delete(cacheKey)
-
+async function exchangeVantaToken(params: VantaTokenParams, cacheKey: string): Promise<string> {
   const response = await fetch(`${getVantaBaseUrl(params.region)}/oauth/token`, {
     method: 'POST',
     headers: {
@@ -202,6 +191,41 @@ export async function getVantaAccessToken(
   }
 
   return data.access_token
+}
+
+/**
+ * Returns a bearer token for the Vanta API, exchanging OAuth client
+ * credentials and caching the result until shortly before expiry. Concurrent
+ * callers share a single in-flight exchange. Pass `forceRefresh` when a
+ * cached token has been revoked (e.g., by another process exchanging the
+ * same credentials); a force refresh still joins any exchange already in
+ * flight, since that exchange yields an equally fresh token.
+ */
+export async function getVantaAccessToken(
+  params: VantaTokenParams,
+  options?: { forceRefresh?: boolean }
+): Promise<string> {
+  const cacheKey = vantaTokenCacheKey(params)
+  if (!options?.forceRefresh) {
+    const cached = vantaTokenCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.token
+    }
+  }
+
+  const inFlight = vantaTokenExchanges.get(cacheKey)
+  if (inFlight) {
+    return inFlight
+  }
+
+  vantaTokenCache.delete(cacheKey)
+  const exchange = exchangeVantaToken(params, cacheKey)
+  vantaTokenExchanges.set(cacheKey, exchange)
+  try {
+    return await exchange
+  } finally {
+    vantaTokenExchanges.delete(cacheKey)
+  }
 }
 
 /**
