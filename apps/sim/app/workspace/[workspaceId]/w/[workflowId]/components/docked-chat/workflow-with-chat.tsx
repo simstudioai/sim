@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { Tooltip } from '@/components/emcn'
 import { Workflow as WorkflowIcon, X } from '@/components/emcn/icons'
@@ -156,14 +156,19 @@ export function WorkflowWithChat() {
         openTabs(workspaceId, [{ type: 'page', id, title: MOTHERSHIP_PAGES[id] }], {
           focusId: id,
         })
+        return
       }
+      // Nothing stageable behind the link — close immediately rather than
+      // showing an empty card (the auto-collapse effect won't re-run here,
+      // since clearing the pending ref changes none of its deps).
+      collapseStack()
     }
     if (useMothershipTabsStore.persist.hasHydrated()) {
       apply()
       return
     }
     return useMothershipTabsStore.persist.onFinishHydration(apply)
-  }, [workspaceId, setActiveTab, openTabs])
+  }, [workspaceId, setActiveTab, openTabs, collapseStack])
 
   /** Escape flips the editor forward (the stack stays one click away). */
   useEffect(() => {
@@ -287,8 +292,10 @@ export function WorkflowWithChat() {
   const isStackMode = stackOpen && stageFront === 'card'
 
   // The workspace chrome drops its content card frame while modules float.
+  // Layout effect: the frame must flip in the same paint as the cards, never
+  // a frame behind them (visible as a flash during load).
   const setStageFloating = useSidebarStore((s) => s.setStageFloating)
-  useEffect(() => {
+  useLayoutEffect(() => {
     setStageFloating(isStackMode)
     return () => setStageFloating(false)
   }, [isStackMode, setStageFloating])
