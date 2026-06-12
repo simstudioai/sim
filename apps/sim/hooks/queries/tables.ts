@@ -363,34 +363,6 @@ interface InfiniteTableRowsParams {
   enabled?: boolean
 }
 
-export function useTableRows({
-  workspaceId,
-  tableId,
-  limit,
-  offset,
-  filter,
-  sort,
-  includeTotal,
-  enabled = true,
-}: TableRowsParams & { enabled?: boolean }) {
-  const paramsKey = JSON.stringify({
-    limit,
-    offset,
-    filter: filter ?? null,
-    sort: sort ?? null,
-    includeTotal,
-  })
-
-  return useQuery({
-    queryKey: [...tableKeys.rowsRoot(tableId), paramsKey] as const,
-    queryFn: ({ signal }) =>
-      fetchTableRows({ workspaceId, tableId, limit, offset, filter, sort, includeTotal, signal }),
-    enabled: Boolean(workspaceId && tableId) && enabled,
-    staleTime: 30 * 1000,
-    placeholderData: keepPreviousData,
-  })
-}
-
 export function tableRowsParamsKey({
   pageSize,
   filter,
@@ -1569,10 +1541,6 @@ export function useImportCsvIntoTable() {
 }
 
 /**
- * Downloads the full contents of a table to the user's device by streaming
- * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
- */
-/**
  * Cancels an in-flight async table job (import or delete). Plain function (not a hook) because the
  * job tray lists multiple tables and cancels a chosen one by id rather than binding to a single
  * table.
@@ -1672,6 +1640,10 @@ export async function downloadExportResult(
   document.body.removeChild(a)
 }
 
+/**
+ * Downloads the full contents of a table to the user's device by streaming
+ * `/api/table/[tableId]/export`. Defaults to CSV; pass `'json'` for JSON.
+ */
 export async function downloadTableExport(
   tableId: string,
   fileName: string,
@@ -1785,9 +1757,9 @@ interface RunColumnVariables {
 
 type InfiniteRowsCache = { pages: TableRowsResponse[]; pageParams: TableRowsPageParam[] }
 /**
- * Cache shapes that hold table-row data. Single-page (`useTableRows`) and
- * infinite (`useInfiniteTableRows`) live under the same `rowsRoot(tableId)`
- * prefix, so optimistic mutations have to walk both shapes.
+ * Cache shapes that hold table-row data under the `rowsRoot(tableId)` prefix.
+ * Optimistic mutations walk every entry defensively, handling both the
+ * single-page and infinite (`useInfiniteTableRows`) shapes.
  */
 type RowsCacheEntry = TableRowsResponse | InfiniteRowsCache
 type RowsCacheSnapshots = Array<[ReadonlyArray<unknown>, RowsCacheEntry]>
