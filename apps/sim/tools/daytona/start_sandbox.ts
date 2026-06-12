@@ -41,15 +41,19 @@ export const daytonaStartSandboxTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response) => {
+  transformResponse: async (response, params) => {
     if (!response.ok) {
       throw new Error(await extractDaytonaError(response, 'Failed to start sandbox'))
     }
     const data = await parseDaytonaJson(response)
+    const sandbox = mapDaytonaSandbox(data)
+    if (!sandbox.id && params) {
+      sandbox.id = params.sandboxId.trim()
+    }
     return {
       success: true,
       output: {
-        sandbox: mapDaytonaSandbox(data),
+        sandbox,
       },
     }
   },

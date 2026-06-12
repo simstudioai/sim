@@ -2,6 +2,13 @@ import type { DaytonaDownloadFileParams, DaytonaDownloadFileResponse } from '@/t
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
 import type { ToolConfig } from '@/tools/types'
 
+const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024
+
+function downloadSizeError(bytes: number): Error {
+  const sizeMB = (bytes / (1024 * 1024)).toFixed(2)
+  return new Error(`File size (${sizeMB}MB) exceeds download limit of 100MB`)
+}
+
 export const daytonaDownloadFileTool: ToolConfig<
   DaytonaDownloadFileParams,
   DaytonaDownloadFileResponse
@@ -49,10 +56,18 @@ export const daytonaDownloadFileTool: ToolConfig<
       throw new Error(await extractDaytonaError(response, 'Failed to download file'))
     }
 
+    const contentLength = Number(response.headers.get('content-length'))
+    if (Number.isFinite(contentLength) && contentLength > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw downloadSizeError(contentLength)
+    }
+
     const mimeType = response.headers.get('content-type') || 'application/octet-stream'
     const fileName = params?.filePath.trim().split('/').filter(Boolean).pop() || 'download'
     const arrayBuffer = await response.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+    if (buffer.length > MAX_DOWNLOAD_SIZE_BYTES) {
+      throw downloadSizeError(buffer.length)
+    }
 
     return {
       success: true,
