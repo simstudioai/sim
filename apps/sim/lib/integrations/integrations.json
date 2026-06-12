@@ -3704,6 +3704,73 @@
       "tags": ["monitoring", "incident-management", "error-tracking"]
     },
     {
+      "type": "daytona",
+      "slug": "daytona",
+      "name": "Daytona",
+      "description": "Run code and commands in secure cloud sandboxes",
+      "longDescription": "Integrate Daytona into your workflow to run AI-generated code in secure, isolated sandboxes. Create and manage sandboxes, execute shell commands, run Python, JavaScript, or TypeScript code, transfer files, and clone Git repositories.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DaytonaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/daytona",
+      "operations": [
+        {
+          "name": "Create Sandbox",
+          "description": "Create a new Daytona sandbox for running AI-generated code in isolation"
+        },
+        {
+          "name": "Run Code",
+          "description": "Run Python, JavaScript, or TypeScript code inside a Daytona sandbox"
+        },
+        {
+          "name": "Execute Command",
+          "description": "Execute a shell command inside a Daytona sandbox"
+        },
+        {
+          "name": "Upload File",
+          "description": "Upload a file to a Daytona sandbox"
+        },
+        {
+          "name": "Download File",
+          "description": "Download a file from a Daytona sandbox"
+        },
+        {
+          "name": "List Files",
+          "description": "List files in a directory of a Daytona sandbox"
+        },
+        {
+          "name": "Git Clone",
+          "description": "Clone a Git repository into a Daytona sandbox"
+        },
+        {
+          "name": "List Sandboxes",
+          "description": "List Daytona sandboxes in the organization"
+        },
+        {
+          "name": "Get Sandbox",
+          "description": "Get details of a Daytona sandbox"
+        },
+        {
+          "name": "Start Sandbox",
+          "description": "Start a stopped Daytona sandbox"
+        },
+        {
+          "name": "Stop Sandbox",
+          "description": "Stop a running Daytona sandbox"
+        },
+        {
+          "name": "Delete Sandbox",
+          "description": "Delete a Daytona sandbox"
+        }
+      ],
+      "operationCount": 12,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "devops",
+      "tags": ["agentic", "cloud", "automation"]
+    },
+    {
       "type": "devin",
       "slug": "devin",
       "name": "Devin",
@@ -10348,7 +10415,7 @@
       "name": "Notion",
       "description": "Manage Notion pages",
       "longDescription": "Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.",
-      "bgColor": "#181C1E",
+      "bgColor": "#FFFFFF",
       "iconName": "NotionIcon",
       "docsUrl": "https://docs.sim.ai/integrations/notion",
       "operations": [],
