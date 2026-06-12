@@ -107,7 +107,22 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
       isDeployed: true,
       deployedAt: '2026-06-12T00:00:00.000Z',
       version: 4,
+      warnings: [],
     })
+  })
+
+  it('returns 400 when the workflow is not deployed, even with an explicit version', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue({
+      ...WORKFLOW_RECORD,
+      isDeployed: false,
+    })
+
+    const response = await POST(makeRequest({ version: 2 }), makeContext())
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toBe('Workflow is not deployed')
+    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
   })
 
   it('rolls back to an explicit version when provided', async () => {

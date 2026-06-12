@@ -145,6 +145,7 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
       isDeployed: true,
       deployedAt: '2026-06-12T00:00:00.000Z',
       version: 4,
+      warnings: [],
     })
   })
 
@@ -226,7 +227,12 @@ describe('DELETE /api/v1/workflows/[id]/deploy', () => {
     )
 
     const body = await response.json()
-    expect(body.data).toEqual({ id: WORKFLOW_ID, isDeployed: false, deployedAt: null })
+    expect(body.data).toEqual({
+      id: WORKFLOW_ID,
+      isDeployed: false,
+      deployedAt: null,
+      warnings: [],
+    })
     expect(mockCaptureServerEvent).toHaveBeenCalledWith(
       'user-1',
       'workflow_undeployed',

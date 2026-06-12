@@ -94,7 +94,7 @@ export const v1WorkflowDeploymentDataSchema = z.object({
   isDeployed: z.boolean(),
   deployedAt: z.string().nullable(),
   version: z.number().optional(),
-  warnings: z.array(z.string()).optional(),
+  warnings: z.array(z.string()),
 })
 
 export type V1WorkflowDeploymentData = z.output<typeof v1WorkflowDeploymentDataSchema>

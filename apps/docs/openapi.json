@@ -1309,7 +1309,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Roll the live deployment back to a previous deployment version. By default the version immediately preceding the currently active one is re-activated; pass `version` to target a specific deployment version instead. The workflow's draft state is not modified. Requires admin permission on the workflow's workspace.",
+        "description": "Roll the live deployment back to a previous deployment version. The workflow must currently be deployed. By default the version immediately preceding the currently active one is re-activated; pass `version` to target a specific deployment version instead. The workflow's draft state is not modified. Requires admin permission on the workflow's workspace.",
         "tags": ["Workflows"],
         "x-codeSamples": [
           {

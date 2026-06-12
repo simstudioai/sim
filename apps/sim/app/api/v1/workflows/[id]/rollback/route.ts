@@ -56,17 +56,21 @@ export const POST = withRouteHandler(
       }
 
       const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData) {
+      if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
       const accessError = await validateWorkspaceAccess(
         rateLimit,
         userId,
-        workflowData.workspaceId!,
+        workflowData.workspaceId,
         'admin'
       )
       if (accessError) return accessError
+
+      if (!workflowData.isDeployed) {
+        return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })
+      }
 
       await assertWorkflowMutable(id)
 
@@ -121,7 +125,7 @@ export const POST = withRouteHandler(
             isDeployed: true,
             deployedAt: result.deployedAt?.toISOString() ?? null,
             version: targetVersion,
-            warnings: result.warnings,
+            warnings: result.warnings ?? [],
           },
         },
         limits,

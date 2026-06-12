@@ -56,14 +56,14 @@ export const POST = withRouteHandler(
       }
 
       const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData) {
+      if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
       const accessError = await validateWorkspaceAccess(
         rateLimit,
         userId,
-        workflowData.workspaceId!,
+        workflowData.workspaceId,
         'admin'
       )
       if (accessError) return accessError
@@ -106,7 +106,7 @@ export const POST = withRouteHandler(
             isDeployed: true,
             deployedAt: result.deployedAt?.toISOString() ?? null,
             version: result.version,
-            warnings: result.warnings,
+            warnings: result.warnings ?? [],
           },
         },
         limits,
@@ -145,14 +145,14 @@ export const DELETE = withRouteHandler(
       const { id } = parsed.data.params
 
       const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData) {
+      if (!workflowData?.workspaceId) {
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
       const accessError = await validateWorkspaceAccess(
         rateLimit,
         userId,
-        workflowData.workspaceId!,
+        workflowData.workspaceId,
         'admin'
       )
       if (accessError) return accessError
@@ -187,7 +187,7 @@ export const DELETE = withRouteHandler(
             id,
             isDeployed: false,
             deployedAt: null,
-            warnings: result.warnings,
+            warnings: result.warnings ?? [],
           },
         },
         limits,
