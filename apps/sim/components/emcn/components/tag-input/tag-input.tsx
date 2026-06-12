@@ -81,6 +81,11 @@ const tagInputVariants = cva(
 export interface TagItem {
   value: string
   isValid: boolean
+  /**
+   * Why the item is invalid. Shown in a tooltip on the invalid chip (and as
+   * screen-reader-only text inside it). Ignored when `isValid` is true.
+   */
+  error?: string
 }
 
 /**
@@ -162,7 +167,9 @@ const TagInputTag = React.memo(function TagInputTag({
     onRemove(item.value, index, item.isValid)
   }, [item.value, item.isValid, index, onRemove])
 
-  return (
+  const showError = !item.isValid && !!item.error
+
+  const tag = (
     <ChipTag
       variant='invite'
       invalid={!item.isValid}
@@ -174,8 +181,18 @@ const TagInputTag = React.memo(function TagInputTag({
       <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-medium font-sans text-sm leading-5'>
         {item.value}
       </span>
+      {showError && <span className='sr-only'>{item.error}</span>}
       {suffix}
     </ChipTag>
+  )
+
+  if (!showError) return tag
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{tag}</Tooltip.Trigger>
+      <Tooltip.Content>{item.error}</Tooltip.Content>
+    </Tooltip.Root>
   )
 })
 

@@ -152,7 +152,7 @@ export default function PlaygroundPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState('')
   const [tagItems, setTagItems] = useState<TagItem[]>([
     { value: 'user@example.com', isValid: true },
-    { value: 'invalid-email', isValid: false },
+    { value: 'invalid-email', isValid: false, error: 'Invalid email format' },
   ])
 
   const toggleDarkMode = () => {

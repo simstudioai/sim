@@ -388,12 +388,14 @@ export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
   /**
    * Optional domain-level validator. Runs AFTER the field's internal format
    * check passes. Return an error message to reject the email (added as an
-   * invalid chip and surfaced in the inline banner); return `null` to accept.
+   * invalid chip whose reason shows in a tooltip on hover); return `null`
+   * to accept.
    */
   validate?: (email: string) => string | null
   /**
-   * External error (e.g. server-side submit failure). Takes precedence over
-   * the field's internal validation banner while present.
+   * External error (e.g. server-side submit failure), rendered in the inline
+   * banner below the field. Per-email rejection reasons are shown on the
+   * invalid chips themselves, not here.
    */
   error?: React.ReactNode
   /** Auto-focus the input when the field mounts. */
@@ -561,8 +563,11 @@ function derivePlaceholderWithTags(placeholder: string): string {
 
 /**
  * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
- * chip lifecycle (valid + invalid items, dedupe, inline error banner) and
- * lifts only the valid email list up to the consumer via `onChange`.
+ * chip lifecycle (valid + invalid items, dedupe, per-chip error tooltips)
+ * and lifts only the valid email list up to the consumer via `onChange`.
+ * Each rejected entry carries its rejection reason on the chip itself,
+ * surfaced as a tooltip; the inline banner is reserved for the consumer's
+ * `error` (e.g. server-side submit failures).
  */
 function ChipModalEmailsControl({
   value,
@@ -576,7 +581,6 @@ function ChipModalEmailsControl({
   errorId,
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
   const [items, setItems] = React.useState<TagItem[]>([])
-  const [internalError, setInternalError] = React.useState<string | null>(null)
 
   /**
    * Reconcile internal `items` with the consumer's `value` when the latter
@@ -600,23 +604,24 @@ function ChipModalEmailsControl({
       if (!email) return false
       if (items.some((item) => item.value === email)) return false
 
-      if (!quickValidateEmail(email).isValid) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(null)
+      const formatCheck = quickValidateEmail(email)
+      if (!formatCheck.isValid) {
+        setItems((prev) => [
+          ...prev,
+          { value: email, isValid: false, error: formatCheck.reason ?? 'Invalid email format' },
+        ])
         return false
       }
 
       const reason = validate?.(email)
       if (reason) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(reason)
+        setItems((prev) => [...prev, { value: email, isValid: false, error: reason }])
         return false
       }
 
       const next = [...items, { value: email, isValid: true }]
       setItems(next)
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      setInternalError(null)
       return true
     },
     [items, validate, onChange]
@@ -630,16 +635,9 @@ function ChipModalEmailsControl({
       if (wasValid) {
         onChange(next.filter((item) => item.isValid).map((item) => item.value))
       }
-      setInternalError(null)
     },
     [items, onChange]
   )
-
-  const handleInputChange = React.useCallback(() => {
-    setInternalError(null)
-  }, [])
-
-  const banner = error ?? internalError
 
   return (
     <>
@@ -648,16 +646,15 @@ function ChipModalEmailsControl({
         items={items}
         onAdd={handleAdd}
         onRemove={handleRemove}
-        onInputChange={handleInputChange}
         placeholder={placeholder}
         placeholderWithTags={derivePlaceholderWithTags(placeholder)}
         disabled={disabled}
         autoFocus={autoFocus}
         id={id}
       />
-      {banner && (
+      {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
-          {banner}
+          {error}
         </p>
       )}
     </>
