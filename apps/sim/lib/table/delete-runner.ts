@@ -7,6 +7,7 @@ import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   deletePageByIds,
+  getJobProgress,
   getTableById,
   markJobFailed,
   markJobReady,
@@ -64,8 +65,14 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       : undefined
     const excluded = new Set(excludeRowIds ?? [])
 
-    let processed = 0
-    let lastReported = 0
+    // Resume the persisted count: a retried attempt's earlier batches are already committed,
+    // so starting at zero would overwrite cumulative progress with this attempt's smaller
+    // number. Doubles as the initial ownership gate.
+    const resumed = await getJobProgress(tableId, jobId)
+    if (resumed === null) throw new JobSupersededError()
+
+    let processed = resumed
+    let lastReported = resumed
     let afterId: string | undefined
 
     while (true) {
@@ -136,10 +143,14 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
       logger.info(`[${requestId}] Delete superseded by a newer run; stopping`, { tableId, jobId })
       return
     }
-    // Log the cause, not the wrapper — drizzle query errors embed the full SQL + params list
-    // (tens of KB for a batch delete) in `message`.
-    logger.error(`[${requestId}] Delete failed for table ${tableId}:`, toError(err).cause ?? err)
-    throw err
+    // Rethrow the root cause, not the wrapper: drizzle query errors embed the full SQL + params
+    // list (tens of KB for a batch delete) in `message`, and `cause` does not survive
+    // trigger.dev's serialization between the failed `run` and `onFailure` — the clean message
+    // must already be the thrown error's own `message`.
+    const cause = toError(err).cause
+    const error = cause ? toError(cause) : toError(err)
+    logger.error(`[${requestId}] Delete failed for table ${tableId}:`, error)
+    throw error
   }
 }
 

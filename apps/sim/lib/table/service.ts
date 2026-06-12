@@ -2092,6 +2092,21 @@ export async function updateJobProgress(
 }
 
 /**
+ * Reads the persisted progress of an in-flight job this worker still owns (`null` when the job
+ * was canceled/superseded). A retried run seeds its counter from this so progress stays
+ * cumulative — earlier attempts' batches are already committed, and restarting from zero would
+ * clobber `rows_processed` (and every count derived from it) with the retry's smaller number.
+ */
+export async function getJobProgress(tableId: string, jobId: string): Promise<number | null> {
+  const [job] = await db
+    .select({ rowsProcessed: tableJobs.rowsProcessed })
+    .from(tableJobs)
+    .where(ownsActiveJob(tableId, jobId))
+    .limit(1)
+  return job ? job.rowsProcessed : null
+}
+
+/**
  * One keyset page of rows for the export worker, ordered by `(position, id)`. Keyset (not
  * OFFSET) keeps each page O(page) — offset paging re-scans every prior row per page, which is
  * O(N²) across a large export. `(position, id)` is total (position exists on every row; id breaks

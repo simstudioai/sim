@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetTableById,
+  mockGetJobProgress,
   mockSelectRowIdPage,
   mockDeletePageByIds,
   mockUpdateJobProgress,
@@ -14,6 +15,7 @@ const {
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
+  mockGetJobProgress: vi.fn(),
   mockSelectRowIdPage: vi.fn(),
   mockDeletePageByIds: vi.fn(),
   mockUpdateJobProgress: vi.fn(),
@@ -25,6 +27,7 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+  getJobProgress: mockGetJobProgress,
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
   updateJobProgress: mockUpdateJobProgress,
@@ -51,6 +54,7 @@ describe('runTableDelete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
+    mockGetJobProgress.mockResolvedValue(0)
     mockUpdateJobProgress.mockResolvedValue(true)
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
@@ -120,6 +124,37 @@ describe('runTableDelete', () => {
 
     await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
 
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+  })
+
+  it('rethrows the root cause so the clean message survives serialization', async () => {
+    const cause = new Error('canceling statement due to statement timeout')
+    mockSelectRowIdPage.mockRejectedValue(new Error('Failed query: delete ...', { cause }))
+
+    await expect(runTableDelete(basePayload())).rejects.toThrow(
+      'canceling statement due to statement timeout'
+    )
+  })
+
+  it('resumes cumulative progress on retry instead of resetting to zero', async () => {
+    mockGetJobProgress.mockResolvedValue(7)
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b']).mockResolvedValueOnce([])
+
+    await runTableDelete(basePayload())
+
+    expect(mockUpdateJobProgress).toHaveBeenNthCalledWith(1, 'tbl_1', 7, 'job_1')
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ready', progress: 9 })
+    )
+  })
+
+  it('stops at the seed read when the job is no longer owned', async () => {
+    mockGetJobProgress.mockResolvedValue(null)
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockSelectRowIdPage).not.toHaveBeenCalled()
+    expect(mockDeletePageByIds).not.toHaveBeenCalled()
     expect(mockMarkJobFailed).not.toHaveBeenCalled()
   })
 
