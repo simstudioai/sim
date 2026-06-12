@@ -63,25 +63,18 @@ export const metadata: Metadata = {
     'Mistral models',
     ...TOP_MODEL_PROVIDERS.map((provider) => `${provider} models`),
   ],
+  // og:image/twitter:image come from the sibling opengraph-image.tsx —
+  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
   openGraph: {
     title: 'AI Models Directory | Sim',
     description: `Explore ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers with pricing, context windows, and capability details.`,
     url: `${baseUrl}/models`,
     type: 'website',
-    images: [
-      {
-        url: `${baseUrl}/models/opengraph-image`,
-        width: 1200,
-        height: 630,
-        alt: 'Sim AI Models Directory',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'AI Models Directory | Sim',
     description: `Search ${TOTAL_MODELS}+ AI models across ${TOTAL_MODEL_PROVIDERS} providers.`,
-    images: [{ url: `${baseUrl}/models/opengraph-image`, alt: 'Sim AI Models Directory' }],
   },
   alternates: {
     canonical: `${baseUrl}/models`,

@@ -4,7 +4,8 @@ import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
-const INTEGRATIONS_DATA: readonly Integration[] = integrationsJson as readonly Integration[]
+const INTEGRATIONS_DATA: readonly Integration[] =
+  integrationsJson.integrations as readonly Integration[]
 
 /**
  * Shape returned from resolving an integration to its OAuth service entry in

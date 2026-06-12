@@ -1,12 +1,11 @@
-import { createModelsOgImage } from '@/app/(landing)/models/og-utils'
 import {
   formatTokenCount,
   MAX_CONTEXT_WINDOW,
   TOTAL_MODEL_PROVIDERS,
   TOTAL_MODELS,
 } from '@/app/(landing)/models/utils'
+import { createLandingOgImage } from '@/app/(landing)/og-utils'
 
-export const runtime = 'edge'
 export const contentType = 'image/png'
 export const size = {
   width: 1200,
@@ -14,7 +13,7 @@ export const size = {
 }
 
 export default async function Image() {
-  return createModelsOgImage({
+  return createLandingOgImage({
     eyebrow: 'Sim model directory',
     title: 'AI Models Directory',
     subtitle:

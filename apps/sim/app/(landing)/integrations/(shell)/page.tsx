@@ -3,16 +3,48 @@ import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import {
   blockTypeToIconMap,
+  type FAQItem,
   INTEGRATIONS,
   type Integration,
   POPULAR_WORKFLOWS,
 } from '@/lib/integrations'
+import { LandingFAQ } from '@/app/(landing)/components/landing-faq'
 import { IntegrationCard } from '@/app/(landing)/integrations/components/integration-card'
 import { IntegrationGrid } from '@/app/(landing)/integrations/components/integration-grid'
 import { RequestIntegrationModal } from '@/app/(landing)/integrations/components/request-integration-modal'
 
 const allIntegrations = INTEGRATIONS
 const INTEGRATION_COUNT = allIntegrations.length
+const OAUTH_COUNT = allIntegrations.filter((i) => i.authType === 'oauth').length
+const TRIGGER_INTEGRATION_COUNT = allIntegrations.filter((i) => i.triggerCount > 0).length
+const TOTAL_TOOL_COUNT = allIntegrations.reduce((sum, i) => sum + i.operationCount, 0)
+
+/**
+ * Catalog-level FAQ. Questions that read the same for every integration live
+ * here exactly once instead of repeating across all per-integration pages.
+ */
+const CATALOG_FAQS: FAQItem[] = [
+  {
+    question: 'How do integrations work in Sim?',
+    answer: `Each integration is a block you drag onto Sim's workflow builder. Together, Sim's ${INTEGRATION_COUNT} integrations expose ${TOTAL_TOOL_COUNT}+ tools that AI agents can call — ${OAUTH_COUNT} connect with one-click OAuth, and the rest use an API key or no authentication at all. Wire blocks together, add an AI agent block for reasoning, and run.`,
+  },
+  {
+    question: 'Are Sim integrations free to use?',
+    answer: `Yes — Sim's free plan includes every integration in the library, all ${INTEGRATION_COUNT} of them, with no credit card required. Create an account at sim.ai and start building.`,
+  },
+  {
+    question: 'Can an AI agent decide when to use an integration?',
+    answer: `Yes — this is the core of Sim. You give an agent access to integration tools and describe the goal in plain language; the agent decides which tools to call, in what order, and how to handle the results. Automations adapt to context instead of breaking when inputs change.`,
+  },
+  {
+    question: 'Can external events trigger my agents automatically?',
+    answer: `Yes — ${TRIGGER_INTEGRATION_COUNT} Sim integrations include real-time webhook triggers. Add a trigger block to your agent, copy its webhook URL into the external service, and every matching event starts your agent instantly — no polling, no delay.`,
+  },
+  {
+    question: 'How many integrations does Sim support?',
+    answer: `Sim supports ${INTEGRATION_COUNT} integrations across messaging, CRMs, databases, developer tools, AI providers, and more — and the catalog grows continually. If a tool you need is missing, request it below and we'll prioritize it.`,
+  },
+]
 
 /**
  * Unique integration names that appear in popular workflow pairs.
@@ -40,27 +72,18 @@ export const metadata: Metadata = {
     ...TOP_NAMES.flatMap((n) => [`${n} integration`, `${n} automation`]),
     ...allIntegrations.slice(0, 20).map((i) => `${i.name} automation`),
   ],
+  // og:image/twitter:image come from the sibling opengraph-image.tsx —
+  // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
   openGraph: {
     title: 'Integrations | Sim AI Workspace',
     description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace. Build agents that link ${TOP_NAMES.join(', ')}, and every tool your team uses.`,
     url: `${baseUrl}/integrations`,
     type: 'website',
-    images: [
-      {
-        url: `${baseUrl}/opengraph-image.png`,
-        width: 1200,
-        height: 630,
-        alt: 'Sim Integrations for AI Workflow Automation',
-      },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Integrations | Sim',
     description: `Connect ${INTEGRATION_COUNT}+ apps in Sim's AI workspace.`,
-    images: [
-      { url: `${baseUrl}/opengraph-image.png`, alt: 'Sim Integrations for AI Workflow Automation' },
-    ],
   },
   alternates: { canonical: `${baseUrl}/integrations` },
 }
@@ -101,6 +124,16 @@ export default function IntegrationsPage() {
     })),
   }
 
+  const faqJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: CATALOG_FAQS.map(({ question, answer }) => ({
+      '@type': 'Question',
+      name: question,
+      acceptedAnswer: { '@type': 'Answer', text: answer },
+    })),
+  }
+
   return (
     <section className='bg-[var(--landing-bg)]'>
       <script
@@ -110,6 +143,10 @@ export default function IntegrationsPage() {
       <script
         type='application/ld+json'
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }}
+      />
+      <script
+        type='application/ld+json'
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
 
       {/* Hero */}
@@ -170,6 +207,21 @@ export default function IntegrationsPage() {
           </div>
           <IntegrationGrid integrations={allIntegrations} />
         </section>
+
+        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
+
+        {/* FAQ */}
+        <section aria-labelledby='integrations-faq-heading' className='px-6 py-10'>
+          <h2
+            id='integrations-faq-heading'
+            className='mb-8 text-[20px] text-white leading-[100%] tracking-[-0.02em]'
+          >
+            Frequently asked questions
+          </h2>
+          <LandingFAQ faqs={CATALOG_FAQS} />
+        </section>
+
+        <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />
 
         {/* Integration request */}
         <div className='flex flex-col items-start gap-3 p-6 sm:flex-row sm:items-center sm:justify-between'>
