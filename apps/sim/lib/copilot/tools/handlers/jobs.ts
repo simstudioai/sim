@@ -1,13 +1,16 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { copilotChats, workflowSchedule } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { z } from 'zod'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
+import {
+  performCompleteJob,
+  performCreateJob,
+  performDeleteJob,
+  performUpdateJob,
+} from '@/lib/workflows/schedules/orchestration'
 
 const logger = createLogger('JobTools')
 
@@ -101,112 +104,33 @@ export async function executeCreateJob(
     }
   }
 
-  let cronExpression: string | null = null
-  let nextRunAt: Date | null = null
-
-  if (cron) {
-    const validation = validateCronExpression(cron, timezone)
-    if (!validation.isValid) {
-      return { success: false, error: `Invalid cron expression: ${validation.error}` }
-    }
-    cronExpression = cron
-    nextRunAt = validation.nextRun!
-  }
-
-  if (time) {
-    let timeStr = time
-    const hasOffset = /[Zz]|[+-]\d{2}(:\d{2})?$/.test(timeStr)
-    if (!hasOffset && timezone !== 'UTC') {
-      try {
-        const formatter = new Intl.DateTimeFormat('en-US', {
-          timeZone: timezone,
-          timeZoneName: 'shortOffset',
-        })
-        const parts = formatter.formatToParts(new Date())
-        const offsetPart = parts.find((p) => p.type === 'timeZoneName')
-        if (offsetPart?.value) {
-          const match = offsetPart.value.match(/GMT([+-]\d{1,2}(?::\d{2})?)/)
-          if (match) {
-            const raw = match[1]
-            const [h, m] = raw.split(':')
-            const offset = `${h.padStart(3, h.startsWith('-') ? '-' : '+')}:${m || '00'}`
-            timeStr = `${timeStr}${offset}`
-          }
-        }
-      } catch {
-        // Fall through to parse as-is
-      }
-    }
-
-    const parsed = new Date(timeStr)
-    if (Number.isNaN(parsed.getTime())) {
-      return { success: false, error: `Invalid time value: ${time}` }
-    }
-
-    if (!cron) {
-      nextRunAt = parsed
-    } else if (parsed > new Date()) {
-      nextRunAt = parsed
-    }
-  }
-
-  if (!nextRunAt) {
-    return { success: false, error: 'Could not determine next run time' }
-  }
-
-  const jobId = generateId()
-  const now = new Date()
-
   try {
-    await db.insert(workflowSchedule).values({
-      id: jobId,
-      workflowId: null,
-      cronExpression,
-      nextRunAt,
-      triggerType: 'schedule',
-      timezone,
-      sourceType: 'job',
-      jobTitle: title || null,
+    const result = await performCreateJob({
+      workspaceId: context.workspaceId,
+      userId: context.userId,
+      title,
       prompt,
-      lifecycle: lifecycle || 'persistent',
-      successCondition: successCondition || null,
-      maxRuns: maxRuns ?? null,
-      runCount: 0,
-      sourceChatId: context.chatId || null,
+      cronExpression: cron,
+      time,
+      timezone,
+      lifecycle,
+      successCondition,
+      maxRuns,
+      sourceChatId: context.chatId,
       sourceTaskName: taskName,
-      sourceUserId: context.userId,
-      sourceWorkspaceId: context.workspaceId,
-      status: 'active',
-      failedCount: 0,
-      createdAt: now,
-      updatedAt: now,
     })
-
-    const humanReadable = cronExpression
-      ? parseCronToHumanReadable(cronExpression, timezone)
-      : `Once at ${nextRunAt.toISOString()}`
-
-    logger.info('Job created', { jobId, cronExpression, nextRunAt: nextRunAt.toISOString() })
-
-    recordAudit({
-      workspaceId: context.workspaceId || null,
-      actorId: context.userId,
-      action: AuditAction.SCHEDULE_UPDATED,
-      resourceType: AuditResourceType.SCHEDULE,
-      resourceId: jobId,
-      resourceName: title || undefined,
-      description: `Created job "${title || jobId}"`,
-      metadata: { operation: 'create', cronExpression },
-    })
+    if (!result.success || !result.schedule) {
+      return { success: false, error: result.error || 'Failed to create job' }
+    }
 
     return {
       success: true,
       output: {
-        jobId,
-        title: title || null,
-        schedule: humanReadable,
-        nextRunAt: nextRunAt.toISOString(),
-        message: `Job created successfully. ${humanReadable}`,
+        jobId: result.schedule.id,
+        title: result.schedule.jobTitle,
+        schedule: result.humanReadable,
+        nextRunAt: result.schedule.nextRunAt?.toISOString(),
+        message: `Job created successfully. ${result.humanReadable}`,
       },
     }
   } catch (err) {
@@ -354,89 +278,29 @@ export async function executeManageJob(
       }
 
       try {
-        const [existing] = await db
-          .select({ id: workflowSchedule.id })
-          .from(workflowSchedule)
-          .where(
-            and(eq(workflowSchedule.id, args.jobId), ACTIVE_JOB_CONDITION(context.workspaceId))
-          )
-          .limit(1)
-
-        if (!existing) {
-          return { success: false, error: `Job not found: ${args.jobId}` }
-        }
-
-        const updates: Record<string, unknown> = { updatedAt: new Date() }
-
-        if (args.title !== undefined) {
-          updates.jobTitle = args.title
-        }
-
-        if (args.prompt !== undefined) {
-          updates.prompt = args.prompt
-        }
-
-        if (args.timezone !== undefined) {
-          updates.timezone = args.timezone
-        }
-
-        if (args.status !== undefined) {
-          if (!['active', 'paused'].includes(args.status)) {
-            return { success: false, error: 'status must be "active" or "paused"' }
-          }
-          updates.status = args.status === 'paused' ? 'disabled' : args.status
-        }
-
-        if (args.cron !== undefined) {
-          const tz = args.timezone || 'UTC'
-          const validation = validateCronExpression(args.cron, tz)
-          if (!validation.isValid) {
-            return { success: false, error: `Invalid cron expression: ${validation.error}` }
-          }
-          updates.cronExpression = args.cron
-          updates.nextRunAt = validation.nextRun!
-        }
-
-        if (args.lifecycle !== undefined) {
-          if (args.lifecycle !== 'persistent' && args.lifecycle !== 'until_complete') {
-            return { success: false, error: 'lifecycle must be "persistent" or "until_complete"' }
-          }
-          updates.lifecycle = args.lifecycle
-        }
-
-        if (args.successCondition !== undefined) {
-          updates.successCondition = args.successCondition
-        }
-
-        if (args.maxRuns !== undefined) {
-          updates.maxRuns = args.maxRuns
-        }
-
-        await db
-          .update(workflowSchedule)
-          .set(updates)
-          .where(and(eq(workflowSchedule.id, args.jobId), isNull(workflowSchedule.archivedAt)))
-
-        logger.info('Job updated', { jobId: args.jobId, fields: Object.keys(updates) })
-
-        recordAudit({
-          workspaceId: context.workspaceId || null,
-          actorId: context.userId,
-          action: AuditAction.SCHEDULE_UPDATED,
-          resourceType: AuditResourceType.SCHEDULE,
-          resourceId: args.jobId,
-          description: `Updated job`,
-          metadata: {
-            operation: 'update',
-            fields: Object.keys(updates).filter((k) => k !== 'updatedAt'),
-          },
+        const result = await performUpdateJob({
+          jobId: args.jobId,
+          workspaceId: context.workspaceId,
+          userId: context.userId,
+          title: args.title,
+          prompt: args.prompt,
+          cronExpression: args.cron,
+          time: args.time,
+          timezone: args.timezone,
+          status: args.status,
+          lifecycle: args.lifecycle,
+          successCondition: args.successCondition,
+          maxRuns: args.maxRuns,
         })
+        if (!result.success) {
+          return { success: false, error: result.error || 'Failed to update job' }
+        }
 
         return {
           success: true,
           output: {
             jobId: args.jobId,
-            updated: Object.keys(updates).filter((k) => k !== 'updatedAt'),
+            updated: result.updatedFields || [],
             message: 'Job updated successfully',
           },
         }
@@ -459,31 +323,16 @@ export async function executeManageJob(
         const notFound: string[] = []
 
         for (const jobId of jobIds) {
-          const [existing] = await db
-            .select({ id: workflowSchedule.id })
-            .from(workflowSchedule)
-            .where(and(eq(workflowSchedule.id, jobId), ACTIVE_JOB_CONDITION(context.workspaceId)))
-            .limit(1)
-
-          if (!existing) {
+          const result = await performDeleteJob({
+            jobId,
+            workspaceId: context.workspaceId,
+            userId: context.userId,
+          })
+          if (!result.success) {
             notFound.push(jobId)
             continue
           }
-
-          await db.delete(workflowSchedule).where(eq(workflowSchedule.id, jobId))
           deleted.push(jobId)
-
-          logger.info('Job deleted', { jobId })
-
-          recordAudit({
-            workspaceId: context.workspaceId || null,
-            actorId: context.userId,
-            action: AuditAction.SCHEDULE_UPDATED,
-            resourceType: AuditResourceType.SCHEDULE,
-            resourceId: jobId,
-            description: `Deleted job`,
-            metadata: { operation: 'delete' },
-          })
         }
 
         return {
@@ -514,57 +363,24 @@ export async function executeCompleteJob(
   }
 
   try {
-    const [job] = await db
-      .select({
-        id: workflowSchedule.id,
-        status: workflowSchedule.status,
-        sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
-      })
-      .from(workflowSchedule)
-      .where(
-        and(
-          eq(workflowSchedule.id, jobId),
-          eq(workflowSchedule.sourceType, 'job'),
-          isNull(workflowSchedule.archivedAt)
-        )
-      )
-      .limit(1)
-
-    if (!job) {
-      return { success: false, error: `Job not found: ${jobId}` }
+    if (!context.workspaceId) {
+      return { success: false, error: 'Missing workspace context' }
     }
 
-    if (context.workspaceId && job.sourceWorkspaceId !== context.workspaceId) {
-      return { success: false, error: `Job not found: ${jobId}` }
+    const result = await performCompleteJob({
+      jobId,
+      workspaceId: context.workspaceId,
+      userId: context.userId,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to complete job' }
     }
-
-    if (job.status === 'completed') {
+    if (result.alreadyCompleted) {
       return {
         success: true,
         output: { jobId, message: 'Job is already completed' },
       }
     }
-
-    await db
-      .update(workflowSchedule)
-      .set({
-        status: 'completed',
-        nextRunAt: null,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(workflowSchedule.id, jobId), isNull(workflowSchedule.archivedAt)))
-
-    logger.info('Job completed', { jobId })
-
-    recordAudit({
-      workspaceId: context.workspaceId || null,
-      actorId: context.userId,
-      action: AuditAction.SCHEDULE_UPDATED,
-      resourceType: AuditResourceType.SCHEDULE,
-      resourceId: jobId,
-      description: `Completed job`,
-      metadata: { operation: 'complete' },
-    })
 
     return {
       success: true,

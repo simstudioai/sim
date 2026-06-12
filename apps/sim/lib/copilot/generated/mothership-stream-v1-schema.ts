@@ -486,8 +486,11 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
         streamId: {
           type: 'string',
         },
+        userId: {
+          type: 'string',
+        },
       },
-      required: ['streamId', 'checkpointId', 'results'],
+      required: ['streamId', 'checkpointId', 'userId', 'results'],
       type: 'object',
     },
     MothershipStreamV1ResumeToolResult: {
@@ -813,7 +816,13 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           enum: ['subagent'],
           type: 'string',
         },
+        parentSpanId: {
+          type: 'string',
+        },
         parentToolCallId: {
+          type: 'string',
+        },
+        spanId: {
           type: 'string',
         },
       },

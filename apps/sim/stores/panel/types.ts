@@ -30,6 +30,8 @@ export type ChatContext =
   | { kind: 'table'; tableId: string; label: string }
   | { kind: 'file'; fileId: string; label: string }
   | { kind: 'folder'; folderId: string; label: string }
-  | { kind: 'templates'; templateId?: string; label: string }
+  | { kind: 'filefolder'; fileFolderId: string; label: string }
   | { kind: 'docs'; label: string }
   | { kind: 'slash_command'; command: string; label: string }
+  | { kind: 'integration'; blockType: string; label: string }
+  | { kind: 'skill'; skillId: string; label: string }

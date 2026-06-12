@@ -1,6 +1,7 @@
 ---
 title: Connectors
 description: Automatically sync documents from external sources into your knowledge base
+pageType: guide
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -14,21 +15,23 @@ Connectors continuously sync documents from external services into your knowledg
 
 <Image src="/static/connectors/connectors-sources.png" alt="Connect Source picker showing a searchable list of available connectors including Airtable, Asana, Confluence, Discord, Dropbox, Evernote, Fireflies, GitHub, and Gmail" width={800} height={500} />
 
-Sim ships with 30 built-in connectors:
+Sim ships with 49 built-in connectors:
 
 | Category | Connectors |
 |----------|-----------|
-| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Google Calendar, Google Sheets |
-| **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint |
-| **Documents** | Google Docs, WordPress, Webflow |
-| **Development** | GitHub |
-| **Communication** | Slack, Discord, Microsoft Teams, Reddit |
+| **Productivity** | Notion, Confluence, Asana, Linear, Jira, Jira Service Management, Monday, Google Calendar, Google Sheets, Google Forms, Typeform |
+| **Cloud Storage** | Google Drive, Dropbox, OneDrive, SharePoint, Amazon S3 |
+| **Documents** | Google Docs, WordPress, Webflow, DocuSign |
+| **Development** | GitHub, GitLab, Azure DevOps, Sentry |
+| **Communication** | Slack, Discord, Microsoft Teams, Reddit, YouTube |
 | **Email** | Gmail, Outlook |
 | **CRM** | HubSpot, Salesforce |
 | **Support** | Intercom, ServiceNow, Zendesk |
+| **Incident Management** | incident.io, Rootly |
 | **Data** | Airtable |
 | **Note-taking** | Evernote, Obsidian |
-| **Meetings** | Fireflies |
+| **Meetings** | Zoom, Gong, Grain, Granola, Fathom, Fireflies |
+| **Recruiting** | Greenhouse, Ashby |
 
 ## Adding a Connector
 
@@ -41,13 +44,18 @@ From inside a knowledge base, click **+ New connector** in the top right to open
 
 Most connectors use **OAuth** — select an existing credential from the dropdown or click **Connect new account** to authorize through the service. Tokens are refreshed automatically.
 
-A few connectors use **API keys** instead:
+Other connectors use **API keys** or **personal access tokens** instead. The setup modal tells you which credential each connector expects — for example:
 
 | Connector | Where to get the key |
 |-----------|---------------------|
 | **Evernote** | Developer Token (starts with `S=`) from your Evernote account settings |
 | **Obsidian** | Install the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) plugin, then copy the key from its settings |
 | **Fireflies** | Generate from the Integrations page in your Fireflies account |
+| **Typeform** | Personal access token from your Typeform account settings |
+| **Azure DevOps** | Personal access token with Wiki (Read), Work Items (Read), and Code (Read) scopes |
+| **YouTube** | YouTube Data API key from the Google Cloud Console |
+| **Amazon S3** | Secret Access Key (the Access Key ID, region, and bucket are entered as config fields) |
+| **Sentry** | Auth token with `project:read` and `event:read` scopes |
 
 <Callout type="info">
   If you rotate an API key in the external service, update it in Sim as well — OAuth tokens refresh automatically, but API keys do not.
@@ -63,6 +71,10 @@ Each connector has source-specific fields that control what gets synced. Example
 - **Notion** — sync an entire workspace, a specific database, or a single page tree
 - **GitHub** — specify a repository, branch, and optional file extension filter
 - **Confluence** — enter your Atlassian domain and optionally filter by space key or content type
+- **Azure DevOps** — choose what to sync (wiki pages, work items, repository files, or all), with optional work item type/state filters, a custom WIQL query, and repository/branch/path filters
+- **Amazon S3** — point at a bucket with an optional key prefix and a customizable file extension allowlist; S3-compatible stores (Cloudflare R2, MinIO) are supported via a custom endpoint
+- **YouTube** — sync a channel (by `@handle` or ID) or playlist, with an optional published-after date filter and the option to exclude Shorts
+- **Sentry** — filter issues by search query (e.g. `is:unresolved`), environment, and time window; self-hosted Sentry is supported via a custom host
 - **Obsidian** — provide your vault URL (`https://127.0.0.1:27124` by default) and optionally restrict to a folder path
 - **Fireflies** — optionally filter by host email or cap the number of transcripts synced
 
@@ -188,5 +200,5 @@ You can add as many connectors as you need to a single knowledge base. Each mana
   { question: "What happens when I delete a connector?", answer: "The connector is removed and future syncs stop. You're given the option to also delete all documents that were synced by that connector. If you don't check that option, they stay in the knowledge base as-is." },
   { question: "What does the Disabled status mean?", answer: "After 10 consecutive full-sync failures, the connector is automatically disabled to stop retrying. Reconnect the OAuth account or click Resume to re-enable it." },
   { question: "Do metadata tags count against a limit?", answer: "Yes. Tag slots are shared across all documents in a knowledge base — 17 slots total. Multiple connectors draw from the same pool, so plan accordingly if several connectors each auto-populate tags." },
-  { question: "Do I need to re-authenticate connectors?", answer: "OAuth connectors refresh tokens automatically. API key connectors (Evernote, Obsidian, Fireflies) need manual updates if you rotate the key in the external service." },
+  { question: "Do I need to re-authenticate connectors?", answer: "OAuth connectors refresh tokens automatically. API key and personal access token connectors need manual updates if you rotate the credential in the external service." },
 ]} />

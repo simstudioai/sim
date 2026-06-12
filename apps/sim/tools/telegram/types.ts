@@ -87,7 +87,7 @@ export interface TelegramMedia extends TelegramMessage {
   }
 }
 
-export interface TelegramAuthParams {
+interface TelegramAuthParams {
   botToken: string
   chatId: string
 }
@@ -180,7 +180,7 @@ export type TelegramResponse =
   | TelegramDeleteMessageResponse
 
 // Legacy type for backwards compatibility
-export interface TelegramMessageParams {
+interface TelegramMessageParams {
   botToken: string
   chatId: string
   text: string

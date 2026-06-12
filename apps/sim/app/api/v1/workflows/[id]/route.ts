@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { getActiveWorkflowRecord } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
@@ -9,9 +10,12 @@ import { v1GetWorkflowContract } from '@/lib/api/contracts/v1/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import {
+  checkRateLimit,
+  createRateLimitResponse,
+  validateWorkspaceAccess,
+} from '@/app/api/v1/middleware'
 
 const logger = createLogger('V1WorkflowDetailsAPI')
 
@@ -43,13 +47,13 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
-      const permission = await getUserEntityPermissions(
+      const accessError = await validateWorkspaceAccess(
+        rateLimit,
         userId,
-        'workspace',
         workflowData.workspaceId!
       )
-      if (!permission) {
-        return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+      if (accessError) {
+        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
       }
 
       const blockRows = await db
@@ -70,7 +74,6 @@ export const GET = withRouteHandler(
         id: workflowData.id,
         name: workflowData.name,
         description: workflowData.description,
-        color: workflowData.color,
         folderId: workflowData.folderId,
         workspaceId: workflowData.workspaceId,
         isDeployed: workflowData.isDeployed,
@@ -89,7 +92,7 @@ export const GET = withRouteHandler(
 
       return NextResponse.json(apiResponse.body, { headers: apiResponse.headers })
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
+      const message = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Workflow details fetch error`, { error: message })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }

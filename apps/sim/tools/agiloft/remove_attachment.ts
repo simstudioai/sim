@@ -2,7 +2,8 @@ import type {
   AgiloftRemoveAttachmentParams,
   AgiloftRemoveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import { buildRemoveAttachmentUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildRemoveAttachmentUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftRemoveAttachmentTool: ToolConfig<
@@ -67,7 +68,7 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
 
   request: {
     url: 'https://placeholder.agiloft.com',
-    method: 'GET',
+    method: 'DELETE',
     headers: () => ({}),
   },
 
@@ -76,7 +77,7 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
       params,
       (base) => ({
         url: buildRemoveAttachmentUrl(base, params),
-        method: 'GET',
+        method: 'DELETE',
       }),
       async (response) => {
         const text = await response.text()

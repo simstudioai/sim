@@ -676,7 +676,7 @@ export const REACTION_METADATA_OUTPUT_PROPERTIES = {
   reaction: { type: 'string', description: 'Emoji reaction name' },
 } as const satisfies Record<string, OutputProperty>
 
-export interface SlackBaseParams {
+interface SlackBaseParams {
   authMethod: 'oauth' | 'bot_token'
   accessToken: string
   botToken: string
@@ -777,6 +777,57 @@ export interface SlackGetThreadParams extends SlackBaseParams {
   channel: string
   threadTs: string
   limit?: number
+}
+
+export interface SlackSetStatusParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  status: string
+  loadingMessages?: string[]
+}
+
+export interface SlackSetTitleParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  title: string
+}
+
+export interface SlackSuggestedPrompt {
+  title: string
+  message: string
+}
+
+export interface SlackSetSuggestedPromptsParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  prompts: SlackSuggestedPrompt[] | string
+  promptsTitle?: string
+}
+
+export interface SlackGetPermalinkParams extends SlackBaseParams {
+  channel: string
+  messageTs: string
+}
+
+export interface SlackGetChannelHistoryParams extends SlackBaseParams {
+  channel: string
+  oldest?: string
+  latest?: string
+  inclusive?: boolean
+  limit?: number
+  cursor?: string
+  maxPages?: number
+}
+
+export interface SlackGetThreadRepliesParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  oldest?: string
+  latest?: string
+  inclusive?: boolean
+  limit?: number
+  cursor?: string
+  maxPages?: number
 }
 
 export interface SlackGetChannelInfoParams extends SlackBaseParams {
@@ -880,18 +931,18 @@ export interface SlackCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackReaction {
+interface SlackReaction {
   name: string
   count: number
   users: string[]
 }
 
-export interface SlackMessageEdited {
+interface SlackMessageEdited {
   user: string
   ts: string
 }
 
-export interface SlackAttachment {
+interface SlackAttachment {
   id?: number
   fallback?: string
   text?: string
@@ -914,13 +965,13 @@ export interface SlackAttachment {
   ts?: string
 }
 
-export interface SlackBlock {
+interface SlackBlock {
   type: string
   block_id?: string
   [key: string]: any // Blocks can have various properties depending on type
 }
 
-export interface SlackMessage {
+interface SlackMessage {
   // Core properties
   type: string
   ts: string
@@ -1030,7 +1081,7 @@ export interface SlackRemoveReactionResponse extends ToolResponse {
   }
 }
 
-export interface SlackChannel {
+interface SlackChannel {
   id: string
   name: string
   is_channel?: boolean
@@ -1067,7 +1118,7 @@ export interface SlackListMembersResponse extends ToolResponse {
   }
 }
 
-export interface SlackUser {
+interface SlackUser {
   id: string
   team_id?: string | null
   name: string
@@ -1212,14 +1263,14 @@ export interface SlackCanvasFile {
   canvas_creator_id?: string | null
 }
 
-export interface SlackCanvasPaging {
+interface SlackCanvasPaging {
   count: number
   total: number
   page: number
   pages: number
 }
 
-export interface SlackCanvasSection {
+interface SlackCanvasSection {
   id: string
 }
 
@@ -1248,7 +1299,7 @@ export interface SlackDeleteCanvasResponse extends ToolResponse {
   }
 }
 
-export interface SlackView {
+interface SlackView {
   id: string
   team_id?: string | null
   type: string
@@ -1293,6 +1344,60 @@ export interface SlackPublishViewResponse extends ToolResponse {
   }
 }
 
+export interface SlackSetStatusResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackSetTitleResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackSetSuggestedPromptsResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackGetPermalinkResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    permalink: string
+  }
+}
+
+export interface SlackGetChannelHistoryResponse extends ToolResponse {
+  output: {
+    messages: SlackMessage[]
+    count: number
+    hasMore: boolean
+    nextCursor: string | null
+    pages: number
+  }
+}
+
+export interface SlackGetThreadRepliesResponse extends ToolResponse {
+  output: {
+    parentMessage: SlackMessage | null
+    replies: SlackMessage[]
+    messages: SlackMessage[]
+    replyCount: number
+    hasMore: boolean
+    nextCursor: string | null
+    pages: number
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -1309,6 +1414,12 @@ export type SlackResponse =
   | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse
+  | SlackSetStatusResponse
+  | SlackSetTitleResponse
+  | SlackSetSuggestedPromptsResponse
+  | SlackGetPermalinkResponse
+  | SlackGetChannelHistoryResponse
+  | SlackGetThreadRepliesResponse
   | SlackGetChannelInfoResponse
   | SlackGetUserPresenceResponse
   | SlackEditCanvasResponse

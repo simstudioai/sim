@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -91,9 +92,6 @@ class ProcessingError extends KnowledgeUploadError {
   }
 }
 
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : typeof error === 'string' ? error : 'Unknown error'
-
 interface BatchPresignedFile {
   fileName: string
   contentType: string
@@ -107,7 +105,8 @@ interface BatchPresignedFile {
  * single-PUT URL.
  */
 const fetchBatchPresignedData = async (
-  files: File[]
+  files: File[],
+  workspaceId: string
 ): Promise<(PresignedUploadInfo | undefined)[]> => {
   const result: (PresignedUploadInfo | undefined)[] = new Array(files.length).fill(undefined)
   const smallFileIndices: number[] = []
@@ -115,6 +114,8 @@ const fetchBatchPresignedData = async (
     if (files[i].size <= LARGE_FILE_THRESHOLD) smallFileIndices.push(i)
   }
   if (smallFileIndices.length === 0) return result
+
+  const batchEndpoint = `${KB_BATCH_PRESIGNED_ENDPOINT}&workspaceId=${encodeURIComponent(workspaceId)}`
 
   for (let start = 0; start < smallFileIndices.length; start += BATCH_REQUEST_SIZE) {
     const batchIndices = smallFileIndices.slice(start, start + BATCH_REQUEST_SIZE)
@@ -127,7 +128,7 @@ const fetchBatchPresignedData = async (
       })),
     }
 
-    const response = await fetch(KB_BATCH_PRESIGNED_ENDPOINT, {
+    const response = await fetch(batchEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -266,7 +267,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
           file,
           workspaceId: options.workspaceId,
           context: 'knowledge-base',
-          presignedEndpoint: '/api/files/presigned?type=knowledge-base',
+          presignedEndpoint: `/api/files/presigned?type=knowledge-base&workspaceId=${encodeURIComponent(options.workspaceId)}`,
           presignedOverride: presigned,
           onProgress,
         })
@@ -294,6 +295,10 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
   }
 
   const uploadFilesInBatches = async (files: File[]): Promise<UploadedFile[]> => {
+    if (!options.workspaceId) {
+      throw new KnowledgeUploadError('workspaceId is required for upload', 'MISSING_WORKSPACE_ID')
+    }
+
     const fileStatuses: FileUploadStatus[] = files.map((file) => ({
       fileName: file.name,
       fileSize: file.size,
@@ -305,7 +310,7 @@ export function useKnowledgeUpload(options: UseKnowledgeUploadOptions = {}) {
 
     logger.info(`Starting batch upload of ${files.length} files`)
 
-    const presignedData = await fetchBatchPresignedData(files)
+    const presignedData = await fetchBatchPresignedData(files, options.workspaceId)
 
     const settled = await runWithConcurrency(
       files,

@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface AthenaConnectionConfig {
+interface AthenaConnectionConfig {
   awsRegion: string
   awsAccessKeyId: string
   awsSecretAccessKey: string

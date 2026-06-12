@@ -63,7 +63,7 @@ export const writeTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsWriteResp
       const range = params.range || 'Sheet1!A2'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}`
       )
 
       // Default to USER_ENTERED if not specified
@@ -253,7 +253,7 @@ export const writeV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Wri
       const fullRange = `${sheetName}!${cellRange}`
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(fullRange)}`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(fullRange)}`
       )
 
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'

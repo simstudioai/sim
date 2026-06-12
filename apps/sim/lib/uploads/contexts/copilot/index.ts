@@ -1,10 +1,6 @@
+export type { CopilotStoredFile } from './copilot-file-manager'
 export {
-  type CopilotFileAttachment,
-  deleteCopilotFile,
   downloadCopilotFile,
-  type GenerateCopilotUploadUrlOptions,
-  generateCopilotDownloadUrl,
   generateCopilotUploadUrl,
-  isSupportedFileType,
-  processCopilotAttachments,
+  uploadCopilotFile,
 } from './copilot-file-manager'

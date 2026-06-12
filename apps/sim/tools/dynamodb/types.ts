@@ -59,7 +59,7 @@ export interface DynamoDBDeleteParams extends DynamoDBConnectionConfig {
   expressionAttributeValues?: Record<string, unknown>
 }
 
-export interface DynamoDBBaseResponse extends ToolResponse {
+interface DynamoDBBaseResponse extends ToolResponse {
   output: {
     message: string
     item?: Record<string, unknown>
@@ -81,17 +81,17 @@ export interface DynamoDBIntrospectParams extends DynamoDBConnectionConfig {
   tableName?: string
 }
 
-export interface DynamoDBKeySchema {
+interface DynamoDBKeySchema {
   attributeName: string
   keyType: 'HASH' | 'RANGE'
 }
 
-export interface DynamoDBAttributeDefinition {
+interface DynamoDBAttributeDefinition {
   attributeName: string
   attributeType: 'S' | 'N' | 'B'
 }
 
-export interface DynamoDBGSI {
+interface DynamoDBGSI {
   indexName: string
   keySchema: DynamoDBKeySchema[]
   projectionType: string

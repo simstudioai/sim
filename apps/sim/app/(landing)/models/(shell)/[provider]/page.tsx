@@ -55,30 +55,18 @@ export async function generateMetadata({
       `${provider.name} AI models`,
       ...provider.models.slice(0, 6).map((model) => model.displayName),
     ],
+    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
       title: `${provider.name} Models | Sim`,
       description: `Explore ${provider.modelCount} ${provider.name} models with pricing and capability details.`,
       url: `${baseUrl}${provider.href}`,
       type: 'website',
-      images: [
-        {
-          url: `${baseUrl}${provider.href}/opengraph-image`,
-          width: 1200,
-          height: 630,
-          alt: `${provider.name} Models on Sim`,
-        },
-      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${provider.name} Models | Sim`,
       description: providerFaqs[0]?.answer ?? provider.summary,
-      images: [
-        {
-          url: `${baseUrl}${provider.href}/opengraph-image`,
-          alt: `${provider.name} Models on Sim`,
-        },
-      ],
     },
     alternates: {
       canonical: `${baseUrl}${provider.href}`,
@@ -164,7 +152,7 @@ export default async function ProviderModelsPage({
               className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
             >
               <svg
-                className='h-3 w-3 shrink-0'
+                className='size-3 shrink-0'
                 viewBox='0 0 10 10'
                 fill='none'
                 xmlns='http://www.w3.org/2000/svg'
@@ -206,7 +194,7 @@ export default async function ProviderModelsPage({
             <div className='flex items-center gap-4'>
               <ProviderIcon
                 provider={provider}
-                className='h-12 w-12 rounded-[5px]'
+                className='size-12 rounded-[5px]'
                 iconClassName='h-6 w-6'
               />
               <h1

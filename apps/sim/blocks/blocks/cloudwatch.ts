@@ -1,5 +1,5 @@
 import { CloudWatchIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
 import type {
   CloudWatchDescribeAlarmsResponse,
@@ -8,8 +8,10 @@ import type {
   CloudWatchGetLogEventsResponse,
   CloudWatchGetMetricStatisticsResponse,
   CloudWatchListMetricsResponse,
+  CloudWatchMuteAlarmResponse,
   CloudWatchPutMetricDataResponse,
   CloudWatchQueryLogsResponse,
+  CloudWatchUnmuteAlarmResponse,
 } from '@/tools/cloudwatch/types'
 
 export const CloudWatchBlock: BlockConfig<
@@ -21,6 +23,8 @@ export const CloudWatchBlock: BlockConfig<
   | CloudWatchListMetricsResponse
   | CloudWatchGetMetricStatisticsResponse
   | CloudWatchPutMetricDataResponse
+  | CloudWatchMuteAlarmResponse
+  | CloudWatchUnmuteAlarmResponse
 > = {
   type: 'cloudwatch',
   name: 'CloudWatch',
@@ -28,10 +32,10 @@ export const CloudWatchBlock: BlockConfig<
   longDescription:
     'Integrate AWS CloudWatch into workflows. Run Log Insights queries, list log groups, retrieve log events, list and get metrics, and monitor alarms. Requires AWS access key and secret access key.',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  docsLink: 'https://docs.sim.ai/tools/cloudwatch',
-  tags: ['cloud', 'monitoring'],
+  integrationType: IntegrationType.Observability,
+  docsLink: 'https://docs.sim.ai/integrations/cloudwatch',
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
+  iconColor: '#FF4F8B',
   icon: CloudWatchIcon,
   subBlocks: [
     {
@@ -47,6 +51,8 @@ export const CloudWatchBlock: BlockConfig<
         { label: 'Get Metric Statistics', id: 'get_metric_statistics' },
         { label: 'Publish Metric', id: 'put_metric_data' },
         { label: 'Describe Alarms', id: 'describe_alarms' },
+        { label: 'Mute Alarm', id: 'mute_alarm' },
+        { label: 'Unmute Alarm', id: 'unmute_alarm' },
       ],
       value: () => 'query_logs',
     },
@@ -361,6 +367,60 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'describe_alarms' },
     },
     {
+      id: 'muteRuleName',
+      title: 'Mute Rule Name',
+      type: 'short-input',
+      placeholder: 'my-mute-rule',
+      condition: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+      required: { field: 'operation', value: ['mute_alarm', 'unmute_alarm'] },
+    },
+    {
+      id: 'alarmNames',
+      title: 'Alarm Names',
+      type: 'short-input',
+      placeholder: 'my-alarm-1, my-alarm-2',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationValue',
+      title: 'Duration',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'durationUnit',
+      title: 'Duration Unit',
+      type: 'dropdown',
+      options: [
+        { label: 'Minutes', id: 'minutes' },
+        { label: 'Hours', id: 'hours' },
+        { label: 'Days', id: 'days' },
+      ],
+      value: () => 'hours',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      required: { field: 'operation', value: 'mute_alarm' },
+    },
+    {
+      id: 'muteDescription',
+      title: 'Description',
+      type: 'short-input',
+      placeholder: 'Why these alarms are being muted',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+    },
+    {
+      id: 'muteStartDate',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'e.g., 1711900800',
+      condition: { field: 'operation', value: 'mute_alarm' },
+      mode: 'advanced',
+      description: 'Unix epoch seconds. Defaults to now (mute starts immediately).',
+    },
+    {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
@@ -389,6 +449,8 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       'cloudwatch_get_metric_statistics',
       'cloudwatch_put_metric_data',
       'cloudwatch_describe_alarms',
+      'cloudwatch_mute_alarm',
+      'cloudwatch_unmute_alarm',
     ],
     config: {
       tool: (params) => {
@@ -409,6 +471,10 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
             return 'cloudwatch_put_metric_data'
           case 'describe_alarms':
             return 'cloudwatch_describe_alarms'
+          case 'mute_alarm':
+            return 'cloudwatch_mute_alarm'
+          case 'unmute_alarm':
+            return 'cloudwatch_unmute_alarm'
           default:
             throw new Error(`Invalid CloudWatch operation: ${params.operation}`)
         }
@@ -613,6 +679,66 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
               ...(parsedLimit !== undefined && { limit: parsedLimit }),
             }
 
+          case 'mute_alarm': {
+            const alarmNames = rest.alarmNames
+            if (!alarmNames) {
+              throw new Error('Alarm names are required')
+            }
+
+            const names =
+              typeof alarmNames === 'string'
+                ? alarmNames
+                    .split(',')
+                    .map((n: string) => n.trim())
+                    .filter(Boolean)
+                : alarmNames
+
+            if (!Array.isArray(names) || names.length === 0) {
+              throw new Error('At least one alarm name is required')
+            }
+
+            const durationValueRaw = rest.durationValue
+            const parsedDurationValue =
+              typeof durationValueRaw === 'number'
+                ? durationValueRaw
+                : Number.parseInt(String(durationValueRaw ?? ''), 10)
+            if (!Number.isFinite(parsedDurationValue) || parsedDurationValue < 1) {
+              throw new Error('Duration must be a positive integer')
+            }
+
+            const startDateRaw = rest.muteStartDate
+            const parsedStartDate =
+              startDateRaw === undefined || startDateRaw === ''
+                ? undefined
+                : typeof startDateRaw === 'number'
+                  ? startDateRaw
+                  : Number.parseInt(String(startDateRaw), 10)
+            if (parsedStartDate !== undefined && !Number.isFinite(parsedStartDate)) {
+              throw new Error('Start date must be a Unix epoch in seconds')
+            }
+
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
+              alarmNames: names,
+              durationValue: parsedDurationValue,
+              durationUnit: rest.durationUnit,
+              ...(rest.muteDescription && { description: rest.muteDescription }),
+              ...(parsedStartDate !== undefined && { startDate: parsedStartDate }),
+            }
+          }
+
+          case 'unmute_alarm': {
+            return {
+              awsRegion,
+              awsAccessKeyId,
+              awsSecretAccessKey,
+              muteRuleName: rest.muteRuleName,
+            }
+          }
+
           default:
             throw new Error(`Invalid CloudWatch operation: ${operation}`)
         }
@@ -653,6 +779,18 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       description: 'Alarm state filter (OK, ALARM, INSUFFICIENT_DATA)',
     },
     alarmType: { type: 'string', description: 'Alarm type filter (MetricAlarm, CompositeAlarm)' },
+    muteRuleName: { type: 'string', description: 'Unique name for the alarm mute rule' },
+    alarmNames: { type: 'string', description: 'Comma-separated alarm names to mute' },
+    durationValue: { type: 'number', description: 'Length of the mute window' },
+    durationUnit: {
+      type: 'string',
+      description: 'Unit for durationValue: minutes, hours, or days',
+    },
+    muteDescription: { type: 'string', description: 'Description of the mute rule' },
+    muteStartDate: {
+      type: 'number',
+      description: 'When the mute begins (Unix epoch seconds). Defaults to now.',
+    },
     limit: { type: 'number', description: 'Maximum number of results' },
   },
   outputs: {
@@ -696,9 +834,25 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
       type: 'array',
       description: 'CloudWatch alarms with state and configuration',
     },
+    alarmNames: {
+      type: 'array',
+      description: 'Names of the alarms targeted by the mute rule',
+    },
+    muteRuleName: {
+      type: 'string',
+      description: 'Name of the alarm mute rule that was created or deleted',
+    },
+    expression: {
+      type: 'string',
+      description: 'Schedule expression used by the mute rule',
+    },
+    duration: {
+      type: 'string',
+      description: 'ISO 8601 duration of the mute window',
+    },
     success: {
       type: 'boolean',
-      description: 'Whether the published metric was successful',
+      description: 'Whether the operation completed successfully',
     },
     namespace: {
       type: 'string',
@@ -722,3 +876,101 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
     },
   },
 }
+
+export const CloudWatchBlockMeta = {
+  tags: ['cloud', 'monitoring'],
+  templates: [
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch alarm digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of CloudWatch alarms by service and severity, identifies repeat offenders, and posts a digest to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch log triage',
+      prompt:
+        'Build a scheduled workflow that runs CloudWatch Logs Insights queries hourly for error patterns, clusters matches, writes top groups to a triage table, and pings the on-call engineer.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch cost-control alerts',
+      prompt:
+        'Create a scheduled workflow that pulls CloudWatch billing alarms daily, projects month-end spend by service, and posts an alert when projection exceeds budget thresholds.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['finance', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch incident scribe',
+      prompt:
+        'Build a scheduled workflow that polls CloudWatch alarms every few minutes for any in ALARM state, captures the surrounding metrics and recent log excerpts, and writes a timeline file for the incident review.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch SLO burn-rate watcher',
+      prompt:
+        'Create a workflow that monitors CloudWatch SLO burn rate every five minutes, classifies severity, and pages the on-call team via PagerDuty when burn exceeds fast-burn thresholds.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch metric archiver',
+      prompt:
+        'Build a scheduled workflow that exports CloudWatch metric snapshots into S3 long-term storage, preserving granularity for compliance, and writing a manifest table.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['s3'],
+    },
+    {
+      icon: CloudWatchIcon,
+      title: 'CloudWatch log error triager',
+      prompt:
+        'Create a workflow that runs a CloudWatch Logs Insights query against application log groups every few minutes, groups recurring error signatures with an agent, opens a Linear issue for any new error pattern, and posts a Slack alert.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring', 'engineering'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'investigate-error-spike',
+      description:
+        'Run a CloudWatch Logs Insights query to find and summarize error spikes in a log group over a time window.',
+      content:
+        '# Investigate CloudWatch Error Spike\n\nFind the cause of an error spike using Logs Insights.\n\n## Steps\n1. Identify the relevant log group and the time window to investigate.\n2. Run a Logs Insights query that filters for error or exception lines and aggregates by error type.\n3. Pull representative sample log events for the top error groups.\n4. Correlate timing with any recent deploys or traffic changes.\n\n## Output\nA summary of the top error types, their counts, sample messages, and the likely cause.',
+    },
+    {
+      name: 'check-metric-health',
+      description:
+        'Pull CloudWatch metric statistics for a resource and report whether key metrics are within healthy ranges.',
+      content:
+        '# Check CloudWatch Metric Health\n\nReview key metrics for a resource against expected thresholds.\n\n## Steps\n1. Identify the namespace, metric names, and dimensions for the resource (e.g. CPUUtilization, latency, error rate).\n2. Get metric statistics over the chosen window with an appropriate period and statistic (Average, p99, Sum).\n3. Compare values against healthy thresholds.\n\n## Output\nA per-metric summary with the current value, trend, and whether it is within a healthy range.',
+    },
+    {
+      name: 'review-alarm-state',
+      description:
+        'List CloudWatch alarms, report which are in ALARM or INSUFFICIENT_DATA, and optionally mute noisy alarms.',
+      content:
+        '# Review CloudWatch Alarm State\n\nGet a snapshot of alarm health across the account.\n\n## Steps\n1. Describe alarms and group them by state (OK, ALARM, INSUFFICIENT_DATA).\n2. For alarms in ALARM, capture the metric, threshold, and reason.\n3. If asked, mute alarms that are known-noisy during a maintenance window and note them.\n\n## Output\nA list of alarms currently firing or missing data, with the metric and threshold for each.',
+    },
+  ],
+} as const satisfies BlockMeta

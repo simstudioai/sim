@@ -40,6 +40,11 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteDocument: vi.fn(),
   markDocumentAsFailedTimeout: vi.fn(),
   retryDocumentProcessing: vi.fn(),
+  KnowledgeBaseFileOwnershipError: class KnowledgeBaseFileOwnershipError extends Error {},
+}))
+
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
@@ -342,7 +347,8 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(createSingleDocument)).toHaveBeenCalledWith(
         validDocumentData,
         'kb-123',
-        expect.any(String)
+        expect.any(String),
+        'user-123'
       )
     })
 
@@ -443,7 +449,8 @@ describe('Knowledge Base Documents API Route', () => {
       expect(vi.mocked(createDocumentRecords)).toHaveBeenCalledWith(
         validBulkData.documents,
         'kb-123',
-        expect.any(String)
+        expect.any(String),
+        'user-123'
       )
       expect(vi.mocked(processDocumentsWithQueue)).toHaveBeenCalled()
     })

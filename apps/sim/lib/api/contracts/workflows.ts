@@ -1,8 +1,15 @@
 import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
+const executionIdSchema = z
+  .string()
+  .min(1, 'Invalid execution ID')
+  .max(128, 'Execution ID too long')
+  .regex(
+    /^[A-Za-z0-9._:-]+$/,
+    'Execution ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
+  )
 
 const workflowPositionSchema = z.object({
   x: z.number(),
@@ -20,6 +27,7 @@ const workflowBlockDataSchema = z.object({
   whileCondition: z.string().optional(),
   doWhileCondition: z.string().optional(),
   parallelType: z.enum(['collection', 'count']).optional(),
+  batchSize: z.number().optional(),
   type: z.string().optional(),
   canonicalModes: z.record(z.string(), z.enum(['basic', 'advanced'])).optional(),
 })
@@ -31,6 +39,10 @@ const workflowSubBlockStateSchema = z.object({
 })
 
 const workflowBlockOutputSchema = z.unknown()
+const workflowEdgeHandleSchema = z
+  .string()
+  .nullish()
+  .transform((value) => value ?? undefined)
 
 const workflowBlockStateSchema = z.object({
   id: z.string(),
@@ -52,8 +64,8 @@ const workflowEdgeSchema = z.object({
   id: z.string(),
   source: z.string(),
   target: z.string(),
-  sourceHandle: z.string().optional(),
-  targetHandle: z.string().optional(),
+  sourceHandle: workflowEdgeHandleSchema,
+  targetHandle: workflowEdgeHandleSchema,
   type: z.string().optional(),
   animated: z.boolean().optional(),
   style: z.record(z.string(), z.unknown()).optional(),
@@ -90,6 +102,7 @@ const workflowParallelSchema = z.object({
     .optional(),
   count: z.number().optional(),
   parallelType: z.enum(['count', 'collection']).optional(),
+  batchSize: z.number().optional(),
   enabled: z.boolean().optional(),
   locked: z.boolean().optional(),
 })
@@ -133,13 +146,6 @@ export const workflowVariableReadSchema = workflowVariableWriteSchema.extend({
   workflowId: z.string(),
 })
 
-/**
- * Backwards-compatible alias for callers that do not need to distinguish
- * read vs write. Prefer `workflowVariableWriteSchema` for request bodies
- * and `workflowVariableReadSchema` for response payloads.
- */
-export const workflowVariableSchema = workflowVariableWriteSchema
-
 export const workflowStateSchema = z.object({
   blocks: z.record(z.string(), workflowBlockStateSchema),
   edges: z.array(workflowEdgeSchema),
@@ -148,7 +154,7 @@ export const workflowStateSchema = z.object({
   lastSaved: z.number().optional(),
   isDeployed: z.boolean().optional(),
   deployedAt: z.coerce.date().nullable().optional(),
-  variables: z.record(z.string(), workflowVariableSchema).optional(),
+  variables: z.record(z.string(), workflowVariableWriteSchema).optional(),
   /**
    * Display metadata stamped onto the workflow state by the GET
    * `/api/workflows/[id]` route, so callers consuming the wire payload
@@ -159,7 +165,7 @@ export const workflowStateSchema = z.object({
   metadata: z
     .object({
       name: z.string().optional(),
-      description: z.string().optional(),
+      description: z.string().nullable().optional(),
     })
     .optional(),
 })
@@ -206,7 +212,6 @@ export const workflowListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   workspaceId: z.string().nullable(),
   folderId: z.string().nullable(),
   sortOrder: z.number(),
@@ -220,10 +225,6 @@ export const createWorkflowBodySchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional().default(''),
-  color: z
-    .string()
-    .optional()
-    .transform((color) => color || getNextWorkflowColor()),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().optional(),
@@ -234,7 +235,6 @@ export const createWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
-  color: z.string(),
   workspaceId: z.string(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number(),
@@ -250,7 +250,6 @@ export type CreateWorkflowResponse = z.output<typeof createWorkflowResponseSchem
 export const duplicateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required'),
   description: z.string().optional(),
-  color: z.string().optional(),
   workspaceId: z.string().optional(),
   folderId: z.string().nullable().optional(),
   newId: z.string().uuid().optional(),
@@ -260,7 +259,6 @@ export const duplicateWorkflowResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   workspaceId: z.string(),
   folderId: z.string().nullable(),
   sortOrder: z.number(),
@@ -276,7 +274,6 @@ export type DuplicateWorkflowResponse = z.output<typeof duplicateWorkflowRespons
 export const updateWorkflowBodySchema = z.object({
   name: z.string().min(1, 'Name is required').optional(),
   description: z.string().optional(),
-  color: z.string().optional(),
   folderId: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
   locked: z.boolean().optional(),
@@ -341,6 +338,7 @@ export const executeWorkflowBodySchema = z.object({
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
   workflowStateOverride: workflowStateSchema.optional(),
+  executionId: executionIdSchema.optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),
@@ -349,7 +347,7 @@ export const executeWorkflowBodySchema = z.object({
 export type ExecuteWorkflowBody = z.input<typeof executeWorkflowBodySchema>
 
 export const workflowVariablesBodySchema = z.object({
-  variables: z.record(z.string(), workflowVariableSchema),
+  variables: z.record(z.string(), workflowVariableWriteSchema),
 })
 export type WorkflowVariablesBody = z.input<typeof workflowVariablesBodySchema>
 
@@ -509,6 +507,61 @@ const pausedWorkflowExecutionDetailSchema = pausedWorkflowExecutionSummarySchema
   queue: z.array(z.record(z.string(), z.unknown())),
 })
 
+const workflowExecutionStatusEnum = z.enum([
+  'pending',
+  'running',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+])
+
+const workflowExecutionPausedDetailSchema = z.object({
+  pausedAt: z.string(),
+  resumeAt: z.string().nullable(),
+  pauseKind: z.enum(['time', 'human']).nullable(),
+  blockedOnBlockId: z.string().nullable(),
+  pausedExecutionId: z.string(),
+  pausePointCount: z.number(),
+  resumedCount: z.number(),
+})
+
+const workflowExecutionStatusResponseSchema = z.object({
+  executionId: z.string(),
+  workflowId: z.string(),
+  status: workflowExecutionStatusEnum,
+  trigger: z.string(),
+  level: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+  totalDurationMs: z.number().nullable(),
+  paused: workflowExecutionPausedDetailSchema.nullable(),
+  cost: z.object({ total: z.number() }).nullable(),
+  error: z.string().nullable(),
+  finalOutput: z.unknown().nullable(),
+  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
+})
+
+export type WorkflowExecutionStatusResponse = z.output<typeof workflowExecutionStatusResponseSchema>
+
+const workflowExecutionStatusQuerySchema = z.object({
+  includeOutput: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
+  selectedOutputs: z
+    .string()
+    .optional()
+    .transform((value) =>
+      value
+        ? value
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : []
+    ),
+})
+
 const cancelWorkflowExecutionResponseSchema = z.object({
   success: z.boolean(),
   executionId: z.string(),
@@ -570,7 +623,6 @@ export const getWorkflowResponseDataSchema = z.object({
   sortOrder: z.number(),
   name: z.string(),
   description: z.string().nullable(),
-  color: z.string(),
   lastSynced: z.coerce.date(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -790,6 +842,17 @@ export const cancelWorkflowExecutionContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: cancelWorkflowExecutionResponseSchema,
+  },
+})
+
+export const getWorkflowExecutionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workflows/[id]/executions/[executionId]',
+  params: workflowExecutionParamsSchema,
+  query: workflowExecutionStatusQuerySchema,
+  response: {
+    mode: 'json',
+    schema: workflowExecutionStatusResponseSchema,
   },
 })
 

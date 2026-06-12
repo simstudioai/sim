@@ -18,19 +18,19 @@ const RESOURCE_CARDS = [
   {
     title: 'Agent',
     description: 'Build AI agents',
-    href: 'https://docs.sim.ai/blocks/agent',
+    href: 'https://docs.sim.ai/workflows/blocks/agent',
     icon: AgentIcon,
   },
   {
     title: 'MCP',
     description: 'Connect tools',
-    href: 'https://docs.sim.ai/mcp',
+    href: 'https://docs.sim.ai/agents/mcp',
     icon: McpIcon,
   },
   {
     title: 'Self-hosting',
     description: 'Host on your infra',
-    href: 'https://docs.sim.ai/self-hosting',
+    href: 'https://docs.sim.ai/platform/self-hosting',
     icon: GithubOutlineIcon,
   },
 ] as const
@@ -78,7 +78,7 @@ export function DocsDropdown() {
               className='flex flex-col gap-1 rounded-[5px] border border-[var(--landing-bg-elevated)] px-2.5 py-2 transition-colors hover:border-[var(--landing-border-strong)] hover:bg-[var(--landing-bg-card)]'
             >
               <div className='flex items-center gap-1.5'>
-                <Icon className='h-[13px] w-[13px] flex-shrink-0 text-[var(--landing-text-icon)]' />
+                <Icon className='size-[13px] flex-shrink-0 text-[var(--landing-text-icon)]' />
                 <span className='font-[430] font-season text-[var(--landing-text-body)] text-caption'>
                   {card.title}
                 </span>

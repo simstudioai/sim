@@ -1,4 +1,4 @@
-export const API_ENDPOINTS = {
+const API_ENDPOINTS = {
   ENVIRONMENT: '/api/environment',
   SETTINGS: '/api/users/me/settings',
   WORKFLOWS: '/api/workflows',
@@ -42,13 +42,6 @@ export const TERMINAL_HEIGHT = {
   MIN: 30,
   /** Maximum is 70% of viewport, enforced dynamically */
   MAX_PERCENTAGE: 0.7,
-} as const
-
-/** Toolbar triggers section height constraints */
-export const TOOLBAR_TRIGGERS_HEIGHT = {
-  DEFAULT: 300,
-  MIN: 30,
-  MAX: 800,
 } as const
 
 /** Editor connections section height constraints */

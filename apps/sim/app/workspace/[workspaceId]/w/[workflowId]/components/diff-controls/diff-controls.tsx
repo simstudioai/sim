@@ -3,27 +3,15 @@ import { createLogger } from '@sim/logger'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
-import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('DiffControls')
-const NOTIFICATION_WIDTH = 240
-const NOTIFICATION_GAP = 16
 
 export const DiffControls = memo(function DiffControls() {
   const isDiffReady = useWorkflowDiffStore((state) => state.isDiffReady)
   const hasActiveDiff = useWorkflowDiffStore((state) => state.hasActiveDiff)
   const acceptChanges = useWorkflowDiffStore((state) => state.acceptChanges)
   const rejectChanges = useWorkflowDiffStore((state) => state.rejectChanges)
-
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-
-  const allNotifications = useNotificationStore((state) => state.notifications)
-  const hasVisibleNotifications = useMemo(() => {
-    if (!activeWorkflowId) return false
-    return allNotifications.some((n) => !n.workflowId || n.workflowId === activeWorkflowId)
-  }, [allNotifications, activeWorkflowId])
 
   const handleAccept = useCallback(() => {
     logger.info('Accepting proposed changes with backup protection')
@@ -60,15 +48,13 @@ export const DiffControls = memo(function DiffControls() {
     return null
   }
 
-  const notificationOffset = hasVisibleNotifications ? NOTIFICATION_WIDTH + NOTIFICATION_GAP : 0
-
   return (
     <div
       ref={preventZoomRef}
       className='absolute z-30'
       style={{
         bottom: '16px',
-        right: `${16 + notificationOffset}px`,
+        right: '16px',
       }}
     >
       <div

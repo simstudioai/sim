@@ -3,7 +3,11 @@ import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { isValidKey } from '@/lib/workflows/sanitization/key-validation'
 import { validateEdges } from '@/stores/workflows/workflow/edge-validation'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { addConnectionsAsEdges, normalizeBlockIdsInOperations } from './builders'
+import {
+  addConnectionsAsEdges,
+  createValidatedEdge,
+  normalizeBlockIdsInOperations,
+} from './builders'
 import {
   handleAddOperation,
   handleDeleteOperation,
@@ -152,7 +156,7 @@ export function applyOperationsToWorkflowState(
   permissionConfig: PermissionGroupConfig | null = null
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
-  const modifiedState = JSON.parse(JSON.stringify(workflowState))
+  const modifiedState = structuredClone(workflowState)
 
   // Collect validation errors across all operations
   const validationErrors: ValidationError[] = []
@@ -239,6 +243,13 @@ export function applyOperationsToWorkflowState(
       totalEdges: (modifiedState as any).edges?.length,
     })
   }
+
+  // Pass 3: resolve pending connections whose target block now exists. These are
+  // forward-reference connections that were recorded (on block.data) when their
+  // target didn't exist yet — possibly in an earlier edit_workflow call. Now
+  // that this batch's blocks are all created, create the edges that resolve.
+  resolvePendingConnections(modifiedState, skippedItems)
+
   // Remove edges that cross scope boundaries. This runs after all operations
   // and deferred connections are applied so that every block has its final
   // parentId. Running it per-operation would incorrectly drop edges between
@@ -278,6 +289,54 @@ export function applyOperationsToWorkflowState(
   }
 
   return { state: modifiedState, validationErrors, skippedItems }
+}
+
+/**
+ * Resolves pending forward-reference connections recorded on block.data.
+ *
+ * When a connection references a target block that does not exist yet, the edge
+ * is recorded as pending on the source block instead of being dropped. This runs
+ * after all blocks for the current batch exist (and picks up pending entries
+ * persisted from earlier edit_workflow calls), creating any edges whose target
+ * now exists and leaving still-unresolved entries pending.
+ */
+function resolvePendingConnections(modifiedState: any, skippedItems: SkippedItem[]): void {
+  const blocks = modifiedState.blocks || {}
+  for (const [sourceId, block] of Object.entries(blocks) as [string, any][]) {
+    const pending = block?.data?.pendingConnections as
+      | Record<string, Array<{ target: string; targetHandle: string }>>
+      | undefined
+    if (!pending) continue
+
+    for (const [handle, targets] of Object.entries(pending)) {
+      const stillPending: Array<{ target: string; targetHandle: string }> = []
+      for (const { target, targetHandle } of targets) {
+        if (blocks[target]) {
+          createValidatedEdge(
+            modifiedState,
+            sourceId,
+            target,
+            handle,
+            targetHandle || 'target',
+            'resolve_pending_connection',
+            logger,
+            skippedItems
+          )
+        } else {
+          stillPending.push({ target, targetHandle })
+        }
+      }
+      if (stillPending.length > 0) {
+        pending[handle] = stillPending
+      } else {
+        delete pending[handle]
+      }
+    }
+
+    if (Object.keys(pending).length === 0) {
+      block.data.pendingConnections = undefined
+    }
+  }
 }
 
 /**

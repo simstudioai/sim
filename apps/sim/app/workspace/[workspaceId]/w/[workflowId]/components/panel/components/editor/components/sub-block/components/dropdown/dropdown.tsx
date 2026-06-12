@@ -1,11 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Badge } from '@/components/emcn'
-import { Combobox, type ComboboxOption } from '@/components/emcn/components'
+import { ChipTag, Combobox, type ComboboxOption } from '@/components/emcn'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
@@ -13,6 +16,9 @@ import { ResponseBlockHandler } from '@/executor/handlers/response/response-hand
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/** Selected-value badges shown before folding the rest into a "+N" badge. */
+const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
@@ -90,6 +96,7 @@ export const Dropdown = memo(function Dropdown({
   dependsOn,
   searchable = false,
 }: DropdownProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -160,7 +167,7 @@ export const Dropdown = memo(function Dropdown({
       const options = await fetchOptions(blockId)
       setFetchedOptions(options)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to fetch options'
+      const errorMessage = getErrorMessage(error, 'Failed to fetch options')
       setFetchError(errorMessage)
       setFetchedOptions([])
     } finally {
@@ -451,21 +458,62 @@ export const Dropdown = memo(function Dropdown({
   ])
 
   /**
-   * Custom overlay content for multi-select mode showing badges
+   * Custom overlay content for multi-select mode. Shows at most two badges
+   * and folds the rest into a "+N" badge, matching the summary notation used
+   * for collapsed subblock rows.
    */
   const multiSelectOverlay = useMemo(() => {
     if (!multiSelect || !multiValues || multiValues.length === 0) return undefined
 
+    const visibleValues = multiValues.slice(0, MAX_VISIBLE_MULTI_SELECT_BADGES)
+    const overflowCount = multiValues.length - visibleValues.length
+
     return (
       <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
-        {multiValues.map((selectedValue: string) => (
-          <Badge key={selectedValue} className='shrink-0 rounded-lg py-1 text-caption leading-none'>
-            {(optionMap.get(selectedValue) || selectedValue).toLowerCase()}
-          </Badge>
-        ))}
+        {visibleValues.map((selectedValue: string, index) => {
+          const label = (optionMap.get(selectedValue) || selectedValue).toLowerCase()
+          const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+            activeSearchTarget,
+            blockId,
+            subBlockId,
+            valuePath: [index],
+            label,
+          })
+          return (
+            <ChipTag key={selectedValue} variant='mono' className='min-w-0 shrink'>
+              <span className='truncate'>
+                {formatDisplayText(label, { workflowSearchHighlight })}
+              </span>
+            </ChipTag>
+          )
+        })}
+        {overflowCount > 0 && (
+          <ChipTag variant='mono' className='shrink-0'>
+            +{overflowCount}
+          </ChipTag>
+        )}
       </div>
     )
-  }, [multiSelect, multiValues, optionMap])
+  }, [activeSearchTarget, blockId, multiSelect, multiValues, optionMap, subBlockId])
+
+  const singleSelectOverlay = useMemo(() => {
+    if (multiSelect || !singleValue) return undefined
+    const label = optionMap.get(singleValue)
+    if (!label) return undefined
+    const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [],
+      label,
+    })
+    if (!workflowSearchHighlight) return undefined
+    return (
+      <span className='truncate text-[var(--text-primary)]'>
+        {formatDisplayText(label, { workflowSearchHighlight })}
+      </span>
+    )
+  }, [activeSearchTarget, blockId, multiSelect, optionMap, singleValue, subBlockId])
 
   const isSearchable = searchable || (subBlockId === 'operation' && comboboxOptions.length > 5)
 
@@ -480,7 +528,7 @@ export const Dropdown = memo(function Dropdown({
       disabled={disabled}
       editable={false}
       onOpenChange={handleOpenChange}
-      overlayContent={multiSelectOverlay}
+      overlayContent={multiSelectOverlay ?? singleSelectOverlay}
       multiSelect={multiSelect}
       isLoading={isLoadingOptions}
       error={fetchError}

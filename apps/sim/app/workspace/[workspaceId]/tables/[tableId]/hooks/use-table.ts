@@ -1,24 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type {
-  ColumnDefinition,
-  RowData,
-  RowExecutions,
-  TableDefinition,
-  TableRow,
-  WorkflowGroup,
-} from '@/lib/table'
+import type { ColumnDefinition, TableDefinition, TableRow, WorkflowGroup } from '@/lib/table'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import type { FlattenOutputsBlockInput } from '@/lib/workflows/blocks/flatten-outputs'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
-import { tableKeys, useInfiniteTableRows, useTable as useTableQuery } from '@/hooks/queries/tables'
+import {
+  tableRowsInfiniteOptions,
+  useInfiniteTableRows,
+  useTable as useTableQuery,
+} from '@/hooks/queries/tables'
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { BlockIconInfo, ColumnSourceInfo } from '../components/table/types'
+import type { BlockIconInfo, ColumnSourceInfo } from '../components/table-grid/types'
 import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []
@@ -35,46 +31,47 @@ interface FetchNextPageResult {
 }
 
 export interface UseTableReturn {
-  /** Table definition (name, schema, metadata, etc.). */
   tableData: TableDefinition | undefined
   isLoadingTable: boolean
-  /** Flattened rows across every fetched page. */
+  /** Flattened across every fetched infinite-query page. */
   rows: TableRow[]
+  /** Filter-scoped total row count (server COUNT(*) for the active filter); null until loaded. */
+  rowTotal: number | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
-   * Fetch the next page of rows. The resolved value's `hasNextPage` reflects
-   * the post-fetch cache state — read from this rather than the parent's
-   * `hasNextPage` state, which only updates on the next React render.
+   * The resolved value's `hasNextPage` reflects the post-fetch cache state —
+   * read from this rather than the hook's `hasNextPage`, which only updates on
+   * the next React render.
    */
   fetchNextPage: () => Promise<FetchNextPageResult>
   hasNextPage: boolean
   isFetchingNextPage: boolean
-  /** Workspace-wide workflow metadata used by header chips and the column sidebar. */
   workflows: WorkflowMetadata[] | undefined
-  /** Stable reference to `tableData?.schema?.columns ?? []`. */
   columns: ColumnDefinition[]
-  /** Stable reference to `tableData?.schema?.workflowGroups ?? []`. */
   tableWorkflowGroups: WorkflowGroup[]
-  /** Pre-fetched live state for every unique workflow id used by the table. */
   workflowStates: Map<string, WorkflowState | null>
-  /** Pre-resolved icon + block-name info per output column name. Headers read
-   *  from this map instead of each subscribing to its own workflow-state query. */
+  /** Headers read from this map instead of each subscribing to its own workflow-state query. */
   columnSourceInfo: Map<string, ColumnSourceInfo>
-  /** `workflowId → workflow.name` lookup for cell labels and execution-detail copy. */
-  workflowNameById: Record<string, string>
+  /**
+   * Fetches any missing pages then returns the full flat row list from cache.
+   * Safe to read immediately — no React re-render required. Gate bulk ops that
+   * need the complete row set behind this.
+   */
+  ensureAllRowsLoaded: () => Promise<TableRow[]>
+  /**
+   * Pages until the cache holds at least `maxRows` rows (or no more pages
+   * exist), then returns the first `maxRows` from cache plus whether more
+   * remain. Unlike {@link ensureAllRowsLoaded} it stops early, so size-bound
+   * ops (clipboard copy) don't drain an entire large table. Filter/sort-aware.
+   */
+  ensureRowsLoadedUpTo: (maxRows: number) => Promise<{ rows: TableRow[]; hasMore: boolean }>
 }
 
 /**
- * Coordinator hook for the table view's data layer. Wraps row/schema/workflow
- * fetching and exposes the derived collections every consumer needs (display
- * columns, source-info map, workflow-name lookup). Mirrors the shape of
- * `use-chat`'s coordinator: one hook returning a typed bundle the surface
- * component destructures.
- *
- * Local interaction state (drag, resize, selection, editing) stays in the
- * `Table` component — moving that here would push every keystroke through a
- * single hook return and re-render the world.
+ * Local interaction state (drag, resize, selection, editing) intentionally
+ * stays in the `Table` component — moving it here would push every keystroke
+ * through this hook's return value and re-render everything.
  */
 export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams): UseTableReturn {
   const queryClient = useQueryClient()
@@ -101,9 +98,79 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     [rowsData?.pages]
   )
 
+  // Server-side COUNT(*) for the active filter (page 0 only). Null until the first page lands;
+  // callers fall back to the table's unfiltered `rowCount`. This is the true "select all" total —
+  // it reflects the filter, unlike `tableData.rowCount`.
+  const rowTotal = useMemo<number | null>(
+    () => rowsData?.pages[0]?.totalCount ?? null,
+    [rowsData?.pages]
+  )
+
   const refetchRows = useCallback(() => {
     void refetch()
   }, [refetch])
+
+  const ensureAllRowsLoaded = useCallback(async (): Promise<TableRow[]> => {
+    if (!workspaceId || !tableId) return []
+
+    const opts = tableRowsInfiniteOptions({
+      workspaceId,
+      tableId,
+      pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+      filter: queryOptions.filter,
+      sort: queryOptions.sort,
+    })
+
+    // getQueryData bypasses React's render cycle — pages added by fetchNextPage
+    // are visible synchronously after each await without waiting for a re-render.
+    while (true) {
+      const data = queryClient.getQueryData(opts.queryKey)
+      const lastPage = data?.pages[data.pages.length - 1]
+      if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+      const result = await fetchNextPage()
+      if (result.status === 'error') {
+        throw result.error ?? new Error('Failed to load table rows')
+      }
+    }
+
+    return queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
+  }, [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage])
+
+  const ensureRowsLoadedUpTo = useCallback(
+    async (maxRows: number): Promise<{ rows: TableRow[]; hasMore: boolean }> => {
+      if (!workspaceId || !tableId) return { rows: [], hasMore: false }
+
+      const opts = tableRowsInfiniteOptions({
+        workspaceId,
+        tableId,
+        pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+        filter: queryOptions.filter,
+        sort: queryOptions.sort,
+      })
+
+      // Load one past the cap so `hasMore` is exact: a full final page only
+      // *might* have a successor, so we confirm by loading row `maxRows + 1`
+      // rather than inferring truncation from page fullness.
+      while (true) {
+        const data = queryClient.getQueryData(opts.queryKey)
+        const loaded = data?.pages.reduce((sum, p) => sum + p.rows.length, 0) ?? 0
+        if (loaded > maxRows) break
+        const lastPage = data?.pages[data.pages.length - 1]
+        if (!lastPage || lastPage.rows.length < TABLE_LIMITS.MAX_QUERY_LIMIT) break
+        const result = await fetchNextPage()
+        if (result.status === 'error') {
+          throw result.error ?? new Error('Failed to load table rows')
+        }
+      }
+
+      const all = queryClient.getQueryData(opts.queryKey)?.pages.flatMap((p) => p.rows) ?? []
+      return {
+        rows: all.length > maxRows ? all.slice(0, maxRows) : all,
+        hasMore: all.length > maxRows,
+      }
+    },
+    [workspaceId, tableId, queryOptions.filter, queryOptions.sort, queryClient, fetchNextPage]
+  )
 
   const fetchNextPageWrapped = useCallback(async () => {
     const result = await fetchNextPage()
@@ -112,110 +179,6 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     }
     return { hasNextPage: Boolean(result.hasNextPage) }
   }, [fetchNextPage])
-
-  // Realtime sync: merge `table-row-updated` / `table-row-deleted` socket
-  // events into the infinite-query cache so cell updates land without
-  // polling. While any mutation is in flight, defer to a stale-mark — the
-  // optimistic update guard wins until `onSettled` invalidates.
-  const { joinTable, leaveTable, onTableRowUpdated, onTableRowDeleted } = useSocket()
-  useEffect(() => {
-    if (!tableId) return
-    joinTable(tableId)
-
-    type Page = { rows: TableRow[]; totalCount: number | null }
-    type InfiniteData = { pages: Page[]; pageParams: number[] } | undefined
-
-    onTableRowUpdated((event) => {
-      if (event.tableId !== tableId) return
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<InfiniteData>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          const incoming: TableRow = {
-            id: event.rowId,
-            data: event.data as RowData,
-            executions: (event.executions as RowExecutions) ?? {},
-            position: event.position,
-            createdAt: '',
-            updatedAt:
-              typeof event.updatedAt === 'string' ? event.updatedAt : String(event.updatedAt),
-          }
-          let landed = false
-          const nextPages = current.pages.map((page) => {
-            const idx = page.rows.findIndex((r) => r.id === event.rowId)
-            if (idx === -1) return page
-            landed = true
-            const merged = {
-              ...page.rows[idx],
-              data: incoming.data,
-              executions: incoming.executions,
-              updatedAt: incoming.updatedAt,
-            }
-            const nextRows = [...page.rows]
-            nextRows[idx] = merged
-            return { ...page, rows: nextRows }
-          })
-          if (landed) return { ...current, pages: nextPages }
-          // Row not in any cached page yet — append to the last page so it
-          // shows up immediately. The next refetch will reorder by position.
-          if (current.pages.length === 0) return current
-          const lastIdx = current.pages.length - 1
-          const lastPage = current.pages[lastIdx]
-          const updatedLast: Page = {
-            ...lastPage,
-            rows: [...lastPage.rows, incoming],
-            totalCount: lastPage.totalCount === null ? null : lastPage.totalCount + 1,
-          }
-          const pagesWithAppend = [...current.pages]
-          pagesWithAppend[lastIdx] = updatedLast
-          return { ...current, pages: pagesWithAppend }
-        }
-      )
-    })
-
-    onTableRowDeleted((event) => {
-      if (event.tableId !== tableId) return
-      if (queryClient.isMutating() > 0) {
-        queryClient.invalidateQueries({
-          queryKey: tableKeys.rowsRoot(tableId),
-          refetchType: 'none',
-        })
-        return
-      }
-      queryClient.setQueriesData<InfiniteData>(
-        { queryKey: tableKeys.rowsRoot(tableId) },
-        (current) => {
-          if (!current) return current
-          let removed = false
-          const nextPages = current.pages.map((page) => {
-            const next = page.rows.filter((r) => r.id !== event.rowId)
-            if (next.length === page.rows.length) return page
-            removed = true
-            return {
-              ...page,
-              rows: next,
-              totalCount: page.totalCount === null ? null : Math.max(0, page.totalCount - 1),
-            }
-          })
-          if (!removed) return current
-          return { ...current, pages: nextPages }
-        }
-      )
-    })
-
-    return () => {
-      leaveTable()
-    }
-    // joinTable / leaveTable / on* are stable callbacks; tableId is the only real dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId])
 
   const { data: workflows } = useWorkflows(workspaceId)
 
@@ -236,8 +199,16 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
   const columnSourceInfo = useMemo<Map<string, ColumnSourceInfo>>(() => {
     const map = new Map<string, ColumnSourceInfo>()
     for (const group of tableWorkflowGroups) {
+      // Enrichment groups have no workflow blocks; their output columns render
+      // with the standard column-type icon (the meta-header already carries the
+      // enrichment's icon), so we skip building source info for them.
+      if (group.type === 'enrichment') continue
       const state = workflowStates.get(group.workflowId)
       const blocks = (state as { blocks?: Record<string, FlattenOutputsBlockInput> } | null)?.blocks
+      // `useWorkflowStates` only fetches the live draft, so we can only judge
+      // "block missing" for live-mode groups. A deployed-mode group runs a
+      // different graph we don't load client-side — don't risk a false badge.
+      const isLiveMode = group.deploymentMode !== 'deployed'
       for (const out of group.outputs) {
         const block = blocks?.[out.blockId]
         const blockConfig = block?.type ? getBlock(block.type) : undefined
@@ -245,24 +216,20 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
           ? { icon: blockConfig.icon, color: blockConfig.bgColor || '#2F55FF' }
           : undefined
         const blockName = block?.name?.trim() || undefined
-        map.set(out.columnName, { blockIconInfo, blockName })
+        // Flag a missing source block only once the workflow state has loaded
+        // (truthy `blocks`), so a still-loading workflow never flashes the badge.
+        const blockMissing = Boolean(isLiveMode && blocks && out.blockId && !block)
+        map.set(out.columnName, { blockIconInfo, blockName, blockMissing })
       }
     }
     return map
   }, [tableWorkflowGroups, workflowStates])
 
-  const workflowNameById = useMemo(() => {
-    const map: Record<string, string> = {}
-    for (const wf of workflows ?? []) {
-      map[wf.id] = wf.name
-    }
-    return map
-  }, [workflows])
-
   return {
     tableData,
     isLoadingTable,
     rows,
+    rowTotal,
     isLoadingRows,
     refetchRows,
     fetchNextPage: fetchNextPageWrapped,
@@ -273,6 +240,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableWorkflowGroups,
     workflowStates,
     columnSourceInfo,
-    workflowNameById,
+    ensureAllRowsLoaded,
+    ensureRowsLoadedUpTo,
   }
 }

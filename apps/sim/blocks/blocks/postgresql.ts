@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { PostgresIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { IntegrationType } from '@/blocks/types'
@@ -9,10 +10,9 @@ export const PostgreSQLBlock: BlockConfig<PostgresResponse> = {
   description: 'Connect to PostgreSQL database',
   longDescription:
     'Integrate PostgreSQL into the workflow. Can query, insert, update, delete, and execute raw SQL.',
-  docsLink: 'https://docs.sim.ai/tools/postgresql',
+  docsLink: 'https://docs.sim.ai/integrations/postgresql',
   category: 'tools',
   integrationType: IntegrationType.Databases,
-  tags: ['data-warehouse', 'data-analytics'],
   bgColor: '#336791',
   icon: PostgresIcon,
   subBlocks: [
@@ -335,7 +335,7 @@ Return ONLY the SQL query - no explanations, no markdown, no extra text.`,
           try {
             parsedData = JSON.parse(data)
           } catch (parseError) {
-            const errorMsg = parseError instanceof Error ? parseError.message : 'Unknown JSON error'
+            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
             throw new Error(`Invalid JSON data format: ${errorMsg}. Please check your JSON syntax.`)
           }
         } else if (data && typeof data === 'object') {

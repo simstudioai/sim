@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { serializeJsonLd } from '@/lib/json-ld'
 import { cn } from '@/lib/utils'
 
 interface FAQItem {
@@ -29,11 +30,11 @@ function FAQItemRow({
         type='button'
         onClick={onToggle}
         aria-expanded={isOpen}
-        className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-[470] text-[0.875rem] text-[rgba(0,0,0,0.8)] transition-colors hover:bg-[rgba(0,0,0,0.02)] dark:text-[rgba(255,255,255,0.85)] dark:hover:bg-[rgba(255,255,255,0.03)]'
+        className='flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left font-[470] text-[0.875rem] text-[var(--text-body)] transition-colors hover:bg-[var(--surface-3)]'
       >
         <ChevronRight
           className={cn(
-            'h-3.5 w-3.5 shrink-0 text-[rgba(0,0,0,0.3)] transition-transform duration-200 dark:text-[rgba(255,255,255,0.3)]',
+            'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform duration-200',
             isOpen && 'rotate-90'
           )}
         />
@@ -47,7 +48,7 @@ function FAQItemRow({
         }}
       >
         <div className='overflow-hidden'>
-          <div className='px-4 pt-2 pb-2.5 pl-11 text-[0.875rem] text-[rgba(0,0,0,0.7)] leading-relaxed dark:text-[rgba(255,255,255,0.7)]'>
+          <div className='px-4 pt-2 pb-2.5 pl-11 text-[0.875rem] text-[var(--text-secondary)] leading-relaxed'>
             {item.answer}
           </div>
         </div>
@@ -76,17 +77,14 @@ export function FAQ({ items, title = 'Common Questions' }: FAQProps) {
     <div className='mt-12'>
       <script
         type='application/ld+json'
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(faqSchema) }}
       />
       <h2 className='mb-4 font-[500] text-xl'>{title}</h2>
-      <div className='border-[rgba(0,0,0,0.08)] border-t border-b dark:border-[rgba(255,255,255,0.08)]'>
+      <div className='border-[var(--border)] border-t border-b'>
         {items.map((item, index) => (
           <div
-            key={index}
-            className={cn(
-              index !== items.length - 1 &&
-                'border-[rgba(0,0,0,0.08)] border-b dark:border-[rgba(255,255,255,0.08)]'
-            )}
+            key={item.question}
+            className={cn(index !== items.length - 1 && 'border-[var(--border)] border-b')}
           >
             <FAQItemRow
               item={item}

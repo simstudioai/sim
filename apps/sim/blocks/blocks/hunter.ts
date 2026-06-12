@@ -1,19 +1,18 @@
 import { HunterIOIcon } from '@/components/icons'
-import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
+import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { HunterResponse } from '@/tools/hunter/types'
 
 export const HunterBlock: BlockConfig<HunterResponse> = {
   type: 'hunter',
-  name: 'Hunter io',
+  name: 'Hunter.io',
   description: 'Find and verify professional email addresses',
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Hunter into the workflow. Can search domains, find email addresses, verify email addresses, discover companies, find companies, and count email addresses.',
-  docsLink: 'https://docs.sim.ai/tools/hunter',
+  docsLink: 'https://docs.sim.ai/integrations/hunter',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  tags: ['enrichment', 'sales-engagement'],
-  bgColor: '#E0E0E0',
+  bgColor: '#FFFFFF',
   icon: HunterIOIcon,
   subBlocks: [
     {
@@ -45,6 +44,15 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       type: 'short-input',
       placeholder: '10',
       condition: { field: 'operation', value: 'hunter_domain_search' },
+      mode: 'advanced',
+    },
+    {
+      id: 'offset',
+      title: 'Offset',
+      type: 'short-input',
+      placeholder: '0',
+      condition: { field: 'operation', value: 'hunter_domain_search' },
+      mode: 'advanced',
     },
     {
       id: 'type',
@@ -57,6 +65,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       ],
       value: () => 'all',
       condition: { field: 'operation', value: 'hunter_domain_search' },
+      mode: 'advanced',
     },
     {
       id: 'seniority',
@@ -70,6 +79,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       ],
       value: () => 'all',
       condition: { field: 'operation', value: 'hunter_domain_search' },
+      mode: 'advanced',
     },
     {
       id: 'department',
@@ -77,6 +87,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       type: 'short-input',
       placeholder: 'e.g., sales, marketing, engineering',
       condition: { field: 'operation', value: 'hunter_domain_search' },
+      mode: 'advanced',
     },
     // Email Finder operation inputs
     {
@@ -109,6 +120,7 @@ export const HunterBlock: BlockConfig<HunterResponse> = {
       type: 'short-input',
       placeholder: 'Enter company name',
       condition: { field: 'operation', value: 'hunter_email_finder' },
+      mode: 'advanced',
     },
     // Email Verifier operation inputs
     {
@@ -146,6 +158,54 @@ Return ONLY the search query text - no explanations.`,
       type: 'short-input',
       placeholder: 'Filter by domain',
       condition: { field: 'operation', value: 'hunter_discover' },
+      mode: 'advanced',
+    },
+    {
+      id: 'headcount',
+      title: 'Headcount',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: '1-10', id: '1-10' },
+        { label: '11-50', id: '11-50' },
+        { label: '51-200', id: '51-200' },
+        { label: '201-500', id: '201-500' },
+        { label: '501-1000', id: '501-1000' },
+        { label: '1001-5000', id: '1001-5000' },
+        { label: '5001-10000', id: '5001-10000' },
+        { label: '10001+', id: '10001+' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'hunter_discover' },
+      mode: 'advanced',
+    },
+    {
+      id: 'company_type',
+      title: 'Company Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Any', id: '' },
+        { label: 'Educational', id: 'educational' },
+        { label: 'Government Agency', id: 'government agency' },
+        { label: 'Non Profit', id: 'non profit' },
+        { label: 'Partnership', id: 'partnership' },
+        { label: 'Privately Held', id: 'privately held' },
+        { label: 'Public Company', id: 'public company' },
+        { label: 'Self Employed', id: 'self employed' },
+        { label: 'Self Owned', id: 'self owned' },
+        { label: 'Sole Proprietorship', id: 'sole proprietorship' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'hunter_discover' },
+      mode: 'advanced',
+    },
+    {
+      id: 'technology',
+      title: 'Technology',
+      type: 'short-input',
+      placeholder: 'e.g., react, salesforce',
+      condition: { field: 'operation', value: 'hunter_discover' },
+      mode: 'advanced',
     },
 
     // Find Company operation inputs
@@ -172,6 +232,7 @@ Return ONLY the search query text - no explanations.`,
       type: 'short-input',
       placeholder: 'Enter company name',
       condition: { field: 'operation', value: 'hunter_email_count' },
+      mode: 'advanced',
     },
     {
       id: 'type',
@@ -184,6 +245,7 @@ Return ONLY the search query text - no explanations.`,
       ],
       value: () => 'all',
       condition: { field: 'operation', value: 'hunter_email_count' },
+      mode: 'advanced',
     },
     // API Key (common)
     {
@@ -193,6 +255,7 @@ Return ONLY the search query text - no explanations.`,
       required: true,
       placeholder: 'Enter your Hunter.io API key',
       password: true,
+      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -225,7 +288,14 @@ Return ONLY the search query text - no explanations.`,
       },
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.limit) result.limit = Number(params.limit)
+        for (const [key, value] of Object.entries(params)) {
+          if (value === undefined || value === null || value === '') continue
+          if (key === 'limit' || key === 'offset') {
+            result[key] = Number(value)
+          } else {
+            result[key] = value
+          }
+        }
         return result
       },
     },
@@ -253,14 +323,183 @@ Return ONLY the search query text - no explanations.`,
     technology: { type: 'string', description: 'Technology filter' },
   },
   outputs: {
-    results: { type: 'json', description: 'Search results' },
-    emails: { type: 'json', description: 'Email addresses found' },
+    // Domain Search
+    domain: { type: 'string', description: 'Domain name' },
+    organization: { type: 'string', description: 'Organization name (domain search)' },
+    pattern: { type: 'string', description: 'Email pattern (e.g., {first}.{last})' },
+    disposable: { type: 'boolean', description: 'Whether the domain is disposable' },
+    webmail: { type: 'boolean', description: 'Whether the domain is a webmail provider' },
+    accept_all: { type: 'boolean', description: 'Whether the server accepts all emails' },
+    linked_domains: { type: 'array', description: 'Linked domains' },
+    emails: {
+      type: 'array',
+      description:
+        'List of emails found for the domain (value, type, confidence, first_name, last_name, position, seniority, department, linkedin, twitter, phone_number, sources, verification)',
+    },
+    // Email Finder
     email: { type: 'string', description: 'Found email address' },
-    score: { type: 'number', description: 'Confidence score' },
-    result: { type: 'string', description: 'Verification result' },
-    status: { type: 'string', description: 'Status message' },
-    total: { type: 'number', description: 'Total results count' },
+    score: { type: 'number', description: 'Confidence score (0-100)' },
+    first_name: { type: 'string', description: 'Person first name' },
+    last_name: { type: 'string', description: 'Person last name' },
+    position: { type: 'string', description: 'Job position' },
+    linkedin_url: { type: 'string', description: 'LinkedIn profile URL (email-finder, discover)' },
+    phone_number: { type: 'string', description: 'Phone number' },
+    company: { type: 'string', description: 'Company name (email-finder)' },
+    sources: {
+      type: 'array',
+      description:
+        'Source pages where the email was found (domain, uri, extracted_on, last_seen_on, still_on_page)',
+    },
+    verification: {
+      type: 'json',
+      description: 'Email verification information (date, status)',
+    },
+    // Email Verifier
+    result: {
+      type: 'string',
+      description: 'Deliverability result (deliverable, undeliverable, risky)',
+    },
+    status: {
+      type: 'string',
+      description: 'Verification status (valid, invalid, accept_all, webmail, disposable, unknown)',
+    },
+    regexp: { type: 'boolean', description: 'Email passes regex validation' },
+    gibberish: { type: 'boolean', description: 'Whether email looks auto-generated' },
+    mx_records: { type: 'boolean', description: 'MX records exist for the domain' },
+    smtp_server: { type: 'boolean', description: 'SMTP server reachable' },
+    smtp_check: { type: 'boolean', description: 'Email does not bounce' },
+    block: { type: 'boolean', description: 'Whether the domain blocks verification' },
+    // Discover
+    results: {
+      type: 'array',
+      description:
+        'Companies matching the search (domain, organization, personal_emails, generic_emails, total_emails)',
+    },
+    // Companies Find (flattened)
+    name: { type: 'string', description: 'Company name (companies-find, discover)' },
+    description: { type: 'string', description: 'Company description' },
+    industry: { type: 'string', description: 'Industry classification' },
+    sector: { type: 'string', description: 'Business sector' },
+    size: { type: 'string', description: 'Employee headcount range (e.g., "11-50")' },
+    founded_year: { type: 'number', description: 'Year founded' },
+    location: { type: 'string', description: 'Headquarters location (formatted)' },
+    country: { type: 'string', description: 'Country (full name)' },
+    country_code: { type: 'string', description: 'ISO 3166-1 alpha-2 country code' },
+    state: { type: 'string', description: 'State/province' },
+    city: { type: 'string', description: 'City' },
+    linkedin: { type: 'string', description: 'LinkedIn handle (companies-find)' },
+    twitter: { type: 'string', description: 'Twitter handle' },
+    facebook: { type: 'string', description: 'Facebook handle' },
+    logo: { type: 'string', description: 'Company logo URL' },
+    phone: { type: 'string', description: 'Company phone number' },
+    tech: { type: 'array', description: 'Technologies used by the company' },
+    // Email Count
+    total: { type: 'number', description: 'Total email count' },
     personal_emails: { type: 'number', description: 'Personal emails count' },
     generic_emails: { type: 'number', description: 'Generic emails count' },
+    department: {
+      type: 'json',
+      description:
+        'Email count by department (executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations)',
+    },
+    seniority: {
+      type: 'json',
+      description: 'Email count by seniority level (junior, senior, executive)',
+    },
   },
 }
+
+export const HunterBlockMeta = {
+  tags: ['enrichment', 'sales-engagement'],
+  templates: [
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter email finder',
+      prompt:
+        'Build a workflow that takes a target company and role from a table, runs Hunter to find the matching email, validates it, and writes the verified contact back.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter email verifier',
+      prompt:
+        'Create a workflow that runs a list of email addresses through Hunter verification, removes invalid emails, and writes a clean list for outbound sends.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'automation'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter + Email Bison outbound',
+      prompt:
+        'Build a workflow that uses Hunter to find prospect emails, validates each, and pushes valid prospects into an active Email Bison campaign.',
+      modules: ['agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'communication'],
+      alsoIntegrations: ['emailbison'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter domain finder',
+      prompt:
+        'Create a workflow that takes a list of company names, finds the matching domains via Hunter, and enriches the rows so the CRM has accurate domain data.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter event-list enricher',
+      prompt:
+        'Build a workflow that takes a Luma event registrants list, finds their work emails via Hunter, and writes the verified emails into HubSpot for followup.',
+      modules: ['agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'crm'],
+      alsoIntegrations: ['luma', 'hubspot'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter CRM gap-filler',
+      prompt:
+        'Create a scheduled workflow that finds HubSpot contacts missing email addresses, looks them up via Hunter, validates each, and updates the contact record.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'crm'],
+      alsoIntegrations: ['hubspot'],
+    },
+    {
+      icon: HunterIOIcon,
+      title: 'Hunter + Apollo prospect builder',
+      prompt:
+        'Build a workflow that runs an Apollo search for an ICP, finds verified emails via Hunter, and writes the deliverable prospect list to a sender table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'research'],
+      alsoIntegrations: ['apollo'],
+    },
+  ],
+  skills: [
+    {
+      name: 'find-decision-maker-emails',
+      description:
+        'Find verified email addresses for key roles at a target company using domain search.',
+      content:
+        '# Find Decision-Maker Emails\n\nGiven a company domain, find verified professional email addresses for the people who matter.\n\n## Steps\n1. Run a domain search for the target domain (e.g. example.com).\n2. Filter results by department or seniority (executive, sales, IT) to surface decision-makers.\n3. For each candidate, capture the full name, role, email, and confidence score.\n4. Drop any result below your confidence threshold (e.g. < 80).\n\n## Output\nReturn a list of contacts with name, title, email, and confidence score, sorted by seniority. Note the total emails available on the domain so the user knows coverage.',
+    },
+    {
+      name: 'verify-email-list',
+      description:
+        'Verify a batch of email addresses and flag undeliverable or risky ones before sending.',
+      content:
+        '# Verify Email List\n\nClean a list of email addresses so a campaign only sends to deliverable inboxes.\n\n## Steps\n1. For each address, run the email verifier.\n2. Record the verification status (valid, invalid, accept-all, disposable, webmail) and the deliverability score.\n3. Bucket addresses into deliverable, risky, and undeliverable.\n\n## Output\nReturn the three buckets with counts, and a recommended clean list containing only deliverable addresses.',
+    },
+    {
+      name: 'find-person-email',
+      description: 'Find the most likely email address for a named person at a specific company.',
+      content:
+        '# Find a Person Email\n\nGiven a first name, last name, and company domain, find that person email address.\n\n## Steps\n1. Run the email finder with the full name and domain.\n2. Capture the returned email, confidence score, and the sources Hunter used.\n3. If confidence is low, optionally run a domain search to confirm the pattern.\n\n## Output\nReturn the email, confidence score, and supporting sources. State clearly when no confident match was found.',
+    },
+  ],
+} as const satisfies BlockMeta

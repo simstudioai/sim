@@ -12,7 +12,7 @@ import { handleToolEvent, prePersistClientExecutableToolCall } from './tool'
 import type { StreamHandler } from './types'
 
 export { prePersistClientExecutableToolCall }
-export type { StreamHandler, ToolScope } from './types'
+export type { StreamHandler } from './types'
 
 const logger = createLogger('CopilotHandlerRouting')
 

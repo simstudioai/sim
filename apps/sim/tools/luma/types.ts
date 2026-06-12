@@ -58,7 +58,43 @@ export interface LumaAddGuestsParams {
   guests: string
 }
 
-export interface LumaHostEntry {
+export interface LumaSendInvitesParams {
+  apiKey: string
+  eventId: string
+  guests: string
+  message?: string
+}
+
+export interface LumaUpdateGuestStatusParams {
+  apiKey: string
+  eventId?: string
+  guestIdentifier: string
+  status: string
+  shouldRefund?: boolean
+  sendEmail?: boolean
+}
+
+export interface LumaGetGuestParams {
+  apiKey: string
+  eventId: string
+  guestIdentifier: string
+}
+
+export interface LumaCancelEventParams {
+  apiKey: string
+  eventId: string
+  cancellationToken: string
+  shouldRefund?: boolean
+}
+
+export interface LumaLookupEventParams {
+  apiKey: string
+  url?: string
+  eventId?: string
+  platform?: string
+}
+
+interface LumaHostEntry {
   id: string | null
   name: string | null
   firstName: string | null
@@ -67,7 +103,7 @@ export interface LumaHostEntry {
   avatarUrl: string | null
 }
 
-export interface LumaEventEntry {
+interface LumaEventEntry {
   id: string
   name: string
   startAt: string | null
@@ -87,7 +123,7 @@ export interface LumaEventEntry {
   calendarId: string | null
 }
 
-export interface LumaGuestEntry {
+interface LumaGuestEntry {
   id: string
   email: string | null
   name: string | null
@@ -140,7 +176,101 @@ export interface LumaGetGuestsResponse extends ToolResponse {
 
 export interface LumaAddGuestsResponse extends ToolResponse {
   output: {
-    guests: LumaGuestEntry[]
+    added: number
+  }
+}
+
+export interface LumaSendInvitesResponse extends ToolResponse {
+  output: {
+    invited: number
+  }
+}
+
+export interface LumaUpdateGuestStatusResponse extends ToolResponse {
+  output: {
+    status: string
+    guest: string
+  }
+}
+
+export interface LumaGetGuestResponse extends ToolResponse {
+  output: {
+    guest: LumaGuestEntry
+  }
+}
+
+export interface LumaCancelEventResponse extends ToolResponse {
+  output: {
+    cancelled: boolean
+  }
+}
+
+export interface LumaLookupEventResponse extends ToolResponse {
+  output: {
+    found: boolean
+    eventId: string | null
+    apiId: string | null
+    status: string | null
+  }
+}
+
+/**
+ * Counts guests in a guests param value. Accepts a JSON array string (the
+ * standard input shape) or a bare email string. Used by Add Guests and Send
+ * Invites, whose endpoints return an empty body — the submitted count is the
+ * only meaningful signal to report back.
+ */
+export function countGuests(guests: string): number {
+  try {
+    const parsed = JSON.parse(guests)
+    if (Array.isArray(parsed)) return parsed.length
+    return parsed ? 1 : 0
+  } catch {
+    return guests.trim() ? 1 : 0
+  }
+}
+
+/**
+ * Resolves a guest's check-in time. Per the Luma API docs the canonical
+ * check-in lives per ticket on `event_tickets[].checked_in_at`; the top-level
+ * `checked_in_at` is deprecated. Returns the first checked-in ticket's
+ * timestamp, falling back to the deprecated top-level field.
+ */
+export function resolveGuestCheckedInAt(guest: Record<string, unknown>): string | null {
+  const tickets = guest.event_tickets
+  if (Array.isArray(tickets)) {
+    for (const ticket of tickets) {
+      const checkedInAt = (ticket as Record<string, unknown>)?.checked_in_at
+      if (checkedInAt) return checkedInAt as string
+    }
+  }
+  return (guest.checked_in_at as string) ?? null
+}
+
+/**
+ * Builds an event stub with only the id populated. Used by create/update,
+ * whose API responses do not return the full event object — the full record
+ * is fetched in a follow-up Get Event call via postProcess.
+ */
+export function lumaEventStub(id: string | null): LumaEventEntry {
+  return {
+    id: id ?? '',
+    name: '',
+    startAt: null,
+    endAt: null,
+    timezone: null,
+    durationInterval: null,
+    createdAt: null,
+    description: null,
+    descriptionMd: null,
+    coverUrl: null,
+    url: null,
+    visibility: null,
+    meetingUrl: null,
+    geoAddressJson: null,
+    geoLatitude: null,
+    geoLongitude: null,
+    calendarId: null,
   }
 }
 
@@ -193,6 +323,9 @@ export const LUMA_GUEST_OUTPUT_PROPERTIES = {
   registeredAt: { type: 'string' as const, description: 'Registration timestamp (ISO 8601)' },
   invitedAt: { type: 'string' as const, description: 'Invitation timestamp (ISO 8601)' },
   joinedAt: { type: 'string' as const, description: 'Join timestamp (ISO 8601)' },
-  checkedInAt: { type: 'string' as const, description: 'Check-in timestamp (ISO 8601)' },
+  checkedInAt: {
+    type: 'string' as const,
+    description: 'Check-in timestamp from the first checked-in ticket (ISO 8601)',
+  },
   phoneNumber: { type: 'string' as const, description: 'Guest phone number' },
 }

@@ -96,6 +96,7 @@ export const launchDarklyCreateFlagTool: ToolConfig<
           tags: [],
           variations: [],
           maintainerId: null,
+          maintainerEmail: null,
         },
         error: error.message,
       }
@@ -116,6 +117,7 @@ export const launchDarklyCreateFlagTool: ToolConfig<
         tags: data.tags ?? [],
         variations: data.variations ?? [],
         maintainerId: data.maintainerId ?? null,
+        maintainerEmail: data._maintainer?.email ?? null,
       },
     }
   },

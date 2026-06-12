@@ -13,6 +13,7 @@ import { USE_BLOB_STORAGE } from '@/lib/uploads/config'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { verifyFileAccess } from '@/app/api/files/authorization'
+import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
 
@@ -86,7 +87,20 @@ export const GET = withRouteHandler(
       MAX_EMBEDDED_IMAGES
     )
 
-    logger.info('Exporting markdown with embedded images', { id, imageCount: imageIds.length })
+    logger.info('Exporting markdown', { id, imageCount: imageIds.length })
+
+    if (imageIds.length === 0) {
+      const mdName = safeFilename(record.originalName)
+      const mdBytes = Buffer.from(mdContent, 'utf-8')
+      return new NextResponse(new Uint8Array(mdBytes), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(mdName)}`,
+          'Content-Length': String(mdBytes.length),
+        },
+      })
+    }
 
     const fetchResults = await Promise.allSettled(
       imageIds.map(async (imageId) => {
@@ -145,7 +159,7 @@ export const GET = withRouteHandler(
       status: 200,
       headers: {
         'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${zipName}"`,
+        'Content-Disposition': `attachment; ${encodeFilenameForHeader(zipName)}`,
         'Content-Length': String(zipBuffer.length),
       },
     })

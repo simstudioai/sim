@@ -7,8 +7,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importWorkflowAsSuperuserContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
+import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { verifyEffectiveSuperUser } from '@/lib/templates/permissions'
+import { verifyEffectiveSuperUser } from '@/lib/permissions/super-user'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   loadWorkflowFromNormalizedTables,
@@ -110,7 +112,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       metadata: {
         name: sourceWorkflow.name,
         description: sourceWorkflow.description ?? undefined,
-        color: sourceWorkflow.color,
       },
     }
 
@@ -142,7 +143,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       folderId: null,
       name: dedupedName,
       description: sourceWorkflow.description,
-      color: sourceWorkflow.color,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,
@@ -165,25 +165,45 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     // Copy copilot chats associated with the source workflow
     const sourceCopilotChats = await db
-      .select()
+      .select({
+        id: copilotChats.id,
+        title: copilotChats.title,
+        model: copilotChats.model,
+        previewYaml: copilotChats.previewYaml,
+        planArtifact: copilotChats.planArtifact,
+        config: copilotChats.config,
+      })
       .from(copilotChats)
       .where(eq(copilotChats.workflowId, workflowId))
 
     let copilotChatsImported = 0
 
     for (const chat of sourceCopilotChats) {
-      await db.insert(copilotChats).values({
-        userId: session.user.id,
-        workflowId: newWorkflowId,
-        title: chat.title ? `[Import] ${chat.title}` : null,
-        messages: chat.messages,
-        model: chat.model,
-        conversationId: null, // Don't copy conversation ID
-        previewYaml: chat.previewYaml,
-        planArtifact: chat.planArtifact,
-        config: chat.config,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+      const sourceMessages = await loadCopilotChatMessages(chat.id)
+      await db.transaction(async (tx) => {
+        const [imported] = await tx
+          .insert(copilotChats)
+          .values({
+            userId: session.user.id,
+            workflowId: newWorkflowId,
+            title: chat.title ? `[Import] ${chat.title}` : null,
+            model: chat.model,
+            conversationId: null, // Don't copy conversation ID
+            previewYaml: chat.previewYaml,
+            planArtifact: chat.planArtifact,
+            config: chat.config,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          })
+          .returning({ id: copilotChats.id })
+        if (imported && sourceMessages.length > 0) {
+          await appendCopilotChatMessages(
+            imported.id,
+            sourceMessages,
+            { chatModel: chat.model },
+            tx
+          )
+        }
       })
       copilotChatsImported++
     }

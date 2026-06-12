@@ -30,7 +30,7 @@ export interface TailscaleCreateAuthKeyParams extends TailscaleBaseParams {
   expirySeconds?: number
 }
 
-export interface TailscaleDeviceOutput {
+interface TailscaleDeviceOutput {
   id: string
   name: string
   hostname: string
@@ -45,7 +45,7 @@ export interface TailscaleDeviceOutput {
   created: string
 }
 
-export interface TailscaleUserOutput {
+interface TailscaleUserOutput {
   id: string
   displayName: string
   loginName: string

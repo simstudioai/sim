@@ -1,5 +1,6 @@
 import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
-import { buildSavedSearchUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSavedSearchTool: ToolConfig<
@@ -107,8 +108,12 @@ export const agiloftSavedSearchTool: ToolConfig<
         properties: {
           name: { type: 'string', description: 'Saved search name' },
           label: { type: 'string', description: 'Saved search display label' },
-          id: { type: 'string', description: 'Saved search database identifier' },
-          description: { type: 'string', description: 'Saved search description' },
+          id: { type: 'number', description: 'Saved search database identifier' },
+          description: {
+            type: 'string',
+            description: 'Saved search description',
+            optional: true,
+          },
         },
       },
     },

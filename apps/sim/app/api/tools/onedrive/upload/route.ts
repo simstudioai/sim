@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { onedriveUploadContract } from '@/lib/api/contracts/tools/microsoft'
@@ -13,6 +14,7 @@ import {
   processSingleFileToUserFile,
 } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { normalizeExcelValues } from '@/tools/onedrive/utils'
 
 export const dynamic = 'force-dynamic'
@@ -47,7 +49,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized OneDrive upload attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -102,11 +104,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
       }
+
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
 
       try {
         fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
@@ -115,7 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: `Failed to download file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            error: `Failed to download file: ${getErrorMessage(error, 'Unknown error')}`,
           },
           { status: 500 }
         )
@@ -376,7 +381,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         logger.error(`[${requestId}] Exception during Excel content write`, err)
         excelWriteResult = {
           success: false,
-          error: err instanceof Error ? err.message : 'Unknown error during Excel write',
+          error: getErrorMessage(err, 'Unknown error during Excel write'),
         }
       }
     }
@@ -404,7 +409,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

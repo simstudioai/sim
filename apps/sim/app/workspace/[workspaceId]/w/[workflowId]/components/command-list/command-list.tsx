@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button, Library } from '@/components/emcn'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
@@ -29,11 +30,6 @@ interface CommandItem {
  * Available commands list
  */
 const commands: CommandItem[] = [
-  // {
-  //   label: 'Templates',
-  //   icon: Layout,
-  //   shortcut: 'Y',
-  // },
   {
     label: 'New Agent',
     icon: AgentIcon,
@@ -67,7 +63,6 @@ export function CommandList() {
    * Handle click on a command row.
    *
    * Mirrors the behavior of the corresponding global keyboard shortcuts:
-   * - Templates: navigate to workspace templates
    * - New Agent: add an agent block to the canvas
    * - Logs: navigate to workspace logs
    * - Search Blocks: open the universal search modal
@@ -78,14 +73,6 @@ export function CommandList() {
     (label: string) => {
       try {
         switch (label) {
-          // case 'Templates': {
-          //   if (!workspaceId) {
-          //     logger.warn('No workspace ID found, cannot navigate to templates from command list')
-          //     return
-          //   }
-          //   router.push(`/workspace/${workspaceId}/templates`)
-          //   return
-          // }
           case 'New Agent': {
             const event = new CustomEvent('add-block-from-toolbar', {
               detail: { type: 'agent', enableTriggerMode: false },
@@ -179,7 +166,6 @@ export function CommandList() {
       )}
     >
       <div
-        data-tour='command-list'
         className='pointer-events-auto flex flex-col gap-2'
         onDragOver={handleDragOver}
         onDrop={handleDrop}
@@ -205,12 +191,17 @@ export function CommandList() {
           return (
             <div
               key={command.label}
+              role='button'
+              tabIndex={0}
               className='group flex cursor-pointer items-center justify-between gap-[60px]'
               onClick={() => handleCommandClick(command.label)}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () => handleCommandClick(command.label))
+              }
             >
               {/* Left side: Icon and Label */}
               <div className='flex items-center gap-2'>
-                <Icon className='h-[14px] w-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
+                <Icon className='size-[14px] text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]' />
                 <span className='font-medium text-[var(--text-tertiary)] text-sm group-hover:text-[var(--text-primary)]'>
                   {command.label}
                 </span>
@@ -224,13 +215,13 @@ export function CommandList() {
                 >
                   <span>⌘</span>
                 </Button>
-                {shortcuts.map((key, index) => (
+                {shortcuts.map((shortcut) => (
                   <Button
-                    key={index}
+                    key={shortcut}
                     className='group-hover:-translate-y-0.5 w-[26px] py-[3px] text-caption hover-hover:translate-y-0 hover-hover:text-[var(--text-tertiary)] hover-hover:shadow-kbd-sm group-hover:text-[var(--text-primary)] group-hover:shadow-kbd'
                     variant='3d'
                   >
-                    {key}
+                    {shortcut}
                   </Button>
                 ))}
               </div>

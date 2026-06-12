@@ -1,11 +1,10 @@
 'use client'
 
-import { createElement, useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ExternalLink, KeyRound, Users } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Button, Combobox } from '@/components/emcn/components'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { getPollingProviderFromOAuth } from '@/lib/credential-sets/providers'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
@@ -16,9 +15,14 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
 import type { SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET } from '@/executor/constants'
 import { useCredentialSets } from '@/hooks/queries/credential-sets'
@@ -28,8 +32,6 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-
-const isBillingEnabled = isTruthy(getEnv('NEXT_PUBLIC_BILLING_ENABLED'))
 
 interface CredentialSelectorProps {
   blockId: string
@@ -48,13 +50,14 @@ export function CredentialSelector({
   previewValue,
   previewContextValues,
 }: CredentialSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showOAuthModal, setShowOAuthModal] = useState(false)
   const [editingValue, setEditingValue] = useState('')
   const [isEditing, setIsEditing] = useState(false)
-  const { activeWorkflowId } = useWorkflowRegistry()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
   const [storeValue, setStoreValue] = useSubBlockValue<string | null>(blockId, subBlock.id)
 
   const requiredScopes = subBlock.requiredScopes || []
@@ -223,9 +226,10 @@ export function CredentialSelector({
     const baseProviderConfig = OAUTH_PROVIDERS[baseProvider]
 
     if (!baseProviderConfig) {
-      return <ExternalLink className='h-3 w-3' />
+      return <ExternalLink className='size-3' />
     }
-    return createElement(baseProviderConfig.icon, { className: 'h-3 w-3' })
+    const Icon: StyleableIcon = baseProviderConfig.icon
+    return <Icon className='size-3' style={getBareIconStyle(Icon)} />
   }, [])
 
   const getProviderName = useCallback((providerName: OAuthProvider) => {
@@ -284,7 +288,7 @@ export function CredentialSelector({
             ? `Connect another ${getProviderName(provider)} account`
             : `Connect ${getProviderName(provider)} account`,
         value: '__connect_account__',
-        iconElement: <ExternalLink className='h-3 w-3' />,
+        iconElement: <ExternalLink className='size-3' />,
       })
 
       groups.push({
@@ -307,7 +311,7 @@ export function CredentialSelector({
           ? `Connect another ${getProviderName(provider)} account`
           : `Connect ${getProviderName(provider)} account`,
       value: '__connect_account__',
-      iconElement: <ExternalLink className='h-3 w-3' />,
+      iconElement: <ExternalLink className='size-3' />,
     })
 
     return { comboboxOptions: options, comboboxGroups: undefined }
@@ -324,6 +328,12 @@ export function CredentialSelector({
   ])
 
   const selectedCredentialProvider = selectedCredential?.provider ?? provider
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: displayValue,
+  })
 
   const overlayContent = useMemo(() => {
     if (!displayValue) return null
@@ -332,9 +342,11 @@ export function CredentialSelector({
       return (
         <div className='flex w-full items-center truncate'>
           <div className='mr-2 flex-shrink-0 opacity-90'>
-            <Users className='h-3 w-3' />
+            <Users className='size-3' />
           </div>
-          <span className='truncate'>{displayValue}</span>
+          <span className='truncate'>
+            {formatDisplayText(displayValue, { workflowSearchHighlight })}
+          </span>
         </div>
       )
     }
@@ -343,9 +355,11 @@ export function CredentialSelector({
       return (
         <div className='flex w-full items-center truncate'>
           <div className='mr-2 flex-shrink-0 opacity-90'>
-            <KeyRound className='h-3 w-3' />
+            <KeyRound className='size-3' />
           </div>
-          <span className='truncate'>{displayValue}</span>
+          <span className='truncate'>
+            {formatDisplayText(displayValue, { workflowSearchHighlight })}
+          </span>
         </div>
       )
     }
@@ -355,7 +369,9 @@ export function CredentialSelector({
         <div className='mr-2 flex-shrink-0 opacity-90'>
           {getProviderIcon(selectedCredentialProvider)}
         </div>
-        <span className='truncate'>{displayValue}</span>
+        <span className='truncate'>
+          {formatDisplayText(displayValue, { workflowSearchHighlight })}
+        </span>
       </div>
     )
   }, [
@@ -366,6 +382,7 @@ export function CredentialSelector({
     selectedCredentialSet,
     isAllCredentials,
     selectedAllCredential,
+    workflowSearchHighlight,
   ])
 
   const handleComboboxChange = useCallback(
@@ -429,7 +446,7 @@ export function CredentialSelector({
       {needsUpdate && (
         <div className='mt-2 flex flex-col gap-1 rounded-sm border bg-[var(--surface-2)] px-2 py-1.5'>
           <div className='flex items-center font-medium text-caption'>
-            <span className='mr-1.5 inline-block h-[6px] w-[6px] rounded-xs bg-amber-500' />
+            <span className='mr-1.5 inline-block size-[6px] rounded-xs bg-amber-500' />
             Additional permissions required
           </div>
           <Button
@@ -454,25 +471,29 @@ export function CredentialSelector({
       )}
 
       {showConnectModal && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='connect'
-          isOpen={showConnectModal}
-          onClose={() => setShowConnectModal(false)}
+          origin='workflow'
+          open={showConnectModal}
+          onOpenChange={(open) => !open && setShowConnectModal(false)}
           provider={provider}
           serviceId={serviceId}
+          providerId={effectiveProviderId}
+          requiredScopes={getCanonicalScopesForProvider(effectiveProviderId)}
           workspaceId={workspaceId}
           workflowId={activeWorkflowId || ''}
-          credentialCount={credentials.length}
         />
       )}
 
       {showOAuthModal && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='reauthorize'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
           provider={provider}
           toolName={getProviderName(provider)}

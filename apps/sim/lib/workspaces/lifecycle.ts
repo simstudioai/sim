@@ -12,7 +12,6 @@ import {
   workflowSchedule,
   workspace,
   workspaceFiles,
-  workspaceNotificationSubscription,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
@@ -106,14 +105,6 @@ export async function archiveWorkspace(
         deletedAt: now,
       })
       .where(and(eq(workspaceFiles.workspaceId, workspaceId), isNull(workspaceFiles.deletedAt)))
-
-    await tx
-      .update(workspaceNotificationSubscription)
-      .set({
-        active: false,
-        updatedAt: now,
-      })
-      .where(eq(workspaceNotificationSubscription.workspaceId, workspaceId))
 
     await tx
       .update(invitation)

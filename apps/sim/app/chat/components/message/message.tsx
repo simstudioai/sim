@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { Check, Copy, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
+import { Check, File as FileIcon, FileText, Image as ImageIcon } from 'lucide-react'
+import { Duplicate, Tooltip } from '@/components/emcn'
 import {
   ChatFileDownload,
   ChatFileDownloadAll,
@@ -36,6 +36,49 @@ export interface ChatMessage {
   isStreaming?: boolean
   attachments?: ChatAttachment[]
   files?: ChatFile[]
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+} as const
+
+/**
+ * Escapes HTML entities so untrusted strings are safe to interpolate into markup.
+ */
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c] || c)
+}
+
+/**
+ * Opens an image attachment preview in a new tab via a blob URL,
+ * escaping the user-controlled filename and data URL to prevent XSS.
+ */
+function openAttachmentPreview(name: string, dataUrl: string): void {
+  const safeName = escapeHtml(name)
+  const safeUrl = escapeHtml(dataUrl)
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${safeName}</title>
+        <style>
+          body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+          img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+        </style>
+      </head>
+      <body>
+        <img src="${safeUrl}" alt="${safeName}" />
+      </body>
+    </html>
+  `
+  const blob = new Blob([html], { type: 'text/html' })
+  const blobUrl = URL.createObjectURL(blob)
+  window.open(blobUrl, '_blank', 'noopener,noreferrer')
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
 }
 
 export const ClientChatMessage = memo(
@@ -83,42 +126,58 @@ export const ClientChatMessage = memo(
                       return `${Math.round((bytes / k ** i) * 10) / 10} ${sizes[i]}`
                     }
 
+                    const isInteractive =
+                      !!attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
+
+                    const openAttachmentPreview = () => {
+                      const validDataUrl = attachment.dataUrl?.trim()
+                      if (!validDataUrl?.startsWith('data:')) return
+                      const newWindow = window.open('', '_blank')
+                      if (newWindow) {
+                        newWindow.document.write(`
+                          <!DOCTYPE html>
+                          <html>
+                            <head>
+                              <title>${attachment.name}</title>
+                              <style>
+                                body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                                img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                              </style>
+                            </head>
+                            <body>
+                              <img src="${validDataUrl}" alt="${attachment.name}" />
+                            </body>
+                          </html>
+                        `)
+                        newWindow.document.close()
+                      }
+                    }
+
                     return (
                       <div
                         key={attachment.id}
+                        role={isInteractive ? 'button' : undefined}
+                        aria-disabled={!isInteractive}
+                        tabIndex={isInteractive ? 0 : undefined}
                         className={`relative overflow-hidden rounded-2xl border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] ${
-                          attachment.dataUrl?.trim() && attachment.dataUrl.startsWith('data:')
-                            ? 'cursor-pointer'
-                            : ''
+                          isInteractive ? 'cursor-pointer' : ''
                         } ${
                           isImage
                             ? 'h-16 w-16 md:h-20 md:w-20'
                             : 'flex h-16 min-w-[140px] max-w-[220px] items-center gap-2 px-3 md:h-20 md:min-w-[160px] md:max-w-[240px]'
                         }`}
                         onClick={(e) => {
-                          const validDataUrl = attachment.dataUrl?.trim()
-                          if (validDataUrl?.startsWith('data:')) {
+                          if (!isInteractive) return
+                          e.preventDefault()
+                          e.stopPropagation()
+                          openAttachmentPreview()
+                        }}
+                        onKeyDown={(e) => {
+                          if (!isInteractive) return
+                          if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault()
                             e.stopPropagation()
-                            const newWindow = window.open('', '_blank')
-                            if (newWindow) {
-                              newWindow.document.write(`
-                                <!DOCTYPE html>
-                                <html>
-                                  <head>
-                                    <title>${attachment.name}</title>
-                                    <style>
-                                      body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
-                                      img { max-width: 100%; max-height: 100vh; object-fit: contain; }
-                                    </style>
-                                  </head>
-                                  <body>
-                                    <img src="${validDataUrl}" alt="${attachment.name}" />
-                                  </body>
-                                </html>
-                              `)
-                              newWindow.document.close()
-                            }
+                            openAttachmentPreview()
                           }
                         }}
                       >
@@ -214,7 +273,7 @@ export const ClientChatMessage = memo(
                           {isCopied ? (
                             <Check className='h-3 w-3' strokeWidth={2} />
                           ) : (
-                            <Copy className='h-3 w-3' strokeWidth={2} />
+                            <Duplicate className='h-3 w-3' />
                           )}
                         </button>
                       </Tooltip.Trigger>

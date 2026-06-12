@@ -2,6 +2,7 @@
  * Limits and constants for user-defined tables.
  */
 
+import { randomInt, randomItem } from '@sim/utils/random'
 import { env, envNumber } from '@/lib/core/config/env'
 
 export const TABLE_LIMITS = {
@@ -9,7 +10,7 @@ export const TABLE_LIMITS = {
   MAX_ROWS_PER_TABLE: 10000,
   MAX_ROW_SIZE_BYTES: 100 * 1024, // 100KB
   MAX_COLUMNS_PER_TABLE: 50,
-  MAX_TABLE_NAME_LENGTH: 50,
+  MAX_TABLE_NAME_LENGTH: 128,
   MAX_COLUMN_NAME_LENGTH: 50,
   MAX_STRING_VALUE_LENGTH: 10000,
   MAX_DESCRIPTION_LENGTH: 500,
@@ -23,6 +24,17 @@ export const TABLE_LIMITS = {
   MAX_BATCH_INSERT_SIZE: 1000,
   /** Maximum rows per bulk update/delete operation */
   MAX_BULK_OPERATION_SIZE: 1000,
+  /** Maximum rows a single clipboard copy/cut serializes; beyond this the user is steered to Export. */
+  MAX_COPY_ROWS: 50000,
+  /** Rows selected + deleted per page in the async background delete-job loop. Each
+   *  DELETE_BATCH_SIZE chunk inside the page commits in its own transaction; the page is the
+   *  keyset-select and cancel/ownership-check granularity. */
+  DELETE_PAGE_SIZE: 10000,
+  /** Row count above which an export runs as a background job instead of a synchronous stream.
+   *  Matches the default per-table row cap, so non-enterprise tables keep instant downloads. */
+  EXPORT_ASYNC_THRESHOLD_ROWS: 10000,
+  /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
+  MAX_EXCLUDE_ROW_IDS: 10000,
 } as const
 
 /**
@@ -104,6 +116,13 @@ export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as c
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
+
+/**
+ * CSV/TSV uploads at or above this size import in the background (direct-to-storage
+ * upload + async worker) instead of being POSTed through the server. Kept safely under
+ * the Next.js proxy request-body cap (10MB) so a synchronous upload is never truncated.
+ */
+export const CSV_ASYNC_IMPORT_THRESHOLD_BYTES = 8 * 1024 * 1024
 
 const TABLE_NAME_ADJECTIVES = [
   'Radiant',
@@ -311,14 +330,14 @@ export function generateUniqueTableName(existingNames: string[]): string {
   const maxAttempts = 50
 
   for (let i = 0; i < maxAttempts; i++) {
-    const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-    const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
+    const adj = randomItem(TABLE_NAME_ADJECTIVES)
+    const noun = randomItem(TABLE_NAME_NOUNS)
     const name = `${adj.toLowerCase()}_${noun.toLowerCase()}`
     if (!taken.has(name)) return name
   }
 
-  const adj = TABLE_NAME_ADJECTIVES[Math.floor(Math.random() * TABLE_NAME_ADJECTIVES.length)]
-  const noun = TABLE_NAME_NOUNS[Math.floor(Math.random() * TABLE_NAME_NOUNS.length)]
-  const suffix = Math.floor(Math.random() * 900) + 100
+  const adj = randomItem(TABLE_NAME_ADJECTIVES)
+  const noun = randomItem(TABLE_NAME_NOUNS)
+  const suffix = randomInt(100, 1000)
   return `${adj.toLowerCase()}_${noun.toLowerCase()}_${suffix}`
 }

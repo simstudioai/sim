@@ -4,6 +4,7 @@ import {
   type Stack,
 } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationDescribeStacksContract } from '@/lib/api/contracts/tools/aws/cloudformation-describe-stacks'
 import { parseToolRequest } from '@/lib/api/server'
@@ -77,8 +78,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: { stacks },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to describe CloudFormation stacks'
+    const errorMessage = getErrorMessage(error, 'Failed to describe CloudFormation stacks')
     logger.error('DescribeStacks failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

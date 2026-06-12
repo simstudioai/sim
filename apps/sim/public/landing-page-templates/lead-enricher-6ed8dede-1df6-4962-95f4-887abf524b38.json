@@ -512,7 +512,6 @@
     "metadata": {
       "name": "lead-enricher",
       "description": "New workflow",
-      "color": "#1486d1",
       "exportedAt": "2026-03-09T21:40:19.011Z"
     },
     "variables": {}

@@ -115,23 +115,43 @@ async function handleError(
     result.errors?.[0] ||
     'An unexpected error occurred while processing the response.'
 
+  // Persist whatever was generated before the failure, exactly like an abort —
+  // a transient provider error (e.g. overloaded) shouldn't discard the partial
+  // assistant output the user already saw streaming.
+  const partialContent = result.content || undefined
+  const partialContentLen = result.content?.length ?? 0
+  const toolCallCount = result.toolCalls?.length ?? 0
+
   if (publisher.clientDisconnected) {
     logger.info(`[${requestId}] Stream failed after client disconnect`, { error: errorMessage })
   }
-  logger.error(`[${requestId}] Orchestration returned failure`, { error: errorMessage })
+  logger.error(`[${requestId}] Orchestration returned failure`, {
+    error: errorMessage,
+    partialContentLen,
+    toolCallCount,
+  })
 
+  // Surface the real error (Go already classifies provider errors like
+  // "overloaded" into a friendly displayMessage). Don't clobber it with a
+  // generic string.
   await publisher.publish({
     type: MothershipStreamV1EventType.error,
     payload: {
       message: errorMessage,
       error: errorMessage,
-      data: { displayMessage: 'An unexpected error occurred while processing the response.' },
+      displayMessage: errorMessage,
+      data: { displayMessage: errorMessage },
     },
   })
   if (!publisher.sawComplete) {
     await publisher.publish({
       type: MothershipStreamV1EventType.complete,
-      payload: { status: MothershipStreamV1CompletionStatus.error },
+      payload: {
+        status: MothershipStreamV1CompletionStatus.error,
+        ...(partialContent ? { partialContent } : {}),
+        ...(partialContentLen ? { partialContentLen } : {}),
+        ...(toolCallCount ? { toolCallCount } : {}),
+      },
     })
   }
   await publisher.flush()

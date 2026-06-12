@@ -1,5 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { stripVersionSuffix } from '@sim/utils/string'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  normalizeRecord,
+  normalizeStringRecord,
+  normalizeWorkflowVariables,
+} from '@/lib/core/utils/records'
 import type { EnvironmentVariable } from '@/lib/environment/api'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
@@ -10,13 +16,13 @@ import type { ToolConfig } from '@/tools/types'
 const logger = createLogger('ToolsUtils')
 
 /**
- * Strips version suffix (_v2, _v3, etc.) from a tool ID or name
+ * Strips version suffix (_v2, _v3, etc.) from a tool ID or name.
+ * Re-exported from the canonical `@sim/utils/string` helper so existing
+ * `@/tools/utils` consumers keep working unchanged.
  * @example stripVersionSuffix('notion_search_v2') => 'notion_search'
  * @example stripVersionSuffix('github_create_pr_v3') => 'github_create_pr'
  */
-export function stripVersionSuffix(name: string): string {
-  return name.replace(/_v\d+$/, '')
-}
+export { stripVersionSuffix } from '@sim/utils/string'
 
 /**
  * Filters a tools map to return only the latest version of each tool.
@@ -254,14 +260,12 @@ export function createCustomToolRequestBody(customTool: any, isClient = true, wo
     // 1. envVars parameter (passed from provider/agent context)
     // 2. Client-side store (if running in browser)
     // 3. Empty object (fallback)
-    const envVars = params.envVars || (isClient ? getClientEnvVars() : {})
+    const envVars = normalizeStringRecord(params.envVars || (isClient ? getClientEnvVars() : {}))
 
-    // Get workflow variables from params (passed from execution context)
-    const workflowVariables = params.workflowVariables || {}
+    const workflowVariables = normalizeWorkflowVariables(params.workflowVariables)
 
-    // Get block data and mapping from params (passed from execution context)
-    const blockData = params.blockData || {}
-    const blockNameMapping = params.blockNameMapping || {}
+    const blockData = normalizeRecord(params.blockData)
+    const blockNameMapping = normalizeStringRecord(params.blockNameMapping)
 
     // Include everything needed for execution
     return {

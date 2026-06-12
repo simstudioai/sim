@@ -37,6 +37,14 @@ export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.a
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
+ * legacy integer `position`. When off, behavior is unchanged. Keys are written
+ * regardless of this flag; it only controls which column is authoritative for
+ * reads/ordering and whether inserts/deletes reshift positions.
+ */
+export const isTablesFractionalOrderingEnabled = isTruthy(env.TABLES_FRACTIONAL_ORDERING)
+
+/**
  * Is email verification enabled
  */
 export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
@@ -80,6 +88,22 @@ export const isEmailPasswordEnabled = !isFalsy(env.EMAIL_PASSWORD_SIGNUP_ENABLED
  * Is signup email validation enabled (disposable email blocking via better-auth-harmony)
  */
 export const isSignupEmailValidationEnabled = isTruthy(env.SIGNUP_EMAIL_VALIDATION_ENABLED)
+
+/**
+ * Is MX-based signup validation enabled (blocks no-MX domains and denylisted shared spam
+ * mail backends). Opt-in to avoid adding a DNS dependency or blocking legitimate signups on
+ * self-hosted deployments with non-standard mail setups; enable on abuse-targeted deployments.
+ */
+export const isSignupMxValidationEnabled = isTruthy(env.SIGNUP_MX_VALIDATION_ENABLED)
+
+/**
+ * Is AWS AppConfig the source of truth for the signup/login gating lists.
+ * Hosted-only and requires both AppConfig identifiers (injected by the infra
+ * stack). Self-hosted/OSS deployments always use the env-var fallback, so the
+ * AppConfig client is never reached off-hosted.
+ */
+export const isAppConfigEnabled =
+  isHosted && Boolean(env.APPCONFIG_APPLICATION && env.APPCONFIG_ENVIRONMENT)
 
 /**
  * Is Trigger.dev enabled for async job processing
@@ -136,9 +160,43 @@ export const isAuditLogsEnabled = isTruthy(env.AUDIT_LOGS_ENABLED)
 export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
 
 /**
+ * Is data drains enabled via env var override
+ * This bypasses hosted requirements for self-hosted deployments
+ */
+export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
+
+/**
+ * Are workflow output columns enabled in user tables.
+ * Defaults to false; set NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED=true to show
+ * the "Workflow" column type in the new-column dropdown.
+ */
+export const isWorkflowColumnsEnabledClient = isTruthy(
+  getEnv('NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED')
+)
+
+/**
+ * Enables beta Mothership plan/changelog artifact surfaces.
+ */
+export const isMothershipBetaFeaturesEnabled = isTruthy(env.MOTHERSHIP_BETA_FEATURES)
+
+/**
  * Is E2B enabled for remote code execution
  */
 export const isE2bEnabled = isTruthy(env.E2B_ENABLED)
+
+/**
+ * Whether the E2B document-generation sandbox is enabled.
+ *
+ * Requires E2B (with an API key) AND a dedicated doc-generation template id.
+ * When true, ALL four formats compile in the E2B doc sandbox: pptx/docx via Node
+ * (pptxgenjs/docx + react-icons/sharp icons), pdf/xlsx via Python
+ * (reportlab/openpyxl). When false, compilation stays on the JavaScript
+ * (isolated-vm) path, byte-identical to its prior behavior (and xlsx is
+ * unavailable). Drives both the Sim compile backend and the `docCompiler` flag
+ * sent to the copilot file subagent so the agent's output and compiler agree.
+ */
+export const isE2BDocEnabled =
+  isE2bEnabled && Boolean(env.E2B_API_KEY) && Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

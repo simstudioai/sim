@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
 import { executeTool as executeAppTool } from '@/tools'
-import { isKnownTool, isSimExecuted } from './router'
+import { isClientExecuted, isKnownTool, isSimExecuted } from './router'
 import type {
   ToolCallDescriptor,
   ToolExecutionContext,
@@ -10,6 +11,9 @@ import type {
 } from './types'
 
 const logger = createLogger('ToolExecutor')
+const FUNCTION_EXECUTE_TOOL_ID = 'function_execute'
+const DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS = 10
+const MILLISECONDS_PER_SECOND = 1000
 
 const handlerRegistry = new Map<string, ToolHandler>()
 
@@ -31,15 +35,25 @@ export function hasHandler(toolId: string): boolean {
   return handlerRegistry.has(toolId)
 }
 
+export function clearHandlers(): void {
+  handlerRegistry.clear()
+}
+
 export async function executeTool(
   toolId: string,
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const canUseRegisteredHandler = isKnownTool(toolId) && isSimExecuted(toolId)
+  // Client-routed tools (e.g. run_workflow) are normally executed in the browser and never
+  // reach this point in interactive mode. In headless mode (Mothership block, no browser) there
+  // is no client to delegate to, so fall back to the registered server-side handler when one
+  // exists — otherwise the call would route to executeAppTool and throw "Tool not found".
+  const canUseRegisteredHandler =
+    isKnownTool(toolId) &&
+    (isSimExecuted(toolId) || (isClientExecuted(toolId) && hasHandler(toolId)))
   if (!canUseRegisteredHandler) {
-    const appParams = buildAppToolParams(params, context)
-    return executeAppTool(toolId, appParams, false)
+    const appParams = buildAppToolParams(toolId, params, context)
+    return executeAppTool(toolId, appParams)
   }
 
   if (context.abortSignal?.aborted) {
@@ -69,7 +83,7 @@ export async function executeTool(
   }
 }
 
-export async function executeToolBatch(
+async function executeToolBatch(
   toolCalls: ToolCallDescriptor[],
   context: ToolExecutionContext
 ): Promise<Map<string, ToolExecutionResult>> {
@@ -95,10 +109,26 @@ export async function executeToolBatch(
 }
 
 function buildAppToolParams(
+  toolId: string,
   params: Record<string, unknown>,
   context: ToolExecutionContext
 ): Record<string, unknown> {
   const result = { ...params }
+
+  if (toolId === FUNCTION_EXECUTE_TOOL_ID && context.copilotToolExecution) {
+    const rawTimeoutSeconds =
+      result.timeout === undefined || result.timeout === null
+        ? DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
+        : Number(result.timeout)
+    const timeoutSeconds =
+      Number.isFinite(rawTimeoutSeconds) && rawTimeoutSeconds > 0
+        ? rawTimeoutSeconds
+        : DEFAULT_FUNCTION_EXECUTE_TIMEOUT_SECONDS
+    result.timeout = Math.min(
+      Math.ceil(timeoutSeconds * MILLISECONDS_PER_SECOND),
+      DEFAULT_EXECUTION_TIMEOUT_MS
+    )
+  }
 
   if (result.credentialId && !result.credential && !result.oauthCredential) {
     result.credential = result.credentialId

@@ -1,4 +1,9 @@
 import { memo, useMemo, useState } from 'react'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import {
+  type SegmentSelectionMode,
+  useDashboardSegments,
+} from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard-segments-context'
 
 export interface StatusBarSegment {
   successRate: number
@@ -8,6 +13,20 @@ export interface StatusBarSegment {
   timestamp: string
 }
 
+interface StatusBarInnerProps {
+  segments: StatusBarSegment[]
+  selectedSegmentIndices: number[] | null
+  onSegmentClick: (
+    workflowId: string,
+    index: number,
+    timestamp: string,
+    mode: SegmentSelectionMode
+  ) => void
+  workflowId: string
+  segmentDurationMs: number
+  preferBelow?: boolean
+}
+
 function StatusBarInner({
   segments,
   selectedSegmentIndices,
@@ -15,19 +34,7 @@ function StatusBarInner({
   workflowId,
   segmentDurationMs,
   preferBelow = false,
-}: {
-  segments: StatusBarSegment[]
-  selectedSegmentIndices: number[] | null
-  onSegmentClick: (
-    workflowId: string,
-    index: number,
-    timestamp: string,
-    mode: 'single' | 'toggle' | 'range'
-  ) => void
-  workflowId: string
-  segmentDurationMs: number
-  preferBelow?: boolean
-}) {
+}: StatusBarInnerProps) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   const labels = useMemo(() => {
@@ -75,6 +82,9 @@ function StatusBarInner({
           return (
             <div
               key={i}
+              role='button'
+              tabIndex={0}
+              aria-pressed={isSelected}
               className={`h-6 flex-1 rounded-[3px] ${color} ${hoverBrightness} cursor-pointer transition-all ${
                 isSelected
                   ? 'relative z-10 scale-105 shadow-sm ring-1 ring-[var(--text-secondary)]'
@@ -90,6 +100,11 @@ function StatusBarInner({
                 const mode = e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single'
                 onSegmentClick(workflowId, i, segment.timestamp, mode)
               }}
+              onKeyDown={(event) =>
+                handleKeyboardActivation(event, () =>
+                  onSegmentClick(workflowId, i, segment.timestamp, 'single')
+                )
+              }
             />
           )
         })}
@@ -128,17 +143,15 @@ function StatusBarInner({
 }
 
 /**
- * Custom equality function for StatusBar memo.
+ * Custom equality function for the memoized StatusBar body.
  * Performs structural comparison of segments array to avoid re-renders
  * when poll data returns new object references with identical content.
  */
-function areStatusBarPropsEqual(
-  prev: Parameters<typeof StatusBarInner>[0],
-  next: Parameters<typeof StatusBarInner>[0]
-): boolean {
+function areStatusBarPropsEqual(prev: StatusBarInnerProps, next: StatusBarInnerProps): boolean {
   if (prev.workflowId !== next.workflowId) return false
   if (prev.segmentDurationMs !== next.segmentDurationMs) return false
   if (prev.preferBelow !== next.preferBelow) return false
+  if (prev.onSegmentClick !== next.onSegmentClick) return false
 
   if (prev.selectedSegmentIndices !== next.selectedSegmentIndices) {
     if (!prev.selectedSegmentIndices || !next.selectedSegmentIndices) return false
@@ -168,4 +181,30 @@ function areStatusBarPropsEqual(
   return true
 }
 
-export const StatusBar = memo(StatusBarInner, areStatusBarPropsEqual)
+const MemoizedStatusBar = memo(StatusBarInner, areStatusBarPropsEqual)
+
+export interface StatusBarProps {
+  segments: StatusBarSegment[]
+  workflowId: string
+  preferBelow?: boolean
+}
+
+/**
+ * Status bar for a single workflow row. Reads segment selection state from
+ * DashboardSegmentsContext and delegates to a structurally-memoized body so
+ * only bars whose selection actually changed re-render.
+ */
+export function StatusBar({ segments, workflowId, preferBelow = false }: StatusBarProps) {
+  const { selectedSegments, onSegmentClick, segmentDurationMs } = useDashboardSegments()
+
+  return (
+    <MemoizedStatusBar
+      segments={segments}
+      selectedSegmentIndices={selectedSegments[workflowId] || null}
+      onSegmentClick={onSegmentClick}
+      workflowId={workflowId}
+      segmentDurationMs={segmentDurationMs}
+      preferBelow={preferBelow}
+    />
+  )
+}

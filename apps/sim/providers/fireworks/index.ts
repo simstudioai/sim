@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
+import { formatMessagesForProvider } from '@/providers/attachments'
 import {
   checkForForcedToolUsage,
   createReadableStreamFromOpenAIStream,
@@ -33,7 +34,7 @@ const logger = createLogger('FireworksProvider')
 
 /**
  * Applies structured output configuration to a payload based on model capabilities.
- * Uses json_schema with strict mode for supported models, falls back to json_object with prompt instructions.
+ * Uses native json_schema for supported models, falls back to json_object with prompt instructions.
  */
 async function applyResponseFormat(
   targetPayload: any,
@@ -50,7 +51,6 @@ async function applyResponseFormat(
       json_schema: {
         name: responseFormat.name || 'response_schema',
         schema: responseFormat.schema || responseFormat,
-        strict: responseFormat.strict !== false,
       },
     }
     return messages
@@ -108,6 +108,7 @@ export const fireworksProvider: ProviderConfig = {
     if (request.messages) {
       allMessages.push(...request.messages)
     }
+    const formattedMessages = formatMessagesForProvider(allMessages, 'fireworks') as Message[]
 
     const tools = request.tools?.length
       ? request.tools.map((tool) => ({
@@ -122,7 +123,7 @@ export const fireworksProvider: ProviderConfig = {
 
     const payload: any = {
       model: requestedModel,
-      messages: allMessages,
+      messages: formattedMessages,
     }
 
     if (request.temperature !== undefined) payload.temperature = request.temperature
@@ -250,7 +251,7 @@ export const fireworksProvider: ProviderConfig = {
       }
       const toolCalls: FunctionCallResponse[] = []
       const toolResults: Record<string, unknown>[] = []
-      const currentMessages = [...allMessages]
+      const currentMessages = [...formattedMessages]
       let iterationCount = 0
       let modelTime = firstResponseTime
       let toolsTime = 0
@@ -305,7 +306,9 @@ export const fireworksProvider: ProviderConfig = {
             if (!tool) return null
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams)
+            const result = await executeTool(toolName, executionParams, {
+              signal: request.abortSignal,
+            })
             const toolCallEndTime = Date.now()
 
             return {
@@ -331,7 +334,7 @@ export const fireworksProvider: ProviderConfig = {
               result: {
                 success: false,
                 output: undefined,
-                error: error instanceof Error ? error.message : 'Tool execution failed',
+                error: getErrorMessage(error, 'Tool execution failed'),
               },
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
@@ -465,7 +468,7 @@ export const fireworksProvider: ProviderConfig = {
         const streamingParams: ChatCompletionCreateParamsStreaming = {
           ...payload,
           messages: [...currentMessages],
-          tool_choice: 'auto',
+          tool_choice: 'none',
           stream: true,
           stream_options: { include_usage: true },
         }
@@ -648,8 +651,3 @@ export const fireworksProvider: ProviderConfig = {
     }
   },
 }
-
-/**
- * Enriches the last model segment with per-iteration content from a Chat
- * Completions response: assistant text, tool calls, finish reason, token usage.
- */

@@ -257,14 +257,14 @@ export const ISSUE_FORM_PROPERTIES = {
 } as const
 
 /** Common parameters for all JSM API calls */
-export interface JsmBaseParams {
+interface JsmBaseParams {
   accessToken: string
   domain: string
   cloudId?: string
 }
 
 /** Service Desk representation */
-export interface JsmServiceDesk {
+interface JsmServiceDesk {
   id: string
   projectId: string
   projectName: string
@@ -275,7 +275,7 @@ export interface JsmServiceDesk {
 }
 
 /** Request Type representation */
-export interface JsmRequestType {
+interface JsmRequestType {
   id: string
   name: string
   description: string
@@ -290,7 +290,7 @@ export interface JsmRequestType {
 }
 
 /** Customer representation */
-export interface JsmCustomer {
+interface JsmCustomer {
   accountId: string
   name: string
   key: string
@@ -301,13 +301,13 @@ export interface JsmCustomer {
 }
 
 /** Organization representation */
-export interface JsmOrganization {
+interface JsmOrganization {
   id: string
   name: string
 }
 
 /** Queue representation */
-export interface JsmQueue {
+interface JsmQueue {
   id: string
   name: string
   jql: string
@@ -316,7 +316,7 @@ export interface JsmQueue {
 }
 
 /** SLA representation */
-export interface JsmSla {
+interface JsmSla {
   id: string
   name: string
   completedCycles: Array<{
@@ -341,7 +341,7 @@ export interface JsmSla {
 }
 
 /** Request (ticket) representation */
-export interface JsmRequest {
+interface JsmRequest {
   issueId: string
   issueKey: string
   requestTypeId: string
@@ -361,7 +361,7 @@ export interface JsmRequest {
 }
 
 /** Comment representation */
-export interface JsmComment {
+interface JsmComment {
   id: string
   body: string
   public: boolean
@@ -374,13 +374,13 @@ export interface JsmComment {
 }
 
 /** Transition representation */
-export interface JsmTransition {
+interface JsmTransition {
   id: string
   name: string
 }
 
 /** Participant representation */
-export interface JsmParticipant {
+interface JsmParticipant {
   accountId: string
   displayName: string
   emailAddress?: string
@@ -388,7 +388,7 @@ export interface JsmParticipant {
 }
 
 /** Approver representation */
-export interface JsmApprover {
+interface JsmApprover {
   accountId: string
   displayName: string
   emailAddress?: string
@@ -396,7 +396,7 @@ export interface JsmApprover {
 }
 
 /** Approval representation */
-export interface JsmApproval {
+interface JsmApproval {
   id: string
   name: string
   finalDecision: 'pending' | 'approved' | 'declined'
@@ -407,7 +407,7 @@ export interface JsmApproval {
 }
 
 /** Request type field representation */
-export interface JsmRequestTypeField {
+interface JsmRequestTypeField {
   fieldId: string
   name: string
   description?: string
@@ -813,7 +813,7 @@ export interface JsmGetIssueFormsParams extends JsmBaseParams {
 }
 
 /** FormQuestion per OpenAPI spec */
-export interface JsmFormQuestion {
+interface JsmFormQuestion {
   label: string
   type: string
   validation: { rq?: boolean; [key: string]: unknown }
@@ -826,7 +826,7 @@ export interface JsmFormQuestion {
 }
 
 /** FormTemplateIndexEntry per OpenAPI spec */
-export interface JsmFormTemplate {
+interface JsmFormTemplate {
   id: string
   name: string
   updated: string
@@ -837,7 +837,7 @@ export interface JsmFormTemplate {
 }
 
 /** FormIndexEntry (issue form) per OpenAPI spec */
-export interface JsmIssueForm {
+interface JsmIssueForm {
   id: string
   name: string
   updated: string
@@ -1014,7 +1014,7 @@ export interface JsmGetFormAnswersParams extends JsmBaseParams {
   formId: string
 }
 
-export interface JsmFormSimplifiedAnswer {
+interface JsmFormSimplifiedAnswer {
   label?: string
   answer?: string
   fieldKey?: string

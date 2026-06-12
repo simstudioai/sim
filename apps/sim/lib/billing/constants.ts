@@ -35,6 +35,11 @@ export const SEARCH_TOOL_COST = 0.01
 export const DEFAULT_OVERAGE_THRESHOLD = 100
 
 /**
+ * Maximum time to wait on billing coordination row locks before retrying later.
+ */
+export const BILLING_LOCK_TIMEOUT_MS = 5_000
+
+/**
  * Available credit tiers. Each tier maps a credit amount to the underlying dollar cost.
  * 1 credit = $0.005, so credits = dollars * 200.
  */

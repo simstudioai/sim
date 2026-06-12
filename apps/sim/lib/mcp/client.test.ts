@@ -10,25 +10,33 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 let capturedNotificationHandler: (() => Promise<void>) | null = null
 
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
-  Client: vi.fn().mockImplementation(() => ({
-    connect: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn().mockResolvedValue(undefined),
-    getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
-    getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
-    setNotificationHandler: vi
-      .fn()
-      .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
-        capturedNotificationHandler = handler
-      }),
-    listTools: vi.fn().mockResolvedValue({ tools: [] }),
-  })),
+  Client: vi.fn().mockImplementation(
+    class {
+      constructor() {
+        Object.assign(this, {
+          connect: vi.fn().mockResolvedValue(undefined),
+          close: vi.fn().mockResolvedValue(undefined),
+          getServerVersion: vi.fn().mockReturnValue('2025-06-18'),
+          getServerCapabilities: vi.fn().mockReturnValue({ tools: { listChanged: true } }),
+          setNotificationHandler: vi
+            .fn()
+            .mockImplementation((_schema: unknown, handler: () => Promise<void>) => {
+              capturedNotificationHandler = handler
+            }),
+          listTools: vi.fn().mockResolvedValue({ tools: [] }),
+        })
+      }
+    }
+  ),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
-  StreamableHTTPClientTransport: vi.fn().mockImplementation(() => ({
-    onclose: null,
-    sessionId: 'test-session',
-  })),
+  StreamableHTTPClientTransport: vi.fn().mockImplementation(
+    class {
+      onclose: null = null
+      sessionId = 'test-session'
+    }
+  ),
 }))
 
 vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
@@ -37,10 +45,12 @@ vi.mock('@modelcontextprotocol/sdk/types.js', () => ({
 
 vi.mock('@/lib/core/execution-limits', () => ({
   getMaxExecutionTimeout: vi.fn().mockReturnValue(30000),
+  DEFAULT_EXECUTION_TIMEOUT_MS: 30000,
 }))
 
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import { McpClient } from './client'
-import type { McpServerConfig } from './types'
+import type { McpClientOptions, McpServerConfig } from './types'
 
 function createConfig(): McpServerConfig {
   return {
@@ -54,6 +64,7 @@ function createConfig(): McpServerConfig {
 describe('McpClient notification handler', () => {
   beforeEach(() => {
     capturedNotificationHandler = null
+    vi.clearAllMocks()
   })
 
   it('fires onToolsChanged when a notification arrives while connected', async () => {
@@ -102,5 +113,26 @@ describe('McpClient notification handler', () => {
     await client.connect()
 
     expect(capturedNotificationHandler).toBeNull()
+  })
+
+  it('passes configured headers for OAuth transports as well as header auth transports', () => {
+    const authProvider = {} as unknown as NonNullable<McpClientOptions['authProvider']>
+    new McpClient({
+      config: {
+        ...createConfig(),
+        authType: 'oauth',
+        headers: { 'X-Sim-Via': 'workflow' },
+      },
+      securityPolicy: { requireConsent: false, auditLevel: 'basic' },
+      authProvider,
+    })
+
+    expect(StreamableHTTPClientTransport).toHaveBeenCalledWith(
+      new URL('https://test.example.com/mcp'),
+      {
+        authProvider,
+        requestInit: { headers: { 'X-Sim-Via': 'workflow' } },
+      }
+    )
   })
 })

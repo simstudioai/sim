@@ -50,7 +50,8 @@ describe('getIterationContext', () => {
     const metadata: IterationNodeMetadata = {
       branchIndex: 1,
       branchTotal: 3,
-      parallelId: 'p1',
+      subflowId: 'p1',
+      subflowType: 'parallel',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -77,7 +78,8 @@ describe('getIterationContext', () => {
     })
     const metadata: IterationNodeMetadata = {
       isLoopNode: true,
-      loopId: 'l1',
+      subflowId: 'l1',
+      subflowType: 'loop',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -124,7 +126,7 @@ describe('buildUnifiedParentIterations', () => {
   it('resolves parallel-in-parallel parent chain', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['inner-p__obranch-2', { parentId: 'outer-p', parentType: 'parallel' }],
+        ['inner-p__obranch-2', { parentId: 'outer-p', parentType: 'parallel', branchIndex: 2 }],
       ]),
       parallelExecutions: new Map([
         [
@@ -151,7 +153,7 @@ describe('buildUnifiedParentIterations', () => {
   it('resolves loop-in-parallel (cross-type nesting)', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['loop-1__obranch-1', { parentId: 'parallel-1', parentType: 'parallel' }],
+        ['loop-1__obranch-1', { parentId: 'parallel-1', parentType: 'parallel', branchIndex: 1 }],
       ]),
       parallelExecutions: new Map([
         [
@@ -205,8 +207,8 @@ describe('buildUnifiedParentIterations', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
         ['inner-p', { parentId: 'mid-loop', parentType: 'loop' }],
-        ['mid-loop', { parentId: 'outer-p', parentType: 'parallel' }],
-        ['mid-loop__obranch-2', { parentId: 'outer-p', parentType: 'parallel' }],
+        ['mid-loop', { parentId: 'outer-p', parentType: 'parallel', branchIndex: 0 }],
+        ['mid-loop__obranch-2', { parentId: 'outer-p', parentType: 'parallel', branchIndex: 2 }],
       ]),
       loopExecutions: new Map([
         [
@@ -251,8 +253,8 @@ describe('buildUnifiedParentIterations', () => {
     // P1 → P2 → P3, with P2__obranch-1 and P3__clone0__obranch-1
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['P2', { parentId: 'P1', parentType: 'parallel' }],
-        ['P3', { parentId: 'P2', parentType: 'parallel' }],
+        ['P2', { parentId: 'P1', parentType: 'parallel', branchIndex: 0 }],
+        ['P3', { parentId: 'P2', parentType: 'parallel', branchIndex: 0 }],
         ['P2__obranch-1', { parentId: 'P1', parentType: 'parallel', branchIndex: 1 }],
         [
           'P3__clone0__obranch-1',
@@ -340,7 +342,7 @@ describe('buildUnifiedParentIterations', () => {
   it('includes parent iterations in getIterationContext for loop-in-parallel', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['loop-1__obranch-2', { parentId: 'parallel-1', parentType: 'parallel' }],
+        ['loop-1__obranch-2', { parentId: 'parallel-1', parentType: 'parallel', branchIndex: 2 }],
       ]),
       parallelExecutions: new Map([
         [
@@ -367,7 +369,8 @@ describe('buildUnifiedParentIterations', () => {
 
     const metadata: IterationNodeMetadata = {
       isLoopNode: true,
-      loopId: 'loop-1__obranch-2',
+      subflowId: 'loop-1__obranch-2',
+      subflowType: 'loop',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -415,7 +418,8 @@ describe('buildUnifiedParentIterations', () => {
     const metadata: IterationNodeMetadata = {
       branchIndex: 1,
       branchTotal: 3,
-      parallelId: 'parallel-1',
+      subflowId: 'parallel-1',
+      subflowType: 'parallel',
     }
     const result = getIterationContext(ctx, metadata)
     expect(result).toEqual({
@@ -451,7 +455,7 @@ describe('buildContainerIterationContext', () => {
   it('resolves loop nested inside parallel', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['loop-1__obranch-2', { parentId: 'parallel-1', parentType: 'parallel' }],
+        ['loop-1__obranch-2', { parentId: 'parallel-1', parentType: 'parallel', branchIndex: 2 }],
       ]),
       parallelExecutions: new Map([
         [
@@ -499,7 +503,9 @@ describe('buildContainerIterationContext', () => {
 
   it('returns undefined when parent scope is missing', () => {
     const ctx = makeCtx({
-      subflowParentMap: new Map([['loop-1', { parentId: 'parallel-1', parentType: 'parallel' }]]),
+      subflowParentMap: new Map([
+        ['loop-1', { parentId: 'parallel-1', parentType: 'parallel', branchIndex: 0 }],
+      ]),
       parallelExecutions: new Map(),
     })
     expect(buildContainerIterationContext(ctx, 'loop-1')).toBeUndefined()
@@ -537,7 +543,7 @@ describe('buildContainerIterationContext', () => {
   it('uses branch index 0 for non-cloned container in parallel parent', () => {
     const ctx = makeCtx({
       subflowParentMap: new Map([
-        ['inner-loop', { parentId: 'outer-parallel', parentType: 'parallel' }],
+        ['inner-loop', { parentId: 'outer-parallel', parentType: 'parallel', branchIndex: 0 }],
       ]),
       parallelExecutions: new Map([
         [

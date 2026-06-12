@@ -17,20 +17,27 @@ export const apolloOrganizationSearchTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key',
     },
     organization_locations: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Company locations to search',
+      description: 'Company HQ locations (cities, US states, or countries)',
+    },
+    organization_not_locations: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Exclude companies whose HQ is in these locations',
     },
     organization_num_employees_ranges: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Employee count ranges (e.g., ["1-10", "11-50"])',
+      description:
+        'Employee count ranges as "min,max" strings (e.g., ["1,10", "250,500", "10000,20000"])',
     },
     q_organization_keyword_tags: {
       type: 'array',
@@ -43,6 +50,18 @@ export const apolloOrganizationSearchTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Organization name to search for (e.g., "Acme", "TechCorp")',
+    },
+    organization_ids: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Apollo organization IDs to include (e.g., ["5e66b6381e05b4008c8331b8"])',
+    },
+    q_organization_domains_list: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Domain names to filter by (no www. or @, up to 1,000)',
     },
     page: {
       type: 'number',
@@ -59,34 +78,32 @@ export const apolloOrganizationSearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.apollo.io/api/v1/mixed_companies/search',
+    url: (params: ApolloOrganizationSearchParams) => {
+      const qs = new URLSearchParams()
+      qs.set('page', String(params.page || 1))
+      qs.set('per_page', String(Math.min(params.per_page || 25, 100)))
+
+      const appendArray = (key: string, values?: string[]) => {
+        if (!values?.length) return
+        for (const v of values) {
+          if (typeof v === 'string' && v) qs.append(`${key}[]`, v)
+        }
+      }
+      appendArray('organization_locations', params.organization_locations)
+      appendArray('organization_not_locations', params.organization_not_locations)
+      appendArray('organization_num_employees_ranges', params.organization_num_employees_ranges)
+      appendArray('q_organization_keyword_tags', params.q_organization_keyword_tags)
+      appendArray('organization_ids', params.organization_ids)
+      appendArray('q_organization_domains_list', params.q_organization_domains_list)
+      if (params.q_organization_name) qs.set('q_organization_name', params.q_organization_name)
+
+      return `https://api.apollo.io/api/v1/mixed_companies/search?${qs.toString()}`
+    },
     method: 'POST',
     headers: (params: ApolloOrganizationSearchParams) => ({
-      'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloOrganizationSearchParams) => {
-      const body: any = {
-        page: params.page || 1,
-        per_page: Math.min(params.per_page || 25, 100),
-      }
-
-      if (params.organization_locations?.length) {
-        body.organization_locations = params.organization_locations
-      }
-      if (params.organization_num_employees_ranges?.length) {
-        body.organization_num_employees_ranges = params.organization_num_employees_ranges
-      }
-      if (params.q_organization_keyword_tags?.length) {
-        body.q_organization_keyword_tags = params.q_organization_keyword_tags
-      }
-      if (params.q_organization_name) {
-        body.q_organization_name = params.q_organization_name
-      }
-
-      return body
-    },
   },
 
   transformResponse: async (response: Response) => {

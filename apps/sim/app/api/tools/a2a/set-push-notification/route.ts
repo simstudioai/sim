@@ -4,6 +4,7 @@ import { createA2AClient } from '@/lib/a2a/utils'
 import { a2aSetPushNotificationContract } from '@/lib/api/contracts/tools/a2a'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { enforceUserOrIpRateLimit } from '@/lib/core/rate-limiter'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -30,6 +31,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { status: 401 }
       )
     }
+
+    const rateLimited = await enforceUserOrIpRateLimit(
+      'a2a-set-push-notification',
+      authResult.userId,
+      request
+    )
+    if (rateLimited) return rateLimited
 
     const parsed = await parseRequest(
       a2aSetPushNotificationContract,

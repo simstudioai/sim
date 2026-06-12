@@ -2,7 +2,9 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
+import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
+import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
 import { checkRolePermission } from '@/middleware/permissions'
@@ -128,7 +130,7 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
           socket.emit('operation-failed', {
             operationId,
             error: 'User session not found',
-            retryable: false,
+            retryable: true,
           })
         }
         return
@@ -207,7 +209,7 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
     } catch (error) {
       logger.error('Error handling subblock update:', error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
 
       if (operationId) {
         socket.emit('operation-failed', {
@@ -248,7 +250,7 @@ async function flushSubblockUpdate(
         io.to(socketId).emit('operation-failed', {
           operationId: opId,
           error: 'Workflow not found',
-          retryable: false,
+          retryable: true,
         })
       })
       return
@@ -273,43 +275,31 @@ async function flushSubblockUpdate(
     let updateSuccessful = false
     let blockLocked = false
     await db.transaction(async (tx) => {
-      const [block] = await tx
+      const allBlocks = await tx
         .select({
+          id: workflowBlocks.id,
           subBlocks: workflowBlocks.subBlocks,
           locked: workflowBlocks.locked,
           data: workflowBlocks.data,
         })
         .from(workflowBlocks)
-        .where(and(eq(workflowBlocks.id, blockId), eq(workflowBlocks.workflowId, workflowId)))
-        .limit(1)
+        .where(eq(workflowBlocks.workflowId, workflowId))
 
+      type SubblockUpdateBlockRecord = (typeof allBlocks)[number]
+      const blocksById: Record<string, SubblockUpdateBlockRecord> = Object.fromEntries(
+        allBlocks.map((block: SubblockUpdateBlockRecord) => [block.id, block])
+      )
+      const block = blocksById[blockId]
       if (!block) {
         return
       }
 
-      // Check if block is locked directly
-      if (block.locked) {
-        logger.info(`Skipping subblock update - block ${blockId} is locked`)
+      if (isWorkflowBlockProtected(blockId, blocksById)) {
+        logger.info(
+          `Skipping subblock update - block ${blockId} is locked or inside a locked container`
+        )
         blockLocked = true
         return
-      }
-
-      // Check if block is inside a locked parent container
-      const parentId = (block.data as Record<string, unknown> | null)?.parentId as
-        | string
-        | undefined
-      if (parentId) {
-        const [parentBlock] = await tx
-          .select({ locked: workflowBlocks.locked })
-          .from(workflowBlocks)
-          .where(and(eq(workflowBlocks.id, parentId), eq(workflowBlocks.workflowId, workflowId)))
-          .limit(1)
-
-        if (parentBlock?.locked) {
-          logger.info(`Skipping subblock update - parent ${parentId} is locked`)
-          blockLocked = true
-          return
-        }
       }
 
       const subBlocks = (block.subBlocks as any) || {}
@@ -362,7 +352,7 @@ async function flushSubblockUpdate(
         io.to(socketId).emit('operation-failed', {
           operationId: opId,
           error: 'Block no longer exists',
-          retryable: false,
+          retryable: true,
         })
       })
     }
@@ -371,7 +361,7 @@ async function flushSubblockUpdate(
     pending.opToSocket.forEach((socketId, opId) => {
       io.to(socketId).emit('operation-failed', {
         operationId: opId,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         retryable: true,
       })
     })

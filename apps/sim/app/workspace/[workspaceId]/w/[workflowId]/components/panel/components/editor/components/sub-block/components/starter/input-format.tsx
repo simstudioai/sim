@@ -16,14 +16,17 @@ import {
   getCodeEditorProps,
   highlight,
   Input,
+  Label,
   languages,
 } from '@/components/emcn'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
 interface Field {
@@ -104,6 +107,7 @@ export function FieldFormat({
   valuePlaceholder = 'Enter default value',
   descriptionPlaceholder = 'Describe this field',
 }: FieldFormatProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
@@ -126,6 +130,8 @@ export function FieldFormat({
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [createDefaultField()]
   const isReadOnly = isPreview || disabled
+
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   /**
    * Adds a new field to the list
@@ -229,6 +235,13 @@ export function FieldFormat({
   const renderNameInput = (field: Field) => {
     const nameFieldKey = getNameFieldKey(field.id)
     const fieldValue = field.name ?? ''
+    const fieldIndex = fields.findIndex((candidate) => candidate.id === field.id)
+    const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [fieldIndex, 'name'],
+    })
     const fieldState = inputController.fieldHelpers.getFieldState(nameFieldKey)
     const handlers = inputController.fieldHelpers.createFieldHandlers(
       nameFieldKey,
@@ -284,7 +297,9 @@ export function FieldFormat({
           >
             {formatDisplayText(
               fieldValue,
-              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
             )}
           </div>
         </div>
@@ -309,8 +324,14 @@ export function FieldFormat({
    */
   const renderFieldHeader = (field: Field, index: number) => (
     <div
+      role='group'
+      aria-label={`${title} ${index + 1}`}
       className='flex cursor-pointer items-center justify-between rounded-t-[3px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(field.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => toggleCollapse(field.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
@@ -322,9 +343,13 @@ export function FieldFormat({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='h-[14px] w-[14px]' />
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add {title}</span>
         </Button>
         <Button
@@ -333,7 +358,7 @@ export function FieldFormat({
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Field</span>
         </Button>
       </div>
@@ -357,6 +382,13 @@ export function FieldFormat({
     }
 
     const fieldValue = field.value ?? ''
+    const fieldIndex = fields.findIndex((candidate) => candidate.id === field.id)
+    const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [fieldIndex, 'value'],
+    })
     const fieldState = inputController.fieldHelpers.getFieldState(field.id)
     const handlers = inputController.fieldHelpers.createFieldHandlers(
       field.id,
@@ -532,7 +564,9 @@ export function FieldFormat({
           >
             {formatDisplayText(
               fieldValue,
-              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
             )}
           </div>
         </div>
@@ -555,13 +589,13 @@ export function FieldFormat({
             <ExpandableContent>
               <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
                 <div className='flex flex-col gap-1.5'>
-                  <Label className='text-small'>Name</Label>
+                  {renderFieldLabel('Name')}
                   <div className='relative'>{renderNameInput(field)}</div>
                 </div>
 
                 {showType && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Type</Label>
+                    {renderFieldLabel('Type')}
                     <Combobox
                       options={TYPE_OPTIONS}
                       value={field.type}
@@ -573,19 +607,53 @@ export function FieldFormat({
 
                 {showDescription && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Description</Label>
-                    <Input
-                      value={field.description ?? ''}
-                      onChange={(e) => updateField(field.id, 'description', e.target.value)}
-                      placeholder={descriptionPlaceholder}
-                      disabled={isReadOnly}
-                    />
+                    {renderFieldLabel('Description')}
+                    <div className='relative'>
+                      <Input
+                        value={field.description ?? ''}
+                        onChange={(e) => updateField(field.id, 'description', e.target.value)}
+                        placeholder={descriptionPlaceholder}
+                        disabled={isReadOnly}
+                        className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                      />
+                      <div
+                        className={cn(
+                          'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
+                          isReadOnly && 'opacity-50'
+                        )}
+                      >
+                        <span className='truncate'>
+                          {formatDisplayText(
+                            field.description ?? '',
+                            accessiblePrefixes
+                              ? {
+                                  accessiblePrefixes,
+                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                    activeSearchTarget,
+                                    blockId,
+                                    subBlockId,
+                                    valuePath: [index, 'description'],
+                                  }),
+                                }
+                              : {
+                                  highlightAll: true,
+                                  workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                    activeSearchTarget,
+                                    blockId,
+                                    subBlockId,
+                                    valuePath: [index, 'description'],
+                                  }),
+                                }
+                          )}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {showValue && (
                   <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Value</Label>
+                    {renderFieldLabel('Value')}
                     <div className='relative'>{renderValueInput(field)}</div>
                   </div>
                 )}

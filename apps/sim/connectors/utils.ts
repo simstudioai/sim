@@ -1,3 +1,5 @@
+import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+
 /**
  * Strips HTML tags from content and decodes common HTML entities.
  */
@@ -42,4 +44,72 @@ export function parseTagDate(value: unknown): Date | undefined {
 export function joinTagArray(value: unknown): string | undefined {
   const arr = Array.isArray(value) ? (value as string[]) : []
   return arr.length > 0 ? arr.join(', ') : undefined
+}
+
+/**
+ * Normalizes a multi-value sourceConfig field into a trimmed, deduplicated string array.
+ *
+ * Accepts a string (CSV from advanced manual input or legacy single-value), an array
+ * of strings (from multi-select UI or new array storage), or undefined/null. Always
+ * returns a string[] — connectors call this once at the top of listDocuments to
+ * branch on `values.length` for single vs multi behavior.
+ */
+export function parseMultiValue(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const item of value) {
+      if (typeof item !== 'string') continue
+      const trimmed = item.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+    return out
+  }
+  if (typeof value === 'string') {
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const part of value.split(',')) {
+      const trimmed = part.trim()
+      if (!trimmed || seen.has(trimmed)) continue
+      seen.add(trimmed)
+      out.push(trimmed)
+    }
+    return out
+  }
+  return []
+}
+
+/**
+ * Reads a response body into a Buffer while enforcing a hard byte cap. The
+ * declared `content-length` header cannot be trusted as the sole guard —
+ * chunked transfer encoding may omit it entirely — so bytes are accumulated
+ * from the stream and reading aborts as soon as the cap is exceeded, ensuring
+ * an oversized (or hostile) body is never fully buffered into memory.
+ * Returns null when the cap is exceeded.
+ */
+export async function readBodyWithLimit(
+  response: Response | SecureFetchResponse,
+  maxBytes: number
+): Promise<Buffer | null> {
+  if (!response.body) {
+    const buffer = Buffer.from(await response.arrayBuffer())
+    return buffer.byteLength > maxBytes ? null : buffer
+  }
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {})
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
 }

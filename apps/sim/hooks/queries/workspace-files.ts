@@ -1,5 +1,7 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/components/emcn'
 import { ApiClientError, isApiClientError } from '@/lib/api/client/errors'
@@ -31,20 +33,30 @@ type WorkspaceFileQueryScope = 'active' | 'archived' | 'all'
 export const workspaceFilesKeys = {
   all: ['workspaceFiles'] as const,
   lists: () => [...workspaceFilesKeys.all, 'list'] as const,
+  workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
-    [...workspaceFilesKeys.lists(), workspaceId, scope] as const,
+    [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
-  content: (workspaceId: string, fileId: string, mode: 'text' | 'raw' | 'binary' = 'text') =>
-    [...workspaceFilesKeys.contentFile(workspaceId, fileId), mode] as const,
+  content: (
+    workspaceId: string,
+    fileId: string,
+    mode: 'text' | 'raw' | 'binary' = 'text',
+    storageKey?: string
+  ) =>
+    [
+      ...workspaceFilesKeys.contentFile(workspaceId, fileId),
+      mode,
+      ...(storageKey ? [storageKey] : []),
+    ] as const,
   storageInfo: () => [...workspaceFilesKeys.all, 'storageInfo'] as const,
 }
 
 /**
  * Storage info type
  */
-export interface StorageInfo {
+interface StorageInfo {
   usedBytes: number
   limitBytes: number
   percentUsed: number
@@ -87,11 +99,15 @@ async function fetchWorkspaceFiles(
 /**
  * Hook to fetch workspace files
  */
-export function useWorkspaceFiles(workspaceId: string, scope: WorkspaceFileQueryScope = 'active') {
+export function useWorkspaceFiles(
+  workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active',
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: workspaceFilesKeys.list(workspaceId, scope),
     queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && (options?.enabled ?? true),
     staleTime: 30 * 1000, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
@@ -118,7 +134,7 @@ async function fetchWorkspaceFileContent(
 
 /**
  * Hook to fetch workspace file content as text.
- * `key` (the storage object key) is included in the query key so that a new
+ * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
  */
 export function useWorkspaceFileContent(
@@ -128,7 +144,7 @@ export function useWorkspaceFileContent(
   raw?: boolean
 ) {
   return useQuery({
-    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text'), key],
+    queryKey: workspaceFilesKeys.content(workspaceId, fileId, raw ? 'raw' : 'text', key),
     queryFn: ({ signal }) => fetchWorkspaceFileContent(key, signal, raw),
     enabled: !!workspaceId && !!fileId && !!key,
     staleTime: 30 * 1000,
@@ -136,26 +152,92 @@ export function useWorkspaceFileContent(
   })
 }
 
-async function fetchWorkspaceFileBinary(key: string, signal?: AbortSignal): Promise<ArrayBuffer> {
-  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&t=${Date.now()}`
+/**
+ * Thrown when the serve route returns 409 — a generated document (pptx/docx/pdf/
+ * xlsx) whose source is still being written/compiled. Distinct from a real fetch
+ * failure so the binary query can keep retrying (and the preview keeps showing
+ * its loading state) until the compiled artifact is ready.
+ */
+export class DocNotReadyError extends Error {
+  constructor() {
+    super('Document is still being generated')
+    this.name = 'DocNotReadyError'
+  }
+}
+
+/**
+ * Fetch compiled/binary file content via the serve URL.
+ *
+ * A `version` (the file record's `updatedAt`) makes the URL content-immutable: the
+ * serve route marks versioned responses `immutable`, so the browser HTTP cache
+ * resolves re-opens and focus refetches with no round trip. Generated docs are
+ * edited in place (same storage key), so an unversioned caller cannot assume
+ * immutability and instead busts + bypasses the cache to always read fresh. A 409
+ * means a generated doc is still compiling — surfaced as {@link DocNotReadyError}
+ * so the query keeps polling.
+ */
+async function fetchWorkspaceFileBinary(
+  key: string,
+  version: string | number | undefined,
+  signal?: AbortSignal
+): Promise<ArrayBuffer> {
+  const cacheParam =
+    version != null ? `v=${encodeURIComponent(String(version))}` : `t=${Date.now()}`
+  const serveUrl = `/api/files/serve/${encodeURIComponent(key)}?context=workspace&${cacheParam}`
+  const init: RequestInit = version != null ? { signal } : { signal, cache: 'no-store' }
   // boundary-raw-fetch: binary download consumed as ArrayBuffer
-  const response = await fetch(serveUrl, { signal, cache: 'no-store' })
+  const response = await fetch(serveUrl, init)
+  if (response.status === 409) throw new DocNotReadyError()
   if (!response.ok) throw new Error('Failed to fetch file content')
   return response.arrayBuffer()
 }
 
 /**
  * Hook to fetch workspace file content as binary (ArrayBuffer).
- * `key` (the storage object key) is included in the query key so that a new
+ * `key` (the storage object key) is forwarded into the query key factory so that a new
  * storage key (e.g. after a file is re-uploaded) correctly busts the cache.
+ *
+ * `options.version` is a content version (the record's `updatedAt`) folded into the
+ * query key. Generated docs are edited IN PLACE — `edit_content` keeps the SAME
+ * storage key — so without a version the cache is never busted and the open
+ * preview keeps showing the stale binary after a regenerate. Versioning the key
+ * makes the preview refetch whenever the file's content changes (and on first
+ * open, keyed to the current content rather than a stale cached entry).
  */
-export function useWorkspaceFileBinary(workspaceId: string, fileId: string, key: string) {
+export function useWorkspaceFileBinary(
+  workspaceId: string,
+  fileId: string,
+  key: string,
+  options?: { enabled?: boolean; version?: string | number }
+) {
   return useQuery({
-    queryKey: [...workspaceFilesKeys.content(workspaceId, fileId, 'binary'), key],
-    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, signal),
-    enabled: !!workspaceId && !!fileId && !!key,
+    queryKey:
+      options?.version != null
+        ? [...workspaceFilesKeys.content(workspaceId, fileId, 'binary', key), options.version]
+        : workspaceFilesKeys.content(workspaceId, fileId, 'binary', key),
+    queryFn: ({ signal }) => fetchWorkspaceFileBinary(key, options?.version, signal),
+    // Callers gate this on a readiness signal (e.g. the file has committed
+    // content) so we don't 409-poll the serve route for a generated doc whose
+    // compiled artifact hasn't been written yet — the doc is fetched once, when
+    // it's actually ready, instead of hammering the serve URL through generation.
+    enabled: !!workspaceId && !!fileId && !!key && (options?.enabled ?? true),
     staleTime: 30 * 1000,
     refetchOnWindowFocus: 'always',
+    placeholderData: keepPreviousData,
+    // While a generated doc is still compiling, serve returns 409. Poll (stay in
+    // the loading state) until the artifact is ready instead of surfacing an
+    // error. The artifact is written before the source commits, so a fresh serve
+    // normally hits immediately; this only bridges S3 read-after-write lag and the
+    // brief mid-generation window. Poll on a short jittered backoff (~0.6s rising
+    // to ~2.5s, ~30s budget) so the common case recovers fast without hammering the
+    // serve URL on the long tail. SSE content invalidation also re-fetches when the
+    // file actually updates.
+    retry: (failureCount, error) =>
+      error instanceof DocNotReadyError ? failureCount < 14 : failureCount < 2,
+    retryDelay: (failureCount, error) =>
+      error instanceof DocNotReadyError
+        ? backoffWithJitter(failureCount, null, { baseMs: 600, maxMs: 2500 })
+        : Math.min(1000 * 2 ** failureCount, 5000),
   })
 }
 
@@ -203,8 +285,11 @@ export function useStorageInfo(enabled = true) {
 interface UploadFileParams {
   workspaceId: string
   file: File
+  folderId?: string | null
   onProgress?: (event: UploadProgressEvent) => void
   signal?: AbortSignal
+  skipToast?: boolean
+  skipInvalidation?: boolean
 }
 
 interface UploadFileResponse {
@@ -215,10 +300,12 @@ interface UploadFileResponse {
 async function uploadViaApiFallback(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append('file', file)
+  if (folderId) formData.append('folderId', folderId)
 
   // boundary-raw-fetch: multipart/form-data fallback upload, requestJson only supports JSON bodies
   const response = await fetch(`/api/workspaces/${workspaceId}/files`, {
@@ -248,6 +335,7 @@ async function parseUploadResponse(
 async function uploadWorkspaceFile(
   workspaceId: string,
   file: File,
+  folderId?: string | null,
   onProgress?: (event: UploadProgressEvent) => void,
   signal?: AbortSignal
 ): Promise<UploadFileResponse> {
@@ -256,6 +344,7 @@ async function uploadWorkspaceFile(
     result = await runUploadStrategy({
       file,
       presignedEndpoint: `/api/workspaces/${workspaceId}/files/presigned`,
+      presignedBody: { folderId },
       workspaceId,
       context: 'workspace',
       onProgress,
@@ -263,12 +352,12 @@ async function uploadWorkspaceFile(
     })
   } catch (error) {
     if (error instanceof DirectUploadError && error.code === 'FALLBACK_REQUIRED') {
-      return uploadViaApiFallback(workspaceId, file, signal)
+      return uploadViaApiFallback(workspaceId, file, folderId, signal)
     }
     throw error
   }
 
-  const data = await registerWithRetry(workspaceId, result, signal)
+  const data = await registerWithRetry(workspaceId, result, folderId, signal)
 
   if (!data.success || !data.file) {
     throw new Error(data.error || 'Failed to register file')
@@ -287,6 +376,7 @@ const REGISTER_RETRY_DELAY_MS = 500
 async function registerWithRetry(
   workspaceId: string,
   result: { key: string; name: string; contentType: string },
+  folderId?: string | null,
   signal?: AbortSignal
 ) {
   let lastError: unknown
@@ -298,6 +388,7 @@ async function registerWithRetry(
           key: result.key,
           name: result.name,
           contentType: result.contentType,
+          folderId,
         },
         signal,
       })
@@ -317,20 +408,27 @@ export function useUploadWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ workspaceId, file, onProgress, signal }: UploadFileParams) =>
-      uploadWorkspaceFile(workspaceId, file, onProgress, signal),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+    mutationFn: ({ workspaceId, file, folderId, onProgress, signal }: UploadFileParams) =>
+      uploadWorkspaceFile(workspaceId, file, folderId, onProgress, signal),
+    onSettled: (_data, _error, variables) => {
+      if (variables.skipInvalidation) return
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onSuccess: (_data, variables) => {
-      toast.success(`Uploaded "${variables.file.name}"`)
+      if (!variables.skipToast) {
+        toast.success(`Uploaded "${variables.file.name}"`)
+      }
     },
     onError: (error, variables) => {
       logger.error('Failed to upload file:', error)
-      toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
-        duration: 5000,
-      })
+      if (!variables.skipToast) {
+        toast.error(`Failed to upload "${variables.file.name}": ${error.message}`, {
+          duration: 5000,
+        })
+      }
     },
   })
 }
@@ -359,7 +457,9 @@ export function useUpdateWorkspaceFileContent() {
       queryClient.invalidateQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
     onError: (error) => {
@@ -386,11 +486,32 @@ export function useRenameWorkspaceFile() {
         params: { id: workspaceId, fileId },
         body: { name },
       }),
-    onError: (error) => {
+    onMutate: async ({ workspaceId, fileId, name }) => {
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
+      const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
+        workspaceFilesKeys.list(workspaceId, 'active')
+      )
+      if (previous) {
+        queryClient.setQueryData<WorkspaceFileRecord[]>(
+          workspaceFilesKeys.list(workspaceId, 'active'),
+          previous.map((f) => (f.id === fileId ? { ...f, name } : f))
+        )
+      }
+      return { previous }
+    },
+    onError: (error, variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          workspaceFilesKeys.list(variables.workspaceId, 'active'),
+          context.previous
+        )
+      }
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
     },
   })
 }
@@ -412,7 +533,7 @@ export function useDeleteWorkspaceFile() {
         params: { id: workspaceId, fileId },
       }),
     onMutate: async ({ workspaceId, fileId }) => {
-      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.lists() })
+      await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
 
       const previousFiles = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -435,9 +556,15 @@ export function useDeleteWorkspaceFile() {
         )
       }
       logger.error('Failed to delete file')
+      toast.error(toError(_err).message)
+    },
+    onSuccess: () => {
+      toast.success('File moved to trash')
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.removeQueries({
         queryKey: workspaceFilesKeys.contentFile(variables.workspaceId, variables.fileId),
       })
@@ -454,8 +581,16 @@ export function useRestoreWorkspaceFile() {
       requestJson(restoreWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
       }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.lists() })
+    onSuccess: () => {
+      toast.success('File restored')
+    },
+    onError: (err) => {
+      toast.error(toError(err).message)
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceFilesKeys.workspaceLists(variables.workspaceId),
+      })
       queryClient.invalidateQueries({ queryKey: workspaceFilesKeys.storageInfo() })
     },
   })

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { telegramSendDocumentContract } from '@/lib/api/contracts/tools/communication/messaging'
 import { parseRequest } from '@/lib/api/server'
@@ -7,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { convertMarkdownToHTML } from '@/tools/telegram/utils'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +23,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       requireWorkflowId: false,
     })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Telegram send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -88,6 +90,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const userFile = userFiles[0]
     logger.info(`[${requestId}] Uploading document: ${userFile.name}`)
 
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
+
     const buffer = await downloadFileFromStorage(userFile, requestId, logger)
     const filesOutput = [
       {
@@ -147,7 +152,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

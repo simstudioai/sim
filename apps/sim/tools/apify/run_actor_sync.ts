@@ -52,11 +52,9 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
 
   request: {
     url: (params) => {
-      const encodedActorId = encodeURIComponent(params.actorId)
+      const encodedActorId = encodeURIComponent(params.actorId.trim())
       const baseUrl = `https://api.apify.com/v2/acts/${encodedActorId}/run-sync-get-dataset-items`
       const queryParams = new URLSearchParams()
-
-      queryParams.set('token', params.apiKey)
 
       if (params.memory) {
         queryParams.set('memory', params.memory.toString())
@@ -68,7 +66,8 @@ export const apifyRunActorSyncTool: ToolConfig<RunActorParams, RunActorResult> =
         queryParams.set('build', params.build)
       }
 
-      return `${baseUrl}?${queryParams.toString()}`
+      const query = queryParams.toString()
+      return query ? `${baseUrl}?${query}` : baseUrl
     },
     method: 'POST',
     headers: (params) => ({

@@ -72,19 +72,26 @@ vi.mock('@/lib/workflows/triggers/triggers', () => ({
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/executor', () => ({
-  Executor: vi.fn().mockImplementation((args) => {
-    executorConstructorMock(args)
-    return {
-      execute: executorExecuteMock,
-      executeFromBlock: executorExecuteMock,
+  Executor: vi.fn().mockImplementation(
+    class {
+      constructor(args: unknown) {
+        executorConstructorMock(args)
+        // biome-ignore lint/correctness/noConstructorReturn: vitest 4 constructs mocks via Reflect.construct; returning the instance overrides `new Executor(...)`
+        return {
+          execute: executorExecuteMock,
+          executeFromBlock: executorExecuteMock,
+        }
+      }
     }
-  }),
+  ),
 }))
 
 vi.mock('@/serializer', () => ({
-  Serializer: vi.fn().mockImplementation(() => ({
-    serializeWorkflow: serializeWorkflowMock,
-  })),
+  Serializer: vi.fn().mockImplementation(
+    class {
+      serializeWorkflow = serializeWorkflowMock
+    }
+  ),
 }))
 
 import {
@@ -215,6 +222,49 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     )
   })
 
+  it('starts logging with the workflow state that will be executed', async () => {
+    const executedWorkflowState = {
+      blocks: {
+        loop: { id: 'loop', type: 'loop', name: 'Loop', subBlocks: {} },
+        parallel: {
+          id: 'parallel',
+          type: 'parallel',
+          name: 'Parallel',
+          subBlocks: {},
+          data: { parentId: 'loop', extent: 'parent' },
+        },
+      },
+      edges: [],
+      loops: { loop: { id: 'loop', nodes: ['parallel'], iterations: 1, loopType: 'for' } },
+      parallels: { parallel: { id: 'parallel', nodes: [], count: 1 } },
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        metadata: {
+          ...createSnapshot().metadata,
+          workflowStateOverride: executedWorkflowState,
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(safeStartMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowState: executedWorkflowState,
+      })
+    )
+  })
+
   it('uses external trigger selection for webhook executions without an explicit triggerBlockId', async () => {
     executorExecuteMock.mockResolvedValue({
       success: true,
@@ -237,6 +287,54 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
     })
 
     expect(findStartBlockMock).toHaveBeenCalledWith(expect.anything(), 'external', false)
+  })
+
+  it('preserves manifest-backed workflow variables during execution setup', async () => {
+    const manifest = {
+      __simLargeArrayManifest: true,
+      version: 2,
+      kind: 'array',
+      totalCount: 1,
+      chunkCount: 1,
+      byteSize: 16,
+      chunks: [
+        {
+          ref: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 16,
+            executionId: 'execution-1',
+          },
+          count: 1,
+          byteSize: 16,
+        },
+      ],
+      preview: [{ id: 1 }],
+    }
+    executorExecuteMock.mockResolvedValue({
+      success: true,
+      status: 'completed',
+      output: { done: true },
+      logs: [],
+      metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+    })
+
+    await executeWorkflowCore({
+      snapshot: {
+        ...createSnapshot(),
+        workflowVariables: {
+          'var-1': { id: 'var-1', name: 'issues', type: 'array', value: manifest },
+        },
+      } as any,
+      callbacks: {},
+      loggingSession: loggingSession as any,
+    })
+
+    expect(executorConstructorMock.mock.calls[0]?.[0]?.workflowVariables['var-1'].value).toEqual(
+      manifest
+    )
   })
 
   it('does not await user block start callback after persistence completes', async () => {
@@ -360,6 +458,68 @@ describe('executeWorkflowCore terminal finalization sequencing', () => {
       'executor:after-start',
       'safeComplete',
     ])
+  })
+
+  it('awaits fire-and-forget block callbacks before returning terminal result', async () => {
+    let releaseBlockComplete: (() => void) | undefined
+    let markCallbackStarted: (() => void) | undefined
+    const blockCompletePromise = new Promise<void>((resolve) => {
+      releaseBlockComplete = resolve
+    })
+    const callbackStartedPromise = new Promise<void>((resolve) => {
+      markCallbackStarted = resolve
+    })
+    const callOrder: string[] = []
+    let hasReturned = false
+
+    executorExecuteMock.mockImplementation(async () => {
+      const contextExtensions = executorConstructorMock.mock.calls[0]?.[0]?.contextExtensions
+      void contextExtensions.onBlockComplete('block-1', 'Fetch', 'api', {
+        input: {},
+        output: { done: true },
+        executionTime: 10,
+        startedAt: new Date().toISOString(),
+        executionOrder: 1,
+        endedAt: new Date().toISOString(),
+      })
+      callOrder.push('executor:return')
+
+      return {
+        success: true,
+        status: 'completed',
+        output: { done: true },
+        logs: [],
+        metadata: { duration: 123, startTime: 'start', endTime: 'end' },
+      }
+    })
+
+    const executionPromise = executeWorkflowCore({
+      snapshot: createSnapshot() as any,
+      callbacks: {
+        onBlockComplete: async () => {
+          callOrder.push('callback:start')
+          markCallbackStarted?.()
+          await blockCompletePromise
+          callOrder.push('callback:end')
+        },
+      },
+      loggingSession: loggingSession as any,
+    }).then((result) => {
+      hasReturned = true
+      callOrder.push('core:return')
+      return result
+    })
+
+    await callbackStartedPromise
+
+    expect(callOrder).toEqual(['executor:return', 'callback:start'])
+    expect(hasReturned).toBe(false)
+
+    releaseBlockComplete?.()
+    const result = await executionPromise
+
+    expect(result.status).toBe('completed')
+    expect(callOrder).toEqual(['executor:return', 'callback:start', 'callback:end', 'core:return'])
   })
 
   it('preserves successful execution when success finalization throws', async () => {

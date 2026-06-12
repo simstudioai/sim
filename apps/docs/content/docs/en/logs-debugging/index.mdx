@@ -1,0 +1,107 @@
+---
+title: Overview
+description: A log is the recorded trace of one workflow run, and debugging is reading that trace backward from the block that failed.
+pageType: concept
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Image } from '@/components/ui/image'
+
+A **log** is the recorded trace of one workflow run. Every time a workflow runs, Sim writes down what triggered it, which blocks ran in what order, and for each block its exact input, its output, and any error. That trace is the ground truth for debugging: it replays what each block received, what it did, and what it returned, so you can find where something went wrong.
+
+Think of it like a video replay of the run, where you read what actually happened one block at a time.
+
+The **Logs page** lists every run across your workspace, one row per run. The [Logging reference](/logs-debugging/logging) covers the page itself: the columns, filters, and sidebar. This page covers what a log captures and how to trace a failure back to its cause.
+
+<Image
+  src="/static/logs/workspace-logs.png"
+  alt="The Logs page: one row per run with workflow, date, status, cost in credits, trigger, and duration"
+  width={900}
+  height={481}
+/>
+
+## What a log records
+
+### The run
+
+Each row on the Logs page is one **run**. It records the **trigger** that started it (manual, api, schedule, chat, webhook, mcp, mothership, copilot, workflow, or a2a), a **status**, a **duration**, and the **cost** in credits. It also carries an **execution ID** that uniquely names the run.
+
+The status shows the run's outcome at a glance, with failed runs badged **Error**. When you are hunting a failure, you filter the list to the errors and start there.
+
+### The blocks
+
+Open a run and **Log Details** shows the trace. The **Trace** tab lists each block as a span with its timing, in the order they ran; each **block execution** records the [block](/workflows#blocks)'s name and type, its own status, its **input**, its **output**, and an error message if it failed.
+
+<Image
+  src="/static/logs/log-trace.png"
+  alt="Log Details with the Trace tab open: a CRM sync run's spans, each block with its duration, 11.61s total"
+  width={900}
+  height={471}
+/>
+
+This is the level you debug at, because a run fails when one of its blocks fails, and a block usually fails because of the input it received. In this run, one glance at the spans shows where the time went: the HealingAgent took 7.83s of the 11.61s total.
+
+### Input and output
+
+Each block in the sidebar has two tabs. The **Input** tab shows the resolved values the block actually ran with: the literal values you typed, and the earlier outputs it read by reference (with API keys redacted). The **Output** tab shows what the block produced, formatted as an object, with markdown rendered for agent-generated text.
+
+The input tab is the important one. A block reads earlier outputs by name, written `<blockName.field>`, and the input tab shows what those references resolved to at run time. If a reference pointed at a value that was not there, you see it here as missing or wrong, not as the tag you wrote. See [how blocks pass data](/workflows/data-flow) for how those references resolve.
+
+The same inspector follows you into the editor: during manual and chat runs, the console shows each block's Output and Input live, with values as a typed tree.
+
+<Image
+  src="/static/logs/run-inspector.png"
+  alt="The editor's run console: blocks with their durations on the left, and the selected Agent's Output tab showing content, model, and tokens as a typed tree"
+  width={900}
+  height={354}
+/>
+
+### The snapshot
+
+A workflow changes over time. A log does not. Clicking **View Snapshot** opens a frozen copy of the workflow exactly as it was when that run happened: the blocks, the connections, the configuration. This matters when a run failed last week and you have edited the workflow since. The snapshot shows the version that actually ran, not today's version.
+
+## Tracing a failure backward
+
+Debugging follows the same repeatable loop each time. You start at the block that failed and walk back to the block that caused it.
+
+1. **Find the failed block.** Open the errored run. The sidebar marks the block whose status is **error**. Read its error message.
+2. **Read its input.** Open the block's Input tab. This is what it actually ran with, after every reference resolved.
+3. **Verify the input.** Ask whether that input is what the block expected. An empty field, a value of the wrong type, a missing nested key: the mismatch is usually visible here.
+4. **Walk back to the source.** A bad input came from somewhere. Find the earlier block whose output the failed block referenced, and open that block's Output tab. Either it produced the wrong value, or it never ran.
+5. **Fix and rerun.** Correct the reference, the configuration, or the upstream block, then run the workflow again.
+6. **Compare the traces.** Open the new run's log next to the old one. The block that was **error** is now **success**, and its input is the value you expected. That confirms the fix.
+
+{/* VISUAL: the debugging loop as a flowchart: failed block → read input → verify expectation → walk back to source block → fix → rerun → compare logs. */}
+
+{/* VISUAL: side-by-side of a failed run and a successful run, same blocks, highlighting the one input/output that changed between them. */}
+
+### Common failures
+
+Most errors come down to a handful of input mismatches. Knowing the shape speeds up step 3.
+
+- **Missing input.** A field the block needs was left empty, or its reference resolved to nothing.
+- **Wrong reference.** The tag names an output that does not exist, or uses the wrong field name.
+- **Type mismatch.** A string where an object was expected, or the reverse.
+- **Missing nested key.** The referenced object exists, but the specific field inside it does not.
+- **Empty agent message.** An [Agent](/workflows/blocks/agent) returned nothing, so the next block had nothing to read.
+- **External error.** A tool or API the block called returned an error of its own, surfaced in the block's error message.
+
+When a value is the wrong shape, reshape it in a [Function](/workflows/blocks/function) block, whose result becomes its own output that later blocks can read.
+
+## AI-assisted debugging
+
+Mothership and Copilot can read a run's logs and propose a fix from the trace: the error message, the input the block received, and the output the upstream block produced. The logs stay the ground truth. You confirm a proposed fix the same way you confirm your own: rerun the workflow and compare the new trace against the failed one.
+
+## Retention
+
+Logs are kept so you can debug a run after it happened. Free plans retain logs for **7 days**, after which they are archived to cloud storage and removed from the database. Pro, Team, and Enterprise plans retain logs indefinitely.
+
+## Next
+
+<Cards>
+  <Card title="Logging reference" href="/logs-debugging/logging" description="The Logs page: columns, filters, live mode, and the details sidebar." />
+  <Card title="How blocks pass data" href="/workflows/data-flow" description="How a block reads earlier outputs by reference." />
+  <Card title="How workflows run" href="/workflows/how-it-runs" description="Execution order, branches, and what runs." />
+  <Card title="External API" href="/api-reference/getting-started" description="Query logs programmatically and set up run notifications." />
+  <Card title="Cost calculation" href="/platform/costs" description="How per-block and per-run costs are computed." />
+</Cards>

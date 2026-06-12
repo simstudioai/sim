@@ -1,24 +1,28 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
+  ChipConfirmModal,
   Expand,
   Label,
   Modal,
   ModalBody,
   ModalContent,
-  ModalFooter,
+  ModalDescription,
   ModalHeader,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
+import type { DeployReadiness } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness'
 import { Preview, PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { useDeploymentVersionState, useRevertToVersion } from '@/hooks/queries/workflows'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { Versions } from './components'
 
@@ -30,8 +34,11 @@ interface GeneralDeployProps {
   isLoadingDeployedState: boolean
   versions: WorkflowDeploymentVersionResponse[]
   versionsLoading: boolean
+  isPromotingVersion: boolean
+  deployReadiness: DeployReadiness
   onPromoteToLive: (version: number) => Promise<void>
   onLoadDeploymentComplete: () => void
+  onLoadDeploymentBlocked: (message: string) => void
 }
 
 type PreviewMode = 'active' | 'selected'
@@ -45,78 +52,118 @@ export function GeneralDeploy({
   isLoadingDeployedState,
   versions,
   versionsLoading,
+  isPromotingVersion,
+  deployReadiness,
   onPromoteToLive,
   onLoadDeploymentComplete,
+  onLoadDeploymentBlocked,
 }: GeneralDeployProps) {
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
   const [showActiveDespiteSelection, setShowActiveDespiteSelection] = useState(false)
-  // Derived — no useEffect needed
   const previewMode: PreviewMode =
     selectedVersion !== null && !showActiveDespiteSelection ? 'selected' : 'active'
   const [showLoadDialog, setShowLoadDialog] = useState(false)
   const [showPromoteDialog, setShowPromoteDialog] = useState(false)
   const [showExpandedPreview, setShowExpandedPreview] = useState(false)
-  const [versionToLoad, setVersionToLoad] = useState<number | null>(null)
-  const [versionToPromote, setVersionToPromote] = useState<number | null>(null)
+  const [versionToLoad, setVersionToLoad] = useState<{
+    workflowId: string
+    version: number
+  } | null>(null)
+  const [versionToPromote, setVersionToPromote] = useState<{
+    workflowId: string
+    version: number
+  } | null>(null)
 
   const selectedVersionInfo = versions.find((v) => v.version === selectedVersion)
-  const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote)
-  const versionToLoadInfo = versions.find((v) => v.version === versionToLoad)
+  const versionToPromoteInfo = versions.find((v) => v.version === versionToPromote?.version)
+  const versionToLoadInfo = versions.find((v) => v.version === versionToLoad?.version)
 
   const { data: selectedVersionState } = useDeploymentVersionState(workflowId, selectedVersion)
 
   const revertMutation = useRevertToVersion()
 
-  const handleSelectVersion = useCallback((version: number | null) => {
+  const handleSelectVersion = (version: number | null) => {
     setSelectedVersion(version)
     setShowActiveDespiteSelection(false)
-  }, [])
+  }
 
-  const handleLoadDeployment = useCallback((version: number) => {
-    setVersionToLoad(version)
+  const handleLoadDeployment = (version: number) => {
+    if (!workflowId) return
+    setVersionToLoad({ workflowId, version })
     setShowLoadDialog(true)
-  }, [])
+  }
 
-  const handlePromoteToLive = useCallback((version: number) => {
-    setVersionToPromote(version)
+  const handlePromoteToLive = (version: number) => {
+    if (!workflowId) return
+    setVersionToPromote({ workflowId, version })
     setShowPromoteDialog(true)
-  }, [])
+  }
 
   const confirmLoadDeployment = async () => {
-    if (!workflowId || versionToLoad === null) return
+    if (!versionToLoad) return
+    const target = versionToLoad
+    if (!(await deployReadiness.waitUntilReady())) {
+      if (
+        workflowId !== target.workflowId ||
+        useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+      ) {
+        setShowLoadDialog(false)
+        setVersionToLoad(null)
+        return
+      }
+      onLoadDeploymentBlocked(deployReadiness.tooltip)
+      return
+    }
+    if (
+      workflowId !== target.workflowId ||
+      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+    ) {
+      setShowLoadDialog(false)
+      setVersionToLoad(null)
+      return
+    }
 
     setShowLoadDialog(false)
-    const version = versionToLoad
     setVersionToLoad(null)
 
     try {
-      await revertMutation.mutateAsync({ workflowId, version })
+      await revertMutation.mutateAsync({ workflowId: target.workflowId, version: target.version })
       onLoadDeploymentComplete()
     } catch (error) {
       logger.error('Failed to load deployment:', error)
     }
   }
 
+  useEffect(() => {
+    setShowLoadDialog(false)
+    setVersionToLoad(null)
+    setShowPromoteDialog(false)
+    setVersionToPromote(null)
+  }, [workflowId])
+
   const confirmPromoteToLive = async () => {
-    if (versionToPromote === null) return
+    if (!versionToPromote || isPromotingVersion) return
+    const target = versionToPromote
 
     setShowPromoteDialog(false)
-    const version = versionToPromote
     setVersionToPromote(null)
 
+    if (
+      workflowId !== target.workflowId ||
+      useWorkflowRegistry.getState().activeWorkflowId !== target.workflowId
+    ) {
+      return
+    }
+
     try {
-      await onPromoteToLive(version)
+      await onPromoteToLive(target.version)
     } catch (error) {
       logger.error('Failed to promote version:', error)
     }
   }
 
-  const workflowToShow = useMemo(() => {
-    if (previewMode === 'selected' && selectedVersionState) {
-      return selectedVersionState
-    }
-    return deployedState
-  }, [previewMode, selectedVersionState, deployedState])
+  const workflowToShow =
+    previewMode === 'selected' && selectedVersionState ? selectedVersionState : deployedState
 
   const showToggle = selectedVersion !== null && deployedState
 
@@ -154,10 +201,7 @@ export function GeneralDeploy({
                 ? selectedVersionInfo.name || `v${selectedVersion}`
                 : 'Live Workflow'}
             </Label>
-            <div
-              className='absolute top-[-5px] right-0'
-              style={{ visibility: showToggle ? 'visible' : 'hidden' }}
-            >
+            <div className={cn('absolute top-[-5px] right-0', !showToggle && 'invisible')}>
               <ButtonGroup
                 value={previewMode}
                 onValueChange={(val) =>
@@ -197,9 +241,9 @@ export function GeneralDeploy({
                       type='button'
                       variant='default'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 h-[28px] w-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-sm hover-hover:bg-[var(--surface-3)]'
                     >
-                      <Expand className='h-[14px] w-[14px]' />
+                      <Expand className='size-[14px]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>See preview</Tooltip.Content>
@@ -221,6 +265,7 @@ export function GeneralDeploy({
             workflowId={workflowId}
             versions={versions}
             versionsLoading={versionsLoading}
+            isPromotingVersion={isPromotingVersion}
             selectedVersion={selectedVersion}
             onSelectVersion={handleSelectVersion}
             onPromoteToLive={handlePromoteToLive}
@@ -229,57 +274,54 @@ export function GeneralDeploy({
         </div>
       </div>
 
-      <Modal open={showLoadDialog} onOpenChange={setShowLoadDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Load Deployment</ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              Are you sure you want to load{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {versionToLoadInfo?.name || `v${versionToLoad}`}
-              </span>
-              ?{' '}
-              <span className='text-[var(--text-error)]'>
-                This will replace your current workflow with the deployed version.
-              </span>
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowLoadDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={confirmLoadDeployment}>
-              Load deployment
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showLoadDialog}
+        onOpenChange={setShowLoadDialog}
+        srTitle='Load Deployment'
+        title='Load Deployment'
+        description={
+          <>
+            Are you sure you want to load{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {versionToLoadInfo?.name || `v${versionToLoad?.version}`}
+            </span>
+            ?{' '}
+            <span className='text-[var(--text-error)]'>
+              This will replace your current workflow with the deployed version.
+            </span>
+          </>
+        }
+        confirm={{
+          label: 'Load deployment',
+          onClick: confirmLoadDeployment,
+          pending: revertMutation.isPending,
+        }}
+      />
 
-      <Modal open={showPromoteDialog} onOpenChange={setShowPromoteDialog}>
-        <ModalContent size='sm'>
-          <ModalHeader>Promote to live</ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              Are you sure you want to promote{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {versionToPromoteInfo?.name || `v${versionToPromote}`}
-              </span>{' '}
-              to live?{' '}
-              <span className='text-[var(--text-primary)]'>
-                This version will become the active deployment and serve all API requests.
-              </span>
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowPromoteDialog(false)}>
-              Cancel
-            </Button>
-            <Button variant='tertiary' onClick={confirmPromoteToLive}>
-              Promote to live
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={showPromoteDialog}
+        onOpenChange={setShowPromoteDialog}
+        srTitle='Promote to live'
+        title='Promote to live'
+        description={
+          <>
+            Are you sure you want to promote{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {versionToPromoteInfo?.name || `v${versionToPromote?.version}`}
+            </span>{' '}
+            to live?{' '}
+            <span className='text-[var(--text-primary)]'>
+              This version will become the active deployment and serve all API requests.
+            </span>
+          </>
+        }
+        confirm={{
+          label: 'Promote to live',
+          onClick: confirmPromoteToLive,
+          variant: 'primary',
+          pending: isPromotingVersion,
+        }}
+      />
 
       {workflowToShow && (
         <Modal open={showExpandedPreview} onOpenChange={setShowExpandedPreview}>
@@ -290,6 +332,9 @@ export function GeneralDeploy({
                 : 'Live Workflow'}
             </ModalHeader>
             <ModalBody className='!p-0 min-h-0 flex-1 overflow-hidden'>
+              <ModalDescription className='sr-only'>
+                Visual preview of the selected workflow version.
+              </ModalDescription>
               <Preview workflowState={workflowToShow} autoSelectLeftmost />
             </ModalBody>
           </ModalContent>

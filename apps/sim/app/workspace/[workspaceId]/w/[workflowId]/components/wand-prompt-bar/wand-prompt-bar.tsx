@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { SendIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/core/utils/cn'
 
 interface WandPromptBarProps {
@@ -90,12 +89,17 @@ export function WandPromptBar({
         <div className={cn('status-indicator ml-2 self-center', isStreaming && 'streaming')} />
 
         <div className='relative flex-1'>
-          <Input
+          <input
+            type='text'
             value={isStreaming ? 'Generating...' : promptValue}
             onChange={(e) => !isStreaming && onChange(e.target.value)}
             placeholder={placeholder}
+            autoComplete='off'
+            autoCorrect='off'
+            autoCapitalize='off'
+            spellCheck='false'
             className={cn(
-              'rounded-xl border-0 text-foreground text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0',
+              'flex h-10 w-full rounded-xl bg-input-background px-3 py-2 text-foreground text-sm outline-none placeholder:text-muted-foreground/50 disabled:cursor-not-allowed disabled:opacity-50',
               isStreaming && 'text-foreground/70',
               (isLoading || isStreaming) && 'loading-placeholder'
             )}
@@ -107,7 +111,6 @@ export function WandPromptBar({
               }
             }}
             disabled={isLoading || isStreaming}
-            autoFocus={!isStreaming}
           />
         </div>
 
@@ -115,9 +118,9 @@ export function WandPromptBar({
           variant='ghost'
           size='icon'
           onClick={handleCancel}
-          className='h-8 w-8 rounded-full text-muted-foreground hover-hover:bg-accent/50 hover-hover:text-foreground'
+          className='size-8 rounded-full text-muted-foreground hover-hover:bg-accent/50 hover-hover:text-foreground'
         >
-          <XIcon className='h-4 w-4' />
+          <XIcon className='size-4' />
         </Button>
 
         {!isStreaming && (
@@ -125,10 +128,10 @@ export function WandPromptBar({
             variant='ghost'
             size='icon'
             onClick={() => onSubmit(promptValue)}
-            className='h-8 w-8 rounded-full text-muted-foreground hover-hover:bg-primary/10 hover-hover:text-foreground'
+            className='size-8 rounded-full text-muted-foreground hover-hover:bg-primary/10 hover-hover:text-foreground'
             disabled={isLoading || isStreaming || !promptValue.trim()}
           >
-            <SendIcon className='h-4 w-4' />
+            <SendIcon className='size-4' />
           </Button>
         )}
       </div>

@@ -1,25 +1,38 @@
 import { createLogger } from '@sim/logger'
+import { assertNoLargeValueRefs } from '@/lib/execution/payloads/large-value-ref'
 import { isReference, normalizeName, parseReferencePath, REFERENCE } from '@/executor/constants'
 import { InvalidFieldError } from '@/executor/utils/block-reference'
 import {
   extractBranchIndex,
+  extractInnermostOuterBranchIndex,
+  extractOuterBranchIndex,
   findEffectiveContainerId,
+  isSubflowNestedInside,
   stripCloneSuffixes,
   stripOuterBranchSuffix,
+  subflowContainsBlock,
 } from '@/executor/utils/subflow-utils'
 import {
+  type AsyncPathNavigator,
   navigatePath,
   type ResolutionContext,
   type Resolver,
+  splitLeadingBracketPath,
 } from '@/executor/variables/resolvers/reference'
 import type { SerializedParallel, SerializedWorkflow } from '@/serializer/types'
 
 const logger = createLogger('ParallelResolver')
+const PARALLEL_OUTPUT_FIELDS = ['results'] as const
+const PARALLEL_CONTEXT_FIELDS = ['index'] as const
+const COLLECTION_PARALLEL_CONTEXT_FIELDS = ['index', 'currentItem', 'items'] as const
 
 export class ParallelResolver implements Resolver {
   private parallelNameToId: Map<string, string>
 
-  constructor(private workflow: SerializedWorkflow) {
+  constructor(
+    private workflow: SerializedWorkflow,
+    private navigatePathAsync?: AsyncPathNavigator
+  ) {
     this.parallelNameToId = new Map()
     for (const block of workflow.blocks) {
       if (workflow.parallels?.[block.id] && block.metadata?.name) {
@@ -44,6 +57,27 @@ export class ParallelResolver implements Resolver {
   }
 
   resolve(reference: string, context: ResolutionContext): any {
+    return this.resolveInternal(reference, context, false)
+  }
+
+  async resolveAsync(reference: string, context: ResolutionContext): Promise<any> {
+    if (!this.navigatePathAsync) {
+      return this.resolve(reference, context)
+    }
+    return this.resolveInternal(reference, context, true)
+  }
+
+  private async resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: true
+  ): Promise<any>
+  private resolveInternal(reference: string, context: ResolutionContext, useAsyncPath: false): any
+  private resolveInternal(
+    reference: string,
+    context: ResolutionContext,
+    useAsyncPath: boolean
+  ): any | Promise<any> {
     const parts = parseReferencePath(reference)
     if (parts.length === 0) {
       logger.warn('Invalid parallel reference', { reference })
@@ -67,15 +101,30 @@ export class ParallelResolver implements Resolver {
 
     // Resolve the effective (possibly cloned) parallel ID for scope lookups
     if (context.executionContext.parallelExecutions) {
+      const mappedBranchIndex =
+        (isGenericRef
+          ? extractInnermostOuterBranchIndex(context.currentNodeId)
+          : extractOuterBranchIndex(context.currentNodeId)) ??
+        context.executionContext.parallelBlockMapping?.get(context.currentNodeId)?.iterationIndex
       targetParallelId = findEffectiveContainerId(
         targetParallelId,
         context.currentNodeId,
-        context.executionContext.parallelExecutions
+        context.executionContext.parallelExecutions,
+        mappedBranchIndex
       )
     }
 
-    if (rest.length > 0 && ParallelResolver.OUTPUT_PROPERTIES.has(rest[0])) {
-      return this.resolveOutput(targetParallelId, rest.slice(1), context)
+    if (rest.length > 0) {
+      const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rest[0])
+      if (ParallelResolver.OUTPUT_PROPERTIES.has(property)) {
+        return useAsyncPath
+          ? this.resolveOutputAsync(
+              targetParallelId,
+              [...bracketPathParts, ...rest.slice(1)],
+              context
+            )
+          : this.resolveOutput(targetParallelId, [...bracketPathParts, ...rest.slice(1)], context)
+      }
     }
 
     // Look up config using the original (non-cloned) ID
@@ -86,18 +135,14 @@ export class ParallelResolver implements Resolver {
       return undefined
     }
 
-    if (!isGenericRef) {
-      if (!this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)) {
-        logger.warn('Block is not inside the referenced parallel', {
-          reference,
-          blockId: context.currentNodeId,
-          parallelId: targetParallelId,
-        })
-        return undefined
-      }
+    const isContextual =
+      isGenericRef || this.isBlockInParallelOrDescendant(context.currentNodeId, originalParallelId)
+
+    if (rest.length > 0 && !isContextual) {
+      throw new InvalidFieldError(firstPart, rest[0], [...PARALLEL_OUTPUT_FIELDS])
     }
 
-    const branchIndex = extractBranchIndex(context.currentNodeId)
+    const branchIndex = this.resolveBranchIndex(targetParallelId, context)
     if (branchIndex === null) {
       return undefined
     }
@@ -116,15 +161,12 @@ export class ParallelResolver implements Resolver {
       return result
     }
 
-    const property = rest[0]
-    const pathParts = rest.slice(1)
+    const [rawProperty, ...remainingPathParts] = rest
+    const { property, pathParts: bracketPathParts } = splitLeadingBracketPath(rawProperty)
+    const pathParts = [...bracketPathParts, ...remainingPathParts]
 
     if (!ParallelResolver.KNOWN_PROPERTIES.has(property)) {
-      const isCollection = parallelConfig.parallelType === 'collection'
-      const availableFields = isCollection
-        ? ['index', 'currentItem', 'items', 'result']
-        : ['index', 'result']
-      throw new InvalidFieldError(firstPart, property, availableFields)
+      throw new InvalidFieldError(firstPart, rawProperty, this.getAvailableFields(parallelConfig))
     }
 
     let value: unknown
@@ -142,10 +184,72 @@ export class ParallelResolver implements Resolver {
     }
 
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return useAsyncPath && this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts, {
+            allowLargeValueRefs: context.allowLargeValueRefs,
+            executionContext: context.executionContext,
+          })
     }
 
     return value
+  }
+
+  private resolveBranchIndex(targetParallelId: string, context: ResolutionContext): number | null {
+    const mapping = context.executionContext.parallelBlockMapping?.get(context.currentNodeId)
+    const originalTargetParallelId = stripOuterBranchSuffix(targetParallelId)
+    if (
+      mapping?.parallelId === targetParallelId ||
+      mapping?.parallelId === originalTargetParallelId
+    ) {
+      return mapping.iterationIndex
+    }
+
+    const branchIndex = extractBranchIndex(context.currentNodeId)
+    if (targetParallelId !== originalTargetParallelId && branchIndex !== null) {
+      return branchIndex
+    }
+
+    const outerBranchIndex = extractOuterBranchIndex(context.currentNodeId)
+    if (outerBranchIndex !== undefined) {
+      return outerBranchIndex
+    }
+
+    const parentBranchIndex = this.resolveParentParallelBranchIndex(
+      originalTargetParallelId,
+      context
+    )
+    if (parentBranchIndex !== undefined) {
+      return parentBranchIndex
+    }
+
+    return branchIndex
+  }
+
+  private resolveParentParallelBranchIndex(
+    targetParallelId: string,
+    context: ResolutionContext
+  ): number | undefined {
+    const parentMap = context.executionContext.subflowParentMap
+    if (!parentMap) return undefined
+
+    const baseId = stripCloneSuffixes(context.currentNodeId)
+    for (const [subflowId, entry] of parentMap) {
+      if (entry.parentType !== 'parallel' || entry.parentId !== targetParallelId) continue
+      if (entry.branchIndex === undefined) continue
+
+      const originalSubflowId = stripOuterBranchSuffix(subflowId)
+      if (this.workflow.loops?.[originalSubflowId]) {
+        if (subflowContainsBlock(this.workflow, 'loop', originalSubflowId, baseId)) {
+          return entry.branchIndex
+        }
+      } else if (this.workflow.parallels?.[originalSubflowId]) {
+        if (subflowContainsBlock(this.workflow, 'parallel', originalSubflowId, baseId)) {
+          return entry.branchIndex
+        }
+      }
+    }
+    return undefined
   }
 
   private findInnermostParallelForBlock(blockId: string): string | undefined {
@@ -154,7 +258,7 @@ export class ParallelResolver implements Resolver {
     if (!parallels) return undefined
 
     const candidateIds = Object.keys(parallels).filter((parallelId) =>
-      parallels[parallelId]?.nodes.includes(baseId)
+      subflowContainsBlock(this.workflow, 'parallel', parallelId, baseId)
     )
     if (candidateIds.length === 0) return undefined
     if (candidateIds.length === 1) return candidateIds[0]
@@ -163,49 +267,16 @@ export class ParallelResolver implements Resolver {
     // In a valid DAG, exactly one candidate will satisfy this (circular containment is impossible).
     return candidateIds.find((candidateId) =>
       candidateIds.every(
-        (otherId) => otherId === candidateId || !parallels[candidateId]?.nodes.includes(otherId)
+        (otherId) =>
+          otherId === candidateId ||
+          !isSubflowNestedInside(this.workflow, 'parallel', otherId, 'parallel', candidateId)
       )
     )
   }
 
   private isBlockInParallelOrDescendant(blockId: string, targetParallelId: string): boolean {
     const baseId = stripCloneSuffixes(blockId)
-    const parallels = this.workflow.parallels
-    if (!parallels) return false
-
-    const targetConfig = parallels[targetParallelId]
-    if (!targetConfig) return false
-
-    if (targetConfig.nodes.includes(baseId)) return true
-
-    const directParallelId = this.findInnermostParallelForBlock(blockId)
-    if (!directParallelId) return false
-    if (directParallelId === targetParallelId) return true
-
-    return this.isParallelNestedInside(directParallelId, targetParallelId)
-  }
-
-  private isParallelNestedInside(
-    childParallelId: string,
-    ancestorParallelId: string,
-    visited = new Set<string>()
-  ): boolean {
-    if (visited.has(ancestorParallelId)) return false
-    visited.add(ancestorParallelId)
-
-    const ancestorConfig = this.workflow.parallels?.[ancestorParallelId]
-    if (!ancestorConfig) return false
-
-    if (ancestorConfig.nodes.includes(childParallelId)) return true
-
-    for (const nodeId of ancestorConfig.nodes) {
-      if (this.workflow.parallels?.[nodeId]) {
-        if (this.isParallelNestedInside(childParallelId, nodeId, visited)) {
-          return true
-        }
-      }
-    }
-    return false
+    return subflowContainsBlock(this.workflow, 'parallel', targetParallelId, baseId)
   }
 
   private resolveCurrentItem(
@@ -232,9 +303,47 @@ export class ParallelResolver implements Resolver {
     if (!output || typeof output !== 'object') {
       return undefined
     }
-    const value = (output as Record<string, unknown>).results
+    const value = navigatePath(output, ['results'], {
+      allowLargeValueRefs: true,
+      executionContext: context.executionContext,
+    })
     if (pathParts.length > 0) {
-      return navigatePath(value, pathParts)
+      return navigatePath(value, pathParts, {
+        allowLargeValueRefs: context.allowLargeValueRefs,
+        executionContext: context.executionContext,
+      })
+    }
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
+    }
+    return value
+  }
+
+  private async resolveOutputAsync(
+    parallelId: string,
+    pathParts: string[],
+    context: ResolutionContext
+  ): Promise<unknown> {
+    const output = context.executionState.getBlockOutput(parallelId)
+    if (!output || typeof output !== 'object') {
+      return undefined
+    }
+    const value = this.navigatePathAsync
+      ? await this.navigatePathAsync(output, ['results'], { ...context, allowLargeValueRefs: true })
+      : navigatePath(output, ['results'], {
+          allowLargeValueRefs: true,
+          executionContext: context.executionContext,
+        })
+    if (pathParts.length > 0) {
+      return this.navigatePathAsync
+        ? this.navigatePathAsync(value, pathParts, context)
+        : navigatePath(value, pathParts, {
+            allowLargeValueRefs: context.allowLargeValueRefs,
+            executionContext: context.executionContext,
+          })
+    }
+    if (!context.allowLargeValueRefs) {
+      assertNoLargeValueRefs(value)
     }
     return value
   }
@@ -277,5 +386,11 @@ export class ParallelResolver implements Resolver {
     }
 
     return []
+  }
+
+  private getAvailableFields(parallelConfig: SerializedParallel): string[] {
+    return parallelConfig.parallelType === 'collection'
+      ? [...COLLECTION_PARALLEL_CONTEXT_FIELDS]
+      : [...PARALLEL_CONTEXT_FIELDS]
   }
 }

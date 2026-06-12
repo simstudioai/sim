@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -11,6 +12,7 @@ import {
   filterLayoutEligibleBlockIds,
   getBlocksByParent,
   prepareContainerDimensions,
+  resolveNoteOverlaps,
 } from '@/lib/workflows/autolayout/utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -31,7 +33,7 @@ export function applyAutoLayout(
       edgeCount: edges.length,
     })
 
-    const blocksCopy: Record<string, BlockState> = JSON.parse(JSON.stringify(blocks))
+    const blocksCopy: Record<string, BlockState> = structuredClone(blocks)
 
     const horizontalSpacing = options.horizontalSpacing ?? DEFAULT_HORIZONTAL_SPACING
     const verticalSpacing = options.verticalSpacing ?? DEFAULT_VERTICAL_SPACING
@@ -73,6 +75,8 @@ export function applyAutoLayout(
 
     layoutContainers(blocksCopy, edges, options)
 
+    resolveNoteOverlaps(blocksCopy, verticalSpacing)
+
     logger.info('Auto layout completed successfully', {
       blockCount: Object.keys(blocksCopy).length,
     })
@@ -86,7 +90,7 @@ export function applyAutoLayout(
     return {
       blocks,
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     }
   }
 }
@@ -95,7 +99,6 @@ export {
   getTargetedLayoutChangeSet,
   getTargetedLayoutImpact,
 } from '@/lib/workflows/autolayout/change-set'
-export type { TargetedLayoutOptions } from '@/lib/workflows/autolayout/targeted'
 export { applyTargetedLayout } from '@/lib/workflows/autolayout/targeted'
 export type { Edge, LayoutOptions, LayoutResult } from '@/lib/workflows/autolayout/types'
 export {

@@ -121,6 +121,9 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
           ...(rerankerApiKey && { rerankerApiKey }),
         }),
         ...(workflowId && { workflowId }),
+        // The executor rolls this search's cost up at workflow completion, so
+        // tell the route not to also meter it (avoids double-billing).
+        skipUsageBilling: true,
       }
 
       return requestBody
@@ -177,6 +180,12 @@ export const knowledgeSearchTool: ToolConfig<any, KnowledgeSearchResponse> = {
         properties: {
           documentId: { type: 'string', description: 'Document ID' },
           documentName: { type: 'string', description: 'Document name' },
+          sourceUrl: {
+            type: 'string',
+            nullable: true,
+            description:
+              'URL to the original source document (e.g., Confluence page, Google Doc, Notion page). Null for documents without an external source.',
+          },
           content: { type: 'string', description: 'Content of the result' },
           chunkIndex: { type: 'number', description: 'Index of the chunk within the document' },
           similarity: { type: 'number', description: 'Similarity score of the result' },

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { slackReadMessagesContract } from '@/lib/api/contracts/tools/communication/slack'
 import { parseRequest } from '@/lib/api/server'
@@ -104,7 +105,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           {
             success: false,
             error:
-              'Missing required permissions. Please reconnect your Slack account with the necessary scopes (channels:history, groups:history, im:history).',
+              'Missing required permissions. Reconnect your Slack account to grant channel history access (channels:history, groups:history). Reading direct message history is not supported with the Sim bot.',
           },
           { status: 400 }
         )
@@ -177,7 +178,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

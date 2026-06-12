@@ -191,6 +191,52 @@ export async function assertFolderMutable(folderId: string | null): Promise<void
   }
 }
 
+export class FolderNotFoundError extends Error {
+  readonly status = 400
+
+  constructor(message = 'Target folder not found') {
+    super(message)
+    this.name = 'FolderNotFoundError'
+  }
+}
+
+/**
+ * Resolves whether a folder may be assigned to a workflow in the given workspace:
+ * it must exist, not be archived, and belong to that same workspace. A null/undefined
+ * folderId (the workspace root) is always allowed. Guards against cross-workspace
+ * folder references when a workflow's `folderId` is set from request input.
+ */
+export async function isFolderInWorkspace(
+  folderId: string | null | undefined,
+  workspaceId: string
+): Promise<boolean> {
+  if (!folderId) return true
+
+  const [folder] = await db
+    .select({
+      workspaceId: workflowFolder.workspaceId,
+      archivedAt: workflowFolder.archivedAt,
+    })
+    .from(workflowFolder)
+    .where(eq(workflowFolder.id, folderId))
+    .limit(1)
+
+  return Boolean(folder && folder.workspaceId === workspaceId && !folder.archivedAt)
+}
+
+/**
+ * Throws {@link FolderNotFoundError} (HTTP 400) when `folderId` does not belong to
+ * `workspaceId` (or is archived/missing). No-op for a null/undefined folderId.
+ */
+export async function assertFolderInWorkspace(
+  folderId: string | null | undefined,
+  workspaceId: string
+): Promise<void> {
+  if (!(await isFolderInWorkspace(folderId, workspaceId))) {
+    throw new FolderNotFoundError()
+  }
+}
+
 export interface WorkflowWorkspaceAuthorizationResult {
   allowed: boolean
   status: number

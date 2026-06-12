@@ -25,6 +25,7 @@ import {
   buildTimeCSPDirectives,
   type CSPDirectives,
   generateRuntimeCSP,
+  getChatEmbedCSPPolicy,
   getMainCSPPolicy,
   getWorkflowExecutionCSPPolicy,
   removeCSPSource,
@@ -184,7 +185,7 @@ describe('generateRuntimeCSP', () => {
 })
 
 describe('addCSPSource', () => {
-  const originalDirectives = JSON.parse(JSON.stringify(buildTimeCSPDirectives))
+  const originalDirectives = structuredClone(buildTimeCSPDirectives)
 
   afterEach(() => {
     Object.keys(buildTimeCSPDirectives).forEach((key) => {
@@ -221,7 +222,7 @@ describe('addCSPSource', () => {
 })
 
 describe('removeCSPSource', () => {
-  const originalDirectives = JSON.parse(JSON.stringify(buildTimeCSPDirectives))
+  const originalDirectives = structuredClone(buildTimeCSPDirectives)
 
   afterEach(() => {
     Object.keys(buildTimeCSPDirectives).forEach((key) => {
@@ -276,5 +277,23 @@ describe('buildTimeCSPDirectives', () => {
   it('should allow data: and blob: for images', () => {
     expect(buildTimeCSPDirectives['img-src']).toContain('data:')
     expect(buildTimeCSPDirectives['img-src']).toContain('blob:')
+  })
+})
+
+describe('getChatEmbedCSPPolicy', () => {
+  it('allows iframe embedding from any origin', () => {
+    expect(getChatEmbedCSPPolicy()).toContain('frame-ancestors *')
+  })
+
+  it('allows Office.js to load from Microsoft for Excel/Word add-in embedding', () => {
+    const policy = getChatEmbedCSPPolicy()
+    expect(policy).toMatch(/script-src[^;]*https:\/\/appsforoffice\.microsoft\.com/)
+    expect(policy).toMatch(/connect-src[^;]*https:\/\/appsforoffice\.microsoft\.com/)
+  })
+
+  it('does not regress object-src or base-uri restrictions', () => {
+    const policy = getChatEmbedCSPPolicy()
+    expect(policy).toContain("object-src 'none'")
+    expect(policy).toContain("base-uri 'self'")
   })
 })

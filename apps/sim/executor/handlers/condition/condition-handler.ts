@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import type { BlockOutput } from '@/blocks/types'
 import { BlockType, CONDITION, DEFAULTS, EDGE } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
@@ -21,7 +22,7 @@ const CONDITION_TIMEOUT_MS = 5000
  * Variable resolution is handled consistently with the function block via the function_execute tool.
  * Returns true if condition is met, false otherwise.
  */
-export async function evaluateConditionExpression(
+async function evaluateConditionExpression(
   ctx: ExecutionContext,
   conditionExpression: string,
   providedEvalContext?: Record<string, any>,
@@ -40,8 +41,8 @@ export async function evaluateConditionExpression(
       {
         code,
         timeout: CONDITION_TIMEOUT_MS,
-        envVars: ctx.environmentVariables || {},
-        workflowVariables: ctx.workflowVariables || {},
+        envVars: normalizeStringRecord(ctx.environmentVariables),
+        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
         blockData,
         blockNameMapping,
         blockOutputSchemas,
@@ -53,8 +54,7 @@ export async function evaluateConditionExpression(
           enforceCredentialAccess: ctx.enforceCredentialAccess,
         },
       },
-      false,
-      ctx
+      { executionContext: ctx }
     )
 
     if (!result.success) {

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { RedditIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
@@ -245,7 +245,7 @@ function resolveSortConfig(sourceConfig: Record<string, unknown>): {
 export const redditConnector: ConnectorConfig = {
   id: 'reddit',
   name: 'Reddit',
-  description: 'Sync subreddit posts and comments from Reddit into your knowledge base',
+  description: 'Sync subreddit posts and comments from Reddit',
   version: '1.0.0',
   icon: RedditIcon,
 
@@ -450,7 +450,7 @@ export const redditConnector: ConnectorConfig = {
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       if (message.includes('404') || message.includes('403')) {
         return {
           valid: false,

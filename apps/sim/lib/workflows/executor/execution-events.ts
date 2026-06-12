@@ -22,7 +22,7 @@ export type ExecutionEventType =
 /**
  * Base event structure for SSE
  */
-export interface BaseExecutionEvent {
+interface BaseExecutionEvent {
   type: ExecutionEventType
   timestamp: string
   executionId: string
@@ -32,7 +32,7 @@ export interface BaseExecutionEvent {
 /**
  * Execution started event
  */
-export interface ExecutionStartedEvent extends BaseExecutionEvent {
+interface ExecutionStartedEvent extends BaseExecutionEvent {
   type: 'execution:started'
   workflowId: string
   data: {
@@ -43,7 +43,7 @@ export interface ExecutionStartedEvent extends BaseExecutionEvent {
 /**
  * Execution completed event
  */
-export interface ExecutionCompletedEvent extends BaseExecutionEvent {
+interface ExecutionCompletedEvent extends BaseExecutionEvent {
   type: 'execution:completed'
   workflowId: string
   data: {
@@ -60,7 +60,7 @@ export interface ExecutionCompletedEvent extends BaseExecutionEvent {
 /**
  * Execution paused event (HITL block waiting for human input)
  */
-export interface ExecutionPausedEvent extends BaseExecutionEvent {
+interface ExecutionPausedEvent extends BaseExecutionEvent {
   type: 'execution:paused'
   workflowId: string
   data: {
@@ -68,13 +68,15 @@ export interface ExecutionPausedEvent extends BaseExecutionEvent {
     duration: number
     startTime: string
     endTime: string
+    /** Authoritative per-block terminal states from the server's blockLogs. */
+    finalBlockLogs?: BlockLog[]
   }
 }
 
 /**
  * Execution error event
  */
-export interface ExecutionErrorEvent extends BaseExecutionEvent {
+interface ExecutionErrorEvent extends BaseExecutionEvent {
   type: 'execution:error'
   workflowId: string
   data: {
@@ -85,7 +87,7 @@ export interface ExecutionErrorEvent extends BaseExecutionEvent {
   }
 }
 
-export interface ExecutionCancelledEvent extends BaseExecutionEvent {
+interface ExecutionCancelledEvent extends BaseExecutionEvent {
   type: 'execution:cancelled'
   workflowId: string
   data: {
@@ -98,7 +100,7 @@ export interface ExecutionCancelledEvent extends BaseExecutionEvent {
 /**
  * Block started event
  */
-export interface BlockStartedEvent extends BaseExecutionEvent {
+interface BlockStartedEvent extends BaseExecutionEvent {
   type: 'block:started'
   workflowId: string
   data: {
@@ -119,7 +121,7 @@ export interface BlockStartedEvent extends BaseExecutionEvent {
 /**
  * Block completed event
  */
-export interface BlockCompletedEvent extends BaseExecutionEvent {
+interface BlockCompletedEvent extends BaseExecutionEvent {
   type: 'block:completed'
   workflowId: string
   data: {
@@ -147,7 +149,7 @@ export interface BlockCompletedEvent extends BaseExecutionEvent {
 /**
  * Block error event
  */
-export interface BlockErrorEvent extends BaseExecutionEvent {
+interface BlockErrorEvent extends BaseExecutionEvent {
   type: 'block:error'
   workflowId: string
   data: {
@@ -177,14 +179,19 @@ export interface BlockErrorEvent extends BaseExecutionEvent {
  * before child execution begins. Allows clients to pre-associate the running entry with
  * the instanceId so child block events can be correlated in real-time.
  */
-export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
+interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
   type: 'block:childWorkflowStarted'
   workflowId: string
   data: {
     blockId: string
     childWorkflowInstanceId: string
     iterationCurrent?: number
+    iterationTotal?: number
+    iterationType?: SubflowType
     iterationContainerId?: string
+    parentIterations?: ParentIteration[]
+    childWorkflowBlockId?: string
+    childWorkflowName?: string
     executionOrder?: number
   }
 }
@@ -192,7 +199,7 @@ export interface BlockChildWorkflowStartedEvent extends BaseExecutionEvent {
 /**
  * Stream chunk event (for agent blocks)
  */
-export interface StreamChunkEvent extends BaseExecutionEvent {
+interface StreamChunkEvent extends BaseExecutionEvent {
   type: 'stream:chunk'
   workflowId: string
   data: {
@@ -204,7 +211,7 @@ export interface StreamChunkEvent extends BaseExecutionEvent {
 /**
  * Stream done event
  */
-export interface StreamDoneEvent extends BaseExecutionEvent {
+interface StreamDoneEvent extends BaseExecutionEvent {
   type: 'stream:done'
   workflowId: string
   data: {
@@ -257,7 +264,7 @@ export function encodeSSEEvent(event: ExecutionEvent): Uint8Array {
 /**
  * Options for creating SSE execution callbacks
  */
-export interface SSECallbackOptions {
+interface SSECallbackOptions {
   executionId: string
   workflowId: string
   controller: ReadableStreamDefaultController<Uint8Array>
@@ -431,13 +438,14 @@ export function createExecutionCallbacks(options: {
     }
   }
 
-  const onChildWorkflowInstanceReady = (
+  const onChildWorkflowInstanceReady = async (
     blockId: string,
     childWorkflowInstanceId: string,
     iterationContext?: IterationContext,
-    executionOrder?: number
+    executionOrder?: number,
+    childWorkflowContext?: ChildWorkflowContext
   ) => {
-    void sendBufferedEvent({
+    await sendBufferedEvent({
       type: 'block:childWorkflowStarted',
       timestamp: new Date().toISOString(),
       executionId,
@@ -447,7 +455,16 @@ export function createExecutionCallbacks(options: {
         childWorkflowInstanceId,
         ...(iterationContext && {
           iterationCurrent: iterationContext.iterationCurrent,
+          iterationTotal: iterationContext.iterationTotal,
+          iterationType: iterationContext.iterationType,
           iterationContainerId: iterationContext.iterationContainerId,
+          ...(iterationContext.parentIterations?.length && {
+            parentIterations: iterationContext.parentIterations,
+          }),
+        }),
+        ...(childWorkflowContext && {
+          childWorkflowBlockId: childWorkflowContext.parentBlockId,
+          childWorkflowName: childWorkflowContext.workflowName,
         }),
         ...(executionOrder !== undefined && { executionOrder }),
       },

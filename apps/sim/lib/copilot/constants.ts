@@ -1,6 +1,6 @@
 import { env } from '@/lib/core/config/env'
 
-export const SIM_AGENT_API_URL_DEFAULT = 'https://copilot.sim.ai'
+export const SIM_AGENT_API_URL_DEFAULT = 'https://www.copilot.sim.ai'
 export const SIM_AGENT_VERSION = '3.0.0'
 
 /** Resolved copilot backend URL — reads from env with fallback to default. */
@@ -12,6 +12,26 @@ export const SIM_AGENT_API_URL =
 
 /** Default timeout for the copilot orchestration stream loop (60 min). */
 export const ORCHESTRATION_TIMEOUT_MS = 3_600_000
+
+/**
+ * Watchdog cap for a single sim-executed copilot tool. A tool that neither
+ * resolves nor rejects within its cap is failed with a timeout error so the
+ * checkpoint loop can resume Go with an error result instead of wedging the
+ * chat (and its pending-stream lock) behind a hung await forever.
+ */
+export const TOOL_WATCHDOG_DEFAULT_MS = 60_000
+
+/**
+ * Watchdog cap for tool classes with legitimately long runtimes (workflow
+ * executions, media/image generation, sandboxed code, deep research). Those
+ * tools carry their own inner budgets (plan execution timeouts, sandbox
+ * timeouts), so this cap only backstops a true hang and sits above all of
+ * them — matching ORCHESTRATION_TIMEOUT_MS so it never undercuts a legal run.
+ */
+export const TOOL_WATCHDOG_LONG_RUNNING_MS = ORCHESTRATION_TIMEOUT_MS
+
+/** Extra slack the resume gate allows past the slowest pending tool's watchdog. */
+export const TOOL_WATCHDOG_RESUME_GRACE_MS = 30_000
 
 /** Timeout for the client-side streaming response handler (60 min). */
 export const STREAM_TIMEOUT_MS = 3_600_000
@@ -25,8 +45,6 @@ export const MOTHERSHIP_CHAT_API_PATH = '/api/mothership/chat'
 /** POST — confirm or reject a tool call. */
 export const COPILOT_CONFIRM_API_PATH = '/api/copilot/confirm'
 
-/** POST — forward diff-accepted/rejected stats to the copilot backend. */
-export const COPILOT_STATS_API_PATH = '/api/copilot/stats'
 /** Maximum entries in the in-memory SSE tool-event dedup cache. */
 export const STREAM_BUFFER_MAX_DEDUP_ENTRIES = 1_000
 

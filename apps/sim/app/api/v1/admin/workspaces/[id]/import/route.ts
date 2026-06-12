@@ -26,6 +26,7 @@
 import { db } from '@sim/db'
 import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
@@ -49,15 +50,20 @@ import {
   internalErrorResponse,
   notFoundResponse,
 } from '@/app/api/v1/admin/responses'
-import {
-  extractWorkflowMetadata,
-  type ImportResult,
-  type WorkflowVariable,
-  type WorkspaceImportRequest,
-  type WorkspaceImportResponse,
+import type {
+  ImportResult,
+  WorkflowVariable,
+  WorkspaceImportRequest,
+  WorkspaceImportResponse,
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminWorkspaceImportAPI')
+
+/**
+ * Body cap for admin bulk workflow imports, which can carry many serialized
+ * workflows and legitimately exceed the default contract-route limit.
+ */
+const ADMIN_IMPORT_MAX_BODY_BYTES = 100 * 1024 * 1024
 
 interface RouteParams {
   id: string
@@ -88,10 +94,13 @@ export const POST = withRouteHandler(
       let workflowsToImport: ParsedWorkflow[] = []
 
       if (contentType.includes('application/json')) {
-        const rawBody = await parseJsonBody(request)
+        const rawBody = await parseJsonBody(request, 'response', ADMIN_IMPORT_MAX_BODY_BYTES)
 
         if (!rawBody.success) {
-          return badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
+          // Preserve the 413 for an oversized body; only invalid JSON maps to 400.
+          return rawBody.reason === 'too_large'
+            ? rawBody.response
+            : badRequestResponse('Invalid JSON body. Expected { workflows: [...] }')
         }
 
         const validation = adminV1WorkspaceImportBodySchema.safeParse(rawBody.data)
@@ -242,14 +251,6 @@ async function importSingleWorkflow(
       targetFolderId = folderMap.get(fullFolderPath) || parentId
     }
 
-    const parsedContent = (() => {
-      try {
-        return JSON.parse(wf.content)
-      } catch {
-        return null
-      }
-    })()
-    const { color: workflowColor } = extractWorkflowMetadata(parsedContent)
     const workflowId = generateId()
     const now = new Date()
     const dedupedName = await deduplicateWorkflowName(workflowName, workspaceId, targetFolderId)
@@ -261,7 +262,6 @@ async function importSingleWorkflow(
       folderId: targetFolderId,
       name: dedupedName,
       description: workflowData.metadata?.description || 'Imported via Admin API',
-      color: workflowColor,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,
@@ -310,7 +310,7 @@ async function importSingleWorkflow(
       workflowId: '',
       name: wf.name,
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: getErrorMessage(error, 'Unknown error'),
     }
   }
 }

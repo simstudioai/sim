@@ -1,20 +1,27 @@
-import { db } from '@sim/db'
-import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { onedriveFoldersQuerySchema } from '@/lib/api/contracts/selectors/microsoft'
 import { getValidationErrorMessage } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateMicrosoftGraphId } from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded, resolveOAuthAccountId } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import type { MicrosoftGraphDriveItem } from '@/tools/onedrive/types'
+import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OneDriveFoldersAPI')
+
+/**
+ * Microsoft Graph paginates drive item collections via the `@odata.nextLink`
+ * absolute URL in the response body. Request the largest page (`$top` caps at
+ * 999) and drain following nextLink, bounded by a page cap.
+ * See https://learn.microsoft.com/en-us/graph/paging
+ */
+const ONEDRIVE_FOLDERS_PAGE_SIZE = 999
+const MAX_ONEDRIVE_FOLDERS_PAGES = 20
 
 /**
  * Get folders from Microsoft OneDrive
@@ -23,11 +30,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId().slice(0, 8)
 
   try {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'User not authenticated' }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
     const validation = onedriveFoldersQuerySchema.safeParse({
       credentialId: searchParams.get('credentialId') ?? '',
@@ -51,65 +53,64 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: credentialIdValidation.error }, { status: 400 })
     }
 
-    const resolved = await resolveOAuthAccountId(credentialId)
-    if (!resolved) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
+    const authz = await authorizeCredentialUse(request, {
+      credentialId,
+      requireWorkflowIdForInternal: false,
+    })
+    if (!authz.ok || !authz.credentialOwnerUserId || !authz.resolvedCredentialId) {
+      return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
     }
-
-    if (resolved.workspaceId) {
-      const { getUserEntityPermissions } = await import('@/lib/workspaces/permissions/utils')
-      const perm = await getUserEntityPermissions(
-        session.user.id,
-        'workspace',
-        resolved.workspaceId
-      )
-      if (perm === null) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
-    }
-
-    const credentials = await db
-      .select()
-      .from(account)
-      .where(eq(account.id, resolved.accountId))
-      .limit(1)
-    if (!credentials.length) {
-      return NextResponse.json({ error: 'Credential not found' }, { status: 404 })
-    }
-
-    const accountRow = credentials[0]
 
     const accessToken = await refreshAccessTokenIfNeeded(
-      resolved.accountId,
-      accountRow.userId,
+      credentialId,
+      authz.credentialOwnerUserId,
       requestId
     )
     if (!accessToken) {
       return NextResponse.json({ error: 'Failed to obtain valid access token' }, { status: 401 })
     }
 
-    let url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=50`
+    let url = `https://graph.microsoft.com/v1.0/me/drive/root/children?$filter=folder ne null&$select=id,name,folder,webUrl,createdDateTime,lastModifiedDateTime&$top=${ONEDRIVE_FOLDERS_PAGE_SIZE}`
 
     if (query) {
       url += `&$search="${encodeURIComponent(query)}"`
     }
 
-    const response = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    })
+    const rawItems: MicrosoftGraphDriveItem[] = []
+    let nextUrl: string | undefined = url
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-      return NextResponse.json(
-        { error: errorData.error?.message || 'Failed to fetch folders from OneDrive' },
-        { status: response.status }
-      )
+    for (let page = 0; page < MAX_ONEDRIVE_FOLDERS_PAGES && nextUrl; page++) {
+      const response = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: { message: 'Unknown error' } }))
+        return NextResponse.json(
+          { error: errorData.error?.message || 'Failed to fetch folders from OneDrive' },
+          { status: response.status }
+        )
+      }
+
+      const data = await response.json()
+      rawItems.push(...((data.value as MicrosoftGraphDriveItem[]) || []))
+
+      const nextLink = getGraphNextPageUrl(data)
+      nextUrl = nextLink ? assertGraphNextPageUrl(nextLink) : undefined
+
+      if (nextUrl && page === MAX_ONEDRIVE_FOLDERS_PAGES - 1) {
+        logger.warn(`[${requestId}] OneDrive folders hit pagination cap; list may be incomplete`, {
+          pages: MAX_ONEDRIVE_FOLDERS_PAGES,
+          collected: rawItems.length,
+        })
+      }
     }
 
-    const data = await response.json()
-    const folders = (data.value || [])
+    const folders = rawItems
       .filter((item: MicrosoftGraphDriveItem) => item.folder)
       .map((folder: MicrosoftGraphDriveItem) => ({
         id: folder.id,

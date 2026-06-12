@@ -43,6 +43,63 @@ export function isUserFileWithMetadata(value: unknown): value is UserFile {
 }
 
 /**
+ * Finds storage keys for UserFile objects embedded in a value.
+ */
+export function collectUserFileKeys(value: unknown): string[] {
+  const keys = new Set<string>()
+  collectUserFileKeysInto(value, keys, new WeakSet<object>())
+  return Array.from(keys)
+}
+
+function collectUserFileKeysInto(value: unknown, keys: Set<string>, seen: WeakSet<object>): void {
+  if (!value || typeof value !== 'object') {
+    return
+  }
+
+  if (seen.has(value)) {
+    return
+  }
+  seen.add(value)
+
+  if (isUserFileWithMetadata(value)) {
+    keys.add(value.key)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectUserFileKeysInto(item, keys, seen)
+    }
+    return
+  }
+
+  for (const item of Object.values(value)) {
+    collectUserFileKeysInto(item, keys, seen)
+  }
+}
+
+/**
+ * Checks if a value matches the display-safe UserFile metadata shape after internal fields are stripped.
+ */
+export function isUserFileDisplayMetadata(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+
+  const candidate = value as Record<string, unknown>
+  const url = typeof candidate.url === 'string' ? candidate.url : ''
+
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.name === 'string' &&
+    url.length > 0 &&
+    typeof candidate.size === 'number' &&
+    typeof candidate.type === 'string' &&
+    (candidate.id.startsWith('file_') || url.includes('/api/files/serve/'))
+  )
+}
+
+/**
  * Filters a UserFile object to only include display fields.
  * Used for both UI display and log sanitization.
  */

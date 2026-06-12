@@ -1,4 +1,4 @@
-export const POLYMARKET_GAMMA_URL = 'https://gamma-api.polymarket.com'
+const POLYMARKET_GAMMA_URL = 'https://gamma-api.polymarket.com'
 export const POLYMARKET_CLOB_URL = 'https://clob.polymarket.com'
 export const POLYMARKET_DATA_URL = 'https://data-api.polymarket.com'
 
@@ -19,7 +19,7 @@ export interface PolymarketPaginationParams {
   offset?: string
 }
 
-export interface PolymarketPagingInfo {
+interface PolymarketPagingInfo {
   limit: number
   offset: number
   count: number
@@ -99,7 +99,7 @@ export interface PolymarketTag {
   isCarousel?: boolean
 }
 
-export interface PolymarketOrderBookEntry {
+interface PolymarketOrderBookEntry {
   price: string
   size: string
 }
@@ -114,9 +114,10 @@ export interface PolymarketOrderBook {
   min_order_size: string
   tick_size: string
   neg_risk: boolean
+  last_trade_price: string
 }
 
-export interface PolymarketPrice {
+interface PolymarketPrice {
   price: string
 }
 
@@ -148,13 +149,12 @@ export interface PolymarketSeries {
 }
 
 export interface PolymarketSearchResult {
-  markets: PolymarketMarket[]
   events: PolymarketEvent[]
   tags: PolymarketTag[]
   profiles: PolymarketProfile[]
 }
 
-export interface PolymarketProfile {
+interface PolymarketProfile {
   id: string
   name: string | null
   pseudonym: string | null
@@ -253,7 +253,7 @@ export interface PolymarketLeaderboardEntry {
   verifiedBadge: boolean
 }
 
-export interface PolymarketHolder {
+interface PolymarketHolder {
   proxyWallet: string
   bio: string | null
   asset: string
@@ -264,6 +264,7 @@ export interface PolymarketHolder {
   name: string | null
   profileImage: string | null
   profileImageOptimized: string | null
+  verified: boolean
 }
 
 export interface PolymarketMarketHolders {

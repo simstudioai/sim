@@ -1,6 +1,6 @@
 'use client'
 
-import { Button, Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from '@/components/emcn'
+import { ChipConfirmModal } from '@/components/emcn'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { useDeleteChunk } from '@/hooks/queries/kb/knowledge'
 
@@ -30,23 +30,18 @@ export function DeleteChunkModal({
   if (!chunk) return null
 
   return (
-    <Modal open={isOpen} onOpenChange={onClose}>
-      <ModalContent size='sm'>
-        <ModalHeader>Delete Chunk</ModalHeader>
-        <ModalBody>
-          <p className='text-[var(--text-secondary)]'>
-            Are you sure you want to delete this chunk? This action cannot be undone.
-          </p>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' disabled={isDeleting} onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant='destructive' onClick={handleDeleteChunk} disabled={isDeleting}>
-            {isDeleting ? <>Deleting...</> : <>Delete</>}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+    <ChipConfirmModal
+      open={isOpen}
+      onOpenChange={onClose}
+      srTitle='Delete Chunk'
+      title='Delete Chunk'
+      description='Are you sure you want to delete this chunk? This action cannot be undone.'
+      confirm={{
+        label: 'Delete',
+        onClick: handleDeleteChunk,
+        pending: isDeleting,
+        pendingLabel: 'Deleting...',
+      }}
+    />
   )
 }

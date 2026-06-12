@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { mongodbInsertContract } from '@/lib/api/contracts/tools/databases/mongodb'
@@ -61,7 +62,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       documentCount: insertedCount,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] MongoDB insert failed:`, error)
 
     return NextResponse.json({ error: `MongoDB insert failed: ${errorMessage}` }, { status: 500 })

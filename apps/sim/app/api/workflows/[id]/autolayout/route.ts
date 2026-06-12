@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
@@ -157,7 +158,7 @@ export const POST = withRouteHandler(
       return NextResponse.json(
         {
           error: 'Autolayout failed',
-          details: error instanceof Error ? error.message : 'Unknown error',
+          details: getErrorMessage(error, 'Unknown error'),
         },
         { status: 500 }
       )

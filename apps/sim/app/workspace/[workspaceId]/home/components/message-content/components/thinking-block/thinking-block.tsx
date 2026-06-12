@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
-import { BrainIcon } from '@/components/icons'
+import { Blimp, ChevronDown, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 interface ThinkingBlockProps {
@@ -10,7 +9,6 @@ interface ThinkingBlockProps {
   isActive: boolean
   isStreaming?: boolean
   startedAt?: number
-  endedAt?: number
 }
 
 const MIN_VISIBLE_THINKING_MS = 3000
@@ -20,7 +18,6 @@ export function ThinkingBlock({
   isActive,
   isStreaming = false,
   startedAt,
-  endedAt,
 }: ThinkingBlockProps) {
   // Start collapsed so the `Expandable` plays its height-open animation
   // when `expanded` flips to true below — otherwise the panel mounts
@@ -78,18 +75,6 @@ export function ThinkingBlock({
 
   if (!thresholdReached) return null
 
-  const elapsedMs =
-    startedAt !== undefined && endedAt !== undefined && endedAt >= startedAt
-      ? endedAt - startedAt
-      : undefined
-  const elapsedSeconds =
-    elapsedMs !== undefined ? Math.max(1, Math.round(elapsedMs / 1000)) : undefined
-  const label = isActive
-    ? 'Thinking'
-    : elapsedSeconds !== undefined
-      ? `Thought for ${elapsedSeconds}s`
-      : 'Thought'
-
   return (
     <div className='flex flex-col gap-1.5'>
       <button
@@ -97,10 +82,10 @@ export function ThinkingBlock({
         onClick={() => setExpanded((prev) => !prev)}
         className='flex cursor-pointer items-center gap-2'
       >
-        <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
-          <BrainIcon className='h-[14px] w-[14px] text-[var(--text-icon)]' />
+        <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
+          <Blimp className='size-[16px] text-[var(--text-icon)]' />
         </div>
-        <span className='font-base text-[var(--text-body)] text-sm'>{label}</span>
+        <span className='text-[var(--text-body)] text-sm'>Mothership</span>
         <ChevronDown
           className={cn(
             'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -112,7 +97,7 @@ export function ThinkingBlock({
       <Expandable expanded={expanded}>
         <ExpandableContent>
           <div ref={panelRef} className='max-h-[110px] overflow-y-scroll pt-0.5 pr-2 pl-6'>
-            <div className='whitespace-pre-wrap break-words font-base text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'>
+            <div className='whitespace-pre-wrap break-words text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'>
               {content}
             </div>
           </div>

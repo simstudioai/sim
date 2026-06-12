@@ -712,7 +712,7 @@ export const USERS_ARRAY_OUTPUT: OutputProperty = {
 }
 
 // Common HubSpot types
-export interface HubSpotUser {
+interface HubSpotUser {
   id: string
   email: string
   firstName?: string
@@ -722,7 +722,7 @@ export interface HubSpotUser {
   superAdmin?: boolean
 }
 
-export interface HubSpotCrmObject {
+interface HubSpotCrmObject {
   id: string
   properties: Record<string, any>
   createdAt: string
@@ -734,7 +734,7 @@ export interface HubSpotCrmObject {
 /** @deprecated Use HubSpotCrmObject instead */
 export type HubSpotContact = HubSpotCrmObject
 
-export interface HubSpotPaging {
+interface HubSpotPaging {
   next?: {
     after: string
     link?: string
@@ -1084,7 +1084,7 @@ export type HubSpotGetCartResponse = ToolResponse & {
 }
 
 // Owners
-export interface HubSpotOwner {
+interface HubSpotOwner {
   id: string
   email: string
   firstName: string
@@ -1113,7 +1113,7 @@ export interface HubSpotListOwnersResponse extends ToolResponse {
 }
 
 // Marketing Events
-export interface HubSpotMarketingEvent {
+interface HubSpotMarketingEvent {
   objectId: string
   eventName: string
   eventType?: string
@@ -1162,7 +1162,7 @@ export interface HubSpotGetMarketingEventResponse extends ToolResponse {
 }
 
 // Lists
-export interface HubSpotList {
+interface HubSpotList {
   listId: string
   name: string
   objectTypeId: string

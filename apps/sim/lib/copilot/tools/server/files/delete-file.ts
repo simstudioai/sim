@@ -1,18 +1,22 @@
 import { createLogger } from '@sim/logger'
 import { DeleteFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import {
-  deleteWorkspaceFile,
   getWorkspaceFile,
+  resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 
 const logger = createLogger('DeleteFileServerTool')
 
 interface DeleteFileArgs {
+  paths?: string[]
+  path?: string
   fileIds?: string[]
   fileId?: string
   args?: Record<string, unknown>
@@ -33,42 +37,70 @@ export const deleteFileServerTool: BaseServerTool<DeleteFileArgs, DeleteFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
-    const fileIds: string[] =
+    const paths: string[] =
+      params.paths ??
+      (nested?.paths as string[] | undefined) ??
+      [params.path || (nested?.path as string) || ''].filter(Boolean)
+    const legacyFileIds: string[] =
       params.fileIds ??
       (nested?.fileIds as string[] | undefined) ??
       [params.fileId || (nested?.fileId as string) || ''].filter(Boolean)
 
-    if (fileIds.length === 0) return { success: false, message: 'fileIds is required' }
+    if (paths.length === 0 && legacyFileIds.length === 0) {
+      return { success: false, message: 'paths is required' }
+    }
 
-    const deleted: string[] = []
+    const deletable: { id: string; name: string }[] = []
     const failed: string[] = []
 
-    for (const fileId of fileIds) {
+    for (const path of paths) {
+      const existingFile = await resolveWorkspaceFileReference(workspaceId, path)
+      if (!existingFile) {
+        failed.push(path)
+        continue
+      }
+      deletable.push({ id: existingFile.id, name: existingFile.name })
+    }
+
+    for (const fileId of legacyFileIds) {
       const existingFile = await getWorkspaceFile(workspaceId, fileId)
       if (!existingFile) {
         failed.push(fileId)
         continue
       }
+      deletable.push({ id: fileId, name: existingFile.name })
+    }
 
+    if (deletable.length > 0) {
       assertServerToolNotAborted(context)
-      await deleteWorkspaceFile(workspaceId, fileId)
-      deleted.push(existingFile.name)
+      const result = await performDeleteWorkspaceFileItems({
+        workspaceId,
+        userId: context.userId,
+        fileIds: deletable.map((file) => file.id),
+      })
+      if (!result.success) {
+        return { success: false, message: result.error || 'Failed to delete files' }
+      }
+    }
 
+    for (const file of deletable) {
       logger.info('File deleted via delete_file', {
-        fileId,
-        name: existingFile.name,
+        fileId: file.id,
+        name: file.name,
         userId: context.userId,
       })
     }
 
     const parts: string[] = []
-    if (deleted.length > 0) parts.push(`Deleted: ${deleted.join(', ')}`)
+    if (deletable.length > 0)
+      parts.push(`Deleted: ${deletable.map((file) => file.name).join(', ')}`)
     if (failed.length > 0) parts.push(`Not found: ${failed.join(', ')}`)
 
     return {
-      success: deleted.length > 0,
+      success: deletable.length > 0,
       message: parts.join('. '),
     }
   },

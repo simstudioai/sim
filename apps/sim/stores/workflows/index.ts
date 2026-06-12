@@ -40,7 +40,6 @@ export function getWorkflowWithValues(workflowId: string, workspaceId: string) {
     id: workflowId,
     name: metadata.name,
     description: metadata.description,
-    color: metadata.color || '#3972F6',
     workspaceId: metadata.workspaceId,
     folderId: metadata.folderId,
     state: {
@@ -53,10 +52,4 @@ export function getWorkflowWithValues(workflowId: string, workspaceId: string) {
   }
 }
 
-export { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-export type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-export { useSubBlockStore } from '@/stores/workflows/subblock/store'
-export type { SubBlockStore } from '@/stores/workflows/subblock/types'
-export { mergeSubblockState } from '@/stores/workflows/utils'
-export { useWorkflowStore } from '@/stores/workflows/workflow/store'
 export type { WorkflowState } from '@/stores/workflows/workflow/types'

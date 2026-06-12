@@ -1,3 +1,4 @@
+import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createTableContract, listTablesQuerySchema } from '@/lib/api/contracts/tables'
@@ -102,6 +103,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
 
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: authResult.userId,
+      actorName: authResult.userName ?? undefined,
+      actorEmail: authResult.userEmail ?? undefined,
+      action: AuditAction.TABLE_CREATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: table.name,
+      description: `Created table "${table.name}"`,
+      request,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -182,33 +196,39 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
 
+    const responseTables = tables.map((t) => {
+      const schemaData = t.schema as TableSchema
+      return {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        schema: {
+          columns: schemaData.columns.map(normalizeColumn),
+        },
+        rowCount: t.rowCount,
+        maxRows: t.maxRows,
+        workspaceId: t.workspaceId,
+        createdBy: t.createdBy,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+        updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+        archivedAt:
+          t.archivedAt instanceof Date
+            ? t.archivedAt.toISOString()
+            : t.archivedAt
+              ? String(t.archivedAt)
+              : null,
+        jobStatus: t.jobStatus ?? null,
+        jobId: t.jobId ?? null,
+        jobType: t.jobType ?? null,
+        jobError: t.jobError ?? null,
+        jobRowsProcessed: t.jobRowsProcessed ?? 0,
+      }
+    })
+
     return NextResponse.json({
       success: true,
       data: {
-        tables: tables.map((t) => {
-          const schemaData = t.schema as TableSchema
-          return {
-            id: t.id,
-            name: t.name,
-            description: t.description,
-            schema: {
-              columns: schemaData.columns.map(normalizeColumn),
-            },
-            rowCount: t.rowCount,
-            maxRows: t.maxRows,
-            createdBy: t.createdBy,
-            createdAt:
-              t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-            updatedAt:
-              t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
-            archivedAt:
-              t.archivedAt instanceof Date
-                ? t.archivedAt.toISOString()
-                : t.archivedAt
-                  ? String(t.archivedAt)
-                  : null,
-          }
-        }),
+        tables: responseTables,
         totalCount: tables.length,
       },
     })

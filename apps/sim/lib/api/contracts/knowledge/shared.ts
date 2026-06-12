@@ -23,6 +23,21 @@ export const knowledgeConnectorParamsSchema = knowledgeBaseParamsSchema.extend({
   connectorId: z.string().min(1),
 })
 
+/**
+ * A `fileUrl` accepted by knowledge document ingestion endpoints.
+ *
+ * Must be a `data:` URI or an `http(s)://` URL. Local paths, `file://`,
+ * and other schemes are rejected at the boundary to prevent the background
+ * parser from reading arbitrary files off the Sim server's filesystem.
+ */
+export const knowledgeDocumentFileUrlSchema = z
+  .string()
+  .min(1, 'File URL is required')
+  .refine(
+    (value) => /^data:/i.test(value) || /^https?:\/\//i.test(value),
+    'File URL must be a data: URI or an http(s):// URL'
+  )
+
 export const documentTagFieldSchema = z.string().nullable().optional()
 export const documentNumberFieldSchema = z.number().nullable().optional()
 export const documentBooleanFieldSchema = z.boolean().nullable().optional()

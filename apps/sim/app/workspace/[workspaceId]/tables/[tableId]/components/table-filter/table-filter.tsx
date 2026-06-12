@@ -2,25 +2,15 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { generateShortId } from '@sim/utils/id'
-import { X } from 'lucide-react'
-import {
-  Button,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/emcn'
-import { ChevronDown, Plus } from '@/components/emcn/icons'
-import type { Filter, FilterRule } from '@/lib/table'
-import { COMPARISON_OPERATORS } from '@/lib/table/query-builder/constants'
+import { Button, ChipDropdown, ChipInput } from '@/components/emcn'
+import { Plus, X } from '@/components/emcn/icons'
+import type { ColumnDefinition, Filter, FilterRule } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
+import { COMPARISON_OPERATORS, VALUELESS_OPERATORS } from '@/lib/table/query-builder/constants'
 import { filterRulesToFilter, filterToRules } from '@/lib/table/query-builder/converters'
 
-const OPERATOR_LABELS = Object.fromEntries(
-  COMPARISON_OPERATORS.map((op) => [op.value, op.label])
-) as Record<string, string>
-
 interface TableFilterProps {
-  columns: Array<{ name: string; type: string }>
+  columns: ColumnDefinition[]
   filter: Filter | null
   onApply: (filter: Filter | null) => void
   onClose: () => void
@@ -35,8 +25,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   const rulesRef = useRef(rules)
   rulesRef.current = rules
 
+  // `value` is the filter field key (column id); `label` is what the user sees.
   const columnOptions = useMemo(
-    () => columns.map((col) => ({ value: col.name, label: col.name })),
+    () => columns.map((col) => ({ value: getColumnId(col), label: col.name })),
     [columns]
   )
 
@@ -71,7 +62,9 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
   }, [])
 
   const handleApply = useCallback(() => {
-    const validRules = rulesRef.current.filter((r) => r.column && r.value)
+    const validRules = rulesRef.current.filter(
+      (r) => r.column && (r.value || VALUELESS_OPERATORS.has(r.operator))
+    )
     onApply(filterRulesToFilter(validRules))
   }, [onApply])
 
@@ -103,7 +96,7 @@ export function TableFilter({ columns, filter, onApply, onClose }: TableFilterPr
             onClick={handleAdd}
             className='px-2 py-1 text-[var(--text-secondary)] text-xs'
           >
-            <Plus className='mr-1 h-[10px] w-[10px]' />
+            <Plus className='mr-1 size-[10px]' />
             Add filter
           </Button>
           <div className='flex items-center gap-1.5'>
@@ -146,6 +139,14 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onApply,
   onToggleLogical,
 }: FilterRuleRowProps) {
+  // Keep a stale column id selectable/visible (e.g. after the column was
+  // removed) instead of falling back to the placeholder while the rule still
+  // filters on it.
+  const columnOptions =
+    rule.column && !columns.some((col) => col.value === rule.column)
+      ? [...columns, { value: rule.column, label: rule.column }]
+      : columns
+
   return (
     <div className='flex items-center gap-1.5'>
       {isFirst ? (
@@ -159,70 +160,58 @@ const FilterRuleRow = memo(function FilterRuleRow({
         </button>
       )}
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className='flex h-[28px] min-w-[100px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
-            <span className='truncate'>{rule.column || 'Column'}</span>
-            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
-          {columns.map((col) => (
-            <DropdownMenuItem
-              key={col.value}
-              onSelect={() => onUpdate(rule.id, 'column', col.value)}
-            >
-              {col.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button className='flex h-[28px] min-w-[90px] items-center justify-between rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none hover-hover:border-[var(--border-1)]'>
-            <span className='truncate'>{OPERATOR_LABELS[rule.operator] ?? rule.operator}</span>
-            <ChevronDown className='ml-1 h-[10px] w-[10px] shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align='start'>
-          {COMPARISON_OPERATORS.map((op) => (
-            <DropdownMenuItem
-              key={op.value}
-              onSelect={() => onUpdate(rule.id, 'operator', op.value)}
-            >
-              {op.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <input
-        type='text'
-        value={rule.value}
-        onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onApply()
-        }}
-        placeholder='Enter a value'
-        className='h-[28px] flex-1 rounded-[5px] border border-[var(--border)] bg-transparent px-2 text-[var(--text-secondary)] text-xs outline-none placeholder:text-[var(--text-subtle)] hover-hover:border-[var(--border-1)] focus:border-[var(--border-1)]'
+      <ChipDropdown
+        options={columnOptions}
+        value={rule.column}
+        onChange={(value) => onUpdate(rule.id, 'column', value)}
+        placeholder='Column'
+        align='start'
+        matchTriggerWidth={false}
+        className='min-w-[100px]'
       />
 
-      <button
+      <ChipDropdown
+        options={COMPARISON_OPERATORS}
+        value={rule.operator}
+        onChange={(value) => onUpdate(rule.id, 'operator', value)}
+        placeholder='Operator'
+        align='start'
+        matchTriggerWidth={false}
+        className='min-w-[90px]'
+      />
+
+      {VALUELESS_OPERATORS.has(rule.operator) ? (
+        <div className='h-[30px] flex-1' />
+      ) : (
+        <ChipInput
+          value={rule.value}
+          onChange={(e) => onUpdate(rule.id, 'value', e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onApply()
+          }}
+          placeholder='Enter a value'
+          className='flex-1'
+        />
+      )}
+
+      <Button
+        variant='ghost'
+        size='sm'
         onClick={() => onRemove(rule.id)}
-        className='flex h-[28px] w-[28px] shrink-0 items-center justify-center rounded-[5px] text-[var(--text-tertiary)] transition-colors hover-hover:bg-[var(--surface-4)] hover-hover:text-[var(--text-primary)]'
+        className='!p-1 size-7 shrink-0'
+        aria-label='Remove filter'
       >
-        <X className='h-[12px] w-[12px]' />
-      </button>
+        <X className='size-[12px]' />
+      </Button>
     </div>
   )
 })
 
-function createRule(columns: Array<{ name: string }>): FilterRule {
+function createRule(columns: ColumnDefinition[]): FilterRule {
   return {
     id: generateShortId(),
     logicalOperator: 'and',
-    column: columns[0]?.name ?? '',
+    column: columns[0] ? getColumnId(columns[0]) : '',
     operator: 'eq',
     value: '',
   }

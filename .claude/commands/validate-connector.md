@@ -135,6 +135,13 @@ For each API endpoint the connector calls:
 - [ ] No off-by-one errors in pagination tracking
 - [ ] The connector does NOT hit known API pagination limits silently (e.g., HubSpot search 10k cap)
 
+### Deletion-Reconciliation Safety (`listingCapped`) — CRITICAL
+The sync engine hard-deletes any stored document absent from a full listing. Audit every path where `listDocuments` can return less than the full source set:
+- [ ] `syncContext.listingCapped = true` is set when a `maxItems`-style cap truncates the listing while more documents exist
+- [ ] `listingCapped` is set when a transient per-item error drops a still-existing document from the listing
+- [ ] `listingCapped` is NOT set when the source is genuinely exhausted (deleted documents must reconcile) or for intentional scope filters (date cutoffs)
+This is the most common connector bug class — verify it explicitly against `sync-engine.ts`'s reconciliation gate.
+
 ### Pagination State Across Pages
 - [ ] `syncContext` is used to cache state across pages (user names, field maps, instance URLs, portal IDs, etc.)
 - [ ] Cached state in `syncContext` is correctly initialized on first page and reused on subsequent pages
@@ -146,7 +153,7 @@ For each API endpoint the connector calls:
 - [ ] `title` is extracted from the correct field and has a sensible fallback (e.g., `'Untitled'`)
 - [ ] `content` is plain text — HTML content is stripped using `htmlToPlainText` from `@/connectors/utils`
 - [ ] `mimeType` is `'text/plain'`
-- [ ] `contentHash` is computed using `computeContentHash` from `@/connectors/utils`
+- [ ] `contentHash` is metadata-based for contentDeferred connectors (a string template like `service:${id}:${changeIndicator}`, identical between the `listDocuments` stub and `getDocument`); content-based via `computeContentHash` from `@/connectors/utils` ONLY when `listDocuments` returns full content inline
 - [ ] `sourceUrl` is a valid, complete URL back to the original resource (not relative)
 - [ ] `metadata` contains all fields referenced by `mapTags` and `tagDefinitions`
 
@@ -263,6 +270,7 @@ Group findings by severity:
 - Invalid scope names that the API doesn't recognize (even if silently ignored)
 - Private resources excluded from name-based lookup despite scopes being available
 - Silent data truncation without logging
+- `contentHash` uses the wrong basis: a content-based `computeContentHash` on a contentDeferred connector (breaks the stub/getDocument-identical invariant), or a metadata template when `listDocuments` returns full content inline
 - Size checks using `text.length` (character count) instead of `Buffer.byteLength` (byte count) for byte-based limits
 - URL-type config fields not normalized (protocol prefix, trailing slashes cause API failures)
 - `VALIDATE_RETRY_OPTIONS` not threaded through helper functions called by `validateConfig`

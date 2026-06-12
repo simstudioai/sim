@@ -16,6 +16,7 @@ import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/r
 import { isEphemeralResource } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { AddResourceDropdown } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import {
@@ -29,12 +30,12 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
-import { useTablesList } from '@/hooks/queries/tables'
 import {
   useAddChatResource,
   useRemoveChatResource,
   useReorderChatResources,
-} from '@/hooks/queries/tasks'
+} from '@/hooks/queries/mothership-chats'
+import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 
@@ -178,64 +179,57 @@ const ResourceTabItem = memo(function ResourceTabItem({
       {showGapBefore && (
         <div className='-translate-x-1/2 -translate-y-1/2 pointer-events-none absolute top-1/2 left-0 z-10 h-[16px] w-[2px] rounded-full bg-[var(--text-subtle)]' />
       )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            variant='subtle'
-            draggable
-            data-resource-tab-id={resource.id}
-            onDragStart={(e) => onDragStart(e, idx)}
-            onDragOver={(e) => onDragOver(e, idx)}
-            onDragLeave={onDragLeave}
-            onDragEnd={onDragEnd}
-            onMouseDown={(e) => {
-              if (e.button === 1) {
-                e.preventDefault()
-                if (chatId) onRemove(e, resource)
-              }
+      <Button
+        variant='subtle'
+        draggable
+        data-resource-tab-id={resource.id}
+        onDragStart={(e) => onDragStart(e, idx)}
+        onDragOver={(e) => onDragOver(e, idx)}
+        onDragLeave={onDragLeave}
+        onDragEnd={onDragEnd}
+        onMouseDown={(e) => {
+          if (e.button === 1) {
+            e.preventDefault()
+            if (chatId) onRemove(e, resource)
+          }
+        }}
+        onClick={(e) => onTabClick(e, idx)}
+        onMouseEnter={() => setHoveredTabId(resource.id)}
+        onMouseLeave={() => setHoveredTabId(null)}
+        className={cn(
+          'group relative shrink-0 bg-transparent px-2 py-[3px] pr-[22px] text-caption transition-colors duration-150',
+          isActive && 'bg-[var(--surface-4)]',
+          isSelected && !isActive && 'bg-[var(--surface-3)]',
+          isDragging && 'opacity-30'
+        )}
+      >
+        {config.renderTabIcon(resource, 'mr-1.5 size-[14px]')}
+        {displayName}
+        {(isHovered || isActive) && chatId && (
+          <span
+            role='button'
+            tabIndex={-1}
+            onClick={(e) => onRemove(e, resource)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onRemove(e, resource)
             }}
-            onClick={(e) => onTabClick(e, idx)}
-            onMouseEnter={() => setHoveredTabId(resource.id)}
-            onMouseLeave={() => setHoveredTabId(null)}
-            className={cn(
-              'group relative shrink-0 bg-transparent px-2 py-1 pr-[22px] text-caption transition-opacity duration-150',
-              isActive && 'bg-[var(--surface-4)]',
-              isSelected && !isActive && 'bg-[var(--surface-3)]',
-              isDragging && 'opacity-30'
-            )}
+            className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
+            aria-label={`Close ${displayName}`}
           >
-            {config.renderTabIcon(resource, 'mr-1.5 h-[14px] w-[14px]')}
-            {displayName}
-            {(isHovered || isActive) && chatId && (
-              <span
-                role='button'
-                tabIndex={-1}
-                onClick={(e) => onRemove(e, resource)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onRemove(e, resource)
-                }}
-                className='-translate-y-1/2 absolute top-1/2 right-[4px] flex items-center justify-center rounded-sm p-[1px] hover-hover:bg-[var(--surface-5)]'
-                aria-label={`Close ${displayName}`}
-              >
-                <svg
-                  className='h-[10px] w-[10px] text-[var(--text-icon)]'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                >
-                  <path d='M18 6 6 18M6 6l12 12' />
-                </svg>
-              </span>
-            )}
-          </Button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>{displayName}</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
+            <svg
+              className='size-[10px] text-[var(--text-icon)]'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='currentColor'
+              strokeWidth='2.5'
+              strokeLinecap='round'
+              strokeLinejoin='round'
+            >
+              <path d='M18 6 6 18M6 6l12 12' />
+            </svg>
+          </span>
+        )}
+      </Button>
       {showGapAfter && (
         <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-10 h-[16px] w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
@@ -248,11 +242,6 @@ interface ResourceTabsProps {
   chatId?: string
   resources: MothershipResource[]
   activeId: string | null
-  onSelect: (id: string) => void
-  onAddResource: (resource: MothershipResource) => void
-  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  onReorderResources: (resources: MothershipResource[]) => void
-  onCollapse: () => void
   previewMode?: PreviewMode
   onCyclePreviewMode?: () => void
   actions?: ReactNode
@@ -263,17 +252,19 @@ export function ResourceTabs({
   chatId,
   resources,
   activeId,
-  onSelect,
-  onAddResource,
-  onRemoveResource,
-  onReorderResources,
-  onCollapse,
   previewMode,
   onCyclePreviewMode,
   actions,
 }: ResourceTabsProps) {
   const PreviewModeIcon = PREVIEW_MODE_ICONS[previewMode ?? 'split']
   const nameLookup = useResourceNameLookup(workspaceId)
+  const {
+    selectResource,
+    addResource: onAddResource,
+    removeResource: onRemoveResource,
+    reorderResources: onReorderResources,
+    collapseResource,
+  } = useMothershipResources()
   const scrollNodeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -361,7 +352,7 @@ export function ResourceTabs({
           const next = new Set<string>()
           for (let i = start; i <= end; i++) next.add(resources[i].id)
           setSelectedIds(next)
-          onSelect(resource.id)
+          selectResource(resource.id)
           return
         }
       }
@@ -377,11 +368,11 @@ export function ResourceTabs({
           if (activeId === resource.id) {
             const fallback =
               findNearestId(resources, idx, next) ?? findNearestId(resources, idx, null)
-            if (fallback) onSelect(fallback)
+            if (fallback) selectResource(fallback)
           }
         } else {
           setSelectedIds((prev) => new Set(prev).add(resource.id))
-          onSelect(resource.id)
+          selectResource(resource.id)
         }
         if (!anchorIdRef.current) anchorIdRef.current = resource.id
         return
@@ -390,9 +381,9 @@ export function ResourceTabs({
       // Plain click: single-select
       anchorIdRef.current = resource.id
       setSelectedIds(new Set([resource.id]))
-      onSelect(resource.id)
+      selectResource(resource.id)
     },
-    [resources, onSelect, selectedIds, activeId]
+    [resources, selectResource, selectedIds, activeId]
   )
 
   const handleRemove = useCallback(
@@ -560,7 +551,7 @@ export function ResourceTabs({
         <Tooltip.Trigger asChild>
           <Button
             variant='subtle'
-            onClick={onCollapse}
+            onClick={collapseResource}
             className={RESOURCE_TAB_ICON_BUTTON_CLASS}
             aria-label='Collapse resource view'
           >
@@ -630,7 +621,7 @@ export function ResourceTabs({
             workspaceId={workspaceId}
             existingKeys={existingKeys}
             onAdd={handleAdd}
-            onSwitch={onSelect}
+            onSwitch={selectResource}
             excludeTypes={ADD_RESOURCE_EXCLUDED_TYPES}
           />
         )}

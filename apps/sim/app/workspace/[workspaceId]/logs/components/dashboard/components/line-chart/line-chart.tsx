@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { generateShortId } from '@sim/utils/id'
 import { Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -30,7 +31,7 @@ function LineChartComponent({
   series?: LineChartMultiSeries[]
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const uniqueId = useRef(`chart-${Math.random().toString(36).substring(2, 9)}`).current
+  const uniqueId = useRef(`chart-${generateShortId(7)}`).current
   const [containerWidth, setContainerWidth] = useState<number | null>(null)
   const width = containerWidth ?? 0
   const height = 166
@@ -290,7 +291,7 @@ function LineChartComponent({
                   >
                     <span
                       aria-hidden='true'
-                      className='inline-block h-[6px] w-[6px] rounded-xs'
+                      className='inline-block size-[6px] rounded-xs'
                       style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                     />
                     <span className='text-[var(--text-muted)]'>{s.label}</span>
@@ -432,7 +433,7 @@ function LineChartComponent({
               if (y === undefined) return null
               return (
                 <line
-                  key={`pt-${idx}`}
+                  key={s.id}
                   x1={padding.left}
                   y1={y}
                   x2={width - padding.right}
@@ -466,7 +467,7 @@ function LineChartComponent({
             })()
             return (
               <path
-                key={`series-${idx}`}
+                key={s.id}
                 d={p}
                 fill='none'
                 stroke={resolvedColors[s.id || ''] || s.color}
@@ -688,7 +689,7 @@ function LineChartComponent({
                   return (
                     <div key={`tt-${s.id}`} className='flex items-center gap-2'>
                       <span
-                        className='inline-block h-[6px] w-[6px] rounded-xs'
+                        className='inline-block size-[6px] rounded-xs'
                         style={{ backgroundColor: resolvedColors[s.id || ''] || s.color }}
                       />
                       {showLabel && (
@@ -710,4 +711,3 @@ function LineChartComponent({
  * Memoized LineChart component to prevent re-renders when parent updates.
  */
 export const LineChart = memo(LineChartComponent)
-export default LineChart

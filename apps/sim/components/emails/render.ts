@@ -1,5 +1,6 @@
 import { render } from '@react-email/render'
 import {
+  ExistingAccountEmail,
   OnboardingFollowupEmail,
   OTPVerificationEmail,
   ResetPasswordEmail,
@@ -21,14 +22,9 @@ import {
   PollingGroupInvitationEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
-import {
-  WorkflowNotificationEmail,
-  type WorkflowNotificationEmailProps,
-} from '@/components/emails/notifications'
 import { HelpConfirmationEmail } from '@/components/emails/support'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
-export type { EmailSubjectType } from './subjects'
 export { getEmailSubject } from './subjects'
 
 interface WorkspaceInvitation {
@@ -40,10 +36,18 @@ interface WorkspaceInvitation {
 export async function renderOTPEmail(
   otp: string,
   email: string,
-  type: 'sign-in' | 'email-verification' | 'forget-password' = 'email-verification',
+  type:
+    | 'sign-in'
+    | 'email-verification'
+    | 'change-email'
+    | 'forget-password' = 'email-verification',
   chatTitle?: string
 ): Promise<string> {
   return await render(OTPVerificationEmail({ otp, email, type, chatTitle }))
+}
+
+export async function renderExistingAccountEmail(username: string): Promise<string> {
+  return await render(ExistingAccountEmail({ username }))
 }
 
 export async function renderPasswordResetEmail(
@@ -245,10 +249,4 @@ export async function renderPaymentFailedEmail(params: {
       failureReason: params.failureReason,
     })
   )
-}
-
-export async function renderWorkflowNotificationEmail(
-  params: WorkflowNotificationEmailProps
-): Promise<string> {
-  return await render(WorkflowNotificationEmail(params))
 }

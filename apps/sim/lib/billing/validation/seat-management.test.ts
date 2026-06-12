@@ -4,12 +4,24 @@
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFeatureFlags, mockGetOrganizationSubscription } = vi.hoisted(() => ({
-  mockFeatureFlags: { isBillingEnabled: false },
-  mockGetOrganizationSubscription: vi.fn(),
-}))
+const { mockFeatureFlags, mockGetOrganizationSubscription, mockHasInflightOutboxEvent } =
+  vi.hoisted(() => ({
+    mockFeatureFlags: { isBillingEnabled: false },
+    mockGetOrganizationSubscription: vi.fn(),
+    mockHasInflightOutboxEvent: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => dbChainMock)
+
+vi.mock('@/lib/core/outbox/service', () => ({
+  hasInflightOutboxEvent: mockHasInflightOutboxEvent,
+}))
+
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
+  OUTBOX_EVENT_TYPES: {
+    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
+  },
+}))
 
 vi.mock('@/lib/billing/core/billing', () => ({
   getOrganizationSubscription: mockGetOrganizationSubscription,
@@ -37,6 +49,7 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 
 import {
   getOrganizationSeatInfo,
+  syncSeatsFromStripeQuantity,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
 
@@ -110,5 +123,44 @@ describe('validateSeatAvailability', () => {
       maxSeats: 10,
       availableSeats: 7,
     })
+  })
+})
+
+describe('syncSeatsFromStripeQuantity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockHasInflightOutboxEvent.mockResolvedValue(false)
+  })
+
+  it('does nothing when the Stripe quantity already matches the DB', async () => {
+    const result = await syncSeatsFromStripeQuantity('sub-1', 3, 3)
+
+    expect(result).toEqual({ synced: false, previousSeats: 3, newSeats: 3 })
+    expect(mockHasInflightOutboxEvent).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('writes the Stripe quantity to the DB when no seat-sync is in flight', async () => {
+    mockHasInflightOutboxEvent.mockResolvedValue(false)
+
+    const result = await syncSeatsFromStripeQuantity('sub-1', 2, 3)
+
+    expect(result).toEqual({ synced: true, previousSeats: 2, newSeats: 3 })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ seats: 3 })
+  })
+
+  it('skips the Stripe-to-DB write while a seat-sync to Stripe is in flight', async () => {
+    mockHasInflightOutboxEvent.mockResolvedValue(true)
+
+    const result = await syncSeatsFromStripeQuantity('sub-1', 2, 3)
+
+    expect(result).toEqual({ synced: false, previousSeats: 2, newSeats: 2 })
+    expect(mockHasInflightOutboxEvent).toHaveBeenCalledWith(
+      'stripe.sync-subscription-seats',
+      'subscriptionId',
+      'sub-1'
+    )
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 })

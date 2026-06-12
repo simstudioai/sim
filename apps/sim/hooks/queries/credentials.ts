@@ -16,7 +16,6 @@ import {
   upsertWorkspaceCredentialMemberContract,
   type WorkspaceCredential,
   type WorkspaceCredentialMember,
-  type WorkspaceCredentialMemberStatus,
   type WorkspaceCredentialRole,
   type WorkspaceCredentialType,
 } from '@/lib/api/contracts'
@@ -31,7 +30,6 @@ const OAUTH_CREDENTIALS_KEY = ['oauthCredentials'] as const
 export type {
   WorkspaceCredential,
   WorkspaceCredentialMember,
-  WorkspaceCredentialMemberStatus,
   WorkspaceCredentialRole,
   WorkspaceCredentialType,
 }

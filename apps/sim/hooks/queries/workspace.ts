@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -14,10 +15,8 @@ import {
   type WorkspaceCreationPolicy,
   type WorkspaceMember,
   type WorkspacePermissions,
-  type WorkspacePermissionsViewer,
   type WorkspaceQueryScope,
   type WorkspacesResponse,
-  type WorkspaceUser,
 } from '@/lib/api/contracts'
 
 /**
@@ -38,14 +37,7 @@ export const workspaceKeys = {
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
 
-export type {
-  Workspace,
-  WorkspaceCreationPolicy,
-  WorkspaceMember,
-  WorkspacePermissions,
-  WorkspacePermissionsViewer,
-  WorkspaceUser,
-}
+export type { Workspace, WorkspaceCreationPolicy, WorkspaceMember, WorkspacePermissions }
 
 async function fetchWorkspaces(
   scope: WorkspaceQueryScope = 'active',
@@ -149,7 +141,6 @@ export function useCreateWorkspace() {
 
 interface DeleteWorkspaceParams {
   workspaceId: string
-  deleteTemplates?: boolean
 }
 
 /**
@@ -160,10 +151,10 @@ export function useDeleteWorkspace() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, deleteTemplates = false }: DeleteWorkspaceParams) => {
+    mutationFn: async ({ workspaceId }: DeleteWorkspaceParams) => {
       return requestJson(deleteWorkspaceContract, {
         params: { id: workspaceId },
-        body: { deleteTemplates },
+        body: {},
       })
     },
     onSettled: (_data, _error, variables) => {
@@ -179,7 +170,7 @@ type UpdateWorkspaceParams = { workspaceId: string } & Pick<
 >
 
 /**
- * Updates a workspace's properties (name, color, etc.).
+ * Updates a workspace's properties (name, logo, etc.).
  * Invalidates both the workspace list and the specific workspace detail cache.
  */
 export function useUpdateWorkspace() {
@@ -265,6 +256,21 @@ async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal)
     settings,
     permissions,
   }
+}
+
+/**
+ * Prefetch a workspace's settings (and permissions) into the cache. Use on
+ * hover to warm data before navigating to a settings-style route.
+ * @param queryClient - The active QueryClient
+ * @param workspaceId - The workspace ID to prefetch settings for
+ */
+export function prefetchWorkspaceSettings(queryClient: QueryClient, workspaceId: string) {
+  if (!workspaceId) return
+  queryClient.prefetchQuery({
+    queryKey: workspaceKeys.settings(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceSettings(workspaceId, signal),
+    staleTime: 30 * 1000,
+  })
 }
 
 /**

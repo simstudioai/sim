@@ -28,13 +28,13 @@ export const escalationPathsUpdateTool: ToolConfig<
     },
     name: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'New name for the escalation path (e.g., "Critical Incident Path")',
     },
     path: {
       type: 'json',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description:
         'New escalation path configuration. Array of escalation levels with targets and time_to_ack_seconds',
@@ -48,21 +48,16 @@ export const escalationPathsUpdateTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/escalation_paths/${params.id.trim()}`,
     method: 'PUT',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {}
-
-      if (params.name !== undefined) {
-        body.name = params.name
-      }
-
-      if (params.path !== undefined) {
-        body.path = params.path
+      const body: Record<string, unknown> = {
+        name: params.name,
+        path: params.path,
       }
 
       if (params.working_hours !== undefined) {
@@ -139,8 +134,6 @@ export const escalationPathsUpdateTool: ToolConfig<
             },
           },
         },
-        created_at: { type: 'string', description: 'When the path was created' },
-        updated_at: { type: 'string', description: 'When the path was last updated' },
       },
     },
   },

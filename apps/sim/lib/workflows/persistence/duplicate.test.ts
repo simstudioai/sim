@@ -1,19 +1,12 @@
 /**
  * @vitest-environment node
  */
-import {
-  permissionsMock,
-  permissionsMockFns,
-  workflowAuthzMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
+import { workflowAuthzMockFns, workflowsUtilsMock, workflowsUtilsMockFns } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockAuthorizeWorkflowByWorkspacePermission =
   workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
-const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const { mockDb } = vi.hoisted(() => ({
   mockDb: {
@@ -26,8 +19,6 @@ vi.mock('drizzle-orm', () => ({
   min: vi.fn((field) => ({ type: 'min', field })),
 }))
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@sim/db', () => ({
   db: mockDb,
@@ -85,11 +76,15 @@ describe('duplicateWorkflow ordering', () => {
       randomUUID: vi.fn().mockReturnValue('new-workflow-id'),
     })
 
-    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({ allowed: true })
+    mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: true,
+      status: 200,
+      workflow: { id: 'source-workflow-id', workspaceId: 'workspace-123' },
+      workspacePermission: 'write',
+    })
     workflowsUtilsMockFns.mockDeduplicateWorkflowName.mockImplementation(
       async (name: string) => name
     )
-    mockGetUserEntityPermissions.mockResolvedValue('write')
   })
 
   it('uses mixed-sibling top insertion sort order', async () => {
@@ -102,7 +97,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -144,7 +138,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -186,7 +179,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
+
             variables: {
               'old-var-id': {
                 id: 'old-var-id',
@@ -289,7 +282,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'first copy',
-            color: '#000000',
+
             variables: {
               'first-copy-var-id': {
                 id: 'first-copy-var-id',
@@ -393,7 +386,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -509,7 +501,6 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
             variables: {},
           },
         ],
@@ -619,7 +610,7 @@ describe('duplicateWorkflow ordering', () => {
             workspaceId: 'workspace-123',
             folderId: null,
             description: 'source',
-            color: '#000000',
+
             variables: {
               'live-var-id': {
                 id: 'live-var-id',

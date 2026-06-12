@@ -1,0 +1,73 @@
+suite: PDB tri-state and HPA conditional rendering
+release:
+  name: t
+  namespace: sim
+defaults: &defaults
+  app.env.BETTER_AUTH_SECRET: x
+  app.env.ENCRYPTION_KEY: x
+  app.env.INTERNAL_API_SECRET: x
+  app.env.CRON_SECRET: x
+  postgresql.auth.password: x
+
+tests:
+  - it: PDB does not render when replicaCount=1 and HPA is off (tri-state null)
+    template: poddisruptionbudget.yaml
+    set:
+      <<: *defaults
+      app.replicaCount: 1
+      realtime.replicaCount: 1
+      autoscaling.enabled: false
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: PDB auto-renders when replicaCount>1 (tri-state null)
+    template: poddisruptionbudget.yaml
+    set:
+      <<: *defaults
+      app.replicaCount: 2
+      realtime.replicaCount: 2
+      autoscaling.enabled: false
+    asserts:
+      - hasDocuments: { count: 2 }
+
+  - it: PDB auto-renders when autoscaling.minReplicas>1 (tri-state null)
+    template: poddisruptionbudget.yaml
+    set:
+      <<: *defaults
+      app.replicaCount: 1
+      realtime.replicaCount: 1
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+    asserts:
+      - hasDocuments: { count: 2 }
+
+  - it: PDB explicitly disabled stays off even with multiple replicas
+    template: poddisruptionbudget.yaml
+    set:
+      <<: *defaults
+      app.replicaCount: 3
+      podDisruptionBudget.enabled: false
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: HPA does not render when autoscaling.enabled=false
+    template: hpa.yaml
+    set:
+      <<: *defaults
+      autoscaling.enabled: false
+    asserts:
+      - hasDocuments: { count: 0 }
+
+  - it: HPA renders when autoscaling.enabled=true and uses autoscaling/v2
+    template: hpa.yaml
+    set:
+      <<: *defaults
+      autoscaling.enabled: true
+      autoscaling.minReplicas: 2
+      autoscaling.maxReplicas: 10
+      autoscaling.targetCPUUtilizationPercentage: 70
+    asserts:
+      - isKind: { of: HorizontalPodAutoscaler }
+      - equal: { path: apiVersion, value: autoscaling/v2 }
+      - equal: { path: spec.minReplicas, value: 2 }
+      - equal: { path: spec.maxReplicas, value: 10 }

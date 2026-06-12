@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Base parameters for all Rootly API operations */
-export interface RootlyBaseParams {
+interface RootlyBaseParams {
   apiKey: string
 }
 
@@ -21,7 +21,7 @@ export interface RootlyCreateIncidentParams extends RootlyBaseParams {
   private?: boolean
 }
 
-export interface RootlyIncidentData {
+interface RootlyIncidentData {
   id: string | null
   sequentialId: number | null
   title: string
@@ -108,7 +108,7 @@ export interface RootlyListIncidentsResponse extends ToolResponse {
 /** Create Alert */
 export interface RootlyCreateAlertParams extends RootlyBaseParams {
   summary: string
-  source: string
+  source?: string
   description?: string
   status?: string
   serviceIds?: string
@@ -119,7 +119,7 @@ export interface RootlyCreateAlertParams extends RootlyBaseParams {
   deduplicationKey?: string
 }
 
-export interface RootlyAlertData {
+interface RootlyAlertData {
   id: string | null
   shortId: string | null
   summary: string
@@ -184,7 +184,7 @@ export interface RootlyListServicesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyServiceData {
+interface RootlyServiceData {
   id: string | null
   name: string
   slug: string | null
@@ -208,7 +208,7 @@ export interface RootlyListSeveritiesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlySeverityData {
+interface RootlySeverityData {
   id: string | null
   name: string
   slug: string | null
@@ -235,7 +235,7 @@ export interface RootlyListRetrospectivesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyRetrospectiveData {
+interface RootlyRetrospectiveData {
   id: string | null
   title: string
   status: string | null
@@ -261,7 +261,7 @@ export interface RootlyListTeamsParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyTeamData {
+interface RootlyTeamData {
   id: string | null
   name: string
   slug: string | null
@@ -285,7 +285,7 @@ export interface RootlyListEnvironmentsParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyEnvironmentData {
+interface RootlyEnvironmentData {
   id: string | null
   name: string
   slug: string | null
@@ -309,7 +309,7 @@ export interface RootlyListIncidentTypesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyIncidentTypeData {
+interface RootlyIncidentTypeData {
   id: string | null
   name: string
   slug: string | null
@@ -333,7 +333,7 @@ export interface RootlyListCausesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyCauseData {
+interface RootlyCauseData {
   id: string | null
   name: string
   slug: string | null
@@ -356,7 +356,7 @@ export interface RootlyListPlaybooksParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyPlaybookData {
+interface RootlyPlaybookData {
   id: string | null
   title: string
   summary: string | null
@@ -385,7 +385,7 @@ export interface RootlyDeleteIncidentResponse extends ToolResponse {
 }
 
 /** Action Item Data */
-export interface RootlyActionItemData {
+interface RootlyActionItemData {
   id: string | null
   summary: string
   description: string | null
@@ -436,7 +436,7 @@ export interface RootlyListFunctionalitiesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyFunctionalityData {
+interface RootlyFunctionalityData {
   id: string | null
   name: string
   slug: string | null
@@ -516,7 +516,7 @@ export interface RootlyListUsersParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyUserData {
+interface RootlyUserData {
   id: string | null
   email: string
   firstName: string | null
@@ -542,7 +542,7 @@ export interface RootlyListOnCallsParams extends RootlyBaseParams {
   serviceIds?: string
 }
 
-export interface RootlyOnCallData {
+interface RootlyOnCallData {
   id: string | null
   userId: string | null
   userName: string | null
@@ -567,7 +567,7 @@ export interface RootlyListSchedulesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyScheduleData {
+interface RootlyScheduleData {
   id: string | null
   name: string
   description: string | null
@@ -590,7 +590,7 @@ export interface RootlyListEscalationPoliciesParams extends RootlyBaseParams {
   pageNumber?: number
 }
 
-export interface RootlyEscalationPolicyData {
+interface RootlyEscalationPolicyData {
   id: string | null
   name: string
   description: string | null
@@ -604,6 +604,208 @@ export interface RootlyEscalationPolicyData {
 export interface RootlyListEscalationPoliciesResponse extends ToolResponse {
   output: {
     escalationPolicies: RootlyEscalationPolicyData[]
+    totalCount: number
+  }
+}
+
+/** Shared incident-action response (returns the standard incident object) */
+export interface RootlyIncidentActionResponse extends ToolResponse {
+  output: {
+    incident: RootlyIncidentData
+  }
+}
+
+/** Shared alert-action response (returns the standard alert object) */
+export interface RootlyAlertActionResponse extends ToolResponse {
+  output: {
+    alert: RootlyAlertData
+  }
+}
+
+/** Mitigate Incident */
+export interface RootlyMitigateIncidentParams extends RootlyBaseParams {
+  incidentId: string
+  mitigationMessage?: string
+}
+
+/** Resolve Incident */
+export interface RootlyResolveIncidentParams extends RootlyBaseParams {
+  incidentId: string
+  resolutionMessage?: string
+}
+
+/** Assign Incident Role */
+export interface RootlyAssignIncidentRoleParams extends RootlyBaseParams {
+  incidentId: string
+  userId: string
+  incidentRoleId: string
+}
+
+/** Unassign Incident Role */
+export interface RootlyUnassignIncidentRoleParams extends RootlyBaseParams {
+  incidentId: string
+  userId: string
+  incidentRoleId: string
+}
+
+/** Add Subscribers */
+export interface RootlyAddSubscribersParams extends RootlyBaseParams {
+  incidentId: string
+  userIds: string
+}
+
+/** Remove Subscribers */
+export interface RootlyRemoveSubscribersParams extends RootlyBaseParams {
+  incidentId: string
+  userIds: string
+}
+
+/** Create Status Page Event */
+export interface RootlyCreateStatusPageEventParams extends RootlyBaseParams {
+  incidentId: string
+  event: string
+  statusPageId?: string
+  status?: string
+  notifySubscribers?: boolean
+  shouldTweet?: boolean
+}
+
+interface RootlyStatusPageEventData {
+  id: string | null
+  event: string
+  statusPageId: string | null
+  status: string | null
+  notifySubscribers: boolean | null
+  shouldTweet: boolean | null
+  startedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RootlyCreateStatusPageEventResponse extends ToolResponse {
+  output: {
+    statusPageEvent: RootlyStatusPageEventData
+  }
+}
+
+/** Update Action Item */
+export interface RootlyUpdateActionItemParams extends RootlyBaseParams {
+  actionItemId: string
+  summary?: string
+  description?: string
+  kind?: string
+  priority?: string
+  status?: string
+  assignedToUserId?: string
+  dueDate?: string
+}
+
+export interface RootlyUpdateActionItemResponse extends ToolResponse {
+  output: {
+    actionItem: RootlyActionItemData
+  }
+}
+
+/** Delete Action Item */
+export interface RootlyDeleteActionItemParams extends RootlyBaseParams {
+  actionItemId: string
+}
+
+export interface RootlyDeleteActionItemResponse extends ToolResponse {
+  output: {
+    success: boolean
+    message: string
+  }
+}
+
+/** Snooze Alert */
+export interface RootlySnoozeAlertParams extends RootlyBaseParams {
+  alertId: string
+  delayMinutes: number
+}
+
+/** Escalate Alert */
+export interface RootlyEscalateAlertParams extends RootlyBaseParams {
+  alertId: string
+  escalationPolicyId?: string
+  escalationPolicyLevel?: number
+}
+
+/** List Incident Events */
+export interface RootlyListIncidentEventsParams extends RootlyBaseParams {
+  incidentId: string
+  pageSize?: number
+  pageNumber?: number
+}
+
+interface RootlyIncidentEventData {
+  id: string | null
+  event: string
+  visibility: string | null
+  occurredAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RootlyListIncidentEventsResponse extends ToolResponse {
+  output: {
+    events: RootlyIncidentEventData[]
+    totalCount: number
+  }
+}
+
+/** Run Workflow */
+export interface RootlyRunWorkflowParams extends RootlyBaseParams {
+  workflowId: string
+  incidentId?: string
+  alertId?: string
+  immediate?: boolean
+  checkConditions?: boolean
+}
+
+interface RootlyWorkflowRunData {
+  id: string | null
+  workflowId: string | null
+  status: string | null
+  statusMessage: string | null
+  triggeredBy: string | null
+  incidentId: string | null
+  alertId: string | null
+  startedAt: string | null
+  completedAt: string | null
+  failedAt: string | null
+  canceledAt: string | null
+}
+
+export interface RootlyRunWorkflowResponse extends ToolResponse {
+  output: {
+    workflowRun: RootlyWorkflowRunData
+  }
+}
+
+/** List Incident Roles */
+export interface RootlyListIncidentRolesParams extends RootlyBaseParams {
+  search?: string
+  pageSize?: number
+  pageNumber?: number
+}
+
+interface RootlyIncidentRoleData {
+  id: string | null
+  name: string
+  slug: string | null
+  summary: string | null
+  description: string | null
+  position: number | null
+  optional: boolean | null
+  enabled: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RootlyListIncidentRolesResponse extends ToolResponse {
+  output: {
+    incidentRoles: RootlyIncidentRoleData[]
     totalCount: number
   }
 }
@@ -637,3 +839,11 @@ export type RootlyResponse =
   | RootlyListOnCallsResponse
   | RootlyListSchedulesResponse
   | RootlyListEscalationPoliciesResponse
+  | RootlyIncidentActionResponse
+  | RootlyAlertActionResponse
+  | RootlyCreateStatusPageEventResponse
+  | RootlyUpdateActionItemResponse
+  | RootlyDeleteActionItemResponse
+  | RootlyListIncidentEventsResponse
+  | RootlyRunWorkflowResponse
+  | RootlyListIncidentRolesResponse

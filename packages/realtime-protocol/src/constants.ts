@@ -58,6 +58,7 @@ export type WorkflowOperation = (typeof WORKFLOW_OPERATIONS)[keyof typeof WORKFL
 
 export const SUBBLOCK_OPERATIONS = {
   UPDATE: 'subblock-update',
+  BATCH_UPDATE: 'subblock-batch-update',
 } as const
 
 export type SubblockOperation = (typeof SUBBLOCK_OPERATIONS)[keyof typeof SUBBLOCK_OPERATIONS]
@@ -87,6 +88,7 @@ export const UNDO_REDO_OPERATIONS = {
   BATCH_TOGGLE_ENABLED: 'batch-toggle-enabled',
   BATCH_TOGGLE_HANDLES: 'batch-toggle-handles',
   BATCH_TOGGLE_LOCKED: 'batch-toggle-locked',
+  BATCH_UPDATE_SUBBLOCKS: 'batch-update-subblocks',
   APPLY_DIFF: 'apply-diff',
   ACCEPT_DIFF: 'accept-diff',
   REJECT_DIFF: 'reject-diff',

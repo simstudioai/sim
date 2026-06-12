@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface DubBaseParams {
+interface DubBaseParams {
   apiKey: string
 }
 
@@ -81,8 +81,6 @@ export interface DubListLinksParams extends DubBaseParams {
   search?: string
   tagIds?: string
   showArchived?: boolean
-  sortBy?: string
-  sortOrder?: string
   page?: number
   pageSize?: number
 }
@@ -100,7 +98,56 @@ export interface DubGetAnalyticsParams extends DubBaseParams {
   timezone?: string
 }
 
-export interface DubLink {
+export interface DubGetLinksCountParams extends DubBaseParams {
+  domain?: string
+  search?: string
+  tagIds?: string
+  tagNames?: string
+  folderId?: string
+  showArchived?: boolean
+  groupBy?: string
+}
+
+export interface DubGetEventsParams extends DubBaseParams {
+  event?: string
+  linkId?: string
+  externalId?: string
+  domain?: string
+  interval?: string
+  start?: string
+  end?: string
+  country?: string
+  timezone?: string
+  page?: number
+  limit?: number
+  sortOrder?: string
+}
+
+export interface DubBulkCreateLinksParams extends DubBaseParams {
+  links: unknown
+}
+
+export interface DubBulkUpdateLinksParams extends DubBaseParams {
+  linkIds?: string
+  externalIds?: string
+  data: unknown
+}
+
+export interface DubBulkDeleteLinksParams extends DubBaseParams {
+  linkIds: string
+}
+
+export interface DubGetQrCodeParams extends DubBaseParams {
+  url: string
+  size?: number
+  level?: string
+  fgColor?: string
+  bgColor?: string
+  hideLogo?: boolean
+  margin?: number
+}
+
+interface DubLink {
   id: string
   domain: string
   key: string
@@ -165,6 +212,53 @@ export interface DubGetAnalyticsResponse extends ToolResponse {
   }
 }
 
+export interface DubGetLinksCountResponse extends ToolResponse {
+  output: {
+    count: number
+    groups: Record<string, unknown>[] | null
+  }
+}
+
+export interface DubGetEventsResponse extends ToolResponse {
+  output: {
+    events: Record<string, unknown>[]
+    count: number
+  }
+}
+
+export interface DubBulkCreateLinksResponse extends ToolResponse {
+  output: {
+    created: Record<string, unknown>[]
+    errors: Record<string, unknown>[]
+    count: number
+  }
+}
+
+export interface DubBulkUpdateLinksResponse extends ToolResponse {
+  output: {
+    updated: Record<string, unknown>[]
+    count: number
+  }
+}
+
+export interface DubBulkDeleteLinksResponse extends ToolResponse {
+  output: {
+    deletedCount: number
+  }
+}
+
+export interface DubGetQrCodeResponse extends ToolResponse {
+  output: {
+    file: {
+      name: string
+      mimeType: string
+      data: string
+      size: number
+    }
+    content: string
+  }
+}
+
 export type DubResponse =
   | DubCreateLinkResponse
   | DubGetLinkResponse
@@ -173,3 +267,9 @@ export type DubResponse =
   | DubDeleteLinkResponse
   | DubListLinksResponse
   | DubGetAnalyticsResponse
+  | DubGetLinksCountResponse
+  | DubGetEventsResponse
+  | DubBulkCreateLinksResponse
+  | DubBulkUpdateLinksResponse
+  | DubBulkDeleteLinksResponse
+  | DubGetQrCodeResponse

@@ -11,6 +11,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { deleteSkill, listSkills, upsertSkills } from '@/lib/workflows/skills/operations'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
@@ -47,8 +48,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const result = await listSkills({ workspaceId })
+    const data = result.map((s) => ({ ...s, readOnly: isBuiltinSkillId(s.id) }))
 
-    return NextResponse.json({ data: result }, { status: 200 })
+    return NextResponse.json({ data }, { status: 200 })
   } catch (error) {
     logger.error(`[${requestId}] Error fetching skills:`, error)
     return NextResponse.json({ error: 'Failed to fetch skills' }, { status: 500 })
@@ -92,30 +94,31 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     }
 
     try {
-      const resultSkills = await upsertSkills({
+      const { skills: resultSkills, touched } = await upsertSkills({
         skills,
         workspaceId,
         userId,
         requestId,
       })
 
-      for (const skill of resultSkills) {
+      for (const { id, name, operation } of touched) {
+        const isUpdate = operation === 'updated'
         recordAudit({
           workspaceId,
           actorId: userId,
           actorName: authResult.userName ?? undefined,
           actorEmail: authResult.userEmail ?? undefined,
-          action: AuditAction.SKILL_CREATED,
+          action: isUpdate ? AuditAction.SKILL_UPDATED : AuditAction.SKILL_CREATED,
           resourceType: AuditResourceType.SKILL,
-          resourceId: skill.id,
-          resourceName: skill.name,
-          description: `Created/updated skill "${skill.name}"`,
+          resourceId: id,
+          resourceName: name,
+          description: `${isUpdate ? 'Updated' : 'Created'} skill "${name}"`,
           metadata: { source },
         })
         captureServerEvent(
           userId,
-          'skill_created',
-          { skill_id: skill.id, skill_name: skill.name, workspace_id: workspaceId, source },
+          isUpdate ? 'skill_updated' : 'skill_created',
+          { skill_id: id, skill_name: name, workspace_id: workspaceId, source },
           { groups: { workspace: workspaceId } }
         )
       }

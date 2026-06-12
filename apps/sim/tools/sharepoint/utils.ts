@@ -3,6 +3,30 @@ import type { CanvasLayout } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointUtils')
 
+export function optionalTrim(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  const trimmed = String(value).trim()
+  return trimmed || undefined
+}
+
+export function escapeODataString(value: string): string {
+  return value.replace(/'/g, "''")
+}
+
+export function getGraphNextPageUrl(data: object): string | undefined {
+  const nextLink = (data as Record<string, unknown>)['@odata.nextLink']
+  return typeof nextLink === 'string' ? nextLink : undefined
+}
+
+export function assertGraphNextPageUrl(nextPageUrl: string): string {
+  const trimmed = nextPageUrl.trim()
+  const url = new URL(trimmed)
+  if (url.origin !== 'https://graph.microsoft.com') {
+    throw new Error('nextPageUrl must be a Microsoft Graph @odata.nextLink URL')
+  }
+  return url.toString()
+}
+
 function stripHtmlTags(html: string): string {
   let text = html
   let previous: string

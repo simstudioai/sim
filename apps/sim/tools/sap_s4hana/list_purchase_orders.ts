@@ -16,26 +16,26 @@ export const listPurchaseOrdersTool: ToolConfig<ListPurchaseOrdersParams, SapPro
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -127,6 +127,73 @@ export const listPurchaseOrdersTool: ToolConfig<ListPurchaseOrdersParams, SapPro
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Array of A_PurchaseOrder entities' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; collection at output.data.d.results',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'OData v2 envelope',
+          properties: {
+            results: {
+              type: 'array',
+              description: 'A_PurchaseOrder entities',
+              items: {
+                type: 'object',
+                properties: {
+                  PurchaseOrder: { type: 'string', description: 'Purchase order number' },
+                  PurchaseOrderType: {
+                    type: 'string',
+                    description: 'PO document type (e.g., NB)',
+                  },
+                  CompanyCode: { type: 'string', description: 'Company code' },
+                  PurchasingOrganization: {
+                    type: 'string',
+                    description: 'Purchasing organization',
+                  },
+                  PurchasingGroup: { type: 'string', description: 'Purchasing group' },
+                  Supplier: { type: 'string', description: 'Supplier business partner key' },
+                  DocumentCurrency: {
+                    type: 'string',
+                    description: 'Document currency',
+                    optional: true,
+                  },
+                  NetAmount: {
+                    type: 'string',
+                    description: 'Net amount of the purchase order',
+                    optional: true,
+                  },
+                  CreationDate: {
+                    type: 'string',
+                    description: 'Creation date (OData /Date(ms)/)',
+                    optional: true,
+                  },
+                  CreatedByUser: {
+                    type: 'string',
+                    description: 'User who created the PO',
+                    optional: true,
+                  },
+                  PurchaseOrderDate: {
+                    type: 'string',
+                    description: 'Purchase order date',
+                    optional: true,
+                  },
+                },
+              },
+            },
+            __next: {
+              type: 'string',
+              description: 'OData skiptoken URL for next page',
+              optional: true,
+            },
+            __count: {
+              type: 'string',
+              description: 'Total count when $inlinecount=allpages is used',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

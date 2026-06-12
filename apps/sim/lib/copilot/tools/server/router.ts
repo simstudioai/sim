@@ -2,16 +2,24 @@ import { createLogger } from '@sim/logger'
 import { z } from 'zod'
 import {
   CreateFile,
+  CreateFileFolder,
   DeleteFile,
+  DeleteFileFolder,
   DownloadToWorkspaceFile,
+  Ffmpeg,
+  GenerateAudio,
   GenerateImage,
-  GenerateVisualization,
+  GenerateVideo,
   KnowledgeBase,
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
   ManageSkill,
+  MoveFile,
+  MoveFileFolder,
   RenameFile,
+  RenameFileFolder,
+  TouchPlan,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -27,22 +35,32 @@ import { createFileServerTool } from '@/lib/copilot/tools/server/files/create-fi
 import { deleteFileServerTool } from '@/lib/copilot/tools/server/files/delete-file'
 import { downloadToWorkspaceFileServerTool } from '@/lib/copilot/tools/server/files/download-to-workspace-file'
 import { editContentServerTool } from '@/lib/copilot/tools/server/files/edit-content'
+import {
+  createFileFolderServerTool,
+  deleteFileFolderServerTool,
+  listFileFoldersServerTool,
+  moveFileFolderServerTool,
+  moveFileServerTool,
+  renameFileFolderServerTool,
+} from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
+import { touchPlanServerTool } from '@/lib/copilot/tools/server/files/touch-plan'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
 import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
+import { generateAudioServerTool } from '@/lib/copilot/tools/server/media/generate-audio'
+import { generateVideoServerTool } from '@/lib/copilot/tools/server/media/generate-video'
 import { searchOnlineServerTool } from '@/lib/copilot/tools/server/other/search-online'
 import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table'
 import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-credentials'
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
-import { generateVisualizationServerTool } from '@/lib/copilot/tools/server/visualization/generate-visualization'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
-import { getExecutionSummaryServerTool } from '@/lib/copilot/tools/server/workflow/get-execution-summary'
-import { getWorkflowLogsServerTool } from '@/lib/copilot/tools/server/workflow/get-workflow-logs'
+import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 
-export { ExecuteResponseSuccessSchema }
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
 const ExecuteResponseSuccessSchema = z.object({
@@ -85,6 +103,7 @@ const WRITE_ACTIONS: Record<string, string[]> = {
     'rename_column',
     'delete_column',
     'update_column',
+    'add_enrichment',
   ],
   [ManageCustomTool.id]: ['add', 'edit', 'delete'],
   [ManageMcpTool.id]: ['add', 'edit', 'delete'],
@@ -93,37 +112,39 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
+  [TouchPlan.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
+  [MoveFile.id]: ['*'],
+  [CreateFileFolder.id]: ['*'],
+  [RenameFileFolder.id]: ['*'],
+  [MoveFileFolder.id]: ['*'],
+  [DeleteFileFolder.id]: ['*'],
   [DownloadToWorkspaceFile.id]: ['*'],
-  [GenerateVisualization.id]: ['generate'],
   [GenerateImage.id]: ['generate'],
+  [GenerateVideo.id]: ['generate'],
+  [GenerateAudio.id]: ['generate'],
+  [Ffmpeg.id]: ['*'],
 }
 
 function isWritePermission(userPermission: string): boolean {
   return userPermission === 'write' || userPermission === 'admin'
 }
 
-function isActionAllowed(
-  toolName: string,
-  action: string | undefined,
-  userPermission: string
-): boolean {
+function isWriteAction(toolName: string, action: string | undefined): boolean {
   const writeActions = WRITE_ACTIONS[toolName]
-  if (!writeActions) return true
+  if (!writeActions) return false
   // '*' means the tool is always a write operation regardless of action field
-  if (writeActions.includes('*')) return isWritePermission(userPermission)
-  if (action && writeActions.includes(action)) return isWritePermission(userPermission)
-  return true
+  if (writeActions.includes('*')) return true
+  return Boolean(action && writeActions.includes(action))
 }
 
 /** Registry of all server tools. Tools self-declare their validation schemas. */
-const serverToolRegistry: Record<string, BaseServerTool> = {
+const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getBlocksMetadataServerTool.name]: getBlocksMetadataServerTool,
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
-  [getExecutionSummaryServerTool.name]: getExecutionSummaryServerTool,
-  [getWorkflowLogsServerTool.name]: getWorkflowLogsServerTool,
+  [queryLogsServerTool.name]: queryLogsServerTool,
   [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
@@ -134,15 +155,33 @@ const serverToolRegistry: Record<string, BaseServerTool> = {
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
+  [touchPlanServerTool.name]: touchPlanServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
+  [moveFileServerTool.name]: moveFileServerTool,
+  [listFileFoldersServerTool.name]: listFileFoldersServerTool,
+  [createFileFolderServerTool.name]: createFileFolderServerTool,
+  [renameFileFolderServerTool.name]: renameFileFolderServerTool,
+  [moveFileFolderServerTool.name]: moveFileFolderServerTool,
+  [deleteFileFolderServerTool.name]: deleteFileFolderServerTool,
   [downloadToWorkspaceFileServerTool.name]: downloadToWorkspaceFileServerTool,
-  [generateVisualizationServerTool.name]: generateVisualizationServerTool,
   [generateImageServerTool.name]: generateImageServerTool,
+  [generateVideoServerTool.name]: generateVideoServerTool,
+  [generateAudioServerTool.name]: generateAudioServerTool,
+  [ffmpegServerTool.name]: ffmpegServerTool,
+}
+
+function getServerToolRegistry(): Record<string, BaseServerTool> {
+  if (isMothershipBetaFeaturesEnabled) {
+    return baseServerToolRegistry
+  }
+  const registry = { ...baseServerToolRegistry }
+  delete registry[touchPlanServerTool.name]
+  return registry
 }
 
 export function getRegisteredServerToolNames(): string[] {
-  return Object.keys(serverToolRegistry)
+  return Object.keys(getServerToolRegistry())
 }
 
 export async function routeExecution(
@@ -150,7 +189,7 @@ export async function routeExecution(
   payload: unknown,
   context?: ServerToolContext
 ): Promise<unknown> {
-  const tool = serverToolRegistry[toolName]
+  const tool = getServerToolRegistry()[toolName]
   if (!tool) {
     throw new Error(`Unknown server tool: ${toolName}`)
   }
@@ -161,13 +200,13 @@ export async function routeExecution(
   )
 
   // Action-level permission enforcement for mixed read/write tools
-  if (context?.userPermission && WRITE_ACTIONS[toolName]) {
+  if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (!isActionAllowed(toolName, action, context.userPermission)) {
+    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
       const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
-        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context.userPermission}' permission.`
+        `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`
       )
     }
   }

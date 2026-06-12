@@ -3,33 +3,39 @@ import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
-import { createWorkspaceApiKey } from '@/lib/api-key/auth'
+import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
-  getExecutionState,
-  getLatestExecutionState,
+  getExecutionInputForWorkflow,
+  getExecutionStateForWorkflow,
+  getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
-import { performDeleteFolder, performDeleteWorkflow } from '@/lib/workflows/orchestration'
 import {
+  performCreateFolder,
+  performCreateWorkflow,
+  performDeleteFolder,
+  performDeleteWorkflow,
+  performUpdateFolder,
+  performUpdateWorkflow,
+} from '@/lib/workflows/orchestration'
+import {
+  loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
   saveWorkflowToNormalizedTables,
 } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import {
-  checkForCircularReference,
-  createFolderRecord,
-  createWorkflowRecord,
-  listFolders,
-  setWorkflowVariables,
-  updateFolderRecord,
-  updateWorkflowRecord,
-  verifyFolderWorkspace,
-} from '@/lib/workflows/utils'
+  resolveTriggerRunOptions,
+  validateTriggerInput,
+} from '@/lib/workflows/triggers/run-options'
+import { listFolders, setWorkflowVariables, verifyFolderWorkspace } from '@/lib/workflows/utils'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { ensureWorkflowAccess, ensureWorkspaceAccess, getDefaultWorkspaceId } from '../access'
@@ -81,6 +87,33 @@ function buildExecutionError(error: unknown): ToolCallResult {
   return { success: false, error: message }
 }
 
+async function resolveRunFromBlockSnapshot(
+  workflowId: string,
+  executionId?: string
+): Promise<
+  | {
+      executionId: string
+      snapshot: SerializableExecutionState
+    }
+  | undefined
+> {
+  const sourceExecution = executionId
+    ? {
+        executionId,
+        state: await getExecutionStateForWorkflow(executionId, workflowId),
+      }
+    : await getLatestExecutionStateWithExecutionId(workflowId)
+
+  if (!sourceExecution?.state) {
+    return undefined
+  }
+
+  return {
+    executionId: sourceExecution.executionId,
+    snapshot: sourceExecution.state,
+  }
+}
+
 function resolveRunWorkflowInput(params: { workflow_input?: unknown; input?: unknown }): unknown {
   if (Object.hasOwn(params, 'workflow_input')) {
     return params.workflow_input
@@ -95,6 +128,111 @@ function resolveRunTriggerBlockId(params: { triggerBlockId?: unknown }): string 
   return typeof params.triggerBlockId === 'string' && params.triggerBlockId.trim().length > 0
     ? params.triggerBlockId
     : undefined
+}
+
+interface PreparedTriggerRun {
+  triggerBlockId: string
+  input: unknown
+}
+
+/**
+ * Resolves which trigger a copilot run targets and validates the input against
+ * it. There are no fallbacks: an invalid trigger id, an ambiguous workflow, or
+ * input that doesn't match the trigger's schema returns an error string so the
+ * agent fixes it and retries. The resolved triggerBlockId is returned so the
+ * caller pins the executed entry to the validated one.
+ */
+async function resolveValidatedTriggerRun(
+  workflowId: string,
+  useDraftState: boolean,
+  params: {
+    triggerBlockId?: unknown
+    workflow_input?: unknown
+    input?: unknown
+    useMockPayload?: unknown
+    inputFromExecutionId?: unknown
+  }
+): Promise<PreparedTriggerRun | { error: string }> {
+  const state = useDraftState
+    ? await loadWorkflowFromNormalizedTables(workflowId)
+    : await loadDeployedWorkflowState(workflowId)
+
+  if (!state?.blocks) {
+    return {
+      error: `Workflow ${workflowId} has no ${useDraftState ? 'saved draft' : 'deployed'} state to run.`,
+    }
+  }
+
+  const merged = mergeSubblockStateWithValues(state.blocks)
+  const options = resolveTriggerRunOptions(merged, state.edges)
+
+  if (options.length === 0) {
+    return {
+      error:
+        'No runnable trigger found. Add a Start/API/Input/Chat trigger or an external (webhook/integration) trigger before running.',
+    }
+  }
+
+  const listTriggers = () =>
+    options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
+
+  const requestedId = resolveRunTriggerBlockId(params)
+  let option = options[0]
+  if (requestedId) {
+    const match = options.find((o) => o.triggerBlockId === requestedId)
+    if (!match) {
+      return {
+        error: `triggerBlockId "${requestedId}" is not a runnable trigger in this workflow. Valid triggers: ${listTriggers()}. Call get_workflow_run_options to inspect them.`,
+      }
+    }
+    option = match
+  } else if (options.length > 1) {
+    return {
+      error: `This workflow has multiple triggers — pass triggerBlockId to choose one: ${listTriggers()}. Call get_workflow_run_options for each trigger's input shape.`,
+    }
+  }
+
+  const providedInput = resolveRunWorkflowInput(params)
+  const hasProvidedInput = providedInput !== undefined
+  const useMock = params.useMockPayload === true
+  const fromExecutionId =
+    typeof params.inputFromExecutionId === 'string' && params.inputFromExecutionId.trim().length > 0
+      ? params.inputFromExecutionId.trim()
+      : undefined
+
+  const sourceCount = (hasProvidedInput ? 1 : 0) + (useMock ? 1 : 0) + (fromExecutionId ? 1 : 0)
+  if (sourceCount > 1) {
+    return {
+      error:
+        'Provide only one input source: workflow_input, useMockPayload: true, or inputFromExecutionId.',
+    }
+  }
+
+  // Mock payload is generated to match the trigger, so it bypasses validation.
+  if (useMock) {
+    return { triggerBlockId: option.triggerBlockId, input: option.mockPayload }
+  }
+
+  let inputToValidate = providedInput
+  if (fromExecutionId) {
+    const past = await getExecutionInputForWorkflow(fromExecutionId, workflowId)
+    if (!past.found) {
+      return {
+        error: `No execution "${fromExecutionId}" found for this workflow to reuse input from.`,
+      }
+    }
+    if (past.input === undefined) {
+      return { error: `Execution "${fromExecutionId}" has no recorded input to reuse.` }
+    }
+    inputToValidate = past.input
+  }
+
+  const validation = validateTriggerInput(option, inputToValidate)
+  if (!validation.ok) {
+    return { error: validation.error || 'workflow_input is invalid for the target trigger.' }
+  }
+
+  return { triggerBlockId: option.triggerBlockId, input: inputToValidate }
 }
 
 function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
@@ -217,30 +355,22 @@ export async function executeCreateWorkflow(
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
     assertWorkflowMutationNotAborted(context)
 
-    const result = await createWorkflowRecord({
+    const result = await performCreateWorkflow({
       userId: context.userId,
       workspaceId,
       name,
       description,
       folderId,
     })
-
-    recordAudit({
-      workspaceId,
-      actorId: context.userId,
-      action: AuditAction.WORKFLOW_CREATED,
-      resourceType: AuditResourceType.WORKFLOW,
-      resourceId: result.workflowId,
-      resourceName: name,
-      description: `Created workflow "${name}"`,
-      metadata: { folderId, source: 'copilot' },
-    })
+    if (!result.success || !result.workflow) {
+      return { success: false, error: result.error || 'Failed to create workflow' }
+    }
 
     try {
       const { PlatformEvents } = await import('@/lib/core/telemetry')
       PlatformEvents.workflowCreated({
-        workflowId: result.workflowId,
-        name,
+        workflowId: result.workflow.id,
+        name: result.workflow.name,
         workspaceId,
         folderId: folderId ?? undefined,
       })
@@ -248,7 +378,7 @@ export async function executeCreateWorkflow(
       // Telemetry is best-effort
     }
 
-    const normalized = await loadWorkflowFromNormalizedTables(result.workflowId)
+    const normalized = await loadWorkflowFromNormalizedTables(result.workflow.id)
     let copilotSanitizedWorkflowState: unknown
     if (normalized) {
       copilotSanitizedWorkflowState = sanitizeForCopilot({
@@ -256,16 +386,16 @@ export async function executeCreateWorkflow(
         edges: normalized.edges || [],
         loops: normalized.loops || {},
         parallels: normalized.parallels || {},
-      } as any)
+      } as WorkflowState)
     }
 
     return {
       success: true,
       output: {
-        workflowId: result.workflowId,
-        workflowName: result.name,
-        workspaceId: result.workspaceId,
-        folderId: result.folderId,
+        workflowId: result.workflow.id,
+        workflowName: result.workflow.name,
+        workspaceId: result.workflow.workspaceId,
+        folderId: result.workflow.folderId,
         ...(copilotSanitizedWorkflowState ? { copilotSanitizedWorkflowState } : {}),
       },
     }
@@ -294,25 +424,25 @@ export async function executeCreateFolder(
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
     assertWorkflowMutationNotAborted(context)
 
-    const result = await createFolderRecord({
+    const result = await performCreateFolder({
       userId: context.userId,
       workspaceId,
       name,
       parentId,
     })
+    if (!result.success || !result.folder) {
+      return { success: false, error: result.error || 'Failed to create folder' }
+    }
 
-    recordAudit({
-      workspaceId,
-      actorId: context.userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: result.folderId,
-      resourceName: name,
-      description: `Created folder "${name}"`,
-      metadata: { parentId, source: 'copilot' },
-    })
-
-    return { success: true, output: result }
+    return {
+      success: true,
+      output: {
+        folderId: result.folder.id,
+        name: result.folder.name,
+        workspaceId: result.folder.workspaceId,
+        parentId: result.folder.parentId,
+      },
+    }
   } catch (error) {
     return { success: false, error: toError(error).message }
   }
@@ -336,6 +466,11 @@ export async function executeRunWorkflow(
 
     const useDraftState = !params.useDeployedState
 
+    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
+    if ('error' in prepared) {
+      return { success: false, error: prepared.error }
+    }
+
     const result = await executeWorkflow(
       {
         id: workflowRecord.id,
@@ -344,13 +479,13 @@ export async function executeRunWorkflow(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      resolveRunWorkflowInput(params),
+      prepared.input,
       context.userId,
       {
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        triggerBlockId: resolveRunTriggerBlockId(params),
+        triggerBlockId: prepared.triggerBlockId,
       }
     )
 
@@ -464,6 +599,7 @@ export async function executeSetGlobalWorkflowVariables(
 
     assertWorkflowMutationNotAborted(context)
     await setWorkflowVariables(workflowId, nextVarsRecord)
+    notifyWorkflowUpdated(workflowId)
 
     recordAudit({
       actorId: context.userId,
@@ -499,7 +635,21 @@ export async function executeRenameWorkflow(
 
     await ensureWorkflowAccess(workflowId, context.userId, 'write')
     assertWorkflowMutationNotAborted(context)
-    await updateWorkflowRecord(workflowId, { name })
+    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    if (!current.workspaceId) {
+      return { success: false, error: 'Workflow workspace is required' }
+    }
+    const result = await performUpdateWorkflow({
+      workflowId,
+      userId: context.userId,
+      workspaceId: current.workspaceId,
+      currentName: current.workflow.name,
+      currentFolderId: current.workflow.folderId,
+      name,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to rename workflow' }
+    }
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
@@ -523,7 +673,15 @@ export async function executeMoveWorkflow(
 
     for (const workflowId of workflowIds) {
       try {
-        const { workspaceId } = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+        const { workspaceId, workflow } = await ensureWorkflowAccess(
+          workflowId,
+          context.userId,
+          'write'
+        )
+        if (!workspaceId) {
+          failed.push(workflowId)
+          continue
+        }
         if (folderId) {
           if (!workspaceId || !(await verifyFolderWorkspace(folderId, workspaceId))) {
             failed.push(workflowId)
@@ -531,7 +689,18 @@ export async function executeMoveWorkflow(
           }
         }
         assertWorkflowMutationNotAborted(context)
-        await updateWorkflowRecord(workflowId, { folderId })
+        const result = await performUpdateWorkflow({
+          workflowId,
+          userId: context.userId,
+          workspaceId,
+          currentName: workflow.name,
+          currentFolderId: workflow.folderId,
+          folderId,
+        })
+        if (!result.success) {
+          failed.push(workflowId)
+          continue
+        }
         moved.push(workflowId)
       } catch {
         failed.push(workflowId)
@@ -556,17 +725,6 @@ export async function executeMoveFolder(
 
     const parentId = params.parentId || null
 
-    if (parentId === folderId) {
-      return { success: false, error: 'A folder cannot be moved into itself' }
-    }
-
-    if (parentId) {
-      const wouldCreateCycle = await checkForCircularReference(folderId, parentId)
-      if (wouldCreateCycle) {
-        return { success: false, error: 'Cannot create circular folder reference' }
-      }
-    }
-
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
@@ -578,7 +736,15 @@ export async function executeMoveFolder(
     }
 
     assertWorkflowMutationNotAborted(context)
-    await updateFolderRecord(folderId, { parentId })
+    const result = await performUpdateFolder({
+      folderId,
+      workspaceId,
+      userId: context.userId,
+      parentId,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to move folder' }
+    }
 
     return { success: true, output: { folderId, parentId } }
   } catch (error) {
@@ -607,6 +773,11 @@ export async function executeRunWorkflowUntilBlock(
 
     const useDraftState = !params.useDeployedState
 
+    const prepared = await resolveValidatedTriggerRun(workflowId, useDraftState, params)
+    if ('error' in prepared) {
+      return { success: false, error: prepared.error }
+    }
+
     const result = await executeWorkflow(
       {
         id: workflowRecord.id,
@@ -615,14 +786,14 @@ export async function executeRunWorkflowUntilBlock(
         variables: workflowRecord.variables || {},
       },
       generateRequestId(),
-      resolveRunWorkflowInput(params),
+      prepared.input,
       context.userId,
       {
         enabled: true,
         useDraftState,
         stopAfterBlockId: params.stopAfterBlockId,
         workflowTriggerType: 'copilot',
-        triggerBlockId: resolveRunTriggerBlockId(params),
+        triggerBlockId: prepared.triggerBlockId,
       }
     )
 
@@ -650,29 +821,22 @@ export async function executeGenerateApiKey(
     await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
     assertWorkflowMutationNotAborted(context)
 
-    const newKey = await createWorkspaceApiKey({
+    const result = await performCreateWorkspaceApiKey({
       workspaceId,
       userId: context.userId,
       name,
+      source: 'copilot',
     })
-
-    recordAudit({
-      workspaceId,
-      actorId: context.userId,
-      action: AuditAction.API_KEY_CREATED,
-      resourceType: AuditResourceType.API_KEY,
-      resourceId: newKey.id,
-      resourceName: name,
-      description: `Generated API key "${name}" for workspace`,
-      metadata: { source: 'copilot' },
-    })
+    if (!result.success || !result.key) {
+      return { success: false, error: result.error || 'Failed to generate API key' }
+    }
 
     return {
       success: true,
       output: {
-        id: newKey.id,
-        name: newKey.name,
-        key: newKey.key,
+        id: result.key.id,
+        name: result.key.name,
+        key: result.key.key,
         workspaceId,
         message:
           'API key created successfully. Copy this key now — it will not be shown again. Use this key in the x-api-key header when calling workflow API endpoints.',
@@ -696,11 +860,9 @@ export async function executeRunFromBlock(
       return { success: false, error: 'startBlockId is required' }
     }
 
-    const snapshot = params.executionId
-      ? await getExecutionState(params.executionId)
-      : await getLatestExecutionState(workflowId)
+    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
 
-    if (!snapshot) {
+    if (!sourceSnapshot) {
       return {
         success: false,
         error: params.executionId
@@ -730,7 +892,11 @@ export async function executeRunFromBlock(
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        runFromBlock: { startBlockId: params.startBlockId, sourceSnapshot: snapshot },
+        runFromBlock: {
+          startBlockId: params.startBlockId,
+          sourceSnapshot: sourceSnapshot.snapshot,
+          sourceExecutionId: sourceSnapshot.executionId,
+        },
       }
     )
 
@@ -740,7 +906,7 @@ export async function executeRunFromBlock(
   }
 }
 
-export async function executeUpdateWorkflow(
+async function executeUpdateWorkflow(
   params: UpdateWorkflowParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
@@ -771,9 +937,22 @@ export async function executeUpdateWorkflow(
       return { success: false, error: 'At least one of name or description is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    if (!current.workspaceId) {
+      return { success: false, error: 'Workflow workspace is required' }
+    }
     assertWorkflowMutationNotAborted(context)
-    await updateWorkflowRecord(workflowId, updates)
+    const result = await performUpdateWorkflow({
+      workflowId,
+      userId: context.userId,
+      workspaceId: current.workspaceId,
+      currentName: current.workflow.name,
+      currentFolderId: current.workflow.folderId,
+      ...updates,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to update workflow' }
+    }
 
     return {
       success: true,
@@ -933,7 +1112,7 @@ export async function executeDeleteWorkflow(
         const { workflow: workflowRecord } = await ensureWorkflowAccess(
           workflowId,
           context.userId,
-          'admin'
+          'write'
         )
         assertWorkflowMutationNotAborted(context)
 
@@ -968,7 +1147,7 @@ export async function executeDeleteFolder(
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const folders = await listFolders(workspaceId)
     const deleted: string[] = []
@@ -1003,7 +1182,7 @@ export async function executeDeleteFolder(
   }
 }
 
-export async function executeRenameFolder(
+async function executeRenameFolder(
   params: RenameFolderParams,
   context: ExecutionContext
 ): Promise<ToolCallResult> {
@@ -1028,7 +1207,15 @@ export async function executeRenameFolder(
     }
 
     assertWorkflowMutationNotAborted(context)
-    await updateFolderRecord(folderId, { name })
+    const result = await performUpdateFolder({
+      folderId,
+      workspaceId,
+      userId: context.userId,
+      name,
+    })
+    if (!result.success) {
+      return { success: false, error: result.error || 'Failed to rename folder' }
+    }
 
     return { success: true, output: { folderId, name } }
   } catch (error) {
@@ -1049,11 +1236,9 @@ export async function executeRunBlock(
       return { success: false, error: 'blockId is required' }
     }
 
-    const snapshot = params.executionId
-      ? await getExecutionState(params.executionId)
-      : await getLatestExecutionState(workflowId)
+    const sourceSnapshot = await resolveRunFromBlockSnapshot(workflowId, params.executionId)
 
-    if (!snapshot) {
+    if (!sourceSnapshot) {
       return {
         success: false,
         error: params.executionId
@@ -1083,7 +1268,11 @@ export async function executeRunBlock(
         enabled: true,
         useDraftState,
         workflowTriggerType: 'copilot',
-        runFromBlock: { startBlockId: params.blockId, sourceSnapshot: snapshot },
+        runFromBlock: {
+          startBlockId: params.blockId,
+          sourceSnapshot: sourceSnapshot.snapshot,
+          sourceExecutionId: sourceSnapshot.executionId,
+        },
         stopAfterBlockId: params.blockId,
       }
     )

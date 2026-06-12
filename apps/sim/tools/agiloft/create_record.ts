@@ -1,5 +1,6 @@
 import type { AgiloftCreateRecordParams, AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildCreateRecordUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildCreateRecordUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, AgiloftRecordResponse> =
@@ -72,7 +73,7 @@ export const agiloftCreateRecordTool: ToolConfig<AgiloftCreateRecordParams, Agil
         (base) => ({
           url: buildCreateRecordUrl(base, params),
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
           body,
         }),
         async (response) => {

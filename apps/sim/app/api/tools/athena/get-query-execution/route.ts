@@ -1,5 +1,6 @@
 import { GetQueryExecutionCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaGetQueryExecutionContract } from '@/lib/api/contracts/tools/aws/athena-get-query-execution'
 import { parseToolRequest } from '@/lib/api/server'
@@ -62,8 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to get Athena query execution'
+    const errorMessage = getErrorMessage(error, 'Failed to get Athena query execution')
     logger.error('GetQueryExecution failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

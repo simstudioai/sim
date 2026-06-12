@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base parameter interface shared across all Sentry tools
  */
-export interface SentryBaseParams {
+interface SentryBaseParams {
   apiKey: string
   organizationSlug: string
 }
@@ -11,7 +11,7 @@ export interface SentryBaseParams {
 /**
  * Sentry issue representation
  */
-export interface SentryIssue {
+interface SentryIssue {
   id: string
   shortId: string
   title: string
@@ -20,6 +20,8 @@ export interface SentryIssue {
   logger: string | null
   level: string
   status: string
+  substatus: string | null
+  priority: string | null
   statusDetails: Record<string, any>
   isPublic: boolean
   platform: string
@@ -102,7 +104,7 @@ export interface SentryUpdateIssueResponse extends ToolResponse {
 /**
  * Sentry project representation
  */
-export interface SentryProject {
+interface SentryProject {
   id: string
   slug: string
   name: string
@@ -112,7 +114,7 @@ export interface SentryProject {
   isMember: boolean
   features: string[]
   firstEvent: string | null
-  firstTransactionEvent: boolean
+  firstTransactionEvent: boolean | null
   access: string[]
   hasAccess: boolean
   hasMinifiedStackTrace: boolean
@@ -197,9 +199,46 @@ export interface SentryUpdateProjectResponse extends ToolResponse {
 }
 
 /**
+ * Sentry team representation
+ */
+interface SentryTeam {
+  id: string
+  slug: string
+  name: string
+  dateCreated: string
+  isMember: boolean
+  teamRole: string | null
+  hasAccess: boolean
+  isPending: boolean
+  memberCount: number
+  projects: Array<{
+    id: string
+    slug: string
+    name: string
+    platform: string | null
+  }>
+}
+
+export interface SentryListTeamsParams extends SentryBaseParams {
+  query?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface SentryListTeamsResponse extends ToolResponse {
+  output: {
+    teams: SentryTeam[]
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
+  }
+}
+
+/**
  * Sentry event representation
  */
-export interface SentryEvent {
+interface SentryEvent {
   id: string
   eventID: string
   projectID: string
@@ -240,6 +279,8 @@ export interface SentryEvent {
   }>
   dist: string | null
   fingerprints: string[]
+  size: number | null
+  release: Record<string, any> | null
   sdk: {
     name: string
     version: string
@@ -279,7 +320,7 @@ export interface SentryGetEventResponse extends ToolResponse {
 /**
  * Sentry release representation
  */
-export interface SentryRelease {
+interface SentryRelease {
   id: string
   version: string
   shortVersion: string
@@ -388,6 +429,7 @@ export interface SentryCreateDeployResponse extends ToolResponse {
  * Union response type for all Sentry operations
  */
 export type SentryResponse =
+  | SentryListTeamsResponse
   | SentryListIssuesResponse
   | SentryGetIssueResponse
   | SentryUpdateIssueResponse

@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { COPILOT_STATS_API_PATH } from '@/lib/copilot/constants'
 import { stripWorkflowDiffMarkers, WorkflowDiffEngine } from '@/lib/workflows/diff'
 import { enqueueReplaceWorkflowState } from '@/lib/workflows/operations/socket-operations'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
@@ -18,6 +16,7 @@ import {
   createBatchedUpdater,
   getLatestUserMessageId,
   persistWorkflowStateToServer,
+  WORKFLOW_DIFF_SETTLED_EVENT,
 } from './utils'
 
 const logger = createLogger('WorkflowDiffStore')
@@ -60,6 +59,11 @@ function isEmptyDiffAnalysis(
   return !hasBlockChanges && !hasEdgeChanges && !hasFieldChanges
 }
 
+function notifyDiffSettled(workflowId: string | null | undefined): void {
+  if (!workflowId || typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(WORKFLOW_DIFF_SETTLED_EVENT, { detail: { workflowId } }))
+}
+
 export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActions>()(
   devtools(
     (set, get) => {
@@ -74,6 +78,10 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
         diffAnalysis: null,
         diffMetadata: null,
         diffError: null,
+        pendingExternalUpdates: {},
+        remoteUpdateVersions: {},
+        reconcilingWorkflows: {},
+        reconciliationErrors: {},
         _triggerMessageId: null,
         _batchedStateUpdate: batchedUpdate,
 
@@ -243,7 +251,8 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
 
           diffEngine.clearDiff()
 
-          batchedUpdate(RESET_DIFF_STATE)
+          set(RESET_DIFF_STATE)
+          notifyDiffSettled(baselineWorkflowId ?? activeWorkflowId)
         },
 
         toggleDiffView: () => {
@@ -296,7 +305,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
           const afterAccept = cloneWorkflowState(stateToApply)
           const diffAnalysisForUndo = get().diffAnalysis
           const baselineForUndo = get().baselineWorkflow
-          const triggerMessageId = get()._triggerMessageId
 
           // Clear diff state FIRST to prevent flash of colors
           // This must happen synchronously before applying the cleaned state
@@ -323,27 +331,11 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
-          // Background operations (fire-and-forget) - don't block
-          if (triggerMessageId) {
-            fetch(COPILOT_STATS_API_PATH, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                messageId: triggerMessageId,
-                diffCreated: true,
-                diffAccepted: true,
-              }),
-            }).catch((error) => {
-              logger.warn('Failed to send diff-accepted stats', {
-                error: toError(error).message,
-                messageId: triggerMessageId,
-              })
-            })
-          }
+          notifyDiffSettled(activeWorkflowId)
         },
 
         rejectChanges: async (options) => {
-          const { baselineWorkflow, baselineWorkflowId, _triggerMessageId, diffAnalysis } = get()
+          const { baselineWorkflow, baselineWorkflowId, diffAnalysis } = get()
           const activeWorkflowId = useWorkflowRegistry.getState().activeWorkflowId
 
           if (!baselineWorkflow || !baselineWorkflowId) {
@@ -372,7 +364,8 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             ...currentState,
             blocks: mergedBlocks,
           })
-          const afterReject = cloneWorkflowState(baselineWorkflow)
+
+          get().setWorkflowReconciliationInProgress(baselineWorkflowId, true)
 
           // Clear diff state FIRST for instant UI feedback
           set(RESET_DIFF_STATE)
@@ -390,7 +383,7 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
                 detail: {
                   type: 'reject-diff',
                   beforeReject,
-                  afterReject,
+                  afterReject: baselineWorkflow,
                   diffAnalysis,
                   baselineSnapshot: baselineWorkflow,
                 },
@@ -398,8 +391,6 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             )
           }
 
-          // Background operations (fire-and-forget) - don't block UI
-          // Broadcast to other users
           logger.info('Broadcasting reject to other users', {
             workflowId: activeWorkflowId,
             blockCount: Object.keys(baselineWorkflow.blocks).length,
@@ -412,27 +403,40 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             logger.error('Failed to broadcast reject to other users:', error)
           })
 
-          // Persist to database in background
-          persistWorkflowStateToServer(baselineWorkflowId, baselineWorkflow).catch((error) => {
-            logger.error('Failed to persist baseline workflow state:', error)
-          })
-
-          if (_triggerMessageId) {
-            fetch(COPILOT_STATS_API_PATH, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                messageId: _triggerMessageId,
-                diffCreated: true,
-                diffAccepted: false,
-              }),
-            }).catch((error) => {
-              logger.warn('Failed to send diff-rejected stats', {
-                error: toError(error).message,
-                messageId: _triggerMessageId,
-              })
-            })
+          const pendingGenerationBeforePersist =
+            get().pendingExternalUpdates[baselineWorkflowId] ?? 0
+          const persisted = await persistWorkflowStateToServer(baselineWorkflowId, baselineWorkflow)
+          if (!persisted) {
+            logger.error('Failed to persist baseline workflow state')
+            if (
+              (get().pendingExternalUpdates[baselineWorkflowId] ?? 0) <=
+              pendingGenerationBeforePersist
+            ) {
+              get().clearExternalUpdatePending(baselineWorkflowId)
+            }
+            get().setWorkflowReconciliationInProgress(baselineWorkflowId, false)
+            get().setWorkflowReconciliationError(
+              baselineWorkflowId,
+              'Failed to save rejected copilot changes. Refresh and try again.'
+            )
+            if (
+              (get().pendingExternalUpdates[baselineWorkflowId] ?? 0) >
+              pendingGenerationBeforePersist
+            ) {
+              notifyDiffSettled(baselineWorkflowId)
+            }
+            return
           }
+
+          if (
+            (get().pendingExternalUpdates[baselineWorkflowId] ?? 0) <=
+            pendingGenerationBeforePersist
+          ) {
+            get().clearExternalUpdatePending(baselineWorkflowId)
+          }
+          get().setWorkflowReconciliationError(baselineWorkflowId, null)
+          get().setWorkflowReconciliationInProgress(baselineWorkflowId, false)
+          notifyDiffSettled(baselineWorkflowId)
         },
 
         reapplyDiffMarkers: () => {
@@ -504,6 +508,65 @@ export const useWorkflowDiffStore = create<WorkflowDiffState & WorkflowDiffActio
             useWorkflowStore.setState({ blocks: updatedBlocks })
             logger.info('Re-applied diff markers to workflow blocks')
           }
+        },
+
+        markRemoteUpdateSeen: (workflowId) => {
+          set((state) => ({
+            remoteUpdateVersions: {
+              ...state.remoteUpdateVersions,
+              [workflowId]: (state.remoteUpdateVersions[workflowId] ?? 0) + 1,
+            },
+            reconciliationErrors: Object.fromEntries(
+              Object.entries(state.reconciliationErrors).filter(([id]) => id !== workflowId)
+            ),
+          }))
+        },
+
+        markExternalUpdatePending: (workflowId) => {
+          const current = get()
+          set({
+            pendingExternalUpdates: {
+              ...current.pendingExternalUpdates,
+              [workflowId]: (current.pendingExternalUpdates[workflowId] ?? 0) + 1,
+            },
+            remoteUpdateVersions: {
+              ...current.remoteUpdateVersions,
+              [workflowId]: (current.remoteUpdateVersions[workflowId] ?? 0) + 1,
+            },
+            reconciliationErrors: Object.fromEntries(
+              Object.entries(current.reconciliationErrors).filter(([id]) => id !== workflowId)
+            ),
+          })
+        },
+
+        clearExternalUpdatePending: (workflowId) => {
+          set((state) => {
+            const { [workflowId]: _removed, ...pendingExternalUpdates } =
+              state.pendingExternalUpdates
+            return { pendingExternalUpdates }
+          })
+        },
+
+        setWorkflowReconciliationInProgress: (workflowId, isReconciling) => {
+          set((state) => {
+            const { [workflowId]: _removed, ...reconcilingWorkflows } = state.reconcilingWorkflows
+            return {
+              reconcilingWorkflows: isReconciling
+                ? { ...reconcilingWorkflows, [workflowId]: true }
+                : reconcilingWorkflows,
+            }
+          })
+        },
+
+        setWorkflowReconciliationError: (workflowId, error) => {
+          set((state) => {
+            const { [workflowId]: _removed, ...reconciliationErrors } = state.reconciliationErrors
+            return {
+              reconciliationErrors: error
+                ? { ...reconciliationErrors, [workflowId]: error }
+                : reconciliationErrors,
+            }
+          })
         },
       }
     },

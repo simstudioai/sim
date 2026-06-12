@@ -9,12 +9,12 @@ export type DocumentSortField =
   | 'enabled'
 export type SortOrder = 'asc' | 'desc'
 
-export interface DocumentSortOptions {
+interface DocumentSortOptions {
   sortBy?: DocumentSortField
   sortOrder?: SortOrder
 }
 
-export interface HeaderInfo {
+interface HeaderInfo {
   /** Header text */
   text: string
   /** Header level (1-6) */

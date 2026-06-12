@@ -1,25 +1,20 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
+import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
-import { isHosted } from '@/lib/core/config/feature-flags'
-import { createMcpToolId } from '@/lib/mcp/utils'
+import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
+import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { tools } from '@/tools/registry'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
+import { stripVersionSuffix } from '@/tools/utils'
 
 const logger = createLogger('CopilotChatPayload')
-const TOOL_SCHEMA_CACHE_TTL_MS = 30_000
-
-type ToolSchemaCacheEntry = {
-  expiresAt: number
-  value?: ToolSchema[]
-  promise?: Promise<ToolSchema[]>
-}
-
-const toolSchemaCache = new Map<string, ToolSchemaCacheEntry>()
+const INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS = 5_000
+const INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES = 500
 
 interface BuildPayloadParams {
   message: string
@@ -31,7 +26,7 @@ interface BuildPayloadParams {
   mode: string
   model: string
   provider?: string
-  contexts?: Array<{ type: string; content: string }>
+  contexts?: Array<{ type: string; content: string; tag?: string; path?: string }>
   fileAttachments?: Array<{ id: string; key: string; size: number; [key: string]: unknown }>
   commands?: string[]
   chatId?: string
@@ -40,6 +35,11 @@ interface BuildPayloadParams {
   workspaceContext?: string
   userPermission?: string
   userTimezone?: string
+  userMetadata?: {
+    name?: string
+    timezone?: string
+  }
+  includeMothershipTools?: boolean
 }
 
 export interface ToolSchema {
@@ -48,11 +48,47 @@ export interface ToolSchema {
   input_schema: Record<string, unknown>
   defer_loading?: boolean
   executeLocally?: boolean
+  params?: Record<string, unknown>
+  /** Canonical integration service/folder (e.g. "slack"), for server-side grouping. */
+  service?: string
   oauth?: { required: boolean; provider: string }
 }
 
 interface BuildIntegrationToolSchemasOptions {
   schemaSurface?: 'default' | 'copilot'
+}
+
+interface IntegrationToolSchemaCacheEntry {
+  promise: Promise<ToolSchema[]>
+}
+
+const integrationToolSchemaCache = new LRUCache<string, IntegrationToolSchemaCacheEntry>({
+  max: INTEGRATION_TOOL_SCHEMA_CACHE_MAX_ENTRIES,
+  ttl: INTEGRATION_TOOL_SCHEMA_CACHE_TTL_MS,
+})
+
+function getIntegrationToolSchemaCacheKey(
+  userId: string,
+  workspaceId: string | undefined,
+  schemaSurface: string
+): string {
+  return JSON.stringify([userId, workspaceId ?? null, schemaSurface])
+}
+
+function cloneToolSchemas(toolSchemas: ToolSchema[]): ToolSchema[] {
+  return toolSchemas.map((tool) => {
+    const cloned: ToolSchema = {
+      ...tool,
+      input_schema: { ...tool.input_schema },
+    }
+    if (tool.params) cloned.params = { ...tool.params }
+    if (tool.oauth) cloned.oauth = { ...tool.oauth }
+    return cloned
+  })
+}
+
+export function clearIntegrationToolSchemaCacheForTests(): void {
+  integrationToolSchemaCache.clear()
 }
 
 /**
@@ -62,8 +98,7 @@ interface BuildIntegrationToolSchemasOptions {
  *
  * When `workspaceId` is provided the user's workspace permission config is
  * loaded once and used to skip any tool whose owning block is not in the
- * workspace's `allowedIntegrations` allowlist. The resulting list is cached
- * per `(userId, workspaceId, surface)` key so copilot turns reuse the filter.
+ * workspace's `allowedIntegrations` allowlist.
  */
 export async function buildIntegrationToolSchemas(
   userId: string,
@@ -71,135 +106,138 @@ export async function buildIntegrationToolSchemas(
   options: BuildIntegrationToolSchemasOptions = { schemaSurface: 'copilot' },
   workspaceId?: string
 ): Promise<ToolSchema[]> {
-  const cacheKey = `${userId}:${workspaceId ?? ''}:${options.schemaSurface ?? 'copilot'}`
-  const now = Date.now()
-  const cached = toolSchemaCache.get(cacheKey)
-  if (cached?.value && cached.expiresAt > now) {
-    return cached.value.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
-  }
-  if (cached?.promise) {
-    const tools = await cached.promise
-    return tools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
+  const schemaSurface = options.schemaSurface ?? 'copilot'
+  const cacheKey = getIntegrationToolSchemaCacheKey(userId, workspaceId, schemaSurface)
+  const cached = integrationToolSchemaCache.get(cacheKey)
+  if (cached) {
+    return cloneToolSchemas(await cached.promise)
   }
 
-  const reqLogger = logger.withMetadata({ messageId })
-  const promise = (async () => {
-    const integrationTools: ToolSchema[] = []
-    try {
-      const { createUserToolSchema } = await import('@/tools/params')
-      const latestTools = getLatestVersionTools(tools)
-      let shouldAppendEmailTagline = false
+  const promise = buildIntegrationToolSchemasUncached(
+    userId,
+    messageId,
+    { schemaSurface },
+    workspaceId
+  ).catch((error) => {
+    integrationToolSchemaCache.delete(cacheKey)
+    throw error
+  })
 
-      try {
-        const subscription = await getHighestPrioritySubscription(userId)
-        shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
-      } catch (error) {
-        reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
-          userId,
-          error: toError(error).message,
-        })
-      }
-
-      let allowedIntegrations: Set<string> | null = null
-      let toolIdToBlockType: Map<string, string> | null = null
-      if (workspaceId) {
-        try {
-          const [{ getUserPermissionConfig }, { registry: blockRegistry }] = await Promise.all([
-            import('@/ee/access-control/utils/permission-check'),
-            import('@/blocks/registry'),
-          ])
-          const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
-          if (permissionConfig?.allowedIntegrations) {
-            allowedIntegrations = new Set(
-              permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
-            )
-            toolIdToBlockType = new Map()
-            for (const [blockType, blockConfig] of Object.entries(blockRegistry)) {
-              const access = (blockConfig as { tools?: { access?: string[] } }).tools?.access
-              if (!access) continue
-              for (const toolId of access) {
-                toolIdToBlockType.set(stripVersionSuffix(toolId), blockType.toLowerCase())
-              }
-            }
-          }
-        } catch (error) {
-          reqLogger.warn('Failed to load permission config for tool schema filter', {
-            userId,
-            workspaceId,
-            error: toError(error).message,
-          })
-        }
-      }
-
-      for (const [toolId, toolConfig] of Object.entries(latestTools)) {
-        try {
-          const strippedName = stripVersionSuffix(toolId)
-          if (allowedIntegrations && toolIdToBlockType) {
-            const owningBlock = toolIdToBlockType.get(strippedName)
-            if (owningBlock && !allowedIntegrations.has(owningBlock)) {
-              continue
-            }
-          }
-          const userSchema = createUserToolSchema(toolConfig, {
-            surface: options.schemaSurface ?? 'copilot',
-          })
-          const catalogEntry = getToolEntry(strippedName)
-          integrationTools.push({
-            name: strippedName,
-            description: getCopilotToolDescription(toolConfig, {
-              isHosted,
-              fallbackName: strippedName,
-              appendEmailTagline: shouldAppendEmailTagline,
-            }),
-            input_schema: { ...userSchema },
-            defer_loading: true,
-            executeLocally:
-              catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
-            ...(toolConfig.oauth?.required && {
-              oauth: {
-                required: true,
-                provider: toolConfig.oauth.provider,
-              },
-            }),
-          })
-        } catch (toolError) {
-          logger.warn(
-            messageId
-              ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
-              : 'Failed to build schema for tool, skipping',
-            {
-              toolId,
-              error: toError(toolError).message,
-            }
-          )
-        }
-      }
-    } catch (error) {
-      logger.warn(
-        messageId
-          ? `Failed to build tool schemas [messageId:${messageId}]`
-          : 'Failed to build tool schemas',
-        {
-          error: toError(error).message,
-        }
-      )
-    }
-
-    toolSchemaCache.set(cacheKey, {
-      value: integrationTools,
-      expiresAt: Date.now() + TOOL_SCHEMA_CACHE_TTL_MS,
-    })
-
-    return integrationTools
-  })()
-
-  toolSchemaCache.set(cacheKey, {
-    expiresAt: now + TOOL_SCHEMA_CACHE_TTL_MS,
+  integrationToolSchemaCache.set(cacheKey, {
     promise,
   })
 
-  const integrationTools = await promise
-  return integrationTools.map((tool) => ({ ...tool, input_schema: { ...tool.input_schema } }))
+  return cloneToolSchemas(await promise)
+}
+
+async function buildIntegrationToolSchemasUncached(
+  userId: string,
+  messageId: string | undefined,
+  options: Required<BuildIntegrationToolSchemasOptions>,
+  workspaceId?: string
+): Promise<ToolSchema[]> {
+  const reqLogger = logger.withMetadata({ messageId })
+  const integrationTools: ToolSchema[] = []
+  try {
+    const { createUserToolSchema } = await import('@/tools/params')
+    let shouldAppendEmailTagline = false
+
+    try {
+      const subscription = await getHighestPrioritySubscription(userId)
+      shouldAppendEmailTagline = !subscription || !isPaid(subscription.plan)
+    } catch (error) {
+      reqLogger.warn('Failed to load subscription for copilot tool descriptions', {
+        userId,
+        error: toError(error).message,
+      })
+    }
+
+    let allowedIntegrations: Set<string> | null = null
+    let toolIdToBlockType: Map<string, string> | null = null
+    if (workspaceId) {
+      try {
+        const [{ getUserPermissionConfig }, { getAllBlocks }] = await Promise.all([
+          import('@/ee/access-control/utils/permission-check'),
+          import('@/blocks/registry'),
+        ])
+        const permissionConfig = await getUserPermissionConfig(userId, workspaceId)
+        if (permissionConfig?.allowedIntegrations) {
+          allowedIntegrations = new Set(
+            permissionConfig.allowedIntegrations.map((i) => i.toLowerCase())
+          )
+          toolIdToBlockType = new Map()
+          for (const blockConfig of getAllBlocks()) {
+            const access = blockConfig.tools?.access
+            if (!access) continue
+            for (const toolId of access) {
+              toolIdToBlockType.set(stripVersionSuffix(toolId), blockConfig.type.toLowerCase())
+            }
+          }
+        }
+      } catch (error) {
+        reqLogger.warn('Failed to load permission config for tool schema filter', {
+          userId,
+          workspaceId,
+          error: toError(error).message,
+        })
+      }
+    }
+
+    for (const { toolId, config: toolConfig, service } of getExposedIntegrationTools()) {
+      try {
+        if (allowedIntegrations && toolIdToBlockType) {
+          const owningBlock = toolIdToBlockType.get(stripVersionSuffix(toolId))
+          if (owningBlock && !allowedIntegrations.has(owningBlock)) {
+            continue
+          }
+        }
+        const userSchema = createUserToolSchema(toolConfig, {
+          surface: options.schemaSurface,
+        })
+        const catalogEntry = getToolEntry(toolId)
+        integrationTools.push({
+          name: toolId,
+          service,
+          description: getCopilotToolDescription(toolConfig, {
+            isHosted,
+            fallbackName: toolId,
+            appendEmailTagline: shouldAppendEmailTagline,
+          }),
+          input_schema: { ...userSchema },
+          defer_loading: true,
+          executeLocally:
+            catalogEntry?.clientExecutable === true || catalogEntry?.route === 'client',
+          ...(toolConfig.oauth?.required && {
+            oauth: {
+              required: true,
+              provider: toolConfig.oauth.provider,
+            },
+          }),
+        })
+      } catch (toolError) {
+        logger.warn(
+          messageId
+            ? `Failed to build schema for tool, skipping [messageId:${messageId}]`
+            : 'Failed to build schema for tool, skipping',
+          {
+            toolId,
+            error: toError(toolError).message,
+          }
+        )
+      }
+    }
+  } catch (error) {
+    logger.warn(
+      messageId
+        ? `Failed to build tool schemas [messageId:${messageId}]`
+        : 'Failed to build tool schemas',
+      {
+        error: toError(error).message,
+      }
+    )
+  }
+
+  return integrationTools
 }
 
 /**
@@ -232,13 +270,13 @@ export async function buildCopilotRequestPayload(
   const transportMode = effectiveMode === 'build' ? 'agent' : effectiveMode
 
   // Track uploaded files in the DB and build context tags instead of base64 inlining
-  const uploadContexts: Array<{ type: string; content: string }> = []
+  const uploadContexts: Array<{ type: string; content: string; tag?: string; path?: string }> = []
   if (chatId && params.workspaceId && fileAttachments && fileAttachments.length > 0) {
     for (const f of fileAttachments) {
       const filename = (f.filename ?? f.name ?? 'file') as string
       const mediaType = (f.media_type ?? f.mimeType ?? 'application/octet-stream') as string
       try {
-        await trackChatUpload(
+        const { displayName } = await trackChatUpload(
           params.workspaceId,
           userId,
           chatId,
@@ -247,14 +285,23 @@ export async function buildCopilotRequestPayload(
           mediaType,
           f.size
         )
+        // Encode the read path per the percent-encoded VFS convention (matches
+        // files/ and the uploads glob output). The materialize_file `fileName`
+        // arg stays the raw display name — the upload resolver accepts both.
+        let encodedUploadName = displayName
+        try {
+          encodedUploadName = encodeVfsSegment(displayName)
+        } catch {
+          encodedUploadName = displayName
+        }
         const lines = [
-          `File "${filename}" (${mediaType}, ${f.size} bytes) uploaded.`,
-          `Read with: read("uploads/${filename}")`,
-          `To save permanently: materialize_file(fileName: "${filename}")`,
+          `File "${displayName}" (${mediaType}, ${f.size} bytes) uploaded.`,
+          `Read with: read("uploads/${encodedUploadName}")`,
+          `To save permanently: materialize_file(fileName: "${displayName}")`,
         ]
-        if (filename.endsWith('.json')) {
+        if (displayName.endsWith('.json')) {
           lines.push(
-            `To import as a workflow: materialize_file(fileName: "${filename}", operation: "import")`
+            `To import as a workflow: materialize_file(fileName: "${displayName}", operation: "import")`
           )
         }
         uploadContexts.push({
@@ -274,7 +321,7 @@ export async function buildCopilotRequestPayload(
   const allContexts = [...(contexts ?? []), ...uploadContexts]
 
   let integrationTools: ToolSchema[] = []
-
+  const mothershipTools: ToolSchema[] = []
   const payloadLogger = logger.withMetadata({ messageId: userMessageId })
 
   if (effectiveMode === 'build') {
@@ -285,36 +332,17 @@ export async function buildCopilotRequestPayload(
       params.workspaceId
     )
 
-    // Discover MCP tools from workspace servers and include as deferred tools
-    if (params.workspaceId) {
+    if (params.includeMothershipTools && params.workspaceId) {
+      // Expose all workspace user-created skills via the single load_user_skill
+      // tool. Available to every user; content is fetched sim-side when the
+      // model calls it.
       try {
-        const { mcpService } = await import('@/lib/mcp/service')
-        const mcpTools = await mcpService.discoverTools(userId, params.workspaceId)
-        for (const mcpTool of mcpTools) {
-          integrationTools.push({
-            name: createMcpToolId(mcpTool.serverId, mcpTool.name),
-            description: mcpTool.description || `MCP tool: ${mcpTool.name} (${mcpTool.serverName})`,
-            input_schema: { ...mcpTool.inputSchema },
-            executeLocally: false,
-          })
-        }
-        if (mcpTools.length > 0) {
-          logger.error(
-            userMessageId
-              ? `Added MCP tools to copilot payload [messageId:${userMessageId}]`
-              : 'Added MCP tools to copilot payload',
-            { count: mcpTools.length }
-          )
-        }
+        const userSkillTool = await buildUserSkillTool(params.workspaceId)
+        if (userSkillTool) mothershipTools.push(userSkillTool)
       } catch (error) {
-        logger.warn(
-          userMessageId
-            ? `Failed to discover MCP tools for copilot [messageId:${userMessageId}]`
-            : 'Failed to discover MCP tools for copilot',
-          {
-            error: toError(error).message,
-          }
-        )
+        logger.warn('Failed to build load_user_skill tool', {
+          error: toError(error).message,
+        })
       }
     }
   }
@@ -334,10 +362,17 @@ export async function buildCopilotRequestPayload(
     ...(typeof prefetch === 'boolean' ? { prefetch } : {}),
     ...(implicitFeedback ? { implicitFeedback } : {}),
     ...(integrationTools.length > 0 ? { integrationTools } : {}),
+    ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
     ...(commands && commands.length > 0 ? { commands } : {}),
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
+    ...(params.userMetadata && (params.userMetadata.name || params.userMetadata.timezone)
+      ? { userMetadata: params.userMetadata }
+      : {}),
+    // Tell the copilot file subagent which document toolchain to write. Emitted
+    // only in Python mode so the JS path sends no new field (Go defaults to js).
+    ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
     isHosted,
   }
 }

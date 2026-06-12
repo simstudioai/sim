@@ -1,6 +1,7 @@
 import { db, workflowDeploymentVersion } from '@sim/db'
 import { webhook, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
@@ -8,6 +9,43 @@ import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
 import { getCredentialsForCredentialSet } from '@/app/api/auth/oauth/utils'
 import { isPollingWebhookProvider } from '@/triggers/constants'
+
+/**
+ * Returns the id of a different workflow that already owns an active webhook on
+ * the given path, or `null` if the path is free or owned by `workflowId`.
+ *
+ * Webhook paths are user-controlled and the database only enforces uniqueness
+ * per deployment version, so this is the single guard against cross-tenant path
+ * collisions for every webhook creation path. The filter mirrors the runtime
+ * dispatcher (`findAllWebhooksForPath`): an active, non-archived webhook on a
+ * non-archived workflow — inactive or archived webhooks never receive
+ * deliveries, so they must not reserve a path. All matching rows are scanned so
+ * a same-workflow row can never mask a foreign collision.
+ */
+export async function findConflictingWebhookPathOwner(params: {
+  path: string
+  workflowId: string
+  tx?: DbOrTx
+}): Promise<string | null> {
+  const { path, workflowId, tx } = params
+  const dbCtx = tx ?? db
+
+  const existing = await dbCtx
+    .select({ workflowId: webhook.workflowId })
+    .from(webhook)
+    .innerJoin(workflow, eq(webhook.workflowId, workflow.id))
+    .where(
+      and(
+        eq(webhook.path, path),
+        eq(webhook.isActive, true),
+        isNull(webhook.archivedAt),
+        isNull(workflow.archivedAt)
+      )
+    )
+
+  const conflict = existing.find((row) => row.workflowId !== workflowId)
+  return conflict ? conflict.workflowId : null
+}
 
 /**
  * Result of syncing webhooks for a credential set
@@ -43,6 +81,11 @@ export interface CredentialSetWebhookSyncResult {
  * 3. Creates webhooks for new credentials
  * 4. Updates config for existing webhooks (preserving state)
  * 5. Deletes webhooks for credentials no longer in the set
+ *
+ * Must run OUTSIDE any open transaction: credential resolution can trigger an
+ * OAuth token refresh (external HTTP + its own committed writes) and webhook
+ * cleanup can call external provider APIs, neither of which may execute while
+ * a pooled connection is held.
  */
 export async function syncWebhooksForCredentialSet(params: {
   workflowId: string
@@ -53,7 +96,6 @@ export async function syncWebhooksForCredentialSet(params: {
   oauthProviderId: string
   providerConfig: Record<string, unknown>
   requestId: string
-  tx?: DbOrTx
   deploymentVersionId?: string
 }): Promise<CredentialSetWebhookSyncResult> {
   const {
@@ -65,11 +107,8 @@ export async function syncWebhooksForCredentialSet(params: {
     oauthProviderId,
     providerConfig,
     requestId,
-    tx,
     deploymentVersionId,
   } = params
-
-  const dbCtx = tx ?? db
 
   const syncLogger = createLogger('CredentialSetWebhookSync')
   syncLogger.info(
@@ -91,7 +130,7 @@ export async function syncWebhooksForCredentialSet(params: {
     `[${requestId}] Found ${credentials.length} credentials in set ${credentialSetId}`
   )
 
-  const existingWebhooks = await dbCtx
+  const existingWebhooks = await db
     .select()
     .from(webhook)
     .where(
@@ -163,7 +202,7 @@ export async function syncWebhooksForCredentialSet(params: {
           userId: cred.userId,
         }
 
-        await dbCtx
+        await db
           .update(webhook)
           .set({
             ...(deploymentVersionId ? { deploymentVersionId } : {}),
@@ -197,7 +236,7 @@ export async function syncWebhooksForCredentialSet(params: {
           userId: cred.userId,
         }
 
-        await dbCtx.insert(webhook).values({
+        await db.insert(webhook).values({
           id: webhookId,
           workflowId,
           blockId,
@@ -223,7 +262,7 @@ export async function syncWebhooksForCredentialSet(params: {
         )
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       syncLogger.error(
         `[${requestId}] Failed to sync webhook for credential ${cred.credentialId}: ${errorMessage}`
       )
@@ -240,14 +279,14 @@ export async function syncWebhooksForCredentialSet(params: {
         if (workflowRecord) {
           await cleanupExternalWebhook(existingWebhook, workflowRecord, requestId)
         }
-        await dbCtx.delete(webhook).where(eq(webhook.id, existingWebhook.id))
+        await db.delete(webhook).where(eq(webhook.id, existingWebhook.id))
         result.deleted++
 
         syncLogger.debug(
           `[${requestId}] Deleted webhook ${existingWebhook.id} for removed credential ${credentialId}`
         )
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        const errorMessage = getErrorMessage(error, 'Unknown error')
         syncLogger.error(
           `[${requestId}] Failed to delete webhook ${existingWebhook.id} for credential ${credentialId}: ${errorMessage}`
         )
@@ -271,17 +310,16 @@ export async function syncWebhooksForCredentialSet(params: {
  * Called when credential set membership changes (member added/removed).
  *
  * This finds all workflows with webhooks using this credential set and resyncs them.
+ * Must run OUTSIDE any open transaction — see {@link syncWebhooksForCredentialSet}.
  */
 export async function syncAllWebhooksForCredentialSet(
   credentialSetId: string,
-  requestId: string,
-  tx?: DbOrTx
+  requestId: string
 ): Promise<{ workflowsUpdated: number; totalCreated: number; totalDeleted: number }> {
-  const dbCtx = tx ?? db
   const syncLogger = createLogger('CredentialSetMembershipSync')
   syncLogger.info(`[${requestId}] Syncing all webhooks for credential set ${credentialSetId}`)
 
-  const webhooksForSet = await dbCtx
+  const webhooksForSet = await db
     .select({ webhook })
     .from(webhook)
     .leftJoin(
@@ -347,7 +385,6 @@ export async function syncAllWebhooksForCredentialSet(
         oauthProviderId,
         providerConfig: baseConfig,
         requestId,
-        tx: dbCtx,
         deploymentVersionId: representativeWebhook.deploymentVersionId || undefined,
       })
 

@@ -3,7 +3,10 @@ import { z } from 'zod'
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().url().optional(),
+  REDIS_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().url().optional()
+  ),
   BETTER_AUTH_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32),
   INTERNAL_API_SECRET: z.string().min(32),

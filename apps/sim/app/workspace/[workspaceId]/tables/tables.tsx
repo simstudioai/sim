@@ -2,24 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import type { ComboboxOption } from '@/components/emcn'
-import {
-  Button,
-  Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  toast,
-  Upload,
-} from '@/components/emcn'
+import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
 import type { TableDefinition } from '@/lib/table'
-import { generateUniqueTableName } from '@/lib/table/constants'
+import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import type {
   FilterTag,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
@@ -29,20 +21,26 @@ import { ownerCell, Resource, timeCell } from '@/app/workspace/[workspaceId]/com
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
+  ImportProgressMenu,
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
+  cancelTableJob,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
+  useImportCsvAsync,
+  useRenameTable,
   useTablesList,
   useUploadCsvToTable,
 } from '@/hooks/queries/tables'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useInlineRename } from '@/hooks/use-inline-rename'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
 
@@ -76,8 +74,14 @@ export function Tables() {
     logger.error('Failed to load tables:', error)
   }
   const deleteTable = useDeleteTable(workspaceId)
+  const renameTable = useRenameTable(workspaceId)
   const createTable = useCreateTable(workspaceId)
   const uploadCsv = useUploadCsvToTable()
+  const importCsvAsync = useImportCsvAsync()
+
+  const tableRename = useInlineRename({
+    onSave: (tableId, name) => renameTable.mutateAsync({ tableId, name }),
+  })
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
@@ -90,8 +94,8 @@ export function Tables() {
   } | null>(null)
   const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
-  const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -161,15 +165,24 @@ export function Tables() {
         id: table.id,
         cells: {
           name: {
-            icon: <TableIcon className='h-[14px] w-[14px]' />,
+            icon: <TableIcon className='size-[14px]' />,
             label: table.name,
+            editing:
+              tableRename.editingId === table.id
+                ? {
+                    value: tableRename.editValue,
+                    onChange: tableRename.setEditValue,
+                    onSubmit: tableRename.submitRename,
+                    onCancel: tableRename.cancelRename,
+                  }
+                : undefined,
           },
           columns: {
-            icon: <Columns3 className='h-[14px] w-[14px]' />,
+            icon: <Columns3 className='size-[14px]' />,
             label: String(table.schema.columns.length),
           },
           rows: {
-            icon: <Rows3 className='h-[14px] w-[14px]' />,
+            icon: <Rows3 className='size-[14px]' />,
             label: String(table.rowCount),
           },
           created: timeCell(table.createdAt),
@@ -177,7 +190,15 @@ export function Tables() {
           updated: timeCell(table.updatedAt),
         },
       })),
-    [processedTables, members]
+    [
+      processedTables,
+      members,
+      tableRename.editingId,
+      tableRename.editValue,
+      tableRename.setEditValue,
+      tableRename.submitRename,
+      tableRename.cancelRename,
+    ]
   )
 
   const searchConfig: SearchConfig = useMemo(
@@ -237,10 +258,10 @@ export function Tables() {
             src={m.image}
             alt={m.name}
             referrerPolicy='no-referrer'
-            className='h-[14px] w-[14px] rounded-full border border-[var(--border)] object-cover'
+            className='size-[14px] rounded-full border border-[var(--border)] object-cover'
           />
         ) : (
-          <span className='flex h-[14px] w-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
+          <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
             {m.name.charAt(0).toUpperCase()}
           </span>
         ),
@@ -255,7 +276,7 @@ export function Tables() {
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
               { value: 'small', label: 'Small (1–100 rows)' },
@@ -269,14 +290,13 @@ export function Tables() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
             <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-            <Combobox
+            <ChipCombobox
               options={memberOptions}
               multiSelect
               multiSelectValues={ownerFilter}
@@ -288,8 +308,7 @@ export function Tables() {
               searchPlaceholder='Search members...'
               showAllOption
               allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              className='w-full'
             />
           </div>
         )}
@@ -385,37 +404,79 @@ export function Tables() {
       const list = e.target.files
       if (!list || list.length === 0 || !workspaceId) return
 
+      const csvFiles = Array.from(list).filter((f) => {
+        const ext = f.name.split('.').pop()?.toLowerCase()
+        return ext === 'csv' || ext === 'tsv'
+      })
+
+      if (csvFiles.length === 0) {
+        toast.error('No CSV or TSV files selected')
+        if (csvInputRef.current) csvInputRef.current.value = ''
+        return
+      }
+
+      // Large files can't be POSTed through the server (request-body cap) — upload them
+      // straight to storage and import in the background. These are tracked by the import
+      // tray, never the header upload button, so don't touch uploading/uploadProgress here.
+      const asyncFiles = csvFiles.filter((f) => f.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
+      const syncFiles = csvFiles.filter((f) => f.size < CSV_ASYNC_IMPORT_THRESHOLD_BYTES)
+
       try {
-        setUploading(true)
-
-        const csvFiles = Array.from(list).filter((f) => {
-          const ext = f.name.split('.').pop()?.toLowerCase()
-          return ext === 'csv' || ext === 'tsv'
-        })
-
-        if (csvFiles.length === 0) {
-          toast.error('No CSV or TSV files selected')
-          return
+        for (const file of asyncFiles) {
+          // Show the indicator immediately under a temporary id (the real table id doesn't
+          // exist until kickoff returns), then let the tray track it. Don't redirect — the
+          // table is still empty/importing, so stay on the list.
+          const pendingId = `pending_${generateId()}`
+          useImportTrayStore
+            .getState()
+            .startUpload({ uploadId: pendingId, workspaceId, title: file.name })
+          toast.success(`Importing "${file.name}" in the background`)
+          try {
+            const result = await importCsvAsync.mutateAsync({
+              workspaceId,
+              file,
+              onProgress: (percent) => {
+                useImportTrayStore.getState().setUploadPercent(pendingId, percent)
+              },
+            })
+            useImportTrayStore.getState().endUpload(pendingId)
+            // The server row drives the tray once the list refetches (mutation invalidates it).
+            // If canceled mid-upload, flag the real id so it's not shown and cancel server-side.
+            if (
+              result?.tableId &&
+              result.importId &&
+              useImportTrayStore.getState().consumeCanceled(pendingId)
+            ) {
+              useImportTrayStore.getState().cancel(result.tableId)
+              void cancelTableJob(workspaceId, result.tableId, result.importId).catch(() => {})
+            }
+          } catch {
+            // The hook's onError surfaces the toast; just clear the tray indicator here.
+            useImportTrayStore.getState().endUpload(pendingId)
+          }
         }
 
-        setUploadProgress({ completed: 0, total: csvFiles.length })
+        if (syncFiles.length === 0) return
+
+        setUploadProgress({ completed: 0, total: syncFiles.length })
         const failed: string[] = []
 
-        for (let i = 0; i < csvFiles.length; i++) {
+        for (let i = 0; i < syncFiles.length; i++) {
+          const file = syncFiles[i]
           try {
-            const result = await uploadCsv.mutateAsync({ workspaceId, file: csvFiles[i] })
+            const result = await uploadCsv.mutateAsync({ workspaceId, file })
 
-            if (csvFiles.length === 1) {
+            if (syncFiles.length === 1 && asyncFiles.length === 0) {
               const tableId = result?.data?.table?.id
               if (tableId) {
                 router.push(`/workspace/${workspaceId}/tables/${tableId}`)
               }
             }
           } catch (err) {
-            failed.push(csvFiles[i].name)
+            failed.push(file.name)
             logger.error('Error uploading CSV:', err)
           } finally {
-            setUploadProgress({ completed: i + 1, total: csvFiles.length })
+            setUploadProgress({ completed: i + 1, total: syncFiles.length })
           }
         }
 
@@ -430,14 +491,14 @@ export function Tables() {
         logger.error('Error uploading CSV:', err)
         toast.error('Failed to import CSV')
       } finally {
-        setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })
         if (csvInputRef.current) {
           csvInputRef.current.value = ''
         }
       }
     },
-    [workspaceId, router, uploadCsv]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mutation objects are unstable; mutateAsync is stable in v5
+    [workspaceId, router]
   )
 
   const handleListUploadCsv = useCallback(() => {
@@ -445,18 +506,18 @@ export function Tables() {
     closeListContextMenu()
   }, [closeListContextMenu])
 
-  const uploadButtonLabel =
-    uploading && uploadProgress.total > 0
-      ? `${uploadProgress.completed}/${uploadProgress.total}`
-      : uploading
-        ? 'Uploading...'
-        : 'Upload CSV'
+  const uploadButtonLabel = uploading
+    ? `${uploadProgress.completed}/${uploadProgress.total}`
+    : 'Import CSV'
 
+  // `mutateAsync` is stable in TanStack Query v5 — extract it so the callback
+  // can list it as a dep instead of the unstable mutation object.
+  const createTableAsync = createTable.mutateAsync
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
     const name = generateUniqueTableName(existingNames)
     try {
-      const result = await createTable.mutateAsync({
+      const result = await createTableAsync({
         name,
         schema: {
           columns: [{ name: 'name', type: 'string' }],
@@ -470,37 +531,61 @@ export function Tables() {
     } catch (err) {
       logger.error('Failed to create table:', err)
     }
-  }, [tables, createTable, router, workspaceId])
+  }, [tables, router, workspaceId, createTableAsync])
+
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: uploadButtonLabel,
+        icon: Upload,
+        onSelect: () => csvInputRef.current?.click(),
+        disabled: uploading || userPermissions.canEdit !== true,
+      },
+      {
+        text: 'New table',
+        icon: Plus,
+        onSelect: handleCreateTable,
+        disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
+        variant: 'primary',
+      },
+    ],
+    [
+      uploadButtonLabel,
+      uploading,
+      userPermissions.canEdit,
+      handleCreateTable,
+      createTable.isPending,
+    ]
+  )
+
+  // Stable identities so the memoized Resource.Header / Resource.Options can
+  // actually bail — inline object/element props would defeat their memo.
+  const headerAside = useMemo(() => <ImportProgressMenu workspaceId={workspaceId} />, [workspaceId])
+  const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
 
   return (
     <>
-      <Resource
-        icon={TableIcon}
-        title='Tables'
-        create={{
-          label: 'New table',
-          onClick: handleCreateTable,
-          disabled: uploading || userPermissions.canEdit !== true || createTable.isPending,
-        }}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        headerActions={[
-          {
-            label: uploadButtonLabel,
-            icon: Upload,
-            onClick: () => csvInputRef.current?.click(),
-            disabled: uploading || userPermissions.canEdit !== true,
-          },
-        ]}
-        columns={COLUMNS}
-        rows={rows}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header
+          icon={TableIcon}
+          title='Tables'
+          actions={headerActions}
+          aside={headerAside}
+        />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={filterConfig}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <input
         ref={csvInputRef}
@@ -530,6 +615,9 @@ export function Tables() {
           if (activeTable) navigator.clipboard.writeText(activeTable.id)
         }}
         onDelete={() => setIsDeleteDialogOpen(true)}
+        onRename={() => {
+          if (activeTable) tableRename.startRename(activeTable.id, activeTable.name)
+        }}
         onImportCsv={() => setIsImportDialogOpen(true)}
         onExportCsv={async () => {
           if (!activeTable) return
@@ -557,36 +645,31 @@ export function Tables() {
         />
       )}
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Table</ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {activeTable?.rowCount} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTable(null)
-              }}
-              disabled={deleteTable.isPending}
-            >
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDelete} disabled={deleteTable.isPending}>
-              {deleteTable.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open)
+          if (!open) setActiveTable(null)
+        }}
+        srTitle='Delete Table'
+        title='Delete Table'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
+            <span className='text-[var(--text-error)]'>
+              All {activeTable?.rowCount} rows will be removed.
+            </span>{' '}
+            You can restore it from Recently Deleted in Settings.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteTable.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

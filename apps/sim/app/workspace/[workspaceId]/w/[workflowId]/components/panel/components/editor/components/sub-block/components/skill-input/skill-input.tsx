@@ -5,8 +5,11 @@ import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
-import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
+import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -31,6 +34,7 @@ export function SkillInput({
   previewValue,
   disabled,
 }: SkillInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -39,7 +43,6 @@ export function SkillInput({
   const [value, setValue] = useSubBlockValue<StoredSkill[]>(blockId, subBlockId)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
-  const [open, setOpen] = useState(false)
 
   const selectedSkills: StoredSkill[] = useMemo(() => {
     if (isPreview && previewValue) {
@@ -64,7 +67,6 @@ export function SkillInput({
             icon: Plus,
             onSelect: () => {
               setShowCreateModal(true)
-              setOpen(false)
             },
             disabled: isPreview,
           },
@@ -84,7 +86,6 @@ export function SkillInput({
             onSelect: () => {
               const newSkills: StoredSkill[] = [...selectedSkills, { skillId: s.id, name: s.name }]
               setValue(newSkills)
-              setOpen(false)
             },
           }
         }),
@@ -127,12 +128,19 @@ export function SkillInput({
           searchPlaceholder='Search skills...'
           maxHeight={240}
           emptyMessage='No skills found'
-          onOpenChange={setOpen}
         />
 
         {selectedSkills.length > 0 &&
-          selectedSkills.map((stored) => {
+          selectedSkills.map((stored, index) => {
             const fullSkill = workspaceSkills.find((s) => s.id === stored.skillId)
+            const skillName = resolveSkillName(stored)
+            const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+              activeSearchTarget,
+              blockId,
+              subBlockId,
+              valuePath: [index, 'name'],
+              label: skillName,
+            })
             return (
               <div
                 key={stored.skillId}
@@ -148,13 +156,13 @@ export function SkillInput({
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
                     <div
-                      className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-sm'
+                      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-sm'
                       style={{ backgroundColor: '#e0e0e0' }}
                     >
-                      <AgentSkillsIcon className='h-[10px] w-[10px] text-[var(--border)]' />
+                      <AgentSkillsIcon className='size-[10px] text-[var(--border)]' />
                     </div>
                     <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                      {resolveSkillName(stored)}
+                      {formatDisplayText(skillName, { workflowSearchHighlight })}
                     </span>
                   </div>
                   <div className='flex flex-shrink-0 items-center gap-2'>
@@ -168,7 +176,7 @@ export function SkillInput({
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
-                        <XIcon className='h-[13px] w-[13px]' />
+                        <XIcon className='size-[13px]' />
                       </button>
                     )}
                   </div>

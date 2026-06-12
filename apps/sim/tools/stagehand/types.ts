@@ -255,7 +255,7 @@ export interface StagehandAgentParams {
   }
 }
 
-export interface StagehandAgentAction {
+interface StagehandAgentAction {
   type: string
   reasoning?: string
   taskCompleted?: boolean
@@ -268,7 +268,7 @@ export interface StagehandAgentAction {
   [key: string]: unknown
 }
 
-export interface StagehandAgentUsage {
+interface StagehandAgentUsage {
   input_tokens: number
   output_tokens: number
   reasoning_tokens?: number
@@ -276,7 +276,7 @@ export interface StagehandAgentUsage {
   inference_time_ms: number
 }
 
-export interface StagehandAgentResult {
+interface StagehandAgentResult {
   success: boolean
   completed: boolean
   message: string

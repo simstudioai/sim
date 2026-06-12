@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -57,7 +58,6 @@ const workflowSummarySchema = z
     id: z.string(),
     name: z.string().nullable(),
     description: z.string().nullable(),
-    color: z.string().nullable(),
     folderId: z.string().nullable(),
     userId: z.string().nullable(),
     workspaceId: z.string().nullable(),
@@ -65,19 +65,6 @@ const workflowSummarySchema = z
     updatedAt: z.string().nullable(),
   })
   .partial()
-
-const fileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  size: z.number(),
-  type: z.string(),
-  url: z.string(),
-  key: z.string(),
-  uploadedAt: z.string(),
-  expiresAt: z.string(),
-  storageProvider: z.enum(['s3', 'blob', 'local']).optional(),
-  bucketName: z.string().optional(),
-})
 
 const tokenBreakdownSchema = z
   .object({
@@ -115,6 +102,27 @@ const costSummarySchema = z
       .optional(),
   })
   .partial()
+
+/**
+ * Itemized cost breakdown derived from the usage_log ledger (the single source
+ * of truth) for the detail view. Each item is one billed line (base fee, a
+ * model, or a tool/integration); the items reconcile to `total`.
+ */
+const costLedgerItemSchema = z.object({
+  category: z.enum(['fixed', 'model', 'tool']),
+  description: z.string(),
+  cost: z.number(),
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
+})
+
+export const costLedgerSchema = z.object({
+  total: z.number(),
+  items: z.array(costLedgerItemSchema),
+})
+
+export type CostLedger = z.output<typeof costLedgerSchema>
+export type CostLedgerItem = z.output<typeof costLedgerItemSchema>
 
 const pauseSummarySchema = z.object({
   status: z.string().nullable(),
@@ -230,14 +238,20 @@ export const workflowLogSummarySchema = z.object({
   createdAt: z.string(),
   workflow: workflowSummarySchema.nullable(),
   jobTitle: z.string().nullable(),
-  cost: costSummarySchema.nullable(),
+  // Top-level run cost is the cost_total projection of the usage_log ledger,
+  // rendered as { total } (dollars). The itemized breakdown lives in costLedger
+  // (detail only); per-block costs use the richer costSummarySchema elsewhere.
+  cost: z.object({ total: z.number() }).nullable(),
   pauseSummary: pauseSummarySchema,
   hasPendingPause: z.boolean(),
 })
 
 export const workflowLogDetailSchema = workflowLogSummarySchema.extend({
   executionData: executionDataDetailSchema,
-  files: z.array(fileSchema).nullable(),
+  files: z.array(userFileSchema).nullable(),
+  // Itemized, ledger-sourced cost breakdown. Null for legacy/pre-ledger runs,
+  // where the UI falls back to the (reconciling) cost jsonb.
+  costLedger: costLedgerSchema.nullable().optional(),
 })
 
 export type WorkflowLogSummary = z.output<typeof workflowLogSummarySchema>
@@ -248,7 +262,7 @@ export type WorkflowLogDetail = z.output<typeof workflowLogDetailSchema>
  * UI surfaces that render the same log before and after its detail query resolves.
  */
 export type WorkflowLogRow = WorkflowLogSummary &
-  Partial<Pick<WorkflowLogDetail, 'executionData' | 'files'>>
+  Partial<Pick<WorkflowLogDetail, 'executionData' | 'files' | 'costLedger'>>
 
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),

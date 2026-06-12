@@ -1,5 +1,6 @@
 import { StartQueryExecutionCommand } from '@aws-sdk/client-athena'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsAthenaStartQueryContract } from '@/lib/api/contracts/tools/aws/athena-start-query'
 import { parseToolRequest } from '@/lib/api/server'
@@ -62,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Failed to start Athena query'
+    const errorMessage = getErrorMessage(error, 'Failed to start Athena query')
     logger.error('StartQuery failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

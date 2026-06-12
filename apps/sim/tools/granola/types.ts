@@ -5,6 +5,7 @@ export interface GranolaListNotesParams {
   createdBefore?: string
   createdAfter?: string
   updatedAfter?: string
+  folderId?: string
   cursor?: string
   pageSize?: number
 }
@@ -13,6 +14,12 @@ export interface GranolaGetNoteParams {
   apiKey: string
   noteId: string
   includeTranscript?: string
+}
+
+export interface GranolaListFoldersParams {
+  apiKey: string
+  cursor?: string
+  pageSize?: number
 }
 
 export interface GranolaListNotesResponse extends ToolResponse {
@@ -30,6 +37,18 @@ export interface GranolaListNotesResponse extends ToolResponse {
   }
 }
 
+export interface GranolaListFoldersResponse extends ToolResponse {
+  output: {
+    folders: {
+      id: string
+      name: string
+      parentFolderId: string | null
+    }[]
+    hasMore: boolean
+    cursor: string | null
+  }
+}
+
 export interface GranolaGetNoteResponse extends ToolResponse {
   output: {
     id: string
@@ -38,6 +57,7 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     ownerEmail: string
     createdAt: string
     updatedAt: string
+    webUrl: string | null
     summaryText: string
     summaryMarkdown: string | null
     attendees: { name: string | null; email: string }[]
@@ -48,6 +68,14 @@ export interface GranolaGetNoteResponse extends ToolResponse {
     scheduledStartTime: string | null
     scheduledEndTime: string | null
     invitees: string[]
-    transcript: { speaker: string; text: string; startTime: string; endTime: string }[] | null
+    transcript:
+      | {
+          speaker: string
+          speakerLabel: string | null
+          text: string
+          startTime: string
+          endTime: string
+        }[]
+      | null
   }
 }

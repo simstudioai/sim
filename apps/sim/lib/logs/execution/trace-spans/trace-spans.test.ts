@@ -1521,6 +1521,55 @@ describe('errorHandled - handled errors should not bubble up', () => {
     expect(span.status).toBe('success')
     expect(span.errorHandled).toBeUndefined()
   })
+
+  it.concurrent('successful mothership blocks do not bubble failed child tool spans', () => {
+    const result: ExecutionResult = {
+      success: true,
+      output: { content: 'Mothership recovered from the failed tool' },
+      metadata: { duration: 3000, startTime: '2024-01-01T10:00:00.000Z' },
+      logs: [
+        {
+          blockId: 'mothership-1',
+          blockName: 'Mothership',
+          blockType: 'mothership',
+          startedAt: '2024-01-01T10:00:00.000Z',
+          endedAt: '2024-01-01T10:00:03.000Z',
+          durationMs: 3000,
+          success: true,
+          output: {
+            content: 'Mothership recovered from the failed tool',
+            model: 'mothership',
+            toolCalls: {
+              list: [
+                {
+                  name: 'failing_tool',
+                  arguments: { query: 'test' },
+                  error: 'Tool execution failed',
+                  duration: 1000,
+                  startTime: '2024-01-01T10:00:01.000Z',
+                  endTime: '2024-01-01T10:00:02.000Z',
+                },
+              ],
+              count: 1,
+            },
+          },
+          executionOrder: 1,
+        },
+      ],
+    }
+
+    const { traceSpans } = buildTraceSpans(result)
+
+    const workflowSpan = traceSpans[0]
+    expect(workflowSpan.status).toBe('success')
+
+    const mothershipSpan = workflowSpan.children![0]
+    expect(mothershipSpan.status).toBe('success')
+
+    const toolSpan = mothershipSpan.children![0]
+    expect(toolSpan.status).toBe('error')
+    expect(toolSpan.output).toEqual({ error: 'Tool execution failed' })
+  })
 })
 
 describe('stripCustomToolPrefix', () => {

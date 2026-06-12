@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Combobox } from '@/components/emcn/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 
@@ -25,6 +28,7 @@ export function McpToolSelector({
   previewValue,
   previewContextValues,
 }: McpToolSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [inputValue, setInputValue] = useState('')
@@ -108,6 +112,12 @@ export function McpToolSelector({
   }, [selectedTool])
 
   const isDisabled = disabled || !serverValue
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: inputValue,
+  })
 
   return (
     <Combobox
@@ -122,6 +132,13 @@ export function McpToolSelector({
       filterOptions={true}
       isLoading={isLoading}
       error={error || null}
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span className='block truncate'>
+            {formatDisplayText(inputValue, { workflowSearchHighlight })}
+          </span>
+        ) : undefined
+      }
     />
   )
 }

@@ -5,11 +5,13 @@ import { useMemo } from 'react'
 import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import {
   type FlattenOutputsBlockInput,
   flattenWorkflowOutputs,
 } from '@/lib/workflows/blocks/flatten-outputs'
 import { getBlock } from '@/blocks'
+import { normalizeName } from '@/executor/constants'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -26,7 +28,7 @@ const TagIcon: React.FC<{
   color: string
 }> = ({ icon, color }) => (
   <div
-    className='flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center rounded'
+    className='flex size-[14px] flex-shrink-0 items-center justify-center rounded'
     style={{ background: color }}
   >
     {typeof icon === 'string' ? (
@@ -39,6 +41,8 @@ const TagIcon: React.FC<{
     )}
   </div>
 )
+
+const EMPTY_OUTPUTS: string[] = []
 
 /**
  * Props for the OutputSelect component
@@ -60,6 +64,8 @@ interface OutputSelectProps {
   align?: 'start' | 'end' | 'center'
   /** Maximum height of the dropdown content in pixels */
   maxHeight?: number
+  /** Additional class names to apply to the combobox trigger */
+  className?: string
 }
 
 /**
@@ -74,13 +80,14 @@ interface OutputSelectProps {
  */
 export function OutputSelect({
   workflowId,
-  selectedOutputs = [],
+  selectedOutputs = EMPTY_OUTPUTS,
   onOutputSelect,
   disabled = false,
   placeholder = 'Select outputs',
   valueMode = 'id',
   align = 'start',
   maxHeight = 200,
+  className,
 }: OutputSelectProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
   const { isShowingDiff, isDiffReady, hasActiveDiff, baselineWorkflow } = useWorkflowDiffStore(
@@ -141,7 +148,7 @@ export function OutputSelect({
     return flat.map((f) => {
       const displayBlockName =
         f.blockName && typeof f.blockName === 'string'
-          ? f.blockName.replace(/\s+/g, '').toLowerCase()
+          ? normalizeName(f.blockName)
           : `block-${f.blockId}`
       return {
         id: `${f.blockId}_${f.path}`,
@@ -295,7 +302,7 @@ export function OutputSelect({
   return (
     <Combobox
       size='sm'
-      className='!w-fit !py-0.5 min-w-[100px] rounded-md px-2.5'
+      className={cn('!py-0.5 w-fit min-w-[100px] rounded-md px-2.5', className)}
       groups={comboboxGroups}
       options={[]}
       multiSelect

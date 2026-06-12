@@ -12,7 +12,11 @@ import type {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
+import { isHosted } from '@/lib/core/config/feature-flags'
+import {
+  isPrivateOrReservedIP,
+  secureFetchWithPinnedIP,
+} from '@/lib/core/security/input-validation.server'
 
 /** Connect-format field type strings returned by normalization. */
 type ConnectFieldType =
@@ -86,7 +90,7 @@ export interface NormalizedItemOverview {
 }
 
 /** Normalized field shape matching the Connect API response. */
-export interface NormalizedField {
+interface NormalizedField {
   id: string
   label: string
   type: ConnectFieldType
@@ -246,12 +250,44 @@ export async function createOnePasswordClient(serviceAccountToken: string) {
 const connectLogger = createLogger('OnePasswordConnect')
 
 /**
- * Validates that a Connect server URL does not target cloud metadata endpoints.
- * Allows private IPs and localhost since 1Password Connect is designed to be self-hosted.
- * Returns the resolved IP for DNS pinning to prevent TOCTOU rebinding.
- * @throws Error if the URL is invalid, points to a link-local address, or DNS fails.
+ * Enforces the SSRF policy for a resolved Connect server IP.
+ *
+ * On the hosted service, all private and reserved IPs are blocked — a tenant has
+ * no legitimate reason to point Connect at the platform's internal network. On
+ * self-hosted deployments only link-local (cloud metadata) is blocked, since the
+ * operator controls both the workflows and the network and Connect servers
+ * legitimately live on private (RFC1918) addresses.
+ *
+ * @throws Error if the IP is not permitted under the active policy.
  */
-async function validateConnectServerUrl(serverUrl: string): Promise<string> {
+function assertConnectIpAllowed(ip: string, hostname: string): void {
+  if (isHosted) {
+    if (isPrivateOrReservedIP(ip)) {
+      connectLogger.warn('1Password Connect server URL resolves to a private or reserved IP', {
+        hostname,
+        resolvedIP: ip,
+      })
+      throw new Error('1Password server URL cannot point to a private or reserved IP address')
+    }
+    return
+  }
+
+  if (ipaddr.isValid(ip) && ipaddr.process(ip).range() === 'linkLocal') {
+    connectLogger.warn('1Password Connect server URL resolves to a link-local IP', {
+      hostname,
+      resolvedIP: ip,
+    })
+    throw new Error('1Password server URL cannot point to a link-local address')
+  }
+}
+
+/**
+ * Validates a Connect server URL against the SSRF policy and returns the resolved
+ * IP for DNS pinning to prevent TOCTOU rebinding. See {@link assertConnectIpAllowed}
+ * for the hosted vs. self-hosted policy.
+ * @throws Error if the URL is invalid, fails the IP policy, or DNS fails.
+ */
+export async function validateConnectServerUrl(serverUrl: string): Promise<string> {
   let hostname: string
   try {
     hostname = new URL(serverUrl).hostname
@@ -263,31 +299,23 @@ async function validateConnectServerUrl(serverUrl: string): Promise<string> {
     hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname
 
   if (ipaddr.isValid(clean)) {
-    const addr = ipaddr.process(clean)
-    if (addr.range() === 'linkLocal') {
-      throw new Error('1Password server URL cannot point to a link-local address')
-    }
+    assertConnectIpAllowed(clean, clean)
     return clean
   }
 
+  let address: string
   try {
-    const { address } = await dns.lookup(clean, { verbatim: true })
-    if (ipaddr.isValid(address) && ipaddr.process(address).range() === 'linkLocal') {
-      connectLogger.warn('1Password Connect server URL resolves to link-local IP', {
-        hostname: clean,
-        resolvedIP: address,
-      })
-      throw new Error('1Password server URL resolves to a link-local address')
-    }
-    return address
+    ;({ address } = await dns.lookup(clean, { verbatim: true }))
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('1Password')) throw error
     connectLogger.warn('DNS lookup failed for 1Password Connect server URL', {
       hostname: clean,
       error: toError(error).message,
     })
     throw new Error('1Password server URL hostname could not be resolved')
   }
+
+  assertConnectIpAllowed(address, clean)
+  return address
 }
 
 /** Minimal response shape used by all connectRequest callers. */

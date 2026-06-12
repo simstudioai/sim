@@ -43,6 +43,7 @@ export const workflowScheduleRowSchema = z.object({
   triggerType: z.string(),
   timezone: z.string(),
   failedCount: z.number(),
+  infraRetryCount: z.number(),
   status: scheduleStatusSchema,
   lastFailedAt: z.string().nullable(),
   /**
@@ -71,12 +72,11 @@ export type WorkflowScheduleRow = z.output<typeof workflowScheduleRowSchema>
 
 /**
  * Workspace-scope listing extends the row with synthesized join fields.
- * Workflow-backed rows carry the workflow name/color from `workflow` (NOT NULL
- * columns); job-backed rows synthesize `null` server-side.
+ * Workflow-backed rows carry the workflow name from `workflow` (NOT NULL
+ * column); job-backed rows synthesize `null` server-side.
  */
 export const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
   workflowName: z.string().nullable(),
-  workflowColor: z.string().nullable(),
 })
 
 export type WorkspaceScheduleRow = z.output<typeof workspaceScheduleRowSchema>
@@ -130,6 +130,13 @@ const messageResponseSchema = z.object({
   message: z.string(),
   nextRunAt: z.string().optional(),
 })
+
+export const executeSchedulesResponseSchema = z.object({
+  message: z.string(),
+  status: z.literal('started'),
+})
+
+export type ExecuteSchedulesResponse = z.output<typeof executeSchedulesResponseSchema>
 
 export const getScheduleContract = defineRouteContract({
   method: 'GET',
@@ -226,5 +233,14 @@ export const deleteScheduleContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: messageResponseSchema,
+  },
+})
+
+export const executeSchedulesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/schedules/execute',
+  response: {
+    mode: 'json',
+    schema: executeSchedulesResponseSchema,
   },
 })

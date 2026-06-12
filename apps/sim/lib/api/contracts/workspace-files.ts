@@ -15,10 +15,17 @@ export const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
 })
 
+const workspaceFileNameSchema = z
+  .string({ error: 'Name is required' })
+  .trim()
+  .min(1, 'Name is required')
+  .refine(
+    (name) => name !== '.' && name !== '..' && !name.includes('/') && !name.includes('\\'),
+    'Name cannot contain path separators or dot segments'
+  )
+
 export const renameWorkspaceFileBodySchema = z.object({
-  name: z
-    .string({ error: 'Name is required' })
-    .refine((name) => name.trim().length > 0, { message: 'Name is required' }),
+  name: workspaceFileNameSchema,
 })
 
 export const updateWorkspaceFileContentBodySchema = z.object({
@@ -36,6 +43,8 @@ export const workspaceFileRecordSchema = z.object({
   size: z.number(),
   type: z.string(),
   uploadedBy: z.string(),
+  folderId: z.string().nullable(),
+  folderPath: z.string().nullable().optional(),
   deletedAt: z.coerce.date().nullable().optional(),
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -46,6 +55,12 @@ const workspaceFileSuccessSchema = z.object({
   success: z.boolean(),
 })
 
+const listWorkspaceFilesResponseSchema = workspaceFileSuccessSchema.extend({
+  files: z.array(workspaceFileRecordSchema),
+})
+
+export type ListWorkspaceFilesResponse = z.output<typeof listWorkspaceFilesResponseSchema>
+
 export const listWorkspaceFilesContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/files',
@@ -53,9 +68,7 @@ export const listWorkspaceFilesContract = defineRouteContract({
   query: listWorkspaceFilesQuerySchema,
   response: {
     mode: 'json',
-    schema: workspaceFileSuccessSchema.extend({
-      files: z.array(workspaceFileRecordSchema),
-    }),
+    schema: listWorkspaceFilesResponseSchema,
   },
 })
 
@@ -107,15 +120,30 @@ export const updateWorkspaceFileContentContract = defineRouteContract({
 
 const documentStyleSummarySchema = z
   .object({
-    format: z.enum(['docx', 'pptx']),
+    format: z.enum(['docx', 'pptx', 'pdf']),
+    // OOXML theme — present for pptx, present for docx when theme1.xml exists, absent for pdf
     theme: z
       .object({
-        name: z.string(),
         colors: z.record(z.string(), z.string()),
         fonts: z.object({ major: z.string(), minor: z.string() }),
       })
-      .passthrough(),
+      .optional(),
+    // docx only
     styles: z.array(z.object({}).passthrough()).optional(),
+    defaults: z.object({ fontSize: z.number().optional(), font: z.string().optional() }).optional(),
+    // pdf only
+    pageSize: z
+      .object({
+        preset: z.enum(['A4', 'letter', 'custom']),
+        widthPt: z.number().optional(),
+        heightPt: z.number().optional(),
+      })
+      .optional(),
+    fonts: z.array(z.string()).optional(),
+    // pptx only
+    slideCount: z.number().optional(),
+    aspectRatio: z.enum(['16:9', '4:3', 'custom']).optional(),
+    background: z.string().optional(),
   })
   .passthrough()
 
@@ -145,9 +173,10 @@ export const workspaceFileCompiledCheckContract = defineRouteContract({
 })
 
 export const workspacePresignedUploadBodySchema = z.object({
-  fileName: z.string().min(1, 'fileName is required'),
+  fileName: workspaceFileNameSchema,
   contentType: z.string().min(1, 'contentType is required'),
   fileSize: z.number().nonnegative('fileSize must be a non-negative number'),
+  folderId: z.string().nullable().optional(),
 })
 
 export type WorkspacePresignedUploadBody = z.input<typeof workspacePresignedUploadBodySchema>
@@ -181,8 +210,9 @@ export const workspacePresignedUploadContract = defineRouteContract({
 
 export const registerWorkspaceFileBodySchema = z.object({
   key: z.string().min(1, 'key is required'),
-  name: z.string().min(1, 'name is required'),
+  name: workspaceFileNameSchema,
   contentType: z.string().min(1, 'contentType is required'),
+  folderId: z.string().nullable().optional(),
 })
 
 export type RegisterWorkspaceFileBody = z.input<typeof registerWorkspaceFileBodySchema>

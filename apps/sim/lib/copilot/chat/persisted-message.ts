@@ -20,9 +20,9 @@ import type {
   OrchestratorResult,
 } from '@/lib/copilot/request/types'
 
-export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome
+export type PersistedToolState = LocalToolCallStatus | MothershipStreamV1ToolOutcome | 'interrupted'
 
-export interface PersistedToolCall {
+interface PersistedToolCall {
   id: string
   name: string
   state: PersistedToolState
@@ -47,6 +47,8 @@ export interface PersistedContentBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface PersistedFileAttachment {
@@ -57,7 +59,7 @@ export interface PersistedFileAttachment {
   size: number
 }
 
-export interface PersistedMessageContext {
+interface PersistedMessageContext {
   kind: string
   label: string
   workflowId?: string
@@ -77,6 +79,34 @@ export interface PersistedMessage {
   contentBlocks?: PersistedContentBlock[]
   fileAttachments?: PersistedFileAttachment[]
   contexts?: PersistedMessageContext[]
+}
+
+/**
+ * Drop the `output` of every persisted tool result, keeping `success` and
+ * `error`. Tool outputs are never rendered (the chat thread shows only the tool
+ * name/title/status) and never replayed to the model (the upstream copilot
+ * service owns conversation memory), so storing them only bloats
+ * `copilot_messages.content` — a single `get_workflow_logs`/`run_workflow`
+ * result can reach hundreds of MB and stall task loads.
+ *
+ * Applied on both the write path (so new rows never store outputs) and the read
+ * path (so already-bloated rows still load fast). Returns the original
+ * reference when there is nothing to strip, preserving memoized identity for
+ * read-side consumers.
+ */
+export function stripToolResultOutput(message: PersistedMessage): PersistedMessage {
+  if (!message.contentBlocks?.length) return message
+  let changed = false
+  const contentBlocks = message.contentBlocks.map((block) => {
+    const toolCall = block.toolCall
+    const result = toolCall?.result
+    if (!toolCall || !result || typeof result !== 'object' || !('output' in result)) return block
+    changed = true
+    const strippedResult: { success: boolean; error?: string } = { success: result.success }
+    if (result.error !== undefined) strippedResult.error = result.error
+    return { ...block, toolCall: { ...toolCall, result: strippedResult } }
+  })
+  return changed ? { ...message, contentBlocks } : message
 }
 
 // ---------------------------------------------------------------------------
@@ -114,9 +144,21 @@ function withBlockParent<T>(target: T, src: { parentToolCallId?: string }): T {
   return target
 }
 
+/**
+ * Carry deterministic span identity (spanId / parentSpanId) across a block
+ * mapping so the nesting tree survives the persist → normalize → display round
+ * trip. Shared by both the write and read paths.
+ */
+function withBlockSpan<T>(target: T, src: { spanId?: string; parentSpanId?: string }): T {
+  const writable = target as { spanId?: string; parentSpanId?: string }
+  if (src.spanId) writable.spanId = src.spanId
+  if (src.parentSpanId) writable.parentSpanId = src.parentSpanId
+  return target
+}
+
 function mapContentBlock(block: ContentBlock): PersistedContentBlock {
   const persisted = mapContentBlockBody(block)
-  return withBlockParent(withBlockTiming(persisted, block), block)
+  return withBlockSpan(withBlockParent(withBlockTiming(persisted, block), block), block)
 }
 
 function mapContentBlockBody(block: ContentBlock): PersistedContentBlock {
@@ -224,6 +266,45 @@ export function buildPersistedAssistantMessage(
   return message
 }
 
+export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
+  const contentBlocks = message.contentBlocks ?? []
+  const hasAssistantText = contentBlocks.some(
+    (block) =>
+      block.type === MothershipStreamV1EventType.text &&
+      block.channel !== MothershipStreamV1TextChannel.thinking &&
+      block.content?.trim()
+  )
+  if (
+    contentBlocks.some(
+      (block) =>
+        block.type === MothershipStreamV1EventType.complete &&
+        block.status === MothershipStreamV1CompletionStatus.cancelled
+    )
+  ) {
+    return message
+  }
+
+  return normalizeMessage({
+    ...message,
+    contentBlocks: [
+      ...(hasAssistantText || !message.content.trim()
+        ? []
+        : [
+            {
+              type: MothershipStreamV1EventType.text,
+              channel: MothershipStreamV1TextChannel.assistant,
+              content: message.content,
+            },
+          ]),
+      ...contentBlocks,
+      {
+        type: MothershipStreamV1EventType.complete,
+        status: MothershipStreamV1CompletionStatus.cancelled,
+      },
+    ],
+  })
+}
+
 export interface UserMessageParams {
   id: string
   content: string
@@ -281,6 +362,8 @@ interface RawBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  spanId?: string
+  parentSpanId?: string
   toolCall?: {
     id?: string
     name?: string
@@ -310,6 +393,9 @@ const OUTCOME_NORMALIZATION: Record<string, PersistedToolState> = {
   [MothershipStreamV1ToolOutcome.cancelled]: MothershipStreamV1ToolOutcome.cancelled,
   [MothershipStreamV1ToolOutcome.skipped]: MothershipStreamV1ToolOutcome.skipped,
   [MothershipStreamV1ToolOutcome.rejected]: MothershipStreamV1ToolOutcome.rejected,
+  aborted: MothershipStreamV1ToolOutcome.cancelled,
+  failed: MothershipStreamV1ToolOutcome.error,
+  interrupted: 'interrupted',
   pending: 'pending',
   executing: 'executing',
 }
@@ -457,6 +543,12 @@ function normalizeBlock(block: RawBlock): PersistedContentBlock {
   }
   if (block.parentToolCallId && result.parentToolCallId === undefined) {
     result.parentToolCallId = block.parentToolCallId
+  }
+  if (block.spanId && result.spanId === undefined) {
+    result.spanId = block.spanId
+  }
+  if (block.parentSpanId && result.parentSpanId === undefined) {
+    result.parentSpanId = block.parentSpanId
   }
   return result
 }

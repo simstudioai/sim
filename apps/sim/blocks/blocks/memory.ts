@@ -14,7 +14,7 @@ export const MemoryBlock: BlockConfig = {
   `,
   icon: BrainIcon,
   category: 'blocks',
-  docsLink: 'https://docs.sim.ai/tools/memory',
+  docsLink: 'https://docs.sim.ai/integrations/memory',
   subBlocks: [
     {
       id: 'operation',

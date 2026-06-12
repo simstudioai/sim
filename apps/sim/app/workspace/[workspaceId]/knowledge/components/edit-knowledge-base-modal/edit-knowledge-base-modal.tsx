@@ -1,22 +1,16 @@
 'use client'
 
 import { memo, useEffect, useState } from 'react'
-import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
-import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
-  Button,
-  Input,
-  Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
 } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import type { ChunkingConfig } from '@/lib/knowledge/types'
 
 const logger = createLogger('EditKnowledgeBaseModal')
@@ -31,17 +25,6 @@ interface EditKnowledgeBaseModalProps {
   onSave: (id: string, name: string, description: string) => Promise<void>
 }
 
-const FormSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(100, 'Name must be less than 100 characters')
-    .refine((value) => value.trim().length > 0, 'Name cannot be empty'),
-  description: z.string().max(500, 'Description must be less than 500 characters').optional(),
-})
-
-type FormValues = z.infer<typeof FormSchema>
-
 /**
  * Modal for editing knowledge base name and description
  */
@@ -54,166 +37,133 @@ export const EditKnowledgeBaseModal = memo(function EditKnowledgeBaseModal({
   chunkingConfig,
   onSave,
 }: EditKnowledgeBaseModalProps) {
+  const [name, setName] = useState(initialName)
+  const [description, setDescription] = useState(initialDescription)
+  const [nameError, setNameError] = useState<string | null>(null)
+  const [descriptionError, setDescriptionError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors, isDirty },
-  } = useForm<FormValues>({
-    resolver: zodResolver(FormSchema),
-    defaultValues: {
-      name: initialName,
-      description: initialDescription,
-    },
-    mode: 'onSubmit',
-  })
-
-  const nameValue = watch('name')
-
   useEffect(() => {
     if (open) {
+      setName(initialName)
+      setDescription(initialDescription)
+      setNameError(null)
+      setDescriptionError(null)
       setError(null)
-      reset({
-        name: initialName,
-        description: initialDescription,
-      })
     }
-  }, [open, initialName, initialDescription, reset])
+  }, [open, initialName, initialDescription])
 
-  const onSubmit = async (data: FormValues) => {
+  const validate = (): boolean => {
+    let valid = true
+
+    if (!name.trim()) {
+      setNameError('Name is required')
+      valid = false
+    } else if (name.trim().length > 100) {
+      setNameError('Name must be less than 100 characters')
+      valid = false
+    } else {
+      setNameError(null)
+    }
+
+    if (description.length > 500) {
+      setDescriptionError('Description must be less than 500 characters')
+      valid = false
+    } else {
+      setDescriptionError(null)
+    }
+
+    return valid
+  }
+
+  const handleSubmit = async () => {
+    if (!validate()) return
+
     setIsSubmitting(true)
     setError(null)
 
     try {
-      await onSave(knowledgeBaseId, data.name.trim(), data.description?.trim() || '')
+      await onSave(knowledgeBaseId, name.trim(), description.trim())
       onOpenChange(false)
     } catch (err) {
       logger.error('Error updating knowledge base:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update knowledge base')
+      setError(getErrorMessage(err, 'Failed to update knowledge base'))
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const isValid = name.trim().length > 0
+  const isDirty = name !== initialName || description !== initialDescription
+
   return (
-    <Modal open={open} onOpenChange={onOpenChange}>
-      <ModalContent size='sm'>
-        <ModalHeader>Edit Knowledge Base</ModalHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody>
-            <div className='space-y-3'>
-              <div className='flex flex-col gap-2'>
-                <Label htmlFor='kb-name'>Name</Label>
-                <Input
-                  id='kb-name'
-                  placeholder='Enter knowledge base name'
-                  {...register('name')}
-                  className={cn(errors.name && 'border-[var(--text-error)]')}
-                  autoComplete='off'
-                  autoCorrect='off'
-                  autoCapitalize='off'
-                  data-lpignore='true'
-                  data-form-type='other'
-                />
-                {errors.name && (
-                  <p className='text-[var(--text-error)] text-caption'>{errors.name.message}</p>
-                )}
-              </div>
-
-              <div className='flex flex-col gap-2'>
-                <Label htmlFor='description'>Description</Label>
-                <Textarea
-                  id='description'
-                  placeholder='Describe this knowledge base (optional)'
-                  rows={4}
-                  {...register('description')}
-                  className={cn(errors.description && 'border-[var(--text-error)]')}
-                />
-                {errors.description && (
-                  <p className='text-[var(--text-error)] text-caption'>
-                    {errors.description.message}
-                  </p>
-                )}
-              </div>
-
-              {chunkingConfig && (
-                <div className='flex flex-col gap-2'>
-                  <Label>Chunking Configuration</Label>
-                  <div className='grid grid-cols-3 gap-2'>
-                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                        Max Size
-                      </p>
-                      <p className='font-medium text-[var(--text-primary)] text-sm'>
-                        {chunkingConfig.maxSize.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                          tokens
-                        </span>
-                      </p>
-                    </div>
-                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                        Min Size
-                      </p>
-                      <p className='font-medium text-[var(--text-primary)] text-sm'>
-                        {chunkingConfig.minSize.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                          chars
-                        </span>
-                      </p>
-                    </div>
-                    <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
-                      <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>
-                        Overlap
-                      </p>
-                      <p className='font-medium text-[var(--text-primary)] text-sm'>
-                        {chunkingConfig.overlap.toLocaleString()}
-                        <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
-                          tokens
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </ModalBody>
-
-          <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-3'>
-              {error ? (
-                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
-                  {error}
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Edit Knowledge Base'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>Edit Knowledge Base</ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField
+          type='input'
+          title='Name'
+          value={name}
+          onChange={setName}
+          placeholder='Enter knowledge base name'
+          required
+          error={nameError ?? undefined}
+          autoComplete='off'
+        />
+        <ChipModalField
+          type='textarea'
+          title='Description'
+          value={description}
+          onChange={setDescription}
+          placeholder='Describe this knowledge base (optional)'
+          rows={4}
+          error={descriptionError ?? undefined}
+        />
+        {chunkingConfig && (
+          <ChipModalField type='custom' title='Chunking Configuration'>
+            <div className='grid grid-cols-3 gap-2'>
+              <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Max Size</p>
+                <p className='font-medium text-[var(--text-primary)] text-sm'>
+                  {chunkingConfig.maxSize.toLocaleString()}
+                  <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                    tokens
+                  </span>
                 </p>
-              ) : (
-                <div />
-              )}
-              <div className='flex flex-shrink-0 gap-2'>
-                <Button
-                  variant='default'
-                  onClick={() => onOpenChange(false)}
-                  type='button'
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  type='submit'
-                  disabled={isSubmitting || !nameValue?.trim() || !isDirty}
-                >
-                  {isSubmitting ? 'Saving...' : 'Save'}
-                </Button>
+              </div>
+              <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Min Size</p>
+                <p className='font-medium text-[var(--text-primary)] text-sm'>
+                  {chunkingConfig.minSize.toLocaleString()}
+                  <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                    chars
+                  </span>
+                </p>
+              </div>
+              <div className='rounded-sm border border-[var(--border-1)] bg-[var(--surface-2)] px-2.5 py-2'>
+                <p className='text-[11px] text-[var(--text-tertiary)] leading-tight'>Overlap</p>
+                <p className='font-medium text-[var(--text-primary)] text-sm'>
+                  {chunkingConfig.overlap.toLocaleString()}
+                  <span className='ml-0.5 font-normal text-[11px] text-[var(--text-tertiary)]'>
+                    tokens
+                  </span>
+                </p>
               </div>
             </div>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+          </ChipModalField>
+        )}
+        <ChipModalError>{error}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSubmitting}
+        primaryAction={{
+          label: isSubmitting ? 'Saving...' : 'Save',
+          onClick: handleSubmit,
+          disabled: !isValid || !isDirty || isSubmitting,
+        }}
+      />
+    </ChipModal>
   )
 })

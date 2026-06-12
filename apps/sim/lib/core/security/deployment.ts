@@ -1,13 +1,14 @@
 import { safeCompare } from '@sim/security/compare'
 import { sha256Hex } from '@sim/security/hash'
 import { hmacSha256Hex } from '@sim/security/hmac'
-import type { NextRequest, NextResponse } from 'next/server'
+import type { NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
 import { isDev } from '@/lib/core/config/feature-flags'
 
 /**
- * Shared authentication utilities for deployed chat and form endpoints.
- * These functions handle token generation, validation, cookies, and CORS.
+ * Shared authentication utilities for deployed chat endpoints.
+ * Handles token generation, validation, and auth cookies. CORS for these
+ * endpoints lives in proxy.ts as the single source of truth.
  */
 
 function signPayload(payload: string): string {
@@ -30,7 +31,7 @@ function generateAuthToken(
 }
 
 /**
- * Validates an HMAC-signed authentication token for a deployment (chat or form).
+ * Validates an HMAC-signed authentication token for a chat deployment.
  * Includes a password-derived slot so changing the deployment password immediately
  * invalidates existing sessions.
  */
@@ -76,7 +77,7 @@ export function validateAuthToken(
  */
 export function setDeploymentAuthCookie(
   response: NextResponse,
-  cookiePrefix: 'chat' | 'form',
+  cookiePrefix: 'chat',
   deploymentId: string,
   authType: string,
   encryptedPassword?: string | null
@@ -91,24 +92,6 @@ export function setDeploymentAuthCookie(
     path: '/',
     maxAge: 60 * 60 * 24,
   })
-}
-
-/**
- * Adds CORS headers to allow cross-origin requests for embedded deployments.
- * We reflect the requesting origin to support same-site cross-origin setups
- * (e.g. subdomains), but never set Allow-Credentials — auth cookies use
- * SameSite=Lax and are handled within same-origin iframe contexts.
- */
-export function addCorsHeaders(response: NextResponse, request: NextRequest): NextResponse {
-  const origin = request.headers.get('origin')
-
-  if (origin) {
-    response.headers.set('Access-Control-Allow-Origin', origin)
-    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, X-Requested-With')
-  }
-
-  return response
 }
 
 /**

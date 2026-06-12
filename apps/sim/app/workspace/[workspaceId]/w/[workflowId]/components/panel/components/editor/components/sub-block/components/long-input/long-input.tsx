@@ -14,9 +14,11 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
@@ -67,6 +69,7 @@ interface LongInputProps {
   wandControlRef?: React.MutableRefObject<WandControlHandlers | null>
   /** Whether to hide the internal wand button (controlled by parent) */
   hideInternalWand?: boolean
+  workflowSearchValuePath?: Array<string | number>
 }
 
 /**
@@ -92,7 +95,9 @@ export function LongInput({
   disabled,
   wandControlRef,
   hideInternalWand = false,
+  workflowSearchValuePath = [],
 }: LongInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   // Local state for immediate UI updates during streaming
   const [localContent, setLocalContent] = useState<string>('')
   const persistSubBlockValueRef = useRef<(value: string) => void>(() => {})
@@ -156,6 +161,12 @@ export function LongInput({
   const isResizing = useRef(false)
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: workflowSearchValuePath,
+  })
 
   /**
    * Callback to show tag dropdown when input is empty and focused
@@ -361,6 +372,7 @@ export function LongInput({
                 {formatDisplayText(value, {
                   accessiblePrefixes,
                   highlightAll: !accessiblePrefixes,
+                  workflowSearchHighlight,
                 })}
               </div>
 
@@ -377,9 +389,9 @@ export function LongInput({
                     }
                     disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
                     aria-label='Generate content with AI'
-                    className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
+                    className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
                   >
-                    <Wand2 className='h-4 w-4' />
+                    <Wand2 className='size-4' />
                   </Button>
                 </div>
               )}
@@ -387,13 +399,15 @@ export function LongInput({
               {/* Custom resize handle */}
               {!wandHook.isStreaming && (
                 <div
-                  className='absolute right-1 bottom-1 flex h-4 w-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                  role='separator'
+                  aria-orientation='horizontal'
+                  className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
                   onMouseDown={startResize}
                   onDragStart={(e) => {
                     e.preventDefault()
                   }}
                 >
-                  <ChevronsUpDown className='h-3 w-3 text-[var(--text-muted)]' />
+                  <ChevronsUpDown className='size-3 text-[var(--text-muted)]' />
                 </div>
               )}
             </div>

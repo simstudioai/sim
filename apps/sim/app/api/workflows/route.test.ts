@@ -87,9 +87,9 @@ describe('Workflows API Route - POST ordering', () => {
 
   it('uses top insertion against mixed siblings (folders + workflows)', async () => {
     const minResultsQueue: Array<Array<{ minOrder: number }>> = [
+      [],
       [{ minOrder: 5 }],
       [{ minOrder: 2 }],
-      [],
     ]
 
     mockDbSelect.mockImplementation(() => ({
@@ -113,7 +113,6 @@ describe('Workflows API Route - POST ordering', () => {
     const req = createMockRequest('POST', {
       name: 'New Workflow',
       description: 'desc',
-      color: '#3972F6',
       workspaceId: 'workspace-123',
       folderId: null,
     })
@@ -150,7 +149,6 @@ describe('Workflows API Route - POST ordering', () => {
     const req = createMockRequest('POST', {
       name: 'New Workflow',
       description: 'desc',
-      color: '#3972F6',
       workspaceId: 'workspace-123',
       folderId: null,
     })

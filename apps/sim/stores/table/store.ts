@@ -81,13 +81,14 @@ function patchRowIdInEntry(entry: UndoEntry, oldRowId: string, newRowId: string)
 }
 
 /**
- * Run a function without recording undo entries.
- * Used by the hook when executing undo/redo mutations to prevent recursive recording.
+ * Run a function without recording undo entries. Supports async functions —
+ * `undoRedoInProgress` stays true until the returned Promise settles, so
+ * mutations inside `executeAction` don't accidentally push new undo entries.
  */
-export function runWithoutRecording<T>(fn: () => T): T {
+export async function runWithoutRecording<T>(fn: () => T | Promise<T>): Promise<T> {
   undoRedoInProgress = true
   try {
-    return fn()
+    return await fn()
   } finally {
     undoRedoInProgress = false
   }

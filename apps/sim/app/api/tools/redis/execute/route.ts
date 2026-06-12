@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import Redis from 'ioredis'
 import { type NextRequest, NextResponse } from 'next/server'
 import { redisExecuteContract } from '@/lib/api/contracts/tools/databases/redis'
@@ -35,7 +36,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: hostValidation.error }, { status: 400 })
     }
 
-    client = new Redis(url, {
+    const resolvedIP = hostValidation.resolvedIP ?? hostname
+    const tlsEnabled = parsedUrl.protocol === 'rediss:'
+    const port = parsedUrl.port ? Number(parsedUrl.port) : 6379
+    const username = parsedUrl.username ? decodeURIComponent(parsedUrl.username) : undefined
+    const password = parsedUrl.password ? decodeURIComponent(parsedUrl.password) : undefined
+
+    let db = 0
+    if (parsedUrl.pathname && parsedUrl.pathname.length > 1) {
+      const dbSegment = parsedUrl.pathname.slice(1)
+      const parsedDb = Number.parseInt(dbSegment, 10)
+      if (!Number.isFinite(parsedDb) || String(parsedDb) !== dbSegment) {
+        return NextResponse.json(
+          { error: `Invalid Redis database index in URL path: '${dbSegment}'` },
+          { status: 400 }
+        )
+      }
+      db = parsedDb
+    }
+
+    client = new Redis({
+      host: resolvedIP,
+      port,
+      username,
+      password,
+      db,
+      family: resolvedIP.includes(':') ? 6 : 4,
+      tls: tlsEnabled ? { servername: hostname } : undefined,
       connectTimeout: 10000,
       commandTimeout: 10000,
       maxRetriesPerRequest: 1,
@@ -54,7 +81,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ result })
   } catch (error) {
     logger.error('Redis command failed', { error })
-    const errorMessage = error instanceof Error ? error.message : 'Redis command failed'
+    const errorMessage = getErrorMessage(error, 'Redis command failed')
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   } finally {
     if (client) {

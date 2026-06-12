@@ -6,10 +6,11 @@ import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
   MothershipResource,
-  MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
@@ -23,16 +24,18 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
 /**
  * Whether the active resource should show the in-progress file stream.
  * The synthetic `streaming-file` tab always shows it; a real file tab only shows it
- * when the streamed fileId matches that exact resource.
+ * after a preview content event has arrived for that exact resource.
  */
 function shouldShowStreamingFilePanel(
   previewSession: FilePreviewSession | null | undefined,
   active: MothershipResource | null
 ): boolean {
-  if (!previewSession || previewSession.status === 'complete' || !active) return false
+  if (!previewSession || !hasRenderableFilePreviewContent(previewSession) || !active) return false
   if (active.id === 'streaming-file') return true
   if (active.type !== 'file') return false
-  if (active.id && previewSession.fileId === active.id) return true
+  if (active.id && previewSession.fileId === active.id) {
+    return true
+  }
   return false
 }
 
@@ -41,11 +44,6 @@ interface MothershipViewProps {
   chatId?: string
   resources: MothershipResource[]
   activeResourceId: string | null
-  onSelectResource: (id: string) => void
-  onAddResource: (resource: MothershipResource) => void
-  onRemoveResource: (resourceType: MothershipResourceType, resourceId: string) => void
-  onReorderResources: (resources: MothershipResource[]) => void
-  onCollapse: () => void
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
@@ -59,11 +57,6 @@ export const MothershipView = memo(
       chatId,
       resources,
       activeResourceId,
-      onSelectResource,
-      onAddResource,
-      onRemoveResource,
-      onReorderResources,
-      onCollapse,
       isCollapsed,
       className,
       previewSession,
@@ -73,6 +66,7 @@ export const MothershipView = memo(
   ) {
     const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
     const { canEdit } = useUserPermissionsContext()
+    const { removeResource } = useMothershipResources()
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
@@ -108,11 +102,6 @@ export const MothershipView = memo(
             chatId={chatId}
             resources={resources}
             activeId={active?.id ?? null}
-            onSelect={onSelectResource}
-            onAddResource={onAddResource}
-            onRemoveResource={onRemoveResource}
-            onReorderResources={onReorderResources}
-            onCollapse={onCollapse}
             actions={
               active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
             }
@@ -128,7 +117,7 @@ export const MothershipView = memo(
                 previewSession={previewForActive}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
-                onNotFound={(resourceId) => onRemoveResource('log', resourceId)}
+                onNotFound={(resourceId) => removeResource('log', resourceId)}
               />
             ) : (
               <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>

@@ -1,11 +1,12 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getTableById, restoreTable, TableConflictError } from '@/lib/table'
+import { getTableById } from '@/lib/table'
+import { performRestoreTable } from '@/lib/table/orchestration'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('RestoreTableAPI')
@@ -31,36 +32,23 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
       }
 
-      await restoreTable(tableId, requestId)
+      const result = await performRestoreTable({ tableId, userId: auth.userId, requestId })
+      if (!result.success) {
+        const status =
+          result.errorCode === 'not_found' ? 404 : result.errorCode === 'conflict' ? 409 : 500
+        return NextResponse.json({ error: result.error }, { status })
+      }
 
       logger.info(`[${requestId}] Restored table ${tableId}`)
 
-      recordAudit({
-        workspaceId: table.workspaceId,
-        actorId: auth.userId,
-        actorName: auth.userName,
-        actorEmail: auth.userEmail,
-        action: AuditAction.TABLE_RESTORED,
-        resourceType: AuditResourceType.TABLE,
-        resourceId: tableId,
-        resourceName: table.name,
-        description: `Restored table "${table.name}"`,
-        metadata: {
-          tableName: table.name,
-          workspaceId: table.workspaceId,
-        },
-        request,
+      return NextResponse.json({
+        success: true,
+        data: { table: result.table },
       })
-
-      return NextResponse.json({ success: true })
     } catch (error) {
-      if (error instanceof TableConflictError) {
-        return NextResponse.json({ error: error.message }, { status: 409 })
-      }
-
       logger.error(`[${requestId}] Error restoring table ${tableId}`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Internal server error' },
+        { error: getErrorMessage(error, 'Internal server error') },
         { status: 500 }
       )
     }

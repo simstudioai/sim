@@ -14,18 +14,29 @@ paths:
 ## Root-Level Structure
 
 ```
-apps/sim/
-├── app/                 # Next.js app router (pages, API routes)
-├── blocks/              # Block definitions and registry
-├── components/          # Shared UI (emcn/, ui/)
-├── executor/            # Workflow execution engine
-├── hooks/               # Shared hooks (queries/, selectors/)
-├── lib/                 # App-wide utilities
-├── providers/           # LLM provider integrations
-├── stores/              # Zustand stores
-├── tools/               # Tool definitions
-└── triggers/            # Trigger definitions
+apps/
+├── sim/                 # this app (Next.js: UI + API routes + workflow editor)
+│   ├── app/             # Next.js app router (pages, API routes)
+│   ├── blocks/          # Block definitions and registry
+│   ├── components/      # Shared UI (emcn/, ui/)
+│   ├── executor/        # Workflow execution engine
+│   ├── hooks/           # Shared hooks (queries/, selectors/)
+│   ├── lib/             # App-wide utilities
+│   ├── providers/       # LLM provider integrations
+│   ├── stores/          # Zustand stores
+│   ├── tools/           # Tool definitions
+│   └── triggers/        # Trigger definitions
+└── realtime/            # Bun Socket.IO server (collaborative canvas)
+
+packages/                # @sim/* — audit, auth, db, logger, realtime-protocol,
+                         # security, tsconfig, utils, workflow-authz,
+                         # workflow-persistence, workflow-types
 ```
+
+## Package Boundaries
+
+- `apps/* → packages/*` only. Packages never import from `apps/*`.
+- `apps/realtime` avoids Next.js, React, the block/tool registry, provider SDKs, and the executor; never add `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` imports to any package it consumes. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
 
 ## Feature Organization
 

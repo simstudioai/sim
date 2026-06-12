@@ -25,7 +25,8 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter releases by specific project slug (e.g., "my-project")',
+      description:
+        'Filter releases by numeric project ID (e.g., "4501234"). This organization-scoped endpoint requires the numeric project ID, not the project slug.',
     },
     query: {
       type: 'string',
@@ -65,7 +66,7 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
       }
 
       if (params.limit && params.limit !== null) {
-        queryParams.push(`limit=${Number(params.limit)}`)
+        queryParams.push(`per_page=${Number(params.limit)}`)
       }
 
       return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl
@@ -80,7 +81,6 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Extract pagination info from Link header
     const linkHeader = response.headers.get('Link')
     let nextCursor: string | undefined
     let hasMore = false
@@ -95,10 +95,12 @@ export const listReleasesTool: ToolConfig<SentryListReleasesParams, SentryListRe
       }
     }
 
+    const releases = Array.isArray(data) ? data : []
+
     return {
       success: true,
       output: {
-        releases: data.map((release: any) => ({
+        releases: releases.map((release: any) => ({
           id: release.id,
           version: release.version,
           shortVersion: release.shortVersion,

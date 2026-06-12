@@ -82,7 +82,6 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       }
     }
 
-    // Reddit API returns errors in json.errors array
     if (data.json?.errors && data.json.errors.length > 0) {
       const errors = data.json.errors.map((err: any) => err.join(': ')).join(', ')
       return {
@@ -94,7 +93,6 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       }
     }
 
-    // Success response includes comment data
     const commentData = data.json?.data?.things?.[0]?.data
     return {
       success: true,
@@ -128,8 +126,8 @@ export const replyTool: ToolConfig<RedditReplyParams, RedditWriteResponse> = {
       properties: {
         id: { type: 'string', description: 'New comment ID' },
         name: { type: 'string', description: 'Thing fullname (t1_xxxxx)' },
-        permalink: { type: 'string', description: 'Comment permalink' },
-        body: { type: 'string', description: 'Comment body text' },
+        permalink: { type: 'string', description: 'Comment permalink', optional: true },
+        body: { type: 'string', description: 'Comment body text', optional: true },
       },
     },
   },

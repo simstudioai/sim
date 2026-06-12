@@ -1,5 +1,6 @@
 import type { AgiloftSelectRecordsParams, AgiloftSelectResponse } from '@/tools/agiloft/types'
-import { buildSelectRecordsUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildSelectRecordsUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSelectRecordsTool: ToolConfig<
@@ -95,14 +96,22 @@ export const agiloftSelectRecordsTool: ToolConfig<
           }
         }
 
-        const totalCount =
-          data.EWREST_id_length ?? data.totalCount ?? data.total ?? data.count ?? recordIds.length
+        const totalCountRaw =
+          result.EWREST_id_length ??
+          result.totalCount ??
+          result.total ??
+          result.count ??
+          data.EWREST_id_length ??
+          data.totalCount ??
+          data.total ??
+          data.count ??
+          recordIds.length
 
         return {
           success: data.success !== false,
           output: {
             recordIds,
-            totalCount: Number(totalCount),
+            totalCount: Number(totalCountRaw),
           },
         }
       }

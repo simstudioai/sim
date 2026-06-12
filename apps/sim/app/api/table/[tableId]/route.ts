@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getTableQuerySchema, renameTableContract } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
@@ -67,6 +68,11 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Tab
             table.updatedAt instanceof Date
               ? table.updatedAt.toISOString()
               : String(table.updatedAt),
+          jobStatus: table.jobStatus ?? null,
+          jobId: table.jobId ?? null,
+          jobType: table.jobType ?? null,
+          jobError: table.jobError ?? null,
+          jobRowsProcessed: table.jobRowsProcessed ?? 0,
         },
       },
     })
@@ -127,7 +133,7 @@ export const PATCH = withRouteHandler(
 
       logger.error(`[${requestId}] Error renaming table:`, error)
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Failed to rename table' },
+        { error: getErrorMessage(error, 'Failed to rename table') },
         { status: 500 }
       )
     }

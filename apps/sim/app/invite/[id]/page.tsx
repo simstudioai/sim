@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import Invite from '@/app/invite/[id]/invite'
 
@@ -6,4 +7,12 @@ export const metadata: Metadata = {
   robots: { index: false },
 }
 
-export default Invite
+export const dynamic = 'force-dynamic'
+
+export default function InvitePage() {
+  return (
+    <Suspense fallback={null}>
+      <Invite />
+    </Suspense>
+  )
+}

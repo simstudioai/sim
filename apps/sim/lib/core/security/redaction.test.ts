@@ -537,7 +537,7 @@ describe('Security edge cases', () => {
         },
       }
 
-      const originalCopy = JSON.parse(JSON.stringify(original))
+      const originalCopy = structuredClone(original)
       redactApiKeys(original)
 
       expect(original).toEqual(originalCopy)

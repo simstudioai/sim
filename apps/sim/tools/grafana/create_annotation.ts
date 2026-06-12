@@ -46,9 +46,10 @@ export const createAnnotationTool: ToolConfig<
     },
     dashboardUid: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'UID of the dashboard to add the annotation to (e.g., abc123def)',
+      description:
+        'UID of the dashboard to add the annotation to (e.g., abc123def). Omit to create a global organization annotation.',
     },
     panelId: {
       type: 'number',
@@ -84,28 +85,20 @@ export const createAnnotationTool: ToolConfig<
       return headers
     },
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         text: params.text,
-        time: params.time || Date.now(),
       }
+
+      if (params.time) body.time = params.time
+      if (params.timeEnd) body.timeEnd = params.timeEnd
+      if (params.dashboardUid) body.dashboardUID = params.dashboardUid
+      if (params.panelId) body.panelId = params.panelId
 
       if (params.tags) {
         body.tags = params.tags
           .split(',')
           .map((t) => t.trim())
           .filter((t) => t)
-      }
-
-      if (params.dashboardUid) {
-        body.dashboardUID = params.dashboardUid
-      }
-
-      if (params.panelId) {
-        body.panelId = params.panelId
-      }
-
-      if (params.timeEnd) {
-        body.timeEnd = params.timeEnd
       }
 
       return body

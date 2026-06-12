@@ -1,11 +1,44 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
-import { listChatUploads, readChatUpload } from './upload-file-reader'
+import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
+import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
+import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
+
+/**
+ * Encode a chat-upload display name as a single canonical VFS path segment so
+ * `uploads/` paths follow the same percent-encoded convention as `files/`.
+ * Falls back to the raw name if the segment cannot be encoded (so a listing
+ * never fails wholesale over one odd name).
+ */
+function encodeUploadSegment(name: string): string {
+  try {
+    return encodeVfsSegment(name)
+  } catch {
+    return name
+  }
+}
+
+/**
+ * True when a grep `path` targets the workspace files tree (`files/` or
+ * `recently-deleted/files/`). Such greps search a single file's content via
+ * {@link WorkspaceVFS.grepFile}; every other path searches the VFS map.
+ */
+function isWorkspaceFileGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^(recently-deleted\/)?files(\/|$)/.test(path.replace(/^\/+/, ''))
+}
+
+/** True when a grep `path` targets the chat-scoped uploads namespace. */
+function isChatUploadGrepPath(path: string | undefined): path is string {
+  if (!path) return false
+  return /^uploads(\/|$)/.test(path.replace(/^\/+/, ''))
+}
 
 function serializedResultSize(value: unknown): number {
   try {
@@ -18,16 +51,19 @@ function serializedResultSize(value: unknown): number {
 function isOversizedReadPlaceholder(content: string): boolean {
   return (
     content.startsWith('[File too large to display inline:') ||
-    content.startsWith('[Image too large:')
+    content.startsWith('[Image too large:') ||
+    content.startsWith('[Compiled artifact too large:')
   )
 }
 
-function hasImageAttachment(result: unknown): boolean {
+function hasModelAttachment(result: unknown): boolean {
   if (!result || typeof result !== 'object') {
     return false
   }
   const attachment = (result as { attachment?: { type?: string } }).attachment
-  return attachment?.type === 'image'
+  return (
+    attachment?.type === 'image' || attachment?.type === 'file' || attachment?.type === 'document'
+  )
 }
 
 export async function executeVfsGrep(
@@ -45,15 +81,49 @@ export async function executeVfsGrep(
     return { success: false, error: 'No workspace context available' }
   }
 
+  const rawPath = typeof params.path === 'string' ? params.path : undefined
+
   try {
-    const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const result = vfs.grep(pattern, params.path as string | undefined, {
+    const grepOptions = {
       maxResults: (params.maxResults as number) ?? 50,
       outputMode: outputMode as 'content' | 'files_with_matches' | 'count',
       ignoreCase: (params.ignoreCase as boolean) ?? false,
       lineNumbers: (params.lineNumbers as boolean) ?? true,
       context: (params.context as number) ?? 0,
-    })
+    }
+
+    // Routing mirrors read/glob:
+    //  - uploads/<file>  -> grep one chat upload's content (chat-scoped)
+    //  - files/<file>    -> grep one workspace file's content (one file only)
+    //  - everything else -> grep the in-memory VFS map (workflow JSON, metadata)
+    // Chat uploads are opt-in like recently-deleted/: they are never in the VFS
+    // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
+    // path does, and only one upload at a time.
+    let result: GrepMatch[] | string[] | GrepCountEntry[]
+    if (isChatUploadGrepPath(rawPath)) {
+      if (!context.chatId) {
+        return { success: false, error: 'No chat context available for uploads/' }
+      }
+      // The upload is the first segment after uploads/; any trailing segment
+      // (e.g. a /content suffix) is ignored, mirroring the uploads read path.
+      const filename = rawPath
+        .replace(/^\/+/, '')
+        .replace(/^uploads\/?/, '')
+        .split('/')[0]
+      if (!filename) {
+        return {
+          success: false,
+          error:
+            'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
+        }
+      }
+      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+    } else {
+      const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
+      result = isWorkspaceFileGrepPath(rawPath)
+        ? await vfs.grepFile(rawPath, pattern, grepOptions)
+        : vfs.grep(pattern, rawPath, grepOptions)
+    }
     const key =
       outputMode === 'files_with_matches' ? 'files' : outputMode === 'count' ? 'counts' : 'matches'
     const matchCount = Array.isArray(result)
@@ -69,15 +139,25 @@ export async function executeVfsGrep(
           'Grep result too large to return inline. Retry grep with a more specific pattern or narrower path, and reduce context or maxResults. Avoid catch-all greps because smaller searches save context window and make follow-up reads cheaper.',
       }
     }
-    logger.debug('vfs_grep result', { pattern, path: params.path, outputMode, matchCount })
+    logger.debug('vfs_grep result', { pattern, path: rawPath, outputMode, matchCount })
     return { success: true, output }
   } catch (err) {
+    // Expected single-file scoping / no-text / too-large conditions: surface the
+    // message verbatim instead of logging an internal failure.
+    if (err instanceof WorkspaceFileGrepError) {
+      logger.debug('vfs_grep workspace file rejected', {
+        pattern,
+        path: rawPath,
+        error: err.message,
+      })
+      return { success: false, error: err.message }
+    }
     logger.error('vfs_grep failed', {
       pattern,
-      path: params.path,
+      path: rawPath,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_grep failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_grep failed') }
   }
 }
 
@@ -101,7 +181,9 @@ export async function executeVfsGlob(
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
       const uploads = await listChatUploads(context.chatId)
-      const uploadPaths = uploads.map((f) => `uploads/${f.name}`)
+      // Encode per segment so uploads/ paths match the files/ convention; the
+      // upload resolver accepts both the encoded path and the raw display name.
+      const uploadPaths = uploads.map((f) => `uploads/${encodeUploadSegment(f.name)}`)
       files = [...files, ...uploadPaths]
     }
 
@@ -112,7 +194,7 @@ export async function executeVfsGlob(
       pattern,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_glob failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_glob failed') }
   }
 }
 
@@ -153,23 +235,26 @@ export async function executeVfsRead(
       }
     }
 
-    // Handle chat-scoped uploads via the uploads/ virtual prefix
+    // Handle chat-scoped uploads via the uploads/ virtual prefix.
+    // Uploads are flat and have no metadata/content split like files/ — the upload
+    // IS the first path segment after uploads/. Any trailing segment (e.g. a
+    // /content suffix added out of habit) is ignored so the read resolves either way.
     if (path.startsWith('uploads/')) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
       }
-      const filename = path.slice('uploads/'.length)
+      const filename = path.slice('uploads/'.length).split('/')[0]
       const uploadResult = await readChatUpload(filename, context.chatId)
       if (uploadResult) {
-        const isImage = hasImageAttachment(uploadResult)
+        const isAttachment = hasModelAttachment(uploadResult)
         if (
-          !isImage &&
+          !isAttachment &&
           (isOversizedReadPlaceholder(uploadResult.content) ||
             serializedResultSize(uploadResult) > TOOL_RESULT_MAX_INLINE_CHARS)
         ) {
           logger.warn('Upload read result too large', {
             path,
-            hasAttachment: isImage,
+            hasAttachment: isAttachment,
             contentLength: uploadResult.content.length,
             serializedSize: serializedResultSize(uploadResult),
           })
@@ -184,7 +269,7 @@ export async function executeVfsRead(
         logger.debug('vfs_read resolved chat upload', {
           path,
           totalLines: uploadResult.totalLines,
-          hasAttachment: isImage,
+          hasAttachment: isAttachment,
           offset,
           limit,
         })
@@ -198,20 +283,23 @@ export async function executeVfsRead(
 
     const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
 
-    // For workspace file paths (files/ or recently-deleted/files/), try readFileContent
-    // first so images, PDFs, and documents get proper attachment/parsing handling rather
-    // than being served as raw VFS metadata text.
-    const fileContent = await vfs.readFileContent(path)
+    // Plain canonical file leaves are metadata resources. Dynamic file content
+    // and inspection paths use explicit suffixes like /content, /style,
+    // /compiled-check, or /compiled.
+    const shouldReadDynamicFileContent =
+      /^recently-deleted\/files\/.+\/content$/.test(path) ||
+      /^files\/.+\/(?:content|style|compiled-check|compiled|render|extract)$/.test(path)
+    const fileContent = shouldReadDynamicFileContent ? await vfs.readFileContent(path) : null
     if (fileContent) {
-      const isImage = hasImageAttachment(fileContent)
+      const isAttachment = hasModelAttachment(fileContent)
       if (
-        !isImage &&
+        !isAttachment &&
         (isOversizedReadPlaceholder(fileContent.content) ||
           serializedResultSize(fileContent) > TOOL_RESULT_MAX_INLINE_CHARS)
       ) {
         logger.warn('File read result too large', {
           path,
-          hasAttachment: isImage,
+          hasAttachment: isAttachment,
           contentLength: fileContent.content.length,
           serializedSize: serializedResultSize(fileContent),
         })
@@ -226,7 +314,7 @@ export async function executeVfsRead(
       logger.debug('vfs_read resolved workspace file', {
         path,
         totalLines: fileContent.totalLines,
-        hasAttachment: isImage,
+        hasAttachment: isAttachment,
         offset,
         limit,
       })
@@ -247,7 +335,7 @@ export async function executeVfsRead(
       return { success: false, error: `File not found: ${path}.${hint}` }
     }
     if (
-      !hasImageAttachment(result) &&
+      !hasModelAttachment(result) &&
       (isOversizedReadPlaceholder(result.content) ||
         serializedResultSize(result) > TOOL_RESULT_MAX_INLINE_CHARS)
     ) {
@@ -267,34 +355,6 @@ export async function executeVfsRead(
       path,
       error: toError(err).message,
     })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_read failed' }
-  }
-}
-
-export async function executeVfsList(
-  params: Record<string, unknown>,
-  context: ExecutionContext
-): Promise<ToolCallResult> {
-  const path = params.path as string | undefined
-  if (!path) {
-    return { success: false, error: "Missing required parameter 'path'" }
-  }
-
-  const workspaceId = context.workspaceId
-  if (!workspaceId) {
-    return { success: false, error: 'No workspace context available' }
-  }
-
-  try {
-    const vfs = await getOrMaterializeVFS(workspaceId, context.userId)
-    const entries = vfs.list(path)
-    logger.debug('vfs_list result', { path, entryCount: entries.length })
-    return { success: true, output: { entries } }
-  } catch (err) {
-    logger.error('vfs_list failed', {
-      path,
-      error: toError(err).message,
-    })
-    return { success: false, error: err instanceof Error ? err.message : 'vfs_list failed' }
+    return { success: false, error: getErrorMessage(err, 'vfs_read failed') }
   }
 }

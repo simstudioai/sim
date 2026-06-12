@@ -6,7 +6,7 @@ export default function AuthorLoading() {
   return (
     <main className='mx-auto max-w-[900px] px-6 py-10 sm:px-8 md:px-12'>
       <div className='mb-6 flex items-center gap-3'>
-        <Skeleton className='h-[40px] w-[40px] rounded-full bg-[var(--landing-bg-elevated)]' />
+        <Skeleton className='size-[40px] rounded-full bg-[var(--landing-bg-elevated)]' />
         <Skeleton className='h-[32px] w-[160px] rounded-[4px] bg-[var(--landing-bg-elevated)]' />
       </div>
       <div className='grid grid-cols-1 gap-8 sm:grid-cols-2'>

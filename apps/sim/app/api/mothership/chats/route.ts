@@ -6,17 +6,22 @@ import { type NextRequest, NextResponse } from 'next/server'
 import {
   createMothershipChatContract,
   listMothershipChatsContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MothershipChatsAPI')
 
@@ -44,6 +49,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         updatedAt: copilotChats.updatedAt,
         activeStreamId: copilotChats.conversationId,
         lastSeenAt: copilotChats.lastSeenAt,
+        pinned: copilotChats.pinned,
       })
       .from(copilotChats)
       .where(
@@ -53,10 +59,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           eq(copilotChats.type, 'mothership')
         )
       )
-      .orderBy(desc(copilotChats.updatedAt))
+      .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
 
-    return NextResponse.json({ success: true, data: chats })
+    const streamMarkers = await reconcileChatStreamMarkers(
+      chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
+      { repairVerifiedStaleMarkers: true }
+    )
+    const reconciled = chats.map((c) => {
+      const activeStreamId = streamMarkers.get(c.id)?.streamId ?? null
+      return activeStreamId === c.activeStreamId ? c : { ...c, activeStreamId }
+    })
+
+    return NextResponse.json({ success: true, data: reconciled })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error fetching mothership chats:', error)
     return createInternalServerErrorResponse('Failed to fetch chats')
   }
@@ -87,14 +105,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         workspaceId,
         type: 'mothership',
         title: null,
-        model: 'claude-opus-4-6',
-        messages: [],
+        model: 'claude-opus-4-8',
         updatedAt: now,
         lastSeenAt: now,
       })
       .returning({ id: copilotChats.id })
 
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
+    chatPubSub?.publishStatusChanged({ workspaceId, chatId: chat.id, type: 'created' })
 
     captureServerEvent(
       userId,
@@ -107,6 +124,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, id: chat.id })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error creating mothership chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }

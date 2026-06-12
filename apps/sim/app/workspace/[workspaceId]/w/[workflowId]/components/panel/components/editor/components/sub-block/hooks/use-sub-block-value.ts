@@ -152,7 +152,7 @@ export function useSubBlockValue<T = any>(
           newValue === null
             ? null
             : typeof newValue === 'object'
-              ? JSON.parse(JSON.stringify(newValue))
+              ? structuredClone(newValue)
               : newValue
 
         // If streaming, hold value locally and do not update global store to avoid render-phase updates
@@ -180,7 +180,7 @@ export function useSubBlockValue<T = any>(
         }
 
         // Emit immediately; the client queue coalesces same-key ops and the server debounces
-        emitValue(valueCopy)
+        emitValue(valueCopy as T)
 
         if (triggerWorkflowUpdate) {
           useWorkflowStore.getState().triggerUpdate()

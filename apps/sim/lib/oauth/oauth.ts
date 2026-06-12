@@ -541,9 +541,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'write:request.participant:jira-service-management',
           'read:request.approval:jira-service-management',
           'write:request.approval:jira-service-management',
-          'read:form:jira-service-management',
-          'write:form:jira-service-management',
-          'delete:form:jira-service-management',
         ],
       },
     },
@@ -696,12 +693,14 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         scopes: [
           'channels:read',
           'channels:history',
+          'channels:manage',
           'groups:read',
           'groups:history',
+          'groups:write',
           'chat:write',
           'chat:write.public',
+          'assistant:write',
           'im:write',
-          'im:history',
           'im:read',
           'users:read',
           // TODO: Add 'users:read.email' once Slack app review is approved
@@ -710,6 +709,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'canvases:read',
           'canvases:write',
           'reactions:write',
+          'reactions:read',
         ],
       },
     },
@@ -904,18 +904,13 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'crm.objects.deals.write',
           'crm.objects.owners.read',
           'crm.objects.users.read',
-          'crm.objects.users.write',
           'crm.objects.marketing_events.read',
-          'crm.objects.marketing_events.write',
           'crm.objects.line_items.read',
           'crm.objects.line_items.write',
           'crm.objects.quotes.read',
-          'crm.objects.quotes.write',
           'crm.objects.appointments.read',
           'crm.objects.appointments.write',
           'crm.objects.carts.read',
-          'crm.objects.carts.write',
-          'crm.import',
           'crm.lists.read',
           'crm.lists.write',
           'tickets',
@@ -1163,6 +1158,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'linear': {
@@ -1209,7 +1205,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
-        supportsRefreshTokenRotation: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'dropbox': {
@@ -1366,7 +1362,7 @@ function getProviderAuthConfig(provider: string): ProviderAuthConfig {
         clientId,
         clientSecret,
         useBasicAuth: true,
-        supportsRefreshTokenRotation: false,
+        supportsRefreshTokenRotation: true,
       }
     }
     case 'wordpress': {
@@ -1455,13 +1451,6 @@ function buildAuthRequest(
   return { headers, bodyParams, useJsonBody: config.useJsonBody }
 }
 
-/**
- * Refresh an OAuth token
- * This is a server-side utility function to refresh OAuth tokens
- * @param providerId The provider ID (e.g., 'google-drive')
- * @param refreshToken The refresh token to use
- * @returns Object containing the new access token and expiration time in seconds, or null if refresh failed
- */
 function getBaseProviderForService(providerId: string): string {
   if (providerId in OAUTH_PROVIDERS) {
     return providerId
@@ -1478,10 +1467,33 @@ function getBaseProviderForService(providerId: string): string {
   throw new Error(`Unknown OAuth provider: ${providerId}`)
 }
 
+export interface RefreshTokenSuccess {
+  ok: true
+  accessToken: string
+  expiresIn: number
+  refreshToken: string
+}
+
+export interface RefreshTokenFailure {
+  ok: false
+  errorCode?: string
+  message?: string
+}
+
+export type RefreshTokenResult = RefreshTokenSuccess | RefreshTokenFailure
+
+function extractErrorCode(value: unknown): string | undefined {
+  if (value && typeof value === 'object' && 'error' in value) {
+    const code = (value as { error: unknown }).error
+    if (typeof code === 'string') return code
+  }
+  return undefined
+}
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
-): Promise<{ accessToken: string; expiresIn: number; refreshToken: string } | null> {
+): Promise<RefreshTokenResult> {
   try {
     const provider = getBaseProviderForService(providerId)
 
@@ -1497,7 +1509,7 @@ export async function refreshOAuthToken(
 
     if (!response.ok) {
       const errorText = await response.text()
-      let errorData = errorText
+      let errorData: unknown = errorText
 
       try {
         errorData = JSON.parse(errorText)
@@ -1517,10 +1529,33 @@ export async function refreshOAuthToken(
         hasRefreshToken: !!refreshToken,
         refreshTokenPrefix: refreshToken ? `${refreshToken.substring(0, 10)}...` : 'none',
       })
-      throw new Error(`Failed to refresh token: ${response.status} ${errorText}`)
+      return {
+        ok: false,
+        errorCode: extractErrorCode(errorData),
+        message: `Failed to refresh token: ${response.status} ${errorText}`,
+      }
     }
 
     const data = await response.json()
+
+    if (data && typeof data === 'object' && data.ok === false) {
+      logger.error('Token refresh failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: data.error,
+        parsedError: data,
+        providerId,
+        tokenEndpoint: config.tokenEndpoint,
+        hasClientId: !!config.clientId,
+        hasClientSecret: !!config.clientSecret,
+        hasRefreshToken: !!refreshToken,
+      })
+      return {
+        ok: false,
+        errorCode: typeof data.error === 'string' ? data.error : undefined,
+        message: `Failed to refresh token: ${data.error ?? 'unknown'}`,
+      }
+    }
 
     const accessToken = data.access_token
 
@@ -1533,8 +1568,8 @@ export async function refreshOAuthToken(
     const expiresIn = data.expires_in || data.expiresIn || 3600
 
     if (!accessToken) {
-      logger.warn('No access token found in refresh response', data)
-      return null
+      logger.warn('No access token found in refresh response', { providerId, response: data })
+      return { ok: false, message: 'No access token in refresh response' }
     }
 
     logger.info('Token refreshed successfully with expiration', {
@@ -1544,14 +1579,14 @@ export async function refreshOAuthToken(
     })
 
     return {
+      ok: true,
       accessToken,
       expiresIn,
       refreshToken: newRefreshToken || refreshToken, // Return new refresh token if available
     }
   } catch (error) {
-    logger.error('Error refreshing token:', {
-      error: toError(error).message,
-    })
-    return null
+    const message = toError(error).message
+    logger.error('Error refreshing token:', { error: message })
+    return { ok: false, message }
   }
 }

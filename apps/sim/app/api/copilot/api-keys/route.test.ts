@@ -7,8 +7,9 @@ import { authMockFns, createEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetch } = vi.hoisted(() => ({
+const { mockFetch, mockGetMothershipBaseURL } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  mockGetMothershipBaseURL: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/constants', () => ({
@@ -16,6 +17,10 @@ vi.mock('@/lib/copilot/constants', () => ({
   SIM_AGENT_API_URL: 'https://agent.sim.example.com',
   COPILOT_MODES: ['ask', 'build', 'plan'] as const,
   COPILOT_REQUEST_MODES: ['ask', 'build', 'plan', 'agent'] as const,
+}))
+
+vi.mock('@/lib/copilot/server/agent-url', () => ({
+  getMothershipBaseURL: mockGetMothershipBaseURL,
 }))
 
 vi.mock('@/lib/core/config/env', () => createEnvMock({ COPILOT_API_KEY: 'test-api-key' }))
@@ -41,6 +46,7 @@ function buildMockResponse(init: {
 describe('Copilot API Keys API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetMothershipBaseURL.mockResolvedValue('https://agent.sim.example.com')
     global.fetch = mockFetch
   })
 

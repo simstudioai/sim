@@ -67,6 +67,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         group: validated.group,
         outputColumns: validated.outputColumns,
         autoRun: validated.autoRun,
+        actorUserId: authResult.userId,
       },
       requestId
     )
@@ -103,6 +104,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
       {
         tableId,
         groupId: validated.groupId,
+        actorUserId: authResult.userId,
         ...(validated.workflowId !== undefined ? { workflowId: validated.workflowId } : {}),
         ...(validated.name !== undefined ? { name: validated.name } : {}),
         ...(validated.dependencies !== undefined ? { dependencies: validated.dependencies } : {}),
@@ -110,6 +112,17 @@ export const PATCH = withRouteHandler(async (request: NextRequest, { params }: R
         ...(validated.newOutputColumns !== undefined
           ? { newOutputColumns: validated.newOutputColumns }
           : {}),
+        ...(validated.mappingUpdates !== undefined
+          ? { mappingUpdates: validated.mappingUpdates }
+          : {}),
+        ...(validated.inputMappings !== undefined
+          ? { inputMappings: validated.inputMappings }
+          : {}),
+        ...(validated.deploymentMode !== undefined
+          ? { deploymentMode: validated.deploymentMode }
+          : {}),
+        ...(validated.type !== undefined ? { type: validated.type } : {}),
+        ...(validated.autoRun !== undefined ? { autoRun: validated.autoRun } : {}),
       },
       requestId
     )

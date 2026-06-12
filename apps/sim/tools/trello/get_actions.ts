@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import {
   extractTrelloErrorMessage,
@@ -141,7 +142,7 @@ export const trelloGetActionsTool: ToolConfig<TrelloGetActionsParams, TrelloGetA
         },
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to parse Trello actions'
+      const message = getErrorMessage(error, 'Failed to parse Trello actions')
 
       return {
         success: false,

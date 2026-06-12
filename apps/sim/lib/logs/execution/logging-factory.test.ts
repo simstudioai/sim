@@ -150,7 +150,6 @@ describe('calculateCostSummary', () => {
 
     expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
     expect(result.baseExecutionCharge).toBe(BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0)
     expect(result.totalInputCost).toBe(0)
     expect(result.totalOutputCost).toBe(0)
     expect(result.totalTokens).toBe(0)
@@ -188,7 +187,6 @@ describe('calculateCostSummary', () => {
     const result = calculateCostSummary(traceSpans)
 
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalInputCost).toBe(0.01)
     expect(result.totalOutputCost).toBe(0.02)
     expect(result.totalTokens).toBe(300)
@@ -221,7 +219,6 @@ describe('calculateCostSummary', () => {
     const result = calculateCostSummary(traceSpans)
 
     expect(result.totalCost).toBe(0.033 + BASE_EXECUTION_CHARGE)
-    expect(result.modelCost).toBe(0.033)
     expect(result.totalInputCost).toBe(0.011)
     expect(result.totalOutputCost).toBe(0.022)
     expect(result.totalTokens).toBe(450)
@@ -280,7 +277,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.models['claude-3']).toBeDefined()
     expect(result.models['claude-3'].total).toBe(0.03)
@@ -308,7 +304,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.models['gpt-4']).toBeDefined()
   })
 
@@ -345,7 +340,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(Object.keys(result.models)).toHaveLength(1)
   })
 
@@ -361,7 +355,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     // Should not add to models if model is not specified
     expect(Object.keys(result.models)).toHaveLength(0)
@@ -427,7 +420,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0)
     expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
     // Model is still tracked for token-usage display, but cost must be zero.
     expect(result.models['claude-opus-4-6'].total).toBe(0)
@@ -462,7 +454,6 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.03)
     expect(result.totalCost).toBe(0.03 + BASE_EXECUTION_CHARGE)
     expect(result.models['gpt-4o'].total).toBe(0.03)
   })
@@ -494,9 +485,231 @@ describe('calculateCostSummary', () => {
 
     const result = calculateCostSummary(traceSpans)
 
-    expect(result.modelCost).toBe(0.045)
     expect(result.totalCost).toBe(0.045 + BASE_EXECUTION_CHARGE)
     expect(result.models['gpt-4o'].total).toBe(0.045)
     expect(result.models['gpt-4o'].toolCost).toBe(0.015)
+  })
+
+  test('records a standalone non-model billable span as a charge (closes the tool gap)', () => {
+    const traceSpans = [
+      {
+        id: 'exa-block',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0.01 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Exa Search']).toBeDefined()
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    expect(Object.keys(result.models)).toHaveLength(0)
+    // Ledger partition reconciles with the run total.
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('does not double-count: agent-embedded tool stays in the model row, not charges', () => {
+    const traceSpans = [
+      {
+        id: 'agent-span',
+        name: 'Agent',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.045, toolCost: 0.015 },
+        tokens: { input: 1000, output: 2000, total: 3000 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(Object.keys(result.charges)).toHaveLength(0)
+    expect(result.models['gpt-4o'].total).toBe(0.045)
+    expect(result.models['gpt-4o'].toolCost).toBe(0.015)
+  })
+
+  test('mixed model + standalone tool run reconciles to total', () => {
+    const traceSpans = [
+      {
+        id: 'agent',
+        name: 'Agent',
+        type: 'agent',
+        model: 'gpt-4o',
+        cost: { input: 0.01, output: 0.02, total: 0.03 },
+        tokens: { input: 100, output: 200, total: 300 },
+      },
+      {
+        id: 'exa',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0.01 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('BYOK tool (no cost generated upstream) produces no charge row', () => {
+    const traceSpans = [
+      {
+        id: 'exa-byok',
+        name: 'Exa Search',
+        type: 'tool',
+        cost: { input: 0, output: 0, total: 0 },
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(Object.keys(result.charges)).toHaveLength(0)
+    expect(result.totalCost).toBe(BASE_EXECUTION_CHARGE)
+  })
+
+  test('does not double-count the synthetic workflow root (aggregate cost over leaves)', () => {
+    // buildTraceSpans wraps every run in a synthetic { type: 'workflow' } root
+    // whose cost.total is the SUM of its leaves. Counting that root in addition
+    // to the leaves double-charges the run — the root must be a pass-through.
+    const traceSpans = [
+      {
+        id: 'workflow-execution',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.04 }, // == agent(0.03) + exa(0.01)
+        children: [
+          {
+            id: 'agent-1',
+            name: 'Agent',
+            type: 'agent',
+            model: 'gpt-4o',
+            cost: { input: 0.01, output: 0.02, total: 0.03 },
+            tokens: { input: 100, output: 200, total: 300 },
+          },
+          {
+            id: 'exa-1',
+            name: 'Exa Search',
+            type: 'tool',
+            cost: { input: 0, output: 0, total: 0.01 },
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    // The 0.04 root aggregate is NOT added on top of its leaves.
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.charges['Exa Search'].total).toBe(0.01)
+    expect(result.totalCost).toBeCloseTo(0.04 + BASE_EXECUTION_CHARGE, 10)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
+  })
+
+  test('does not double-count nested sub-workflow roots', () => {
+    // A sub-workflow call nests another synthetic { type: 'workflow' } root
+    // (captureChildWorkflowLogs runs buildTraceSpans on the child). Both the
+    // outer root and the inner sub-workflow root carry aggregate costs; only the
+    // leaf agent inside should be billed.
+    const traceSpans = [
+      {
+        id: 'workflow-execution',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.03 },
+        children: [
+          {
+            id: 'subworkflow-root',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            cost: { total: 0.03 },
+            children: [
+              {
+                id: 'child-agent',
+                name: 'Agent',
+                type: 'agent',
+                model: 'gpt-4o',
+                cost: { input: 0.01, output: 0.02, total: 0.03 },
+                tokens: { input: 100, output: 200, total: 300 },
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    expect(result.models['gpt-4o'].total).toBe(0.03)
+    expect(result.totalCost).toBeCloseTo(0.03 + BASE_EXECUTION_CHARGE, 10)
+  })
+
+  test('does not double-count deeply nested (3-level) sub-workflow roots', () => {
+    // A → B → C: each level is its own synthetic { type: 'workflow' } root with
+    // an aggregate cost. Only the leaf agents at the bottom must be billed, once.
+    const leafAgent = (id: string, model: string, total: number) => ({
+      id,
+      name: 'Agent',
+      type: 'agent',
+      model,
+      cost: { input: total / 3, output: (total * 2) / 3, total },
+      tokens: { input: 100, output: 200, total: 300 },
+    })
+
+    const traceSpans = [
+      {
+        id: 'root',
+        name: 'Workflow Execution',
+        type: 'workflow',
+        cost: { total: 0.06 }, // aggregate of everything below
+        children: [
+          leafAgent('parent-agent', 'gpt-4o', 0.02),
+          {
+            id: 'sub-a-root',
+            name: 'Workflow Execution',
+            type: 'workflow',
+            cost: { total: 0.04 },
+            children: [
+              leafAgent('a-agent', 'gpt-4o', 0.01),
+              {
+                id: 'sub-b-root',
+                name: 'Workflow Execution',
+                type: 'workflow',
+                cost: { total: 0.03 },
+                children: [leafAgent('b-agent', 'claude-sonnet-4-6', 0.03)],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    const result = calculateCostSummary(traceSpans)
+
+    expect(result.charges['Workflow Execution']).toBeUndefined()
+    // gpt-4o appears at two levels (0.02 + 0.01) and merges by model name.
+    expect(result.models['gpt-4o'].total).toBeCloseTo(0.03, 10)
+    expect(result.models['claude-sonnet-4-6'].total).toBeCloseTo(0.03, 10)
+    expect(result.totalCost).toBeCloseTo(0.06 + BASE_EXECUTION_CHARGE, 10)
+    const ledgerSum =
+      result.baseExecutionCharge +
+      Object.values(result.models).reduce((s, m) => s + m.total, 0) +
+      Object.values(result.charges).reduce((s, c) => s + c.total, 0)
+    expect(ledgerSum).toBeCloseTo(result.totalCost, 10)
   })
 })

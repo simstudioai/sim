@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   abortMultipartUploadContract,
@@ -17,12 +18,14 @@ import {
   isUsingCloudStorage,
   type StorageContext,
 } from '@/lib/uploads'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 import {
   signUploadToken,
   type UploadTokenPayload,
   verifyUploadToken,
 } from '@/lib/uploads/core/upload-token'
-import type { StorageConfig } from '@/lib/uploads/shared/types'
+import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
+import { QUOTA_EXEMPT_STORAGE_CONTEXTS, type StorageConfig } from '@/lib/uploads/shared/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('MultipartUploadAPI')
@@ -36,7 +39,6 @@ const ALLOWED_UPLOAD_CONTEXTS = new Set<StorageContext>([
   'workspace',
   'profile-pictures',
   'og-images',
-  'logs',
   'workspace-logos',
 ])
 
@@ -80,6 +82,28 @@ const verifyTokenForUser = (token: string | undefined, userId: string) => {
     return null
   }
   return result.payload
+}
+
+/**
+ * Record a trusted storage-key -> workspace ownership binding for completed
+ * knowledge-base uploads. KB file authorization resolves the owning workspace
+ * from this binding, so every KB object must have one. No-op for other contexts.
+ */
+const recordKnowledgeBaseOwnership = async (
+  payload: UploadTokenPayload,
+  key: string
+): Promise<void> => {
+  if (payload.context !== 'knowledge-base' || !payload.workspaceId) {
+    return
+  }
+  await recordKnowledgeBaseFileOwnership({
+    key,
+    userId: payload.userId,
+    workspaceId: payload.workspaceId,
+    originalName: payload.fileName ?? key.split('/').pop() ?? key,
+    contentType: payload.contentType ?? 'application/octet-stream',
+    size: typeof payload.fileSize === 'number' ? payload.fileSize : 0,
+  })
 }
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
@@ -135,8 +159,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         const config = getStorageConfig(storageContext)
 
+        if (!QUOTA_EXEMPT_STORAGE_CONTEXTS.has(context as StorageContext)) {
+          const { checkStorageQuota } = await import('@/lib/billing/storage')
+          const quotaCheck = await checkStorageQuota(userId, fileSize ?? 0)
+          if (!quotaCheck.allowed) {
+            return NextResponse.json(
+              { error: quotaCheck.error || 'Storage limit exceeded' },
+              { status: 413 }
+            )
+          }
+        }
+
         let customKey: string | undefined
-        if (context === 'workspace') {
+        if (context === 'workspace' || context === 'mothership') {
           const { MAX_WORKSPACE_FILE_SIZE } = await import('@/lib/uploads/shared/types')
           if (typeof fileSize === 'number' && fileSize > MAX_WORKSPACE_FILE_SIZE) {
             return NextResponse.json(
@@ -149,15 +184,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             '@/lib/uploads/contexts/workspace/workspace-file-manager'
           )
           customKey = generateWorkspaceFileKey(workspaceId, fileName)
-
-          const { checkStorageQuota } = await import('@/lib/billing/storage')
-          const quotaCheck = await checkStorageQuota(userId, fileSize)
-          if (!quotaCheck.allowed) {
+        } else if (context === 'execution') {
+          const workflowId = (data as { workflowId?: unknown }).workflowId
+          const executionId = (data as { executionId?: unknown }).executionId
+          if (typeof workflowId !== 'string' || !workflowId.trim()) {
             return NextResponse.json(
-              { error: quotaCheck.error || 'Storage limit exceeded' },
-              { status: 413 }
+              { error: 'workflowId is required for execution uploads' },
+              { status: 400 }
             )
           }
+          if (typeof executionId !== 'string' || !executionId.trim()) {
+            return NextResponse.json(
+              { error: 'executionId is required for execution uploads' },
+              { status: 400 }
+            )
+          }
+          const { generateExecutionFileKey } = await import(
+            '@/lib/uploads/contexts/execution/utils'
+          )
+          customKey = generateExecutionFileKey({ workspaceId, workflowId, executionId }, fileName)
         }
 
         let uploadId: string
@@ -199,6 +244,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           userId,
           workspaceId,
           context: storageContext,
+          fileName,
+          contentType,
+          ...(typeof fileSize === 'number' ? { fileSize } : {}),
         })
 
         logger.info(
@@ -280,6 +328,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const { uploadId, key, context } = payload
           const config = getStorageConfig(context)
 
+          let completed: { location: string; path: string; key: string }
           if (storageProvider === 's3' && s3Module) {
             const { completeS3MultipartUpload } = s3Module
             const s3Parts = parts.map((p) => {
@@ -288,40 +337,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               }
               return { ETag: p.etag, PartNumber: p.partNumber }
             })
-            const result = await completeS3MultipartUpload(
+            completed = await completeS3MultipartUpload(
               key,
               uploadId,
               s3Parts,
               buildS3CustomConfig(config)
             )
-            return {
-              success: true as const,
-              location: result.location,
-              path: result.path,
-              key: result.key,
-            }
-          }
-
-          if (storageProvider === 'blob' && blobModule) {
+          } else if (storageProvider === 'blob' && blobModule) {
             const { completeMultipartUpload, deriveBlobBlockId } = blobModule
             const blobParts = parts.map((p) => ({
               partNumber: p.partNumber,
               blockId: deriveBlobBlockId(p.partNumber),
             }))
-            const result = await completeMultipartUpload(
-              key,
-              blobParts,
-              buildBlobCustomConfig(config)
-            )
-            return {
-              success: true as const,
-              location: result.location,
-              path: result.path,
-              key: result.key,
-            }
+            completed = await completeMultipartUpload(key, blobParts, buildBlobCustomConfig(config))
+          } else {
+            throw new Error(`Unsupported storage provider: ${storageProvider}`)
           }
 
-          throw new Error(`Unsupported storage provider: ${storageProvider}`)
+          try {
+            await recordKnowledgeBaseOwnership(payload, completed.key)
+          } catch (error) {
+            // The object is committed, but without an ownership binding a KB file
+            // is unreadable and undeletable via the KB paths. Remove the orphan
+            // best-effort and surface a retryable error so the client re-uploads.
+            if (payload.context === 'knowledge-base') {
+              await deleteFile({ key: completed.key, context: 'knowledge-base' }).catch(() => {})
+            }
+            throw error
+          }
+
+          return {
+            success: true as const,
+            location: completed.location,
+            path: completed.path,
+            key: completed.key,
+          }
         }
 
         if ('uploads' in data && Array.isArray(data.uploads)) {
@@ -418,7 +468,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Multipart upload error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Multipart upload failed' },
+      { error: getErrorMessage(error, 'Multipart upload failed') },
       { status: 500 }
     )
   }

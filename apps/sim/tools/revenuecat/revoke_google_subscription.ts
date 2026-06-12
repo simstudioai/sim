@@ -2,7 +2,12 @@ import type {
   RevokeGoogleSubscriptionParams,
   RevokeGoogleSubscriptionResponse,
 } from '@/tools/revenuecat/types'
-import { SUBSCRIBER_OUTPUT } from '@/tools/revenuecat/types'
+import {
+  extractSubscriber,
+  SUBSCRIBER_OUTPUT,
+  shapeSubscriber,
+  throwIfRevenueCatError,
+} from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatRevokeGoogleSubscriptionTool: ToolConfig<
@@ -38,7 +43,7 @@ export const revenuecatRevokeGoogleSubscriptionTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}/subscriptions/${encodeURIComponent(params.productId)}/revoke`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}/subscriptions/${encodeURIComponent(params.productId.trim())}/revoke`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -47,18 +52,12 @@ export const revenuecatRevokeGoogleSubscriptionTool: ToolConfig<
   },
 
   transformResponse: async (response) => {
+    await throwIfRevenueCatError(response)
     const data = await response.json()
-    const subscriber = data.subscriber ?? {}
-
     return {
       success: true,
       output: {
-        subscriber: {
-          first_seen: subscriber.first_seen ?? '',
-          original_app_user_id: subscriber.original_app_user_id ?? '',
-          subscriptions: subscriber.subscriptions ?? {},
-          entitlements: subscriber.entitlements ?? {},
-        },
+        subscriber: shapeSubscriber(extractSubscriber(data)),
       },
     }
   },

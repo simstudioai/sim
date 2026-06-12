@@ -21,14 +21,13 @@ export const invitationKeys = {
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
 }
 
-export type { PendingInvitationRow }
-
 export interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
   isPendingInvitation: boolean
   isExternal: boolean
   invitationId?: string
+  token: string
 }
 
 async function fetchPendingInvitations(
@@ -48,6 +47,7 @@ async function fetchPendingInvitations(
         isPendingInvitation: true,
         isExternal: inv.membershipIntent === 'external',
         invitationId: inv.id,
+        token: inv.token,
       })) || []
   )
 }

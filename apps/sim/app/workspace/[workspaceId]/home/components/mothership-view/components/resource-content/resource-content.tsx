@@ -2,7 +2,6 @@
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
-import { Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
@@ -10,7 +9,9 @@ import {
   FileX,
   Folder as FolderIcon,
   Library,
+  Square,
   SquareArrowUpRight,
+  Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -20,18 +21,20 @@ import {
   markRunToolManuallyStopped,
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
+import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import {
   FileViewer,
   type PreviewMode,
+  resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/generic-resource-content'
+import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import {
   RESOURCE_TAB_ICON_BUTTON_CLASS,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
   MothershipResource,
@@ -42,7 +45,7 @@ import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/components'
+import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
@@ -114,33 +117,28 @@ export const ResourceContent = memo(function ResourceContent({
   }, [workspaceId, streamFileName])
 
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
-  const rawPreviewText = previewSession?.previewText
-  const streamingPreviewText =
-    typeof rawPreviewText === 'string' && rawPreviewText.length > 0 ? rawPreviewText : undefined
-  const pendingOrStreamingFilePreviewText =
-    previewSession?.fileId === resource.id && typeof rawPreviewText === 'string'
-      ? rawPreviewText
+  const isTextPreview =
+    !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
+  const textStreamingContent =
+    isTextPreview &&
+    typeof previewSession?.previewText === 'string' &&
+    hasRenderableFilePreviewContent(previewSession)
+      ? previewSession.previewText
       : undefined
 
-  if (previewSession && resource.id === 'streaming-file') {
+  if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
-        {streamingPreviewText !== undefined ? (
-          <FileViewer
-            file={syntheticFile}
-            workspaceId={workspaceId}
-            canEdit={false}
-            previewMode={previewMode ?? 'preview'}
-            streamingContent={streamingPreviewText}
-            streamingMode='replace'
-            disableStreamingAutoScroll={disableStreamingAutoScroll}
-            previewContextKey={previewContextKey}
-          />
-        ) : (
-          <div className='flex h-full items-center justify-center'>
-            <p className='text-[13px] text-[var(--text-muted)]'>Processing file...</p>
-          </div>
-        )}
+        <FileViewer
+          file={syntheticFile}
+          workspaceId={workspaceId}
+          canEdit={false}
+          previewMode={previewMode ?? 'preview'}
+          streamingContent={textStreamingContent}
+          streamingMode='replace'
+          disableStreamingAutoScroll={disableStreamingAutoScroll}
+          previewContextKey={previewContextKey}
+        />
       </div>
     )
   }
@@ -155,8 +153,11 @@ export const ResourceContent = memo(function ResourceContent({
           key={resource.id}
           workspaceId={workspaceId}
           fileId={resource.id}
+          filePath={resource.path}
           previewMode={previewMode}
-          streamingContent={pendingOrStreamingFilePreviewText}
+          streamingContent={
+            previewSession?.fileId === resource.id ? textStreamingContent : undefined
+          }
           streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
@@ -211,7 +212,13 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
     case 'workflow':
       return <EmbeddedWorkflowActions workspaceId={workspaceId} workflowId={resource.id} />
     case 'file':
-      return <EmbeddedFileActions workspaceId={workspaceId} fileId={resource.id} />
+      return (
+        <EmbeddedFileActions
+          workspaceId={workspaceId}
+          fileId={resource.id}
+          filePath={resource.path}
+        />
+      )
     case 'knowledgebase':
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
@@ -269,7 +276,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
     }
 
     if (usageExceeded) {
-      navigateToSettings({ section: 'subscription' })
+      navigateToSettings({ section: 'billing' })
       return
     }
 
@@ -419,12 +426,22 @@ const fileLogger = createLogger('EmbeddedFileActions')
 interface EmbeddedFileActionsProps {
   workspaceId: string
   fileId: string
+  filePath?: string
 }
 
-function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) {
+function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActionsProps) {
   const router = useRouter()
   const { data: files = [] } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+  const file = useMemo(
+    () =>
+      files.find(
+        (f) =>
+          f.id === fileId ||
+          (filePath &&
+            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
+      ),
+    [files, fileId, filePath]
+  )
 
   const handleDownload = async () => {
     if (!file) return
@@ -436,7 +453,7 @@ function EmbeddedFileActions({ workspaceId, fileId }: EmbeddedFileActionsProps) 
   }
 
   const handleOpenInFiles = () => {
-    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(fileId)}`)
+    router.push(`/workspace/${workspaceId}/files/${encodeURIComponent(file?.id ?? fileId)}`)
   }
 
   return (
@@ -493,7 +510,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
   if (!workflowExists || hasLoadError) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <WorkflowX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
           <p className='text-[var(--text-body)] text-small'>
@@ -514,6 +531,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 interface EmbeddedFileProps {
   workspaceId: string
   fileId: string
+  filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
   streamingMode?: 'append' | 'replace'
@@ -524,6 +542,7 @@ interface EmbeddedFileProps {
 function EmbeddedFile({
   workspaceId,
   fileId,
+  filePath,
   previewMode,
   streamingContent,
   streamingMode,
@@ -532,14 +551,23 @@ function EmbeddedFile({
 }: EmbeddedFileProps) {
   const { canEdit } = useUserPermissionsContext()
   const { data: files = [], isLoading, isFetching } = useWorkspaceFiles(workspaceId)
-  const file = useMemo(() => files.find((f) => f.id === fileId), [files, fileId])
+  const file = useMemo(
+    () =>
+      files.find(
+        (f) =>
+          f.id === fileId ||
+          (filePath &&
+            canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }) === filePath)
+      ),
+    [files, fileId, filePath]
+  )
 
   if (isLoading || (isFetching && !file)) return LOADING_SKELETON
 
   if (!file) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FileX className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
           <p className='text-[var(--text-body)] text-small'>
@@ -584,7 +612,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
   if (!folder) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FolderIcon className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
           <p className='text-[var(--text-body)] text-small'>
@@ -609,14 +637,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
               onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
-              <div
-                className='h-[12px] w-[12px] flex-shrink-0 rounded-[3px] border-[2px]'
-                style={{
-                  backgroundColor: w.color,
-                  borderColor: workflowBorderColor(w.color),
-                  backgroundClip: 'padding-box',
-                }}
-              />
+              <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               <span className='truncate text-[13px] text-[var(--text-primary)]'>{w.name}</span>
             </button>
           ))}
@@ -649,7 +670,7 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
   if (!log) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <Library className='h-[32px] w-[32px] text-[var(--text-icon)]' />
+        <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
           <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
           <p className='text-[var(--text-body)] text-small'>

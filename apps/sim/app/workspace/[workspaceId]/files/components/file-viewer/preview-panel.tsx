@@ -1,6 +1,17 @@
 'use client'
 
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Children,
+  cloneElement,
+  createContext,
+  isValidElement,
+  memo,
+  use,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import matter from 'gray-matter'
 import { useRouter } from 'next/navigation'
 import rehypeSlug from 'rehype-slug'
@@ -10,7 +21,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { Checkbox, CopyCodeButton, highlight, languages, Skeleton } from '@/components/emcn'
+import { Checkbox, highlight, languages } from '@/components/emcn'
 import '@/components/emcn/components/code/code.css'
 import 'prismjs/components/prism-bash'
 import 'prismjs/components/prism-css'
@@ -23,8 +34,10 @@ import 'prismjs/components/prism-python'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useAutoScroll } from '@/hooks/use-auto-scroll'
+import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
+import { RESUME_SKIP_THRESHOLD, useSmoothText } from '@/hooks/use-smooth-text'
 import { DataTable } from './data-table'
+import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
 
 interface HastNode {
@@ -172,6 +185,49 @@ function remarkCallouts() {
 const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkMermaid, remarkCallouts]
 const REHYPE_PLUGINS = [rehypeSlug]
 
+const STREAMDOWN_ALLOWED_TAGS: Record<string, string[]> = {
+  'mermaid-diagram': ['definition'],
+}
+
+/**
+ * Soft per-character fade for newly revealed markdown while streaming. Mirrors
+ * the chat surface so a streamed file preview reveals with the same cadence;
+ * paired with {@link useSmoothText}, which paces the reveal itself.
+ */
+const STREAM_ANIMATION = {
+  animation: 'fadeIn',
+  duration: 220,
+  stagger: 0,
+  sep: 'char',
+} as const
+
+/**
+ * Gates the per-character fade to streams that build the document from
+ * scratch. Enabling the fade over an already-rendered document, or during
+ * in-place rewrites (patch snapshots), replays it on text that is already
+ * visible, so the gate latches off for those sessions.
+ */
+function useStreamAnimationGate(content: string, isStreaming: boolean): boolean {
+  const prevIsStreamingRef = useRef(false)
+  const prevContentRef = useRef(content)
+  const animateRef = useRef(false)
+
+  if (isStreaming !== prevIsStreamingRef.current) {
+    animateRef.current = isStreaming && content.length <= RESUME_SKIP_THRESHOLD
+  } else if (
+    isStreaming &&
+    animateRef.current &&
+    content !== prevContentRef.current &&
+    !content.startsWith(prevContentRef.current)
+  ) {
+    animateRef.current = false
+  }
+  prevIsStreamingRef.current = isStreaming
+  prevContentRef.current = content
+
+  return isStreaming && animateRef.current
+}
+
 /**
  * Carries the contentRef and toggle handler from MarkdownPreview down to the
  * task-list renderers. Only present when the preview is interactive.
@@ -180,7 +236,6 @@ const MarkdownCheckboxCtx = createContext<{
   contentRef: React.MutableRefObject<string>
   onToggle: (index: number, checked: boolean) => void
 } | null>(null)
-const MermaidStreamingCtx = createContext(false)
 
 /** Carries the resolved checkbox index from LiRenderer to InputRenderer. */
 const CheckboxIndexCtx = createContext(-1)
@@ -253,7 +308,7 @@ function CalloutBlock({ type, children }: { type: string; children?: React.React
   const config = CALLOUT_CONFIG[type]
   if (!config) {
     return (
-      <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )
@@ -292,7 +347,7 @@ function MermaidSourcePreview({
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
         {(isRendering || status) && (
           <span className='text-[11px] text-[var(--text-muted)]'>
-            {isRendering ? 'Rendering...' : status}
+            {isRendering ? 'Rendering…' : status}
           </span>
         )}
       </div>
@@ -305,19 +360,15 @@ function MermaidSourcePreview({
   )
 }
 
-function MermaidCodeBlockSkeleton() {
+function MermaidCodeBlockFallback() {
   return (
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
         <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
-        <span className='text-[11px] text-[var(--text-muted)]'>Rendering...</span>
+        <span className='text-[11px] text-[var(--text-muted)]'>Rendering…</span>
       </div>
-      <div className='code-editor-theme bg-[var(--surface-5)]'>
-        <div className='space-y-2 p-4'>
-          <div className='h-3 w-5/6 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-2/3 animate-pulse rounded bg-[var(--surface-2)]' />
-          <div className='h-3 w-3/4 animate-pulse rounded bg-[var(--surface-2)]' />
-        </div>
+      <div className='code-editor-theme min-h-[96px] bg-[var(--surface-5)]'>
+        <div className='p-4' />
       </div>
     </div>
   )
@@ -446,13 +497,9 @@ const MermaidDiagram = memo(function MermaidDiagram({
 
   if (!trimmedDefinition || !svg || renderedDefinition !== trimmedDefinition) {
     if (zoomable) {
-      return (
-        <div className='h-full p-6'>
-          <Skeleton className='h-full w-full rounded-lg' />
-        </div>
-      )
+      return <PreviewLoadingFrame className='h-full' />
     }
-    return <MermaidCodeBlockSkeleton />
+    return <MermaidCodeBlockFallback />
   }
   return null
 })
@@ -473,11 +520,15 @@ function resolveSimFileUrl(src: string | undefined): string | undefined {
 }
 
 const STATIC_MARKDOWN_COMPONENTS = {
-  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
-  'mermaid-diagram': ({ definition }: { definition?: string }) => {
-    const isStreaming = useContext(MermaidStreamingCtx)
-    return <MermaidDiagram definition={definition ?? ''} isStreaming={isStreaming} />
-  },
+  pre: ({ children }: { children?: React.ReactNode }) => (
+    <>
+      {Children.map(children, (child) =>
+        isValidElement<Record<string, unknown>>(child)
+          ? cloneElement(child, { 'data-block': 'true' })
+          : child
+      ) ?? children}
+    </>
+  ),
   p: ({ children }: { children?: React.ReactNode }) => (
     <p className='mb-3 break-words text-[14px] text-[var(--text-primary)] leading-[1.6] last:mb-0'>
       {children}
@@ -531,20 +582,11 @@ const STATIC_MARKDOWN_COMPONENTS = {
       {children}
     </h6>
   ),
-  inlineCode: ({ children }: { children?: React.ReactNode }) => {
-    if (typeof children === 'string' && children.includes('\n')) {
-      return (
-        <code className='my-4 block overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)] leading-[1.6]'>
-          {children}
-        </code>
-      )
-    }
-    return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)]'>
-        {children}
-      </code>
-    )
-  },
+  inlineCode: ({ children }: { children?: React.ReactNode }) => (
+    <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono text-[var(--caution)] not-italic'>
+      {children}
+    </code>
+  ),
   code: ({ children, className }: { children?: React.ReactNode; className?: string }) => {
     const langMatch = className?.match(/language-(\w+)/)
     const langRaw = langMatch?.[1] ?? ''
@@ -564,22 +606,18 @@ const STATIC_MARKDOWN_COMPONENTS = {
 
     return (
       <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
+        <div className='border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
           <span className='text-[11px] text-[var(--text-tertiary)]'>{langRaw || 'code'}</span>
-          <CopyCodeButton
-            code={codeString}
-            className='-mr-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
-          />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)]'>
           {html ? (
             <pre
-              className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] leading-[1.6]'
+              className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] not-italic leading-[1.6]'
               dangerouslySetInnerHTML={{ __html: html }}
             />
           ) : (
-            <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] leading-[1.6]'>
-              <code>{codeString.trimEnd()}</code>
+            <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[13px] text-[var(--text-primary)] not-italic leading-[1.6]'>
+              <code className='not-italic'>{codeString.trimEnd()}</code>
             </pre>
           )}
         </div>
@@ -604,7 +642,7 @@ const STATIC_MARKDOWN_COMPONENTS = {
       return <CalloutBlock type={calloutType}>{children}</CalloutBlock>
     }
     return (
-      <blockquote className='my-4 break-words border-[var(--border-1)] border-l-4 py-1 pl-4 text-[var(--text-tertiary)] italic'>
+      <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
         {children}
       </blockquote>
     )
@@ -613,12 +651,15 @@ const STATIC_MARKDOWN_COMPONENTS = {
   img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => {
     const resolvedSrc = resolveSimFileUrl(typeof src === 'string' ? src : undefined)
     return (
-      <img
-        src={resolvedSrc}
-        alt={alt ?? ''}
-        className='my-3 max-w-full rounded-md'
-        loading='lazy'
-      />
+      <ZoomablePreview className='my-3 h-[360px] rounded-md' initialScale='actual'>
+        <img
+          src={resolvedSrc}
+          alt={alt ?? ''}
+          className='max-h-full max-w-full select-none object-contain'
+          draggable={false}
+          loading='lazy'
+        />
+      </ZoomablePreview>
     )
   },
   table: ({ children }: { children?: React.ReactNode }) => (
@@ -627,14 +668,14 @@ const STATIC_MARKDOWN_COMPONENTS = {
     </div>
   ),
   thead: ({ children }: { children?: React.ReactNode }) => (
-    <thead className='bg-[var(--surface-2)]'>{children}</thead>
+    <thead className='bg-[var(--surface-3)]'>{children}</thead>
   ),
   tbody: ({ children }: { children?: React.ReactNode }) => <tbody>{children}</tbody>,
   tr: ({ children }: { children?: React.ReactNode }) => (
     <tr className='border-[var(--border)] border-b last:border-b-0'>{children}</tr>
   ),
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className='px-3 py-2 text-left font-semibold text-[12px] text-[var(--text-primary)]'>
+    <th className='px-3 py-2 text-left font-semibold text-[13px] text-[var(--text-primary)]'>
       {children}
     </th>
   ),
@@ -680,32 +721,48 @@ function LiRenderer({
   children?: React.ReactNode
   node?: HastNode
 }) {
-  const ctx = useContext(MarkdownCheckboxCtx)
+  const ctx = use(MarkdownCheckboxCtx)
   const isTaskItem = typeof className === 'string' && className.includes('task-list-item')
 
   if (isTaskItem) {
+    const [checkboxChild, ...contentChildren] = Children.toArray(children)
+    const content = <span className='min-w-0 flex-1'>{contentChildren}</span>
+
     if (ctx) {
       const offset = node?.position?.start?.offset
       if (offset === undefined) {
-        return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+        return (
+          <li className='flex items-start gap-2 break-words leading-[1.6]'>
+            {checkboxChild}
+            {content}
+          </li>
+        )
       }
       const before = ctx.contentRef.current.slice(0, offset)
       const prior = before.match(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm)
       return (
         <CheckboxIndexCtx.Provider value={prior ? prior.length : 0}>
-          <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+          <li className='flex items-start gap-2 break-words leading-[1.6]'>
+            {checkboxChild}
+            {content}
+          </li>
         </CheckboxIndexCtx.Provider>
       )
     }
-    return <li className='flex items-start gap-2 break-words leading-[1.6]'>{children}</li>
+    return (
+      <li className='flex items-start gap-2 break-words leading-[1.6]'>
+        {checkboxChild}
+        {content}
+      </li>
+    )
   }
 
   return <li className='break-words leading-[1.6]'>{children}</li>
 }
 
 function InputRenderer({ type, checked, ...props }: React.ComponentPropsWithoutRef<'input'>) {
-  const ctx = useContext(MarkdownCheckboxCtx)
-  const index = useContext(CheckboxIndexCtx)
+  const ctx = use(MarkdownCheckboxCtx)
+  const index = use(CheckboxIndexCtx)
 
   if (type !== 'checkbox') return <input type={type} checked={checked} {...props} />
 
@@ -745,10 +802,10 @@ function isInternalHref(
 }
 
 function AnchorRenderer({ href, children }: { href?: string; children?: React.ReactNode }) {
-  const navigate = useContext(NavigateCtx)
+  const navigate = use(NavigateCtx)
   const parsed = href ? isInternalHref(href) : null
 
-  const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+  const handleMarkdownLinkClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!parsed || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
 
     e.preventDefault()
@@ -779,7 +836,7 @@ function AnchorRenderer({ href, children }: { href?: string; children?: React.Re
       href={href}
       target={parsed ? undefined : '_blank'}
       rel={parsed ? undefined : 'noopener noreferrer'}
-      onClick={handleClick}
+      onClick={handleMarkdownLinkClick}
       className='break-all text-[var(--brand-secondary)] underline-offset-2 hover:underline'
     >
       {children}
@@ -794,6 +851,20 @@ const MARKDOWN_COMPONENTS = {
   ol: OlRenderer,
   li: LiRenderer,
   input: InputRenderer,
+}
+
+function createMarkdownComponents(isStreaming: boolean) {
+  return {
+    ...MARKDOWN_COMPONENTS,
+    'mermaid-diagram': ({ definition }: { definition?: string }) => (
+      <MermaidDiagram
+        definition={definition ?? ''}
+        isStreaming={isStreaming}
+        zoomable
+        zoomClassName='my-4 h-[420px] rounded-lg'
+      />
+    ),
+  }
 }
 
 function FrontMatterCard({ data }: { data: Record<string, unknown> }) {
@@ -832,13 +903,21 @@ const MarkdownPreview = memo(function MarkdownPreview({
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
 }) {
   const { push: navigate } = useRouter()
-  const { ref: autoScrollRef } = useAutoScroll(isStreaming && !disableAutoScroll)
+  // Pace the reveal so streamed markdown builds at a steady cadence instead of
+  // jumping per server chunk. `snapOnNonAppend` shows in-place rewrites (patch)
+  // in full immediately so a diff never appears to retype from the top.
+  const revealedContent = useSmoothText(content, isStreaming, { snapOnNonAppend: true })
+  const shouldAnimateStream = useStreamAnimationGate(content, isStreaming)
+  const { ref: autoScrollRef, spacerRef } = useScrollAnchor(
+    isStreaming && !disableAutoScroll,
+    revealedContent
+  )
 
   const contentRef = useRef(content)
   contentRef.current = content
 
   const { frontMatterData, markdownContent } = useMemo(() => {
-    if (isStreaming) return { frontMatterData: null, markdownContent: content }
+    if (isStreaming) return { frontMatterData: null, markdownContent: revealedContent }
     try {
       const parsed = matter(content)
       const hasFrontMatter = Object.keys(parsed.data).length > 0
@@ -849,7 +928,7 @@ const MarkdownPreview = memo(function MarkdownPreview({
     } catch {
       return { frontMatterData: null, markdownContent: content }
     }
-  }, [content, isStreaming])
+  }, [content, revealedContent, isStreaming])
 
   const ctxValue = useMemo(
     () => (onCheckboxToggle ? { contentRef, onToggle: onCheckboxToggle } : null),
@@ -873,31 +952,29 @@ const MarkdownPreview = memo(function MarkdownPreview({
   }, [content])
 
   const streamdownMode = isStreaming ? undefined : 'static'
+  const markdownComponents = useMemo(() => createMarkdownComponents(isStreaming), [isStreaming])
 
   const body = (
     <div ref={autoScrollRef} className='h-full overflow-auto p-6'>
       {frontMatterData && <FrontMatterCard data={frontMatterData} />}
-      <MermaidStreamingCtx.Provider value={isStreaming}>
-        <Streamdown
-          mode={streamdownMode}
-          remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS}
-          components={MARKDOWN_COMPONENTS}
-          allowedTags={{ 'mermaid-diagram': ['definition'] }}
-        >
-          {markdownContent}
-        </Streamdown>
-      </MermaidStreamingCtx.Provider>
+      <Streamdown
+        mode={streamdownMode}
+        animated={shouldAnimateStream ? STREAM_ANIMATION : false}
+        isAnimating={isStreaming}
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
+        components={markdownComponents}
+        allowedTags={STREAMDOWN_ALLOWED_TAGS}
+      >
+        {markdownContent}
+      </Streamdown>
+      <div ref={spacerRef} aria-hidden />
     </div>
   )
 
   return (
     <NavigateCtx.Provider value={navigate}>
-      {onCheckboxToggle ? (
-        <MarkdownCheckboxCtx.Provider value={ctxValue}>{body}</MarkdownCheckboxCtx.Provider>
-      ) : (
-        body
-      )}
+      <MarkdownCheckboxCtx.Provider value={ctxValue}>{body}</MarkdownCheckboxCtx.Provider>
     </NavigateCtx.Provider>
   )
 })
@@ -1038,16 +1115,24 @@ const HtmlPreview = memo(function HtmlPreview({ content }: { content: string }) 
 })
 
 function SvgPreview({ content }: { content: string }) {
-  const wrappedContent = `<!DOCTYPE html><html><head><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:transparent;}svg{max-width:100%;max-height:100vh;}</style></head><body>${content}</body></html>`
+  const [blobUrl, setBlobUrl] = useState('')
+
+  useEffect(() => {
+    const url = URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' }))
+    setBlobUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [content])
 
   return (
     <ZoomablePreview className='h-full' contentClassName='h-full w-full'>
-      <iframe
-        srcDoc={wrappedContent}
-        sandbox=''
-        title='SVG Preview'
-        className='h-full w-full border-0'
-      />
+      {blobUrl && (
+        <img
+          src={blobUrl}
+          alt='SVG preview'
+          className='max-h-full max-w-full select-none object-contain'
+          draggable={false}
+        />
+      )}
     </ZoomablePreview>
   )
 }

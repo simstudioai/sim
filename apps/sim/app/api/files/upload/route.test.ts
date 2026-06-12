@@ -90,12 +90,20 @@ vi.mock('@/lib/uploads', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+vi.mock('@/lib/uploads/shared/types', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/uploads/shared/types')>()
+  return {
+    ...actual,
+    MAX_WORKSPACE_FORMDATA_FILE_SIZE: 1024,
+  }
+})
+
 vi.mock('@/lib/uploads/setup.server', () => ({
   UPLOAD_DIR_SERVER: '/tmp/test-uploads',
 }))
 
 import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { OPTIONS, POST } from '@/app/api/files/upload/route'
+import { POST } from '@/app/api/files/upload/route'
 
 /**
  * Configure mocks for authenticated file upload tests
@@ -179,6 +187,13 @@ describe('File Upload API Route', () => {
     return new File([content], name, { type })
   }
 
+  const createUploadRequest = (formData: FormData): NextRequest =>
+    new NextRequest('http://localhost:3000/api/files/upload', {
+      method: 'POST',
+      headers: { 'content-length': '1024' },
+      body: formData,
+    })
+
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -196,10 +211,7 @@ describe('File Upload API Route', () => {
     const mockFile = createMockFile()
     const formData = createMockFormData([mockFile])
 
-    const req = new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const req = createUploadRequest(formData)
 
     const response = await POST(req)
     const data = await response.json()
@@ -215,6 +227,26 @@ describe('File Upload API Route', () => {
     expect(uploadWorkspaceFile).toHaveBeenCalled()
   })
 
+  it('should accept chunked multipart uploads without a content-length header', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+    })
+
+    const formData = createMockFormData([createMockFile()])
+    const req = new NextRequest('http://localhost:3000/api/files/upload', {
+      method: 'POST',
+      body: formData,
+    })
+
+    expect(req.headers.get('content-length')).toBeNull()
+
+    const response = await POST(req)
+
+    expect(response.status).toBe(200)
+    expect(uploadWorkspaceFile).toHaveBeenCalled()
+  })
+
   it('should upload a file to S3 when in S3 mode', async () => {
     setupFileApiMocks({
       cloudEnabled: true,
@@ -224,10 +256,7 @@ describe('File Upload API Route', () => {
     const mockFile = createMockFile()
     const formData = createMockFormData([mockFile])
 
-    const req = new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const req = createUploadRequest(formData)
 
     const response = await POST(req)
     const data = await response.json()
@@ -253,10 +282,7 @@ describe('File Upload API Route', () => {
     const mockFile2 = createMockFile('file2.txt', 'text/plain')
     const formData = createMockFormData([mockFile1, mockFile2])
 
-    const req = new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const req = createUploadRequest(formData)
 
     const response = await POST(req)
     const data = await response.json()
@@ -266,15 +292,44 @@ describe('File Upload API Route', () => {
     expect(data).toBeDefined()
   })
 
+  it('rejects oversized workspace uploads before materializing file contents', async () => {
+    setupFileApiMocks({
+      cloudEnabled: false,
+      storageProvider: 'local',
+    })
+
+    const mockFile = createMockFile('large.txt', 'text/plain', 'x'.repeat(1025))
+    const arrayBufferSpy = vi.spyOn(mockFile, 'arrayBuffer')
+    const formData = {
+      getAll: (name: string) => (name === 'file' ? [mockFile] : []),
+      get: (name: string) => {
+        if (name === 'context') return 'workspace'
+        if (name === 'workspaceId') return 'test-workspace-id'
+        return null
+      },
+    } as unknown as FormData
+
+    const req = {
+      formData: async () => formData,
+    } as unknown as NextRequest
+
+    const response = await POST(req)
+    const data = await response.json()
+
+    expect(response.status).toBe(413)
+    expect(data.error).toBe('PayloadSizeLimitError')
+    expect(data.message).toContain('File exceeds the server upload limit')
+    expect(data.message).toContain('Use direct upload for larger workspace files')
+    expect(arrayBufferSpy).not.toHaveBeenCalled()
+    expect(uploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
   it('should handle missing files', async () => {
     setupFileApiMocks()
 
     const formData = new FormData()
 
-    const req = new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const req = createUploadRequest(formData)
 
     const response = await POST(req)
     const data = await response.json()
@@ -295,10 +350,7 @@ describe('File Upload API Route', () => {
     const mockFile = createMockFile()
     const formData = createMockFormData([mockFile])
 
-    const req = new NextRequest('http://localhost:3000/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
+    const req = createUploadRequest(formData)
 
     const response = await POST(req)
     const data = await response.json()
@@ -306,14 +358,6 @@ describe('File Upload API Route', () => {
     expect(response.status).toBe(413)
     expect(data).toHaveProperty('error')
     expect(typeof data.error).toBe('string')
-  })
-
-  it('should handle CORS preflight requests', async () => {
-    const response = await OPTIONS()
-
-    expect(response.status).toBe(204)
-    expect(response.headers.get('Access-Control-Allow-Methods')).toBe('GET, POST, DELETE, OPTIONS')
-    expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type')
   })
 })
 
@@ -370,6 +414,7 @@ describe('File Upload Security Tests', () => {
 
         const req = new Request('http://localhost/api/files/upload', {
           method: 'POST',
+          headers: { 'content-length': '1024' },
           body: formData,
         })
 
@@ -389,6 +434,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 
@@ -408,6 +454,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 
@@ -426,6 +473,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 
@@ -445,6 +493,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 
@@ -470,6 +519,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 
@@ -491,6 +541,7 @@ describe('File Upload Security Tests', () => {
 
       const req = new Request('http://localhost/api/files/upload', {
         method: 'POST',
+        headers: { 'content-length': '1024' },
         body: formData,
       })
 

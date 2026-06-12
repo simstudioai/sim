@@ -1,5 +1,5 @@
 import { createElement, Fragment } from 'react'
-import { type InferPageType, loader, multiple } from 'fumadocs-core/source'
+import { loader, multiple } from 'fumadocs-core/source'
 import type { DocData, DocMethods } from 'fumadocs-mdx/runtime/types'
 import { openapiSource } from 'fumadocs-openapi/server'
 import { docs } from '@/.source/server'
@@ -92,12 +92,14 @@ export const source = loader(
   }
 )
 
+/** Diátaxis page type surfaced as a badge near the page title. */
+export type DocsPageType = 'tutorial' | 'guide' | 'reference' | 'concept'
+
 /** Full page data type including MDX content and metadata */
 export type PageData = DocData &
   DocMethods & {
     title: string
     description?: string
     full?: boolean
+    pageType?: DocsPageType
   }
-
-export type Page = InferPageType<typeof source>

@@ -26,14 +26,14 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | C | Focus Copilot tab |
 | T | Focus Toolbar tab |
 | E | Focus Editor tab |
-| Mod+F | Focus Toolbar search |
+| Mod+F | Open workflow search and replace |
+| Mod+Alt+F | Focus Toolbar search |
 
 ### Global Navigation
 | Shortcut | Action |
 |----------|--------|
 | Mod+K | Open search |
 | Mod+Shift+A | Add new agent workflow |
-| Mod+Y | Go to templates |
 | Mod+L | Go to logs |
 
 ### Utility
@@ -55,7 +55,7 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 |--------|-----|
 | Create workspace | Click workspace dropdown → New Workspace |
 | Switch workspaces | Click workspace dropdown → Select workspace |
-| Invite team members | Sidebar → Invite |
+| Invite teammates | Sidebar → Invite |
 | Rename/Duplicate/Export/Delete workspace | Right-click workspace → action |
 
 ## Quick Reference — Workflows
@@ -66,7 +66,7 @@ export const PLATFORM_ACTIONS_CONTENT = `# Sim Platform Quick Reference & Keyboa
 | Import workflow | Click import button in sidebar → Select file |
 | Multi-select workflows | Mod+Click or Shift+Click workflows in sidebar |
 | Open in new tab | Right-click workflow → Open in New Tab |
-| Rename/Color/Duplicate/Export/Delete | Right-click workflow → action |
+| Rename/Duplicate/Export/Delete | Right-click workflow → action |
 
 ## Quick Reference — Blocks
 | Action | How |

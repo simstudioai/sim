@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { guardrailsValidateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
@@ -12,6 +13,7 @@ import { validatePII } from '@/lib/guardrails/validate_pii'
 import { validateRegex } from '@/lib/guardrails/validate_regex'
 import {
   assertPermissionsAllowed,
+  ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 
@@ -161,7 +163,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           model,
         })
       } catch (err) {
-        if (err instanceof ProviderNotAllowedError) {
+        if (err instanceof ProviderNotAllowedError || err instanceof ModelNotAllowedError) {
           return NextResponse.json({
             success: true,
             output: {
@@ -173,6 +175,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           })
         }
         throw err
+      }
+
+      // Gate the actor's usage before incurring hosted LLM + RAG cost. In a normal
+      // workflow run this already passed at preprocessing; this also blocks direct
+      // calls to this route by an over-limit or frozen actor.
+      const usage = await checkActorUsageLimits(auth.userId, resolvedWorkspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
+        )
       }
     }
 
@@ -214,6 +227,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       authHeaders,
       requestId
     )
+
+    // Bill the guardrail's LLM scoring cost (hallucination only; BYOK/non-hosted
+    // already resolve to 0). Attributed to the caller + the workflow's workspace
+    // so it lands in the per-member meter. Best-effort — never fail validation on
+    // a billing error.
+    if (
+      resolvedWorkspaceId &&
+      typeof validationResult.cost === 'number' &&
+      validationResult.cost > 0
+    ) {
+      const { recordUsage } = await import('@/lib/billing/core/usage-log')
+      await recordUsage({
+        userId: auth.userId,
+        workspaceId: resolvedWorkspaceId,
+        entries: [
+          {
+            category: 'model',
+            source: 'workflow',
+            description: `guardrail-hallucination:${model ?? 'unknown'}`,
+            cost: validationResult.cost,
+            sourceReference: `guardrail:${workflowId ?? 'unknown'}:${requestId}`,
+          },
+        ],
+      }).catch((billingError) => {
+        logger.error(`[${requestId}] Failed to record guardrail usage`, { error: billingError })
+      })
+    }
 
     logger.info(`[${requestId}] Validation completed`, {
       passed: validationResult.passed,
@@ -300,6 +340,7 @@ async function executeValidation(
   reasoning?: string
   detectedEntities?: any[]
   maskedText?: string
+  cost?: number
 }> {
   // Use TypeScript validators for all validation types
   if (validationType === 'json') {

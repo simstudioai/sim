@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -11,6 +12,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   bulkDocumentOperation,
@@ -19,6 +21,7 @@ import {
   createSingleDocument,
   getDocuments,
   getProcessingConfig,
+  KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
   type TagFilterCondition,
 } from '@/lib/knowledge/documents/service'
@@ -161,11 +164,27 @@ export const POST = withRouteHandler(
 
       const kbWorkspaceId = accessCheck.knowledgeBase?.workspaceId
 
+      // Gate KB indexing (pooled + per-member) before accepting work. Runs even for
+      // legacy KBs with no workspace — the uploader's pooled/frozen status is still
+      // enforced (per-member is simply skipped when there's no org workspace). The
+      // authoritative backstop also runs in processDocumentAsync for non-HTTP paths
+      // (connector/cron/retry).
+      const usage = await checkActorUsageLimits(userId, kbWorkspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+          },
+          { status: 402 }
+        )
+      }
+
       if (body.bulk === true) {
         const createdDocuments = await createDocumentRecords(
           body.documents,
           knowledgeBaseId,
-          requestId
+          requestId,
+          userId
         )
 
         logger.info(
@@ -245,7 +264,12 @@ export const POST = withRouteHandler(
       }
 
       const { bulk: _bulk, workflowId: _workflowId, ...singleDocumentData } = body
-      const newDocument = await createSingleDocument(singleDocumentData, knowledgeBaseId, requestId)
+      const newDocument = await createSingleDocument(
+        singleDocumentData,
+        knowledgeBaseId,
+        requestId,
+        userId
+      )
 
       try {
         const { PlatformEvents } = await import('@/lib/core/telemetry')
@@ -301,7 +325,14 @@ export const POST = withRouteHandler(
     } catch (error) {
       logger.error(`[${requestId}] Error creating document`, error)
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create document'
+      if (error instanceof KnowledgeBaseFileOwnershipError) {
+        return NextResponse.json(
+          { error: 'File URL does not reference a file owned by this knowledge base' },
+          { status: 403 }
+        )
+      }
+
+      const errorMessage = getErrorMessage(error, 'Failed to create document')
       const isStorageLimitError =
         errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')
       const isMissingKnowledgeBase = errorMessage === 'Knowledge base not found'

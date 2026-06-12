@@ -21,6 +21,7 @@ import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { exportFolderToZip, sanitizePathSegment } from '@/lib/workflows/operations/import-export'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { encodeFilenameForHeader } from '@/app/api/files/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   internalErrorResponse,
@@ -142,7 +143,6 @@ export const GET = withRouteHandler(
           id: string
           name: string
           description: string | null
-          color: string | null
           folderId: string | null
         }
         state: WorkflowExportState
@@ -180,7 +180,6 @@ export const GET = withRouteHandler(
             metadata: {
               name: wfData.name,
               description: wfData.description ?? undefined,
-              color: wfData.color,
               exportedAt: new Date().toISOString(),
             },
             variables,
@@ -191,7 +190,6 @@ export const GET = withRouteHandler(
               id: wfData.id,
               name: wfData.name,
               description: wfData.description,
-              color: wfData.color,
               folderId: remappedFolderId,
             },
             state,
@@ -225,7 +223,6 @@ export const GET = withRouteHandler(
           id: wf.workflow.id,
           name: wf.workflow.name,
           description: wf.workflow.description ?? undefined,
-          color: wf.workflow.color ?? undefined,
           folderId: wf.workflow.folderId,
         },
         state: wf.state,
@@ -242,7 +239,7 @@ export const GET = withRouteHandler(
         status: 200,
         headers: {
           'Content-Type': 'application/zip',
-          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(filename)}`,
           'Content-Length': arrayBuffer.byteLength.toString(),
         },
       })

@@ -7,7 +7,10 @@ import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
 import { PackageSearchIcon } from '@/components/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { fetchKnowledgeBase, knowledgeKeys } from '@/hooks/queries/kb/knowledge'
@@ -29,6 +32,7 @@ export function KnowledgeBaseSelector({
   isPreview = false,
   previewValue,
 }: KnowledgeBaseSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -161,25 +165,36 @@ export function KnowledgeBaseSelector({
       {/* Selected knowledge bases display (for multi-select) */}
       {isMultiSelect && selectedKnowledgeBases.length > 0 && (
         <div className='mb-2 flex flex-wrap gap-1'>
-          {selectedKnowledgeBases.map((kb) => (
-            <div
-              key={kb.id}
-              className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
-            >
-              <PackageSearchIcon className='mr-1 h-3 w-3 text-[var(--brand-knowledge)]' />
-              <span className='font-medium text-[var(--brand-knowledge)]'>{kb.name}</span>
-              {!disabled && !isPreview && (
-                <button
-                  type='button'
-                  onClick={() => handleRemoveKnowledgeBase(kb.id)}
-                  className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
-                  aria-label={`Remove ${kb.name}`}
-                >
-                  <X className='h-3 w-3' />
-                </button>
-              )}
-            </div>
-          ))}
+          {selectedKnowledgeBases.map((kb, index) => {
+            const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+              activeSearchTarget,
+              blockId,
+              subBlockId: subBlock.id,
+              valuePath: [index],
+              label: kb.name,
+            })
+            return (
+              <div
+                key={kb.id}
+                className='inline-flex items-center rounded-md border border-[color-mix(in_srgb,var(--brand-knowledge)_20%,transparent)] bg-[color-mix(in_srgb,var(--brand-knowledge)_10%,transparent)] px-2 py-1 text-xs'
+              >
+                <PackageSearchIcon className='mr-1 size-3 text-[var(--brand-knowledge)]' />
+                <span className='font-medium text-[var(--brand-knowledge)]'>
+                  {formatDisplayText(kb.name, { workflowSearchHighlight })}
+                </span>
+                {!disabled && !isPreview && (
+                  <button
+                    type='button'
+                    onClick={() => handleRemoveKnowledgeBase(kb.id)}
+                    className='ml-1 text-[color-mix(in_srgb,var(--brand-knowledge)_60%,transparent)] hover-hover:text-[var(--brand-knowledge)]'
+                    aria-label={`Remove ${kb.name}`}
+                  >
+                    <X className='size-3' />
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -196,6 +211,24 @@ export function KnowledgeBaseSelector({
         error={error}
         searchable
         searchPlaceholder='Search knowledge bases...'
+        overlayContent={
+          !isMultiSelect && selectedKnowledgeBases[0]
+            ? (() => {
+                const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+                  activeSearchTarget,
+                  blockId,
+                  subBlockId: subBlock.id,
+                  valuePath: [],
+                  label: selectedKnowledgeBases[0].name,
+                })
+                return workflowSearchHighlight ? (
+                  <span className='truncate text-[var(--text-primary)]'>
+                    {formatDisplayText(selectedKnowledgeBases[0].name, { workflowSearchHighlight })}
+                  </span>
+                ) : undefined
+              })()
+            : undefined
+        }
       />
     </div>
   )

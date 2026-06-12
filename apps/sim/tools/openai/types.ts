@@ -5,7 +5,7 @@ export interface BaseImageRequestBody {
   prompt: string
   size: string
   n: number
-  [key: string]: any // Allow for additional properties
+  [key: string]: unknown
 }
 
 export interface DalleResponse extends ToolResponse {

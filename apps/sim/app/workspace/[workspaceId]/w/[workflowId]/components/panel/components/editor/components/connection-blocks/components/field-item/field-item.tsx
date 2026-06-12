@@ -5,7 +5,9 @@ import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/emcn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
+import { normalizeName } from '@/executor/constants'
 
 const logger = createLogger('FieldItem')
 
@@ -43,7 +45,7 @@ export function FieldItem({
 }: FieldItemProps) {
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
-      const normalizedBlockName = connection.name.replace(/\s+/g, '').toLowerCase()
+      const normalizedBlockName = normalizeName(connection.name)
       const fullTag = `${normalizedBlockName}.${path}`
 
       e.dataTransfer.setData(
@@ -74,9 +76,16 @@ export function FieldItem({
 
   return (
     <div
+      role='treeitem'
+      aria-expanded={hasChildren ? isExpanded : undefined}
+      tabIndex={hasChildren ? 0 : undefined}
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
+      onKeyDown={(event) => {
+        if (!hasChildren) return
+        handleKeyboardActivation(event, handleClick)
+      }}
       className={clsx(
         'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
         hasChildren && 'cursor-pointer'

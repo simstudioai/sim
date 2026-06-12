@@ -103,7 +103,16 @@ export function getEmailDomain(): string {
 
 const DEFAULT_SOCKET_URL = 'http://localhost:3002'
 const DEFAULT_OLLAMA_URL = 'http://localhost:11434'
-const LOCALHOST_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+export const LOCALHOST_HOSTNAMES: ReadonlySet<string> = new Set([
+  'localhost',
+  '127.0.0.1',
+  '[::1]',
+  '::1',
+])
+
+export function isLoopbackHostname(hostname: string): boolean {
+  return LOCALHOST_HOSTNAMES.has(hostname)
+}
 
 /**
  * Parses a comma-separated list of origins (e.g. from a `TRUSTED_ORIGINS` env

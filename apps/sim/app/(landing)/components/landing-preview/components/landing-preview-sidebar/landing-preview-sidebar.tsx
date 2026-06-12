@@ -9,9 +9,9 @@ import {
   Search,
   Settings,
   Table,
+  Workflow,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
 export type SidebarView =
@@ -75,7 +75,7 @@ function NavItem({
   if (!onClick) {
     return (
       <div className='pointer-events-none mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2'>
-        <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+        <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
         <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
           {label}
         </span>
@@ -92,7 +92,7 @@ function NavItem({
         isActive && 'bg-[var(--c-active)]'
       )}
     >
-      <Icon className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+      <Icon className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
       <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
         {label}
       </span>
@@ -128,7 +128,7 @@ export function LandingPreviewSidebar({
           className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border pr-2 pl-[5px]'
           style={{ borderColor: C.BORDER, backgroundColor: C.SURFACE_2 }}
         >
-          <div className='flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
+          <div className='flex size-[20px] flex-shrink-0 items-center justify-center rounded-[4px] bg-white'>
             <svg width='10' height='10' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
@@ -158,7 +158,7 @@ export function LandingPreviewSidebar({
             isHomeActive && 'bg-[var(--c-active)]'
           )}
         >
-          <Home className='h-[14px] w-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
+          <Home className='size-[14px] flex-shrink-0' style={{ color: C.TEXT_ICON }} />
           <span className='truncate text-[13px]' style={{ color: C.TEXT_BODY, fontWeight: 450 }}>
             Home
           </span>
@@ -169,7 +169,7 @@ export function LandingPreviewSidebar({
       {/* Workspace */}
       <div className='mt-3.5 flex flex-shrink-0 flex-col'>
         <div className='px-4 pb-1.5'>
-          <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+          <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
             Workspace
           </div>
         </div>
@@ -191,7 +191,7 @@ export function LandingPreviewSidebar({
         {/* Workflows */}
         <div className='flex flex-col'>
           <div className='px-4'>
-            <div className='font-base text-[12px]' style={{ color: C.TEXT_ICON }}>
+            <div className='text-[12px]' style={{ color: C.TEXT_ICON }}>
               Workflows
             </div>
           </div>
@@ -208,14 +208,7 @@ export function LandingPreviewSidebar({
                     isActive && 'bg-[#363636]'
                   )}
                 >
-                  <div
-                    className='h-[14px] w-[14px] flex-shrink-0 rounded-[4px] border-[2.5px]'
-                    style={{
-                      backgroundColor: workflow.color,
-                      borderColor: workflowBorderColor(workflow.color),
-                      backgroundClip: 'padding-box',
-                    }}
-                  />
+                  <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   <div
                     className='min-w-0 flex-1 truncate text-left text-[13px]'
                     style={{ color: C.TEXT_BODY, fontWeight: 450 }}

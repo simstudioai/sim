@@ -77,7 +77,7 @@ const connectionFields = {
   passphrase: z.string().nullish(),
 }
 
-function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
+export function requirePasswordOrPrivateKey<S extends z.ZodType>(schema: S): S {
   return schema.refine(
     (value) => {
       const connection = value as { password?: string | null; privateKey?: string | null }
@@ -243,7 +243,7 @@ export const sshReadFileContentBodySchema = requirePasswordOrPrivateKey(
     ...connectionFields,
     path: z.string().min(1, 'Path is required'),
     encoding: z.string().default('utf-8'),
-    maxSize: z.coerce.number().default(10),
+    maxSize: z.coerce.number().min(0.01).max(50).default(10),
   })
 )
 
@@ -290,6 +290,7 @@ export const fileDownloadBodySchema = z
     isExecutionFile: z.boolean().optional(),
     context: downloadContextSchema.optional(),
     url: z
+      .string()
       .url()
       .refine((value) => ['http:', 'https:'].includes(new URL(value).protocol), {
         message: 'URL must use http or https',
@@ -300,8 +301,11 @@ export const fileDownloadBodySchema = z
 
 export const fileParseBodySchema = z
   .object({
-    filePath: z.union([z.string(), z.array(z.string())]).optional(),
+    filePath: z
+      .union([z.string(), z.array(z.string()).max(10, 'At most 10 files can be parsed at once')])
+      .optional(),
     fileType: z.string().optional().default(''),
+    headers: z.record(z.string(), z.string()).optional(),
     workspaceId: z.string().optional().default(''),
     workflowId: z.string().optional(),
     executionId: z.string().optional(),
@@ -316,7 +320,15 @@ export const fileDeleteBodySchema = z
   .passthrough()
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024
-export const validUploadTypes = ['knowledge-base', 'chat', 'copilot', 'profile-pictures'] as const
+export const validUploadTypes = [
+  'knowledge-base',
+  'chat',
+  'copilot',
+  'profile-pictures',
+  'mothership',
+  'workspace-logos',
+  'execution',
+] as const
 
 export const uploadTypeSchema = z.enum(validUploadTypes)
 
@@ -448,6 +460,8 @@ export const fileServeParamsSchema = z.object({
 
 export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
+  /** Content version (the file record's `updatedAt`). Present => the URL is content-immutable and may be cached indefinitely by the browser. */
+  v: z.string().nullish(),
 })
 
 export const fileViewParamsSchema = z.object({

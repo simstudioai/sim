@@ -98,6 +98,8 @@ export function SortBuilder({
           columns={columns}
           directionOptions={directionOptions}
           isReadOnly={isReadOnly}
+          blockId={blockId}
+          subBlockId={subBlockId}
           onAdd={addRule}
           onRemove={removeRule}
           onUpdate={updateRule}

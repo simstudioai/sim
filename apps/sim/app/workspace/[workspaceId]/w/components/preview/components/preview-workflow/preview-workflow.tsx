@@ -108,26 +108,24 @@ export function getLeftmostBlockId(workflowState: WorkflowState | null | undefin
 /** Execution status for edges/nodes in the preview */
 type ExecutionStatus = 'success' | 'error' | 'not-executed'
 
-/** Calculates absolute position, handling nested subflows. */
-function calculateAbsolutePosition(
+/** Calculates nesting depth, handling nested subflows. */
+function calculateNestingDepth(
   block: BlockState,
-  blocks: Record<string, BlockState>
-): { x: number; y: number } {
-  if (!block.data?.parentId) {
-    return block.position
-  }
+  blocks: Record<string, BlockState>,
+  visited: Set<string> = new Set()
+): number {
+  const parentId = block.data?.parentId
+  if (!parentId) return 0
+  if (visited.has(parentId)) return 0
 
-  const parentBlock = blocks[block.data.parentId]
+  const parentBlock = blocks[parentId]
   if (!parentBlock) {
-    logger.warn(`Parent block not found for child block`)
-    return block.position
+    logger.warn('Parent block not found for child block')
+    return 0
   }
 
-  const parentAbsolutePosition = calculateAbsolutePosition(parentBlock, blocks)
-  return {
-    x: parentAbsolutePosition.x + block.position.x,
-    y: parentAbsolutePosition.y + block.position.y,
-  }
+  visited.add(parentId)
+  return 1 + calculateNestingDepth(parentBlock, blocks, visited)
 }
 
 interface PreviewWorkflowProps {
@@ -236,10 +234,12 @@ export function PreviewWorkflow({
   const workspaceId = propWorkspaceId ?? params.workspaceId
   const {
     data: workflowMap = {},
-    isLoading: isWorkflowMapLoading,
+    isSuccess: isWorkflowMapLoaded,
     isPlaceholderData: isWorkflowMapPlaceholderData,
   } = useWorkflowMap(workspaceId)
-  const workflowLabelsReady = !isWorkflowMapLoading && !isWorkflowMapPlaceholderData
+  // Ready only on a successful, non-placeholder load — an errored or stale
+  // placeholder map must not mislabel valid workflows as deleted.
+  const workflowLabelsReady = isWorkflowMapLoaded && !isWorkflowMapPlaceholderData
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges
@@ -329,7 +329,8 @@ export function PreviewWorkflow({
 
       if (childStatuses.length === 0) return undefined
       if (childStatuses.some((s) => s === 'error')) return 'error'
-      return 'success'
+      if (childStatuses.every((s) => s === 'success')) return 'success'
+      return undefined
     }
     return derive
   }, [subflowChildrenMap, blockExecutionMap, workflowState.blocks])
@@ -367,13 +368,20 @@ export function PreviewWorkflow({
 
     const nodeArray: Node[] = []
 
-    Object.entries(workflowState.blocks || {}).forEach(([blockId, block]) => {
+    const sortedBlocks = Object.entries(workflowState.blocks || {}).sort(
+      ([, left], [, right]) =>
+        calculateNestingDepth(left, workflowState.blocks) -
+        calculateNestingDepth(right, workflowState.blocks)
+    )
+
+    sortedBlocks.forEach(([blockId, block]) => {
       if (!block || !block.type) {
         logger.warn(`Skipping invalid block: ${blockId}`)
         return
       }
 
-      const absolutePosition = calculateAbsolutePosition(block, workflowState.blocks)
+      const parentId = block.data?.parentId
+      const nestingDepth = calculateNestingDepth(block, workflowState.blocks)
 
       if (block.type === 'loop' || block.type === 'parallel') {
         const isSelected = selectedBlockId === blockId
@@ -391,9 +399,14 @@ export function PreviewWorkflow({
         nodeArray.push({
           id: blockId,
           type: 'subflowNode',
-          position: absolutePosition,
+          position: block.position,
+          parentId,
+          extent: block.data?.extent || undefined,
           draggable: false,
+          zIndex: nestingDepth,
+          className: parentId ? 'nested-subflow-node' : undefined,
           data: {
+            ...block.data,
             name: block.name,
             width: dimensions.width,
             height: dimensions.height,
@@ -430,9 +443,11 @@ export function PreviewWorkflow({
       nodeArray.push({
         id: blockId,
         type: nodeType,
-        position: absolutePosition,
+        position: block.position,
+        parentId,
+        extent: block.data?.extent || undefined,
         draggable: false,
-        zIndex: block.data?.parentId ? 10 : undefined,
+        zIndex: parentId ? 1000 : undefined,
         data: {
           type: block.type,
           name: block.name,

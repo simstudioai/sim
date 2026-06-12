@@ -1,5 +1,5 @@
 import { GrafanaIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { GrafanaResponse } from '@/tools/grafana/types'
 
@@ -10,11 +10,10 @@ export const GrafanaBlock: BlockConfig<GrafanaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.',
-  docsLink: 'https://docs.sim.ai/tools/grafana',
+  docsLink: 'https://docs.sim.ai/integrations/grafana',
   category: 'tools',
-  integrationType: IntegrationType.Analytics,
-  tags: ['monitoring', 'data-analytics'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Observability,
+  bgColor: '#FFFFFF',
   icon: GrafanaIcon,
   subBlocks: [
     // Operation dropdown
@@ -126,6 +125,33 @@ Return ONLY the search query - no explanations, no quotes, no extra text.`,
       placeholder: 'tag1, tag2 (comma-separated)',
       condition: { field: 'operation', value: 'grafana_list_dashboards' },
     },
+    {
+      id: 'folderUIDs',
+      title: 'Folder UIDs',
+      type: 'short-input',
+      placeholder: 'uid1, uid2 (comma-separated)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_dashboards' },
+    },
+    {
+      id: 'dashboardUIDs',
+      title: 'Dashboard UIDs',
+      type: 'short-input',
+      placeholder: 'uid1, uid2 (comma-separated)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_dashboards' },
+    },
+    {
+      id: 'page',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: 'Page number (1-based)',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_list_dashboards', 'grafana_list_folders'],
+      },
+    },
 
     // Create/Update Dashboard
     {
@@ -156,13 +182,15 @@ Return ONLY the title - no explanations, no quotes, no extra text.`,
       id: 'folderUid',
       title: 'Folder UID',
       type: 'short-input',
-      placeholder: 'Optional - folder to create dashboard in',
+      placeholder: 'Folder UID (required for alert rules, optional for dashboards)',
+      required: { field: 'operation', value: 'grafana_create_alert_rule' },
       condition: {
         field: 'operation',
         value: [
           'grafana_create_dashboard',
           'grafana_update_dashboard',
           'grafana_create_alert_rule',
+          'grafana_update_alert_rule',
         ],
       },
     },
@@ -229,6 +257,16 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
         value: ['grafana_create_dashboard', 'grafana_update_dashboard'],
       },
     },
+    {
+      id: 'overwrite',
+      title: 'Overwrite on Conflict',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_dashboard', 'grafana_update_dashboard'],
+      },
+    },
 
     // Alert Rule operations
     {
@@ -266,16 +304,6 @@ Examples:
 
 Return ONLY the alert title - no explanations, no quotes, no extra text.`,
         placeholder: 'Describe the alert...',
-      },
-    },
-    {
-      id: 'folderUid',
-      title: 'Folder UID',
-      type: 'short-input',
-      placeholder: 'Folder UID for the alert rule',
-      condition: {
-        field: 'operation',
-        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
       },
     },
     {
@@ -380,10 +408,105 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Error State',
       type: 'dropdown',
       options: [
+        { label: 'Error', id: 'Error' },
         { label: 'Alerting', id: 'Alerting' },
         { label: 'OK', id: 'OK' },
       ],
-      value: () => 'Alerting',
+      value: () => 'Error',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'annotations',
+      title: 'Annotations (JSON)',
+      type: 'long-input',
+      placeholder: 'JSON object of alert annotations (e.g., {"summary":"..."})',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'labels',
+      title: 'Labels (JSON)',
+      type: 'long-input',
+      placeholder: 'JSON object of alert labels (e.g., {"severity":"critical"})',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'isPaused',
+      title: 'Paused',
+      type: 'switch',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'keepFiringFor',
+      title: 'Keep Firing For',
+      type: 'short-input',
+      placeholder: 'e.g., 5m',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'missingSeriesEvalsToResolve',
+      title: 'Missing Series Evals to Resolve',
+      type: 'short-input',
+      placeholder: 'e.g., 2',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'notificationSettings',
+      title: 'Notification Settings (JSON)',
+      type: 'long-input',
+      placeholder: 'JSON object of per-rule notification overrides',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'record',
+      title: 'Recording Rule (JSON)',
+      type: 'long-input',
+      placeholder: 'JSON object configuring this as a recording rule',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
+      },
+    },
+    {
+      id: 'alertRuleUidNew',
+      title: 'Custom Alert Rule UID',
+      type: 'short-input',
+      placeholder: 'Optional - auto-generated if not provided',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_create_alert_rule' },
+    },
+    {
+      id: 'disableProvenance',
+      title: 'Disable Provenance',
+      type: 'switch',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: ['grafana_create_alert_rule', 'grafana_update_alert_rule'],
@@ -396,7 +519,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       title: 'Annotation Text',
       type: 'long-input',
       placeholder: 'Enter annotation text...',
-      required: true,
+      required: { field: 'operation', value: 'grafana_create_annotation' },
       condition: {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_update_annotation'],
@@ -436,8 +559,7 @@ Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
       id: 'annotationDashboardUid',
       title: 'Dashboard UID',
       type: 'short-input',
-      placeholder: 'Enter dashboard UID',
-      required: true,
+      placeholder: 'Optional - omit for organization-wide annotations',
       condition: {
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_list_annotations'],
@@ -452,6 +574,22 @@ Return ONLY the annotation text - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: ['grafana_create_annotation', 'grafana_list_annotations'],
       },
+    },
+    {
+      id: 'alertId',
+      title: 'Alert ID',
+      type: 'short-input',
+      placeholder: 'Filter by alert ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_annotations' },
+    },
+    {
+      id: 'userId',
+      title: 'User ID',
+      type: 'short-input',
+      placeholder: 'Filter by creator user ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_annotations' },
     },
     {
       id: 'time',
@@ -583,6 +721,30 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       placeholder: 'Optional - auto-generated if not provided',
       condition: { field: 'operation', value: 'grafana_create_folder' },
     },
+    {
+      id: 'parentUidNew',
+      title: 'Parent Folder UID',
+      type: 'short-input',
+      placeholder: 'Optional - for nested folders',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_create_folder' },
+    },
+    {
+      id: 'parentUidList',
+      title: 'Parent Folder UID',
+      type: 'short-input',
+      placeholder: 'List children of this folder UID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_folders' },
+    },
+    {
+      id: 'contactPointName',
+      title: 'Contact Point Name',
+      type: 'short-input',
+      placeholder: 'Filter by exact name',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'grafana_list_contact_points' },
+    },
   ],
   tools: {
     access: [
@@ -607,22 +769,30 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
       'grafana_create_folder',
     ],
     config: {
-      tool: (params) => {
-        if (params.alertTitle) params.title = params.alertTitle
-        if (params.folderTitle) params.title = params.folderTitle
-        if (params.folderUidNew) params.uid = params.folderUidNew
-        if (params.annotationTags) params.tags = params.annotationTags
-        if (params.annotationDashboardUid) params.dashboardUid = params.annotationDashboardUid
-        return params.operation
-      },
+      tool: (params) => params.operation,
       params: (params) => {
         const result: Record<string, unknown> = {}
+        if (params.alertTitle) result.title = params.alertTitle
+        if (params.folderTitle) result.title = params.folderTitle
+        if (params.folderUidNew) result.uid = params.folderUidNew
+        if (params.alertRuleUidNew) result.uid = params.alertRuleUidNew
+        if (params.parentUidNew) result.parentUid = params.parentUidNew
+        if (params.parentUidList) result.parentUid = params.parentUidList
+        if (params.contactPointName) result.name = params.contactPointName
+        if (params.annotationTags) result.tags = params.annotationTags
+        if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
         if (params.panelId) result.panelId = Number(params.panelId)
         if (params.annotationId) result.annotationId = Number(params.annotationId)
+        if (params.alertId) result.alertId = Number(params.alertId)
+        if (params.userId) result.userId = Number(params.userId)
         if (params.time) result.time = Number(params.time)
         if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
         if (params.from) result.from = Number(params.from)
         if (params.to) result.to = Number(params.to)
+        if (params.page) result.page = Number(params.page)
+        if (params.missingSeriesEvalsToResolve) {
+          result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+        }
         return result
       },
     },
@@ -641,8 +811,15 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     message: { type: 'string', description: 'Commit message' },
     query: { type: 'string', description: 'Search query' },
     tag: { type: 'string', description: 'Filter by tag' },
+    folderUIDs: {
+      type: 'string',
+      description: 'Filter dashboards by folder UIDs (comma-separated)',
+    },
+    dashboardUIDs: { type: 'string', description: 'Filter by dashboard UIDs (comma-separated)' },
+    page: { type: 'number', description: 'Page number for pagination' },
     // Alert inputs
     alertRuleUid: { type: 'string', description: 'Alert rule UID' },
+    alertRuleUidNew: { type: 'string', description: 'Custom UID for newly created alert rule' },
     alertTitle: { type: 'string', description: 'Alert rule title' },
     ruleGroup: { type: 'string', description: 'Rule group name' },
     condition: { type: 'string', description: 'Alert condition refId' },
@@ -650,14 +827,46 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     forDuration: { type: 'string', description: 'Duration before firing' },
     noDataState: { type: 'string', description: 'State on no data' },
     execErrState: { type: 'string', description: 'State on error' },
+    isPaused: { type: 'boolean', description: 'Whether the alert rule is paused' },
+    keepFiringFor: {
+      type: 'string',
+      description: 'Duration to keep firing after the condition stops',
+    },
+    missingSeriesEvalsToResolve: {
+      type: 'number',
+      description: 'Missing series evaluations before resolving',
+    },
+    notificationSettings: {
+      type: 'string',
+      description: 'JSON of per-rule notification settings',
+    },
+    record: { type: 'string', description: 'JSON of recording rule configuration' },
+    disableProvenance: {
+      type: 'boolean',
+      description: 'Disable provenance tracking so the rule remains UI-editable',
+    },
+    annotations: { type: 'string', description: 'JSON of alert annotations' },
+    labels: { type: 'string', description: 'JSON of alert labels' },
+    overwrite: { type: 'boolean', description: 'Overwrite existing dashboard on version conflict' },
     // Annotation inputs
     text: { type: 'string', description: 'Annotation text' },
     annotationId: { type: 'number', description: 'Annotation ID' },
+    annotationTags: { type: 'string', description: 'Annotation tags (comma-separated)' },
+    annotationDashboardUid: { type: 'string', description: 'Annotation dashboard UID' },
     panelId: { type: 'number', description: 'Panel ID' },
     time: { type: 'number', description: 'Start time (epoch ms)' },
     timeEnd: { type: 'number', description: 'End time (epoch ms)' },
     from: { type: 'number', description: 'Filter from time' },
     to: { type: 'number', description: 'Filter to time' },
+    alertId: { type: 'number', description: 'Filter annotations by alert ID' },
+    userId: { type: 'number', description: 'Filter annotations by creator user ID' },
+    // Folder inputs
+    folderTitle: { type: 'string', description: 'Folder title for newly created folder' },
+    folderUidNew: { type: 'string', description: 'Custom UID for newly created folder' },
+    parentUidList: { type: 'string', description: 'Parent folder UID to list children of' },
+    parentUidNew: { type: 'string', description: 'Parent folder UID for newly created folder' },
+    // Contact point inputs
+    contactPointName: { type: 'string', description: 'Filter contact points by name' },
     // Data source inputs
     dataSourceId: { type: 'string', description: 'Data source ID or UID' },
   },
@@ -675,6 +884,26 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     // Alert outputs
     rules: { type: 'json', description: 'Alert rules list' },
     contactPoints: { type: 'json', description: 'Contact points list' },
+    condition: { type: 'string', description: 'Alert condition refId' },
+    for: { type: 'string', description: 'Duration the condition must hold before firing' },
+    keepFiringFor: {
+      type: 'string',
+      description: 'Duration to keep firing after the condition stops',
+    },
+    missingSeriesEvalsToResolve: {
+      type: 'number',
+      description: 'Missing series evaluations before resolving',
+    },
+    isPaused: { type: 'boolean', description: 'Whether the alert rule is paused' },
+    folderUID: { type: 'string', description: 'Parent folder UID' },
+    ruleGroup: { type: 'string', description: 'Rule group name' },
+    orgID: { type: 'number', description: 'Organization ID' },
+    provenance: { type: 'string', description: 'Provisioning source' },
+    noDataState: { type: 'string', description: 'State on no data' },
+    execErrState: { type: 'string', description: 'State on execution error' },
+    notification_settings: { type: 'json', description: 'Per-rule notification settings' },
+    record: { type: 'json', description: 'Recording rule configuration' },
+    updated: { type: 'string', description: 'Last update timestamp' },
     // Annotation outputs
     annotations: { type: 'json', description: 'Annotations list' },
     id: { type: 'number', description: 'Annotation ID' },
@@ -686,3 +915,105 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
     message: { type: 'string', description: 'Status message' },
   },
 }
+
+export const GrafanaBlockMeta = {
+  tags: ['monitoring', 'data-analytics'],
+  templates: [
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana alert auto-context',
+      prompt:
+        'Build a scheduled workflow that polls Grafana for firing alert rules, pulls related logs and recent deploys, summarizes them with an agent, and posts the enriched alert to PagerDuty and Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty', 'slack'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana SLO scorecard',
+      prompt:
+        'Create a scheduled weekly workflow that queries Grafana for SLO compliance across services, calculates burn rates, and writes a scorecard to a tables-based SRE review board.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana dashboard auditor',
+      prompt:
+        'Build a scheduled workflow that scans Grafana dashboards monthly for broken panels, unused dashboards, and missing alerts, and writes a cleanup queue for the platform team.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana metric export',
+      prompt:
+        'Create a workflow that exports Grafana metric queries on schedule into a Sim table, so the data can be combined with business metrics for unified reporting.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['analysis', 'sync'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana incident annotator',
+      prompt:
+        'Build a scheduled workflow that polls PagerDuty for new incidents and adds Grafana annotations to relevant dashboards with the incident link, so engineers can see the context immediately on the timeline.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+      alsoIntegrations: ['pagerduty'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana on-call digest',
+      prompt:
+        'Create a scheduled daily workflow that summarizes the past 24 hours of Grafana alerts by service and severity, and posts an on-call digest to Slack each morning.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: GrafanaIcon,
+      title: 'Grafana + Linear feature-impact',
+      prompt:
+        'Build a scheduled workflow that polls Grafana for metric regressions correlated with recent Linear releases and posts a regression review to the team Slack with the suspected change.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['engineering', 'analysis'],
+      alsoIntegrations: ['linear', 'slack'],
+    },
+  ],
+  skills: [
+    {
+      name: 'annotate-deploy',
+      description:
+        'Create a Grafana annotation marking a deploy or incident so it shows on dashboards.',
+      content:
+        '# Annotate Deploy\n\nMark a deploy, release, or incident on Grafana dashboards for correlation.\n\n## Steps\n1. Build the annotation text (e.g. version, PR link, who triggered it) and tags for filtering.\n2. Create an annotation with the event time, or a time range for incidents with a start and end.\n3. Optionally scope the annotation to a specific dashboard so it appears only there.\n4. List annotations for the window to confirm it was recorded.\n\n## Output\nReturn the annotation ID, time, and tags. Useful for correlating metric changes with deploys later.',
+    },
+    {
+      name: 'review-firing-alerts',
+      description:
+        'List Grafana alert rules and surface those currently firing with their contact points.',
+      content:
+        '# Review Firing Alerts\n\nProduce a snapshot of alerting health for an on-call handoff or incident triage.\n\n## Steps\n1. List alert rules and capture each rule name, condition, and current state.\n2. Get details on rules that are firing or in a pending state.\n3. List contact points so each firing rule can be mapped to who gets notified.\n4. Group findings by severity or folder.\n\n## Output\nReturn a list of firing and pending alerts with rule name, state, and notification target, plus a count of healthy rules. Suitable for an on-call digest.',
+    },
+    {
+      name: 'audit-dashboards',
+      description: 'List Grafana dashboards and folders and report data sources each depends on.',
+      content:
+        '# Audit Dashboards\n\nInventory dashboards and the data sources they rely on.\n\n## Steps\n1. List folders and dashboards to build the full inventory.\n2. Get details for each dashboard of interest to read its panels and referenced data sources.\n3. List data sources and cross-reference to flag dashboards pointing at missing or deprecated sources.\n\n## Output\nReturn an inventory grouped by folder, each dashboard with its UID and the data sources it uses, plus a flagged list of dashboards with broken or unknown data source references.',
+    },
+    {
+      name: 'provision-monitoring-folder',
+      description:
+        'Create a Grafana folder and seed it with a starter dashboard for a new service or team.',
+      content:
+        '# Provision Monitoring Folder\n\nSet up an organized monitoring home for a new service or team.\n\n## Steps\n1. Create a folder with a descriptive title for the service or team.\n2. List data sources and pick the one the new dashboard should query.\n3. Create a dashboard inside the folder with starter panels for the key metrics.\n4. Get the dashboard back to confirm it was created in the right folder.\n\n## Output\nReturn the folder UID and the new dashboard UID and link. Note the data source the dashboard was wired to.',
+    },
+  ],
+} as const satisfies BlockMeta

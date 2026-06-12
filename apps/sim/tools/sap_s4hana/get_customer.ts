@@ -17,26 +17,26 @@ export const getCustomerTool: ToolConfig<GetCustomerParams, SapProxyResponse> = 
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -111,6 +111,43 @@ export const getCustomerTool: ToolConfig<GetCustomerParams, SapProxyResponse> = 
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'A_Customer entity' },
+    data: {
+      type: 'object',
+      description: 'A_Customer entity',
+      properties: {
+        Customer: { type: 'string', description: 'Customer key (up to 10 characters)' },
+        CustomerName: { type: 'string', description: 'Name of customer' },
+        CustomerFullName: { type: 'string', description: 'Full name of the customer' },
+        CustomerAccountGroup: { type: 'string', description: 'Customer account group' },
+        CustomerClassification: { type: 'string', description: 'Customer classification code' },
+        CustomerCorporateGroup: { type: 'string', description: 'Corporate group code' },
+        AuthorizationGroup: { type: 'string', description: 'Authorization group' },
+        Supplier: { type: 'string', description: 'Linked supplier account number' },
+        FiscalAddress: { type: 'string', description: 'Fiscal address ID' },
+        Industry: { type: 'string', description: 'Industry key' },
+        NielsenRegion: { type: 'string', description: 'Nielsen ID' },
+        ResponsibleType: { type: 'string', description: 'Responsible type' },
+        NFPartnerIsNaturalPerson: { type: 'string', description: 'Natural person indicator' },
+        InternationalLocationNumber1: {
+          type: 'string',
+          description: 'International location number 1',
+        },
+        TaxNumberType: { type: 'string', description: 'Tax number type' },
+        VATRegistration: { type: 'string', description: 'VAT registration number' },
+        DeletionIndicator: { type: 'boolean', description: 'Central deletion flag' },
+        OrderIsBlockedForCustomer: {
+          type: 'string',
+          description: 'Central order block reason code',
+        },
+        PostingIsBlocked: { type: 'boolean', description: 'Central posting block flag' },
+        DeliveryIsBlocked: { type: 'string', description: 'Central delivery block reason code' },
+        BillingIsBlockedForCustomer: {
+          type: 'string',
+          description: 'Central billing block reason code',
+        },
+        CreationDate: { type: 'string', description: 'Creation date (OData v2 epoch)' },
+        CreatedByUser: { type: 'string', description: 'User who created the customer' },
+      },
+    },
   },
 }

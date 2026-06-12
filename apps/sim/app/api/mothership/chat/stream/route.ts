@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { mothershipChatStreamQuerySchema } from '@/lib/api/contracts/mothership-tasks'
+import { mothershipChatStreamQuerySchema } from '@/lib/api/contracts/mothership-chats'
 import { validationErrorResponse } from '@/lib/api/server'
 import { GET as copilotStreamGet, maxDuration } from '@/app/api/copilot/chat/stream/route'
 

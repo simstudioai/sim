@@ -18,15 +18,47 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     apiKey: {
       type: 'string',
       required: true,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Apollo API key (master key required)',
     },
-    accounts: {
+    account_ids: {
       type: 'array',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of accounts to update (max 1000). Each account must include id field, and optionally name, website_url, phone, owner_id',
+        'Array of account IDs to update with the same values (max 1000). Use with name/owner_id for uniform updates. Use either this OR account_attributes.',
+    },
+    name: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When using account_ids, apply this name to all accounts',
+    },
+    owner_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When using account_ids, apply this owner to all accounts',
+    },
+    account_stage_id: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'When using account_ids, apply this account stage to all accounts',
+    },
+    account_attributes: {
+      type: 'json',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Array of account objects with individual updates (each must include id). Example: [{"id": "acc1", "name": "Acme", "owner_id": "u1", "account_stage_id": "s1", "typed_custom_fields": {"field_id": "value"}}]',
+    },
+    async: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-only',
+      description:
+        'When true, processes the update asynchronously. Only supported when using account_ids; returns 422 if used with account_attributes.',
     },
   },
 
@@ -38,9 +70,51 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
       'Cache-Control': 'no-cache',
       'X-Api-Key': params.apiKey,
     }),
-    body: (params: ApolloAccountBulkUpdateParams) => ({
-      accounts: params.accounts.slice(0, 1000),
-    }),
+    body: (params: ApolloAccountBulkUpdateParams) => {
+      const body: Record<string, unknown> = {}
+      if (params.account_ids && params.account_ids.length > 0) {
+        body.account_ids = params.account_ids.slice(0, 1000)
+      }
+      if (params.name) body.name = params.name
+      if (params.owner_id) body.owner_id = params.owner_id
+      if (params.account_stage_id) body.account_stage_id = params.account_stage_id
+      if (params.account_attributes) {
+        if (Array.isArray(params.account_attributes)) {
+          if (params.account_attributes.length > 0) {
+            body.account_attributes = params.account_attributes.slice(0, 1000)
+          }
+        } else if (
+          typeof params.account_attributes === 'object' &&
+          Object.keys(params.account_attributes).length > 0
+        ) {
+          body.account_attributes = params.account_attributes
+        }
+      }
+      const hasUpdateFields =
+        body.account_attributes || body.name || body.owner_id || body.account_stage_id
+      if (!hasUpdateFields) {
+        throw new Error(
+          'Apollo account bulk update requires update fields. Provide account_attributes (array of per-account updates with id, or single object paired with account_ids), or pair account_ids with name/owner_id to apply uniformly.'
+        )
+      }
+      if (!body.account_ids && !body.account_attributes) {
+        throw new Error(
+          'Apollo account bulk update requires account_ids (with name/owner_id) or account_attributes (with embedded ids).'
+        )
+      }
+      if (body.account_attributes && !Array.isArray(body.account_attributes) && !body.account_ids) {
+        throw new Error(
+          'Apollo account bulk update with object-form account_attributes requires account_ids to identify which accounts to update.'
+        )
+      }
+      if (body.account_ids && Array.isArray(body.account_attributes)) {
+        throw new Error(
+          'Apollo account bulk update cannot combine account_ids with array-form account_attributes. Use account_ids with name/owner_id (or object-form account_attributes), or use array-form account_attributes alone (each entry carries its own id).'
+        )
+      }
+      if (params.async !== undefined) body.async = params.async
+      return body
+    },
   },
 
   transformResponse: async (response: Response) => {
@@ -50,39 +124,53 @@ export const apolloAccountBulkUpdateTool: ToolConfig<
     }
 
     const data = await response.json()
+    const accounts = Array.isArray(data?.accounts) ? data.accounts : []
+    const entityProgressJob = data?.entity_progress_job ?? null
+    const accountIds = Array.isArray(data?.account_ids)
+      ? data.account_ids
+      : accounts.map((a: { id?: unknown }) => a?.id).filter((id: unknown) => typeof id === 'string')
+    const jobId =
+      typeof data?.job_id === 'string'
+        ? data.job_id
+        : typeof entityProgressJob?.id === 'string'
+          ? entityProgressJob.id
+          : null
 
     return {
       success: true,
       output: {
-        updated_accounts: data.accounts || data.updated_accounts || [],
-        failed_accounts: data.failed_accounts || [],
-        total_submitted: data.accounts?.length || 0,
-        updated: data.updated_accounts?.length || data.accounts?.length || 0,
-        failed: data.failed_accounts?.length || 0,
+        accounts,
+        account_ids: accountIds,
+        entity_progress_job: entityProgressJob,
+        job_id: jobId,
+        message: data?.message ?? null,
       },
     }
   },
 
   outputs: {
-    updated_accounts: {
+    accounts: {
       type: 'json',
-      description: 'Array of successfully updated accounts',
+      description: 'Updated accounts (synchronous response): [{id, account_stage_id, ...}]',
     },
-    failed_accounts: {
+    account_ids: {
       type: 'json',
-      description: 'Array of accounts that failed to update',
+      description: 'IDs of accounts that were updated',
     },
-    total_submitted: {
-      type: 'number',
-      description: 'Total number of accounts submitted',
+    entity_progress_job: {
+      type: 'json',
+      description: 'Async job descriptor (when async=true is passed with account_ids)',
+      optional: true,
     },
-    updated: {
-      type: 'number',
-      description: 'Number of accounts successfully updated',
+    job_id: {
+      type: 'string',
+      description: 'Async job ID extracted from entity_progress_job',
+      optional: true,
     },
-    failed: {
-      type: 'number',
-      description: 'Number of accounts that failed to update',
+    message: {
+      type: 'string',
+      description: 'Optional confirmation message from Apollo',
+      optional: true,
     },
   },
 }

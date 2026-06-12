@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  Download,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -9,7 +8,7 @@ import {
   DropdownMenuTrigger,
   Upload,
 } from '@/components/emcn'
-import { Copy, Database, Pencil, Trash } from '@/components/emcn/icons'
+import { Database, Download, Duplicate, Pencil, Trash } from '@/components/emcn/icons'
 
 interface TableContextMenuProps {
   isOpen: boolean
@@ -80,7 +79,7 @@ export function TableContextMenu({
         {onImportCsv && (
           <DropdownMenuItem disabled={disableImport} onSelect={onImportCsv}>
             <Upload />
-            Import CSV...
+            Import CSV…
           </DropdownMenuItem>
         )}
         {onExportCsv && (
@@ -94,7 +93,7 @@ export function TableContextMenu({
         )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
-            <Copy />
+            <Duplicate />
             Copy ID
           </DropdownMenuItem>
         )}

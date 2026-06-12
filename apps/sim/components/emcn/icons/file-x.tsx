@@ -12,14 +12,14 @@ export function FileX(props: SVGProps<SVGSVGElement>) {
       viewBox='-1 -2 24 24'
       fill='none'
       stroke='currentColor'
-      strokeWidth='1.75'
+      strokeWidth='1.55'
       strokeLinecap='round'
       strokeLinejoin='round'
       xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path d='M3.25 12.5V2.75C3.25 1.64543 4.14543 0.75 5.25 0.75H12.25L17.25 5.75V16.75C17.25 17.8546 16.3546 18.75 15.25 18.75H9.5' />
+      <path d='M3.25 12.5V2.75C3.25 1.65 4.15 0.75 5.25 0.75H12.25L17.25 5.75V16.75C17.25 17.85 16.35 18.75 15.25 18.75H9.5' />
       <path d='M12.25 0.75V5.75H17.25' />
       <path d='M3.25 15L7.25 19' />
       <path d='M7.25 15L3.25 19' />

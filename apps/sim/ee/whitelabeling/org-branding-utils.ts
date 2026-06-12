@@ -66,6 +66,7 @@ export function generateOrgThemeCSS(settings: OrganizationWhitelabelSettings): s
 
   if (settings.primaryColor) {
     vars.push(`--brand: ${settings.primaryColor};`)
+    vars.push(`--brand-agent: ${settings.primaryColor};`)
     vars.push(`--brand-accent: ${settings.primaryColor};`)
     vars.push(`--auth-primary-btn-bg: ${settings.primaryColor};`)
     vars.push(`--auth-primary-btn-border: ${settings.primaryColor};`)
@@ -85,11 +86,11 @@ export function generateOrgThemeCSS(settings: OrganizationWhitelabelSettings): s
   }
 
   if (settings.accentColor) {
-    vars.push(`--brand-link: ${settings.accentColor};`)
+    vars.push(`--brand-accent: ${settings.accentColor};`)
   }
 
   if (settings.accentHoverColor) {
-    vars.push(`--brand-link-hover: ${settings.accentHoverColor};`)
+    vars.push(`--brand-accent-hover: ${settings.accentHoverColor};`)
   }
 
   return vars.length > 0 ? `:root { ${vars.join(' ')} }` : ''

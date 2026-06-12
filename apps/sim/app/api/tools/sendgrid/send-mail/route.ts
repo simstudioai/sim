@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { sendGridSendMailContract } from '@/lib/api/contracts/tools/communication/email'
 import { parseRequest } from '@/lib/api/server'
@@ -7,6 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +20,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized SendGrid send attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
@@ -26,6 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated SendGrid send request via ${authResult.authType}`)
 
     const parsed = await parseRequest(sendGridSendMailContract, request, {})
@@ -97,28 +100,34 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const userFiles = processFilesToUserFiles(rawAttachments, requestId, logger)
 
       if (userFiles.length > 0) {
-        const sendGridAttachments = await Promise.all(
+        const accessResults = await Promise.all(
+          userFiles.map((file) => assertToolFileAccess(file.key, userId, requestId, logger))
+        )
+        const denied = accessResults.find((r) => r !== null)
+        if (denied) return denied
+
+        const buffers = await Promise.all(
           userFiles.map(async (file) => {
             try {
               logger.info(
                 `[${requestId}] Downloading attachment: ${file.name} (${file.size} bytes)`
               )
-              const buffer = await downloadFileFromStorage(file, requestId, logger)
-
-              return {
-                content: buffer.toString('base64'),
-                filename: file.name,
-                type: file.type || 'application/octet-stream',
-                disposition: 'attachment',
-              }
+              return await downloadFileFromStorage(file, requestId, logger)
             } catch (error) {
               logger.error(`[${requestId}] Failed to download attachment ${file.name}:`, error)
               throw new Error(
-                `Failed to download attachment "${file.name}": ${error instanceof Error ? error.message : 'Unknown error'}`
+                `Failed to download attachment "${file.name}": ${getErrorMessage(error, 'Unknown error')}`
               )
             }
           })
         )
+
+        const sendGridAttachments = userFiles.map((file, i) => ({
+          content: buffers[i].toString('base64'),
+          filename: file.name,
+          type: file.type || 'application/octet-stream',
+          disposition: 'attachment',
+        }))
 
         mailBody.attachments = sendGridAttachments
       }
@@ -157,7 +166,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Unexpected error:`, error)
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }

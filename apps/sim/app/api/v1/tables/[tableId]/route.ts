@@ -51,7 +51,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'read')
@@ -123,7 +123,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
     const { tableId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')

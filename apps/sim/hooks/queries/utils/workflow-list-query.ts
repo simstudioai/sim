@@ -13,7 +13,6 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
     id: workflow.id,
     name: workflow.name,
     description: workflow.description ?? undefined,
-    color: workflow.color,
     workspaceId: workflow.workspaceId ?? undefined,
     folderId: workflow.folderId,
     sortOrder: workflow.sortOrder,
@@ -24,7 +23,7 @@ export function mapWorkflow(workflow: WorkflowApiRow): WorkflowMetadata {
   }
 }
 
-export async function fetchWorkflows(
+async function fetchWorkflows(
   workspaceId: string,
   scope: WorkflowQueryScope = 'active',
   signal?: AbortSignal

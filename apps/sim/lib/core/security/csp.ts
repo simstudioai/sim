@@ -48,6 +48,7 @@ export interface CSPDirectives {
 const STATIC_SCRIPT_SRC = [
   "'self'",
   "'unsafe-inline'",
+  ...(isDev ? ["'unsafe-eval'"] : []),
   'https://*.google.com',
   'https://apis.google.com',
   'https://challenges.cloudflare.com',
@@ -225,28 +226,21 @@ export function getWorkflowExecutionCSPPolicy(): string {
 }
 
 /**
- * Shared CSP for embeddable pages (chat, forms)
- * Allows embedding in iframes from any origin while maintaining other security policies
- */
-function getEmbedCSPPolicy(): string {
-  return buildCSPString({
-    ...buildTimeCSPDirectives,
-    'frame-ancestors': ['*'],
-  })
-}
-
-/**
- * CSP for embeddable chat pages
+ * CSP for embeddable chat pages.
+ * Extends the shared embed policy with Microsoft Office.js sources so the
+ * chat page can serve as an Office (Excel/Word/Outlook) add-in surface
+ * when loaded with `?embed=office`.
  */
 export function getChatEmbedCSPPolicy(): string {
-  return getEmbedCSPPolicy()
-}
-
-/**
- * CSP for embeddable form pages
- */
-export function getFormEmbedCSPPolicy(): string {
-  return getEmbedCSPPolicy()
+  return buildCSPString({
+    ...buildTimeCSPDirectives,
+    'script-src': [...STATIC_SCRIPT_SRC, 'https://appsforoffice.microsoft.com'],
+    'connect-src': [
+      ...(buildTimeCSPDirectives['connect-src'] ?? []),
+      'https://appsforoffice.microsoft.com',
+    ],
+    'frame-ancestors': ['*'],
+  })
 }
 
 /**

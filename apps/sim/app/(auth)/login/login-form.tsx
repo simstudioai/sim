@@ -2,18 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
   Label,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalHeader,
 } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
 import { forgetPasswordContract } from '@/lib/api/contracts'
@@ -292,8 +294,7 @@ export default function LoginPage({
           },
         })
       } catch (requestError) {
-        let errorMessage =
-          requestError instanceof Error ? requestError.message : 'Failed to request password reset'
+        let errorMessage = getErrorMessage(requestError, 'Failed to request password reset')
 
         if (
           errorMessage.includes('Invalid body parameters') ||
@@ -325,7 +326,7 @@ export default function LoginPage({
       logger.error('Error requesting password reset:', { error })
       setResetStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Failed to request password reset',
+        message: getErrorMessage(error, 'Failed to request password reset'),
       })
     } finally {
       setIsSubmittingReset(false)
@@ -379,13 +380,13 @@ export default function LoginPage({
                 className={cn(
                   showEmailValidationError &&
                     emailErrors.length > 0 &&
-                    'border-red-500 focus:border-red-500'
+                    'border-[var(--text-error)] focus:border-[var(--text-error)]'
                 )}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {emailErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+                  {emailErrors.map((error) => (
+                    <p key={error}>{error}</p>
                   ))}
                 </div>
               )}
@@ -417,7 +418,7 @@ export default function LoginPage({
                     'pr-10',
                     showValidationError &&
                       passwordErrors.length > 0 &&
-                      'border-red-500 focus:border-red-500'
+                      'border-[var(--text-error)] focus:border-[var(--text-error)]'
                   )}
                 />
                 <button
@@ -430,9 +431,9 @@ export default function LoginPage({
                 </button>
               </div>
               {showValidationError && passwordErrors.length > 0 && (
-                <div className='mt-1 space-y-1 text-red-400 text-xs'>
-                  {passwordErrors.map((error, index) => (
-                    <p key={index}>{error}</p>
+                <div className='mt-1 space-y-1 text-[var(--text-error)] text-xs'>
+                  {passwordErrors.map((error) => (
+                    <p key={error}>{error}</p>
                   ))}
                 </div>
               )}
@@ -446,7 +447,7 @@ export default function LoginPage({
           )}
 
           {formError && (
-            <div className='text-red-400 text-xs'>
+            <div className='text-[var(--text-error)] text-xs'>
               <p>{formError}</p>
             </div>
           )}
@@ -454,8 +455,8 @@ export default function LoginPage({
           <button type='submit' disabled={isLoading} className={AUTH_SUBMIT_BTN}>
             {isLoading ? (
               <span className='flex items-center gap-2'>
-                <Loader className='h-4 w-4' animate />
-                Signing in...
+                <Loader className='size-4' animate />
+                Signing in…
               </span>
             ) : (
               'Sign in'
@@ -527,60 +528,47 @@ export default function LoginPage({
         </Link>
       </div>
 
-      <Modal open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
-        <ModalContent className='dark' size='sm'>
-          <ModalHeader>Reset Password</ModalHeader>
-          <ModalBody>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                handleForgotPassword()
-              }}
-            >
-              <ModalDescription className='mb-4 text-[var(--text-muted)] text-sm'>
-                Enter your email address and we'll send you a link to reset your password if your
-                account exists.
-              </ModalDescription>
-              <div className='space-y-4'>
-                <div className='space-y-2'>
-                  <Label htmlFor='reset-email'>Email</Label>
-                  <Input
-                    id='reset-email'
-                    value={forgotPasswordEmail}
-                    onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                    placeholder='Enter your email'
-                    required
-                    type='email'
-                    className={cn(
-                      resetStatus.type === 'error' && 'border-red-500 focus:border-red-500'
-                    )}
-                  />
-                  {resetStatus.type === 'error' && (
-                    <div className='mt-1 text-red-400 text-xs'>
-                      <p>{resetStatus.message}</p>
-                    </div>
-                  )}
-                </div>
-                {resetStatus.type === 'success' && (
-                  <div className='mt-1 text-[#4CAF50] text-xs'>
-                    <p>{resetStatus.message}</p>
-                  </div>
-                )}
-                <button type='submit' disabled={isSubmittingReset} className={AUTH_SUBMIT_BTN}>
-                  {isSubmittingReset ? (
-                    <span className='flex items-center gap-2'>
-                      <Loader className='h-4 w-4' animate />
-                      Sending...
-                    </span>
-                  ) : (
-                    'Send Reset Link'
-                  )}
-                </button>
-              </div>
-            </form>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      <ChipModal
+        open={forgotPasswordOpen}
+        onOpenChange={setForgotPasswordOpen}
+        srTitle='Reset Password'
+      >
+        <ChipModalHeader onClose={() => setForgotPasswordOpen(false)}>
+          Reset Password
+        </ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            Enter your email address and we'll send you a link to reset your password if your
+            account exists.
+          </p>
+          <ChipModalField
+            type='email'
+            title='Email'
+            value={forgotPasswordEmail}
+            onChange={(value) => setForgotPasswordEmail(value)}
+            onSubmit={() => {
+              if (!isSubmittingReset) void handleForgotPassword()
+            }}
+            required
+            placeholder='you@example.com'
+          />
+          {resetStatus.type === 'success' && (
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>{resetStatus.message}</p>
+          )}
+          <ChipModalError>
+            {resetStatus.type === 'error' ? resetStatus.message : null}
+          </ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => setForgotPasswordOpen(false)}
+          cancelDisabled={isSubmittingReset}
+          primaryAction={{
+            label: isSubmittingReset ? 'Sending…' : 'Send Reset Link',
+            onClick: handleForgotPassword,
+            disabled: !forgotPasswordEmail || isSubmittingReset,
+          }}
+        />
+      </ChipModal>
     </>
   )
 }

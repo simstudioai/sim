@@ -3,7 +3,10 @@
 import { useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOption } from '@/components/emcn'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useTablesList } from '@/hooks/queries/tables'
 
@@ -30,6 +33,7 @@ export function TableSelector({
   isPreview = false,
   previewValue,
 }: TableSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -59,7 +63,14 @@ export function TableSelector({
     [isPreview, disabled, setStoreValue]
   )
 
-  const errorMessage = error instanceof Error ? error.message : error ? String(error) : undefined
+  const errorMessage = error?.message
+  const selectedLabel = options.find((option) => option.value === tableId)?.label ?? ''
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: selectedLabel,
+  })
 
   return (
     <Combobox
@@ -73,6 +84,13 @@ export function TableSelector({
       error={errorMessage}
       searchable={options.length > 5}
       searchPlaceholder='Search...'
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span className='block truncate'>
+            {formatDisplayText(selectedLabel, { workflowSearchHighlight })}
+          </span>
+        ) : undefined
+      }
     />
   )
 }

@@ -2,7 +2,6 @@ import { setupConnectionHandlers } from '@/handlers/connection'
 import { setupOperationsHandlers } from '@/handlers/operations'
 import { setupPresenceHandlers } from '@/handlers/presence'
 import { setupSubblocksHandlers } from '@/handlers/subblocks'
-import { setupTableHandlers } from '@/handlers/tables'
 import { setupVariablesHandlers } from '@/handlers/variables'
 import { setupWorkflowHandlers } from '@/handlers/workflow'
 import type { AuthenticatedSocket } from '@/middleware/auth'
@@ -14,6 +13,5 @@ export function setupAllHandlers(socket: AuthenticatedSocket, roomManager: IRoom
   setupSubblocksHandlers(socket, roomManager)
   setupVariablesHandlers(socket, roomManager)
   setupPresenceHandlers(socket, roomManager)
-  setupTableHandlers(socket, roomManager)
   setupConnectionHandlers(socket, roomManager)
 }

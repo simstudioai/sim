@@ -2,20 +2,53 @@ import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
-import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import {
+  type GrepCountEntry,
+  type GrepMatch,
+  type GrepOptions,
+  grepReadResult,
+  WorkspaceFileGrepError,
+} from '@/lib/copilot/vfs/operations'
+import { decodeVfsSegment, encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
 import { getServePathPrefix } from '@/lib/uploads'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const logger = createLogger('UploadFileReader')
+
+/**
+ * Canonical comparison key for an upload's VFS name. Accepts both the raw display
+ * name and a percent-encoded segment (decode first — a no-op for raw names —
+ * then re-encode to the canonical `files/`-style form) so either spelling
+ * resolves the same row. Raw names containing a literal `%` cannot be decoded;
+ * fall back to encoding the raw name.
+ */
+function canonicalUploadKey(name: string): string {
+  let decoded = name
+  try {
+    decoded = decodeVfsSegment(name)
+  } catch {
+    decoded = name
+  }
+  try {
+    return encodeVfsSegment(decoded)
+  } catch {
+    return name.trim()
+  }
+}
+
+/** VFS-visible name. Coalesces to originalName for legacy rows that predate displayName. */
+function vfsName(row: typeof workspaceFiles.$inferSelect): string {
+  return row.displayName ?? row.originalName
+}
 
 function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): WorkspaceFileRecord {
   const pathPrefix = getServePathPrefix()
   return {
     id: row.id,
     workspaceId: row.workspaceId || '',
-    name: row.originalName,
+    name: vfsName(row),
     key: row.key,
     path: `${pathPrefix}${encodeURIComponent(row.key)}?context=mothership`,
     size: row.size,
@@ -29,8 +62,14 @@ function toWorkspaceFileRecord(row: typeof workspaceFiles.$inferSelect): Workspa
 }
 
 /**
- * Resolve a mothership upload row by `originalName`, preferring an exact DB match (limit 1) and
- * only scanning all chat uploads when that misses (e.g. macOS U+202F vs ASCII space in the name).
+ * Resolve a mothership upload row by VFS name (the collision-disambiguated `displayName`
+ * for new rows, or `originalName` for legacy rows that predate the column). Prefers an
+ * exact DB match; falls back to a normalized scan when the model passes a visually
+ * equivalent name (e.g. macOS U+202F vs ASCII space in screenshot filenames).
+ *
+ * On ambiguity (multiple legacy rows sharing the same originalName in one chat — the
+ * pre-displayName collision case), returns the most recent upload. New rows are unique
+ * by index so this only affects pre-fix data.
  */
 export async function findMothershipUploadRowByChatAndName(
   chatId: string,
@@ -43,10 +82,14 @@ export async function findMothershipUploadRowByChatAndName(
       and(
         eq(workspaceFiles.chatId, chatId),
         eq(workspaceFiles.context, 'mothership'),
-        eq(workspaceFiles.originalName, fileName),
+        or(
+          eq(workspaceFiles.displayName, fileName),
+          and(isNull(workspaceFiles.displayName), eq(workspaceFiles.originalName, fileName))
+        ),
         isNull(workspaceFiles.deletedAt)
       )
     )
+    .orderBy(desc(workspaceFiles.uploadedAt), desc(workspaceFiles.id))
     .limit(1)
 
   if (exactRows[0]) {
@@ -63,13 +106,14 @@ export async function findMothershipUploadRowByChatAndName(
         isNull(workspaceFiles.deletedAt)
       )
     )
+    .orderBy(desc(workspaceFiles.uploadedAt), desc(workspaceFiles.id))
 
-  const segmentKey = normalizeVfsSegment(fileName)
-  return allRows.find((r) => normalizeVfsSegment(r.originalName) === segmentKey) ?? null
+  const segmentKey = canonicalUploadKey(fileName)
+  return allRows.find((r) => canonicalUploadKey(vfsName(r)) === segmentKey) ?? null
 }
 
 /**
- * List all chat-scoped uploads for a given chat.
+ * List all chat-scoped uploads for a given chat in upload order.
  */
 export async function listChatUploads(chatId: string): Promise<WorkspaceFileRecord[]> {
   try {
@@ -83,6 +127,7 @@ export async function listChatUploads(chatId: string): Promise<WorkspaceFileReco
           isNull(workspaceFiles.deletedAt)
         )
       )
+      .orderBy(asc(workspaceFiles.uploadedAt), asc(workspaceFiles.id))
 
     return rows.map(toWorkspaceFileRecord)
   } catch (err) {
@@ -115,4 +160,33 @@ export async function readChatUpload(
     })
     return null
   }
+}
+
+/**
+ * Grep the content of a single chat upload (`uploads/<name>`), mirroring
+ * {@link WorkspaceVFS.grepFile} for the chat-scoped uploads namespace. Resolves
+ * the upload by name (raw or percent-encoded), reads its text per file type, and
+ * greps it. Throws {@link WorkspaceFileGrepError} when the upload is missing or
+ * has no searchable text (image/binary/too-large) so the caller surfaces the
+ * message verbatim.
+ */
+export async function grepChatUpload(
+  filename: string,
+  chatId: string,
+  pattern: string,
+  options?: GrepOptions
+): Promise<GrepMatch[] | string[] | GrepCountEntry[]> {
+  const row = await findMothershipUploadRowByChatAndName(chatId, filename)
+  if (!row) {
+    throw new WorkspaceFileGrepError(
+      `Upload not found: "${filename}". Use glob("uploads/*") to list available uploads.`
+    )
+  }
+  const record = toWorkspaceFileRecord(row)
+  const result = await readFileRecord(record)
+  if (!result) {
+    throw new WorkspaceFileGrepError(`Upload content not found for "${filename}".`)
+  }
+  const uploadsPath = `uploads/${canonicalUploadKey(record.name)}`
+  return grepReadResult(uploadsPath, result, pattern, uploadsPath, options)
 }

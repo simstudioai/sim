@@ -5,6 +5,7 @@
 
 import type { Edge } from 'reactflow'
 import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
+import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
 import type {
   BlockState,
   Loop,
@@ -201,19 +202,19 @@ export function sanitizeTools(tools: unknown[] | undefined): Record<string, unkn
   })
 }
 
-/** Variable with optional UI-only validationError field */
-type VariableWithValidation = Variable & { validationError?: string }
+/** Variable with optional UI-only fields */
+type VariableWithUiFields = Variable & { validationError?: string; workflowId?: string }
 
 /**
- * Sanitizes a variable by removing UI-only fields like validationError
+ * Sanitizes a variable by removing UI-only fields.
  * @param variable - The variable object
  * @returns Sanitized variable object
  */
 export function sanitizeVariable(
-  variable: VariableWithValidation | null | undefined
-): Omit<VariableWithValidation, 'validationError'> | null | undefined {
+  variable: VariableWithUiFields | null | undefined
+): Omit<VariableWithUiFields, 'validationError' | 'workflowId'> | null | undefined {
   if (!variable || typeof variable !== 'object') return variable
-  const { validationError, ...rest } = variable
+  const { validationError: _validationError, workflowId: _workflowId, ...rest } = variable
   return rest
 }
 
@@ -332,7 +333,7 @@ interface NormalizedSubBlock {
 }
 
 /** Normalized workflow state structure */
-export interface NormalizedWorkflowState {
+interface NormalizedWorkflowState {
   blocks: Record<string, NormalizedBlock>
   edges: Array<{
     source: string
@@ -385,7 +386,7 @@ export function normalizeBlockData(
 
 /**
  * Extracts block fields for comparison, excluding visual-only and runtime fields.
- * Excludes: position, layout, height, outputs, is_diff, field_diffs
+ * Excludes: position, layout, height, outputs, is_diff, field_diffs, locked
  *
  * @param block - The block state
  * @returns Extracted fields suitable for comparison
@@ -400,6 +401,7 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
     outputs: _outputs,
     is_diff: _isDiff,
     field_diffs: _fieldDiffs,
+    locked: _locked,
     ...blockRest
   } = blockWithDiff
 
@@ -409,13 +411,6 @@ export function extractBlockFieldsForComparison(block: BlockState): ExtractedBlo
     subBlocks,
   }
 }
-
-/**
- * Pattern matching synthetic subBlock IDs created by ToolSubBlockRenderer.
- * These IDs follow the format `{subBlockId}-tool-{index}-{paramId}` and are
- * mirrors of values already stored in toolConfig.value.tools[N].params.
- */
-const SYNTHETIC_TOOL_SUBBLOCK_RE = /-tool-\d+-/
 
 /**
  * Filters subBlock IDs to exclude system, trigger runtime, and synthetic tool subBlocks.
@@ -429,7 +424,7 @@ export function filterSubBlockIds(subBlockIds: string[]): string[] {
       if (TRIGGER_RUNTIME_SUBBLOCK_IDS.includes(id)) return false
       if (SYSTEM_SUBBLOCK_IDS.some((sysId) => id === sysId || id.startsWith(`${sysId}_`)))
         return false
-      if (SYNTHETIC_TOOL_SUBBLOCK_RE.test(id)) return false
+      if (isSyntheticToolSubBlockId(id)) return false
       return true
     })
     .sort()
@@ -509,7 +504,7 @@ export function extractSubBlockRest(subBlock: Record<string, unknown>): Record<s
 
 /**
  * Normalizes a workflow state for comparison or hashing.
- * Excludes non-functional fields (position, layout, height, outputs, diff markers)
+ * Excludes non-functional fields (position, layout, height, outputs, diff markers, locked)
  * and system/trigger runtime subBlocks.
  *
  * @param state - The workflow state to normalize

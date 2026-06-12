@@ -215,6 +215,22 @@ const Combobox = memo(
       )
 
       /**
+       * Label rendered in the collapsed trigger for multi-select mode.
+       * Shows the single label when one value is picked, comma-joined labels
+       * for two, or "first, second +N" when more are selected. Falls back to
+       * the raw value if an option for it hasn't loaded yet.
+       */
+      const multiSelectLabel = useMemo(() => {
+        if (!multiSelect || !multiSelectValues || multiSelectValues.length === 0) return null
+        const labelFor = (v: string) => allOptions.find((opt) => opt.value === v)?.label ?? v
+        if (multiSelectValues.length === 1) return labelFor(multiSelectValues[0])
+        if (multiSelectValues.length === 2) {
+          return `${labelFor(multiSelectValues[0])}, ${labelFor(multiSelectValues[1])}`
+        }
+        return `${labelFor(multiSelectValues[0])}, ${labelFor(multiSelectValues[1])} +${multiSelectValues.length - 2}`
+      }, [multiSelect, multiSelectValues, allOptions])
+
+      /**
        * Filter options based on current value or search query
        */
       const filteredOptions = useMemo(() => {
@@ -547,9 +563,7 @@ const Combobox = memo(
                           overlayContent
                         ) : (
                           <>
-                            {SelectedIcon && (
-                              <SelectedIcon className='mr-2 h-3 w-3 flex-shrink-0' />
-                            )}
+                            {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
                             <span className='truncate text-[var(--text-primary)]'>
                               {selectedOption?.label}
                             </span>
@@ -557,17 +571,19 @@ const Combobox = memo(
                         )}
                       </div>
                     )}
-                    <div
-                      className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center'
+                    <button
+                      type='button'
+                      aria-label={open ? 'Close options' : 'Open options'}
+                      className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0'
                       onMouseDown={handleChevronClick}
                     >
                       <ChevronDown
                         className={cn(
-                          'h-4 w-4 opacity-50 transition-transform',
+                          'size-4 opacity-50 transition-transform',
                           open && 'rotate-180'
                         )}
                       />
-                    </div>
+                    </button>
                   </div>
                 ) : (
                   <div
@@ -590,15 +606,15 @@ const Combobox = memo(
                     <span
                       className={cn(
                         'flex-1 truncate',
-                        !selectedOption && 'text-[var(--text-muted)]',
+                        !selectedOption && !multiSelectLabel && 'text-[var(--text-muted)]',
                         overlayContent && 'text-transparent'
                       )}
                     >
-                      {selectedOption ? selectedOption.label : placeholder}
+                      {multiSelectLabel ?? (selectedOption ? selectedOption.label : placeholder)}
                     </span>
                     <ChevronDown
                       className={cn(
-                        'ml-2 h-4 w-4 flex-shrink-0 opacity-50 transition-transform',
+                        'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
                         open && 'rotate-180'
                       )}
                     />
@@ -642,10 +658,10 @@ const Combobox = memo(
             >
               {searchable && (
                 <div className='flex items-center px-2.5 pt-2 pb-1'>
-                  <Search className='mr-[7px] ml-[1px] h-[13px] w-[13px] shrink-0 text-[var(--text-muted)]' />
+                  <Search className='mr-[7px] ml-[1px] size-[13px] shrink-0 text-[var(--text-muted)]' />
                   <input
                     ref={searchInputRef}
-                    className='w-full bg-transparent font-base text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
+                    className='w-full bg-transparent text-[var(--text-primary)] text-small placeholder:text-[var(--text-muted)] focus:outline-none'
                     placeholder={searchPlaceholder}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -690,17 +706,17 @@ const Combobox = memo(
                 <div ref={dropdownRef} role='listbox' id={listboxId}>
                   {isLoading ? (
                     <div className='flex items-center justify-center py-3.5'>
-                      <Loader className='h-[16px] w-[16px] text-[var(--text-muted)]' animate />
-                      <span className='ml-2 font-base text-[var(--text-muted)] text-caption'>
+                      <Loader className='size-[16px] text-[var(--text-muted)]' animate />
+                      <span className='ml-2 text-[var(--text-muted)] text-caption'>
                         Loading options...
                       </span>
                     </div>
                   ) : error ? (
-                    <div className='px-1.5 py-3.5 text-center font-base text-caption text-red-500'>
+                    <div className='px-1.5 py-3.5 text-center text-caption text-red-500'>
                       {error}
                     </div>
                   ) : filteredOptions.length === 0 ? (
-                    <div className='py-3.5 text-center font-base text-[var(--text-muted)] text-caption'>
+                    <div className='py-3.5 text-center text-[var(--text-muted)] text-caption'>
                       {emptyMessage ||
                         (searchQuery || (editable && value)
                           ? 'No matching options found'
@@ -714,7 +730,7 @@ const Combobox = memo(
                           {group.sectionElement
                             ? group.sectionElement
                             : group.section && (
-                                <div className='px-1.5 py-1 font-base text-[var(--text-tertiary)] text-xs first:pt-1'>
+                                <div className='px-1.5 py-1 text-[var(--text-tertiary)] text-xs first:pt-1'>
                                   {group.section}
                                 </div>
                               )}
@@ -756,14 +772,14 @@ const Combobox = memo(
                                 {option.iconElement
                                   ? option.iconElement
                                   : OptionIcon && (
-                                      <OptionIcon className='h-[14px] w-[14px] flex-shrink-0' />
+                                      <OptionIcon className='size-[14px] flex-shrink-0' />
                                     )}
                                 <span className='flex-1 truncate text-[var(--text-primary)]'>
                                   {option.label}
                                 </span>
                                 {option.suffixElement}
                                 {multiSelect && isSelected && (
-                                  <Check className='ml-2 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                                  <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                                 )}
                               </div>
                             )
@@ -829,15 +845,13 @@ const Combobox = memo(
                           >
                             {option.iconElement
                               ? option.iconElement
-                              : OptionIcon && (
-                                  <OptionIcon className='h-[14px] w-[14px] flex-shrink-0' />
-                                )}
+                              : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
                             <span className='flex-1 truncate text-[var(--text-primary)]'>
                               {option.label}
                             </span>
                             {option.suffixElement}
                             {multiSelect && isSelected && (
-                              <Check className='ml-2 h-[12px] w-[12px] flex-shrink-0 text-[var(--text-primary)]' />
+                              <Check className='ml-2 size-[12px] flex-shrink-0 text-[var(--text-primary)]' />
                             )}
                           </div>
                         )

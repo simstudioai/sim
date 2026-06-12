@@ -92,12 +92,9 @@ describe('GenericBlockHandler', () => {
     const result = await handler.execute(mockContext, mockBlock, inputs)
 
     expect(mockGetTool).toHaveBeenCalledWith('some_custom_tool')
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'some_custom_tool',
-      expectedToolParams,
-      false, // skipPostProcess
-      mockContext // execution context
-    )
+    expect(mockExecuteTool).toHaveBeenCalledWith('some_custom_tool', expectedToolParams, {
+      executionContext: mockContext,
+    })
     expect(result).toEqual(expectedOutput)
   })
 

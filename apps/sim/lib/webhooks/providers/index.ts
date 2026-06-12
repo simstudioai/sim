@@ -1,13 +1,4 @@
 export { getProviderHandler } from '@/lib/webhooks/providers/registry'
-export type {
-  AuthContext,
-  EventFilterContext,
-  EventMatchContext,
-  FormatInputContext,
-  FormatInputResult,
-  ProcessFilesContext,
-  WebhookProviderHandler,
-} from '@/lib/webhooks/providers/types'
 
 import { getProviderHandler } from '@/lib/webhooks/providers/registry'
 

@@ -1,5 +1,0 @@
-{
-  "title": "Enterprise",
-  "pages": ["index", "sso", "access-control", "whitelabeling", "audit-logs", "data-retention"],
-  "defaultOpen": false
-}

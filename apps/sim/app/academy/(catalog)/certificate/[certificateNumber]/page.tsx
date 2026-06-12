@@ -62,8 +62,8 @@ export default async function CertificatePage({ params }: CertificatePageProps) 
       <div className='w-full max-w-2xl'>
         <div className='rounded-[12px] border border-[#3A4A3A] bg-[#1C2A1C] p-10 text-center'>
           <div className='mb-6 flex justify-center'>
-            <div className='flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#4CAF50]/40 bg-[#4CAF50]/10'>
-              <GraduationCap className='h-8 w-8 text-[#4CAF50]' />
+            <div className='flex size-16 items-center justify-center rounded-full border-2 border-[#4CAF50]/40 bg-[#4CAF50]/10'>
+              <GraduationCap className='size-8 text-[#4CAF50]' />
             </div>
           </div>
 
@@ -84,12 +84,12 @@ export default async function CertificatePage({ params }: CertificatePageProps) 
 
           {certificate.status === 'active' ? (
             <div className='flex items-center justify-center gap-2 text-[#4CAF50]'>
-              <CheckCircle2 className='h-4 w-4' />
+              <CheckCircle2 className='size-4' />
               <span className='font-[430] text-[14px]'>Verified</span>
             </div>
           ) : (
             <div className='flex items-center justify-center gap-2 text-[#f44336]'>
-              <XCircle className='h-4 w-4' />
+              <XCircle className='size-4' />
               <span className='font-[430] text-[14px] capitalize'>{certificate.status}</span>
             </div>
           )}

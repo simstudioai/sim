@@ -10,7 +10,14 @@ You are a professional software engineer. All code must follow best practices: a
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
 - **Styling**: Never update global styles. Keep all styling local to components
 - **ID Generation**: Never use `crypto.randomUUID()`, `nanoid`, or `uuid` package. Use `generateId()` (UUID v4) or `generateShortId()` (compact) from `@sim/utils/id`
-- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations. `sleep(ms)` from `@sim/utils/helpers` for delays, `toError(e)` from `@sim/utils/errors` to normalize caught values.
+- **Common Utilities**: Use shared helpers from `@sim/utils` instead of inline implementations:
+  - `sleep(ms)` from `@sim/utils/helpers` — never `new Promise(resolve => setTimeout(resolve, ms))`
+  - `toError(e)` from `@sim/utils/errors` — normalize caught values to `Error`
+  - `getErrorMessage(e, fallback?)` from `@sim/utils/errors` — extract message string from unknown caught value; never write `e instanceof Error ? e.message : 'fallback'`
+  - `structuredClone(value)` — built-in deep clone; never `JSON.parse(JSON.stringify(...))`
+  - `omit(obj, keys)` / `filterUndefined(obj)` from `@sim/utils/object` — object trimming; never `Object.fromEntries(Object.entries(...).filter(...))`
+  - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
+  - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
 
 ## Architecture
@@ -25,18 +32,39 @@ You are a professional software engineer. All code must follow best practices: a
 ### Root Structure
 
 ```
-apps/sim/
-├── app/           # Next.js app router (pages, API routes)
-├── blocks/        # Block definitions and registry
-├── components/    # Shared UI (emcn/, ui/)
-├── executor/      # Workflow execution engine
-├── hooks/         # Shared hooks (queries/, selectors/)
-├── lib/           # App-wide utilities
-├── providers/     # LLM provider integrations
-├── stores/        # Zustand stores
-├── tools/         # Tool definitions
-└── triggers/      # Trigger definitions
+apps/
+├── sim/                    # Next.js app (UI + API routes + workflow editor)
+│   ├── app/                # Next.js app router (pages, API routes)
+│   ├── blocks/             # Block definitions and registry
+│   ├── components/         # Shared UI (emcn/, ui/)
+│   ├── executor/           # Workflow execution engine
+│   ├── hooks/              # Shared hooks (queries/, selectors/)
+│   ├── lib/                # App-wide utilities
+│   ├── providers/          # LLM provider integrations
+│   ├── stores/             # Zustand stores
+│   ├── tools/              # Tool definitions
+│   └── triggers/           # Trigger definitions
+└── realtime/               # Bun Socket.IO server (collaborative canvas)
+
+packages/
+├── audit/                  # @sim/audit
+├── auth/                   # @sim/auth — shared Better Auth verifier
+├── db/                     # @sim/db — drizzle schema + client
+├── logger/                 # @sim/logger
+├── realtime-protocol/      # @sim/realtime-protocol — socket op constants + zod schemas
+├── security/               # @sim/security — safeCompare
+├── tsconfig/               # shared tsconfig presets
+├── utils/                  # @sim/utils
+├── workflow-authz/         # @sim/workflow-authz
+├── workflow-persistence/   # @sim/workflow-persistence
+└── workflow-types/         # @sim/workflow-types — pure BlockState/Loop/Parallel types
 ```
+
+### Package boundaries
+
+- `apps/* → packages/*` only. Packages never import from `apps/*`.
+- `apps/realtime` intentionally avoids Next.js, React, the block/tool registry, provider SDKs, and the executor. Do not add imports from `@/lib/webhooks/providers/*`, `@/executor/*`, `@/blocks/*`, or `@/tools/*` to any package consumed by `apps/realtime`. CI enforces this via `scripts/check-monorepo-boundaries.ts` and `scripts/check-realtime-prune-graph.ts`.
+- Auth is shared across both apps via the Better Auth "Shared Database Session" pattern (same `BETTER_AUTH_SECRET`, same DB via `@sim/db`).
 
 ### Naming Conventions
 
@@ -115,7 +143,7 @@ Domain validators that are not HTTP boundaries — tools, blocks, triggers, conn
 
 A small number of legitimate exceptions to the boundary rules are tolerated when annotated. The audit script recognizes four annotation forms:
 
-- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**`. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
+- `// boundary-raw-fetch: <reason>` — placed on the line directly above a raw `fetch(` call in client hooks (`apps/sim/hooks/queries/**`, `apps/sim/hooks/selectors/**`) AND any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler. Use only for documented exceptions: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests
 - `// double-cast-allowed: <reason>` — placed on the line directly above an `as unknown as X` cast outside test files
 - `// boundary-raw-json: <reason>` — placed on the line directly above a raw `await request.json()` / `await req.json()` read in a route handler. Use only when the body is a JSON-RPC envelope, a tolerant `.catch(() => ({}))` parse, or otherwise cannot go through `parseRequest`
 - `// untyped-response: <reason>` — placed on the line directly above a `schema: z.unknown()` response declaration in a contract file. Use only when the response body is genuinely opaque (user-supplied data, third-party passthrough)
@@ -253,7 +281,7 @@ Hooks consume contracts the same way routes do. Every same-origin JSON call must
 
 - Hooks import named type aliases from `@/lib/api/contracts/**`. Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code
 - `requestJson` parses params, query, body, and headers against the contract on the way out and validates the JSON response on the way back. Hooks always forward `signal` for cancellation
-- Documented exceptions for raw `fetch`: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests. Mark each raw `fetch` with a TSDoc comment explaining which exception applies
+- Documented exceptions for raw `fetch`: streaming responses, binary downloads, multipart uploads, signed-URL flows, OAuth redirects, and external-origin requests. Mark each raw `fetch` with a TSDoc comment explaining which exception applies. The `// boundary-raw-fetch` annotation is required not only in client hooks but for any same-origin `/api/...` fetch anywhere under `apps/sim/**` outside an API route handler — strict CI flags these regardless of location
 
 ```typescript
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
@@ -341,15 +369,39 @@ export function useUpdateEntity() {
 
 ## Styling
 
-Use Tailwind only, no inline styles. Use `cn()` from `@/lib/utils` for conditional classes.
+Use Tailwind only, no inline styles. Use `cn()` from `@/lib/core/utils/cn` for conditional classes.
 
 ```typescript
 <div className={cn('base-classes', isActive && 'active-classes')} />
 ```
 
+For equal height and width, use the `size-*` shorthand — never `h-[Npx] w-[Npx]` or `h-N w-N`. Default icon size is `size-[14px]`.
+
+```typescript
+<Icon className='size-[14px] text-[var(--text-icon)]' />
+```
+
+On chip components (see "EMCN Components"), drive chrome through PROPS, not `className`: `error` for the error state, `icon`/`endAdornment` for adornments, `inputClassName` for the inner field. `className` carries ONLY layout/sizing — never re-specify canonical chrome (border, fill, radius, height, text/icon color) or add focus rings. Full consumer rules in `.claude/rules/sim-styling.md`.
+
 ## EMCN Components
 
-Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA when 2+ variants exist.
+Import from `@/components/emcn`, never from subpaths (except CSS files). Use CVA only when 2+ genuine variants exist; otherwise plain `cn()`.
+
+The chip family is the canonical UI chrome and is progressively replacing the legacy EMCN primitives — always reach for the chip equivalent: `ChipInput` over `Input`, `ChipTextarea` over `Textarea`, `ChipModal`/`ChipModalField` over `Modal`, `ChipSelect`/`ChipCombobox` (searchable) or `ChipDropdown` (simple menu-select) over `Select`/`Combobox`, `ChipSwitch` over `Switch`, `ChipDatePicker` over a raw date field, `Chip`/`ChipLink` for pill buttons/links, `ChipTag` for inline tags/badges. For context/action menus the canonical control is `DropdownMenu` (not a chip, but the standard menu — not a hand-rolled popover). Components OWN their chrome (single source of truth) — consumers pass props, not class overrides. Authoring rules in `.claude/rules/emcn-components.md`; consumer rules in `.claude/rules/sim-styling.md`.
+
+Inside a `ChipModalBody`, EVERY labeled field MUST be a `ChipModalField` — never hand-roll a field row (a raw `<div>` + a hand-rolled `<p>`/`<label>` title + a bare `ChipInput`/`ChipTextarea`). `ChipModalBody` applies `px-2` + `gap-4`; `ChipModalField` adds ANOTHER `px-2`, so each field lands at effective `px-4`, exactly matching `ChipModalHeader`/`ChipModalFooter` (`px-4`). Hand-rolled rows skip the field's gutter and sit at `px-2`, visibly misaligned with the header/footer. For controls `ChipModalField` does not cover (`ChipCombobox`, `ChipSelect`, `DatePicker`, `TimePicker`, `ButtonGroup`, arbitrary JSX), use `ChipModalField type='custom'` with a `title` — it still applies the `px-2` gutter and renders the canonical `Label`. Drive intent via props (`title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`); never pass `variant`/`className`/`id` to the inner control, and never add a body-level wrapper `<div>` with a custom `gap-*` that fights `ChipModalBody`'s `gap-4`.
+
+## Design-System Consolidation
+
+Principles when building or migrating shared UI:
+
+- One canonical source of truth for shared chrome — compose it, never re-derive it per consumer.
+- Props-driven API over `className` overrides — reaching for `className` to change chrome is a smell; expose a prop instead.
+- Discriminated-union props for modes (e.g. `ChipDropdown multiple`) over near-duplicate components.
+- Delete legacy variants/components after migration — no parallel paths left behind.
+- Plain `cn()` for a single error/state toggle; CVA only for genuinely multiple variants.
+- Align consumers to the canonical defaults — normal weight, `--text-body` text, `--text-icon` icons.
+- Verify referenced CSS vars exist — an undefined var silently falls back to `currentColor` (black-bug).
 
 ## Testing
 
@@ -357,7 +409,7 @@ Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.cursor/rules/s
 
 ### Global Mocks (vitest.setup.ts)
 
-`@sim/db`, `drizzle-orm`, `@sim/logger`, `@/blocks/registry`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior.
+`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/workflow-authz`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
 
 ### Standard Test Pattern
 
@@ -407,126 +459,12 @@ Use `@sim/testing` mocks/factories over local test data.
 
 ## Adding Integrations
 
-New integrations require: **Tools** → **Block** → **Icon** → (optional) **Trigger**
+New integrations are built in order: **Tools** → **Block** → **Icon** → (optional) **Trigger**. Always look up the service's API docs first.
 
-Always look up the service's API docs first.
+Two hard rules that the skills assume:
 
-### 1. Tools (`tools/{service}/`)
+- **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry.ts` (alphabetically).
+- **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
 
-```
-tools/{service}/
-├── index.ts      # Barrel export
-├── types.ts      # Params/response types
-└── {action}.ts   # Tool implementation
-```
-
-**Tool structure:**
-
-```typescript
-export const serviceTool: ToolConfig<Params, Response> = {
-  id: 'service_action',
-  name: 'Service Action',
-  description: '...',
-  version: '1.0.0',
-  oauth: { required: true, provider: 'service' },
-  params: { /* ... */ },
-  request: { url: '/api/tools/service/action', method: 'POST', ... },
-  transformResponse: async (response) => { /* ... */ },
-  outputs: { /* ... */ },
-}
-```
-
-Register in `tools/registry.ts`.
-
-### 2. Block (`blocks/blocks/{service}.ts`)
-
-```typescript
-export const ServiceBlock: BlockConfig = {
-  type: 'service',
-  name: 'Service',
-  description: '...',
-  category: 'tools',
-  bgColor: '#hexcolor',
-  icon: ServiceIcon,
-  subBlocks: [ /* see SubBlock Properties */ ],
-  tools: { access: ['service_action'], config: { tool: (p) => `service_${p.operation}`, params: (p) => ({ /* type coercions here */ }) } },
-  inputs: { /* ... */ },
-  outputs: { /* ... */ },
-}
-```
-
-Register in `blocks/registry.ts` (alphabetically).
-
-**Important:** `tools.config.tool` runs during serialization (before variable resolution). Never do `Number()` or other type coercions there — dynamic references like `<Block.output>` will be destroyed. Use `tools.config.params` for type coercions (it runs during execution, after variables are resolved).
-
-**SubBlock Properties:**
-
-```typescript
-{
-  id: 'field', title: 'Label', type: 'short-input', placeholder: '...',
-  required: true,                    // or condition object
-  condition: { field: 'op', value: 'send' },  // show/hide
-  dependsOn: ['credential'],         // clear when dep changes
-  mode: 'basic',                     // 'basic' | 'advanced' | 'both' | 'trigger'
-}
-```
-
-**condition examples:**
-
-- `{ field: 'op', value: 'send' }` - show when op === 'send'
-- `{ field: 'op', value: ['a','b'] }` - show when op is 'a' OR 'b'
-- `{ field: 'op', value: 'x', not: true }` - show when op !== 'x'
-- `{ field: 'op', value: 'x', not: true, and: { field: 'type', value: 'dm', not: true } }` - complex
-
-**dependsOn:** `['field']` or `{ all: ['a'], any: ['b', 'c'] }`
-
-**File Input Pattern (basic/advanced mode):**
-
-```typescript
-// Basic: file-upload UI
-{ id: 'uploadFile', type: 'file-upload', canonicalParamId: 'file', mode: 'basic' },
-// Advanced: reference from other blocks
-{ id: 'fileRef', type: 'short-input', canonicalParamId: 'file', mode: 'advanced' },
-```
-
-In `tools.config.tool`, normalize with:
-
-```typescript
-import { normalizeFileInput } from '@/blocks/utils'
-const file = normalizeFileInput(params.uploadFile || params.fileRef, { single: true })
-if (file) params.file = file
-```
-
-For file uploads, create an internal API route (`/api/tools/{service}/upload`) that uses `downloadFileFromStorage` to get file content from `UserFile` objects.
-
-### 3. Icon (`components/icons.tsx`)
-
-```typescript
-export function ServiceIcon(props: SVGProps<SVGSVGElement>) {
-  return <svg {...props}>/* SVG from brand assets */</svg>
-}
-```
-
-### 4. Trigger (`triggers/{service}/`) - Optional
-
-```
-triggers/{service}/
-├── index.ts      # Barrel export
-├── webhook.ts    # Webhook handler
-└── {event}.ts    # Event-specific handlers
-```
-
-Register in `triggers/registry.ts`.
-
-### Integration Checklist
-
-- Look up API docs
-- Create `tools/{service}/` with types and tools
-- Register tools in `tools/registry.ts`
-- Add icon to `components/icons.tsx`
-- Create block in `blocks/blocks/{service}.ts`
-- Register block in `blocks/registry.ts`
-- (Optional) Create and register triggers
-- (If file uploads) Create internal API route with `downloadFileFromStorage`
-- (If file uploads) Use `normalizeFileInput` in block config
+For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
 

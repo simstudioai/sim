@@ -12,9 +12,22 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteInE2B, mockExecuteInIsolatedVM } = vi.hoisted(() => ({
+const {
+  mockExecuteInE2B,
+  mockExecuteInIsolatedVM,
+  mockGetWorkspaceFile,
+  mockUpdateWorkspaceFileContent,
+  mockUploadFile,
+  mockValidateWorkspaceFileWriteTarget,
+  mockWriteWorkspaceFileByPath,
+} = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockGetWorkspaceFile: vi.fn(),
+  mockUpdateWorkspaceFileContent: vi.fn(),
+  mockUploadFile: vi.fn(),
+  mockValidateWorkspaceFileWriteTarget: vi.fn(),
+  mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
@@ -36,10 +49,47 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
   },
   normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
   resolveOutputFormat: vi.fn(() => 'json'),
+  getOutputFileDeclarations: vi.fn((params: Record<string, any>) => {
+    if (Array.isArray(params.outputs?.files)) {
+      return params.outputs.files.map((file: Record<string, any>) => ({
+        path: file.path,
+        mode: file.mode === 'overwrite' ? 'overwrite' : 'create',
+        sandboxPath: file.sandboxPath,
+        mimeType: file.mimeType,
+        format: file.format,
+      }))
+    }
+    return params.outputPath
+      ? [
+          {
+            path: params.overwriteFileId || params.outputPath,
+            mode: params.overwriteFileId ? 'overwrite' : 'create',
+            sandboxPath: params.outputSandboxPath,
+            mimeType: params.outputMimeType,
+            format: params.outputFormat,
+            formatPath: params.outputPath,
+            overwriteFileId: params.overwriteFileId,
+          },
+        ]
+      : []
+  }),
+}))
+
+vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
+  validateWorkspaceFileWriteTarget: mockValidateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  getWorkspaceFile: mockGetWorkspaceFile,
+  updateWorkspaceFileContent: mockUpdateWorkspaceFileContent,
   uploadWorkspaceFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads', () => ({
+  StorageService: {
+    uploadFile: mockUploadFile,
+  },
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
@@ -47,95 +97,15 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { validateProxyUrl } from '@/lib/core/security/input-validation'
+import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
+import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { POST } from '@/app/api/function/execute/route'
-
-/**
- * Creates a fake isolated-vm execution result by evaluating code
- * in a sandboxed context, mimicking the real executeInIsolatedVM behavior.
- */
-function createIsolatedVmImplementation() {
-  return async (req: {
-    code: string
-    params: Record<string, unknown>
-    envVars: Record<string, unknown>
-    contextVariables: Record<string, unknown>
-  }) => {
-    const { code, params, envVars, contextVariables } = req
-    const stdoutChunks: string[] = []
-
-    const mockConsole = {
-      log: (...args: unknown[]) => {
-        stdoutChunks.push(
-          `${args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')}\n`
-        )
-      },
-      error: (...args: unknown[]) => {
-        stdoutChunks.push(
-          'ERROR: ' +
-            args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ') +
-            '\n'
-        )
-      },
-      warn: (...args: unknown[]) => mockConsole.log('WARN:', ...args),
-      info: (...args: unknown[]) => mockConsole.log(...args),
-    }
-
-    try {
-      const escapePattern = /this\.constructor\.constructor|\.constructor\s*\(/
-      if (escapePattern.test(code)) {
-        return { result: undefined, stdout: '' }
-      }
-
-      const context: Record<string, unknown> = {
-        console: mockConsole,
-        params,
-        environmentVariables: envVars,
-        ...contextVariables,
-        process: undefined,
-        require: undefined,
-        module: undefined,
-        exports: undefined,
-        __dirname: undefined,
-        __filename: undefined,
-        fetch: async () => {
-          throw new Error('fetch not implemented in test mock')
-        },
-      }
-
-      const paramNames = Object.keys(context)
-      const paramValues = Object.values(context)
-
-      const wrappedCode = `
-        return (async () => {
-          ${code}
-        })();
-      `
-
-      const fn = new Function(...paramNames, wrappedCode)
-      const result = await fn(...paramValues)
-
-      return {
-        result,
-        stdout: stdoutChunks.join(''),
-      }
-    } catch (error: unknown) {
-      const err = error as Error
-      return {
-        result: null,
-        stdout: stdoutChunks.join(''),
-        error: {
-          message: err.message || String(error),
-          name: err.name || 'Error',
-          stack: err.stack,
-        },
-      }
-    }
-  }
-}
 
 describe('Function Execute API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    featureFlagsMock.isE2bEnabled = false
 
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
@@ -143,13 +113,44 @@ describe('Function Execute API Route', () => {
       authType: 'internal_jwt',
     })
 
-    mockExecuteInIsolatedVM.mockImplementation(createIsolatedVmImplementation())
+    mockExecuteInIsolatedVM.mockResolvedValue({ result: 'test', stdout: '' })
+    mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
+    clearLargeValueCacheForTests()
 
     mockExecuteInE2B.mockResolvedValue({
       result: 'e2b success',
       stdout: 'e2b output',
       sandboxId: 'test-sandbox-id',
     })
+    mockGetWorkspaceFile.mockResolvedValue({
+      id: 'wf_existing',
+      name: 'existing.png',
+      size: 10,
+      type: 'image/png',
+      url: '/api/files/view/existing',
+      key: 'workspace/existing.png',
+    })
+    mockUpdateWorkspaceFileContent.mockResolvedValue({
+      id: 'wf_existing',
+      name: 'existing.png',
+      size: 20,
+      type: 'image/png',
+      url: '/api/files/view/existing',
+      key: 'workspace/existing.png',
+    })
+    mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
+      mode: target.mode,
+      vfsPath: target.path,
+    }))
+    mockWriteWorkspaceFileByPath.mockImplementation(async ({ target, buffer }) => ({
+      id: `wf_${String(target.path).split('/').pop()?.replace(/\W+/g, '_') || 'file'}`,
+      name: String(target.path).split('/').pop() || 'file',
+      vfsPath: target.path,
+      downloadUrl: `/api/files/view/${encodeURIComponent(target.path)}`,
+      mode: target.mode,
+      size: buffer.length,
+      contentType: target.mimeType || 'application/octet-stream',
+    }))
   })
 
   describe('Security Tests', () => {
@@ -183,7 +184,9 @@ describe('Function Execute API Route', () => {
       expect(data.output.result).toBe('test')
     })
 
-    it.concurrent('should prevent VM escape via constructor chain', async () => {
+    it('should prevent VM escape via constructor chain', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: undefined, stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return this.constructor.constructor("return process")().env',
       })
@@ -219,7 +222,9 @@ describe('Function Execute API Route', () => {
       }
     })
 
-    it.concurrent('should not expose process object', async () => {
+    it('should not expose process object', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'undefined', stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return typeof process',
       })
@@ -231,7 +236,9 @@ describe('Function Execute API Route', () => {
       expect(data.output.result).toBe('undefined')
     })
 
-    it.concurrent('should not expose require function', async () => {
+    it('should not expose require function', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 'undefined', stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'return typeof require',
       })
@@ -279,7 +286,253 @@ describe('Function Execute API Route', () => {
       expect(data.output).toHaveProperty('executionTime')
     })
 
-    it.concurrent('should return computed result for multi-line code', async () => {
+    it('compacts large array result fields to manifests when execution context is durable', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          rows: Array.from({ length: 120_000 }, (_, index) => ({
+            key: `SIM-${index}`,
+            payload: 'x'.repeat(100),
+          })),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return rows',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeArrayManifest(data.output.result.rows)).toBe(true)
+      expect(data.output.result.rows).toMatchObject({
+        __simLargeArrayManifest: true,
+        kind: 'array',
+        totalCount: 120_000,
+      })
+    })
+
+    it('keeps large string result fields as generic large value refs', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: {
+          text: 'x'.repeat(9 * 1024 * 1024),
+        },
+        stdout: '',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'return text',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(isLargeValueRef(data.output.result.text)).toBe(true)
+    })
+
+    it('exports multiple declared sandbox output files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/chart.png': 'iVBORw0KGgo=',
+          '/home/user/summary.json': '{"ok":true}',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/reports/chart.png',
+              mode: 'create',
+              sandboxPath: '/home/user/chart.png',
+              mimeType: 'image/png',
+            },
+            {
+              path: 'files/reports/summary.json',
+              mode: 'overwrite',
+              sandboxPath: '/home/user/summary.json',
+              mimeType: 'application/json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockExecuteInE2B).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outputSandboxPaths: ['/home/user/chart.png', '/home/user/summary.json'],
+        })
+      )
+      expect(mockValidateWorkspaceFileWriteTarget).toHaveBeenCalledTimes(2)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          target: expect.objectContaining({ path: 'files/reports/chart.png', mode: 'create' }),
+        })
+      )
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          target: expect.objectContaining({
+            path: 'files/reports/summary.json',
+            mode: 'overwrite',
+          }),
+        })
+      )
+      expect(data.output.result.files).toHaveLength(2)
+      expect(data.resources).toEqual([
+        expect.objectContaining({ path: 'files/reports/chart.png' }),
+        expect.objectContaining({ path: 'files/reports/summary.json' }),
+      ])
+    })
+
+    it('prevalidates all sandbox output destinations before writing any files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/first.json': '{"first":true}',
+          '/home/user/second.json': '{"second":true}',
+        },
+      })
+      mockValidateWorkspaceFileWriteTarget
+        .mockResolvedValueOnce({ mode: 'create', vfsPath: 'files/first.json' })
+        .mockRejectedValueOnce(new Error('Directory not yet created: files/missing'))
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/first.json',
+              mode: 'create',
+              sandboxPath: '/home/user/first.json',
+            },
+            {
+              path: 'files/missing/second.json',
+              mode: 'create',
+              sandboxPath: '/home/user/second.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Directory not yet created')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate sandbox output destinations before writing files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/first.json': '{"first":true}',
+          '/home/user/second.json': '{"second":true}',
+        },
+      })
+      mockValidateWorkspaceFileWriteTarget.mockResolvedValue({
+        mode: 'create',
+        vfsPath: 'files/dupe.json',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/dupe.json',
+              mode: 'create',
+              sandboxPath: '/home/user/first.json',
+            },
+            {
+              path: 'files/dupe.json',
+              mode: 'create',
+              sandboxPath: '/home/user/second.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Duplicate sandbox output destination')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('returns a targeted error when a declared sandbox output is missing', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {},
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/missing.json',
+              mode: 'create',
+              sandboxPath: '/home/user/missing.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Sandbox file "/home/user/missing.json" was not found')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('should return computed result for multi-line code', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({ result: 10, stdout: '' })
+
       const req = createMockRequest('POST', {
         code: 'const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nreturn a + b + c + d;',
         timeout: 5000,
@@ -315,6 +568,73 @@ describe('Function Execute API Route', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
+    })
+
+    it('rejects large refs in runtimes without ref-native helpers', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      const req = createMockRequest('POST', {
+        code: 'echo "$__blockRef_0"',
+        language: 'shell',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeValueRef: true,
+            version: 1,
+            id: 'lv_ABCDEFGHIJKL',
+            kind: 'array',
+            size: 12 * 1024 * 1024,
+            executionId: 'execution-1',
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain(
+        'Large execution values require the JavaScript isolated-vm runtime'
+      )
+    })
+
+    it('registers manifest array read broker for isolated-vm execution', async () => {
+      const req = createMockRequest('POST', {
+        code: 'return await sim.values.readArray(__blockRef_0)',
+        language: 'javascript',
+        contextVariables: {
+          __blockRef_0: {
+            __simLargeArrayManifest: true,
+            version: 2,
+            kind: 'array',
+            totalCount: 1,
+            chunkCount: 1,
+            byteSize: 16,
+            chunks: [
+              {
+                ref: {
+                  __simLargeValueRef: true,
+                  version: 1,
+                  id: 'lv_ABCDEFGHIJKL',
+                  kind: 'array',
+                  size: 16,
+                  executionId: 'execution-1',
+                },
+                count: 1,
+                byteSize: 16,
+              },
+            ],
+            preview: [{ id: 1 }],
+          },
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+      const [, options] = mockExecuteInIsolatedVM.mock.calls.at(-1) ?? []
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(options?.brokers).toHaveProperty('sim.values.readArray')
     })
   })
 
@@ -495,6 +815,12 @@ describe('Function Execute API Route', () => {
 
   describe('Enhanced Error Handling', () => {
     it('should provide detailed syntax error with line content', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = {\n  name: "test",\n  description: "This has a missing closing quote\n};\nreturn obj;',
         timeout: 5000,
@@ -509,6 +835,15 @@ describe('Function Execute API Route', () => {
     })
 
     it('should provide detailed runtime error with line and column', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: {
+          message: "Cannot read properties of null (reading 'someMethod')",
+          name: 'TypeError',
+        },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = null;\nreturn obj.someMethod();',
         timeout: 5000,
@@ -524,6 +859,12 @@ describe('Function Execute API Route', () => {
     })
 
     it('should handle ReferenceError with enhanced details', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'undefinedVariable is not defined', name: 'ReferenceError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const x = 42;\nreturn undefinedVariable + x;',
         timeout: 5000,
@@ -538,7 +879,43 @@ describe('Function Execute API Route', () => {
       expect(data.error).toContain('undefinedVariable is not defined')
     })
 
+    it('should show original source code when resolved block references cause syntax errors', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: {
+          message: 'Unexpected identifier "globalThis"',
+          name: 'SyntaxError',
+          line: 1,
+          column: 7,
+          lineContent: 'retur globalThis["__blockRef_0"]',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'retur globalThis["__blockRef_0"]',
+        sourceCode: 'retur <start.reqerror>',
+        contextVariables: { __blockRef_0: 'value' },
+        timeout: 5000,
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(422)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Line 1: `retur <start.reqerror>`')
+      expect(data.error).not.toContain('globalThis')
+      expect(data.debug.lineContent).toBe('retur <start.reqerror>')
+    })
+
     it('should handle thrown errors gracefully', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Custom error message', name: 'Error' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'throw new Error("Custom error message");',
         timeout: 5000,
@@ -552,7 +929,13 @@ describe('Function Execute API Route', () => {
       expect(data.error).toContain('Custom error message')
     })
 
-    it.concurrent('should provide helpful suggestions for common syntax errors', async () => {
+    it('should provide helpful suggestions for common syntax errors', async () => {
+      mockExecuteInIsolatedVM.mockResolvedValueOnce({
+        result: null,
+        stdout: '',
+        error: { message: 'Unexpected end of input', name: 'SyntaxError' },
+      })
+
       const req = createMockRequest('POST', {
         code: 'const obj = {\n  name: "test"\n// Missing closing brace',
         timeout: 5000,

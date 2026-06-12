@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { TinybirdQueryParams, TinybirdQueryResponse } from '@/tools/tinybird/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -52,19 +52,19 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
 
   request: {
     url: (params) => {
-      const baseUrl = params.base_url.endsWith('/') ? params.base_url.slice(0, -1) : params.base_url
+      const baseUrl = params.base_url.trim().replace(/\/+$/, '')
       return `${baseUrl}/v0/sql`
     },
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Bearer ${params.token}`,
+      Authorization: `Bearer ${params.token.trim()}`,
     }),
     body: (params) => {
       const searchParams = new URLSearchParams()
       searchParams.set('q', params.query)
       if (params.pipeline) {
-        searchParams.set('pipeline', params.pipeline)
+        searchParams.set('pipeline', params.pipeline.trim())
       }
       return searchParams.toString()
     },
@@ -88,8 +88,10 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
         return {
           success: true,
           output: {
-            data: data.data || [],
-            rows: data.rows || 0,
+            data: data.data ?? [],
+            meta: data.meta ?? undefined,
+            rows: data.rows ?? 0,
+            rows_before_limit_at_least: data.rows_before_limit_at_least ?? undefined,
             statistics: data.statistics
               ? {
                   elapsed: data.statistics.elapsed,
@@ -104,9 +106,7 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
           contentType,
           parseError: toError(parseError).message,
         })
-        throw new Error(
-          `Invalid JSON response: ${parseError instanceof Error ? parseError.message : 'Parse error'}`
-        )
+        throw new Error(`Invalid JSON response: ${getErrorMessage(parseError, 'Parse error')}`)
       }
     }
 
@@ -128,9 +128,27 @@ export const queryTool: ToolConfig<TinybirdQueryParams, TinybirdQueryResponse> =
       description:
         'Query result data. For FORMAT JSON: array of objects. For other formats (CSV, TSV, etc.): raw text string.',
     },
+    meta: {
+      type: 'array',
+      description: 'Column metadata for the result set (only available with FORMAT JSON)',
+      optional: true,
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', description: 'Column name' },
+          type: { type: 'string', description: 'Column data type' },
+        },
+      },
+    },
     rows: {
       type: 'number',
       description: 'Number of rows returned (only available with FORMAT JSON)',
+    },
+    rows_before_limit_at_least: {
+      type: 'number',
+      description:
+        'Minimum number of rows there would be without a LIMIT clause (only available with FORMAT JSON)',
+      optional: true,
     },
     statistics: {
       type: 'json',

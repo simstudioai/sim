@@ -8,12 +8,17 @@ import {
   deleteMothershipChatContract,
   getMothershipChatContract,
   updateMothershipChatContract,
-} from '@/lib/api/contracts/mothership-tasks'
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
 import { buildEffectiveChatTranscript } from '@/lib/copilot/chat/effective-transcript'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
+import {
+  getAccessibleCopilotChatAuth,
+  getAccessibleCopilotChatWithMessages,
+} from '@/lib/copilot/chat/lifecycle'
 import { normalizeMessage } from '@/lib/copilot/chat/persisted-message'
+import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createInternalServerErrorResponse,
@@ -23,7 +28,6 @@ import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { readEvents } from '@/lib/copilot/request/session/buffer'
 import { readFilePreviewSessions } from '@/lib/copilot/request/session/file-preview-session'
 import { type StreamBatchEvent, toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 
@@ -41,7 +45,7 @@ export const GET = withRouteHandler(
       if (!paramsResult.success) return paramsResult.response
       const { chatId } = paramsResult.data.params
 
-      const chat = await getAccessibleCopilotChat(chatId, userId)
+      const chat = await getAccessibleCopilotChatWithMessages(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
       }
@@ -52,23 +56,29 @@ export const GET = withRouteHandler(
         status: string
       } | null = null
 
-      if (chat.conversationId) {
+      const reconciledMarkers = await reconcileChatStreamMarkers(
+        [{ chatId: chat.id, streamId: chat.conversationId }],
+        { repairVerifiedStaleMarkers: true }
+      )
+      const liveStreamId = reconciledMarkers.get(chat.id)?.streamId ?? null
+
+      if (liveStreamId) {
         try {
           const [events, previewSessions] = await Promise.all([
-            readEvents(chat.conversationId, '0'),
-            readFilePreviewSessions(chat.conversationId).catch((error) => {
+            readEvents(liveStreamId, '0'),
+            readFilePreviewSessions(liveStreamId).catch((error) => {
               logger.warn('Failed to read preview sessions for mothership chat', {
                 chatId,
-                conversationId: chat.conversationId,
+                streamId: liveStreamId,
                 error: toError(error).message,
               })
               return []
             }),
           ])
-          const run = await getLatestRunForStream(chat.conversationId, userId).catch((error) => {
+          const run = await getLatestRunForStream(liveStreamId, userId).catch((error) => {
             logger.warn('Failed to fetch latest run for mothership chat snapshot', {
               chatId,
-              conversationId: chat.conversationId,
+              streamId: liveStreamId,
               error: toError(error).message,
             })
             return null
@@ -87,7 +97,7 @@ export const GET = withRouteHandler(
         } catch (error) {
           logger.warn('Failed to read stream snapshot for mothership chat', {
             chatId,
-            conversationId: chat.conversationId,
+            streamId: liveStreamId,
             error: toError(error).message,
           })
         }
@@ -100,7 +110,7 @@ export const GET = withRouteHandler(
         : []
       const effectiveMessages = buildEffectiveChatTranscript({
         messages: normalizedMessages,
-        activeStreamId: chat.conversationId || null,
+        activeStreamId: liveStreamId,
         ...(streamSnapshot ? { streamSnapshot } : {}),
       })
 
@@ -110,7 +120,7 @@ export const GET = withRouteHandler(
           id: chat.id,
           title: chat.title,
           messages: effectiveMessages,
-          conversationId: chat.conversationId || null,
+          activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources) ? chat.resources : [],
           createdAt: chat.createdAt,
           updatedAt: chat.updatedAt,
@@ -135,7 +145,7 @@ export const PATCH = withRouteHandler(
       const parsed = await parseRequest(updateMothershipChatContract, request, context)
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
-      const { title, isUnread } = parsed.data.body
+      const { title, isUnread, pinned } = parsed.data.body
 
       const updates: Record<string, unknown> = {}
 
@@ -149,6 +159,9 @@ export const PATCH = withRouteHandler(
       }
       if (isUnread !== undefined) {
         updates.lastSeenAt = isUnread ? null : sql`GREATEST(${copilotChats.updatedAt}, NOW())`
+      }
+      if (pinned !== undefined) {
+        updates.pinned = pinned
       }
 
       const [updatedChat] = await db
@@ -172,7 +185,7 @@ export const PATCH = withRouteHandler(
 
       if (updatedChat.workspaceId) {
         if (title !== undefined) {
-          taskPubSub?.publishStatusChanged({
+          chatPubSub?.publishStatusChanged({
             workspaceId: updatedChat.workspaceId,
             chatId,
             type: 'renamed',
@@ -190,6 +203,16 @@ export const PATCH = withRouteHandler(
           captureServerEvent(
             userId,
             'task_marked_unread',
+            { workspace_id: updatedChat.workspaceId },
+            {
+              groups: { workspace: updatedChat.workspaceId },
+            }
+          )
+        }
+        if (pinned !== undefined) {
+          captureServerEvent(
+            userId,
+            pinned ? 'task_pinned' : 'task_unpinned',
             { workspace_id: updatedChat.workspaceId },
             {
               groups: { workspace: updatedChat.workspaceId },
@@ -218,7 +241,7 @@ export const DELETE = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { chatId } = parsed.data.params
 
-      const chat = await getAccessibleCopilotChat(chatId, userId)
+      const chat = await getAccessibleCopilotChatAuth(chatId, userId)
       if (!chat || chat.type !== 'mothership') {
         return NextResponse.json({ success: true })
       }
@@ -241,7 +264,7 @@ export const DELETE = withRouteHandler(
       }
 
       if (deletedChat.workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId: deletedChat.workspaceId,
           chatId,
           type: 'deleted',

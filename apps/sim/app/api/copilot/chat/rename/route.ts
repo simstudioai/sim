@@ -6,8 +6,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { renameCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { getAccessibleCopilotChat } from '@/lib/copilot/chat/lifecycle'
-import { taskPubSub } from '@/lib/copilot/tasks'
+import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('RenameChatAPI')
@@ -30,7 +30,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { chatId, title } = parsed.data.body
 
-    const chat = await getAccessibleCopilotChat(chatId, session.user.id)
+    const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id)
     if (!chat) {
       return NextResponse.json({ success: false, error: 'Chat not found' }, { status: 404 })
     }
@@ -49,7 +49,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest) => {
     logger.info('Chat renamed', { chatId, title })
 
     if (updated.workspaceId) {
-      taskPubSub?.publishStatusChanged({
+      chatPubSub?.publishStatusChanged({
         workspaceId: updated.workspaceId,
         chatId,
         type: 'renamed',

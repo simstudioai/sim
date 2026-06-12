@@ -550,20 +550,20 @@ export const CANCEL_ORDER_OUTPUT_PROPERTIES = {
 } as const satisfies Record<string, OutputProperty>
 
 // Common GraphQL Response Types
-export interface ShopifyGraphQLError {
+interface ShopifyGraphQLError {
   message: string
   locations?: { line: number; column: number }[]
   path?: string[]
   extensions?: Record<string, unknown>
 }
 
-export interface ShopifyUserError {
+interface ShopifyUserError {
   field: string[]
   message: string
 }
 
 // Product Types
-export interface ShopifyProduct {
+interface ShopifyProduct {
   id: string
   title: string
   handle: string
@@ -586,7 +586,7 @@ export interface ShopifyProduct {
   }
 }
 
-export interface ShopifyVariant {
+interface ShopifyVariant {
   id: string
   title: string
   price: string
@@ -595,14 +595,14 @@ export interface ShopifyVariant {
   inventoryQuantity: number
 }
 
-export interface ShopifyImage {
+interface ShopifyImage {
   id: string
   url: string
   altText: string | null
 }
 
 // Order Types
-export interface ShopifyOrder {
+interface ShopifyOrder {
   id: string
   name: string
   email: string | null
@@ -630,7 +630,7 @@ export interface ShopifyOrder {
   fulfillments: ShopifyFulfillment[]
 }
 
-export interface ShopifyMoneyBag {
+interface ShopifyMoneyBag {
   shopMoney: {
     amount: string
     currencyCode: string
@@ -641,7 +641,7 @@ export interface ShopifyMoneyBag {
   }
 }
 
-export interface ShopifyLineItem {
+interface ShopifyLineItem {
   id: string
   title: string
   quantity: number
@@ -650,7 +650,7 @@ export interface ShopifyLineItem {
   discountedTotalSet: ShopifyMoneyBag
 }
 
-export interface ShopifyAddress {
+interface ShopifyAddress {
   firstName: string | null
   lastName: string | null
   address1: string | null
@@ -665,7 +665,7 @@ export interface ShopifyAddress {
 }
 
 // Customer Types
-export interface ShopifyCustomer {
+interface ShopifyCustomer {
   id: string
   email: string | null
   firstName: string | null
@@ -684,7 +684,7 @@ export interface ShopifyCustomer {
 }
 
 // Fulfillment Types
-export interface ShopifyFulfillment {
+interface ShopifyFulfillment {
   id: string
   status: string
   createdAt: string
@@ -697,7 +697,7 @@ export interface ShopifyFulfillment {
 }
 
 // Inventory Types
-export interface ShopifyInventoryLevel {
+interface ShopifyInventoryLevel {
   id: string
   available: number
   onHand: number
@@ -710,7 +710,7 @@ export interface ShopifyInventoryLevel {
   }
 }
 
-export interface ShopifyInventoryItem {
+interface ShopifyInventoryItem {
   id: string
   sku: string | null
   tracked: boolean
@@ -722,7 +722,7 @@ export interface ShopifyInventoryItem {
 }
 
 // Tool Parameter Types
-export interface ShopifyBaseParams {
+interface ShopifyBaseParams {
   accessToken: string
   shopDomain: string
   idToken?: string // Shop domain from OAuth, used as fallback
@@ -844,7 +844,7 @@ export interface ShopifyAdjustInventoryParams extends ShopifyBaseParams {
   delta: number
 }
 
-export interface ShopifySetInventoryParams extends ShopifyBaseParams {
+interface ShopifySetInventoryParams extends ShopifyBaseParams {
   inventoryItemId: string
   locationId: string
   quantity: number

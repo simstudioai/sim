@@ -9,18 +9,18 @@ export interface VideoParams {
   duration?: number
   aspectRatio?: string
   resolution?: string
-  // Provider-specific features
-  visualReference?: UserFile // Runway only (required for Runway)
+  /** Runway only, required for Runway generation */
+  visualReference?: UserFile
   cameraControl?: {
-    // Luma only
     pan?: number
     zoom?: number
     tilt?: number
     truck?: number
     tracking?: boolean
   }
-  endpoint?: string // MiniMax: 'pro' | 'standard'
-  promptOptimizer?: boolean // MiniMax and Fal.ai MiniMax models
+  endpoint?: string
+  promptOptimizer?: boolean
+  generateAudio?: boolean
 }
 
 export interface VideoResponse extends ToolResponse {
@@ -33,6 +33,17 @@ export interface VideoResponse extends ToolResponse {
     provider?: string
     model?: string
     jobId?: string
+    __falaiCostDollars?: number
+    __falaiBilling?: {
+      endpointId: string
+      requestId: string
+      source: 'billing_events' | 'historical_estimate' | 'fallback_floor'
+      outputUnits?: number | null
+      unitPrice?: number | null
+      percentDiscount?: number | null
+      currency?: string
+      error?: string
+    }
   }
 }
 
@@ -48,21 +59,24 @@ export interface VideoBlockResponse extends ToolResponse {
   }
 }
 
-export interface RunwayParams extends Omit<VideoParams, 'provider'> {
-  model?: 'gen-4-turbo' // Only gen4_turbo supports image-to-video
-  visualReference: UserFile // REQUIRED for Gen-4
-  resolution?: '720p' // Gen-4 Turbo outputs at 720p
+interface RunwayParams extends Omit<VideoParams, 'provider'> {
+  /** Only gen4_turbo supports image-to-video */
+  model?: 'gen-4-turbo'
+  /** Required for Gen-4 */
+  visualReference: UserFile
+  /** Gen-4 Turbo outputs at 720p */
+  resolution?: '720p'
   duration?: 5 | 10
 }
 
-export interface VeoParams extends Omit<VideoParams, 'provider'> {
+interface VeoParams extends Omit<VideoParams, 'provider'> {
   model?: 'veo-3' | 'veo-3-fast' | 'veo-3.1'
   aspectRatio?: '16:9' | '9:16'
   resolution?: '720p' | '1080p'
   duration?: 4 | 6 | 8
 }
 
-export interface LumaParams extends Omit<VideoParams, 'provider'> {
+interface LumaParams extends Omit<VideoParams, 'provider'> {
   model?: 'ray3'
   cameraControl?: {
     pan?: number
@@ -76,21 +90,21 @@ export interface LumaParams extends Omit<VideoParams, 'provider'> {
   duration?: 5 | 10
 }
 
-export interface MinimaxParams extends Omit<VideoParams, 'provider'> {
-  model?: 'hailuo-02'
+interface MinimaxParams extends Omit<VideoParams, 'provider'> {
+  model?: 'hailuo-2.3' | 'hailuo-02'
   endpoint?: 'pro' | 'standard'
   promptOptimizer?: boolean
   duration?: 6 | 10
 }
 
-export interface VideoRequestBody extends VideoParams {
+interface VideoRequestBody extends VideoParams {
   workspaceId?: string
   workflowId?: string
   executionId?: string
   userId?: string
 }
 
-export interface RunwayJobResponse {
+interface RunwayJobResponse {
   id: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   videoUrl?: string
@@ -98,7 +112,7 @@ export interface RunwayJobResponse {
   error?: string
 }
 
-export interface VeoJobResponse {
+interface VeoJobResponse {
   name: string
   done: boolean
   response?: {
@@ -112,7 +126,7 @@ export interface VeoJobResponse {
   }
 }
 
-export interface LumaJobResponse {
+interface LumaJobResponse {
   id: string
   state: 'queued' | 'processing' | 'completed' | 'failed'
   video?: {
@@ -124,7 +138,7 @@ export interface LumaJobResponse {
   failure_reason?: string
 }
 
-export interface MinimaxJobResponse {
+interface MinimaxJobResponse {
   request_id: string
   status: 'pending' | 'processing' | 'completed' | 'failed'
   video_url?: string

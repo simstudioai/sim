@@ -18,7 +18,7 @@ export function Heading({ as, className, ...props }: HeadingProps) {
     return <As className={className} {...props} />
   }
 
-  const handleClick = async (e: React.MouseEvent) => {
+  const copyHeadingLink = async (e: React.MouseEvent) => {
     e.preventDefault()
 
     const url = `${window.location.origin}${window.location.pathname}#${props.id}`
@@ -39,18 +39,18 @@ export function Heading({ as, className, ...props }: HeadingProps) {
 
   return (
     <As className={cn('group flex scroll-m-28 flex-row items-center gap-2', className)} {...props}>
-      <a href={`#${props.id}`} className='peer' onClick={handleClick}>
+      <a href={`#${props.id}`} className='peer' onClick={copyHeadingLink}>
         {props.children}
       </a>
       {copied ? (
         <Check
           aria-hidden
-          className='size-3.5 shrink-0 text-green-500 opacity-100 transition-opacity'
+          className='size-[14px] shrink-0 text-[var(--brand-accent)] opacity-100 transition-opacity'
         />
       ) : (
         <Link
           aria-hidden
-          className='size-3.5 shrink-0 text-fd-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100'
+          className='size-[14px] shrink-0 text-[var(--text-icon)] opacity-0 transition-opacity group-hover:opacity-100 peer-hover:opacity-100'
         />
       )}
     </As>

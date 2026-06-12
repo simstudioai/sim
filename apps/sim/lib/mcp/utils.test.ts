@@ -1,5 +1,7 @@
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { McpConnectionError, McpOauthAuthorizationRequiredError } from '@/lib/mcp/types'
 import {
   categorizeError,
   createMcpToolId,
@@ -284,6 +286,13 @@ describe('categorizeError', () => {
     expect(result.message).toBe('Invalid request parameters')
   })
 
+  it.concurrent('returns 503 for cooldown errors', () => {
+    const error = new Error('Server recently failed and is in cooldown — try again shortly.')
+    const result = categorizeError(error)
+    expect(result.status).toBe(503)
+    expect(result.message).toBe('Server temporarily unavailable')
+  })
+
   it.concurrent('returns 500 for generic errors', () => {
     const error = new Error('Something went wrong')
     const result = categorizeError(error)
@@ -295,6 +304,32 @@ describe('categorizeError', () => {
     const result = categorizeError('string error')
     expect(result.status).toBe(500)
     expect(result.message).toBe('Unknown error occurred')
+  })
+
+  it.concurrent('returns 401 for McpOauthAuthorizationRequiredError via instanceof', () => {
+    const error = new McpOauthAuthorizationRequiredError('mcp-a', 'A')
+    const result = categorizeError(error)
+    expect(result.status).toBe(401)
+    expect(result.message).toBe('Authentication required')
+  })
+
+  it.concurrent('returns 401 for SDK UnauthorizedError via instanceof', () => {
+    const error = new UnauthorizedError('token expired')
+    const result = categorizeError(error)
+    expect(result.status).toBe(401)
+  })
+
+  it.concurrent('returns 503 for McpConnectionError with cooldown message', () => {
+    const error = new McpConnectionError('Server in cooldown — try again shortly.', 'mcp-a')
+    const result = categorizeError(error)
+    expect(result.status).toBe(503)
+  })
+
+  it.concurrent('returns 502 for other McpConnectionError', () => {
+    const error = new McpConnectionError('connect ECONNREFUSED', 'mcp-a')
+    const result = categorizeError(error)
+    expect(result.status).toBe(502)
+    expect(result.message).toBe('Connection failed')
   })
 
   it.concurrent('returns 500 for null', () => {

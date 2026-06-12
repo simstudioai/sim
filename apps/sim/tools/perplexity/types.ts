@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface PerplexityMessage {
+interface PerplexityMessage {
   role: string
   content: string
 }
@@ -41,7 +41,7 @@ export interface PerplexitySearchParams {
   apiKey: string
 }
 
-export interface PerplexitySearchResult {
+interface PerplexitySearchResult {
   title: string
   url: string
   snippet: string

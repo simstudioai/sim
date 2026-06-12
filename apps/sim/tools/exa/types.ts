@@ -2,12 +2,12 @@
 import type { ToolResponse } from '@/tools/types'
 
 // Common parameters for all Exa AI tools
-export interface ExaBaseParams {
+interface ExaBaseParams {
   apiKey: string
 }
 
 /** Cost breakdown returned by Exa API responses */
-export interface ExaCostDollars {
+interface ExaCostDollars {
   total: number
 }
 
@@ -37,9 +37,14 @@ export interface ExaSearchParams extends ExaBaseParams {
   summary?: boolean | { query?: string }
   // Live crawl mode
   livecrawl?: 'always' | 'fallback' | 'never'
+  // Date filters (ISO 8601)
+  startCrawlDate?: string
+  endCrawlDate?: string
+  startPublishedDate?: string
+  endPublishedDate?: string
 }
 
-export interface ExaSearchResult {
+interface ExaSearchResult {
   title: string
   url: string
   publishedDate?: string
@@ -73,7 +78,7 @@ export interface ExaGetContentsParams extends ExaBaseParams {
   livecrawl?: 'always' | 'fallback' | 'never'
 }
 
-export interface ExaGetContentsResult {
+interface ExaGetContentsResult {
   url: string
   title: string
   text?: string
@@ -115,7 +120,7 @@ export interface ExaFindSimilarLinksParams extends ExaBaseParams {
   livecrawl?: 'always' | 'fallback' | 'never'
 }
 
-export interface ExaSimilarLink {
+interface ExaSimilarLink {
   title: string
   url: string
   text?: string

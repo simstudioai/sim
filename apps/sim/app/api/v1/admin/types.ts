@@ -182,7 +182,6 @@ export interface AdminWorkflow {
   id: string
   name: string
   description: string | null
-  color: string
   workspaceId: string | null
   folderId: string | null
   isDeployed: boolean
@@ -198,12 +197,26 @@ export interface AdminWorkflowDetail extends AdminWorkflow {
   edgeCount: number
 }
 
-export function toAdminWorkflow(dbWorkflow: DbWorkflow): AdminWorkflow {
+export type AdminWorkflowSource = Pick<
+  DbWorkflow,
+  | 'id'
+  | 'name'
+  | 'description'
+  | 'workspaceId'
+  | 'folderId'
+  | 'isDeployed'
+  | 'deployedAt'
+  | 'runCount'
+  | 'lastRunAt'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminWorkflow(dbWorkflow: AdminWorkflowSource): AdminWorkflow {
   return {
     id: dbWorkflow.id,
     name: dbWorkflow.name,
     description: dbWorkflow.description,
-    color: dbWorkflow.color,
     workspaceId: dbWorkflow.workspaceId,
     folderId: dbWorkflow.folderId,
     isDeployed: dbWorkflow.isDeployed,
@@ -240,7 +253,6 @@ export interface WorkflowExportState {
   metadata?: {
     name?: string
     description?: string
-    color?: string
     exportedAt?: string
   }
   variables?: Record<string, WorkflowVariable>
@@ -253,7 +265,6 @@ export interface WorkflowExportPayload {
     id: string
     name: string
     description: string | null
-    color: string
     workspaceId: string | null
     folderId: string | null
   }
@@ -370,10 +381,9 @@ export function parseWorkflowVariables(
 export function extractWorkflowMetadata(
   workflowJson: unknown,
   overrideName?: string
-): { name: string; color: string; description: string } {
+): { name: string; description: string } {
   const defaults = {
     name: overrideName || 'Imported Workflow',
-    color: '#3972F6',
     description: 'Imported via Admin API',
   }
 
@@ -390,19 +400,13 @@ export function extractWorkflowMetadata(
     getNestedString(parsed, 'metadata.name') ||
     defaults.name
 
-  const color =
-    getNestedString(parsed, 'workflow.color') ||
-    getNestedString(parsed, 'state.metadata.color') ||
-    getNestedString(parsed, 'metadata.color') ||
-    defaults.color
-
   const description =
     getNestedString(parsed, 'workflow.description') ||
     getNestedString(parsed, 'state.metadata.description') ||
     getNestedString(parsed, 'metadata.description') ||
     defaults.description
 
-  return { name, color, description }
+  return { name, description }
 }
 
 /**
@@ -443,7 +447,20 @@ export interface AdminOrganizationDetail extends AdminOrganization {
   subscription: AdminSubscription | null
 }
 
-export function toAdminOrganization(dbOrg: DbOrganization): AdminOrganization {
+export type AdminOrganizationSource = Pick<
+  DbOrganization,
+  | 'id'
+  | 'name'
+  | 'slug'
+  | 'logo'
+  | 'orgUsageLimit'
+  | 'storageUsedBytes'
+  | 'departedMemberUsage'
+  | 'createdAt'
+  | 'updatedAt'
+>
+
+export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
   return {
     id: dbOrg.id,
     name: dbOrg.name,
@@ -514,7 +531,6 @@ export interface AdminMemberDetail extends AdminMember {
   // Billing/usage info from userStats
   currentPeriodCost: string
   currentUsageLimit: string | null
-  lastActive: string | null
   billingBlocked: boolean
 }
 
@@ -538,35 +554,22 @@ export interface AdminWorkspaceMember {
 // User Billing Types
 // =============================================================================
 
-export interface AdminUserBilling {
+interface AdminUserBilling {
   userId: string
   // User info
   userName: string
   userEmail: string
   stripeCustomerId: string | null
   // Usage stats
-  totalManualExecutions: number
-  totalApiCalls: number
-  totalWebhookTriggers: number
-  totalScheduledExecutions: number
-  totalChatExecutions: number
-  totalMcpExecutions: number
-  totalA2aExecutions: number
-  totalTokensUsed: number
-  totalCost: string
   currentUsageLimit: string | null
   currentPeriodCost: string
   lastPeriodCost: string | null
   billedOverageThisPeriod: string
   storageUsedBytes: number
-  lastActive: string | null
   billingBlocked: boolean
-  // Copilot usage
-  totalCopilotCost: string
+  // Copilot usage (active per-period baselines)
   currentPeriodCopilotCost: string
   lastPeriodCopilotCost: string | null
-  totalCopilotTokens: number
-  totalCopilotCalls: number
 }
 
 export interface AdminUserBillingWithSubscription extends AdminUserBilling {
@@ -614,16 +617,6 @@ export interface AdminSeatAnalytics {
   subscriptionPlan: string
   canAddSeats: boolean
   utilizationRate: number
-  activeMembers: number
-  inactiveMembers: number
-  memberActivity: Array<{
-    userId: string
-    userName: string
-    userEmail: string
-    role: string
-    joinedAt: string
-    lastActive: string | null
-  }>
 }
 
 export interface AdminDeploymentVersion {
@@ -645,6 +638,7 @@ export interface AdminDeployResult {
 
 export interface AdminUndeployResult {
   isDeployed: boolean
+  warnings?: string[]
 }
 
 // =============================================================================

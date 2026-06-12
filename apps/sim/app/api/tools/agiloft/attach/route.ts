@@ -1,15 +1,22 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftAttachContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
-import { agiloftLogin, agiloftLogout, buildAttachFileUrl } from '@/tools/agiloft/utils'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
+import { buildAttachFileUrl } from '@/tools/agiloft/utils'
+import {
+  agiloftLoginPinned,
+  agiloftLogoutPinned,
+  resolveAgiloftInstance,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +28,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Agiloft attach attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
@@ -65,21 +72,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       `[${requestId}] Downloading file for Agiloft attach: ${userFile.name} (${userFile.size} bytes)`
     )
 
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
     const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
     const resolvedFileName = data.fileName || userFile.name || 'attachment'
 
-    const urlValidation = await validateUrlWithDNS(data.instanceUrl, 'instanceUrl')
-    if (!urlValidation.isValid) {
+    let resolvedIP: string
+    try {
+      resolvedIP = await resolveAgiloftInstance(data.instanceUrl)
+    } catch (error) {
       logger.warn(`[${requestId}] SSRF attempt blocked for Agiloft instance URL`, {
         instanceUrl: data.instanceUrl,
       })
-      return NextResponse.json(
-        { success: false, error: urlValidation.error || 'Invalid instance URL' },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
 
-    const token = await agiloftLogin(data)
+    const token = await agiloftLoginPinned(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
     try {
@@ -87,10 +95,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       logger.info(`[${requestId}] Uploading file to Agiloft: ${resolvedFileName}`)
 
-      const agiloftResponse = await fetch(url, {
+      const agiloftResponse = await secureFetchWithPinnedIP(url, resolvedIP, {
         method: 'PUT',
         headers: {
-          'Content-Type': userFile.type || 'application/octet-stream',
+          'Content-Type': 'application/octet-stream',
           Authorization: `Bearer ${token}`,
         },
         body: new Uint8Array(fileBuffer),
@@ -131,14 +139,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         },
       })
     } finally {
-      await agiloftLogout(data.instanceUrl, data.knowledgeBase, token)
+      await agiloftLogoutPinned(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error attaching file to Agiloft:`, error)
 
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
 })

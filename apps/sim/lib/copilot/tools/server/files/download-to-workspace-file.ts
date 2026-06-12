@@ -1,13 +1,15 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
 import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
-import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getExtensionFromMimeType,
   getFileExtension,
@@ -20,6 +22,19 @@ const MAX_DOWNLOAD_BYTES = 50 * 1024 * 1024 // 50 MB
 const DownloadToWorkspaceFileArgsSchema = z.object({
   url: z.string().url(),
   fileName: z.string().min(1).optional(),
+  outputs: z
+    .object({
+      files: z
+        .array(
+          z.object({
+            path: z.string().min(1),
+            mode: z.enum(['create', 'overwrite']).optional(),
+            mimeType: z.string().optional(),
+          })
+        )
+        .optional(),
+    })
+    .optional(),
 })
 
 const DownloadToWorkspaceFileResultSchema = z.object({
@@ -27,6 +42,7 @@ const DownloadToWorkspaceFileResultSchema = z.object({
   message: z.string(),
   fileId: z.string().optional(),
   fileName: z.string().optional(),
+  vfsPath: z.string().optional(),
   downloadUrl: z.string().optional(),
 })
 
@@ -136,6 +152,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     try {
       assertServerToolNotAborted(context)
@@ -158,7 +175,9 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
         params.fileName,
         params.url
       )
+      const outputFile = params.outputs?.files?.[0]
       const fileName = inferOutputFileName(params.fileName, response.headers, params.url, mimeType)
+      const outputPath = outputFile?.path ?? `files/${fileName}`
 
       assertServerToolNotAborted(context)
 
@@ -170,31 +189,37 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
 
       assertServerToolNotAborted(context)
-      const uploaded = await uploadWorkspaceFile(
+      const written = await writeWorkspaceFileByPath({
         workspaceId,
-        context.userId,
-        fileBuffer,
-        fileName,
-        mimeType
-      )
+        userId: context.userId,
+        target: {
+          path: outputPath,
+          mode: outputFile?.mode ?? 'create',
+          mimeType: outputFile?.mimeType,
+        },
+        buffer: fileBuffer,
+        inferredMimeType: outputFile?.mimeType ?? mimeType,
+      })
 
       logger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,
-        fileId: uploaded.id,
-        fileName: uploaded.name,
+        fileId: written.id,
+        fileName: written.name,
+        vfsPath: written.vfsPath,
         mimeType,
         size: fileBuffer.length,
       })
 
       return {
         success: true,
-        message: `Downloaded "${uploaded.name}" to workspace (${fileBuffer.length} bytes)`,
-        fileId: uploaded.id,
-        fileName: uploaded.name,
-        downloadUrl: uploaded.url,
+        message: `Downloaded "${written.name}" to ${written.vfsPath} (${fileBuffer.length} bytes)`,
+        fileId: written.id,
+        fileName: written.name,
+        vfsPath: written.vfsPath,
+        downloadUrl: written.downloadUrl,
       }
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Unknown error'
+      const msg = getErrorMessage(error, 'Unknown error')
       logger.error('Failed to download file to workspace', {
         url: params.url,
         error: msg,

@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
@@ -37,7 +38,7 @@ interface GmailEmail {
   internalDate?: string
 }
 
-export interface SimplifiedEmail {
+interface SimplifiedEmail {
   id: string
   threadId: string
   subject: string
@@ -52,7 +53,7 @@ export interface SimplifiedEmail {
   attachments: GmailAttachment[]
 }
 
-export interface GmailWebhookPayload {
+interface GmailWebhookPayload {
   email: SimplifiedEmail
   timestamp: string
   rawEmail?: GmailEmail
@@ -245,7 +246,7 @@ async function fetchNewEmails(
 
     return { emails, latestHistoryId }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Error fetching new emails:`, errorMessage)
     throw error
   }
@@ -375,7 +376,7 @@ async function searchEmails(
 
     return { emails, latestHistoryId }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage = getErrorMessage(error, 'Unknown error')
     logger.error(`[${requestId}] Error searching emails:`, errorMessage)
     throw error
   }
@@ -564,7 +565,7 @@ async function processEmails(
       )
       processedCount++
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing email ${email.id}:`, errorMessage)
       failedCount++
     }

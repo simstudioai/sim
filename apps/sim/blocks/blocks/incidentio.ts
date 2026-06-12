@@ -1,5 +1,5 @@
 import { IncidentioIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { IncidentioResponse } from '@/tools/incidentio/types'
 
@@ -10,11 +10,10 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.',
-  docsLink: 'https://docs.sim.ai/tools/incidentio',
+  docsLink: 'https://docs.sim.ai/integrations/incidentio',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['incident-management', 'monitoring'],
-  bgColor: '#E0E0E0',
+  integrationType: IntegrationType.Observability,
+  bgColor: '#FFFFFF',
   icon: IncidentioIcon,
   subBlocks: [
     {
@@ -38,6 +37,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         { label: 'Show User', id: 'incidentio_users_show' },
         // Workflows
         { label: 'List Workflows', id: 'incidentio_workflows_list' },
+        { label: 'Create Workflow', id: 'incidentio_workflows_create' },
         { label: 'Show Workflow', id: 'incidentio_workflows_show' },
         { label: 'Update Workflow', id: 'incidentio_workflows_update' },
         { label: 'Delete Workflow', id: 'incidentio_workflows_delete' },
@@ -77,6 +77,7 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         // Schedule Overrides
         { label: 'Create Schedule Override', id: 'incidentio_schedule_overrides_create' },
         // Escalation Paths
+        { label: 'List Escalation Paths', id: 'incidentio_escalation_paths_list' },
         { label: 'Create Escalation Path', id: 'incidentio_escalation_paths_create' },
         { label: 'Show Escalation Path', id: 'incidentio_escalation_paths_show' },
         { label: 'Update Escalation Path', id: 'incidentio_escalation_paths_update' },
@@ -95,12 +96,13 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         value: [
           'incidentio_incidents_list',
           'incidentio_users_list',
-          'incidentio_workflows_list',
           'incidentio_schedules_list',
+          'incidentio_escalations_list',
           'incidentio_incident_updates_list',
-          'incidentio_schedule_entries_list',
+          'incidentio_escalation_paths_list',
         ],
       },
+      mode: 'advanced',
     },
     // Pagination 'after' field for list operations
     {
@@ -113,32 +115,39 @@ export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
         value: [
           'incidentio_incidents_list',
           'incidentio_users_list',
-          'incidentio_workflows_list',
           'incidentio_schedules_list',
+          'incidentio_escalations_list',
           'incidentio_incident_updates_list',
-          'incidentio_schedule_entries_list',
+          'incidentio_escalation_paths_list',
         ],
       },
+      mode: 'advanced',
+    },
+    {
+      id: 'sort_by',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Created At: Newest First', id: 'created_at_newest_first' },
+        { label: 'Created At: Oldest First', id: 'created_at_oldest_first' },
+      ],
+      value: () => 'created_at_newest_first',
+      condition: { field: 'operation', value: 'incidentio_incidents_list' },
+      mode: 'advanced',
+    },
+    {
+      id: 'filter_mode',
+      title: 'Filter Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'All', id: 'all' },
+        { label: 'Any', id: 'any' },
+      ],
+      value: () => 'all',
+      condition: { field: 'operation', value: 'incidentio_incidents_list' },
+      mode: 'advanced',
     },
     // Incidents Create operation inputs
-    {
-      id: 'name',
-      title: 'Incident Name',
-      type: 'short-input',
-      placeholder: 'Enter incident name...',
-      condition: { field: 'operation', value: 'incidentio_incidents_create' },
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a concise, descriptive incident name based on the user's description.
-The incident name should:
-- Be clear and descriptive
-- Indicate the nature of the issue
-- Be suitable for incident tracking and communication
-
-Return ONLY the incident name - no explanations.`,
-        placeholder: 'Describe the incident (e.g., "database outage", "API latency issues")...',
-      },
-    },
     {
       id: 'summary',
       title: 'Summary',
@@ -165,15 +174,11 @@ Return ONLY the summary text - no explanations.`,
       title: 'Severity ID',
       type: 'short-input',
       placeholder: 'Enter severity ID...',
-      condition: { field: 'operation', value: 'incidentio_incidents_create' },
-      required: true,
-    },
-    {
-      id: 'severity_id',
-      title: 'Severity ID',
-      type: 'short-input',
-      placeholder: 'Enter severity ID...',
-      condition: { field: 'operation', value: 'incidentio_incidents_update' },
+      condition: {
+        field: 'operation',
+        value: ['incidentio_incidents_create', 'incidentio_incidents_update'],
+      },
+      required: { field: 'operation', value: 'incidentio_incidents_create' },
     },
     {
       id: 'incident_type_id',
@@ -212,14 +217,6 @@ Return ONLY the summary text - no explanations.`,
         { label: 'Private', id: 'private' },
       ],
       value: () => 'public',
-      condition: { field: 'operation', value: 'incidentio_incidents_create' },
-      required: true,
-    },
-    {
-      id: 'idempotency_key',
-      title: 'Idempotency Key',
-      type: 'short-input',
-      placeholder: 'Enter unique key (e.g., UUID)',
       condition: { field: 'operation', value: 'incidentio_incidents_create' },
       required: true,
     },
@@ -266,26 +263,44 @@ Return ONLY the summary text - no explanations.`,
       condition: {
         field: 'operation',
         value: [
+          'incidentio_incidents_create',
+          'incidentio_incidents_update',
+          'incidentio_workflows_create',
+          'incidentio_workflows_update',
           'incidentio_schedules_create',
+          'incidentio_schedules_update',
           'incidentio_custom_fields_create',
           'incidentio_custom_fields_update',
           'incidentio_incident_roles_create',
           'incidentio_incident_roles_update',
           'incidentio_escalation_paths_create',
+          'incidentio_escalation_paths_update',
         ],
       },
-      required: true,
-    },
-    {
-      id: 'name',
-      title: 'Name',
-      type: 'short-input',
-      placeholder: 'Enter name (optional for update)...',
-      condition: {
+      required: {
         field: 'operation',
-        value: 'incidentio_escalation_paths_update',
+        value: [
+          'incidentio_workflows_create',
+          'incidentio_workflows_update',
+          'incidentio_schedules_create',
+          'incidentio_custom_fields_create',
+          'incidentio_incident_roles_create',
+          'incidentio_incident_roles_update',
+          'incidentio_escalation_paths_create',
+          'incidentio_escalation_paths_update',
+        ],
       },
-      required: false,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a concise resource name based on the user's description.
+The name should:
+- Be clear and descriptive
+- Indicate the resource purpose
+- Be suitable for incident.io records
+
+Return ONLY the name - no explanations.`,
+        placeholder: 'Describe the name you want to use...',
+      },
     },
     // Escalations inputs
     {
@@ -293,8 +308,14 @@ Return ONLY the summary text - no explanations.`,
       title: 'Idempotency Key',
       type: 'short-input',
       placeholder: 'Enter unique key (e.g., UUID)...',
-      condition: { field: 'operation', value: 'incidentio_escalations_create' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['incidentio_incidents_create', 'incidentio_escalations_create'],
+      },
+      required: {
+        field: 'operation',
+        value: ['incidentio_incidents_create', 'incidentio_escalations_create'],
+      },
     },
     {
       id: 'title',
@@ -330,20 +351,6 @@ Return ONLY the title - no explanations.`,
       placeholder: 'Enter user IDs, comma-separated (required if no path ID)...',
       condition: { field: 'operation', value: 'incidentio_escalations_create' },
     },
-    {
-      id: 'name',
-      title: 'Name',
-      type: 'short-input',
-      placeholder: 'Enter name...',
-      condition: {
-        field: 'operation',
-        value: [
-          'incidentio_incidents_update',
-          'incidentio_workflows_update',
-          'incidentio_schedules_update',
-        ],
-      },
-    },
     // Actions List inputs
     {
       id: 'incident_id',
@@ -352,8 +359,29 @@ Return ONLY the title - no explanations.`,
       placeholder: 'Filter by incident ID...',
       condition: {
         field: 'operation',
+        value: [
+          'incidentio_actions_list',
+          'incidentio_follow_ups_list',
+          'incidentio_incident_updates_list',
+        ],
+      },
+    },
+    {
+      id: 'incident_mode',
+      title: 'Incident Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Standard', id: 'standard' },
+        { label: 'Retrospective', id: 'retrospective' },
+        { label: 'Test', id: 'test' },
+        { label: 'Tutorial', id: 'tutorial' },
+        { label: 'Stream', id: 'stream' },
+      ],
+      condition: {
+        field: 'operation',
         value: ['incidentio_actions_list', 'incidentio_follow_ups_list'],
       },
+      mode: 'advanced',
     },
     // Workflows inputs
     {
@@ -361,7 +389,18 @@ Return ONLY the title - no explanations.`,
       title: 'Folder',
       type: 'short-input',
       placeholder: 'Enter folder name...',
-      condition: { field: 'operation', value: 'incidentio_workflows_update' },
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+    },
+    {
+      id: 'skip_step_upgrades',
+      title: 'Skip Step Upgrades',
+      type: 'switch',
+      value: () => 'false',
+      condition: { field: 'operation', value: 'incidentio_workflows_show' },
+      mode: 'advanced',
     },
     {
       id: 'state',
@@ -373,7 +412,172 @@ Return ONLY the title - no explanations.`,
         { label: 'Disabled', id: 'disabled' },
       ],
       value: () => 'active',
-      condition: { field: 'operation', value: 'incidentio_workflows_update' },
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+    },
+    {
+      id: 'trigger',
+      title: 'Trigger',
+      type: 'short-input',
+      placeholder: 'incident.updated',
+      condition: { field: 'operation', value: 'incidentio_workflows_create' },
+      mode: 'advanced',
+    },
+    {
+      id: 'runs_on_incidents',
+      title: 'Runs On Incidents',
+      type: 'dropdown',
+      options: [
+        { label: 'Newly Created', id: 'newly_created' },
+        { label: 'Newly Created and Active', id: 'newly_created_and_active' },
+        { label: 'Active', id: 'active' },
+        { label: 'All', id: 'all' },
+      ],
+      value: () => 'newly_created',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+    },
+    {
+      id: 'runs_on_incident_modes',
+      title: 'Incident Modes',
+      type: 'short-input',
+      placeholder: '["standard"]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of incident.io incident modes, such as ["standard"] or ["standard","retrospective"]. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe which incident modes should run the workflow...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'steps',
+      title: 'Steps',
+      type: 'long-input',
+      placeholder: '[{"label":"Notify team","name":"slack.post_message"}]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of incident.io workflow steps. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the workflow steps...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'condition_groups',
+      title: 'Condition Groups',
+      type: 'long-input',
+      placeholder: '[]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of incident.io workflow condition groups. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe the workflow conditions...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'expressions',
+      title: 'Expressions',
+      type: 'long-input',
+      placeholder: '[]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of incident.io workflow expressions. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe any workflow expressions...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'once_for',
+      title: 'Once For',
+      type: 'short-input',
+      placeholder: '[]',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON array of fields that should make an incident.io workflow run only once for each unique combination. Return ONLY the JSON array - no explanations, no extra text.',
+        placeholder: 'Describe what should make the workflow run once...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'delay',
+      title: 'Delay',
+      type: 'long-input',
+      placeholder: '{"for_seconds":60,"conditions_apply_over_delay":false}',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a JSON object for an incident.io workflow delay. Return ONLY the JSON object - no explanations, no extra text.',
+        placeholder: 'Describe the workflow delay...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'include_private_incidents',
+      title: 'Include Private Incidents',
+      type: 'switch',
+      value: () => 'true',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
+    },
+    {
+      id: 'continue_on_step_error',
+      title: 'Continue On Step Error',
+      type: 'switch',
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_workflows_create', 'incidentio_workflows_update'],
+      },
+      mode: 'advanced',
+      required: { field: 'operation', value: 'incidentio_workflows_update' },
     },
     // Schedules inputs
     {
@@ -406,8 +610,11 @@ Return ONLY the title - no explanations.`,
         { label: 'UTC', id: 'UTC' },
       ],
       value: () => 'UTC',
-      condition: { field: 'operation', value: 'incidentio_schedules_create' },
-      required: true,
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedules_create', 'incidentio_schedules_update'],
+      },
+      required: { field: 'operation', value: 'incidentio_schedules_create' },
     },
     {
       id: 'config',
@@ -438,38 +645,6 @@ Return ONLY the JSON object - no explanations or markdown formatting.`,
         generationType: 'json-object',
       },
     },
-    {
-      id: 'timezone',
-      title: 'Timezone',
-      type: 'dropdown',
-      options: [
-        { label: 'America/New_York (Eastern)', id: 'America/New_York' },
-        { label: 'America/Chicago (Central)', id: 'America/Chicago' },
-        { label: 'America/Denver (Mountain)', id: 'America/Denver' },
-        { label: 'America/Los_Angeles (Pacific)', id: 'America/Los_Angeles' },
-        { label: 'America/Phoenix (Arizona)', id: 'America/Phoenix' },
-        { label: 'America/Anchorage (Alaska)', id: 'America/Anchorage' },
-        { label: 'Pacific/Honolulu (Hawaii)', id: 'Pacific/Honolulu' },
-        { label: 'Europe/London (UK)', id: 'Europe/London' },
-        { label: 'Europe/Paris (Central Europe)', id: 'Europe/Paris' },
-        { label: 'Europe/Berlin (Germany)', id: 'Europe/Berlin' },
-        { label: 'Europe/Dublin (Ireland)', id: 'Europe/Dublin' },
-        { label: 'Europe/Amsterdam (Netherlands)', id: 'Europe/Amsterdam' },
-        { label: 'Asia/Tokyo (Japan)', id: 'Asia/Tokyo' },
-        { label: 'Asia/Singapore', id: 'Asia/Singapore' },
-        { label: 'Asia/Hong_Kong', id: 'Asia/Hong_Kong' },
-        { label: 'Asia/Shanghai (China)', id: 'Asia/Shanghai' },
-        { label: 'Asia/Seoul (South Korea)', id: 'Asia/Seoul' },
-        { label: 'Asia/Dubai (UAE)', id: 'Asia/Dubai' },
-        { label: 'Asia/Kolkata (India)', id: 'Asia/Kolkata' },
-        { label: 'Australia/Sydney', id: 'Australia/Sydney' },
-        { label: 'Australia/Melbourne', id: 'Australia/Melbourne' },
-        { label: 'Pacific/Auckland (New Zealand)', id: 'Pacific/Auckland' },
-        { label: 'UTC', id: 'UTC' },
-      ],
-      value: () => 'UTC',
-      condition: { field: 'operation', value: 'incidentio_schedules_update' },
-    },
     // Custom Fields inputs
     {
       id: 'description',
@@ -478,7 +653,12 @@ Return ONLY the JSON object - no explanations or markdown formatting.`,
       placeholder: 'Enter description...',
       condition: {
         field: 'operation',
-        value: ['incidentio_custom_fields_create', 'incidentio_custom_fields_update'],
+        value: [
+          'incidentio_custom_fields_create',
+          'incidentio_custom_fields_update',
+          'incidentio_incident_roles_create',
+          'incidentio_incident_roles_update',
+        ],
       },
       required: true,
       wandConfig: {
@@ -510,29 +690,6 @@ Return ONLY the description text - no explanations.`,
       required: true,
     },
     // Incident Roles inputs
-    {
-      id: 'description',
-      title: 'Description',
-      type: 'long-input',
-      placeholder: 'Enter description...',
-      condition: {
-        field: 'operation',
-        value: ['incidentio_incident_roles_create', 'incidentio_incident_roles_update'],
-      },
-      required: true,
-      wandConfig: {
-        enabled: true,
-        prompt: `Generate a description for an incident role based on the user's description.
-The description should:
-- Explain the role's responsibilities
-- Clarify when this role is needed
-- Be suitable for incident response documentation
-
-Return ONLY the description text - no explanations.`,
-        placeholder:
-          'Describe the role (e.g., "coordinates communication with stakeholders", "leads technical investigation")...',
-      },
-    },
     {
       id: 'instructions',
       title: 'Instructions',
@@ -568,14 +725,6 @@ Return ONLY the instructions text - no explanations.`,
       required: true,
     },
     // Incident Updates inputs
-    {
-      id: 'incident_id',
-      title: 'Incident ID',
-      type: 'short-input',
-      placeholder: 'Enter incident ID (optional - leave blank for all incidents)...',
-      condition: { field: 'operation', value: 'incidentio_incident_updates_list' },
-      required: false,
-    },
     // Schedule Entries inputs
     {
       id: 'schedule_id',
@@ -638,6 +787,14 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
     },
     {
+      id: 'layer_id',
+      title: 'Layer ID',
+      type: 'short-input',
+      placeholder: 'Enter layer ID...',
+      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      required: true,
+    },
+    {
       id: 'user_id',
       title: 'User ID',
       type: 'short-input',
@@ -649,16 +806,22 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'user_email',
       title: 'User Email',
       type: 'short-input',
-      placeholder: 'Enter user email (provide one of: user_id, user_email, or user_slack_id)...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      placeholder: 'Enter user email...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_users_list'],
+      },
       required: false,
     },
     {
       id: 'user_slack_id',
       title: 'User Slack ID',
       type: 'short-input',
-      placeholder: 'Enter user Slack ID (provide one of: user_id, user_email, or user_slack_id)...',
-      condition: { field: 'operation', value: 'incidentio_schedule_overrides_create' },
+      placeholder: 'Enter user Slack ID...',
+      condition: {
+        field: 'operation',
+        value: ['incidentio_schedule_overrides_create', 'incidentio_users_list'],
+      },
       required: false,
     },
     {
@@ -712,7 +875,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         'JSON array of escalation levels: [{"targets": [{"id": "...", "type": "...", "urgency": "..."}], "time_to_ack_seconds": 300}]',
       condition: {
         field: 'operation',
-        value: 'incidentio_escalation_paths_create',
+        value: ['incidentio_escalation_paths_create', 'incidentio_escalation_paths_update'],
       },
       required: true,
       wandConfig: {
@@ -733,18 +896,6 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
           'Describe the escalation path (e.g., "page on-call first, then manager after 5 min")...',
         generationType: 'json-object',
       },
-    },
-    {
-      id: 'path',
-      title: 'Path Configuration',
-      type: 'long-input',
-      placeholder:
-        'JSON array of escalation levels (optional for update): [{"targets": [{"id": "...", "type": "...", "urgency": "..."}], "time_to_ack_seconds": 300}]',
-      condition: {
-        field: 'operation',
-        value: 'incidentio_escalation_paths_update',
-      },
-      required: false,
     },
     {
       id: 'working_hours',
@@ -792,6 +943,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       'incidentio_users_list',
       'incidentio_users_show',
       'incidentio_workflows_list',
+      'incidentio_workflows_create',
       'incidentio_workflows_show',
       'incidentio_workflows_update',
       'incidentio_workflows_delete',
@@ -821,6 +973,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       'incidentio_incident_updates_list',
       'incidentio_schedule_entries_list',
       'incidentio_schedule_overrides_create',
+      'incidentio_escalation_paths_list',
       'incidentio_escalation_paths_create',
       'incidentio_escalation_paths_show',
       'incidentio_escalation_paths_update',
@@ -851,6 +1004,8 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
             return 'incidentio_users_show'
           case 'incidentio_workflows_list':
             return 'incidentio_workflows_list'
+          case 'incidentio_workflows_create':
+            return 'incidentio_workflows_create'
           case 'incidentio_workflows_show':
             return 'incidentio_workflows_show'
           case 'incidentio_workflows_update':
@@ -909,6 +1064,8 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
             return 'incidentio_schedule_entries_list'
           case 'incidentio_schedule_overrides_create':
             return 'incidentio_schedule_overrides_create'
+          case 'incidentio_escalation_paths_list':
+            return 'incidentio_escalation_paths_list'
           case 'incidentio_escalation_paths_create':
             return 'incidentio_escalation_paths_create'
           case 'incidentio_escalation_paths_show':
@@ -923,9 +1080,23 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
       },
       params: (params) => {
         const result: Record<string, unknown> = {}
+        const toBoolean = (value: unknown) => value === true || value === 'true'
         if (params.page_size) result.page_size = Number(params.page_size)
         if (params.notify_incident_channel !== undefined) {
-          result.notify_incident_channel = params.notify_incident_channel === 'true'
+          result.notify_incident_channel = toBoolean(params.notify_incident_channel)
+        }
+        if (params.include_private_incidents !== undefined) {
+          result.include_private_incidents = toBoolean(params.include_private_incidents)
+        }
+        if (params.continue_on_step_error !== undefined) {
+          result.continue_on_step_error = toBoolean(params.continue_on_step_error)
+        }
+        if (params.skip_step_upgrades !== undefined) {
+          result.skip_step_upgrades = toBoolean(params.skip_step_upgrades)
+        }
+        if (params.operation === 'incidentio_users_list') {
+          if (params.user_email) result.email = params.user_email
+          if (params.user_slack_id) result.slack_user_id = params.user_slack_id
         }
         return result
       },
@@ -939,6 +1110,8 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     name: { type: 'string', description: 'Resource name' },
     page_size: { type: 'number', description: 'Number of results per page' },
     after: { type: 'string', description: 'Pagination cursor' },
+    sort_by: { type: 'string', description: 'Incident sort order' },
+    filter_mode: { type: 'string', description: 'Incident filter combination mode' },
     // Incident fields
     summary: { type: 'string', description: 'Incident summary' },
     severity_id: { type: 'string', description: 'Severity ID' },
@@ -946,6 +1119,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     incident_status_id: { type: 'string', description: 'Incident status ID' },
     visibility: { type: 'string', description: 'Incident visibility' },
     incident_id: { type: 'string', description: 'Incident ID for filtering' },
+    incident_mode: { type: 'string', description: 'Incident mode filter' },
     notify_incident_channel: {
       type: 'boolean',
       description: 'Whether to notify the incident channel',
@@ -953,6 +1127,29 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     // Workflow fields
     folder: { type: 'string', description: 'Workflow folder' },
     state: { type: 'string', description: 'Workflow state' },
+    trigger: { type: 'string', description: 'Workflow trigger type' },
+    skip_step_upgrades: { type: 'boolean', description: 'Whether to skip workflow step upgrades' },
+    steps: { type: 'string', description: 'Workflow steps JSON' },
+    condition_groups: { type: 'string', description: 'Workflow condition groups JSON' },
+    runs_on_incidents: {
+      type: 'string',
+      description: 'Incident lifecycle filter for workflow runs',
+    },
+    runs_on_incident_modes: {
+      type: 'string',
+      description: 'Incident modes JSON for workflow runs',
+    },
+    include_private_incidents: {
+      type: 'boolean',
+      description: 'Whether the workflow includes private incidents',
+    },
+    continue_on_step_error: {
+      type: 'boolean',
+      description: 'Whether workflow execution continues after a step error',
+    },
+    once_for: { type: 'string', description: 'Workflow run-once fields JSON' },
+    expressions: { type: 'string', description: 'Workflow expressions JSON' },
+    delay: { type: 'string', description: 'Workflow delay JSON' },
     // Schedule fields
     timezone: { type: 'string', description: 'Schedule timezone' },
     // Custom field fields
@@ -964,9 +1161,12 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     required: { type: 'boolean', description: 'Whether the role is required' },
     // Schedule Entries/Overrides fields
     schedule_id: { type: 'string', description: 'Schedule ID' },
-    from: { type: 'string', description: 'Start date/time for filtering' },
-    to: { type: 'string', description: 'End date/time for filtering' },
+    entry_window_start: { type: 'string', description: 'Schedule entry window start' },
+    entry_window_end: { type: 'string', description: 'Schedule entry window end' },
+    rotation_id: { type: 'string', description: 'Schedule rotation ID' },
     user_id: { type: 'string', description: 'User ID' },
+    user_email: { type: 'string', description: 'User email' },
+    user_slack_id: { type: 'string', description: 'User Slack ID' },
     start_at: { type: 'string', description: 'Start date/time' },
     end_at: { type: 'string', description: 'End date/time' },
     layer_id: { type: 'string', description: 'Schedule layer ID' },
@@ -990,6 +1190,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     // Workflows
     workflows: { type: 'json', description: 'List of workflows' },
     workflow: { type: 'json', description: 'Workflow details' },
+    management_meta: { type: 'json', description: 'Workflow management metadata' },
     // Schedules
     schedules: { type: 'json', description: 'List of schedules' },
     schedule: { type: 'json', description: 'Schedule details' },
@@ -1016,9 +1217,113 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
     // Schedule Overrides
     schedule_override: { type: 'json', description: 'Schedule override details' },
     // Escalation Paths
+    escalation_paths: { type: 'json', description: 'List of escalation paths' },
     escalation_path: { type: 'json', description: 'Escalation path details' },
     // General
     message: { type: 'string', description: 'Operation result message' },
     pagination_meta: { type: 'json', description: 'Pagination metadata' },
   },
 }
+
+export const IncidentioBlockMeta = {
+  tags: ['incident-management', 'monitoring'],
+  templates: [
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io commander',
+      prompt:
+        'Build a scheduled workflow that polls incident.io for newly declared incidents, opens a Slack war-room for each, invites responders from the on-call schedule, pulls related PagerDuty alerts, and pins the runbook.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'enterprise'],
+      alsoIntegrations: ['slack', 'pagerduty'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io postmortem starter',
+      prompt:
+        'Create a scheduled workflow that polls incident.io for recently resolved incidents, pulls the Slack thread, related Sentry errors, and deploy timeline, then drafts a postmortem doc in Google Docs.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['sentry', 'google_docs'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io action-item tracker',
+      prompt:
+        'Build a workflow that watches incident.io for new follow-up actions, creates Linear tickets for each, and writes a tracking table that surfaces overdue actions on a weekly digest.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'automation'],
+      alsoIntegrations: ['linear'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io weekly digest',
+      prompt:
+        'Create a scheduled weekly workflow that summarizes incident.io activity — declared incidents, MTTR, top affected services, action-item completion rate — and posts to Slack.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'reporting'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io customer comms drafter',
+      prompt:
+        'Build a workflow that during a high-severity incident.io incident drafts customer status-page copy and a tailored email update, holds for approval, and dispatches once approved.',
+      modules: ['agent', 'workflows'],
+      category: 'support',
+      tags: ['support', 'communication'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io SLO impact mapper',
+      prompt:
+        'Create a workflow that on each incident.io incident maps impacted services to active SLOs, calculates SLO burn, and writes the impact analysis back to the incident timeline.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'analysis'],
+    },
+    {
+      icon: IncidentioIcon,
+      title: 'incident.io noise filter',
+      prompt:
+        'Build a workflow that pulls incident.io declared incidents, classifies a subset as low-impact noise, auto-resolves them after auditing, and writes a noise-rate metric to a table.',
+      modules: ['agent', 'workflows'],
+      category: 'engineering',
+      tags: ['devops', 'monitoring'],
+    },
+  ],
+  skills: [
+    {
+      name: 'declare-incident-from-alert',
+      description:
+        'Open an incident.io incident from an inbound alert with the right severity and summary.',
+      content:
+        '# Declare an Incident From an Alert\n\nTurn a monitoring alert into a structured incident.io incident so responders can act fast.\n\n## Steps\n1. Look up available severities and pick the one matching the alert impact.\n2. Create the incident with a clear name, a summary describing impact and affected service, and the chosen severity.\n3. Set incident type and any required custom fields from the alert payload.\n4. Capture the new incident reference and link.\n\n## Output\nReturn the incident ID, reference, severity, and link. Confirm the responder channel was created so the team can jump in.',
+    },
+    {
+      name: 'post-incident-update',
+      description:
+        'Update an active incident with current status and a progress note for stakeholders.',
+      content:
+        '# Post an Incident Update\n\nKeep stakeholders informed by moving an active incident through its lifecycle.\n\n## Steps\n1. Look up the incident by reference or ID to confirm its current status.\n2. List valid incident statuses and choose the next one (investigating, identified, monitoring, resolved).\n3. Update the incident with the new status and a concise progress message.\n\n## Output\nReturn the incident reference, the new status, and a one-line summary of what changed and when.',
+    },
+    {
+      name: 'on-call-handoff-report',
+      description: 'Summarize who is on call and recent open incidents for an on-call handoff.',
+      content:
+        '# On-Call Handoff Report\n\nBuild a clean handoff so the next on-call engineer knows the state of the world.\n\n## Steps\n1. List current schedules and active escalation paths to determine who is on call.\n2. List recent incidents and filter to those that are open or recently resolved.\n3. For each open incident, capture severity, status, and outstanding follow-ups.\n\n## Output\nReturn a handoff brief: who is on call now, open incidents with severity and status, and follow-ups that still need owners.',
+    },
+    {
+      name: 'export-incident-followups',
+      description:
+        'Pull follow-ups from recent incidents into an actionable list for post-incident review.',
+      content:
+        '# Export Incident Follow-Ups\n\nGather the action items that came out of recent incidents so none slip through.\n\n## Steps\n1. List incidents within the target time window.\n2. For each, list its follow-ups and capture title, owner, status, and linked incident.\n3. Group follow-ups by owner and by open vs completed.\n\n## Output\nReturn a table of follow-ups grouped by owner with status and source incident, highlighting overdue or unassigned items.',
+    },
+  ],
+} as const satisfies BlockMeta

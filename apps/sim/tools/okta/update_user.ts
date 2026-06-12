@@ -82,7 +82,7 @@ export const oktaUpdateUserTool: ToolConfig<OktaUpdateUserParams, OktaUpdateUser
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'POST',
     headers: (params) => ({

@@ -32,25 +32,35 @@ export const loggingSessionMockFns = {
 }
 
 /**
+ * Builds the object returned by each `new LoggingSession(...)` call. Declared as
+ * a named function (not an arrow) so it stays constructable under vitest 4's
+ * `Reflect.construct` path while remaining assignable to `mockImplementation`; a
+ * returned object overrides the constructed instance.
+ */
+function buildLoggingSessionInstance() {
+  return {
+    start: loggingSessionMockFns.mockStart,
+    complete: loggingSessionMockFns.mockComplete,
+    completeWithError: loggingSessionMockFns.mockCompleteWithError,
+    completeWithCancellation: loggingSessionMockFns.mockCompleteWithCancellation,
+    completeWithPause: loggingSessionMockFns.mockCompleteWithPause,
+    safeStart: loggingSessionMockFns.mockSafeStart,
+    waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
+    waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
+    safeComplete: loggingSessionMockFns.mockSafeComplete,
+    safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
+    safeCompleteWithCancellation: loggingSessionMockFns.mockSafeCompleteWithCancellation,
+    safeCompleteWithPause: loggingSessionMockFns.mockSafeCompleteWithPause,
+    markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
+  }
+}
+
+/**
  * Constructor-shaped mock for `LoggingSession`. Each `new LoggingSession(...)`
  * call returns an object whose methods point at the shared `vi.fn()` refs in
  * `loggingSessionMockFns`.
  */
-export const LoggingSessionMock = vi.fn().mockImplementation(() => ({
-  start: loggingSessionMockFns.mockStart,
-  complete: loggingSessionMockFns.mockComplete,
-  completeWithError: loggingSessionMockFns.mockCompleteWithError,
-  completeWithCancellation: loggingSessionMockFns.mockCompleteWithCancellation,
-  completeWithPause: loggingSessionMockFns.mockCompleteWithPause,
-  safeStart: loggingSessionMockFns.mockSafeStart,
-  waitForCompletion: loggingSessionMockFns.mockWaitForCompletion,
-  waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
-  safeComplete: loggingSessionMockFns.mockSafeComplete,
-  safeCompleteWithError: loggingSessionMockFns.mockSafeCompleteWithError,
-  safeCompleteWithCancellation: loggingSessionMockFns.mockSafeCompleteWithCancellation,
-  safeCompleteWithPause: loggingSessionMockFns.mockSafeCompleteWithPause,
-  markAsFailed: loggingSessionMockFns.mockMarkAsFailed,
-}))
+export const LoggingSessionMock = vi.fn().mockImplementation(buildLoggingSessionInstance)
 
 /**
  * Static mock module for `@/lib/logs/execution/logging-session`.

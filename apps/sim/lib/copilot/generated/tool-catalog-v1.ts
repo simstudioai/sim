@@ -3,6 +3,7 @@
 //
 
 export interface ToolCatalogEntry {
+  capabilities?: unknown
   clientExecutable?: boolean
   hidden?: boolean
   id:
@@ -10,15 +11,14 @@ export interface ToolCatalogEntry {
     | 'auth'
     | 'check_deployment_status'
     | 'complete_job'
-    | 'context_write'
     | 'crawl_website'
     | 'create_file'
+    | 'create_file_folder'
     | 'create_folder'
-    | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
+    | 'delete_file_folder'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -26,51 +26,62 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
+    | 'diff_workflows'
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
+    | 'ffmpeg'
     | 'file'
     | 'function_execute'
     | 'generate_api_key'
+    | 'generate_audio'
     | 'generate_image'
-    | 'generate_visualization'
+    | 'generate_video'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
-    | 'get_deployment_version'
-    | 'get_execution_summary'
+    | 'get_deployment_log'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
     | 'get_workflow_data'
-    | 'get_workflow_logs'
+    | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
     | 'job'
     | 'knowledge'
     | 'knowledge_base'
+    | 'list_file_folders'
     | 'list_folders'
+    | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_deployment'
+    | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_job'
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'media'
+    | 'move_file'
+    | 'move_file_folder'
     | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'promote_to_live'
+    | 'query_logs'
     | 'read'
     | 'redeploy'
     | 'rename_file'
+    | 'rename_file_folder'
     | 'rename_workflow'
     | 'research'
     | 'respond'
     | 'restore_resource'
-    | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
@@ -86,7 +97,8 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'tool_search_tool_regex'
+    | 'touch_plan'
+    | 'update_deployment_version'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -100,15 +112,14 @@ export interface ToolCatalogEntry {
     | 'auth'
     | 'check_deployment_status'
     | 'complete_job'
-    | 'context_write'
     | 'crawl_website'
     | 'create_file'
+    | 'create_file_folder'
     | 'create_folder'
-    | 'create_job'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
-    | 'debug'
     | 'delete_file'
+    | 'delete_file_folder'
     | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
@@ -116,51 +127,62 @@ export interface ToolCatalogEntry {
     | 'deploy_api'
     | 'deploy_chat'
     | 'deploy_mcp'
+    | 'diff_workflows'
     | 'download_to_workspace_file'
     | 'edit_content'
     | 'edit_workflow'
+    | 'ffmpeg'
     | 'file'
     | 'function_execute'
     | 'generate_api_key'
+    | 'generate_audio'
     | 'generate_image'
-    | 'generate_visualization'
+    | 'generate_video'
     | 'get_block_outputs'
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
-    | 'get_deployment_version'
-    | 'get_execution_summary'
+    | 'get_deployment_log'
     | 'get_job_logs'
     | 'get_page_contents'
     | 'get_platform_actions'
     | 'get_workflow_data'
-    | 'get_workflow_logs'
+    | 'get_workflow_run_options'
     | 'glob'
     | 'grep'
     | 'job'
     | 'knowledge'
     | 'knowledge_base'
+    | 'list_file_folders'
     | 'list_folders'
+    | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
+    | 'load_deployment'
+    | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
     | 'manage_job'
     | 'manage_mcp_tool'
     | 'manage_skill'
     | 'materialize_file'
+    | 'media'
+    | 'move_file'
+    | 'move_file_folder'
     | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
     | 'open_resource'
+    | 'promote_to_live'
+    | 'query_logs'
     | 'read'
     | 'redeploy'
     | 'rename_file'
+    | 'rename_file_folder'
     | 'rename_workflow'
     | 'research'
     | 'respond'
     | 'restore_resource'
-    | 'revert_to_version'
     | 'run'
     | 'run_block'
     | 'run_from_block'
@@ -176,7 +198,8 @@ export interface ToolCatalogEntry {
     | 'set_global_workflow_variables'
     | 'superagent'
     | 'table'
-    | 'tool_search_tool_regex'
+    | 'touch_plan'
+    | 'update_deployment_version'
     | 'update_job_history'
     | 'update_workspace_mcp_server'
     | 'user_memory'
@@ -184,18 +207,18 @@ export interface ToolCatalogEntry {
     | 'workflow'
     | 'workspace_file'
   parameters: unknown
-  requiredPermission?: 'admin' | 'write'
+  requiredPermission?: 'admin' | 'read' | 'write'
   requiresConfirmation?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
     | 'agent'
     | 'auth'
-    | 'debug'
     | 'deploy'
     | 'file'
     | 'job'
     | 'knowledge'
+    | 'media'
     | 'research'
     | 'run'
     | 'superagent'
@@ -266,24 +289,6 @@ export const CompleteJob: ToolCatalogEntry = {
   },
 }
 
-export const ContextWrite: ToolCatalogEntry = {
-  id: 'context_write',
-  name: 'context_write',
-  route: 'go',
-  mode: 'sync',
-  parameters: {
-    type: 'object',
-    properties: {
-      content: {
-        type: 'string',
-        description: 'Full content to write to the file (replaces existing content)',
-      },
-      file_path: { type: 'string', description: "Path of the file to write (e.g. 'SESSION.md')" },
-    },
-    required: ['file_path', 'content'],
-  },
-}
-
 export const CrawlWebsite: ToolCatalogEntry = {
   id: 'crawl_website',
   name: 'crawl_website',
@@ -326,19 +331,76 @@ export const CreateFile: ToolCatalogEntry = {
       fileName: {
         type: 'string',
         description:
-          'Plain workspace filename including extension, e.g. "main.py" or "report.md". Must not contain slashes.',
+          'Backward-compatible workspace filename. Prefer outputs.files[0].path for new calls.',
+      },
+      outputs: {
+        type: 'object',
+        description: 'Workspace file output declarations using canonical VFS paths.',
+        properties: {
+          files: {
+            type: 'array',
+            description:
+              'Files to create or overwrite. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/result.csv".',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
       },
     },
-    required: ['fileName'],
   },
   resultSchema: {
     type: 'object',
     properties: {
-      data: { type: 'object', description: 'Contains id (the fileId) and name.' },
+      data: {
+        type: 'object',
+        description:
+          'Contains id (internal file ID), name, and vfsPath. Use vfsPath for follow-up file tools.',
+      },
       message: { type: 'string', description: 'Human-readable outcome.' },
       success: { type: 'boolean', description: 'Whether the file was created.' },
     },
     required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_output'],
+}
+
+export const CreateFileFolder: ToolCatalogEntry = {
+  id: 'create_file_folder',
+  name: 'create_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      path: {
+        type: 'string',
+        description:
+          'Canonical folder VFS path to create, e.g. "files/Images" or "files/Reports/2026".',
+      },
+      workspaceId: {
+        type: 'string',
+        description: 'Optional workspace ID. Defaults to the current workspace.',
+      },
+    },
+    required: ['path'],
   },
   requiredPermission: 'write',
 }
@@ -358,60 +420,6 @@ export const CreateFolder: ToolCatalogEntry = {
     required: ['name'],
   },
   requiredPermission: 'write',
-}
-
-export const CreateJob: ToolCatalogEntry = {
-  id: 'create_job',
-  name: 'create_job',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      cron: {
-        type: 'string',
-        description:
-          "Cron expression for recurring jobs (e.g., '*/5 * * * *' for every 5 minutes, '0 9 * * *' for daily at 9 AM). Omit for one-time jobs.",
-      },
-      lifecycle: {
-        type: 'string',
-        description:
-          "'persistent' (default) or 'until_complete'. Until_complete jobs stop when complete_job is called after the success condition is met.",
-        enum: ['persistent', 'until_complete'],
-      },
-      maxRuns: {
-        type: 'integer',
-        description:
-          'Maximum number of executions before the job auto-completes. Safety limit to prevent runaway polling.',
-      },
-      prompt: {
-        type: 'string',
-        description:
-          'The prompt to execute when the job fires. This is sent to the Mothership as a user message.',
-      },
-      successCondition: {
-        type: 'string',
-        description:
-          "What must happen for the job to be considered complete. Used with until_complete lifecycle (e.g., 'John has replied to the partnership email').",
-      },
-      time: {
-        type: 'string',
-        description:
-          "ISO 8601 datetime for one-time execution or as the start time for a cron schedule (e.g., '2026-03-06T09:00:00'). Include timezone offset or use the timezone parameter.",
-      },
-      timezone: {
-        type: 'string',
-        description:
-          "IANA timezone for the schedule (e.g., 'America/New_York', 'Europe/London'). Defaults to UTC.",
-      },
-      title: {
-        type: 'string',
-        description:
-          "A short, descriptive title for the job (e.g., 'Email Poller', 'Daily Report'). Used as the display name.",
-      },
-    },
-    required: ['title', 'prompt'],
-  },
 }
 
 export const CreateWorkflow: ToolCatalogEntry = {
@@ -441,38 +449,26 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     type: 'object',
     properties: {
       description: { type: 'string', description: 'Optional description for the server' },
+      isPublic: {
+        type: 'boolean',
+        description: 'Whether the workflow MCP server is publicly accessible',
+      },
       name: { type: 'string', description: 'Required: server name' },
-      workspaceId: { type: 'string', description: 'Workspace ID (defaults to current workspace)' },
+      workflowIds: {
+        type: 'array',
+        description: 'Optional deployed workflow IDs to publish as tools on the new server',
+        items: { type: 'string' },
+      },
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      },
     },
     required: ['name'],
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
-}
-
-export const Debug: ToolCatalogEntry = {
-  id: 'debug',
-  name: 'debug',
-  route: 'subagent',
-  mode: 'async',
-  parameters: {
-    properties: {
-      context: {
-        description:
-          'Pre-gathered context: workflow state JSON, block schemas, error logs. The debug agent will skip re-reading anything included here.',
-        type: 'string',
-      },
-      request: {
-        description:
-          'What to debug. Include error messages, block IDs, and any context about the failure.',
-        type: 'string',
-      },
-    },
-    required: ['request'],
-    type: 'object',
-  },
-  subagentId: 'debug',
-  internal: true,
 }
 
 export const DeleteFile: ToolCatalogEntry = {
@@ -483,13 +479,14 @@ export const DeleteFile: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      fileIds: {
+      paths: {
         type: 'array',
-        description: 'Canonical workspace file IDs of the files to delete.',
+        description:
+          'Canonical workspace file VFS paths to delete, e.g. ["files/Reports/draft.md"].',
         items: { type: 'string' },
       },
     },
-    required: ['fileIds'],
+    required: ['paths'],
   },
   resultSchema: {
     type: 'object',
@@ -499,6 +496,26 @@ export const DeleteFile: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
+  requiredPermission: 'write',
+}
+
+export const DeleteFileFolder: ToolCatalogEntry = {
+  id: 'delete_file_folder',
+  name: 'delete_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      paths: {
+        type: 'array',
+        description: 'Canonical folder VFS paths to delete, e.g. ["files/Archive"].',
+        items: { type: 'string' },
+      },
+    },
+    required: ['paths'],
+  },
+  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -567,7 +584,7 @@ export const Deploy: ToolCatalogEntry = {
     properties: {
       request: {
         description:
-          'Detailed deployment instructions. Include deployment type (api/chat) and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display).',
+          'Detailed deployment instructions. Include deployment type (api/chat/mcp) and ALL user-specified options: identifier, title, description, authType, password, allowedEmails, welcomeMessage, outputConfigs (block outputs to display).',
         type: 'string',
       },
     },
@@ -591,6 +608,16 @@ export const DeployApi: ToolCatalogEntry = {
         description: 'Whether to deploy or undeploy the API endpoint',
         enum: ['deploy', 'undeploy'],
         default: 'deploy',
+      },
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version, e.g. "Adds Slack failure alert and retries on the HTTP block". If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+      },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (shown in the deployment history), e.g. "v2 pricing" or "Add Slack alerts". Ignored for undeploy.',
       },
       workflowId: {
         type: 'string',
@@ -674,7 +701,10 @@ export const DeployChat: ToolCatalogEntry = {
         enum: ['public', 'password', 'email', 'sso'],
         default: 'public',
       },
-      description: { type: 'string', description: 'Optional description for the chat' },
+      description: {
+        type: 'string',
+        description: 'Optional chat-facing description shown on the chat page',
+      },
       identifier: {
         type: 'string',
         description: 'URL slug for the chat (lowercase letters, numbers, hyphens only)',
@@ -688,7 +718,8 @@ export const DeployChat: ToolCatalogEntry = {
             blockId: { type: 'string', description: 'The block UUID' },
             path: {
               type: 'string',
-              description: "The output path (e.g. 'response', 'response.content')",
+              description:
+                'The output path (e.g. `content` for an agent; structured fields are top-level paths). Call get_block_outputs for real paths.',
             },
           },
           required: ['blockId', 'path'],
@@ -696,6 +727,16 @@ export const DeployChat: ToolCatalogEntry = {
       },
       password: { type: 'string', description: 'Password for password-protected chats' },
       title: { type: 'string', description: 'Display title for the chat interface' },
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a concise (1-3 sentence) description of what changed in this deployment version (distinct from the chat-facing description). If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first. Ignored for undeploy.',
+      },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED when action is "deploy": a short human-readable name/label for this deployment version (distinct from the chat title; shown in deployment history). Ignored for undeploy.',
+      },
       welcomeMessage: { type: 'string', description: 'Welcome message shown to users' },
       workflowId: {
         type: 'string',
@@ -874,6 +915,33 @@ export const DeployMcp: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
+export const DiffWorkflows: ToolCatalogEntry = {
+  id: 'diff_workflows',
+  name: 'diff_workflows',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      ref1: {
+        type: 'string',
+        description:
+          'Base side (string): a version number (e.g. "3"), "live" (active deployment), or "draft" (current editor state).',
+      },
+      ref2: {
+        type: 'string',
+        description:
+          'Target side (string): a version number (e.g. "4"), "live" (active deployment), or "draft" (current editor state).',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['ref1', 'ref2'],
+  },
+}
+
 export const DownloadToWorkspaceFile: ToolCatalogEntry = {
   id: 'download_to_workspace_file',
   name: 'download_to_workspace_file',
@@ -885,7 +953,37 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
       fileName: {
         type: 'string',
         description:
-          'Optional workspace file name to save as. If omitted, the name is inferred from the response or URL.',
+          'Backward-compatible workspace file name. Prefer outputs.files[0].path for new calls.',
+      },
+      outputs: {
+        type: 'object',
+        description: 'Workspace file output declarations using canonical VFS paths.',
+        properties: {
+          files: {
+            type: 'array',
+            description:
+              'Files to create or overwrite. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description: 'Canonical destination VFS path, e.g. "files/Reports/result.csv".',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
       },
       url: {
         type: 'string',
@@ -896,6 +994,7 @@ export const DownloadToWorkspaceFile: ToolCatalogEntry = {
     required: ['url'],
   },
   requiredPermission: 'write',
+  capabilities: ['file_output'],
 }
 
 export const EditContent: ToolCatalogEntry = {
@@ -957,10 +1056,10 @@ export const EditWorkflow: ToolCatalogEntry = {
             params: {
               type: 'object',
               description:
-                'Parameters for the operation. \nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "claude-sonnet-4-6"}}\nFor delete: {} (empty object)',
+                'Parameters for the operation (optional).\nFor edit: {"inputs": {"temperature": 0.5}} NOT {"subBlocks": {"temperature": {"value": 0.5}}}\nFor add: {"type": "agent", "name": "My Agent", "inputs": {"model": "<model-id from agent.json>"}}\nFor delete: omit params entirely (none needed)',
             },
           },
-          required: ['operation_type', 'block_id', 'params'],
+          required: ['operation_type', 'block_id'],
         },
       },
       workflowId: {
@@ -974,12 +1073,188 @@ export const EditWorkflow: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
+export const Ffmpeg: ToolCatalogEntry = {
+  id: 'ffmpeg',
+  name: 'ffmpeg',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      aspectRatio: {
+        type: 'string',
+        description: 'Target aspect ratio for scale_pad, e.g. 9:16, 16:9, 1:1.',
+      },
+      end: { type: 'number', description: 'End time in seconds (trim).' },
+      format: {
+        type: 'string',
+        description: 'Target format/extension for convert (e.g. mp4, mp3, wav, gif).',
+      },
+      height: { type: 'number', description: 'Target height in pixels (scale_pad).' },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      loopToVideo: {
+        type: 'boolean',
+        description: 'For overlay_audio, loop or trim the audio to match the video length.',
+      },
+      musicVolume: {
+        type: 'number',
+        description: 'Volume multiplier for the background music track in mix_audio (e.g. 0.3).',
+      },
+      operation: {
+        type: 'string',
+        description: 'The FFmpeg operation to run.',
+        enum: [
+          'overlay_audio',
+          'mix_audio',
+          'concat',
+          'trim',
+          'scale_pad',
+          'overlay_image',
+          'add_text',
+          'fade',
+          'extract_audio',
+          'convert',
+          'thumbnail',
+          'probe',
+        ],
+      },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      position: {
+        type: 'string',
+        description: 'Placement for add_text / overlay_image.',
+        enum: ['top', 'center', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      },
+      start: { type: 'number', description: 'Start time in seconds (trim, thumbnail, fade).' },
+      text: { type: 'string', description: 'Text to burn in for add_text.' },
+      volume: {
+        type: 'number',
+        description: 'Volume multiplier for the primary track (mix_audio / overlay_audio).',
+      },
+      width: { type: 'number', description: 'Target width in pixels (scale_pad).' },
+    },
+    required: ['operation', 'inputs'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output'],
+}
+
 export const File: ToolCatalogEntry = {
   id: 'file',
   name: 'file',
   route: 'subagent',
   mode: 'async',
-  parameters: { type: 'object' },
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
   subagentId: 'file',
   internal: true,
 }
@@ -997,53 +1272,130 @@ export const FunctionExecute: ToolCatalogEntry = {
         description:
           'Code to execute. For JS: raw statements auto-wrapped in async context. For Python: full script. For shell: bash script with access to pre-installed CLI tools and workspace env vars as $VAR_NAME.',
       },
-      inputFiles: {
-        type: 'array',
+      inputs: {
+        type: 'object',
         description:
-          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}. Example: ["wf_123"]',
-        items: { type: 'string' },
-      },
-      inputTables: {
-        type: 'array',
-        description:
-          'Table IDs to mount as CSV files in the sandbox. Each table appears at /home/user/tables/{tableId}.csv with a header row. Example: ["tbl_abc123"]',
-        items: { type: 'string' },
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
       },
       language: {
         type: 'string',
         description: 'Execution language.',
         enum: ['javascript', 'python', 'shell'],
       },
-      outputFormat: {
-        type: 'string',
-        description:
-          'Format for outputPath. Determines how the code result is serialized. If omitted, inferred from outputPath file extension.',
-        enum: ['json', 'csv', 'txt', 'md', 'html'],
-      },
-      outputMimeType: {
-        type: 'string',
-        description:
-          'MIME type for outputSandboxPath export. Required for binary files: image/png, image/jpeg, application/pdf, etc. Omit for text files.',
-      },
-      outputPath: {
-        type: 'string',
-        description:
-          'Pipe output directly to a NEW workspace file instead of returning in context. ALWAYS use this instead of a separate workspace_file write call. Use a flat path like "files/result.json" — nested paths are not supported.',
-      },
-      outputSandboxPath: {
-        type: 'string',
-        description:
-          'Path to a file created inside the sandbox that should be exported to the workspace. Use together with outputPath.',
-      },
       outputTable: {
         type: 'string',
         description:
           'Table ID to overwrite with the code\'s return value. Code MUST return an array of objects where keys match column names. All existing rows are replaced. Example: "tbl_abc123"',
       },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      title: {
+        type: 'string',
+        description:
+          'Short user-visible label for this execution, e.g. "Clean customer CSV", "Revenue chart", or "Query GitHub issues".',
+      },
     },
     required: ['code'],
   },
   requiredPermission: 'write',
+  capabilities: ['file_input', 'directory_input', 'file_output', 'table_input', 'table_output'],
 }
 
 export const GenerateApiKey: ToolCatalogEntry = {
@@ -1069,6 +1421,156 @@ export const GenerateApiKey: ToolCatalogEntry = {
   requiredPermission: 'admin',
 }
 
+export const GenerateAudio: ToolCatalogEntry = {
+  id: 'generate_audio',
+  name: 'generate_audio',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      duration: {
+        type: 'number',
+        description:
+          'Approximate duration in seconds for sfx (and music models that support it). MiniMax music ignores this — fit music to a video with the ffmpeg tool instead.',
+      },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      instrumental: {
+        type: 'boolean',
+        description:
+          'For music: true = instrumental, no vocals (default); false = a song with vocals.',
+      },
+      lyrics: {
+        type: 'string',
+        description:
+          'For music with vocals: the lyrics to sing (optional; supports [Verse]/[Chorus] tags). Setting this implies instrumental=false.',
+      },
+      model: {
+        type: 'string',
+        description:
+          'Optional model override for the selected type (e.g. fal-ai/elevenlabs/tts/eleven-v3 for speech).',
+      },
+      outputs: {
+        type: 'object',
+        description:
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
+      },
+      prompt: {
+        type: 'string',
+        description:
+          'For speech: the text to speak (may include expressive tags). For music/sfx: a description of the audio to generate.',
+      },
+      type: {
+        type: 'string',
+        description: 'Kind of audio to generate. Defaults to speech.',
+        enum: ['speech', 'music', 'sfx'],
+      },
+      voice: { type: 'string', description: 'Optional voice name or id for speech.' },
+    },
+    required: ['prompt'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output', 'generated_media'],
+}
+
 export const GenerateImage: ToolCatalogEntry = {
   id: 'generate_image',
   name: 'generate_image',
@@ -1082,72 +1584,288 @@ export const GenerateImage: ToolCatalogEntry = {
         description: 'Aspect ratio for the generated image.',
         enum: ['1:1', '16:9', '9:16', '4:3', '3:4'],
       },
-      fileName: {
-        type: 'string',
+      inputs: {
+        type: 'object',
         description:
-          'Output file name. Defaults to "generated-image.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
       },
-      overwriteFileId: {
-        type: 'string',
+      outputs: {
+        type: 'object',
         description:
-          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated image so the existing chat resource stays current instead of creating a duplicate like "image (1).png". The file ID is returned by previous generate_image or generate_visualization calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
       },
       prompt: {
         type: 'string',
         description:
-          'Detailed text description of the image to generate, or editing instructions when used with editFileId.',
-      },
-      referenceFileIds: {
-        type: 'array',
-        description:
-          'File IDs of workspace images to include as context for the generation. All images are sent alongside the prompt. Use for: editing a single image (1 file), compositing multiple images together (2+ files), style transfer, face swapping, etc. Order matters — list the primary/base image first. When revising an existing image in place, pair the primary file ID here with overwriteFileId set to that same ID.',
-        items: { type: 'string' },
+          'Detailed text description of the image to generate, or editing instructions when editing the image(s) passed in `inputs.files`.',
       },
     },
     required: ['prompt'],
   },
   requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output', 'generated_media'],
 }
 
-export const GenerateVisualization: ToolCatalogEntry = {
-  id: 'generate_visualization',
-  name: 'generate_visualization',
+export const GenerateVideo: ToolCatalogEntry = {
+  id: 'generate_video',
+  name: 'generate_video',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      code: {
+      aspectRatio: {
+        type: 'string',
+        description: 'Aspect ratio for the video (model-dependent).',
+        enum: ['16:9', '9:16', '1:1'],
+      },
+      duration: {
+        type: 'number',
+        description: 'Clip duration in seconds (model-dependent; e.g. 4, 6, 8).',
+      },
+      generateAudio: {
+        type: 'boolean',
+        description:
+          "Toggle Veo's native audio (dialogue/SFX/ambience/music generated from the prompt). Default true. Set false when you will add your own voiceover/music via the ffmpeg tool.",
+      },
+      inputs: {
+        type: 'object',
+        description:
+          'Workspace resources to mount into the sandbox. Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it.',
+        properties: {
+          directories: {
+            type: 'array',
+            description:
+              'Workspace folders to mount recursively into the sandbox, including nested files and empty folders.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full sandbox directory path override. Omit to mount at /home/user/{path}.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          files: {
+            type: 'array',
+            description: 'Workspace files to mount into the sandbox.',
+            items: {
+              type: 'object',
+              properties: {
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Full sandbox path to mount at, e.g. /home/user/inputs/data.csv. STRONGLY RECOMMENDED whenever the file name has spaces or special characters: the default mount path is the percent-ENCODED canonical path (e.g. /home/user/files/Q4%20Sales%20(Final).csv), which code using the human-readable name will not find. Set a simple sandboxPath and read exactly that.',
+                },
+              },
+              required: ['path'],
+            },
+          },
+          tables: {
+            type: 'array',
+            description: 'Workspace tables to mount as CSV files.',
+            items: {
+              type: 'object',
+              properties: {
+                path: { type: 'string', description: 'Canonical VFS table path when available.' },
+                sandboxPath: {
+                  type: 'string',
+                  description: 'Optional full sandbox path for the mounted CSV.',
+                },
+                tableId: { type: 'string', description: 'Workspace table ID.' },
+              },
+            },
+          },
+        },
+      },
+      model: {
         type: 'string',
         description:
-          "Python code that generates a visualization using matplotlib. MUST call plt.savefig('/home/user/output.png', dpi=150, bbox_inches='tight') to produce output.",
+          "Optional model override, keyed to the video's goal: veo-3.1-lite (prototype/quick test, cheapest), veo-3.1-fast (reasonable draft — default, good video), veo-3.1 Standard (final cut / premium quality). Stay on Veo unless the user explicitly asks for another model; seedance-2.0 for >8s narrative, kling-v3-pro for specific looks.",
+        enum: [
+          'veo-3.1',
+          'veo-3.1-fast',
+          'veo-3.1-lite',
+          'seedance-2.0',
+          'seedance-2.0-fast',
+          'kling-v3-pro',
+          'minimax-hailuo-2.3-pro',
+          'wan-2.2-a14b-turbo',
+          'ltx-2.3',
+        ],
       },
-      fileName: {
+      negativePrompt: {
         type: 'string',
         description:
-          'Output file name. Defaults to "chart.png". Workspace files are flat, so pass a plain file name, not a nested path.',
+          'Things to exclude from the video/audio (Veo models), e.g. "no background music" to keep dialogue but drop Veo\'s invented music before overlaying your own track.',
       },
-      inputFiles: {
-        type: 'array',
+      outputs: {
+        type: 'object',
         description:
-          'Canonical workspace file IDs to mount in the sandbox. Discover IDs via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json"). Mounted path: /home/user/files/{fileId}/{originalName}.',
-        items: { type: 'string' },
+          'Workspace files to create or overwrite from returned code results or sandbox-created files.',
+        properties: {
+          files: {
+            type: 'array',
+            description: 'File outputs. Parent folders must already exist for create mode.',
+            items: {
+              type: 'object',
+              properties: {
+                format: {
+                  type: 'string',
+                  description: 'Optional serialization format for returned values.',
+                  enum: ['json', 'csv', 'txt', 'md', 'html'],
+                },
+                mimeType: {
+                  type: 'string',
+                  description: 'Optional MIME type override when inference is not enough.',
+                },
+                mode: {
+                  type: 'string',
+                  description: 'Create a new file or overwrite an existing file at path.',
+                  enum: ['create', 'overwrite'],
+                },
+                path: {
+                  type: 'string',
+                  description:
+                    'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                },
+                sandboxPath: {
+                  type: 'string',
+                  description:
+                    'Optional full path to a file created inside the sandbox. Omit to save the code return value.',
+                },
+              },
+              required: ['path', 'mode'],
+            },
+          },
+        },
       },
-      inputTables: {
-        type: 'array',
-        description:
-          "Table IDs to mount as CSV files in the sandbox. Each table appears at /home/user/tables/{tableId}.csv with a header row. Read with pandas: pd.read_csv('/home/user/tables/tbl_xxx.csv')",
-        items: { type: 'string' },
-      },
-      overwriteFileId: {
+      prompt: {
         type: 'string',
         description:
-          'If provided, overwrites the existing workspace file with this ID instead of creating a new file. Use this when the user asks to update, refine, or redo a previously generated chart so the existing chat resource stays current instead of creating a duplicate like "chart (1).png". The file ID is returned by previous generate_visualization or generate_image calls (fileId field), or can be found via read("files/by-id/{fileId}/meta.json").',
+          'Detailed description of the video to generate (scene, action, camera movement, style).',
+      },
+      promptOptimizer: {
+        type: 'boolean',
+        description: 'Enable prompt optimization for MiniMax models (default true).',
+      },
+      resolution: {
+        type: 'string',
+        description: 'Video resolution (model-dependent), e.g. 720p or 1080p.',
+        enum: ['720p', '1080p', '4k'],
       },
     },
-    required: ['code'],
+    required: ['prompt'],
   },
   requiredPermission: 'write',
+  capabilities: ['file_input', 'file_output', 'generated_media'],
 }
 
 export const GetBlockOutputs: ToolCatalogEntry = {
@@ -1211,46 +1929,19 @@ export const GetDeployedWorkflowState: ToolCatalogEntry = {
   },
 }
 
-export const GetDeploymentVersion: ToolCatalogEntry = {
-  id: 'get_deployment_version',
-  name: 'get_deployment_version',
+export const GetDeploymentLog: ToolCatalogEntry = {
+  id: 'get_deployment_log',
+  name: 'get_deployment_log',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      version: { type: 'number', description: 'The deployment version number' },
-      workflowId: { type: 'string', description: 'The workflow ID' },
-    },
-    required: ['workflowId', 'version'],
-  },
-}
-
-export const GetExecutionSummary: ToolCatalogEntry = {
-  id: 'get_execution_summary',
-  name: 'get_execution_summary',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      limit: {
-        type: 'number',
-        description: 'Max number of executions to return (default: 10, max: 20).',
-      },
-      status: {
-        type: 'string',
-        description: "Filter by status: 'success', 'error', or 'all' (default: 'all').",
-        enum: ['success', 'error', 'all'],
-      },
       workflowId: {
         type: 'string',
-        description:
-          'Optional workflow ID. If omitted, returns executions across all workflows in the workspace.',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
       },
-      workspaceId: { type: 'string', description: 'Workspace ID to scope executions to.' },
     },
-    required: ['workspaceId'],
   },
 }
 
@@ -1331,21 +2022,14 @@ export const GetWorkflowData: ToolCatalogEntry = {
   },
 }
 
-export const GetWorkflowLogs: ToolCatalogEntry = {
-  id: 'get_workflow_logs',
-  name: 'get_workflow_logs',
+export const GetWorkflowRunOptions: ToolCatalogEntry = {
+  id: 'get_workflow_run_options',
+  name: 'get_workflow_run_options',
   route: 'sim',
   mode: 'async',
   parameters: {
     type: 'object',
     properties: {
-      executionId: {
-        type: 'string',
-        description:
-          'Optional execution ID to get logs for a specific execution. Use with get_execution_summary to find execution IDs first.',
-      },
-      includeDetails: { type: 'boolean', description: 'Include detailed info' },
-      limit: { type: 'number', description: 'Max number of entries (hard limit: 3)' },
       workflowId: {
         type: 'string',
         description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
@@ -1409,9 +2093,13 @@ export const Grep: ToolCatalogEntry = {
       path: {
         type: 'string',
         description:
-          "Optional path prefix to scope the search (e.g. 'workflows/', 'environment/', 'internal/', 'components/blocks/').",
+          "Optional scope. A prefix (e.g. 'workflows/', 'environment/', 'internal/') searches the VFS map under it. An exact single-file path under files/ or uploads/ (optionally with /content) searches that file's content only; folders and multi-file trees are rejected for content search.",
       },
-      pattern: { type: 'string', description: 'Regex pattern to search for in file contents.' },
+      pattern: {
+        type: 'string',
+        description:
+          "Regex pattern to search for. Searches VFS map entries (workflow JSON, metadata, plans, memories) by default; searches a single file's extracted text when path is one files/ or uploads/ file leaf.",
+      },
       toolTitle: {
         type: 'string',
         description:
@@ -1529,10 +2217,10 @@ export const KnowledgeBase: ToolCatalogEntry = {
             type: 'boolean',
             description: 'Enable/disable a document (optional for update_document)',
           },
-          fileIds: {
+          filePaths: {
             type: 'array',
             description:
-              'Canonical workspace file IDs to add as documents (for add_file). Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              'Canonical workspace file VFS paths to add as documents (for add_file), e.g. ["files/Docs/handbook.pdf"].',
             items: { type: 'string' },
           },
           filename: {
@@ -1562,7 +2250,7 @@ export const KnowledgeBase: ToolCatalogEntry = {
           syncIntervalMinutes: {
             type: 'number',
             description:
-              'Sync interval in minutes: 60 (hourly), 360 (6h), 1440 (daily), 10080 (weekly), 0 (manual only). Default: 1440',
+              'Sync interval in minutes. Accepted values: 60 (hourly), 360 (6h), 1440 (daily), 10080 (weekly), 0 (manual only). Default: 1440',
             default: 1440,
           },
           tagDefinitionId: {
@@ -1587,7 +2275,8 @@ export const KnowledgeBase: ToolCatalogEntry = {
           },
           workspaceId: {
             type: 'string',
-            description: "Workspace ID (required for 'create', optional filter for 'list')",
+            description:
+              "Workspace ID. Required for 'create' when there is no workspace in context; otherwise the current workspace context is used.",
           },
         },
       },
@@ -1615,7 +2304,7 @@ export const KnowledgeBase: ToolCatalogEntry = {
         ],
       },
     },
-    required: ['operation', 'args'],
+    required: ['operation'],
   },
   resultSchema: {
     type: 'object',
@@ -1629,6 +2318,23 @@ export const KnowledgeBase: ToolCatalogEntry = {
   requiresConfirmation: true,
 }
 
+export const ListFileFolders: ToolCatalogEntry = {
+  id: 'list_file_folders',
+  name: 'list_file_folders',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      workspaceId: {
+        type: 'string',
+        description: 'Optional workspace ID. Defaults to the current workspace.',
+      },
+    },
+  },
+  requiredPermission: 'read',
+}
+
 export const ListFolders: ToolCatalogEntry = {
   id: 'list_folders',
   name: 'list_folders',
@@ -1639,6 +2345,24 @@ export const ListFolders: ToolCatalogEntry = {
     properties: {
       workspaceId: { type: 'string', description: 'Optional workspace ID to list folders for.' },
     },
+  },
+}
+
+export const ListIntegrationTools: ToolCatalogEntry = {
+  id: 'list_integration_tools',
+  name: 'list_integration_tools',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      integration: {
+        description:
+          'The integration service name — the folder under components/integrations/ (e.g. "slack", "gmail", "google_sheets"). Returns every operation\'s id, name, and description for that service.',
+        type: 'string',
+      },
+    },
+    required: ['integration'],
+    type: 'object',
   },
 }
 
@@ -1658,8 +2382,55 @@ export const ListWorkspaceMcpServers: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      workspaceId: { type: 'string', description: 'Workspace ID (defaults to current workspace)' },
+      workspaceId: {
+        type: 'string',
+        description:
+          'Workspace ID. Required when no current workspace context is available, such as headless MCP calls.',
+      },
     },
+  },
+}
+
+export const LoadDeployment: ToolCatalogEntry = {
+  id: 'load_deployment',
+  name: 'load_deployment',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      version: {
+        type: 'string',
+        description:
+          'A string: a deployment version number (e.g. "5"), or "live" for the active deployment. (Unlike promote_to_live, which takes a numeric version, "live" is accepted here.)',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'admin',
+}
+
+export const LoadIntegrationTool: ToolCatalogEntry = {
+  id: 'load_integration_tool',
+  name: 'load_integration_tool',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    properties: {
+      tool_ids: {
+        description:
+          'Exact integration tool ids to load before calling them, e.g. ["gmail_send_v2"]. Copy the "id" field verbatim from components/integrations/{service}/{operation}.json (including any version suffix).',
+        items: { type: 'string' },
+        type: 'array',
+      },
+    },
+    required: ['tool_ids'],
+    type: 'object',
   },
 }
 
@@ -1705,7 +2476,8 @@ export const ManageCustomTool: ToolCatalogEntry = {
       },
       operation: {
         type: 'string',
-        description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+        description:
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       schema: {
@@ -1745,7 +2517,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
       toolId: {
         type: 'string',
         description:
-          "The ID of the custom tool (required for edit). Must be the exact toolId from the get_workflow_data custom tool response - do not guess or construct it. DO NOT PROVIDE THE TOOL ID IF THE OPERATION IS 'ADD'.",
+          "The ID of the custom tool. Get it from the `list` operation or the `id` field inside the tool's VFS file (agent/custom-tools/{name}.json — the filename is the display name, not the id); get_workflow_data also returns it where that tool is available. Do not guess or construct it. Required for edit and delete; omit for add and list.",
       },
       toolIds: {
         type: 'array',
@@ -1756,6 +2528,7 @@ export const ManageCustomTool: ToolCatalogEntry = {
     required: ['operation'],
   },
   requiresConfirmation: true,
+  requiredPermission: 'write',
 }
 
 export const ManageJob: ToolCatalogEntry = {
@@ -1771,7 +2544,11 @@ export const ManageJob: ToolCatalogEntry = {
         description:
           'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
         properties: {
-          cron: { type: 'string', description: 'Cron expression for recurring jobs' },
+          cron: {
+            type: 'string',
+            description:
+              "Cron expression for a recurring job (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
+          },
           jobId: { type: 'string', description: 'Job ID (required for get, update)' },
           jobIds: {
             type: 'array',
@@ -1782,13 +2559,18 @@ export const ManageJob: ToolCatalogEntry = {
             type: 'string',
             description:
               "'persistent' (default) or 'until_complete'. Until_complete jobs stop when complete_job is called.",
+            enum: ['persistent', 'until_complete'],
           },
           maxRuns: {
             type: 'integer',
             description: 'Max executions before auto-completing. Safety limit.',
           },
           prompt: { type: 'string', description: 'The prompt to execute when the job fires' },
-          status: { type: 'string', description: 'Job status: active, paused' },
+          status: {
+            type: 'string',
+            description: 'Job status: active, paused',
+            enum: ['active', 'paused'],
+          },
           successCondition: {
             type: 'string',
             description:
@@ -1796,7 +2578,8 @@ export const ManageJob: ToolCatalogEntry = {
           },
           time: {
             type: 'string',
-            description: 'ISO 8601 datetime for one-time jobs or cron start time',
+            description:
+              "ISO 8601 datetime. One-time job -> set time and omit cron. May also anchor a recurring cron job's first-fire time.",
           },
           timezone: {
             type: 'string',
@@ -1810,7 +2593,8 @@ export const ManageJob: ToolCatalogEntry = {
       },
       operation: {
         type: 'string',
-        description: 'The operation to perform: create, list, get, update, delete',
+        description:
+          'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
         enum: ['create', 'list', 'get', 'update', 'delete'],
       },
     },
@@ -1854,13 +2638,14 @@ export const ManageMcpTool: ToolCatalogEntry = {
       },
       operation: {
         type: 'string',
-        description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+        description:
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       serverId: {
         type: 'string',
         description:
-          "Required for edit and delete. The database ID of the MCP server. DO NOT PROVIDE if operation is 'add' or 'list'.",
+          "The MCP server's id — the `id` field inside the VFS file agent/mcp-servers/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
       },
     },
     required: ['operation'],
@@ -1892,13 +2677,14 @@ export const ManageSkill: ToolCatalogEntry = {
       },
       operation: {
         type: 'string',
-        description: "The operation to perform: 'add', 'edit', 'list', or 'delete'",
+        description:
+          "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
         enum: ['add', 'edit', 'delete', 'list'],
       },
       skillId: {
         type: 'string',
         description:
-          "The ID of the skill (required for edit/delete). Must be the exact ID from the VFS or list. DO NOT PROVIDE if operation is 'add' or 'list'.",
+          "The skill's id — the `id` field inside the VFS file agent/skills/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
       },
     },
     required: ['operation'],
@@ -1921,25 +2707,81 @@ export const MaterializeFile: ToolCatalogEntry = {
           'The names of the uploaded files to materialize (e.g. ["report.pdf", "data.csv"])',
         items: { type: 'string' },
       },
-      knowledgeBaseId: {
-        type: 'string',
-        description:
-          'ID of an existing knowledge base to add the file to (only used with operation "knowledge_base"). If omitted, a new KB is created.',
-      },
       operation: {
         type: 'string',
         description:
-          'What to do with the file. "save" promotes it to files/. "import" imports a workflow JSON. "table" converts CSV/TSV/JSON to a table. "knowledge_base" saves and adds to a KB. Defaults to "save".',
-        enum: ['save', 'import', 'table', 'knowledge_base'],
+          'What to do with the file. "save" promotes it to a permanent files/ path. "import" imports a workflow JSON as a workspace workflow. Defaults to "save".',
+        enum: ['save', 'import'],
         default: 'save',
-      },
-      tableName: {
-        type: 'string',
-        description:
-          'Custom name for the table (only used with operation "table"). Defaults to the file name without extension.',
       },
     },
     required: ['fileNames'],
+  },
+  requiredPermission: 'write',
+}
+
+export const Media: ToolCatalogEntry = {
+  id: 'media',
+  name: 'media',
+  route: 'subagent',
+  mode: 'async',
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
+  subagentId: 'media',
+  internal: true,
+}
+
+export const MoveFile: ToolCatalogEntry = {
+  id: 'move_file',
+  name: 'move_file',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      destinationPath: {
+        type: 'string',
+        description:
+          'Canonical target folder path, e.g. "files/Images". Omit or pass "files" for root.',
+      },
+      paths: {
+        type: 'array',
+        description: 'Canonical workspace file VFS paths to move, e.g. ["files/photo.png"].',
+        items: { type: 'string' },
+      },
+    },
+    required: ['paths'],
+  },
+  requiredPermission: 'write',
+}
+
+export const MoveFileFolder: ToolCatalogEntry = {
+  id: 'move_file_folder',
+  name: 'move_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      destinationPath: {
+        type: 'string',
+        description:
+          'Canonical target parent folder path, e.g. "files/Archive". Omit or pass "files" for root.',
+      },
+      path: {
+        type: 'string',
+        description: 'Canonical folder VFS path to move, e.g. "files/Reports/2026".',
+      },
+    },
+    required: ['path'],
   },
   requiredPermission: 'write',
 }
@@ -1998,7 +2840,7 @@ export const OauthGetAuthLink: ToolCatalogEntry = {
       providerName: {
         type: 'string',
         description:
-          "The name of the OAuth provider to connect (e.g., 'Slack', 'Gmail', 'Google Calendar', 'GitHub')",
+          "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
       },
     },
     required: ['providerName'],
@@ -2016,7 +2858,7 @@ export const OauthRequestAccess: ToolCatalogEntry = {
       providerName: {
         type: 'string',
         description:
-          "The name of the OAuth provider to connect (e.g., 'Slack', 'Gmail', 'Google Calendar')",
+          "The OAuth provider to connect. Pass the integration's provider value (e.g. `google-email`, `slack`); the service display name or providerId resolves case-insensitively/fuzzily, so avoid bare base providers like `google`.",
       },
     },
     required: ['providerName'],
@@ -2034,22 +2876,157 @@ export const OpenResource: ToolCatalogEntry = {
     properties: {
       resources: {
         type: 'array',
-        description: 'Array of resources to open. Each item must have type and id.',
+        description:
+          'Array of resources to open. Each item must have type and either id or, for files, path.',
         items: {
           type: 'object',
           properties: {
-            id: { type: 'string', description: 'The resource ID.' },
+            id: { type: 'string', description: 'Canonical resource ID for non-file resources.' },
+            path: {
+              type: 'string',
+              description:
+                'Encoded VFS path for type "file" (percent-encoded per segment, e.g. "files/Reports/Q4%20Report.pdf"). Copy it verbatim from glob/read/workspace context output — do not decode it to a display name or re-encode it.',
+            },
             type: {
               type: 'string',
               description: 'The resource type.',
               enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
             },
           },
-          required: ['type', 'id'],
+          required: ['type'],
         },
       },
     },
     required: ['resources'],
+  },
+}
+
+export const PromoteToLive: ToolCatalogEntry = {
+  id: 'promote_to_live',
+  name: 'promote_to_live',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      version: {
+        type: 'number',
+        description:
+          'The numeric deployment version number to promote to live (e.g. 5). "live" is not accepted here — pass the version number (use load_deployment to change the draft).',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'admin',
+}
+
+export const QueryLogs: ToolCatalogEntry = {
+  id: 'query_logs',
+  name: 'query_logs',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      blockId: {
+        type: 'string',
+        description: "Optional (view='full'): only return this block's span subtree.",
+      },
+      blockName: {
+        type: 'string',
+        description: "Optional (view='full'): only return spans for this block name.",
+      },
+      costOperator: {
+        type: 'string',
+        description: "Filter (view='list'): comparison operator for cost.",
+        enum: ['=', '>', '<', '>=', '<=', '!='],
+      },
+      costValue: {
+        type: 'number',
+        description: "Filter (view='list'): cost threshold paired with costOperator.",
+      },
+      cursor: {
+        type: 'string',
+        description: "Pagination cursor (view='list') from a prior response's nextCursor.",
+      },
+      durationOperator: {
+        type: 'string',
+        description: "Filter (view='list'): comparison operator for duration (ms).",
+        enum: ['=', '>', '<', '>=', '<=', '!='],
+      },
+      durationValue: {
+        type: 'number',
+        description: "Filter (view='list'): duration threshold (ms) paired with durationOperator.",
+      },
+      endDate: { type: 'string', description: "Filter (view='list'): ISO end of the time range." },
+      executionId: {
+        type: 'string',
+        description:
+          "Required for 'overview'/'full': the execution to read. For 'list', an optional exact-match filter.",
+      },
+      folderIds: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated folder IDs (descendants included).",
+      },
+      folderName: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on folder name.",
+      },
+      level: {
+        type: 'string',
+        description:
+          "Filter (view='list'): comma-separated levels: error, info, running, pending. Default all.",
+      },
+      limit: { type: 'number', description: "Max results (view='list'), 1-200 (default 100)." },
+      pattern: {
+        type: 'string',
+        description:
+          "Optional separate parameter (not a 'view' value): with view 'overview' or 'full', greps the execution's trace spans (requires executionId), returning matching spans with snippets instead of the full log.",
+      },
+      search: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on executionId.",
+      },
+      sortBy: {
+        type: 'string',
+        description: "Sort field (view='list').",
+        enum: ['date', 'duration', 'cost', 'status'],
+      },
+      sortOrder: {
+        type: 'string',
+        description: "Sort order (view='list').",
+        enum: ['asc', 'desc'],
+      },
+      startDate: {
+        type: 'string',
+        description: "Filter (view='list'): ISO start of the time range.",
+      },
+      triggers: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated trigger types.",
+      },
+      view: {
+        type: 'string',
+        description:
+          "Disclosure level: 'list' (summaries), 'overview' (one execution's trace tree, no I/O), or 'full' (one execution's trace spans with I/O).",
+        enum: ['list', 'overview', 'full'],
+      },
+      workflowIds: {
+        type: 'string',
+        description: "Filter (view='list'): comma-separated workflow IDs.",
+      },
+      workflowName: {
+        type: 'string',
+        description: "Filter (view='list'): substring match on workflow name.",
+      },
+      workspaceId: { type: 'string', description: 'Workspace ID to scope to.' },
+    },
+    required: ['view'],
   },
 }
 
@@ -2071,7 +3048,7 @@ export const Read: ToolCatalogEntry = {
       path: {
         type: 'string',
         description:
-          "Path to the file to read (e.g. 'workflows/My Workflow/state.json' or 'workflows/Projects/Q1/My Workflow/state.json').",
+          "Path to the VFS resource to read (e.g. 'workflows/My%20Workflow/state.json', 'files/Q4%20Report.pdf/content' for file bytes/parsed text, or 'uploads/data.csv' for a chat upload). Copy paths verbatim from glob/grep/read output.",
       },
     },
     required: ['path'],
@@ -2086,11 +3063,22 @@ export const Redeploy: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      versionDescription: {
+        type: 'string',
+        description:
+          'REQUIRED: a concise (1-3 sentence) description of what changed in this deployment version. If unsure what changed, call diff_workflows(ref1: "live", ref2: "draft") first.',
+      },
+      versionName: {
+        type: 'string',
+        description:
+          'REQUIRED: a short human-readable name/label for this deployment version, shown in deployment history.',
+      },
       workflowId: {
         type: 'string',
         description: 'Workflow ID to redeploy (required in workspace context)',
       },
     },
+    required: ['versionDescription', 'versionName'],
   },
   resultSchema: {
     type: 'object',
@@ -2151,14 +3139,17 @@ export const RenameFile: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
-      fileId: { type: 'string', description: 'Canonical workspace file ID of the file to rename.' },
       newName: {
         type: 'string',
         description:
-          'New filename including extension, e.g. "draft_v2.md". Must not contain slashes.',
+          'New filename including extension, e.g. "draft_v2.md". Use move_file to move files between folders.',
+      },
+      path: {
+        type: 'string',
+        description: 'Canonical workspace file VFS path to rename, e.g. "files/Reports/draft.md".',
       },
     },
-    required: ['fileId', 'newName'],
+    required: ['path', 'newName'],
   },
   resultSchema: {
     type: 'object',
@@ -2168,6 +3159,25 @@ export const RenameFile: ToolCatalogEntry = {
       success: { type: 'boolean', description: 'Whether the rename succeeded.' },
     },
     required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+}
+
+export const RenameFileFolder: ToolCatalogEntry = {
+  id: 'rename_file_folder',
+  name: 'rename_file_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'New folder name.' },
+      path: {
+        type: 'string',
+        description: 'Canonical folder VFS path to rename, e.g. "files/Reports/Old".',
+      },
+    },
+    required: ['path', 'name'],
   },
   requiredPermission: 'write',
 }
@@ -2237,27 +3247,10 @@ export const RestoreResource: ToolCatalogEntry = {
       type: {
         type: 'string',
         description: 'The resource type to restore.',
-        enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder'],
+        enum: ['workflow', 'table', 'file', 'knowledgebase', 'folder', 'file_folder'],
       },
     },
     required: ['type', 'id'],
-  },
-  requiresConfirmation: true,
-  requiredPermission: 'admin',
-}
-
-export const RevertToVersion: ToolCatalogEntry = {
-  id: 'revert_to_version',
-  name: 'revert_to_version',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      version: { type: 'number', description: 'The deployment version number to revert to' },
-      workflowId: { type: 'string', description: 'The workflow ID' },
-    },
-    required: ['workflowId', 'version'],
   },
   requiresConfirmation: true,
   requiredPermission: 'admin',
@@ -2361,15 +3354,25 @@ export const RunWorkflow: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      inputFromExecutionId: {
+        type: 'string',
+        description:
+          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input — handy for replaying a run without retyping inputs. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+      },
       triggerBlockId: {
         type: 'string',
         description:
-          'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
+          'Trigger block ID to run from (from get_workflow_run_options). Required when the workflow has multiple entrypoints.',
       },
       useDeployedState: {
         type: 'boolean',
         description:
           'When true, runs the deployed version instead of the live draft. Default: false (draft).',
+      },
+      useMockPayload: {
+        type: 'boolean',
+        description:
+          "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       workflowId: {
         type: 'string',
@@ -2378,10 +3381,10 @@ export const RunWorkflow: ToolCatalogEntry = {
       },
       workflow_input: {
         type: 'object',
-        description: 'JSON object with key-value mappings where each key is an input field name',
+        description:
+          "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
       },
     },
-    required: ['workflow_input'],
   },
   clientExecutable: true,
   requiresConfirmation: true,
@@ -2395,6 +3398,11 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
   parameters: {
     type: 'object',
     properties: {
+      inputFromExecutionId: {
+        type: 'string',
+        description:
+          'Reuse the recorded input from a past execution of this workflow (from query_logs) instead of supplying workflow_input. The reused input is re-validated against the trigger. Mutually exclusive with workflow_input and useMockPayload.',
+      },
       stopAfterBlockId: {
         type: 'string',
         description: 'The block ID to stop after. Execution halts once this block completes.',
@@ -2402,12 +3410,17 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
       triggerBlockId: {
         type: 'string',
         description:
-          'Optional trigger block ID when the workflow has multiple entrypoints and you need to target a specific one.',
+          'Trigger block ID to run from (from get_workflow_run_options). Required when the workflow has multiple entrypoints.',
       },
       useDeployedState: {
         type: 'boolean',
         description:
           'When true, runs the deployed version instead of the live draft. Default: false (draft).',
+      },
+      useMockPayload: {
+        type: 'boolean',
+        description:
+          "When true, run with the trigger's generated mock payload instead of workflow_input. Prefer building your own workflow_input; use this only when you can't.",
       },
       workflowId: {
         type: 'string',
@@ -2416,7 +3429,8 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
       },
       workflow_input: {
         type: 'object',
-        description: 'JSON object with key-value mappings where each key is an input field name',
+        description:
+          "JSON object matching the target trigger's inputSchema (from get_workflow_run_options). For external/webhook triggers this is the event payload; for API/Input triggers it is the form fields.",
       },
     },
     required: ['stopAfterBlockId'],
@@ -2499,7 +3513,6 @@ export const SearchOnline: ToolCatalogEntry = {
           'news',
           'tweet',
           'github',
-          'paper',
           'company',
           'research paper',
           'linkedin profile',
@@ -2513,7 +3526,7 @@ export const SearchOnline: ToolCatalogEntry = {
       toolTitle: {
         type: 'string',
         description:
-          'Optional target-only UI phrase for the search row. The UI verb is supplied for you, so pass text like "pricing changes" or "Slack webhook docs", not a full sentence like "Searching online for pricing changes".',
+          "Required short UI label fragment (e.g. 'Slack integrations'), not a full sentence.",
       },
     },
     required: ['query', 'toolTitle'],
@@ -2621,12 +3634,19 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string' },
+            name: { type: 'string', description: 'Variable name.' },
             operation: { type: 'string', enum: ['add', 'delete', 'edit'] },
-            type: { type: 'string', enum: ['plain', 'number', 'boolean', 'array', 'object'] },
-            value: { type: 'string' },
+            type: {
+              type: 'string',
+              description: 'Variable type. Required for add/edit; ignored for delete.',
+              enum: ['plain', 'number', 'boolean', 'array', 'object'],
+            },
+            value: {
+              type: 'string',
+              description: 'Variable value. Required for add/edit; ignored for delete.',
+            },
           },
-          required: ['operation', 'name', 'type', 'value'],
+          required: ['operation', 'name'],
         },
       },
       workflowId: {
@@ -2674,29 +3694,84 @@ export const Table: ToolCatalogEntry = {
   internal: true,
 }
 
-export const ToolSearchToolRegex: ToolCatalogEntry = {
-  id: 'tool_search_tool_regex',
-  name: 'tool_search_tool_regex',
+export const TouchPlan: ToolCatalogEntry = {
+  id: 'touch_plan',
+  name: 'touch_plan',
   route: 'sim',
   mode: 'async',
   parameters: {
+    type: 'object',
     properties: {
-      case_insensitive: {
-        description: 'Whether the regex should be case-insensitive (default true).',
-        type: 'boolean',
-      },
-      max_results: {
-        description: 'Maximum number of tools to return (optional).',
-        type: 'integer',
-      },
-      pattern: {
-        description: 'Regular expression to match tool names or descriptions.',
+      name: {
         type: 'string',
+        description:
+          'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
+      },
+      scope: {
+        type: 'string',
+        description:
+          'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
+        enum: ['workspace', 'workflow'],
+      },
+      title: {
+        type: 'string',
+        description: 'Optional short user-visible label for the plan creation.',
+      },
+      workflowPath: {
+        type: 'string',
+        description:
+          'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it. Do not use workflow IDs.',
       },
     },
-    required: ['pattern'],
-    type: 'object',
+    required: ['name'],
   },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      data: {
+        type: 'object',
+        description:
+          'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
+      },
+      message: { type: 'string', description: 'Human-readable outcome.' },
+      success: { type: 'boolean', description: 'Whether the plan file was created.' },
+    },
+    required: ['success', 'message'],
+  },
+  requiredPermission: 'write',
+  capabilities: ['file_output'],
+}
+
+export const UpdateDeploymentVersion: ToolCatalogEntry = {
+  id: 'update_deployment_version',
+  name: 'update_deployment_version',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      description: {
+        type: 'string',
+        description: 'New description for the deployment version. Provide name and/or description.',
+      },
+      name: {
+        type: 'string',
+        description: 'New name/label for the deployment version. Provide name and/or description.',
+      },
+      version: {
+        type: 'number',
+        description:
+          'The numeric deployment version number to update (use get_deployment_log to find it).',
+      },
+      workflowId: {
+        type: 'string',
+        description: 'Optional workflow ID. If not provided, uses the current workflow in context.',
+      },
+    },
+    required: ['version'],
+  },
+  requiresConfirmation: true,
+  requiredPermission: 'write',
 }
 
 export const UpdateJobHistory: ToolCatalogEntry = {
@@ -2751,7 +3826,8 @@ export const UserMemory: ToolCatalogEntry = {
       },
       correct_value: {
         type: 'string',
-        description: "The correct value to replace the wrong one (for 'correct' operation)",
+        description:
+          "The correct value to replace the wrong one (for 'correct' operation). Requires `key` (the memory to replace).",
       },
       key: {
         type: 'string',
@@ -2792,6 +3868,15 @@ export const UserTable: ToolCatalogEntry = {
         type: 'object',
         description: 'Arguments for the operation',
         properties: {
+          autoRun: {
+            type: 'boolean',
+            description:
+              "Optional flag for add_workflow_group, add_enrichment, and update_workflow_group. On add (workflow group or enrichment): when true, existing rows whose dependencies are already filled run immediately; default false stages the group silently — call run_column when ready to fire rows. On update: toggle a group's auto-fire behavior on an existing group — false stages it (no auto-runs on dep satisfaction; only manual run_column fires rows), true re-enables auto-fire (rows whose deps fill will be scheduled). Set true on add only if the user explicitly asked to start runs immediately.",
+          },
+          blockId: {
+            type: 'string',
+            description: 'Source block ID inside the workflow. Used by add_workflow_group_output.',
+          },
           column: {
             type: 'object',
             description: 'Column definition for add_column: { name, type, unique?, position? }',
@@ -2799,7 +3884,7 @@ export const UserTable: ToolCatalogEntry = {
           columnName: {
             type: 'string',
             description:
-              'Column name (required for rename_column, update_column; use columnNames array for batch delete_column)',
+              'Column name. Required for rename_column, update_column, and delete_workflow_group_output (the bound column to drop). Optional for add_workflow_group_output (auto-derived from path when omitted). Use columnNames array for batch delete_column.',
           },
           columnNames: {
             type: 'array',
@@ -2810,21 +3895,64 @@ export const UserTable: ToolCatalogEntry = {
             type: 'object',
             description: 'Row data as key-value pairs (required for insert_row, update_row)',
           },
+          dependencies: {
+            type: 'object',
+            description:
+              "Dependencies the group requires before running a row. { columns?: string[] } lists input column names that must be filled. Workflow output columns count too — depend on the column produced by an upstream group, not the group itself. The dep graph is column-induced. A group can't depend on its own output columns. Used by add_workflow_group and update_workflow_group, and optionally by add_enrichment (omit and the handler defaults deps to the mapped input columns).",
+            properties: {
+              columns: {
+                type: 'array',
+                description:
+                  'Input column names that must be filled before the group runs. Plain columns and upstream-group output columns are both valid here.',
+                items: { type: 'string' },
+              },
+            },
+          },
           description: { type: 'string', description: "Table description (optional for 'create')" },
-          fileId: {
+          enrichmentId: {
             type: 'string',
             description:
-              'Canonical workspace file ID for create_from_file/import_file. Discover via read("files/{name}/meta.json") or glob("files/by-id/*/meta.json").',
+              "Enrichment registry ID for add_enrichment. Discover the available IDs (and each one's inputs/outputs) via list_enrichments first — don't hardcode. Examples: work-email, phone-number, company-domain, company-info.",
           },
           filePath: {
             type: 'string',
             description:
-              'Legacy workspace file reference for create_from_file/import_file. Prefer fileId.',
+              'Canonical workspace file VFS path for create_from_file/import_file, e.g. files/{path}/{name}.',
           },
           filter: {
             type: 'object',
             description:
               'MongoDB-style filter for query_rows, update_rows_by_filter, delete_rows_by_filter',
+          },
+          groupId: {
+            type: 'string',
+            description:
+              'Workflow group ID. Required for update_workflow_group, delete_workflow_group, add_workflow_group_output, delete_workflow_group_output.',
+          },
+          groupIds: {
+            type: 'array',
+            description:
+              'Array of workflow group IDs. Required for run_column — non-empty list of columns to run.',
+            items: { type: 'string' },
+          },
+          inputMappings: {
+            type: 'array',
+            description:
+              'For add_enrichment: maps each enrichment input to an existing table column. Each item is { inputName, columnName } where inputName is the enrichment input id (from list_enrichments) and columnName is an existing column on the table. Provide a mapping for every required input. (The field is named inputName for consistency with workflow-group input mappings; for enrichments it holds the enrichment input id.)',
+            items: {
+              type: 'object',
+              properties: {
+                columnName: {
+                  type: 'string',
+                  description: 'Existing table column name that supplies this input.',
+                },
+                inputName: {
+                  type: 'string',
+                  description: 'Enrichment input id to bind (from list_enrichments).',
+                },
+              },
+              required: ['inputName', 'columnName'],
+            },
           },
           limit: {
             type: 'number',
@@ -2833,11 +3961,29 @@ export const UserTable: ToolCatalogEntry = {
           mapping: {
             type: 'object',
             description:
-              'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. When omitted, headers are auto-matched by sanitized name (case-insensitive fallback). Use null to skip a CSV column.',
+              'Optional explicit CSV-header → table-column mapping for import_file, as { "csvHeader": "columnName" | null }. A string maps the CSV header to that table column; null skips that CSV header (it won\'t be imported); omit a header entirely to fall back to auto-mapping by sanitized name (case-insensitive).',
             additionalProperties: {
-              type: 'string',
+              type: ['string', 'null'],
               description:
-                'Target column name on the table. Use null to skip this CSV header instead of a column name.',
+                "Target column name on the table. null skips that CSV header (it won't be imported); omit it entirely to fall back to auto-mapping.",
+            },
+          },
+          mappingUpdates: {
+            type: 'array',
+            description:
+              "Surgical per-output remap for update_workflow_group. Each entry repoints ONE existing output column to a new (blockId, path) without touching the rest of the group. Use this when the user wants to swap which block output flows into a column (e.g. 'point the score column at the new agent block') — the bound column stays, only its source pair changes. Stale row data for remapped columns is cleared and backfilled from saved execution logs where possible (no re-run needed). Use this INSTEAD of resending the full outputs array when the change is scoped to a few columns; use outputs only when the whole group's output set is being restructured. Discover valid (blockId, path) pairs via list_workflow_outputs first.",
+            items: {
+              type: 'object',
+              properties: {
+                blockId: { type: 'string', description: 'New source block ID for this column.' },
+                columnName: {
+                  type: 'string',
+                  description:
+                    'The existing output column to remap. Must already be bound to this group.',
+                },
+                path: { type: 'string', description: 'New dotted output path on the new block.' },
+              },
+              required: ['columnName', 'blockId', 'path'],
             },
           },
           mode: {
@@ -2846,8 +3992,16 @@ export const UserTable: ToolCatalogEntry = {
               "Import mode for import_file. 'append' (default) adds rows; 'replace' truncates existing rows in a transaction before inserting the new rows.",
             enum: ['append', 'replace'],
           },
-          name: { type: 'string', description: "Table name (required for 'create')" },
-          newName: { type: 'string', description: 'New column name (required for rename_column)' },
+          name: {
+            type: 'string',
+            description:
+              "Table name (required for 'create'). Also the optional display name for add_enrichment — defaults to the enrichment's registry name when omitted.",
+          },
+          newName: {
+            type: 'string',
+            description:
+              'New name. Required for rename_column (new column name) and for rename (new table name).',
+          },
           newType: {
             type: 'string',
             description:
@@ -2856,6 +4010,15 @@ export const UserTable: ToolCatalogEntry = {
           offset: {
             type: 'number',
             description: 'Number of rows to skip (optional for query_rows, default 0)',
+          },
+          outputColumnNames: {
+            type: 'object',
+            description:
+              'Optional output column name overrides for add_enrichment, as { "<outputId>": "<columnName>" }. Omit to use each enrichment output\'s default name.',
+            additionalProperties: {
+              type: 'string',
+              description: 'Target column name for this enrichment output id.',
+            },
           },
           outputFormat: {
             type: 'string',
@@ -2866,7 +4029,34 @@ export const UserTable: ToolCatalogEntry = {
           outputPath: {
             type: 'string',
             description:
-              'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use .csv for tabular exports. Use a flat path like "files/export.csv" — nested paths are not supported.',
+              'Pipe query_rows results directly to a NEW workspace file. The format is auto-inferred from the file extension: .csv → CSV, .json → JSON, .md → Markdown, etc. Use a root output path like "files/export.csv" — nested output paths are not supported.',
+          },
+          outputs: {
+            type: 'array',
+            description:
+              "Outputs to surface as columns. Each entry maps a workflow block output to a table column: { blockId, path, columnName?, columnType? }. blockId is the source block; path is the dotted output path; columnName auto-derives from the path when omitted; columnType defaults from the leaf type when omitted. Used by add_workflow_group for the full output set. For update_workflow_group, prefer add_workflow_group_output / delete_workflow_group_output for individual outputs and mappingUpdates for surgical remap; only pass outputs here when restructuring the whole group's output set in one shot. If unsure about valid (blockId, path) pairs, call list_workflow_outputs first — paths are validated against the live workflow and invalid picks return an error with the valid options. For Agent blocks with structured outputs, the structured fields appear as top-level paths (e.g. summary, industry); there is NO response.content path on a structured agent.",
+            items: {
+              type: 'object',
+              properties: {
+                blockId: { type: 'string', description: 'Source block ID inside the workflow.' },
+                columnName: {
+                  type: 'string',
+                  description:
+                    'Optional target column name. Auto-derived from the path when omitted.',
+                },
+                columnType: {
+                  type: 'string',
+                  description: 'Optional column type. Defaults from the leaf type when omitted.',
+                  enum: ['string', 'number', 'boolean', 'date', 'json'],
+                },
+                path: { type: 'string', description: 'Dotted output path on the block.' },
+              },
+              required: ['blockId', 'path'],
+            },
+          },
+          path: {
+            type: 'string',
+            description: 'Dotted output path on the block. Used by add_workflow_group_output.',
           },
           position: {
             type: 'integer',
@@ -2881,20 +4071,35 @@ export const UserTable: ToolCatalogEntry = {
           },
           rowId: {
             type: 'string',
-            description: 'Row ID (required for get_row, update_row, delete_row)',
+            description:
+              "Row ID. Required for get_row, update_row, delete_row, and for cancel_table_runs when scope:'row'.",
           },
           rowIds: {
             type: 'array',
-            description: 'Array of row IDs to delete (for batch_delete_rows)',
+            description:
+              'Array of row IDs. Used by batch_delete_rows (rows to delete) and run_column (optional row scope — when omitted, runs across the whole table; when provided, only these rows are candidates and the server eligibility predicate still applies).',
+            items: { type: 'string' },
           },
           rows: {
             type: 'array',
             description: 'Array of row data objects (required for batch_insert_rows)',
           },
+          runMode: {
+            type: 'string',
+            description:
+              "Run mode for run_column. 'incomplete' (default) re-runs only rows that never produced output or last failed; 'all' re-runs every dep-satisfied row.",
+            enum: ['incomplete', 'all'],
+          },
           schema: {
             type: 'object',
             description:
               "Table schema with columns array (required for 'create'). Each column: { name, type, unique? }",
+          },
+          scope: {
+            type: 'string',
+            description:
+              "Cancellation scope for cancel_table_runs. 'all' cancels in-flight runs across the whole table; 'row' cancels only the row identified by rowId.",
+            enum: ['all', 'row'],
           },
           sort: {
             type: 'object',
@@ -2925,6 +4130,11 @@ export const UserTable: ToolCatalogEntry = {
             description:
               'Map of rowId to value for single-column batch update: { "rowId1": val1, "rowId2": val2 } (for batch_update_rows with columnName)',
           },
+          workflowId: {
+            type: 'string',
+            description:
+              'ID of the workflow (required for add_workflow_group and list_workflow_outputs).',
+          },
         },
       },
       operation: {
@@ -2937,6 +4147,7 @@ export const UserTable: ToolCatalogEntry = {
           'get',
           'get_schema',
           'delete',
+          'rename',
           'insert_row',
           'batch_insert_rows',
           'get_row',
@@ -2951,6 +4162,16 @@ export const UserTable: ToolCatalogEntry = {
           'rename_column',
           'delete_column',
           'update_column',
+          'add_workflow_group',
+          'update_workflow_group',
+          'delete_workflow_group',
+          'add_workflow_group_output',
+          'delete_workflow_group_output',
+          'run_column',
+          'cancel_table_runs',
+          'list_workflow_outputs',
+          'list_enrichments',
+          'add_enrichment',
         ],
       },
     },
@@ -2973,7 +4194,16 @@ export const Workflow: ToolCatalogEntry = {
   name: 'workflow',
   route: 'subagent',
   mode: 'async',
-  parameters: { type: 'object' },
+  parameters: {
+    properties: {
+      prompt: {
+        description:
+          "Optional brief instruction (one short sentence) to scope the task. The agent inherits the full conversation history — do NOT restate or rewrite conversation content, only add scoping the history doesn't convey.",
+        type: 'string',
+      },
+    },
+    type: 'object',
+  },
   subagentId: 'workflow',
   internal: true,
 }
@@ -2993,21 +4223,17 @@ export const WorkspaceFile: ToolCatalogEntry = {
       },
       target: {
         type: 'object',
-        description: 'Explicit file target. Use kind=file_id + fileId for existing files.',
+        description: 'Explicit file target. Use kind=path + path for existing files.',
         properties: {
-          fileId: {
-            type: 'string',
-            description: 'Canonical existing workspace file ID. Required when target.kind=file_id.',
-          },
-          fileName: {
-            type: 'string',
-            description:
-              'Plain workspace filename including extension, e.g. "main.py" or "report.docx". Required when target.kind=new_file.',
-          },
           kind: {
             type: 'string',
             description: 'How the file target is identified.',
-            enum: ['new_file', 'file_id'],
+            enum: ['path'],
+          },
+          path: {
+            type: 'string',
+            description:
+              'Canonical existing workspace file VFS path, e.g. "files/Reports/report.md". Required when target.kind=path.',
           },
         },
         required: ['kind'],
@@ -3086,10 +4312,6 @@ export const WorkspaceFile: ToolCatalogEntry = {
           },
         },
       },
-      newName: {
-        type: 'string',
-        description: 'New file name for rename. Must be a plain workspace filename like "main.py".',
-      },
     },
     required: ['operation', 'target', 'title'],
   },
@@ -3108,6 +4330,38 @@ export const WorkspaceFile: ToolCatalogEntry = {
   },
   requiredPermission: 'write',
 }
+
+export const FfmpegOperation = {
+  overlayAudio: 'overlay_audio',
+  mixAudio: 'mix_audio',
+  concat: 'concat',
+  trim: 'trim',
+  scalePad: 'scale_pad',
+  overlayImage: 'overlay_image',
+  addText: 'add_text',
+  fade: 'fade',
+  extractAudio: 'extract_audio',
+  convert: 'convert',
+  thumbnail: 'thumbnail',
+  probe: 'probe',
+} as const
+
+export type FfmpegOperation = (typeof FfmpegOperation)[keyof typeof FfmpegOperation]
+
+export const FfmpegOperationValues = [
+  FfmpegOperation.overlayAudio,
+  FfmpegOperation.mixAudio,
+  FfmpegOperation.concat,
+  FfmpegOperation.trim,
+  FfmpegOperation.scalePad,
+  FfmpegOperation.overlayImage,
+  FfmpegOperation.addText,
+  FfmpegOperation.fade,
+  FfmpegOperation.extractAudio,
+  FfmpegOperation.convert,
+  FfmpegOperation.thumbnail,
+  FfmpegOperation.probe,
+] as const
 
 export const KnowledgeBaseOperation = {
   create: 'create',
@@ -3236,8 +4490,6 @@ export const ManageSkillOperationValues = [
 export const MaterializeFileOperation = {
   save: 'save',
   import: 'import',
-  table: 'table',
-  knowledgeBase: 'knowledge_base',
 } as const
 
 export type MaterializeFileOperation =
@@ -3246,8 +4498,6 @@ export type MaterializeFileOperation =
 export const MaterializeFileOperationValues = [
   MaterializeFileOperation.save,
   MaterializeFileOperation.import,
-  MaterializeFileOperation.table,
-  MaterializeFileOperation.knowledgeBase,
 ] as const
 
 export const UserMemoryOperation = {
@@ -3275,6 +4525,7 @@ export const UserTableOperation = {
   get: 'get',
   getSchema: 'get_schema',
   delete: 'delete',
+  rename: 'rename',
   insertRow: 'insert_row',
   batchInsertRows: 'batch_insert_rows',
   getRow: 'get_row',
@@ -3289,6 +4540,16 @@ export const UserTableOperation = {
   renameColumn: 'rename_column',
   deleteColumn: 'delete_column',
   updateColumn: 'update_column',
+  addWorkflowGroup: 'add_workflow_group',
+  updateWorkflowGroup: 'update_workflow_group',
+  deleteWorkflowGroup: 'delete_workflow_group',
+  addWorkflowGroupOutput: 'add_workflow_group_output',
+  deleteWorkflowGroupOutput: 'delete_workflow_group_output',
+  runColumn: 'run_column',
+  cancelTableRuns: 'cancel_table_runs',
+  listWorkflowOutputs: 'list_workflow_outputs',
+  listEnrichments: 'list_enrichments',
+  addEnrichment: 'add_enrichment',
 } as const
 
 export type UserTableOperation = (typeof UserTableOperation)[keyof typeof UserTableOperation]
@@ -3300,6 +4561,7 @@ export const UserTableOperationValues = [
   UserTableOperation.get,
   UserTableOperation.getSchema,
   UserTableOperation.delete,
+  UserTableOperation.rename,
   UserTableOperation.insertRow,
   UserTableOperation.batchInsertRows,
   UserTableOperation.getRow,
@@ -3314,6 +4576,16 @@ export const UserTableOperationValues = [
   UserTableOperation.renameColumn,
   UserTableOperation.deleteColumn,
   UserTableOperation.updateColumn,
+  UserTableOperation.addWorkflowGroup,
+  UserTableOperation.updateWorkflowGroup,
+  UserTableOperation.deleteWorkflowGroup,
+  UserTableOperation.addWorkflowGroupOutput,
+  UserTableOperation.deleteWorkflowGroupOutput,
+  UserTableOperation.runColumn,
+  UserTableOperation.cancelTableRuns,
+  UserTableOperation.listWorkflowOutputs,
+  UserTableOperation.listEnrichments,
+  UserTableOperation.addEnrichment,
 ] as const
 
 export const WorkspaceFileOperation = {
@@ -3336,15 +4608,14 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Auth.id]: Auth,
   [CheckDeploymentStatus.id]: CheckDeploymentStatus,
   [CompleteJob.id]: CompleteJob,
-  [ContextWrite.id]: ContextWrite,
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
+  [CreateFileFolder.id]: CreateFileFolder,
   [CreateFolder.id]: CreateFolder,
-  [CreateJob.id]: CreateJob,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
-  [Debug.id]: Debug,
   [DeleteFile.id]: DeleteFile,
+  [DeleteFileFolder.id]: DeleteFileFolder,
   [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
@@ -3352,51 +4623,62 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [DeployApi.id]: DeployApi,
   [DeployChat.id]: DeployChat,
   [DeployMcp.id]: DeployMcp,
+  [DiffWorkflows.id]: DiffWorkflows,
   [DownloadToWorkspaceFile.id]: DownloadToWorkspaceFile,
   [EditContent.id]: EditContent,
   [EditWorkflow.id]: EditWorkflow,
+  [Ffmpeg.id]: Ffmpeg,
   [File.id]: File,
   [FunctionExecute.id]: FunctionExecute,
   [GenerateApiKey.id]: GenerateApiKey,
+  [GenerateAudio.id]: GenerateAudio,
   [GenerateImage.id]: GenerateImage,
-  [GenerateVisualization.id]: GenerateVisualization,
+  [GenerateVideo.id]: GenerateVideo,
   [GetBlockOutputs.id]: GetBlockOutputs,
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
-  [GetDeploymentVersion.id]: GetDeploymentVersion,
-  [GetExecutionSummary.id]: GetExecutionSummary,
+  [GetDeploymentLog.id]: GetDeploymentLog,
   [GetJobLogs.id]: GetJobLogs,
   [GetPageContents.id]: GetPageContents,
   [GetPlatformActions.id]: GetPlatformActions,
   [GetWorkflowData.id]: GetWorkflowData,
-  [GetWorkflowLogs.id]: GetWorkflowLogs,
+  [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,
   [Glob.id]: Glob,
   [Grep.id]: Grep,
   [Job.id]: Job,
   [Knowledge.id]: Knowledge,
   [KnowledgeBase.id]: KnowledgeBase,
+  [ListFileFolders.id]: ListFileFolders,
   [ListFolders.id]: ListFolders,
+  [ListIntegrationTools.id]: ListIntegrationTools,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
+  [LoadDeployment.id]: LoadDeployment,
+  [LoadIntegrationTool.id]: LoadIntegrationTool,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
   [ManageJob.id]: ManageJob,
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageSkill.id]: ManageSkill,
   [MaterializeFile.id]: MaterializeFile,
+  [Media.id]: Media,
+  [MoveFile.id]: MoveFile,
+  [MoveFileFolder.id]: MoveFileFolder,
   [MoveFolder.id]: MoveFolder,
   [MoveWorkflow.id]: MoveWorkflow,
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,
   [OpenResource.id]: OpenResource,
+  [PromoteToLive.id]: PromoteToLive,
+  [QueryLogs.id]: QueryLogs,
   [Read.id]: Read,
   [Redeploy.id]: Redeploy,
   [RenameFile.id]: RenameFile,
+  [RenameFileFolder.id]: RenameFileFolder,
   [RenameWorkflow.id]: RenameWorkflow,
   [Research.id]: Research,
   [Respond.id]: Respond,
   [RestoreResource.id]: RestoreResource,
-  [RevertToVersion.id]: RevertToVersion,
   [Run.id]: Run,
   [RunBlock.id]: RunBlock,
   [RunFromBlock.id]: RunFromBlock,
@@ -3412,7 +4694,8 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [SetGlobalWorkflowVariables.id]: SetGlobalWorkflowVariables,
   [Superagent.id]: Superagent,
   [Table.id]: Table,
-  [ToolSearchToolRegex.id]: ToolSearchToolRegex,
+  [TouchPlan.id]: TouchPlan,
+  [UpdateDeploymentVersion.id]: UpdateDeploymentVersion,
   [UpdateJobHistory.id]: UpdateJobHistory,
   [UpdateWorkspaceMcpServer.id]: UpdateWorkspaceMcpServer,
   [UserMemory.id]: UserMemory,

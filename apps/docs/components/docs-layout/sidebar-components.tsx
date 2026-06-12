@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import type { Folder, Item, Separator } from 'fumadocs-core/page-tree'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -51,20 +51,18 @@ function isActive(url: string, pathname: string, nested = true): boolean {
 }
 
 const ITEM_BASE =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground'
-const ITEM_ACTIVE_MOBILE = 'bg-fd-primary/10 font-medium text-fd-primary'
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[var(--text-muted)] text-sm transition-colors hover:bg-[var(--surface-active)] hover:text-[var(--text-body)]'
+const ITEM_ACTIVE_MOBILE = 'bg-[var(--surface-active)] font-medium text-[var(--text-primary)]'
 
 const ITEM_DESKTOP =
   'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:font-normal lg:text-[13px] lg:leading-tight'
-const ITEM_TEXT = 'lg:text-[#3b3b3b] lg:dark:text-[#cdcdcd]'
-const ITEM_HOVER = 'lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
-const ITEM_ACTIVE =
-  'lg:bg-[#ececec] lg:font-normal lg:text-[#3b3b3b] lg:dark:bg-[#2c2c2c] lg:dark:text-[#cdcdcd]'
+const ITEM_TEXT = 'lg:text-[var(--text-body)]'
+const ITEM_HOVER = 'lg:hover:bg-[var(--surface-3)]'
+const ITEM_ACTIVE = 'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)]'
 
-const FOLDER_TEXT = 'lg:text-[#3b3b3b] lg:font-medium lg:dark:text-[#cdcdcd]'
-const FOLDER_HOVER = 'lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
-const FOLDER_ACTIVE =
-  'lg:bg-[#ececec] lg:text-[#3b3b3b] lg:dark:bg-[#2c2c2c] lg:dark:text-[#cdcdcd]'
+const FOLDER_TEXT = 'lg:text-[var(--text-body)] lg:font-medium'
+const FOLDER_HOVER = 'lg:hover:bg-[var(--surface-3)]'
+const FOLDER_ACTIVE = 'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)]'
 
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
@@ -103,12 +101,10 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
   const isApiRef = isApiReferenceFolder(item)
   const isOnApiRefPage = stripLangPrefix(pathname).startsWith('/api-reference')
   const hasChildren = item.children.length > 0
-  const [open, setOpen] = useState(hasActiveChild || (isApiRef && isOnApiRefPage))
-
-  useEffect(() => {
-    setOpen(hasActiveChild || (isApiRef && isOnApiRefPage))
-  }, [hasActiveChild, isApiRef, isOnApiRefPage])
-
+  const defaultOpen = hasActiveChild || (isApiRef && isOnApiRefPage)
+  const [manualOpen, setManualOpen] = useState<{ pathname: string; open: boolean } | null>(null)
+  const open = manualOpen?.pathname === pathname ? manualOpen.open : defaultOpen
+  const toggleOpen = () => setManualOpen({ pathname, open: !open })
   const active = item.index ? isActive(item.index.url, pathname, false) : false
 
   if (item.index && !hasChildren) {
@@ -140,7 +136,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
               data-active={active}
               className={cn(
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                'text-fd-muted-foreground hover:bg-fd-accent/50 hover:text-fd-accent-foreground',
+                'text-[var(--text-muted)] hover:bg-[var(--surface-active)] hover:text-[var(--text-body)]',
                 active && ITEM_ACTIVE_MOBILE,
                 'lg:block lg:flex-1 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-[13px] lg:leading-tight',
                 FOLDER_TEXT,
@@ -152,30 +148,30 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             </Link>
             {hasChildren && (
               <button
-                onClick={() => setOpen(!open)}
+                onClick={toggleOpen}
                 className={cn(
-                  'rounded p-1 hover:bg-fd-accent/50',
-                  'lg:cursor-pointer lg:rounded lg:p-1 lg:transition-colors lg:hover:bg-[#f2f2f2] lg:dark:hover:bg-[#262626]'
+                  'rounded-md p-1 hover:bg-[var(--surface-active)]',
+                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-[var(--surface-3)]'
                 )}
                 aria-label={open ? 'Collapse' : 'Expand'}
               >
-                <SidebarChevron open={open} className='text-[#5e5e5e] dark:text-[#939393]' />
+                <SidebarChevron open={open} className='text-[var(--text-icon)]' />
               </button>
             )}
           </>
         ) : (
           <button
-            onClick={() => setOpen(!open)}
+            onClick={toggleOpen}
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-fd-muted-foreground hover:bg-fd-accent/50',
+              'text-[var(--text-muted)] hover:bg-[var(--surface-active)]',
               'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-left lg:text-[13px] lg:leading-tight',
               FOLDER_TEXT,
               FOLDER_HOVER
             )}
           >
             <span>{item.name}</span>
-            <SidebarChevron open={open} className='ml-auto text-[#5e5e5e] dark:text-[#939393]' />
+            <SidebarChevron open={open} className='ml-auto text-[var(--text-icon)]' />
           </button>
         )}
       </div>
@@ -188,7 +184,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
         >
           <div className='overflow-hidden'>
             <div className='ml-4 flex flex-col gap-0.5 lg:hidden'>{children}</div>
-            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-[#ececec] border-l pl-2.5 lg:block dark:border-[#2c2c2c]'>
+            <ul className='mt-0.5 ml-2 hidden space-y-[0.0625rem] border-[var(--surface-active)] border-l pl-2.5 lg:block'>
               {children}
             </ul>
           </div>
@@ -206,13 +202,13 @@ export function SidebarSeparator({ item }: { item: Separator }) {
     >
       <div className='separator-divider hidden'>
         <div className='h-[20px]' />
-        <div className='h-px bg-[#ececec] dark:bg-[#2c2c2c]' />
+        <div className='h-px bg-[var(--surface-active)]' />
         <div className='h-[20px]' />
       </div>
       <p
         className={cn(
-          'font-medium text-fd-muted-foreground text-xs',
-          'lg:font-semibold lg:text-[#5e5e5e] lg:text-[10px] lg:uppercase lg:tracking-[0.06em] lg:dark:text-[#939393]'
+          'font-medium text-[var(--text-muted)] text-xs',
+          'lg:font-semibold lg:text-[10px] lg:text-[var(--text-muted)] lg:uppercase lg:tracking-[0.06em]'
         )}
       >
         {item.name}

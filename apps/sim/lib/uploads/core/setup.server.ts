@@ -3,17 +3,26 @@ import { mkdir } from 'fs/promises'
 import path, { join } from 'path'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { getStorageProvider, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
+import {
+  getStorageProvider,
+  S3_CONFIG,
+  USE_BLOB_STORAGE,
+  USE_S3_STORAGE,
+} from '@/lib/uploads/config'
 
 const logger = createLogger('UploadsSetup')
 
-const PROJECT_ROOT = path.resolve(process.cwd())
-export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
+// turbopackIgnore: an unscoped process.cwd() makes node-file-tracing sweep the whole
+// project (including next.config.ts) into every route graph that reaches this module.
+// Two routes doing so emit the swept config into same-named server chunks — when their
+// contents diverge, the build dies with "Two or more assets … same output path".
+const PROJECT_ROOT = path.resolve(/*turbopackIgnore: true*/ process.cwd())
+export const UPLOAD_DIR_SERVER = join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'uploads')
 
 /**
  * Server-only function to ensure uploads directory exists
  */
-export async function ensureUploadsDirectory() {
+async function ensureUploadsDirectory() {
   if (USE_S3_STORAGE) {
     logger.info('Using S3 storage, skipping local uploads directory creation')
     return true
@@ -78,6 +87,12 @@ if (typeof process !== 'undefined') {
       logger.warn('Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for S3 storage')
     } else {
       logger.info('AWS S3 credentials found in environment variables')
+    }
+
+    if (env.S3_ENDPOINT) {
+      logger.info(
+        `Using S3-compatible endpoint: ${env.S3_ENDPOINT} (path-style: ${S3_CONFIG.forcePathStyle})`
+      )
     }
   } else {
     // Local storage mode

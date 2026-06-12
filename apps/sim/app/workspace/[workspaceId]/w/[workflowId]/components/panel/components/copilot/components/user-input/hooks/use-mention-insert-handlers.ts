@@ -126,8 +126,8 @@ export function useMentionInsertHandlers({
       insertKnowledgeMention: createInsertHandler(FOLDER_CONFIGS.knowledge),
       insertBlockMention: createInsertHandler(FOLDER_CONFIGS.blocks),
       insertWorkflowBlockMention: createInsertHandler(FOLDER_CONFIGS['workflow-blocks']),
-      insertTemplateMention: createInsertHandler(FOLDER_CONFIGS.templates),
       insertLogMention: createInsertHandler(FOLDER_CONFIGS.logs),
+      insertIntegrationMention: createInsertHandler(FOLDER_CONFIGS.integrations),
       insertDocsMention,
     }),
     [createInsertHandler, insertDocsMention]

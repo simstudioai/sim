@@ -9,7 +9,7 @@ import { CopilotTransport } from '@/lib/copilot/generated/trace-attribute-values
 import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
 import { runCopilotLifecycle } from '@/lib/copilot/request/lifecycle/run'
 import { withCopilotOtelContext } from '@/lib/copilot/request/otel'
-import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { TraceCollector } from '@/lib/copilot/request/trace'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
 
 const logger = createLogger('CopilotHeadlessLifecycle')
@@ -73,33 +73,6 @@ export async function runHeadlessCopilotLifecycle(
               ? RequestTraceV1SpanStatus.cancelled
               : RequestTraceV1SpanStatus.error
         )
-
-        try {
-          // Best-effort extraction of the prompt from the untyped
-          // headless payload. Keeps parity with the streaming path
-          // where `message` is destructured directly.
-          const userMessage =
-            typeof requestPayload.message === 'string' ? requestPayload.message : undefined
-          await reportTrace(
-            trace.build({
-              outcome,
-              simRequestId,
-              chatId: result?.chatId ?? options.chatId,
-              runId: options.runId,
-              executionId: options.executionId,
-              userMessage,
-              usage: result?.usage,
-              cost: result?.cost,
-            }),
-            otelContext
-          )
-        } catch (error) {
-          logger.warn('Failed to report headless trace', {
-            simRequestId,
-            chatId: result?.chatId ?? options.chatId,
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
       }
     }
   )

@@ -1,13 +1,12 @@
 import { notFound } from 'next/navigation'
-import { createModelsOgImage } from '@/app/(landing)/models/og-utils'
 import {
   formatPrice,
   formatTokenCount,
   getModelBySlug,
   getProviderBySlug,
 } from '@/app/(landing)/models/utils'
+import { createLandingOgImage } from '@/app/(landing)/og-utils'
 
-export const runtime = 'edge'
 export const contentType = 'image/png'
 export const size = {
   width: 1200,
@@ -27,7 +26,7 @@ export default async function Image({
     notFound()
   }
 
-  return createModelsOgImage({
+  return createLandingOgImage({
     eyebrow: `${provider.name} model`,
     title: model.displayName,
     subtitle: `${provider.name} pricing, context window, and feature support generated from Sim's model registry.`,

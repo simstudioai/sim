@@ -1,12 +1,26 @@
 import type React from 'react'
 import { AgentSkillsIcon, WorkflowIcon } from '@/components/icons'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import type { TraceSpan } from '@/lib/logs/types'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
 import { getBlock, getBlockByToolName } from '@/blocks'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 import { normalizeToolId } from '@/tools/normalize'
+
+/**
+ * Extracts the bare tool name from an MCP tool id of the form
+ * `mcp-{serverId}-{toolName}`. Returns null when the id is not MCP-shaped.
+ * Kept local to avoid importing from `@/lib/mcp/utils`, which pulls in
+ * `next/server` and breaks client bundles.
+ */
+function tryParseMcpToolName(toolId: string): string | null {
+  if (!toolId.startsWith('mcp-')) return null
+  const parts = toolId.split('-')
+  if (parts.length < 3) return null
+  const toolName = parts.slice(2).join('-')
+  return toolName.length > 0 ? toolName : null
+}
 
 export const DEFAULT_BLOCK_COLOR = '#6b7280'
 
@@ -41,8 +55,13 @@ export function getBlockIconAndColor(
 ): BlockIconAndColor {
   const lowerType = type.toLowerCase()
   if (lowerType === 'tool' && toolName) {
+    if (tryParseMcpToolName(toolName)) {
+      const mcpBlock = getBlock('mcp')
+      if (mcpBlock) return { icon: mcpBlock.icon, bgColor: mcpBlock.bgColor }
+    }
     const normalized = normalizeToolId(toolName)
-    if (normalized === 'load_skill') return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
+    if (normalized === 'load_skill' || normalized === 'load_user_skill')
+      return { icon: AgentSkillsIcon, bgColor: '#8B5CF6' }
     const toolBlock = getBlockByToolName(normalized)
     if (toolBlock) return { icon: toolBlock.icon, bgColor: toolBlock.bgColor }
   }
@@ -90,15 +109,16 @@ export function formatTps(
 }
 
 export function getDisplayName(span: TraceSpan): string {
-  if (span.type?.toLowerCase() === 'tool') return normalizeToolId(span.name)
+  if (span.type?.toLowerCase() === 'tool') {
+    const mcpToolName = tryParseMcpToolName(span.name)
+    if (mcpToolName) return mcpToolName
+    return normalizeToolId(span.name)
+  }
   return span.name
 }
 
 export function formatCostAmount(value: number | undefined): string | undefined {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
-  const credits = dollarsToCredits(value)
-  if (credits <= 0) return '<1 credit'
-  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
+  return formatCreditCost(value, { emptyForZeroOrLess: true })
 }
 
 export function formatTokensSummary(tokens: TraceSpan['tokens']): string | undefined {

@@ -1,9 +1,10 @@
 apiVersion: v2
 name: sim
-description: A Helm chart for Sim - AI agent workflow platform
+description: A Helm chart for Sim - the open-source AI workspace where teams build, deploy, and manage AI agents
 type: application
-version: 0.1.0
-appVersion: "1.0.0"
+version: 1.0.0
+appVersion: "0.6.73"
+kubeVersion: ">=1.25.0-0"
 home: https://sim.ai
 icon: https://raw.githubusercontent.com/simstudioai/sim/main/apps/sim/public/logo/primary/primary.svg
 sources:
@@ -19,5 +20,14 @@ keywords:
   - agents
   - nextjs
 annotations:
-  category: AI/ML Platform
-  licenses: Apache-2.0
+  category: developer-tools
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Homepage
+      url: https://sim.ai
+    - name: Documentation
+      url: https://docs.sim.ai
+    - name: Source
+      url: https://github.com/simstudioai/sim
+    - name: Discord
+      url: https://discord.gg/Hr4UWYEcTT

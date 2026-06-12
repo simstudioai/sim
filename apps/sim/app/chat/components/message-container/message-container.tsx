@@ -58,7 +58,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
                 <div className='flex'>
                   <div className='max-w-[80%]'>
                     <div className='flex h-6 items-center'>
-                      <div className='loading-dot h-3 w-3 rounded-full bg-[var(--landing-text)]' />
+                      <div className='loading-dot size-3 rounded-full bg-[var(--landing-text)]' />
                     </div>
                   </div>
                 </div>
@@ -80,7 +80,7 @@ export const ChatMessageContainer = memo(function ChatMessageContainer({
             variant='outline'
             className='flex items-center gap-1 rounded-full border border-[var(--border-1)] bg-[var(--landing-bg-elevated)] px-3 py-1 shadow-lg transition-all hover:opacity-80'
           >
-            <ArrowDown className='h-3.5 w-3.5' />
+            <ArrowDown className='size-3.5' />
             <span className='sr-only'>Scroll to bottom</span>
           </Button>
         </div>

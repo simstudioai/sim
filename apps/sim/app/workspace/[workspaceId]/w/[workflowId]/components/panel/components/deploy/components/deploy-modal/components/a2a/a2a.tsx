@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { Check, Clipboard } from 'lucide-react'
@@ -10,6 +10,7 @@ import {
   ButtonGroup,
   ButtonGroupItem,
   Checkbox,
+  ChipInput,
   Code,
   Input,
   Label,
@@ -81,7 +82,6 @@ interface A2aDeployProps {
   workflowNeedsRedeployment?: boolean
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
-  /** Callback for when republish status changes - depends on local form state */
   onNeedsRepublishChange?: (needsRepublish: boolean) => void
   onDeployWorkflow?: () => Promise<void>
 }
@@ -147,13 +147,12 @@ export function A2aDeploy({
     return missing
   }, [startBlockId, startBlockInputFormat])
 
-  const handleAddA2AInputs = useCallback(() => {
+  const handleAddA2AInputs = () => {
     if (!startBlockId) return
 
     const normalizedExisting = normalizeInputFormatValue(startBlockInputFormat)
     const newFields: InputFormatField[] = []
 
-    // Add input field if missing (for TextPart)
     if (missingFields.input) {
       newFields.push({
         id: generateId(),
@@ -164,7 +163,6 @@ export function A2aDeploy({
       })
     }
 
-    // Add data field if missing (for DataPart)
     if (missingFields.data) {
       newFields.push({
         id: generateId(),
@@ -175,7 +173,6 @@ export function A2aDeploy({
       })
     }
 
-    // Add files field if missing (for FilePart)
     if (missingFields.files) {
       newFields.push({
         id: generateId(),
@@ -193,7 +190,7 @@ export function A2aDeploy({
         `Added A2A input fields to Start block: ${newFields.map((f) => f.name).join(', ')}`
       )
     }
-  }, [startBlockId, startBlockInputFormat, missingFields, collaborativeSetSubblockValue])
+  }
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -258,10 +255,7 @@ export function A2aDeploy({
     workflowName,
   ])
 
-  const hasWorkflowChanges = useMemo(() => {
-    if (!existingAgent) return false
-    return !!workflowNeedsRedeployment
-  }, [existingAgent, workflowNeedsRedeployment])
+  const hasWorkflowChanges = existingAgent ? !!workflowNeedsRedeployment : false
 
   const needsRepublish = existingAgent && (hasFormChanges || hasWorkflowChanges)
 
@@ -284,7 +278,7 @@ export function A2aDeploy({
     onSubmittingChange?.(isSubmitting)
   }, [isSubmitting, onSubmittingChange])
 
-  const handleCreateOrUpdate = useCallback(async () => {
+  const handleCreateOrUpdate = async () => {
     const capabilities: AgentCapabilities = {
       streaming: true,
       pushNotifications: pushNotificationsEnabled,
@@ -319,20 +313,9 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to save A2A agent:', error)
     }
-  }, [
-    existingAgent,
-    name,
-    description,
-    pushNotificationsEnabled,
-    authScheme,
-    skillTags,
-    workspaceId,
-    workflowId,
-    createAgent,
-    updateAgent,
-  ])
+  }
 
-  const handlePublish = useCallback(async () => {
+  const handlePublish = async () => {
     if (!existingAgent) return
     try {
       await publishAgent.mutateAsync({
@@ -343,9 +326,9 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to publish A2A agent:', error)
     }
-  }, [existingAgent, workspaceId, publishAgent])
+  }
 
-  const handleUnpublish = useCallback(async () => {
+  const handleUnpublish = async () => {
     if (!existingAgent) return
     try {
       await publishAgent.mutateAsync({
@@ -356,9 +339,9 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to unpublish A2A agent:', error)
     }
-  }, [existingAgent, workspaceId, publishAgent])
+  }
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = async () => {
     if (!existingAgent) return
     try {
       await deleteAgent.mutateAsync({
@@ -370,9 +353,9 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to delete A2A agent:', error)
     }
-  }, [existingAgent, workspaceId, deleteAgent, workflowName, workflowDescription])
+  }
 
-  const handlePublishNewAgent = useCallback(async () => {
+  const handlePublishNewAgent = async () => {
     const capabilities: AgentCapabilities = {
       streaming: true,
       pushNotifications: pushNotificationsEnabled,
@@ -406,21 +389,9 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to publish A2A agent:', error)
     }
-  }, [
-    name,
-    description,
-    pushNotificationsEnabled,
-    authScheme,
-    skillTags,
-    workspaceId,
-    workflowId,
-    createAgent,
-    publishAgent,
-    isDeployed,
-    onDeployWorkflow,
-  ])
+  }
 
-  const handleUpdateAndRepublish = useCallback(async () => {
+  const handleUpdateAndRepublish = async () => {
     if (!existingAgent) return
 
     const capabilities: AgentCapabilities = {
@@ -455,20 +426,7 @@ export function A2aDeploy({
     } catch (error) {
       logger.error('Failed to update and republish A2A agent:', error)
     }
-  }, [
-    existingAgent,
-    isDeployed,
-    workflowNeedsRedeployment,
-    onDeployWorkflow,
-    name,
-    description,
-    pushNotificationsEnabled,
-    authScheme,
-    skillTags,
-    workspaceId,
-    updateAgent,
-    publishAgent,
-  ])
+  }
 
   const baseUrl = getBaseUrl()
   const endpoint = existingAgent ? `${baseUrl}/api/a2a/serve/${existingAgent.id}` : null
@@ -484,7 +442,7 @@ export function A2aDeploy({
     )
   }, [startBlockInputFormat])
 
-  const getExampleInputData = useCallback((): Record<string, unknown> => {
+  const getExampleInputData = (): Record<string, unknown> => {
     const data: Record<string, unknown> = {}
     for (const field of additionalInputFields) {
       switch (field.type) {
@@ -508,13 +466,12 @@ export function A2aDeploy({
       }
     }
     return data
-  }, [additionalInputFields])
+  }
 
-  const getJsonRpcPayload = useCallback((): Record<string, unknown> => {
+  const getJsonRpcPayload = (): Record<string, unknown> => {
     const inputData = getExampleInputData()
     const hasAdditionalData = Object.keys(inputData).length > 0
 
-    // Build parts array: TextPart for message text, DataPart for additional fields
     const parts: Array<Record<string, unknown>> = [{ kind: 'text', text: 'Hello, agent!' }]
     if (hasAdditionalData) {
       parts.push({ kind: 'data', data: inputData })
@@ -531,9 +488,9 @@ export function A2aDeploy({
         },
       },
     }
-  }, [getExampleInputData, useStreamingExample])
+  }
 
-  const getCurlCommand = useCallback((): string => {
+  const getCurlCommand = (): string => {
     if (!endpoint) return ''
     const payload = getJsonRpcPayload()
     const requiresAuth = authScheme !== 'none'
@@ -623,13 +580,13 @@ console.log(data);`
       default:
         return ''
     }
-  }, [endpoint, language, getJsonRpcPayload, authScheme])
+  }
 
-  const handleCopyCommand = useCallback(() => {
+  const handleCopyCommand = () => {
     navigator.clipboard.writeText(getCurlCommand())
     setCodeCopied(true)
     setTimeout(() => setCodeCopied(false), 2000)
-  }, [getCurlCommand])
+  }
 
   if (isLoading) {
     return (
@@ -664,7 +621,6 @@ console.log(data);`
       }}
       className='-mx-1 space-y-3 overflow-y-auto px-1 pb-4'
     >
-      {/* Endpoint URL (shown when agent exists) */}
       {existingAgent && endpoint && (
         <div>
           <div className='mb-[6.5px] flex items-center justify-between'>
@@ -684,7 +640,7 @@ console.log(data);`
                   aria-label='Copy URL'
                   className='!p-1.5 -my-1.5'
                 >
-                  {urlCopied ? <Check className='h-3 w-3' /> : <Clipboard className='h-3 w-3' />}
+                  {urlCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                 </Button>
               </Tooltip.Trigger>
               <Tooltip.Content>
@@ -692,15 +648,15 @@ console.log(data);`
               </Tooltip.Content>
             </Tooltip.Root>
           </div>
-          <div className='relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)]'>
-            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm dark:bg-[var(--surface-5)]'>
+          <div className='relative flex items-stretch overflow-hidden rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)]'>
+            <div className='flex items-center whitespace-nowrap bg-[var(--surface-5)] pr-1.5 pl-2 font-medium text-[var(--text-secondary)] text-sm'>
               {baseUrl.replace(/^https?:\/\//, '')}/api/a2a/serve/
             </div>
             <div className='relative flex-1'>
               <Input
                 value={existingAgent.id}
                 readOnly
-                className='rounded-none border-0 pl-0 text-[var(--text-tertiary)] shadow-none'
+                className='rounded-none border-0 bg-transparent pl-0 text-[var(--text-tertiary)] shadow-none'
               />
             </div>
           </div>
@@ -710,15 +666,14 @@ console.log(data);`
         </div>
       )}
 
-      {/* Agent Name */}
       <div>
         <Label
           htmlFor='a2a-name'
           className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
-          Agent name <span className='text-red-500'>*</span>
+          Agent name <span className='text-[var(--text-error)]'>*</span>
         </Label>
-        <Input
+        <ChipInput
           id='a2a-name'
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -730,13 +685,12 @@ console.log(data);`
         </p>
       </div>
 
-      {/* Description */}
       <div>
         <Label
           htmlFor='a2a-description'
           className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'
         >
-          Description <span className='text-red-500'>*</span>
+          Description <span className='text-[var(--text-error)]'>*</span>
         </Label>
         <Textarea
           id='a2a-description'
@@ -748,7 +702,6 @@ console.log(data);`
         />
       </div>
 
-      {/* Access */}
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Access
@@ -767,7 +720,6 @@ console.log(data);`
         </p>
       </div>
 
-      {/* Capabilities */}
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Capabilities
@@ -786,7 +738,6 @@ console.log(data);`
         </div>
       </div>
 
-      {/* Tags */}
       <div>
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Tags
@@ -805,12 +756,10 @@ console.log(data);`
           }}
           placeholder='Add tags'
           placeholderWithTags='Add another'
-          tagVariant='secondary'
           triggerKeys={['Enter', ',']}
         />
       </div>
 
-      {/* Curl Preview (shown when agent exists) */}
       {existingAgent && endpoint && (
         <>
           <div>
@@ -856,11 +805,7 @@ console.log(data);`
                       aria-label='Copy command'
                       className='!p-1.5 -my-1.5'
                     >
-                      {codeCopied ? (
-                        <Check className='h-3 w-3' />
-                      ) : (
-                        <Clipboard className='h-3 w-3' />
-                      )}
+                      {codeCopied ? <Check className='size-3' /> : <Clipboard className='size-3' />}
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
@@ -883,20 +828,21 @@ console.log(data);`
                 <code className='text-micro'>&lt;start.files&gt;</code>.
               </p>
               {missingFields.any && (
-                <div
-                  className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-[9px] py-0.5 font-medium font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)]'
+                <Button
+                  type='button'
+                  variant='default'
+                  className='flex-none whitespace-nowrap px-[9px] py-0.5 text-caption'
                   title='Add required A2A input fields to Start block'
                   onClick={handleAddA2AInputs}
                 >
                   <span className='whitespace-nowrap'>Add inputs</span>
-                </div>
+                </Button>
               )}
             </div>
           </div>
         </>
       )}
 
-      {/* Hidden triggers for modal footer */}
       <button type='submit' data-a2a-save-trigger className='hidden' />
       <button type='button' data-a2a-publish-trigger className='hidden' onClick={handlePublish} />
       <button

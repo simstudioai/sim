@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useEffectEvent, useMemo } from 'react'
 import { usePopoverContext } from '@/components/emcn'
 import { useNestedNavigation } from '../tag-dropdown'
 import type { BlockTagGroup, NestedBlockTagGroup, NestedTag } from '../types'
@@ -191,8 +191,8 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isInFolder, currentFolder, nestedPathLength])
 
-  useEffect(() => {
-    if (!visible || !flatTagList.length) return
+  const handleKeyboardEvent = useEffectEvent((e: KeyboardEvent) => {
+    if (!flatTagList.length) return
 
     const openFolderWithSelection = (
       folderId: string,
@@ -208,152 +208,139 @@ export const KeyboardNavigationHandler: React.FC<KeyboardNavigationHandlerProps>
       }
     }
 
-    const handleKeyboardEvent = (e: KeyboardEvent) => {
-      const selected = flatTagList[selectedIndex]
-      if (!selected && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    const selected = flatTagList[selectedIndex]
+    if (!selected && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
 
-      let currentFolderInfo: {
-        id: string
-        title: string
-        parentTag: string
-        group: NestedBlockTagGroup
-        nestedTag: NestedTag
-      } | null = null
+    let currentFolderInfo: {
+      id: string
+      title: string
+      parentTag: string
+      group: NestedBlockTagGroup
+      nestedTag: NestedTag
+    } | null = null
 
-      if (selected) {
-        for (const group of nestedBlockTagGroups) {
-          const folderInfo = findFolderInfoForTag(group.nestedTags, selected.tag, group)
-          if (folderInfo) {
-            currentFolderInfo = folderInfo
-            break
-          }
+    if (selected) {
+      for (const group of nestedBlockTagGroups) {
+        const folderInfo = findFolderInfoForTag(group.nestedTags, selected.tag, group)
+        if (folderInfo) {
+          currentFolderInfo = folderInfo
+          break
         }
-      }
-
-      const scrollIntoView = () => {
-        setTimeout(() => {
-          const selectedItem = document.querySelector<HTMLElement>(
-            '[data-radix-popper-content-wrapper] [aria-selected="true"]'
-          )
-          if (selectedItem) {
-            selectedItem.scrollIntoView({ behavior: 'auto', block: 'nearest' })
-          }
-        }, 0)
-      }
-
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault()
-          e.stopPropagation()
-          setKeyboardNav(true)
-          if (visibleIndices.length > 0) {
-            const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
-            let newIndex: number
-            if (currentVisibleIndex === -1) {
-              newIndex = visibleIndices[0]
-            } else if (currentVisibleIndex < visibleIndices.length - 1) {
-              newIndex = visibleIndices[currentVisibleIndex + 1]
-            } else {
-              newIndex = selectedIndex
-            }
-            setSelectedIndex(newIndex)
-            scrollIntoView()
-          }
-          break
-        case 'ArrowUp':
-          e.preventDefault()
-          e.stopPropagation()
-          setKeyboardNav(true)
-          if (visibleIndices.length > 0) {
-            const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
-            let newIndex: number
-            if (currentVisibleIndex === -1) {
-              newIndex = visibleIndices[visibleIndices.length - 1]
-            } else if (currentVisibleIndex > 0) {
-              newIndex = visibleIndices[currentVisibleIndex - 1]
-            } else {
-              newIndex = selectedIndex
-            }
-            setSelectedIndex(newIndex)
-            scrollIntoView()
-          }
-          break
-        case 'Enter':
-        case 'Tab':
-          if (e.key === 'Tab' && e.shiftKey) break
-          if (selected && selectedIndex >= 0 && selectedIndex < flatTagList.length) {
-            e.preventDefault()
-            e.stopPropagation()
-            handleTagSelect(selected.tag, selected.group)
-          }
-          break
-        case 'ArrowRight':
-          if (currentFolderInfo) {
-            e.preventDefault()
-            e.stopPropagation()
-            if (isInFolder && nestedNav) {
-              nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
-            } else {
-              openFolderWithSelection(
-                currentFolderInfo.id,
-                currentFolderInfo.title,
-                currentFolderInfo.parentTag,
-                currentFolderInfo.group
-              )
-              onFolderEnter?.()
-            }
-          }
-          break
-        case 'ArrowLeft':
-          if (isInFolder) {
-            e.preventDefault()
-            e.stopPropagation()
-            if (nestedNav?.navigateBack()) {
-              return
-            }
-            closeFolder()
-            let firstRootIndex = 0
-            for (let i = 0; i < flatTagList.length; i++) {
-              const tag = flatTagList[i].tag
-              const isVariable = !tag.includes('.')
-              let isParent = false
-              for (const group of nestedBlockTagGroups) {
-                for (const nestedTag of group.nestedTags) {
-                  if (nestedTag.parentTag === tag) {
-                    isParent = true
-                    break
-                  }
-                }
-                if (isParent) break
-              }
-              if (isVariable || isParent) {
-                firstRootIndex = i
-                break
-              }
-            }
-            setSelectedIndex(firstRootIndex)
-          }
-          break
       }
     }
 
+    const scrollIntoView = () => {
+      setTimeout(() => {
+        const selectedItem = document.querySelector<HTMLElement>(
+          '[data-radix-popper-content-wrapper] [aria-selected="true"]'
+        )
+        if (selectedItem) {
+          selectedItem.scrollIntoView({ behavior: 'auto', block: 'nearest' })
+        }
+      }, 0)
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault()
+        e.stopPropagation()
+        setKeyboardNav(true)
+        if (visibleIndices.length > 0) {
+          const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+          let newIndex: number
+          if (currentVisibleIndex === -1) {
+            newIndex = visibleIndices[0]
+          } else if (currentVisibleIndex < visibleIndices.length - 1) {
+            newIndex = visibleIndices[currentVisibleIndex + 1]
+          } else {
+            newIndex = selectedIndex
+          }
+          setSelectedIndex(newIndex)
+          scrollIntoView()
+        }
+        break
+      case 'ArrowUp':
+        e.preventDefault()
+        e.stopPropagation()
+        setKeyboardNav(true)
+        if (visibleIndices.length > 0) {
+          const currentVisibleIndex = visibleIndices.indexOf(selectedIndex)
+          let newIndex: number
+          if (currentVisibleIndex === -1) {
+            newIndex = visibleIndices[visibleIndices.length - 1]
+          } else if (currentVisibleIndex > 0) {
+            newIndex = visibleIndices[currentVisibleIndex - 1]
+          } else {
+            newIndex = selectedIndex
+          }
+          setSelectedIndex(newIndex)
+          scrollIntoView()
+        }
+        break
+      case 'Enter':
+      case 'Tab':
+        if (e.key === 'Tab' && e.shiftKey) break
+        if (selected && selectedIndex >= 0 && selectedIndex < flatTagList.length) {
+          e.preventDefault()
+          e.stopPropagation()
+          handleTagSelect(selected.tag, selected.group)
+        }
+        break
+      case 'ArrowRight':
+        if (currentFolderInfo) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (isInFolder && nestedNav) {
+            nestedNav.navigateIn(currentFolderInfo.nestedTag, currentFolderInfo.group)
+          } else {
+            openFolderWithSelection(
+              currentFolderInfo.id,
+              currentFolderInfo.title,
+              currentFolderInfo.parentTag,
+              currentFolderInfo.group
+            )
+            onFolderEnter?.()
+          }
+        }
+        break
+      case 'ArrowLeft':
+        if (isInFolder) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (nestedNav?.navigateBack()) {
+            return
+          }
+          closeFolder()
+          let firstRootIndex = 0
+          for (let i = 0; i < flatTagList.length; i++) {
+            const tag = flatTagList[i].tag
+            const isVariable = !tag.includes('.')
+            let isParent = false
+            for (const group of nestedBlockTagGroups) {
+              for (const nestedTag of group.nestedTags) {
+                if (nestedTag.parentTag === tag) {
+                  isParent = true
+                  break
+                }
+              }
+              if (isParent) break
+            }
+            if (isVariable || isParent) {
+              firstRootIndex = i
+              break
+            }
+          }
+          setSelectedIndex(firstRootIndex)
+        }
+        break
+    }
+  })
+
+  useEffect(() => {
+    if (!visible) return
     window.addEventListener('keydown', handleKeyboardEvent, true)
     return () => window.removeEventListener('keydown', handleKeyboardEvent, true)
-  }, [
-    visible,
-    selectedIndex,
-    visibleIndices,
-    flatTagList,
-    nestedBlockTagGroups,
-    openFolder,
-    closeFolder,
-    isInFolder,
-    setSelectedIndex,
-    handleTagSelect,
-    nestedNav,
-    setKeyboardNav,
-    onFolderEnter,
-  ])
+  }, [visible])
 
   return null
 }

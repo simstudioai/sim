@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Base parameters shared by all Greenhouse tools
  */
-export interface GreenhouseBaseParams {
+interface GreenhouseBaseParams {
   apiKey: string
 }
 
@@ -254,14 +254,14 @@ export interface GreenhouseUserRef {
   employee_id: string | null
 }
 
-export interface GreenhouseAttachment {
+interface GreenhouseAttachment {
   filename: string
   url: string
   type: string
   created_at: string | null
 }
 
-export interface GreenhouseEducation {
+interface GreenhouseEducation {
   id: number
   school_name: string | null
   degree: string | null
@@ -270,7 +270,7 @@ export interface GreenhouseEducation {
   end_date: string | null
 }
 
-export interface GreenhouseEmployment {
+interface GreenhouseEmployment {
   id: number
   company_name: string | null
   title: string | null
@@ -376,14 +376,14 @@ export interface GreenhouseApplicationSummary {
   last_activity_at: string | null
 }
 
-export interface GreenhouseHiringTeam {
+interface GreenhouseHiringTeam {
   hiring_managers: GreenhouseUserRef[]
   recruiters: Array<GreenhouseUserRef & { responsible: boolean }>
   coordinators: Array<GreenhouseUserRef & { responsible: boolean }>
   sourcers: GreenhouseUserRef[]
 }
 
-export interface GreenhouseOpening {
+interface GreenhouseOpening {
   id: number
   opening_id: string | null
   status: string

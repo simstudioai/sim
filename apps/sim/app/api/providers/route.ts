@@ -1,11 +1,12 @@
 import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeProviderContract } from '@/lib/api/contracts/providers'
 import { parseRequest } from '@/lib/api/server'
+import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -18,6 +19,7 @@ import {
 import {
   assertPermissionsAllowed,
   IntegrationNotAllowedError,
+  ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
@@ -131,7 +133,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           model,
         })
       } catch (err) {
-        if (err instanceof ProviderNotAllowedError || err instanceof IntegrationNotAllowedError) {
+        if (
+          err instanceof ProviderNotAllowedError ||
+          err instanceof ModelNotAllowedError ||
+          err instanceof IntegrationNotAllowedError
+        ) {
           return NextResponse.json({ error: err.message }, { status: 403 })
         }
         throw err
@@ -141,6 +147,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let finalApiKey: string | undefined = apiKey
     try {
       if (provider === 'vertex' && vertexCredential) {
+        const vertexCredAccess = await authorizeCredentialUse(request, {
+          credentialId: vertexCredential,
+          workflowId: workflowId || undefined,
+          requireWorkflowIdForInternal: false,
+        })
+        if (!vertexCredAccess.ok) {
+          logger.warn(`[${requestId}] Vertex credential access denied`, {
+            error: vertexCredAccess.error,
+            credentialId: vertexCredential,
+          })
+          return NextResponse.json(
+            { error: vertexCredAccess.error || 'Unauthorized' },
+            { status: 401 }
+          )
+        }
         finalApiKey = await resolveVertexCredential(requestId, vertexCredential)
       }
     } catch (error) {
@@ -151,7 +172,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         hasVertexCredential: !!vertexCredential,
       })
       return NextResponse.json(
-        { error: error instanceof Error ? error.message : 'Credential error' },
+        { error: getErrorMessage(error, 'Credential error') },
         { status: 400 }
       )
     }

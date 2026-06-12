@@ -2,6 +2,7 @@
  * Client-safe schedule validation functions
  * These can be used in both client and server contexts
  */
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   type BlockState,
   calculateNextRunTime,
@@ -161,7 +162,7 @@ export function validateScheduleBlock(block: BlockState): ScheduleValidationResu
   } catch (error) {
     return {
       isValid: false,
-      error: error instanceof Error ? error.message : 'Failed to generate schedule',
+      error: getErrorMessage(error, 'Failed to generate schedule'),
       scheduleType,
     }
   }

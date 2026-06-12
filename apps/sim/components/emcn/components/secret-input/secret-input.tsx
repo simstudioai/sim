@@ -1,5 +1,5 @@
 /**
- * A password-style input that masks its value with bullets only while the
+ * A password-style chip input that masks its value with bullets only while the
  * field is unfocused.
  *
  * @remarks
@@ -7,6 +7,7 @@
  * visible while the user is actively editing — so they can verify pasted
  * secrets like signing tokens or API keys — and only swaps to bullets on
  * blur. Uses plain `type="text"` so password managers don't auto-fill.
+ * Built on {@link ChipInput}, so it shares the canonical chip-field chrome.
  *
  * @example
  * ```tsx
@@ -23,10 +24,10 @@
 'use client'
 
 import * as React from 'react'
-import { Input, type InputProps } from '../input/input'
+import { ChipInput, type ChipInputProps } from '../chip-input/chip-input'
 
-export interface SecretInputProps
-  extends Omit<InputProps, 'type' | 'value' | 'onChange' | 'defaultValue'> {
+interface SecretInputProps
+  extends Omit<ChipInputProps, 'type' | 'value' | 'onChange' | 'defaultValue'> {
   /** Current value. Rendered as bullets when the input is not focused. */
   value: string
   /** Called with the new value on every real edit (focused-only). */
@@ -39,14 +40,13 @@ const SecretInput = React.forwardRef<HTMLInputElement, SecretInputProps>(
     const displayValue = isFocused ? value : '•'.repeat(value.length)
 
     return (
-      <Input
+      <ChipInput
         ref={ref}
         type='text'
         value={displayValue}
         onChange={(e) => {
-          // Guard against synthetic change events (autofill, form reset)
-          // firing while blurred, which would otherwise overwrite the real
-          // value with bullet characters.
+          // Guard against synthetic change events (autofill, form reset) firing
+          // while blurred, which would overwrite the real value with bullets.
           if (!isFocused) return
           onChange(e.target.value)
         }}

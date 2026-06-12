@@ -8,38 +8,42 @@ export interface DuckDuckGoSearchParams {
   skipDisambig?: boolean
 }
 
-export interface DuckDuckGoRelatedTopic {
+interface DuckDuckGoRelatedTopic {
   FirstURL?: string
   Text?: string
   Result?: string
   Icon?: {
     URL?: string
-    Height?: string
-    Width?: string
+    Height?: number | string
+    Width?: number | string
   }
 }
 
-export interface DuckDuckGoResult {
+interface DuckDuckGoResult {
   FirstURL?: string
   Text?: string
   Result?: string
   Icon?: {
     URL?: string
-    Height?: string
-    Width?: string
+    Height?: number | string
+    Width?: number | string
   }
 }
 
-export interface DuckDuckGoSearchOutput {
+interface DuckDuckGoSearchOutput {
   heading: string
   abstract: string
   abstractText: string
   abstractSource: string
   abstractURL: string
+  definition: string
+  definitionSource: string
+  definitionURL: string
   image: string
   answer: string
   answerType: string
   type: string
+  redirect: string
   relatedTopics: DuckDuckGoRelatedTopic[]
   results: DuckDuckGoResult[]
 }

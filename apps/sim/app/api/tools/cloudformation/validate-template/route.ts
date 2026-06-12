@@ -1,5 +1,6 @@
 import { CloudFormationClient, ValidateTemplateCommand } from '@aws-sdk/client-cloudformation'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsCloudformationValidateTemplateContract } from '@/lib/api/contracts/tools/aws/cloudformation-validate-template'
 import { parseToolRequest } from '@/lib/api/server'
@@ -52,8 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to validate CloudFormation template'
+    const errorMessage = getErrorMessage(error, 'Failed to validate CloudFormation template')
     logger.error('ValidateTemplate failed', { error: errorMessage })
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }

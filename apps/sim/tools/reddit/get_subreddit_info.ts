@@ -91,7 +91,7 @@ export const getSubredditInfoTool: ToolConfig<
         description: sub.description ?? '',
         public_description: sub.public_description ?? '',
         subscribers: sub.subscribers ?? 0,
-        accounts_active: sub.accounts_active ?? 0,
+        accounts_active: sub.active_user_count ?? sub.accounts_active ?? 0,
         created_utc: sub.created_utc ?? 0,
         over18: sub.over18 ?? false,
         lang: sub.lang ?? '',

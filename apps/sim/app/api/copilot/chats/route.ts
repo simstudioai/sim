@@ -7,15 +7,19 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowCopilotChatContract } from '@/lib/api/contracts/copilot'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
   createBadRequestResponse,
+  createForbiddenResponse,
   createInternalServerErrorResponse,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { assertActiveWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  assertActiveWorkspaceAccess,
+  isWorkspaceAccessDeniedError,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CopilotChatsListAPI')
 
@@ -134,10 +138,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return createInternalServerErrorResponse('Failed to create chat')
     }
 
-    taskPubSub?.publishStatusChanged({ workspaceId, chatId: result.chatId, type: 'created' })
+    chatPubSub?.publishStatusChanged({ workspaceId, chatId: result.chatId, type: 'created' })
 
     return NextResponse.json({ success: true, id: result.chatId })
   } catch (error) {
+    if (isWorkspaceAccessDeniedError(error)) {
+      return createForbiddenResponse('Workspace access denied')
+    }
     logger.error('Error creating workflow copilot chat:', error)
     return createInternalServerErrorResponse('Failed to create chat')
   }

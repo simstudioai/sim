@@ -94,7 +94,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello, wo
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
-When `async: true`, returns immediately with a task ID for polling. Otherwise, waits for completion.
+When `async: true`, returns immediately with a `jobId` and `statusUrl` for polling. Otherwise, waits for completion.
 
 ##### getWorkflowStatus()
 
@@ -131,7 +131,7 @@ if (isReady) {
 Get the status of an async job execution.
 
 ```typescript
-const status = await client.getJobStatus('task-id-from-async-execution');
+const status = await client.getJobStatus('job-id-from-async-execution');
 console.log('Status:', status.status); // 'queued', 'processing', 'completed', 'failed'
 if (status.status === 'completed') {
   console.log('Output:', status.output);
@@ -139,13 +139,13 @@ if (status.status === 'completed') {
 ```
 
 **Parameters:**
-- `taskId` (string): The task ID returned from async execution
+- `jobId` (string): The job ID returned from async execution
 
 **Returns:** `Promise<JobStatus>`
 
 **Response fields:**
 - `success` (boolean): Whether the request was successful
-- `taskId` (string): The task ID
+- `taskId` (string): The job ID
 - `status` (string): One of `'queued'`, `'processing'`, `'completed'`, `'failed'`, `'cancelled'`
 - `metadata` (object): Contains `startedAt`, `completedAt`, and `duration`
 - `output` (any, optional): The workflow output (when completed)
@@ -278,12 +278,11 @@ interface WorkflowExecutionResult {
 ```typescript
 interface AsyncExecutionResult {
   success: boolean;
-  taskId: string;
-  status: 'queued';
-  createdAt: string;
-  links: {
-    status: string;  // e.g., "/api/jobs/{taskId}"
-  };
+  jobId: string;
+  statusUrl: string;
+  executionId?: string;
+  message: string;
+  async: true;
 }
 ```
 
@@ -767,17 +766,17 @@ async function executeAsync() {
     });
 
     // Check if result is an async execution
-    if ('taskId' in result) {
-      console.log('Task ID:', result.taskId);
-      console.log('Status endpoint:', result.links.status);
+    if ('jobId' in result) {
+      console.log('Job ID:', result.jobId);
+      console.log('Status endpoint:', result.statusUrl);
 
       // Poll for completion
-      let status = await client.getJobStatus(result.taskId);
+      let status = await client.getJobStatus(result.jobId);
 
       while (status.status === 'queued' || status.status === 'processing') {
         console.log('Current status:', status.status);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        status = await client.getJobStatus(result.taskId);
+        status = await client.getJobStatus(result.jobId);
       }
 
       if (status.status === 'completed') {
@@ -1022,7 +1021,7 @@ import { FAQ } from '@/components/ui/faq'
 
 <FAQ items={[
   { question: "Do I need to deploy a workflow before I can execute it via the SDK?", answer: "Yes. Workflows must be deployed before they can be executed through the SDK. You can use the validateWorkflow() method to check whether a workflow is deployed and ready. If it returns false, deploy the workflow from the Sim UI first and create or select an API key during deployment." },
-  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution returns immediately with a task ID that you can poll using getJobStatus(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
+  { question: "What is the difference between sync and async execution?", answer: "Sync execution (the default) blocks until the workflow completes and returns the full result. Async execution returns immediately with a job ID and status URL that you can poll using getJobStatus(). Use async mode for long-running workflows to avoid request timeouts. Async job statuses include queued, processing, completed, failed, and cancelled." },
   { question: "How does streaming work with the SDK?", answer: "Enable streaming by setting stream: true and specifying selectedOutputs with block names and attributes in blockName.attribute format (e.g., ['agent1.content']). The response uses Server-Sent Events (SSE) format, sending incremental chunks as the workflow executes. Each chunk includes the blockId and the text content. A final done event includes the execution metadata." },
   { question: "How does the SDK handle rate limiting?", answer: "The SDK provides built-in rate limiting support through the executeWithRetry() method. It uses exponential backoff (1s, 2s, 4s, 8s...) with 25% jitter to avoid thundering herd problems. If the API returns a retry-after header, that value is used instead. You can configure maxRetries, initialDelay, maxDelay, and backoffMultiplier. Use getRateLimitInfo() to check your current rate limit status." },
   { question: "Is it safe to use the SDK in browser-side code?", answer: "You can use the SDK in the browser, but you should not expose your API key in client-side code. In production, use a backend proxy server to handle SDK calls, or use a public API key with limited permissions. The SDK works with both Node.js and browser environments, but sensitive keys should stay server-side." },

@@ -1,4 +1,7 @@
+import { db } from '@sim/db'
+import { workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { workflowLogContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -38,6 +41,19 @@ export const POST = withRouteHandler(
         if (!executionId) {
           logger.warn(`[${requestId}] Missing executionId for result logging`)
           return createErrorResponse('executionId is required when logging results', 400)
+        }
+
+        const [existingLog] = await db
+          .select({ workflowId: workflowExecutionLogs.workflowId })
+          .from(workflowExecutionLogs)
+          .where(eq(workflowExecutionLogs.executionId, executionId))
+          .limit(1)
+
+        if (existingLog && existingLog.workflowId !== id) {
+          logger.warn(
+            `[${requestId}] executionId ${executionId} belongs to workflow ${existingLog.workflowId}, not ${id}`
+          )
+          return createErrorResponse('Execution not found', 404)
         }
 
         logger.info(`[${requestId}] Persisting execution result for workflow: ${id}`, {

@@ -1,7 +1,10 @@
 'use client'
 
 import { TimePicker } from '@/components/emcn'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 
 interface TimeInputProps {
   blockId: string
@@ -11,6 +14,15 @@ interface TimeInputProps {
   previewValue?: string | null
   className?: string
   disabled?: boolean
+}
+
+function formatTimeInputDisplayLabel(value: string): string {
+  const [hours, minutes] = value.split(':')
+  const hour = Number.parseInt(hours ?? '', 10)
+  if (!Number.isFinite(hour) || !minutes) return value
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const displayHour = hour % 12 || 12
+  return `${displayHour}:${minutes} ${ampm}`
 }
 
 /**
@@ -26,9 +38,18 @@ export function TimeInput({
   className,
   disabled = false,
 }: TimeInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
 
   const value = isPreview ? previewValue : storeValue
+  const displayLabel = value ? formatTimeInputDisplayLabel(value) : ''
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    blockId,
+    subBlockId,
+    valuePath: [],
+    label: displayLabel,
+  })
 
   const handleChange = (newValue: string) => {
     if (isPreview || disabled) return
@@ -42,6 +63,13 @@ export function TimeInput({
       placeholder={placeholder || 'Select time'}
       disabled={isPreview || disabled}
       className={className}
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span className='truncate'>
+            {formatDisplayText(displayLabel, { workflowSearchHighlight })}
+          </span>
+        ) : undefined
+      }
     />
   )
 }

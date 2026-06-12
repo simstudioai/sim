@@ -1,18 +1,13 @@
 'use client'
 
-import { ArrowLeft } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { Button } from '@/components/emcn'
+import { ArrowLeft } from '@/components/emcn/icons'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
-interface TableErrorProps {
-  error: Error & { digest?: string }
-  reset: () => void
-}
-
-export default function TableError({ error, reset }: TableErrorProps) {
+export default function TableError({ error, reset }: ErrorBoundaryProps) {
   const router = useRouter()
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
+  const { workspaceId } = useParams<{ workspaceId: string }>()
 
   return (
     <ErrorState
@@ -21,11 +16,15 @@ export default function TableError({ error, reset }: TableErrorProps) {
       title='Failed to load table'
       description='Something went wrong while loading this table. The table may have been deleted or you may not have permission to view it.'
       loggerName='TableError'
-      secondaryAction={{
-        label: 'Go back',
-        icon: <ArrowLeft className='mr-1.5 h-[14px] w-[14px]' />,
-        onClick: () => router.push(`/workspace/${workspaceId}/tables`),
-      }}
-    />
+    >
+      <Button
+        variant='default'
+        size='md'
+        onClick={() => router.push(`/workspace/${workspaceId}/tables`)}
+      >
+        <ArrowLeft className='mr-1.5 size-[14px]' />
+        Go back
+      </Button>
+    </ErrorState>
   )
 }

@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import {
   getProviderConfig,
@@ -35,7 +36,7 @@ interface GoogleSheetsWebhookConfig {
   maxRowsPerPoll?: number
 }
 
-export interface GoogleSheetsWebhookPayload {
+interface GoogleSheetsWebhookPayload {
   row: Record<string, string> | null
   rawRow: string[]
   headers: string[]
@@ -456,7 +457,7 @@ async function processRows(
       )
       processedCount++
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      const errorMessage = getErrorMessage(error, 'Unknown error')
       logger.error(`[${requestId}] Error processing row ${rowNumber}:`, errorMessage)
       failedCount++
     }

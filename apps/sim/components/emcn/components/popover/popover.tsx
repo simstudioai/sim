@@ -35,7 +35,7 @@
  *         >
  *           {workflows.map(wf => (
  *             <PopoverItem key={wf.id} onClick={() => selectWorkflow(wf)}>
- *               <div className="h-3.5 w-3.5 rounded" style={{ backgroundColor: wf.color }} />
+ *               <Workflow className="size-[14px] text-[var(--text-icon)]" />
  *               <span>{wf.name}</span>
  *             </PopoverItem>
  *           ))}
@@ -67,17 +67,17 @@ type PopoverVariant = 'default' | 'secondary'
 const STYLES = {
   /** Base classes shared by all interactive items */
   itemBase:
-    'flex min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 font-medium disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+    'flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 
   /** Content container */
-  content: 'px-1.5 py-1.5 rounded-md',
+  content: 'px-1.5 py-1.5 rounded-xl',
 
   /** Size variants */
   size: {
-    sm: { item: 'h-[22px] text-xs', icon: 'h-3 w-3', section: 'px-1.5 py-1 text-xs' },
+    sm: { item: 'h-[22px] text-xs', icon: 'size-3', section: 'px-1.5 py-1 text-xs' },
     md: {
-      item: 'h-[26px] text-caption',
-      icon: 'h-3.5 w-3.5',
+      item: 'h-[30px] text-sm',
+      icon: 'size-[14px]',
       section: 'px-1.5 py-1 text-xs',
     },
   } satisfies Record<PopoverSize, { item: string; icon: string; section: string }>,
@@ -85,7 +85,7 @@ const STYLES = {
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-body)]',
+      text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
@@ -370,7 +370,7 @@ const PopoverTrigger = PopoverPrimitive.Trigger
  */
 const PopoverAnchor = PopoverPrimitive.Anchor
 
-export interface PopoverContentProps
+interface PopoverContentProps
   extends Omit<
     React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>,
     'side' | 'align' | 'sideOffset' | 'alignOffset' | 'collisionPadding'
@@ -671,7 +671,7 @@ const PopoverContent = React.forwardRef<
 
 PopoverContent.displayName = 'PopoverContent'
 
-export interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 /**
  * Scrollable container for popover items.
@@ -692,7 +692,7 @@ const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProp
 
 PopoverScrollArea.displayName = 'PopoverScrollArea'
 
-export interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
+interface PopoverItemProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Whether this item has active/highlighted background styling.
    * Use for keyboard navigation focus or persistent highlight states.
@@ -802,6 +802,9 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
         aria-selected={isActive}
         aria-disabled={disabled}
         onClick={handleClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') (e.currentTarget as HTMLElement).click()
+        }}
         onMouseEnter={handleMouseEnter}
         {...props}
       >
@@ -814,7 +817,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
 
 PopoverItem.displayName = 'PopoverItem'
 
-export interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement> {
+interface PopoverSectionProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Only show when not inside any folder */
   rootOnly?: boolean
 }
@@ -848,7 +851,7 @@ const PopoverSection = React.forwardRef<HTMLDivElement, PopoverSectionProps>(
 
 PopoverSection.displayName = 'PopoverSection'
 
-export interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
+interface PopoverFolderProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   /** Unique folder identifier */
   id: string
   /** Display title */
@@ -996,6 +999,9 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
           aria-expanded={isHoverOpen}
           aria-selected={isActive}
           onClick={handleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') (e.currentTarget as HTMLElement).click()
+          }}
           onMouseEnter={handleMouseEnter}
           {...props}
         >
@@ -1032,7 +1038,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
 
 PopoverFolder.displayName = 'PopoverFolder'
 
-export interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
+interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Ref callback for folder title element */
   folderTitleRef?: (el: HTMLElement | null) => void
   /** Whether folder title is active/selected */
@@ -1068,6 +1074,12 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             e.stopPropagation()
             closeFolder()
           }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.stopPropagation()
+              closeFolder()
+            }
+          }}
           {...props}
         >
           <ChevronLeft className={STYLES.size[size].icon} />
@@ -1087,6 +1099,12 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             onClick={(e) => {
               e.stopPropagation()
               onFolderSelect()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.stopPropagation()
+                onFolderSelect()
+              }
             }}
             onMouseEnter={onFolderTitleMouseEnter}
           >
@@ -1111,7 +1129,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
 
 PopoverBackButton.displayName = 'PopoverBackButton'
 
-export interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement> {
+interface PopoverSearchProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Placeholder text
    * @default 'Search...'
@@ -1168,7 +1186,7 @@ const PopoverSearch = React.forwardRef<HTMLDivElement, PopoverSearchProps>(
 
 PopoverSearch.displayName = 'PopoverSearch'
 
-export interface PopoverDividerProps extends React.HTMLAttributes<HTMLDivElement> {
+interface PopoverDividerProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Only show when not inside any folder */
   rootOnly?: boolean
 }
@@ -1210,5 +1228,3 @@ export {
   PopoverDivider,
   usePopoverContext,
 }
-
-export type { PopoverSize, PopoverColorScheme }

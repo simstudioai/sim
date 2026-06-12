@@ -3,8 +3,9 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
-import { SIM_AGENT_API_URL, SIM_AGENT_VERSION } from '@/lib/copilot/constants'
+import { SIM_AGENT_VERSION, TOOL_WATCHDOG_RESUME_GRACE_MS } from '@/lib/copilot/constants'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1RunKind,
@@ -23,7 +24,11 @@ import {
   setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
-import { executeToolAndReport } from '@/lib/copilot/request/tools/executor'
+import {
+  executeToolAndReport,
+  forceFailHungToolCall,
+  toolWatchdogTimeoutMs,
+} from '@/lib/copilot/request/tools/executor'
 import type { TraceCollector } from '@/lib/copilot/request/trace'
 import { RequestTraceV1SpanStatus } from '@/lib/copilot/request/trace'
 import type {
@@ -33,6 +38,7 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
+import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { env } from '@/lib/core/config/env'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
@@ -41,6 +47,19 @@ const logger = createLogger('CopilotLifecycle')
 
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
+
+function nonBlankString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
+function resultContent(context: StreamingContext, options: CopilotLifecycleOptions): string {
+  if (options.interactive === false && context.sawMainToolCall) {
+    return context.finalAssistantContent
+  }
+  return context.accumulatedContent
+}
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
   userId: string
@@ -121,6 +140,7 @@ export async function runCopilotLifecycle(
     messageId: payloadMsgId,
     ...(lifecycleOptions.trace ? { trace: lifecycleOptions.trace } : {}),
   })
+  let onCompleteStarted = false
 
   try {
     await runCheckpointLoop(requestPayload, context, execContext, lifecycleOptions, goRoute)
@@ -128,15 +148,16 @@ export async function runCopilotLifecycle(
     const result: OrchestratorResult = {
       success: context.errors.length === 0 && !context.wasAborted,
       // `cancelled` is an explicit discriminator so callers can tell
-      // "user hit Stop" (don't clear the chat row; /chat/stop owns it)
-      // from "backend errored" (do clear the row so the chat isn't
-      // stuck with a non-null `conversationId`). An error that also
+      // "user hit Stop" (persist partial assistant content through the
+      // cancelled completion path) from "backend errored" (do clear the
+      // row so the chat isn't stuck with a non-null `conversationId`).
+      // An error that also
       // happens to fire the abort signal still counts as an error
       // path, but practically that doesn't happen in the success
       // branch here — if there are errors we never reach a
       // wasAborted-without-errors state.
       cancelled: context.wasAborted && context.errors.length === 0,
-      content: context.accumulatedContent,
+      content: resultContent(context, lifecycleOptions),
       contentBlocks: context.contentBlocks,
       toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
@@ -145,34 +166,68 @@ export async function runCopilotLifecycle(
       usage: context.usage,
       cost: context.cost,
     }
-    await lifecycleOptions.onComplete?.(result)
+    if (lifecycleOptions.onComplete) {
+      onCompleteStarted = true
+      await lifecycleOptions.onComplete(result)
+    }
     return result
   } catch (error) {
-    const err = error instanceof Error ? error : new Error('Copilot orchestration failed')
-    logger.error('Copilot orchestration failed', { error: err.message })
+    const err = toError(error)
+    // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
+    // from /api/tools/resume when an oversized tool result — a rendered-doc
+    // image — is posted back). Log those so a client-side "Stream error" that
+    // originates from a thrown backend leg (vs an `error` SSE event) is
+    // explained, not just reduced to a message string.
+    logger.error('Copilot orchestration failed', {
+      error: err.message,
+      name: err.name,
+      ...(error instanceof CopilotBackendError
+        ? { backendStatus: error.status, backendBody: error.body?.slice(0, 2000) }
+        : {}),
+    })
     // If the abort signal fired, this throw is a consequence of the
     // cancel (publisher.publish fails once the client disconnects, a
     // downstream Go read throws on ctx cancel, etc.) — NOT a real
     // backend error. Don't invoke `onError`, because on the cancel
-    // path `/api/copilot/chat/stop` is the single DB writer and
-    // `onError` would race with it via `finalizeAssistantTurn`,
-    // clearing `conversationId` before stop's UPDATE can match (see
-    // `buildOnComplete` in chat/post.ts for the full rationale).
+    // path `onComplete(cancelled)` persists partial content with an
+    // idempotent row-locked finalizer. `onError` would race with it via
+    // `finalizeAssistantTurn`, clearing `conversationId` before the
+    // partial content can be appended.
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
     const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
-    if (!wasCancelled) {
-      await lifecycleOptions.onError?.(err)
-    }
-    return {
+    // Preserve whatever streamed before the throw for both terminals. A thrown
+    // backend error (as opposed to an `error` SSE event that lets the loop finish
+    // normally) must still carry the partial assistant turn so onError can
+    // persist it — otherwise the post-error refetch replaces the rich live turn
+    // with an empty assistant row and the UI appears to wipe the message +
+    // subagent work.
+    const result: OrchestratorResult = {
       success: false,
       cancelled: wasCancelled,
-      content: '',
-      contentBlocks: [],
-      toolCalls: [],
+      content: context.accumulatedContent,
+      contentBlocks: context.contentBlocks,
+      toolCalls: buildToolCallSummaries(context),
       chatId: context.chatId,
+      requestId: context.requestId,
       error: err.message,
+      errors: context.errors.length ? context.errors : undefined,
+      usage: context.usage,
+      cost: context.cost,
     }
+
+    if (!wasCancelled) {
+      await lifecycleOptions.onError?.(err, result)
+    } else if (!onCompleteStarted && lifecycleOptions.onComplete) {
+      try {
+        await lifecycleOptions.onComplete(result)
+      } catch (completeError) {
+        logger.error('Cancelled copilot completion callback failed', {
+          error: toError(completeError).message,
+        })
+      }
+    }
+    return result
   }
 }
 
@@ -191,6 +246,22 @@ async function runCheckpointLoop(
   let payload: Record<string, unknown> = initialPayload
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
+  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+
+  // Go's auth middleware re-validates every Sim -> Go request by reading
+  // workspaceId from the JSON body and forwarding it to Sim's validate route,
+  // where it is required for the per-member usage gate. Normalize the initial
+  // leg from the lifecycle option so callers that only set the option (not the
+  // raw payload) still send it on the first request.
+  if (lifecycleWorkspaceId && !nonBlankString(payload.workspaceId)) {
+    payload = { ...payload, workspaceId: lifecycleWorkspaceId }
+  }
+
+  // Enterprise BYOK eligibility hint: set once on the initial mothership request
+  // so Go only attempts a BYOK lookup for entitled workspaces. This is only a
+  // gate — Go re-confirms entitlement authoritatively before using any key.
+  payload = await withByokEligibilityHint(payload, route, lifecycleWorkspaceId)
 
   for (;;) {
     context.streamComplete = false
@@ -243,17 +314,38 @@ async function runCheckpointLoop(
       hasCheckpoint: !!context.awaitingAsyncContinuation,
     })
 
+    // Snapshot recorded errors before this attempt. If the attempt fails with
+    // a retryable resume error, we roll back to this baseline before retrying
+    // so a subsequent successful retry doesn't inherit the failed attempt's
+    // errors (e.g. "backend stream ended before a terminal event") and get
+    // mis-finalized as `error`.
+    const errorsBeforeAttempt = context.errors.length
+
+    // A resume leg that is not the last allowed attempt will be retried below
+    // on a retryable stream error. Tell Go so it treats a mid-flight provider
+    // error as non-terminal for the UI and suppresses the user-facing error tag
+    // that a recovered retry should not show. Billing is still flushed for
+    // every leg; /api/billing/update-cost records cumulative cost as a
+    // monotonic top-up, so the partial retry leg and the recovered terminal leg
+    // reconcile to the maximum cumulative total. Recomputed per attempt because
+    // the same payload is reused across retries.
+    const willRetryOnStreamError = isResume && resumeAttempt < MAX_RESUME_ATTEMPTS - 1
+    const legPayload = willRetryOnStreamError
+      ? { ...payload, willRetryOnStreamError: true }
+      : payload
+
     try {
       await runStreamLoop(
-        `${SIM_AGENT_API_URL}${route}`,
+        `${mothershipBaseURL}${route}`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+            ...getMothershipSourceEnvHeaders(),
             'X-Client-Version': SIM_AGENT_VERSION,
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(legPayload),
         },
         context,
         execContext,
@@ -279,6 +371,9 @@ async function runCheckpointLoop(
         isRetryableStreamError(streamError) &&
         resumeAttempt < MAX_RESUME_ATTEMPTS - 1
       ) {
+        // Discard errors recorded during this failed attempt; we're about to
+        // redo this leg and a clean retry must not finalize as `error`.
+        context.errors.length = errorsBeforeAttempt
         resumeAttempt++
         const backoff = RESUME_BACKOFF_MS[resumeAttempt - 1] ?? 1000
         logger.warn('Resume stream failed, retrying', {
@@ -314,15 +409,48 @@ async function runCheckpointLoop(
     if (!continuation) break
 
     if (context.pendingToolPromises.size > 0) {
+      // Bounded by the slowest pending tool's watchdog plus grace. The
+      // per-tool watchdog already guarantees each promise settles; this gate
+      // is the structural backstop so that no tool failure mode — known or
+      // unknown — can park the checkpoint loop (and the chat's pending-stream
+      // lock) forever.
+      const waitBudgetMs =
+        Array.from(context.pendingToolPromises.keys()).reduce(
+          (max, toolCallId) =>
+            Math.max(max, toolWatchdogTimeoutMs(context.toolCalls.get(toolCallId)?.name)),
+          0
+        ) + TOOL_WATCHDOG_RESUME_GRACE_MS
       const waitSpan = context.trace.startSpan('Wait for Tools', 'lifecycle.wait_tools', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
+        waitBudgetMs,
       })
       logger.info('Waiting for in-flight tool executions before resume', {
         checkpointId: continuation.checkpointId,
         pendingCount: context.pendingToolPromises.size,
+        waitBudgetMs,
       })
-      await Promise.allSettled(context.pendingToolPromises.values())
+      const settledInTime = await Promise.race([
+        Promise.allSettled(context.pendingToolPromises.values()).then(() => true),
+        sleep(waitBudgetMs).then(() => false),
+      ])
+      if (!settledInTime) {
+        const hungToolCallIds = Array.from(context.pendingToolPromises.keys())
+        logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
+          checkpointId: continuation.checkpointId,
+          waitBudgetMs,
+          hungToolCallIds,
+        })
+        for (const toolCallId of hungToolCallIds) {
+          await forceFailHungToolCall(
+            toolCallId,
+            context,
+            'Tool execution hung on the Sim executor and was abandoned so the conversation could continue.'
+          )
+          context.pendingToolPromises.delete(toolCallId)
+        }
+      }
+      waitSpan.attributes = { ...waitSpan.attributes, settledInTime }
       context.trace.endSpan(waitSpan)
     }
 
@@ -412,6 +540,8 @@ async function runCheckpointLoop(
     payload = {
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
+      userId: options.userId,
+      ...(lifecycleWorkspaceId ? { workspaceId: lifecycleWorkspaceId } : {}),
       results,
     }
 
@@ -450,6 +580,8 @@ async function buildExecutionContext(
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
+  const userPermission =
+    typeof requestPayload?.userPermission === 'string' ? requestPayload.userPermission : undefined
 
   let execContext: ExecutionContext
   if (workflowId) {
@@ -468,6 +600,7 @@ async function buildExecutionContext(
   if (userTimezone) execContext.userTimezone = userTimezone
   execContext.copilotToolExecution = true
   if (requestMode) execContext.requestMode = requestMode
+  if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
     typeof requestPayload?.messageId === 'string' ? requestPayload.messageId : undefined
   execContext.executionId = executionId
@@ -526,6 +659,35 @@ async function ensureHeadlessRunIdentity(input: {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Adds `enterpriseByokEligible: true` to the initial mothership payload when the
+ * workspace is on an enterprise plan. BYOK is mothership-only, so non-mothership
+ * routes (e.g. `/api/copilot`) are left untouched. Failures default to hosted.
+ */
+async function withByokEligibilityHint(
+  payload: Record<string, unknown>,
+  route: string,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  // The eligibility hint is server-authoritative: always overwrite any
+  // client-supplied value with a server-derived boolean so a client can never
+  // assert its own eligibility. (Copilot's ValidateBYOK is the final authority,
+  // but the hint must never originate from the client.) BYOK is mothership-only;
+  // everything else gets an explicit false.
+  let eligible = false
+  if (workspaceId && route.startsWith('/api/mothership')) {
+    try {
+      eligible = await isWorkspaceOnEnterprisePlan(workspaceId)
+    } catch (error) {
+      logger.warn('Failed to resolve BYOK eligibility; defaulting to hosted', {
+        workspaceId,
+        error: toError(error).message,
+      })
+    }
+  }
+  return { ...payload, enterpriseByokEligible: eligible }
+}
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
   return !!(options.abortSignal?.aborted || context.wasAborted)

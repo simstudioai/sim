@@ -184,7 +184,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -214,7 +214,7 @@ describe('Knowledge Search Utils', () => {
           }),
         })
       )
-      expect(result).toEqual([0.1, 0.2, 0.3])
+      expect(result.embedding).toEqual([0.1, 0.2, 0.3])
 
       // Clean up
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -396,11 +396,11 @@ describe('Knowledge Search Utils', () => {
     })
   })
 
-  describe('getDocumentNamesByIds', () => {
+  describe('getDocumentMetadataByIds', () => {
     it('should handle empty input gracefully', async () => {
-      const { getDocumentNamesByIds } = await import('./utils')
+      const { getDocumentMetadataByIds } = await import('./utils')
 
-      const result = await getDocumentNamesByIds([])
+      const result = await getDocumentMetadataByIds([])
 
       expect(result).toEqual({})
     })

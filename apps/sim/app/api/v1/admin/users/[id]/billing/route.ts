@@ -29,6 +29,7 @@ import {
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import { getUserUsageData } from '@/lib/billing/core/usage'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -78,6 +79,11 @@ export const GET = withRouteHandler(
 
       const [stats] = await db.select().from(userStats).where(eq(userStats.userId, userId)).limit(1)
 
+      // currentPeriodCost is now only a baseline; canonical current-period usage
+      // (baseline + attributed usage_log, refresh-adjusted) comes from the same
+      // helper users see, so admin reflects real usage instead of a stale 0.
+      const usage = await getUserUsageData(userId)
+
       const memberOrgs = await db
         .select({
           organizationId: member.organizationId,
@@ -107,27 +113,14 @@ export const GET = withRouteHandler(
         userName: userData.name,
         userEmail: userData.email,
         stripeCustomerId: userData.stripeCustomerId,
-        totalManualExecutions: stats?.totalManualExecutions ?? 0,
-        totalApiCalls: stats?.totalApiCalls ?? 0,
-        totalWebhookTriggers: stats?.totalWebhookTriggers ?? 0,
-        totalScheduledExecutions: stats?.totalScheduledExecutions ?? 0,
-        totalChatExecutions: stats?.totalChatExecutions ?? 0,
-        totalMcpExecutions: stats?.totalMcpExecutions ?? 0,
-        totalA2aExecutions: stats?.totalA2aExecutions ?? 0,
-        totalTokensUsed: stats?.totalTokensUsed ?? 0,
-        totalCost: stats?.totalCost ?? '0',
         currentUsageLimit: stats?.currentUsageLimit ?? null,
-        currentPeriodCost: stats?.currentPeriodCost ?? '0',
+        currentPeriodCost: usage.currentUsage.toString(),
         lastPeriodCost: stats?.lastPeriodCost ?? null,
         billedOverageThisPeriod: stats?.billedOverageThisPeriod ?? '0',
         storageUsedBytes: stats?.storageUsedBytes ?? 0,
-        lastActive: stats?.lastActive?.toISOString() ?? null,
         billingBlocked: stats?.billingBlocked ?? false,
-        totalCopilotCost: stats?.totalCopilotCost ?? '0',
         currentPeriodCopilotCost: stats?.currentPeriodCopilotCost ?? '0',
         lastPeriodCopilotCost: stats?.lastPeriodCopilotCost ?? null,
-        totalCopilotTokens: stats?.totalCopilotTokens ?? 0,
-        totalCopilotCalls: stats?.totalCopilotCalls ?? 0,
         subscriptions: subscriptions.map(toAdminSubscription),
         organizationMemberships: memberOrgs.map((m) => ({
           organizationId: m.organizationId,

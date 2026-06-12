@@ -1,98 +1,57 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Input } from '@/components/emcn'
-import { blockTypeToIconMap } from '@/app/(landing)/integrations/data/icon-mapping'
-import type { Integration } from '@/app/(landing)/integrations/data/types'
-import { IntegrationRow } from './integration-card'
+import { useState } from 'react'
+import { ChipInput, Search } from '@/components/emcn'
+import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
+import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  ai: 'AI',
-  analytics: 'Analytics',
-  communication: 'Communication',
-  crm: 'CRM',
-  'customer-support': 'Customer Support',
-  databases: 'Databases',
-  design: 'Design',
-  'developer-tools': 'Developer Tools',
-  documents: 'Documents',
-  ecommerce: 'E-commerce',
-  email: 'Email',
-  'file-storage': 'File Storage',
-  hr: 'HR',
-  productivity: 'Productivity',
-  sales: 'Sales',
-  search: 'Search',
-  security: 'Security',
-  other: 'Other',
-} as const
+const PILL_BASE =
+  'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
+const PILL_ACTIVE = 'bg-[var(--landing-bg-elevated)]' as const
+const PILL_INACTIVE = 'hover:bg-[var(--landing-bg-elevated)]' as const
 
 interface IntegrationGridProps {
-  integrations: Integration[]
+  integrations: readonly Integration[]
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
   const [query, setQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState<string | null>(null)
 
-  const availableCategories = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const i of integrations) {
-      if (i.integrationTypes) {
-        for (const t of i.integrationTypes) {
-          counts.set(t, (counts.get(t) || 0) + 1)
-        }
-      }
+  const counts = new Map<string, number>()
+  for (const i of integrations) {
+    if (i.integrationType) {
+      counts.set(i.integrationType, (counts.get(i.integrationType) || 0) + 1)
     }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([key]) => key)
-  }, [integrations])
+  }
+  const availableCategories = Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([key]) => key)
 
-  const filtered = useMemo(() => {
-    let results = integrations
-
-    if (activeCategory) {
-      results = results.filter((i) => i.integrationTypes?.includes(activeCategory))
-    }
-
-    const q = query.trim().toLowerCase()
-    if (q) {
-      results = results.filter(
-        (i) =>
-          i.name.toLowerCase().includes(q) ||
-          i.description.toLowerCase().includes(q) ||
-          i.operations.some(
-            (op) => op.name.toLowerCase().includes(q) || op.description.toLowerCase().includes(q)
-          ) ||
-          i.triggers.some((t) => t.name.toLowerCase().includes(q))
-      )
-    }
-
-    return results
-  }, [integrations, query, activeCategory])
+  const q = query.trim().toLowerCase()
+  const filtered = integrations.filter((i) => {
+    if (activeCategory && i.integrationType !== activeCategory) return false
+    if (!q) return true
+    return (
+      i.name.toLowerCase().includes(q) ||
+      i.description.toLowerCase().includes(q) ||
+      i.operations.some(
+        (op) => op.name.toLowerCase().includes(q) || op.description.toLowerCase().includes(q)
+      ) ||
+      i.triggers.some((t) => t.name.toLowerCase().includes(q))
+    )
+  })
 
   return (
     <div>
       <div className='mb-6 flex flex-col gap-4 px-6 sm:flex-row sm:items-center'>
-        <div className='relative max-w-[480px] flex-1'>
-          <svg
-            aria-hidden='true'
-            className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 h-4 w-4 text-[#555]'
-            fill='none'
-            stroke='currentColor'
-            strokeWidth={2}
-            viewBox='0 0 24 24'
-          >
-            <circle cx={11} cy={11} r={8} />
-            <path d='m21 21-4.35-4.35' />
-          </svg>
-          <Input
+        <div className='max-w-[480px] flex-1'>
+          <ChipInput
+            icon={Search}
             type='search'
             placeholder='Search integrations, tools, or triggers…'
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className='pl-9'
             aria-label='Search integrations'
           />
         </div>
@@ -102,11 +61,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         <button
           type='button'
           onClick={() => setActiveCategory(null)}
-          className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
-            activeCategory === null
-              ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
-              : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
-          }`}
+          className={`${PILL_BASE} ${activeCategory === null ? PILL_ACTIVE : PILL_INACTIVE}`}
         >
           All
         </button>
@@ -115,13 +70,9 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
             key={cat}
             type='button'
             onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-            className={`rounded-[5px] border px-[9px] py-0.5 text-[13.5px] transition-colors ${
-              activeCategory === cat
-                ? 'border-[var(--landing-border-strong)] bg-[var(--landing-bg-elevated)] text-[var(--landing-text)]'
-                : 'border-[var(--landing-border-strong)] text-[var(--landing-text)] hover:bg-[var(--landing-bg-elevated)]'
-            }`}
+            className={`${PILL_BASE} ${activeCategory === cat ? PILL_ACTIVE : PILL_INACTIVE}`}
           >
-            {CATEGORY_LABELS[cat] || cat}
+            {formatIntegrationType(cat)}
           </button>
         ))}
       </div>
@@ -132,7 +83,7 @@ export function IntegrationGrid({ integrations }: IntegrationGridProps) {
         <p className='py-12 text-center text-[15px] text-[var(--landing-text-subtle)]'>
           No integrations found
           {query ? <> for &ldquo;{query}&rdquo;</> : null}
-          {activeCategory ? <> in {CATEGORY_LABELS[activeCategory] || activeCategory}</> : null}
+          {activeCategory ? <> in {formatIntegrationType(activeCategory)}</> : null}
         </p>
       ) : (
         <div>

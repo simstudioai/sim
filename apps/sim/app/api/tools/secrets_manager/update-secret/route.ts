@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
 import { awsSecretsManagerUpdateSecretContract } from '@/lib/api/contracts/tools/aws/secrets-manager-update-secret'
@@ -51,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       client.destroy()
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+    const errorMessage = getErrorMessage(error, 'Unknown error occurred')
     logger.error(`[${requestId}] Failed to update secret:`, error)
 
     return NextResponse.json({ error: `Failed to update secret: ${errorMessage}` }, { status: 500 })

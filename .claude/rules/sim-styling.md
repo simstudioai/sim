@@ -16,7 +16,7 @@ paths:
 ## Conditional Classes
 
 ```typescript
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/core/utils/cn'
 
 <div className={cn(
   'base-classes',
@@ -39,3 +39,40 @@ setWidth: (width) => {
 // In component
 <aside style={{ width: 'var(--sidebar-width)' }} />
 ```
+
+## Text Scale
+
+Custom font sizes (`apps/sim/tailwind.config.ts`): `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px. `text-sm` is Tailwind default 14px. Field titles use `text-small` (13px); hints/errors use `text-caption` (12px).
+
+Icons default `size-[14px]`. Equal h/w → `size-*` (`size-[14px]`, `size-4`), never `h-N w-N`.
+
+## Color Tokens
+
+Value text `--text-body`; muted/placeholder/labels `--text-muted`; icons `--text-icon`; borders `--border-1` (fields) / `--border` (dividers); surfaces `--surface-5` (light) / `--surface-4` (dark); active row `--surface-active`; error `--text-error`. No focus rings on chip surfaces.
+
+## Chip Components (consumer usage)
+
+`ChipInput`, `ChipTextarea`, `ChipModal*` own their full chrome. Consumers describe intent through PROPS; they never re-style the chrome. The canonical chrome lives in `apps/sim/components/emcn/components/chip/chip-chrome.ts` (all tokens are re-exported from the `@/components/emcn` barrel — no subpath import needed) — never hand-roll `rounded-lg`/`border`/`bg-[var(--surface-5)]`/`h-[30px]`/`px-2`/`text-sm`/focus rings.
+
+### Props over className
+
+- **Errors** → `error` prop. Never `className={cn(err && 'border-[var(--text-error)]')}`.
+- **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
+- **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
+- **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field.tsx:117`.
+- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx:170`.
+
+### What className MAY carry
+
+Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins, `truncate`. Example: `<ChipInput icon={Search} className='min-w-0 flex-1' .../>` (`app/workspace/[workspaceId]/integrations/integrations.tsx:257`). NEVER re-specify canonical chrome — the component already applies it.
+
+### Form / chip-modal layout rhythm
+
+- **Field row** = `ChipModalField`: label↔control `gap-[9px]`, field gutter `px-2` (`px-0` when `flush`). Title = `Label` at `text-small` (13px), muted, normal weight; hint/error at `text-caption` (12px).
+- **Modal body** (`ChipModalBody`): `gap-4` between fields, padding `px-2 pt-4 pb-4.5`.
+- **Header/footer**: horizontal gutter `px-4` (header `pt-3`; footer `px-4 pt-2 pb-2`, tinted bar).
+- **Every body field MUST be a `ChipModalField`** — NEVER hand-roll a field row (raw `<div>` + hand-rolled `<p>`/`<label>` title + bare `ChipInput`/`ChipTextarea`). WHY: body `px-2` + field `px-2` = effective `px-4`, exactly matching the `px-4` header/footer. A hand-rolled row skips the field gutter, sits at `px-2`, and is visibly misaligned (this bug shipped in the scheduled-tasks "Create new scheduled task" modal). Inline errors go through the `error` prop, not a hand-rolled `<p>`.
+- **Uncovered controls** (`ChipCombobox`, `ChipSelect`, `DatePicker`, `TimePicker`, `ButtonGroup`, arbitrary JSX) → `ChipModalField type='custom'` with a `title`. It still applies the `px-2` gutter and renders the canonical `Label`, so it stays aligned. Never drop such a control into a raw `<div>`, and never add a body-level wrapper `<div>` with a custom `gap-*` that fights `gap-4`.
+- **Page section rhythm** (integrations/skills/settings): muted `text-small` label + `mt-[9px] mb-3 h-px bg-[var(--border)]` divider, sections stacked `gap-7`. Reuse `SettingsSection` (`app/workspace/[workspaceId]/settings/components/settings-section/settings-section.tsx`) rather than re-deriving it.
+
+When a standalone labeled field outside a `ChipModal` needs the same look (e.g. `SkillImport`), match the field rhythm by hand: `flex flex-col gap-[9px]`, muted label, `ChipInput`/`ChipTextarea` control, `text-caption` error below.

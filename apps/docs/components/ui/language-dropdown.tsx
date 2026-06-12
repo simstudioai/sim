@@ -1,14 +1,7 @@
 'use client'
 
-import { Check } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { cn } from '@/lib/utils'
+import { ChipDropdown } from '@/components/ui/chip-dropdown'
 
 const languages = {
   en: { name: 'English', flag: '🇺🇸' },
@@ -22,7 +15,13 @@ const languages = {
 export function LanguageDropdown() {
   const pathname = usePathname()
   const params = useParams()
-  const router = useRouter()
+  const { push } = useRouter()
+
+  const languageOptions = Object.entries(languages).map(([code, lang]) => ({
+    value: code,
+    label: lang.name,
+    iconElement: <span className='text-[13px]'>{lang.flag}</span>,
+  }))
 
   const langFromParams = params?.lang as string
   const currentLang =
@@ -44,47 +43,17 @@ export function LanguageDropdown() {
       newPath = `/${locale}${segments.length > 0 ? `/${segments.join('/')}` : '/introduction'}`
     }
 
-    router.push(newPath)
+    push(newPath)
   }
 
-  const languageEntries = Object.entries(languages)
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button className='flex cursor-pointer items-center gap-1.5 rounded-[8px] px-2.5 py-1.5 text-[13px] text-foreground/50 transition-colors duration-200 hover:bg-neutral-100 hover:text-foreground/70 focus:outline-none dark:hover:bg-neutral-800 dark:hover:text-foreground/70'>
-          <span>{languages[currentLang as keyof typeof languages]?.name}</span>
-          <svg width='8' height='5' viewBox='0 0 10 6' fill='none' className='flex-shrink-0'>
-            <path
-              d='M1 1L5 5L9 1'
-              stroke='currentColor'
-              strokeWidth='1.33'
-              strokeLinecap='square'
-              strokeLinejoin='miter'
-            />
-          </svg>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' sideOffset={6} className='min-w-[160px]'>
-        {languageEntries.map(([code, lang]) => {
-          const isSelected = currentLang === code
-
-          return (
-            <DropdownMenuItem
-              key={code}
-              onClick={() => handleLanguageChange(code)}
-              className={cn(
-                'flex cursor-pointer items-center gap-2 text-[13px]',
-                isSelected && 'font-medium'
-              )}
-            >
-              <span className='text-[13px]'>{lang.flag}</span>
-              <span className='flex-1'>{lang.name}</span>
-              {isSelected && <Check className='ml-auto h-3.5 w-3.5' />}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <ChipDropdown
+      value={currentLang}
+      onChange={handleLanguageChange}
+      options={languageOptions}
+      align='end'
+      matchTriggerWidth={false}
+      contentClassName='min-w-[160px]'
+    />
   )
 }

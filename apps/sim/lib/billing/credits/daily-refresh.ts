@@ -16,6 +16,7 @@ import { member, usageLog, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, gte, inArray, lt, or, sql, sum } from 'drizzle-orm'
 import { DAILY_REFRESH_RATE } from '@/lib/billing/constants'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('DailyRefresh')
 
@@ -41,15 +42,27 @@ export interface PerUserBounds {
  *
  * @returns Total dollars of refresh consumed across all days (to subtract from usage)
  */
-export async function computeDailyRefreshConsumed(params: {
-  userIds: string[]
-  periodStart: Date
-  periodEnd?: Date | null
-  planDollars: number
-  seats?: number
-  userBounds?: Record<string, PerUserBounds>
-}): Promise<number> {
-  const { userIds, periodStart, periodEnd, planDollars, seats = 1, userBounds } = params
+export async function computeDailyRefreshConsumed(
+  params: {
+    userIds: string[]
+    periodStart: Date
+    periodEnd?: Date | null
+    planDollars: number
+    seats?: number
+    userBounds?: Record<string, PerUserBounds>
+    billingEntity?: { type: 'user' | 'organization'; id: string }
+  },
+  executor: DbClient = db
+): Promise<number> {
+  const {
+    userIds,
+    periodStart,
+    periodEnd,
+    planDollars,
+    seats = 1,
+    userBounds,
+    billingEntity,
+  } = params
 
   if (planDollars <= 0 || userIds.length === 0) return 0
 
@@ -64,6 +77,13 @@ export async function computeDailyRefreshConsumed(params: {
   if (dayCount <= 0) return 0
 
   const unboundedUsers = userBounds ? userIds.filter((id) => !(id in userBounds)) : userIds
+  const billingEntityFilter = billingEntity
+    ? and(
+        eq(usageLog.billingEntityType, billingEntity.type),
+        eq(usageLog.billingEntityId, billingEntity.id),
+        eq(usageLog.billingPeriodStart, periodStart)
+      )
+    : undefined
 
   const boundedClauses = userBounds
     ? Object.entries(userBounds).flatMap(([userId, bounds]) => {
@@ -75,6 +95,7 @@ export async function computeDailyRefreshConsumed(params: {
         return [
           and(
             eq(usageLog.userId, userId),
+            billingEntityFilter,
             gte(usageLog.createdAt, effectiveStart),
             lt(usageLog.createdAt, effectiveEnd)
           ),
@@ -87,6 +108,7 @@ export async function computeDailyRefreshConsumed(params: {
       ? [
           and(
             inArray(usageLog.userId, unboundedUsers),
+            billingEntityFilter,
             gte(usageLog.createdAt, periodStart),
             lt(usageLog.createdAt, cap)
           ),
@@ -96,7 +118,7 @@ export async function computeDailyRefreshConsumed(params: {
 
   if (rowFilters.length === 0) return 0
 
-  const rows = await db
+  const rows = await executor
     .select({
       dayIndex:
         sql<number>`FLOOR((EXTRACT(EPOCH FROM ${usageLog.createdAt}) - ${Math.floor(periodStart.getTime() / 1000)}) / 86400)`.as(
@@ -135,9 +157,10 @@ export function getDailyRefreshDollars(planDollars: number): number {
 
 export async function getOrgMemberRefreshBounds(
   organizationId: string,
-  periodStart: Date
+  periodStart: Date,
+  executor: DbClient = db
 ): Promise<Record<string, { userStart: Date }>> {
-  const rows = await db
+  const rows = await executor
     .select({
       userId: member.userId,
       snapshotAt: userStats.proPeriodCostSnapshotAt,

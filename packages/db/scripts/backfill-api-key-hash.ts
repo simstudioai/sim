@@ -27,6 +27,7 @@
  */
 
 import { createCipheriv, createDecipheriv, createHash } from 'crypto'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -171,9 +172,7 @@ export async function runBackfill(): Promise<void> {
             stats.updated += 1
           } catch (error) {
             stats.failed += 1
-            console.error(
-              `Failed to backfill api_key id=${row.id}: ${error instanceof Error ? error.message : String(error)}`
-            )
+            console.error(`Failed to backfill api_key id=${row.id}: ${getErrorMessage(error)}`)
           }
         })
       )
@@ -225,7 +224,7 @@ if ((import.meta as { main?: boolean }).main) {
   try {
     await runBackfill()
   } catch (error) {
-    console.error('Backfill aborted:', error instanceof Error ? error.message : error)
+    console.error('Backfill aborted:', getErrorMessage(error))
     process.exitCode = 1
   }
 }

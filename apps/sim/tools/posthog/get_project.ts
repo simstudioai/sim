@@ -6,7 +6,7 @@ export interface PostHogGetProjectParams {
   region?: 'us' | 'eu'
 }
 
-export interface PostHogProjectDetail {
+interface PostHogProjectDetail {
   id: number
   uuid: string
   organization: string

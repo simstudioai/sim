@@ -1,26 +1,23 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface WorkdayBaseParams {
+interface WorkdayBaseParams {
   tenantUrl: string
   tenant: string
   username: string
   password: string
 }
 
-export interface WorkdayWorker {
-  id: string
-  descriptor: string
-  primaryWorkEmail?: string
-  primaryWorkPhone?: string
-  businessTitle?: string
-  supervisoryOrganization?: string
-  hireDate?: string
-  workerType?: string
-  isActive?: boolean
+interface WorkdayWorker {
+  id: string | null
+  descriptor: string | null
+  personalData?: unknown
+  employmentData?: unknown
+  compensationData?: unknown
+  organizationData?: unknown
   [key: string]: unknown
 }
 
-export interface WorkdayOrganization {
+interface WorkdayOrganization {
   id: string
   descriptor: string
   type?: string

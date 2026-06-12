@@ -1,11 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { slackSendMessageContract } from '@/lib/api/contracts/tools/communication/slack'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { sendSlackMessage } from '../utils'
+import { FileAccessDeniedError } from '@/app/api/files/authorization'
+import { sendSlackMessage } from '@/app/api/tools/slack/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +19,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(`[${requestId}] Unauthorized Slack send attempt: ${authResult.error}`)
       return NextResponse.json(
         {
@@ -28,8 +30,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    const userId = authResult.userId
     logger.info(`[${requestId}] Authenticated Slack send request via ${authResult.authType}`, {
-      userId: authResult.userId,
+      userId,
     })
 
     const parsed = await parseRequest(slackSendMessageContract, request, {})
@@ -50,6 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         accessToken: validatedData.accessToken,
         channel: validatedData.channel ?? undefined,
         userId: validatedData.userId ?? undefined,
+        ownerUserId: userId,
         text: validatedData.text,
         threadTs: validatedData.thread_ts ?? undefined,
         blocks: validatedData.blocks ?? undefined,
@@ -65,11 +69,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json({ success: true, output: result.output })
   } catch (error) {
+    if (error instanceof FileAccessDeniedError) {
+      return NextResponse.json({ success: false, error: 'File not found' }, { status: 404 })
+    }
     logger.error(`[${requestId}] Error sending Slack message:`, error)
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: getErrorMessage(error, 'Unknown error occurred'),
       },
       { status: 500 }
     )

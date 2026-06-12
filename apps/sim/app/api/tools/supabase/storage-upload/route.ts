@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { supabaseStorageUploadContract } from '@/lib/api/contracts/tools/databases/supabase'
 import { parseToolRequest } from '@/lib/api/server'
@@ -8,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processSingleFileToUserFile } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +21,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
-    if (!authResult.success) {
+    if (!authResult.success || !authResult.userId) {
       logger.warn(
         `[${requestId}] Unauthorized Supabase storage upload attempt: ${authResult.error}`
       )
@@ -137,12 +139,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json(
           {
             success: false,
-            error: error instanceof Error ? error.message : 'Failed to process file',
+            error: getErrorMessage(error, 'Failed to process file'),
           },
           { status: 400 }
         )
       }
 
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
       const buffer = await downloadFileFromStorage(userFile, requestId, logger)
 
       uploadBody = buffer
@@ -238,7 +242,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: getErrorMessage(error, 'Internal server error'),
       },
       { status: 500 }
     )

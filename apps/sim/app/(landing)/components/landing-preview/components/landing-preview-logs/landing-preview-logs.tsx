@@ -1,16 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Download } from 'lucide-react'
 import { ArrowUpDown, Badge, Library, ListFilter, Search } from '@/components/emcn'
 import type { BadgeProps } from '@/components/emcn/components/badge/badge'
+import { Download, Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 
 interface LogRow {
   id: string
   workflowName: string
-  workflowColor: string
   date: string
   status: 'completed' | 'error' | 'running'
   cost: string
@@ -46,7 +44,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '1',
     workflowName: 'Customer Onboarding',
-    workflowColor: '#4f8ef7',
     date: 'Apr 1  10:42 AM',
     status: 'running',
     cost: '-',
@@ -57,7 +54,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '2',
     workflowName: 'Lead Enrichment',
-    workflowColor: '#33C482',
     date: 'Apr 1  09:15 AM',
     status: 'error',
     cost: '1 credit',
@@ -68,7 +64,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '3',
     workflowName: 'Email Campaign',
-    workflowColor: '#a855f7',
     date: 'Apr 1  08:30 AM',
     status: 'completed',
     cost: '2 credits',
@@ -79,7 +74,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '4',
     workflowName: 'Data Pipeline',
-    workflowColor: '#f97316',
     date: 'Mar 31  10:14 PM',
     status: 'completed',
     cost: '7 credits',
@@ -90,7 +84,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '5',
     workflowName: 'Invoice Processing',
-    workflowColor: '#ec4899',
     date: 'Mar 31  08:45 PM',
     status: 'completed',
     cost: '2 credits',
@@ -101,7 +94,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '6',
     workflowName: 'Support Triage',
-    workflowColor: '#0ea5e9',
     date: 'Mar 31  07:22 PM',
     status: 'completed',
     cost: '3 credits',
@@ -112,7 +104,6 @@ const MOCK_LOGS: LogRow[] = [
   {
     id: '7',
     workflowName: 'Content Moderator',
-    workflowColor: '#f59e0b',
     date: 'Mar 31  06:11 PM',
     status: 'error',
     cost: '1 credit',
@@ -280,14 +271,7 @@ export function LandingPreviewLogs() {
               >
                 <td className='px-6 align-middle'>
                   <div className='flex items-center gap-2'>
-                    <div
-                      className='h-[10px] w-[10px] flex-shrink-0 rounded-[3px] border-[1.5px]'
-                      style={{
-                        backgroundColor: log.workflowColor,
-                        borderColor: workflowBorderColor(log.workflowColor),
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
+                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                     <span className='min-w-0 truncate font-medium text-[var(--text-primary)] text-caption'>
                       {log.workflowName}
                     </span>

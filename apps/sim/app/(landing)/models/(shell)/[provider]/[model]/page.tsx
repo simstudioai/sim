@@ -54,27 +54,18 @@ export async function generateMetadata({
       `${provider.name} model pricing`,
       ...model.capabilityTags,
     ],
+    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
       title: `${model.displayName} Pricing, Context Window, and Features | Sim`,
       description: `${model.displayName} by ${provider.name}: pricing, context window, and model capability details.`,
       url: `${baseUrl}${model.href}`,
       type: 'website',
-      images: [
-        {
-          url: `${baseUrl}${model.href}/opengraph-image`,
-          width: 1200,
-          height: 630,
-          alt: `${model.displayName} on Sim`,
-        },
-      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${model.displayName} | Sim`,
       description: model.summary,
-      images: [
-        { url: `${baseUrl}${model.href}/opengraph-image`, alt: `${model.displayName} on Sim` },
-      ],
     },
     alternates: {
       canonical: `${baseUrl}${model.href}`,
@@ -168,7 +159,7 @@ export default async function ModelPage({
               className='group/link inline-flex items-center gap-1.5 font-season text-[var(--landing-text-muted)] text-sm tracking-[0.02em] hover:text-[var(--landing-text)]'
             >
               <svg
-                className='h-3 w-3 shrink-0'
+                className='size-3 shrink-0'
                 viewBox='0 0 10 10'
                 fill='none'
                 xmlns='http://www.w3.org/2000/svg'
@@ -200,7 +191,7 @@ export default async function ModelPage({
           <div className='mb-6 flex items-center gap-5'>
             <ProviderIcon
               provider={provider}
-              className='h-16 w-16 rounded-[5px]'
+              className='size-16 rounded-[5px]'
               iconClassName='h-8 w-8'
             />
             <div>
@@ -222,12 +213,12 @@ export default async function ModelPage({
           </p>
 
           <div className='flex flex-wrap gap-2'>
-            <a
+            <Link
               href='/'
               className='inline-flex h-[32px] items-center gap-2 rounded-[5px] border border-white bg-white px-2.5 font-season text-black text-sm transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
             >
               Build with this model
-            </a>
+            </Link>
             <Link
               href={provider.href}
               className='inline-flex h-[32px] items-center rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-season text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'

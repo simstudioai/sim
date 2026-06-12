@@ -12,8 +12,14 @@ import {
 import { parseRequest, validationErrorResponseFromError } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData } from '@/lib/table'
-import { updateRow } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
+import {
+  buildIdByName,
+  buildNameById,
+  rowDataIdToName,
+  rowDataNameToId,
+  updateRow,
+} from '@/lib/table'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -49,7 +55,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'read')
@@ -81,12 +87,13 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RowRou
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
+    const nameById = buildNameById(result.table.schema as TableSchema)
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: row.data,
+          data: rowDataIdToName(row.data as RowData, nameById),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -117,7 +124,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     const { tableId, rowId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')
@@ -129,12 +136,15 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const nameById = buildNameById(table.schema as TableSchema)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: validated.data as RowData,
+        data: rowDataNameToId(validated.data as RowData, idByName),
         workspaceId: validated.workspaceId,
+        actorUserId: userId,
       },
       table,
       requestId
@@ -144,13 +154,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     if (!updatedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
+    // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
+    // Firing a second mode: 'incomplete' dispatch here would race with it AND
+    // bulk-clear sibling-group outputs.
 
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: updatedRow.id,
-          data: updatedRow.data,
+          data: rowDataIdToName(updatedRow.data, nameById),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
@@ -208,7 +221,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     const { tableId, rowId } = parsed.data.params
     const { workspaceId } = parsed.data.query
 
-    const scopeError = checkWorkspaceScope(rateLimit, workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, workspaceId)
     if (scopeError) return scopeError
 
     const result = await checkAccess(tableId, userId, 'write')
@@ -227,7 +240,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
           eq(userTableRows.workspaceId, workspaceId)
         )
       )
-      .returning()
+      .returning({ id: userTableRows.id })
 
     if (!deletedRow) {
       return NextResponse.json({ error: 'Row not found' }, { status: 404 })

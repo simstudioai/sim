@@ -1,13 +1,13 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { ArrowUp, Bell, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
+import { ArrowUp, Library, MoreHorizontal, RefreshCw } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOption,
   DatePicker,
   DropdownMenu,
@@ -16,12 +16,16 @@ import {
   DropdownMenuTrigger,
   Loader,
 } from '@/components/emcn'
+import { Workflow } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { captureEvent } from '@/lib/posthog/client'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
-import { type LogStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
+import {
+  formatDateShort,
+  type LogStatus,
+  STATUS_CONFIG,
+} from '@/app/workspace/[workspaceId]/logs/utils'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -42,28 +46,6 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
   { value: 'Past 30 days', label: 'Past 30 days' },
   { value: 'Custom range', label: 'Custom range' },
 ] as const
-
-/**
- * Formats a date string (YYYY-MM-DD) for display.
- */
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
-}
 
 type ViewMode = 'logs' | 'dashboard'
 
@@ -88,8 +70,6 @@ interface LogsToolbarProps {
   canEdit: boolean
   /** Whether there are logs to export */
   hasLogs: boolean
-  /** Callback when notification settings is clicked */
-  onOpenNotificationSettings: () => void
   /** Search query value */
   searchQuery: string
   /** Callback when search query changes */
@@ -106,34 +86,34 @@ const colorIconCache = new Map<string, React.ComponentType<{ className?: string 
  * Uses a cache to ensure the same color always returns the same component reference,
  * which prevents unnecessary React reconciliation.
  * @param color - CSS color value for the icon background
- * @param withRing - Whether to render the semi-transparent outer ring
  * @returns A React component that renders a colored square icon
  */
-function getColorIcon(
-  color: string,
-  withRing = false
-): React.ComponentType<{ className?: string }> {
-  const cacheKey = withRing ? `${color}-ring` : color
-  const cached = colorIconCache.get(cacheKey)
+function getColorIcon(color: string): React.ComponentType<{ className?: string }> {
+  const cached = colorIconCache.get(color)
   if (cached) return cached
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]', withRing && 'border-[1.5px]')}
+      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
       style={{
         backgroundColor: color,
         width: 10,
         height: 10,
-        ...(withRing && {
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box' as const,
-        }),
       }}
     />
   )
-  ColorIcon.displayName = `ColorIcon(${color}${withRing ? '-ring' : ''})`
-  colorIconCache.set(cacheKey, ColorIcon)
+  ColorIcon.displayName = `ColorIcon(${color})`
+  colorIconCache.set(color, ColorIcon)
   return ColorIcon
+}
+
+/**
+ * Renders the workflow skeleton icon used as the workflow filter indicator.
+ * @param props - Optional className passthrough
+ * @returns The workflow skeleton icon
+ */
+function WorkflowOptionIcon({ className }: { className?: string }) {
+  return <Workflow className={cn(className, 'flex-shrink-0 text-[var(--text-icon)]')} />
 }
 
 /**
@@ -175,7 +155,6 @@ export const LogsToolbar = memo(function LogsToolbar({
   onExport,
   canEdit,
   hasLogs,
-  onOpenNotificationSettings,
   searchQuery,
   onSearchQueryChange,
   onSearchOpenChange,
@@ -233,7 +212,6 @@ export const LogsToolbar = memo(function LogsToolbar({
     return allWorkflowList.map((w) => ({
       id: w.id,
       name: w.name,
-      color: w.color,
     }))
   }, [allWorkflowList])
 
@@ -321,7 +299,7 @@ export const LogsToolbar = memo(function LogsToolbar({
       : null
 
   const workflowOptions: ComboboxOption[] = useMemo(
-    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: getColorIcon(w.color, true) })),
+    () => workflows.map((w) => ({ value: w.id, label: w.name, icon: WorkflowOptionIcon })),
     [workflows]
   )
 
@@ -440,8 +418,8 @@ export const LogsToolbar = memo(function LogsToolbar({
       {/* Header Section */}
       <div className='flex items-start justify-between'>
         <div className='flex items-start gap-3'>
-          <div className='flex h-[26px] w-[26px] items-center justify-center rounded-md border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
-            <Library className='h-[14px] w-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
+          <div className='flex size-[26px] items-center justify-center rounded-md border border-[#D4A843] bg-[#FDF6E3] dark:border-[#7A5F11] dark:bg-[#514215]'>
+            <Library className='size-[14px] text-[#D4A843] dark:text-[#FBBC04]' />
           </div>
           <h1 className='font-medium text-lg'>Logs</h1>
         </div>
@@ -449,19 +427,15 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* More options menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='default' className='h-[32px] w-[32px] rounded-md p-0'>
-                <MoreHorizontal className='h-[14px] w-[14px]' />
+              <Button variant='default' className='size-[32px] rounded-md p-0'>
+                <MoreHorizontal className='size-[14px]' />
                 <span className='sr-only'>More options</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end' sideOffset={4}>
               <DropdownMenuItem onSelect={onExport} disabled={!canEdit || isExporting || !hasLogs}>
-                <ArrowUp className='h-3 w-3' />
+                <ArrowUp className='size-3' />
                 <span>Export as CSV</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={onOpenNotificationSettings}>
-                <Bell className='h-3 w-3' />
-                <span>Configure Notifications</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -474,9 +448,9 @@ export const LogsToolbar = memo(function LogsToolbar({
             disabled={isRefreshing}
           >
             {isRefreshing ? (
-              <Loader className='h-[14px] w-[14px]' animate />
+              <Loader className='size-[14px]' animate />
             ) : (
-              <RefreshCw className='h-[14px] w-[14px]' />
+              <RefreshCw className='size-[14px]' />
             )}
           </Button>
 
@@ -493,16 +467,14 @@ export const LogsToolbar = memo(function LogsToolbar({
           </Button>
 
           {/* View mode toggle */}
-          <div
-            className='flex h-[32px] cursor-pointer items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-0.5'
-            onClick={() => onViewModeChange(isDashboardView ? 'logs' : 'dashboard')}
-          >
+          <div className='flex h-[32px] items-center rounded-md border border-[var(--border)] bg-[var(--surface-2)] p-0.5'>
             <Button
               variant={!isDashboardView ? 'active' : 'ghost'}
               className={cn(
                 'h-[26px] rounded-sm px-2.5',
                 isDashboardView && 'border border-transparent'
               )}
+              onClick={() => onViewModeChange('logs')}
             >
               Logs
             </Button>
@@ -512,6 +484,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                 'h-[26px] rounded-sm px-2.5',
                 !isDashboardView && 'border border-transparent'
               )}
+              onClick={() => onViewModeChange('dashboard')}
             >
               Dashboard
             </Button>
@@ -555,7 +528,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Status
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={statusOptions}
                     multiSelect
                     multiSelectValues={selectedStatuses}
@@ -574,8 +547,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     }
                     showAllOption
                     allOptionLabel='All statuses'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -584,7 +556,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Workflow
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={workflowOptions}
                     multiSelect
                     multiSelectValues={workflowIds}
@@ -593,14 +565,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     overlayContent={
                       <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                         {selectedWorkflow && (
-                          <div
-                            className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
-                            style={{
-                              backgroundColor: selectedWorkflow.color,
-                              borderColor: workflowBorderColor(selectedWorkflow.color),
-                              backgroundClip: 'padding-box',
-                            }}
-                          />
+                          <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                         )}
                         <span className='truncate'>{workflowDisplayLabel}</span>
                       </span>
@@ -609,8 +574,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search workflows...'
                     showAllOption
                     allOptionLabel='All workflows'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -619,7 +583,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Folder
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={folderOptions}
                     multiSelect
                     multiSelectValues={folderIds}
@@ -634,8 +598,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search folders...'
                     showAllOption
                     allOptionLabel='All folders'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -644,7 +607,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Trigger
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={triggerOptions}
                     multiSelect
                     multiSelectValues={triggers}
@@ -659,8 +622,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                     searchPlaceholder='Search triggers...'
                     showAllOption
                     allOptionLabel='All triggers'
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
 
@@ -669,7 +631,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                   <span className='font-medium text-[var(--text-secondary)] text-caption'>
                     Time Range
                   </span>
-                  <Combobox
+                  <ChipCombobox
                     options={TIME_RANGE_OPTIONS}
                     value={timeRange}
                     onChange={handleTimeRangeChange}
@@ -679,8 +641,7 @@ export const LogsToolbar = memo(function LogsToolbar({
                         {timeDisplayLabel}
                       </span>
                     }
-                    size='sm'
-                    className='h-[32px] w-full rounded-md'
+                    className='w-full'
                   />
                 </div>
               </div>
@@ -690,7 +651,7 @@ export const LogsToolbar = memo(function LogsToolbar({
           {/* Inline Filters - Large screens only */}
           <div className='hidden items-center gap-2 xl:flex'>
             {/* Status Filter */}
-            <Combobox
+            <ChipCombobox
               options={statusOptions}
               multiSelect
               multiSelectValues={selectedStatuses}
@@ -709,13 +670,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               }
               showAllOption
               allOptionLabel='All statuses'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Workflow Filter */}
-            <Combobox
+            <ChipCombobox
               options={workflowOptions}
               multiSelect
               multiSelectValues={workflowIds}
@@ -724,14 +684,7 @@ export const LogsToolbar = memo(function LogsToolbar({
               overlayContent={
                 <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
                   {selectedWorkflow && (
-                    <div
-                      className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
-                      style={{
-                        backgroundColor: selectedWorkflow.color,
-                        borderColor: workflowBorderColor(selectedWorkflow.color),
-                        backgroundClip: 'padding-box',
-                      }}
-                    />
+                    <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
                   )}
                   <span className='truncate'>{workflowDisplayLabel}</span>
                 </span>
@@ -740,13 +693,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search workflows...'
               showAllOption
               allOptionLabel='All workflows'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Folder Filter */}
-            <Combobox
+            <ChipCombobox
               options={folderOptions}
               multiSelect
               multiSelectValues={folderIds}
@@ -759,13 +711,12 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search folders...'
               showAllOption
               allOptionLabel='All folders'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Trigger Filter */}
-            <Combobox
+            <ChipCombobox
               options={triggerOptions}
               multiSelect
               multiSelectValues={triggers}
@@ -778,14 +729,13 @@ export const LogsToolbar = memo(function LogsToolbar({
               searchPlaceholder='Search triggers...'
               showAllOption
               allOptionLabel='All triggers'
-              size='sm'
               align='end'
-              className='h-[32px] w-[120px] rounded-md'
+              className='w-[120px]'
             />
 
             {/* Timeline Filter */}
             <div className='relative'>
-              <Combobox
+              <ChipCombobox
                 options={TIME_RANGE_OPTIONS}
                 value={timeRange}
                 onChange={handleTimeRangeChange}
@@ -793,13 +743,14 @@ export const LogsToolbar = memo(function LogsToolbar({
                 overlayContent={
                   <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
                 }
-                size='sm'
                 align='end'
-                className='h-[32px] w-[120px] rounded-md'
+                className='w-[160px]'
+                maxHeight={320}
               />
               <DatePicker
                 mode='range'
                 showTrigger={false}
+                showTime
                 open={datePickerOpen}
                 onOpenChange={(isOpen) => {
                   if (!isOpen) {

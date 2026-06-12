@@ -15,31 +15,31 @@ export const updatePurchaseRequisitionTool: ToolConfig<
   id: 'sap_s4hana_update_purchase_requisition',
   name: 'SAP S/4HANA Update Purchase Requisition',
   description:
-    'Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). PATCH only sends the fields you provide; existing values are preserved. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
+    'Update fields on an A_PurchaseRequisitionHeader entity in SAP S/4HANA Cloud (API_PURCHASEREQ_PROCESS_SRV; deprecated since S/4HANA 2402, successor is API_PURCHASEREQUISITION_2 OData v4). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. Header-only — deep updates across navigations are not supported (SAP KBA 2833338); use the A_PurchaseReqnItem entity directly to modify items. If-Match defaults to a wildcard - for safe concurrent updates pass the ETag from a prior GET to avoid lost updates.',
   version: '1.0.0',
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -125,7 +125,35 @@ export const updatePurchaseRequisitionTool: ToolConfig<
     data: {
       type: 'json',
       description:
-        'Null on 204 success, or updated A_PurchaseRequisitionHeader entity if SAP returns one',
+        'Null on 204 success, or OData v2 envelope with updated A_PurchaseRequisitionHeader at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Updated A_PurchaseRequisitionHeader entity (if returned)',
+          optional: true,
+          properties: {
+            PurchaseRequisition: {
+              type: 'string',
+              description: 'Purchase requisition number',
+            },
+            PurchaseRequisitionType: {
+              type: 'string',
+              description: 'PR document type',
+              optional: true,
+            },
+            PurReqnDescription: {
+              type: 'string',
+              description: 'Purchase requisition description',
+              optional: true,
+            },
+            SourceDetermination: {
+              type: 'string',
+              description: 'Source-of-supply determination flag',
+              optional: true,
+            },
+          },
+        },
+      },
     },
   },
 }

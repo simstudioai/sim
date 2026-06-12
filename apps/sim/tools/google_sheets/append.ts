@@ -69,14 +69,14 @@ export const appendTool: ToolConfig<GoogleSheetsToolParams, GoogleSheetsAppendRe
       const range = params.range || 'Sheet1'
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(range)}:append`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(range)}:append`
       )
 
       // Default to USER_ENTERED if not specified
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'
       url.searchParams.append('valueInputOption', valueInputOption)
 
-      // Default to INSERT_ROWS if not specified
+      // Only send insertDataOption when the user provides it; the API defaults to OVERWRITE
       if (params.insertDataOption) {
         url.searchParams.append('insertDataOption', params.insertDataOption)
       }
@@ -294,7 +294,7 @@ export const appendV2Tool: ToolConfig<GoogleSheetsV2ToolParams, GoogleSheetsV2Ap
       }
 
       const url = new URL(
-        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId}/values/${encodeURIComponent(sheetName)}:append`
+        `https://sheets.googleapis.com/v4/spreadsheets/${params.spreadsheetId?.trim()}/values/${encodeURIComponent(sheetName)}:append`
       )
 
       const valueInputOption = params.valueInputOption || 'USER_ENTERED'

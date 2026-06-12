@@ -225,6 +225,7 @@ export const ashbyHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing apiKey for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Ashby apiKey for webhook deletion')
         return
       }
 
@@ -232,6 +233,7 @@ export const ashbyHandler: WebhookProviderHandler = {
         logger.warn(
           `[${ctx.requestId}] Missing externalId for Ashby webhook deletion ${ctx.webhook.id}, skipping cleanup`
         )
+        if (ctx.strict) throw new Error('Missing Ashby externalId for webhook deletion')
         return
       }
 
@@ -262,9 +264,11 @@ export const ashbyHandler: WebhookProviderHandler = {
           `[${ctx.requestId}] Failed to delete Ashby webhook (non-fatal): ${ashbyResponse.status}`,
           { response: responseBody }
         )
+        if (ctx.strict) throw new Error(`Failed to delete Ashby webhook: ${ashbyResponse.status}`)
       }
     } catch (error) {
       logger.warn(`[${ctx.requestId}] Error deleting Ashby webhook (non-fatal)`, error)
+      if (ctx.strict) throw error
     }
   },
 }

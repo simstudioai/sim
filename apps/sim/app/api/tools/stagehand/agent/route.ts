@@ -1,5 +1,6 @@
 import type { Stagehand as StagehandType } from '@browserbasehq/stagehand'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { stagehandAgentContract } from '@/lib/api/contracts/tools/stagehand'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -330,7 +331,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     } catch (error) {
       logger.error('Stagehand agent execution error', {
         error,
-        message: error instanceof Error ? error.message : 'Unknown error',
+        message: getErrorMessage(error, 'Unknown error'),
         stack: error instanceof Error ? error.stack : undefined,
       })
 
@@ -369,13 +370,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error('Unexpected error in agent API route', {
       error,
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error, 'Unknown error'),
       stack: error instanceof Error ? error.stack : undefined,
     })
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        details: getErrorMessage(error, 'Unknown error'),
       },
       { status: 500 }
     )

@@ -16,26 +16,26 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
   params: {
     subdomain: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description:
         'SAP BTP subaccount subdomain (technical name of your subaccount, not the S/4HANA host)',
     },
     region: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'BTP region (e.g. eu10, us10)',
     },
     clientId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client ID from the S/4HANA Communication Arrangement',
     },
     clientSecret: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-only',
       description: 'OAuth client secret from the S/4HANA Communication Arrangement',
     },
@@ -146,6 +146,43 @@ export const createPurchaseOrderTool: ToolConfig<CreatePurchaseOrderParams, SapP
   transformResponse: transformSapProxyResponse,
   outputs: {
     status: { type: 'number', description: 'HTTP status code returned by SAP' },
-    data: { type: 'json', description: 'Created A_PurchaseOrder entity' },
+    data: {
+      type: 'json',
+      description: 'OData v2 response envelope; created entity at output.data.d',
+      properties: {
+        d: {
+          type: 'json',
+          description: 'Created A_PurchaseOrder entity',
+          properties: {
+            PurchaseOrder: { type: 'string', description: 'Auto-assigned purchase order number' },
+            PurchaseOrderType: { type: 'string', description: 'PO document type' },
+            CompanyCode: { type: 'string', description: 'Company code' },
+            PurchasingOrganization: { type: 'string', description: 'Purchasing organization' },
+            PurchasingGroup: { type: 'string', description: 'Purchasing group' },
+            Supplier: { type: 'string', description: 'Supplier business partner key' },
+            DocumentCurrency: {
+              type: 'string',
+              description: 'Document currency',
+              optional: true,
+            },
+            NetAmount: {
+              type: 'string',
+              description: 'Net amount of the purchase order',
+              optional: true,
+            },
+            CreationDate: {
+              type: 'string',
+              description: 'Creation date (OData /Date(ms)/)',
+              optional: true,
+            },
+            to_PurchaseOrderItem: {
+              type: 'json',
+              description: 'Created PO items returned in deep insert',
+              optional: true,
+            },
+          },
+        },
+      },
+    },
   },
 }

@@ -1,11 +1,11 @@
 'use client'
 
 import { type SVGProps, useEffect, useRef, useState } from 'react'
-import { AnimatePresence, motion, useInView } from 'framer-motion'
+import { AnimatePresence, domAnimation, LazyMotion, m, useInView } from 'framer-motion'
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { ChevronDown } from '@/components/emcn'
-import { Database, File, Library, Table } from '@/components/emcn/icons'
+import { Database, File, Library, Table, Workflow } from '@/components/emcn/icons'
 import {
   AnthropicIcon,
   GeminiIcon,
@@ -18,7 +18,6 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -28,30 +27,32 @@ export function FeaturesPreview({ activeTab }: FeaturesPreviewProps) {
   const isWorkspaceTab = activeTab <= 3
 
   return (
-    <div className='relative h-[350px] w-full md:h-[560px]'>
-      <motion.div
-        className='absolute inset-0'
-        animate={{ opacity: isWorkspaceTab ? 1 : 0 }}
-        transition={{ duration: 0.15 }}
-        style={{ pointerEvents: isWorkspaceTab ? 'auto' : 'none' }}
-      >
-        <WorkspacePreview activeTab={activeTab} isActive={isWorkspaceTab} />
-      </motion.div>
-      <AnimatePresence>
-        {!isWorkspaceTab && (
-          <motion.div
-            key={activeTab}
-            className='absolute inset-0'
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            <DefaultPreview />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <LazyMotion features={domAnimation}>
+      <div className='relative h-[350px] w-full md:h-[560px]'>
+        <m.div
+          className='absolute inset-0'
+          animate={{ opacity: isWorkspaceTab ? 1 : 0 }}
+          transition={{ duration: 0.15 }}
+          style={{ pointerEvents: isWorkspaceTab ? 'auto' : 'none' }}
+        >
+          <WorkspacePreview activeTab={activeTab} isActive={isWorkspaceTab} />
+        </m.div>
+        <AnimatePresence>
+          {!isWorkspaceTab && (
+            <m.div
+              key={activeTab}
+              className='absolute inset-0'
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <DefaultPreview />
+            </m.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </LazyMotion>
   )
 }
 
@@ -73,47 +74,46 @@ interface CardDef {
   col: number
   variant: CardVariant
   label: string
-  color?: string
 }
 
 const MOTHERSHIP_CARDS: CardDef[] = [
   { row: 0, col: 0, variant: 'prompt', label: 'prompt.md' },
   { row: 1, col: 0, variant: 'table', label: 'Leads' },
-  { row: 0, col: 1, variant: 'workflow', label: 'Email Bot', color: '#7C3AED' },
+  { row: 0, col: 1, variant: 'workflow', label: 'Email Bot' },
   { row: 1, col: 1, variant: 'file', label: 'handbook.md' },
   { row: 2, col: 0, variant: 'logs', label: 'Run Logs' },
   { row: 0, col: 2, variant: 'file', label: 'notes.md' },
-  { row: 2, col: 1, variant: 'workflow', label: 'Onboarding', color: '#2563EB' },
+  { row: 2, col: 1, variant: 'workflow', label: 'Onboarding' },
   { row: 1, col: 2, variant: 'table', label: 'Contacts' },
   { row: 2, col: 2, variant: 'file', label: 'report.pdf' },
   { row: 3, col: 0, variant: 'table', label: 'Tickets' },
   { row: 0, col: 3, variant: 'file', label: 'wiki.md' },
   { row: 3, col: 1, variant: 'logs', label: 'Audit Trail' },
-  { row: 1, col: 3, variant: 'workflow', label: 'Support', color: '#059669' },
+  { row: 1, col: 3, variant: 'workflow', label: 'Support' },
   { row: 2, col: 3, variant: 'file', label: 'data.csv' },
   { row: 3, col: 2, variant: 'table', label: 'Users' },
   { row: 3, col: 3, variant: 'file', label: 'policies.pdf' },
-  { row: 0, col: 4, variant: 'workflow', label: 'Pipeline', color: '#DC2626' },
+  { row: 0, col: 4, variant: 'workflow', label: 'Pipeline' },
   { row: 1, col: 4, variant: 'logs', label: 'API Logs' },
   { row: 2, col: 4, variant: 'table', label: 'Orders' },
   { row: 3, col: 4, variant: 'file', label: 'config.json' },
   { row: 0, col: 5, variant: 'logs', label: 'Deploys' },
   { row: 1, col: 5, variant: 'table', label: 'Campaigns' },
-  { row: 2, col: 5, variant: 'workflow', label: 'Intake', color: '#D97706' },
+  { row: 2, col: 5, variant: 'workflow', label: 'Intake' },
   { row: 3, col: 5, variant: 'file', label: 'research.pdf' },
   { row: 4, col: 0, variant: 'file', label: 'readme.md' },
   { row: 4, col: 1, variant: 'table', label: 'Revenue' },
-  { row: 4, col: 2, variant: 'workflow', label: 'Sync', color: '#0891B2' },
+  { row: 4, col: 2, variant: 'workflow', label: 'Sync' },
   { row: 4, col: 3, variant: 'logs', label: 'Errors' },
   { row: 4, col: 4, variant: 'table', label: 'Inventory' },
   { row: 4, col: 5, variant: 'file', label: 'schema.json' },
   { row: 0, col: 6, variant: 'table', label: 'Analytics' },
-  { row: 1, col: 6, variant: 'workflow', label: 'Digest', color: '#6366F1' },
+  { row: 1, col: 6, variant: 'workflow', label: 'Digest' },
   { row: 0, col: 7, variant: 'file', label: 'brief.md' },
   { row: 2, col: 6, variant: 'file', label: 'playbook.md' },
   { row: 1, col: 7, variant: 'logs', label: 'Webhooks' },
   { row: 3, col: 6, variant: 'file', label: 'export.csv' },
-  { row: 2, col: 7, variant: 'workflow', label: 'Alerts', color: '#E11D48' },
+  { row: 2, col: 7, variant: 'workflow', label: 'Alerts' },
   { row: 4, col: 6, variant: 'logs', label: 'Metrics' },
   { row: 3, col: 7, variant: 'table', label: 'Feedback' },
   { row: 4, col: 7, variant: 'file', label: 'runbook.md' },
@@ -212,7 +212,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 
   return (
     <div ref={containerRef} className='relative h-[350px] w-full overflow-hidden md:h-[560px]'>
-      <motion.div
+      <m.div
         aria-hidden='true'
         className='absolute inset-0'
         animate={{ opacity: isExpanded ? 0 : 1 }}
@@ -228,7 +228,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 
       <AnimatePresence>
         {isMothership && !showGrid && inView && (
-          <motion.div
+          <m.div
             key='mock-input'
             className='absolute inset-0 z-10 flex items-center justify-center'
             initial={{ opacity: 0, y: 12 }}
@@ -237,7 +237,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
             transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
           >
             <MockUserInput text={typedText} />
-          </motion.div>
+          </m.div>
         )}
       </AnimatePresence>
 
@@ -254,7 +254,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
           }}
         >
           {MOTHERSHIP_CARDS.map((card) => (
-            <motion.div
+            <m.div
               key={`${card.row}-${card.col}`}
               className='absolute'
               initial={gridAnimateIn.current ? { opacity: 0, scale: 0.7, y: 6 } : false}
@@ -271,14 +271,14 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
                 height: CARD_SIZE,
               }}
             >
-              <MiniCard variant={card.variant} label={card.label} color={card.color} />
-            </motion.div>
+              <MiniCard variant={card.variant} label={card.label} />
+            </m.div>
           ))}
         </div>
       )}
 
       {isExpanded && expandTarget && (
-        <motion.div
+        <m.div
           key={expandedTab}
           className='absolute inset-0 overflow-hidden border border-[#E5E5E5] bg-white'
           initial={{ opacity: 0, scale: 0.15 }}
@@ -291,7 +291,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
           {expandedTab === 1 && <MockFullTable revealedRows={revealedRows} />}
           {expandedTab === 2 && <MockFullFiles />}
           {expandedTab === 3 && <MockFullLogs revealedRows={revealedRows} />}
-        </motion.div>
+        </m.div>
       )}
     </div>
   )
@@ -302,20 +302,20 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
 function MockUserInput({ text }: { text: string }) {
   return (
     <div className='flex w-[380px] items-center gap-1.5 rounded-[16px] border border-[#E0E0E0] bg-white px-2.5 py-2 shadow-[0_2px_8px_rgba(0,0,0,0.06)]'>
-      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8E8E8]'>
+      <div className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-full border border-[#E8E8E8]'>
         <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
           <path d='M6 2.5v7M2.5 6h7' stroke='#999' strokeWidth='1.5' strokeLinecap='round' />
         </svg>
       </div>
       <div className='min-h-[20px] flex-1 font-[430] text-[#1C1C1C] text-[13px] leading-[20px]'>
         {text}
-        <motion.span
+        <m.span
           className='ml-[1px] inline-block h-[14px] w-[1.5px] bg-[#1C1C1C] align-text-bottom'
           animate={{ opacity: [1, 0] }}
           transition={{ duration: 0.5, repeat: Number.POSITIVE_INFINITY, repeatType: 'reverse' }}
         />
       </div>
-      <div className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-full bg-[#383838]'>
+      <div className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-full bg-[#383838]'>
         <svg width='12' height='12' viewBox='0 0 12 12' fill='none'>
           <path
             d='M6 9V3M3.5 5L6 2.5L8.5 5'
@@ -332,43 +332,27 @@ function MockUserInput({ text }: { text: string }) {
 
 // ─── Mini Card Components ─────────────────────────────────────────
 
-function MiniCard({
-  variant,
-  label,
-  color,
-}: {
-  variant: CardVariant
-  label: string
-  color?: string
-}) {
+function MiniCard({ variant, label }: { variant: CardVariant; label: string }) {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden rounded-[2px] border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]'>
-      <MiniCardHeader variant={variant} label={label} color={color} />
+      <MiniCardHeader variant={variant} label={label} />
       <div className='flex-1 overflow-hidden'>
-        <MiniCardBody variant={variant} color={color} />
+        <MiniCardBody variant={variant} />
       </div>
     </div>
   )
 }
 
-function MiniCardHeader({
-  variant,
-  label,
-  color,
-}: {
-  variant: CardVariant
-  label: string
-  color?: string
-}) {
+function MiniCardHeader({ variant, label }: { variant: CardVariant; label: string }) {
   return (
     <div className='flex items-center gap-1 border-[#F0F0F0] border-b px-2 py-1.5'>
-      <MiniCardIcon variant={variant} color={color} />
+      <MiniCardIcon variant={variant} />
       <span className='truncate font-medium text-[#888] text-[7px] leading-none'>{label}</span>
     </div>
   )
 }
 
-function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string }) {
+function MiniCardIcon({ variant }: { variant: CardVariant }) {
   const cls = 'h-[7px] w-[7px] flex-shrink-0 text-[#BBB]'
 
   switch (variant) {
@@ -377,25 +361,14 @@ function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string
       return <File className={cls} />
     case 'table':
       return <Table className={cls} />
-    case 'workflow': {
-      const c = color ?? '#7C3AED'
-      return (
-        <div
-          className='h-[7px] w-[7px] flex-shrink-0 rounded-[1.5px] border'
-          style={{
-            backgroundColor: c,
-            borderColor: workflowBorderColor(c),
-            backgroundClip: 'padding-box',
-          }}
-        />
-      )
-    }
+    case 'workflow':
+      return <Workflow className={cls} />
     case 'logs':
       return <Library className={cls} />
   }
 }
 
-function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string }) {
+function MiniCardBody({ variant }: { variant: CardVariant }) {
   switch (variant) {
     case 'prompt':
       return <PromptCardBody />
@@ -404,7 +377,7 @@ function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string
     case 'table':
       return <TableCardBody />
     case 'workflow':
-      return <WorkflowCardBody color={color ?? '#7C3AED'} />
+      return <WorkflowCardBody />
     case 'logs':
       return <LogsCardBody />
   }
@@ -462,31 +435,16 @@ function TableCardBody() {
   )
 }
 
-function WorkflowCardBody({ color }: { color: string }) {
+function WorkflowCardBody() {
   return (
     <div className='relative h-full w-full'>
-      <div className='absolute top-2.5 left-[10px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
+      <div className='absolute top-2.5 left-[10px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[16px] left-[24px] h-[1px] w-[16px] bg-[#D8D8D8]' />
-      <div
-        className='absolute top-2.5 left-[40px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-        }}
-      />
+      <div className='absolute top-2.5 left-[40px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-6 left-[46px] h-[12px] w-[1px] bg-[#D8D8D8]' />
-      <div className='absolute top-[36px] left-[40px] h-[14px] w-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
+      <div className='absolute top-[36px] left-[40px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[42px] left-[54px] h-[1px] w-[14px] bg-[#D8D8D8]' />
-      <div
-        className='absolute top-[36px] left-[68px] h-[14px] w-[14px] rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-          opacity: 0.5,
-        }}
-      />
+      <div className='absolute top-[36px] left-[68px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8] opacity-50' />
     </div>
   )
 }
@@ -506,7 +464,7 @@ function LogsCardBody() {
       {LOG_ENTRIES.map((entry, i) => (
         <div key={i} className='flex items-center gap-1 py-[1px]'>
           <div
-            className='h-[3px] w-[3px] flex-shrink-0 rounded-full'
+            className='size-[3px] flex-shrink-0 rounded-full'
             style={{ backgroundColor: entry.color }}
           />
           <div
@@ -592,7 +550,7 @@ function MockFullFiles() {
     <div className='flex h-full flex-col'>
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
         <div className='flex items-center gap-1.5'>
-          <File className='h-[14px] w-[14px] text-[#999]' />
+          <File className='size-[14px] text-[#999]' />
           <span className='text-[#999] text-[13px]'>Files</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
           <span className='font-medium text-[#1C1C1C] text-[13px]'>meeting-notes.md</span>
@@ -600,7 +558,7 @@ function MockFullFiles() {
       </div>
 
       <div className='flex flex-1 overflow-hidden'>
-        <motion.div
+        <m.div
           className='h-full w-1/2 shrink-0 overflow-hidden'
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -613,11 +571,11 @@ function MockFullFiles() {
             autoCorrect='off'
             className='h-full w-full resize-none overflow-auto whitespace-pre-wrap bg-transparent p-6 font-[300] font-mono text-[#1C1C1C] text-[12px] leading-[1.7] outline-none'
           />
-        </motion.div>
+        </m.div>
 
         <div className='h-full w-px shrink-0 bg-[#E5E5E5]' />
 
-        <motion.div
+        <m.div
           className='h-full min-w-0 flex-1 overflow-hidden'
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -628,21 +586,11 @@ function MockFullFiles() {
               {source}
             </Streamdown>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </div>
   )
 }
-
-const MOCK_LOG_COLORS = [
-  '#7C3AED',
-  '#2563EB',
-  '#059669',
-  '#DC2626',
-  '#D97706',
-  '#7C3AED',
-  '#0891B2',
-]
 
 const MOCK_LOG_DATA = [
   ['Email Bot', 'Mar 17, 2:14 PM', 'success', '$0.003', 'API', '1.2s'],
@@ -744,7 +692,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
       <div className='flex min-w-0 flex-1 flex-col'>
         <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
           <div className='flex items-center gap-1.5'>
-            <Library className='h-[14px] w-[14px] text-[#999]' />
+            <Library className='size-[14px] text-[#999]' />
             <span className='font-medium text-[#1C1C1C] text-[13px]'>Logs</span>
           </div>
         </div>
@@ -760,7 +708,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
               <tr>
                 {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
                   <th key={col} className='h-10 px-6 py-2.5 text-left align-middle'>
-                    <span className='font-base text-[#999] text-[13px]'>{col}</span>
+                    <span className='text-[#999] text-[13px]'>{col}</span>
                   </th>
                 ))}
               </tr>
@@ -770,7 +718,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                 const statusStyle = LOG_STATUS_STYLES[row[2]] ?? LOG_STATUS_STYLES.success
                 const isSelected = showSidebar && i === selectedRow
                 return (
-                  <motion.tr
+                  <m.tr
                     key={i}
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -783,14 +731,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                   >
                     <td className='px-6 py-2.5 align-middle'>
                       <span className='flex items-center gap-3 font-medium text-[#1C1C1C] text-[14px]'>
-                        <div
-                          className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
-                          style={{
-                            backgroundColor: MOCK_LOG_COLORS[i],
-                            borderColor: `${MOCK_LOG_COLORS[i]}60`,
-                            backgroundClip: 'padding-box',
-                          }}
-                        />
+                        <Workflow className='size-[14px] shrink-0 text-[#999]' />
                         <span className='truncate'>{row[0]}</span>
                       </span>
                     </td>
@@ -816,7 +757,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                     <td className='px-6 py-2.5 align-middle'>
                       <span className='font-medium text-[#999] text-[14px]'>{row[5]}</span>
                     </td>
-                  </motion.tr>
+                  </m.tr>
                 )
               })}
             </tbody>
@@ -824,7 +765,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
         </div>
       </div>
 
-      <motion.div
+      <m.div
         className='absolute top-0 right-0 bottom-0 z-10 border-[#E5E5E5] border-l bg-white'
         initial={{ x: '100%' }}
         animate={{ x: showSidebar ? 0 : '100%' }}
@@ -836,7 +777,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
           onPrev={() => setSelectedRow((r) => Math.max(0, r - 1))}
           onNext={() => setSelectedRow((r) => Math.min(MOCK_LOG_DATA.length - 1, r + 1))}
         />
-      </motion.div>
+      </m.div>
     </div>
   )
 }
@@ -852,7 +793,6 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
   const detail = MOCK_LOG_DETAILS[selectedRow]
   const statusStyle = LOG_STATUS_STYLES[row[2]] ?? LOG_STATUS_STYLES.success
   const [date, time] = row[1].split(', ')
-  const color = MOCK_LOG_COLORS[selectedRow]
   const maxMs = MOCK_LOG_DETAIL_MAX_MS[selectedRow]
   const isPrevDisabled = selectedRow === 0
   const isNextDisabled = selectedRow === MOCK_LOG_DATA.length - 1
@@ -871,7 +811,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
               isPrevDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
             )}
           >
-            <ChevronDown className='h-[14px] w-[14px] rotate-180' />
+            <ChevronDown className='size-[14px] rotate-180' />
           </button>
           <button
             type='button'
@@ -882,7 +822,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
               isNextDisabled ? 'cursor-not-allowed opacity-40' : 'hover:bg-[#F5F5F5]'
             )}
           >
-            <ChevronDown className='h-[14px] w-[14px]' />
+            <ChevronDown className='size-[14px]' />
           </button>
         </div>
       </div>
@@ -899,14 +839,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
           <div className='flex min-w-0 flex-1 flex-col gap-2'>
             <span className='font-medium text-[#999] text-[12px]'>Workflow</span>
             <div className='flex items-center gap-2'>
-              <div
-                className='h-[10px] w-[10px] shrink-0 rounded-[3px] border-[1.5px]'
-                style={{
-                  backgroundColor: color,
-                  borderColor: workflowBorderColor(color),
-                  backgroundClip: 'padding-box',
-                }}
-              />
+              <Workflow className='size-[14px] shrink-0 text-[#999]' />
               <span className='truncate font-medium text-[#666] text-[13px]'>{row[0]}</span>
             </div>
           </div>
@@ -972,7 +905,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
     <div className='flex h-full flex-col'>
       <div className='flex h-[44px] shrink-0 items-center border-[#E5E5E5] border-b px-6'>
         <div className='flex items-center gap-1.5'>
-          <Table className='h-[14px] w-[14px] text-[#999]' />
+          <Table className='size-[14px] text-[#999]' />
           <span className='text-[#999] text-[13px]'>Tables</span>
           <span className='text-[#D4D4D4] text-[13px]'>/</span>
           <span className='font-medium text-[#1C1C1C] text-[13px]'>Leads</span>
@@ -1002,7 +935,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
             <tr>
               <th className='border-[#E5E5E5] border-r border-b bg-[#FAFAFA] px-1 py-[7px] text-center align-middle'>
                 <div className='flex items-center justify-center'>
-                  <div className='h-[13px] w-[13px] rounded-[2px] border border-[#D4D4D4]' />
+                  <div className='size-[13px] rounded-[2px] border border-[#D4D4D4]' />
                 </div>
               </th>
               {MOCK_TABLE_COLUMNS.map((col) => (
@@ -1023,7 +956,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
             {MOCK_TABLE_DATA.slice(0, revealedRows).map((row, i) => {
               const isSelected = selectedRow === i
               return (
-                <motion.tr
+                <m.tr
                   key={i}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1059,7 +992,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                       <span className='block truncate text-[#1C1C1C] text-[13px]'>{cell}</span>
                     </td>
                   ))}
-                </motion.tr>
+                </m.tr>
               )
             })}
           </tbody>
@@ -1072,7 +1005,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
 function ColumnTypeIcon() {
   return (
     <svg
-      className='h-3 w-3 shrink-0 text-[#999]'
+      className='size-3 shrink-0 text-[#999]'
       viewBox='0 0 16 16'
       fill='none'
       stroke='currentColor'
@@ -1163,7 +1096,7 @@ function DefaultPreview() {
         const explodeDelay = EXPLODE_BASE_DELAY + index * EXPLODE_STAGGER
 
         return (
-          <motion.div
+          <m.div
             key={key}
             className='absolute flex items-center justify-center rounded-xl border border-[#E5E5E5] bg-white p-2.5 shadow-[0_2px_4px_0_rgba(0,0,0,0.06)]'
             initial={{ top: '50%', left: '50%', opacity: 0, scale: 0, x: '-50%', y: '-50%' }}
@@ -1177,19 +1110,19 @@ function DefaultPreview() {
             style={{ color }}
             aria-label={label}
           >
-            <Icon className='h-6 w-6' />
-          </motion.div>
+            <Icon className='size-6' />
+          </m.div>
         )
       })}
 
-      <motion.div
+      <m.div
         className='absolute top-1/2 left-[48%]'
         initial={{ opacity: 0, x: '-50%', y: '-50%' }}
         animate={inView ? { opacity: 1, x: '-50%', y: '-50%' } : undefined}
         transition={{ duration: 0.4, ease: 'easeOut', delay: 0 }}
       >
         <div className='flex h-[36px] items-center gap-2 rounded-[8px] border border-[#E5E5E5] bg-white px-2.5 shadow-[0_2px_6px_0_rgba(0,0,0,0.08)]'>
-          <div className='flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[#1e1e1e]'>
+          <div className='flex size-[22px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[#1e1e1e]'>
             <svg width='11' height='11' viewBox='0 0 10 10' fill='none'>
               <path
                 d='M1 9C1 4.58 4.58 1 9 1'
@@ -1204,7 +1137,7 @@ function DefaultPreview() {
           </span>
           <ChevronDown className='h-[8px] w-[10px] flex-shrink-0 text-[#999]' />
         </div>
-      </motion.div>
+      </m.div>
     </div>
   )
 }

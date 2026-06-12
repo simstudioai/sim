@@ -49,11 +49,14 @@ export function useAutoScroll(
     const el = containerRef.current
     if (!el) return
 
-    stickyRef.current = true
-    userDetachedRef.current = false
+    // Don't jump if the user scrolled up — keep their position.
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const isNearBottom = distanceFromBottom <= STICK_THRESHOLD
+    stickyRef.current = isNearBottom
+    userDetachedRef.current = !isNearBottom
     prevScrollTopRef.current = el.scrollTop
     prevScrollHeightRef.current = el.scrollHeight
-    scrollToBottom()
+    if (isNearBottom) scrollToBottom()
 
     const detach = () => {
       stickyRef.current = false

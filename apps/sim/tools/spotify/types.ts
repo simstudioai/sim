@@ -3,7 +3,7 @@ import type { OutputProperty, ToolResponse } from '@/tools/types'
 /**
  * Base params that include OAuth access token
  */
-export interface SpotifyBaseParams {
+interface SpotifyBaseParams {
   accessToken: string
 }
 
@@ -257,23 +257,23 @@ export const CURRENTLY_PLAYING_TRACK_OUTPUT_PROPERTIES = {
 /**
  * Common Spotify objects
  */
-export interface SpotifyImage {
+interface SpotifyImage {
   url: string
   height: number | null
   width: number | null
 }
 
-export interface SpotifyExternalUrls {
+interface SpotifyExternalUrls {
   spotify: string
 }
 
-export interface SpotifyArtistSimplified {
+interface SpotifyArtistSimplified {
   id: string
   name: string
   external_urls: SpotifyExternalUrls
 }
 
-export interface SpotifyAlbumSimplified {
+interface SpotifyAlbumSimplified {
   id: string
   name: string
   album_type: string
@@ -284,7 +284,7 @@ export interface SpotifyAlbumSimplified {
   external_urls: SpotifyExternalUrls
 }
 
-export interface SpotifyTrack {
+interface SpotifyTrack {
   id: string
   name: string
   duration_ms: number
@@ -299,7 +299,7 @@ export interface SpotifyTrack {
   uri: string
 }
 
-export interface SpotifyArtist {
+interface SpotifyArtist {
   id: string
   name: string
   genres: string[]
@@ -309,7 +309,7 @@ export interface SpotifyArtist {
   external_urls: SpotifyExternalUrls
 }
 
-export interface SpotifyAlbum {
+interface SpotifyAlbum {
   id: string
   name: string
   album_type: string
@@ -328,7 +328,7 @@ export interface SpotifyAlbum {
   external_urls: SpotifyExternalUrls
 }
 
-export interface SpotifyPlaylist {
+interface SpotifyPlaylist {
   id: string
   name: string
   description: string | null
@@ -346,7 +346,7 @@ export interface SpotifyPlaylist {
   snapshot_id: string
 }
 
-export interface SpotifyPlaylistTrack {
+interface SpotifyPlaylistTrack {
   added_at: string
   added_by: {
     id: string
@@ -354,7 +354,7 @@ export interface SpotifyPlaylistTrack {
   track: SpotifyTrack
 }
 
-export interface SpotifyUser {
+interface SpotifyUser {
   id: string
   display_name: string
   email?: string
@@ -365,7 +365,7 @@ export interface SpotifyUser {
   external_urls: SpotifyExternalUrls
 }
 
-export interface SpotifyDevice {
+interface SpotifyDevice {
   id: string
   is_active: boolean
   is_private_session: boolean
@@ -375,7 +375,7 @@ export interface SpotifyDevice {
   volume_percent: number
 }
 
-export interface SpotifyPlaybackState {
+interface SpotifyPlaybackState {
   device: SpotifyDevice
   shuffle_state: boolean
   repeat_state: string
@@ -527,14 +527,14 @@ export interface SpotifyGetAlbumResponse extends ToolResponse {
 /**
  * Get Album Tracks
  */
-export interface SpotifyGetAlbumTracksParams extends SpotifyBaseParams {
+interface SpotifyGetAlbumTracksParams extends SpotifyBaseParams {
   albumId: string
   limit?: number
   offset?: number
   market?: string
 }
 
-export interface SpotifyGetAlbumTracksResponse extends ToolResponse {
+interface SpotifyGetAlbumTracksResponse extends ToolResponse {
   output: {
     tracks: Array<{
       id: string
@@ -763,7 +763,7 @@ export interface SpotifyRemoveTracksFromPlaylistResponse extends ToolResponse {
 /**
  * Update Playlist
  */
-export interface SpotifyUpdatePlaylistParams extends SpotifyBaseParams {
+interface SpotifyUpdatePlaylistParams extends SpotifyBaseParams {
   playlistId: string
   name?: string
   description?: string
@@ -771,7 +771,7 @@ export interface SpotifyUpdatePlaylistParams extends SpotifyBaseParams {
   collaborative?: boolean
 }
 
-export interface SpotifyUpdatePlaylistResponse extends ToolResponse {
+interface SpotifyUpdatePlaylistResponse extends ToolResponse {
   output: {
     success: boolean
   }
@@ -798,11 +798,11 @@ export interface SpotifyGetCurrentUserResponse extends ToolResponse {
 /**
  * Get User Profile
  */
-export interface SpotifyGetUserProfileParams extends SpotifyBaseParams {
+interface SpotifyGetUserProfileParams extends SpotifyBaseParams {
   userId: string
 }
 
-export interface SpotifyGetUserProfileResponse extends ToolResponse {
+interface SpotifyGetUserProfileResponse extends ToolResponse {
   output: {
     id: string
     display_name: string
@@ -936,11 +936,11 @@ export interface SpotifySaveTracksResponse extends ToolResponse {
 /**
  * Remove Saved Tracks
  */
-export interface SpotifyRemoveSavedTracksParams extends SpotifyBaseParams {
+interface SpotifyRemoveSavedTracksParams extends SpotifyBaseParams {
   trackIds: string
 }
 
-export interface SpotifyRemoveSavedTracksResponse extends ToolResponse {
+interface SpotifyRemoveSavedTracksResponse extends ToolResponse {
   output: {
     success: boolean
   }
@@ -967,14 +967,14 @@ export interface SpotifyCheckSavedTracksResponse extends ToolResponse {
 /**
  * Browse Categories
  */
-export interface SpotifyBrowseCategoriesParams extends SpotifyBaseParams {
+interface SpotifyBrowseCategoriesParams extends SpotifyBaseParams {
   country?: string
   locale?: string
   limit?: number
   offset?: number
 }
 
-export interface SpotifyBrowseCategoriesResponse extends ToolResponse {
+interface SpotifyBrowseCategoriesResponse extends ToolResponse {
   output: {
     categories: Array<{
       id: string
@@ -989,13 +989,13 @@ export interface SpotifyBrowseCategoriesResponse extends ToolResponse {
 /**
  * Browse New Releases
  */
-export interface SpotifyBrowseNewReleasesParams extends SpotifyBaseParams {
+interface SpotifyBrowseNewReleasesParams extends SpotifyBaseParams {
   country?: string
   limit?: number
   offset?: number
 }
 
-export interface SpotifyBrowseNewReleasesResponse extends ToolResponse {
+interface SpotifyBrowseNewReleasesResponse extends ToolResponse {
   output: {
     albums: Array<{
       id: string
@@ -1049,11 +1049,11 @@ export interface SpotifyGetPlaybackStateResponse extends ToolResponse {
 /**
  * Player - Get Currently Playing
  */
-export interface SpotifyGetCurrentlyPlayingParams extends SpotifyBaseParams {
+interface SpotifyGetCurrentlyPlayingParams extends SpotifyBaseParams {
   market?: string
 }
 
-export interface SpotifyGetCurrentlyPlayingResponse extends ToolResponse {
+interface SpotifyGetCurrentlyPlayingResponse extends ToolResponse {
   output: {
     is_playing: boolean
     progress_ms: number | null
@@ -1150,12 +1150,12 @@ export interface SpotifySkipPreviousResponse extends ToolResponse {
 /**
  * Player - Seek
  */
-export interface SpotifySeekParams extends SpotifyBaseParams {
+interface SpotifySeekParams extends SpotifyBaseParams {
   position_ms: number
   device_id?: string
 }
 
-export interface SpotifySeekResponse extends ToolResponse {
+interface SpotifySeekResponse extends ToolResponse {
   output: {
     success: boolean
   }
@@ -1192,12 +1192,12 @@ export interface SpotifyAddToQueueResponse extends ToolResponse {
 /**
  * Player - Transfer Playback
  */
-export interface SpotifyTransferPlaybackParams extends SpotifyBaseParams {
+interface SpotifyTransferPlaybackParams extends SpotifyBaseParams {
   device_id: string
   play?: boolean
 }
 
-export interface SpotifyTransferPlaybackResponse extends ToolResponse {
+interface SpotifyTransferPlaybackResponse extends ToolResponse {
   output: {
     success: boolean
   }
@@ -1206,12 +1206,12 @@ export interface SpotifyTransferPlaybackResponse extends ToolResponse {
 /**
  * Player - Set Repeat
  */
-export interface SpotifySetRepeatParams extends SpotifyBaseParams {
+interface SpotifySetRepeatParams extends SpotifyBaseParams {
   state: 'track' | 'context' | 'off'
   device_id?: string
 }
 
-export interface SpotifySetRepeatResponse extends ToolResponse {
+interface SpotifySetRepeatResponse extends ToolResponse {
   output: {
     success: boolean
   }
@@ -1220,12 +1220,12 @@ export interface SpotifySetRepeatResponse extends ToolResponse {
 /**
  * Player - Set Shuffle
  */
-export interface SpotifySetShuffleParams extends SpotifyBaseParams {
+interface SpotifySetShuffleParams extends SpotifyBaseParams {
   state: boolean
   device_id?: string
 }
 
-export interface SpotifySetShuffleResponse extends ToolResponse {
+interface SpotifySetShuffleResponse extends ToolResponse {
   output: {
     success: boolean
   }

@@ -44,7 +44,7 @@ interface ChatRequestPayload {
 }
 
 const DEFAULT_VOICE_SETTINGS = {
-  voiceId: 'EXAVITQu4vr4xnSDxMaL', // Default ElevenLabs voice (Bella)
+  voiceId: 'cgSgspJ2msm6clMCkdW9', // Default ElevenLabs voice (Jessica) — Flash v2.5-optimized
 }
 
 /**
@@ -191,9 +191,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       setUserHasScrolled(false)
 
       isUserScrollingRef.current = true
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         isUserScrollingRef.current = false
       }, 1000)
+      return () => clearTimeout(timeoutId)
     }
   }, [isStreamingResponse])
 

@@ -11,7 +11,7 @@ export interface DocumentTagEntry {
 /**
  * Tag filter entry format used in search tool.
  */
-export interface TagFilterEntry {
+interface TagFilterEntry {
   tagName: string
   tagSlot?: string
   tagValue: string | number | boolean

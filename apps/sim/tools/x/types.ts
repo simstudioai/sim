@@ -3,7 +3,7 @@ import type { ToolResponse } from '@/tools/types'
 /**
  * Context annotation domain from X API
  */
-export interface XContextAnnotationDomain {
+interface XContextAnnotationDomain {
   id: string
   name: string
   description?: string
@@ -12,7 +12,7 @@ export interface XContextAnnotationDomain {
 /**
  * Context annotation entity from X API
  */
-export interface XContextAnnotationEntity {
+interface XContextAnnotationEntity {
   id: string
   name: string
   description?: string
@@ -21,7 +21,7 @@ export interface XContextAnnotationEntity {
 /**
  * Context annotation from X API - provides semantic context about tweet content
  */
-export interface XContextAnnotation {
+interface XContextAnnotation {
   domain: XContextAnnotationDomain
   entity: XContextAnnotationEntity
 }
@@ -64,7 +64,7 @@ export interface XUser {
 }
 
 // Common parameters for all X endpoints
-export interface XBaseParams {
+interface XBaseParams {
   accessToken: string
 }
 

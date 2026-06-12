@@ -1,9 +1,9 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { hasWorkflowChanged } from '@/lib/workflows/comparison'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -31,6 +31,19 @@ export function createSuccessResponse(data: any) {
  * This is the single source of truth for redeployment detection — used by
  * both the /deploy and /status endpoints to ensure consistent results.
  */
+/**
+ * Pure redeployment-change comparison shared by checkNeedsRedeployment and the
+ * VFS deployment serializer so both surfaces agree. Returns false when either
+ * side is missing.
+ */
+export function computeNeedsRedeployment(
+  currentSnapshot: WorkflowState | null | undefined,
+  activeState: WorkflowState | null | undefined
+): boolean {
+  if (!activeState || !currentSnapshot) return false
+  return hasWorkflowChanged(currentSnapshot, activeState)
+}
+
 export async function checkNeedsRedeployment(workflowId: string): Promise<boolean> {
   const [active] = await db
     .select({ state: workflowDeploymentVersion.state })
@@ -44,27 +57,8 @@ export async function checkNeedsRedeployment(workflowId: string): Promise<boolea
     .orderBy(desc(workflowDeploymentVersion.createdAt))
     .limit(1)
 
-  if (!active?.state) return false
-
-  const [normalizedData, [workflowRecord]] = await Promise.all([
-    loadWorkflowFromNormalizedTables(workflowId),
-    db
-      .select({ variables: workflow.variables })
-      .from(workflow)
-      .where(eq(workflow.id, workflowId))
-      .limit(1),
-  ])
-  if (!normalizedData) return false
-
-  const currentState = {
-    blocks: normalizedData.blocks,
-    edges: normalizedData.edges,
-    loops: normalizedData.loops,
-    parallels: normalizedData.parallels,
-    variables: workflowRecord?.variables || {},
-  }
-
-  return hasWorkflowChanged(currentState as WorkflowState, active.state as WorkflowState)
+  const currentState = await loadWorkflowDeploymentSnapshot(workflowId)
+  return computeNeedsRedeployment(currentState, (active?.state as WorkflowState) ?? null)
 }
 
 /**

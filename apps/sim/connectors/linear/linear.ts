@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { LinearIcon } from '@/components/icons'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('LinearConnector')
 
@@ -135,28 +135,38 @@ const TEAMS_QUERY = `
  * Dynamically builds a GraphQL issues query with only the filter clauses
  * that have values, preventing null comparators from being sent to Linear.
  */
-function buildIssuesQuery(sourceConfig: Record<string, unknown>): {
+function buildIssuesQuery(
+  sourceConfig: Record<string, unknown>,
+  teamIds: string[],
+  projectIds: string[]
+): {
   query: string
   variables: Record<string, unknown>
 } {
-  const teamId = (sourceConfig.teamId as string) || ''
-  const projectId = (sourceConfig.projectId as string) || ''
   const stateFilter = (sourceConfig.stateFilter as string) || ''
 
   const varDefs: string[] = ['$first: Int!', '$after: String']
   const filterClauses: string[] = []
   const variables: Record<string, unknown> = {}
 
-  if (teamId) {
+  if (teamIds.length === 1) {
     varDefs.push('$teamId: ID!')
     filterClauses.push('team: { id: { eq: $teamId } }')
-    variables.teamId = teamId
+    variables.teamId = teamIds[0]
+  } else if (teamIds.length > 1) {
+    varDefs.push('$teamIds: [ID!]!')
+    filterClauses.push('team: { id: { in: $teamIds } }')
+    variables.teamIds = teamIds
   }
 
-  if (projectId) {
+  if (projectIds.length === 1) {
     varDefs.push('$projectId: ID!')
     filterClauses.push('project: { id: { eq: $projectId } }')
-    variables.projectId = projectId
+    variables.projectId = projectIds[0]
+  } else if (projectIds.length > 1) {
+    varDefs.push('$projectIds: [ID!]!')
+    filterClauses.push('project: { id: { in: $projectIds } }')
+    variables.projectIds = projectIds
   }
 
   if (stateFilter) {
@@ -193,7 +203,7 @@ function buildIssuesQuery(sourceConfig: Record<string, unknown>): {
 export const linearConnector: ConnectorConfig = {
   id: 'linear',
   name: 'Linear',
-  description: 'Sync issues from Linear into your knowledge base',
+  description: 'Sync issues from Linear',
   version: '1.0.0',
   icon: LinearIcon,
 
@@ -202,41 +212,45 @@ export const linearConnector: ConnectorConfig = {
   configFields: [
     {
       id: 'teamSelector',
-      title: 'Team',
+      title: 'Teams',
       type: 'selector',
       selectorKey: 'linear.teams',
       canonicalParamId: 'teamId',
       mode: 'basic',
-      placeholder: 'Select a team (optional)',
+      multi: true,
+      placeholder: 'Select one or more teams (optional)',
       required: false,
     },
     {
       id: 'teamId',
-      title: 'Team ID',
+      title: 'Team IDs',
       type: 'short-input',
       canonicalParamId: 'teamId',
       mode: 'advanced',
-      placeholder: 'e.g. abc123 (leave empty for all teams)',
+      multi: true,
+      placeholder: 'e.g. abc123, def456 (comma-separated for multiple)',
       required: false,
     },
     {
       id: 'projectSelector',
-      title: 'Project',
+      title: 'Projects',
       type: 'selector',
       selectorKey: 'linear.projects',
       canonicalParamId: 'projectId',
       mode: 'basic',
+      multi: true,
       dependsOn: ['teamSelector'],
-      placeholder: 'Select a project (optional)',
+      placeholder: 'Select one or more projects (optional)',
       required: false,
     },
     {
       id: 'projectId',
-      title: 'Project ID',
+      title: 'Project IDs',
       type: 'short-input',
       canonicalParamId: 'projectId',
       mode: 'advanced',
-      placeholder: 'e.g. def456 (leave empty for all projects)',
+      multi: true,
+      placeholder: 'e.g. def456, ghi789 (comma-separated for multiple)',
       required: false,
     },
     {
@@ -264,14 +278,17 @@ export const linearConnector: ConnectorConfig = {
     const maxIssues = sourceConfig.maxIssues ? Number(sourceConfig.maxIssues) : 0
     const pageSize = maxIssues > 0 ? Math.min(maxIssues, 50) : 50
 
-    const { query, variables } = buildIssuesQuery(sourceConfig)
+    const teamIds = parseMultiValue(sourceConfig.teamId)
+    const projectIds = parseMultiValue(sourceConfig.projectId)
+
+    const { query, variables } = buildIssuesQuery(sourceConfig, teamIds, projectIds)
     const allVars = { ...variables, first: pageSize, after: cursor || undefined }
 
     logger.info('Listing Linear issues', {
       cursor,
       pageSize,
-      hasTeamFilter: Boolean(sourceConfig.teamId),
-      hasProjectFilter: Boolean(sourceConfig.projectId),
+      teamFilterCount: teamIds.length,
+      projectFilterCount: projectIds.length,
     })
 
     const data = await linearGraphQL(accessToken, query, allVars)
@@ -389,20 +406,21 @@ export const linearConnector: ConnectorConfig = {
         }
       }
 
-      const teamId = sourceConfig.teamId as string | undefined
-      if (teamId) {
-        const found = teams.some((t) => t.id === teamId)
-        if (!found) {
+      const requestedTeamIds = parseMultiValue(sourceConfig.teamId)
+      if (requestedTeamIds.length > 0) {
+        const availableIds = new Set(teams.map((t) => t.id as string))
+        const missing = requestedTeamIds.filter((id) => !availableIds.has(id))
+        if (missing.length > 0) {
           return {
             valid: false,
-            error: `Team ID "${teamId}" not found. Available teams: ${teams.map((t) => `${t.name} (${t.id})`).join(', ')}`,
+            error: `Team ID(s) not found: ${missing.join(', ')}. Available teams: ${teams.map((t) => `${t.name} (${t.id})`).join(', ')}`,
           }
         }
       }
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

@@ -23,7 +23,7 @@ import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
 const logger = createLogger('InvitationSend')
 
-export interface WorkspaceGrantInput {
+interface WorkspaceGrantInput {
   workspaceId: string
   permission: 'admin' | 'write' | 'read'
 }
@@ -84,9 +84,7 @@ export async function createPendingInvitation(
   return { invitationId, token, expiresAt }
 }
 
-export async function countPendingInvitationsForOrganization(
-  organizationId: string
-): Promise<number> {
+async function countPendingInvitationsForOrganization(organizationId: string): Promise<number> {
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(invitation)
@@ -100,7 +98,7 @@ export async function countPendingInvitationsForOrganization(
   return row?.count ?? 0
 }
 
-export async function findPendingInvitationByOrgEmail(params: {
+async function findPendingInvitationByOrgEmail(params: {
   organizationId: string | null
   email: string
 }) {

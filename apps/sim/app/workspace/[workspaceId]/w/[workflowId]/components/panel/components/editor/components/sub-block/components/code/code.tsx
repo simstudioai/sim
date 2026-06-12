@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { Check, Copy, Wand2 } from 'lucide-react'
+import { Check, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import 'prismjs/components/prism-python'
 import { createLogger } from '@sim/logger'
@@ -9,6 +9,7 @@ import {
   CODE_LINE_HEIGHT_PX,
   Code as CodeEditor,
   calculateGutterWidth,
+  Duplicate,
   getCodeEditorProps,
   highlight,
   languages,
@@ -21,16 +22,23 @@ import {
   SYSTEM_REFERENCE_PREFIXES,
   splitReferenceSegment,
 } from '@/lib/workflows/sanitization/references'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
+  getValidWorkflowSearchRange,
+  type WorkflowSearchTextHighlight,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { restoreCursorAfterInsertion } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/utils'
 import { WandPromptBar } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/wand-prompt-bar/wand-prompt-bar'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
@@ -80,6 +88,16 @@ const applyDarkModeTokenStyling = (highlightedCode: string): string => {
   return highlightedCode
 }
 
+const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
 /**
  * Type definition for code placeholders during syntax highlighting.
  */
@@ -99,11 +117,20 @@ interface CodePlaceholder {
 const createHighlightFunction = (
   effectiveLanguage: 'javascript' | 'python' | 'json',
   shouldHighlightReference: (part: string) => boolean,
-  shouldHighlightEnvVar: (varName: string) => boolean
+  shouldHighlightEnvVar: (varName: string) => boolean,
+  workflowSearchHighlight?: WorkflowSearchTextHighlight | null
 ) => {
   return (codeToHighlight: string): string => {
     const placeholders: CodePlaceholder[] = []
     let processedCode = codeToHighlight
+    const workflowSearchRange = getValidWorkflowSearchRange(
+      codeToHighlight,
+      workflowSearchHighlight
+    )
+
+    if (workflowSearchRange) {
+      processedCode = `${codeToHighlight.slice(0, workflowSearchRange.start)}${WORKFLOW_SEARCH_MATCH_PLACEHOLDER}${codeToHighlight.slice(workflowSearchRange.end)}`
+    }
 
     processedCode = processedCode.replace(createEnvVarPattern(), (match) => {
       const varName = match.slice(2, -2).trim()
@@ -143,6 +170,14 @@ const createHighlightFunction = (
         )
       }
     })
+
+    if (workflowSearchRange) {
+      const matchText = codeToHighlight.slice(workflowSearchRange.start, workflowSearchRange.end)
+      highlightedCode = highlightedCode.replace(
+        WORKFLOW_SEARCH_MATCH_PLACEHOLDER,
+        `<mark class="${WORKFLOW_SEARCH_HIGHLIGHT_CLASS}">${escapeHtml(matchText)}</mark>`
+      )
+    }
 
     return highlightedCode
   }
@@ -198,6 +233,7 @@ export const Code = memo(function Code({
   wandControlRef,
   hideInternalWand = false,
 }: CodeProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -641,11 +677,21 @@ export const Code = memo(function Code({
     () => createShouldHighlightEnvVar(availableEnvVars),
     [availableEnvVars]
   )
+  const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId,
+    valuePath: [],
+  })
 
   const highlightCode = useMemo(
     () =>
-      createHighlightFunction(effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar),
-    [effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar]
+      createHighlightFunction(
+        effectiveLanguage,
+        shouldHighlightReference,
+        shouldHighlightEnvVar,
+        workflowSearchHighlight
+      ),
+    [effectiveLanguage, shouldHighlightReference, shouldHighlightEnvVar, workflowSearchHighlight]
   )
 
   const handleValueChange = useCallback(
@@ -780,14 +826,14 @@ export const Code = memo(function Code({
           onClick={handleCopy}
           disabled={!code}
           className={cn(
-            'h-8 w-8 p-0',
+            'size-8 p-0',
             'text-muted-foreground/60 transition-all duration-200',
             'hover-hover:scale-105 hover-hover:bg-muted/50 hover-hover:text-foreground',
             'active:scale-95'
           )}
           aria-label='Copy code'
         >
-          {copied ? <Check className='h-3.5 w-3.5' /> : <Copy className='h-3.5 w-3.5' />}
+          {copied ? <Check className='h-3.5 w-3.5' /> : <Duplicate className='h-3.5 w-3.5' />}
         </Button>
       )}
       {!hideInternalWand && (
@@ -816,9 +862,9 @@ export const Code = memo(function Code({
                 onClick={isPromptVisible ? hidePromptInline : showPromptInline}
                 disabled={isAiLoading || isAiStreaming}
                 aria-label='Generate code with AI'
-                className='h-8 w-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
+                className='size-8 rounded-full border border-transparent bg-muted/80 text-muted-foreground shadow-sm transition-all duration-200 hover-hover:border-primary/20 hover-hover:bg-muted hover-hover:text-foreground hover-hover:shadow'
               >
-                <Wand2 className='h-4 w-4' />
+                <Wand2 className='size-4' />
               </Button>
             )}
         </div>

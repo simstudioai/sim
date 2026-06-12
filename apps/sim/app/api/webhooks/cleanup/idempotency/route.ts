@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
 import { cleanupExpiredIdempotencyKeys, getIdempotencyKeyStats } from '@/lib/core/idempotency'
@@ -56,7 +57,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       {
         success: false,
         message: 'Idempotency cleanup failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: getErrorMessage(error, 'Unknown error'),
         requestId,
       },
       { status: 500 }

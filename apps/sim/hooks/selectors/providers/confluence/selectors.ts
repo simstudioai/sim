@@ -4,6 +4,18 @@ import { fetchOAuthToken } from '@/hooks/selectors/helpers'
 import { ensureCredential, ensureDomain, SELECTOR_STALE } from '@/hooks/selectors/providers/shared'
 import type { SelectorDefinition, SelectorKey, SelectorQueryArgs } from '@/hooks/selectors/types'
 
+function formatConfluenceSpaceLabel(space: { name: string; key: string; status?: string }): string {
+  const base = `${space.name} (${space.key})`
+  return space.status === 'archived' ? `${base} — archived` : base
+}
+
+function toSpaceOption(space: { name: string; key: string; status?: string }): {
+  id: string
+  label: string
+} {
+  return { id: space.key, label: formatConfluenceSpaceLabel(space) }
+}
+
 export const confluenceSelectors = {
   'confluence.spaces': {
     key: 'confluence.spaces',
@@ -16,7 +28,11 @@ export const confluenceSelectors = {
       context.domain ?? 'none',
     ],
     enabled: ({ context }) => Boolean(context.oauthCredential && context.domain),
-    fetchList: async ({ context, signal }: SelectorQueryArgs) => {
+    /**
+     * Drives pagination through {@link useSelectorOptions}, which drains every
+     * page via this callback. No `fetchList` — the paged path supersedes it.
+     */
+    fetchPage: async ({ context, cursor, signal }) => {
       const credentialId = ensureCredential(context, 'confluence.spaces')
       const domain = ensureDomain(context, 'confluence.spaces')
       const data = await requestJson(selectorContracts.confluenceSpacesSelectorContract, {
@@ -24,14 +40,21 @@ export const confluenceSelectors = {
           credential: credentialId,
           workflowId: context.workflowId,
           domain,
+          cursor,
         },
         signal,
       })
-      return (data.spaces || []).map((space) => ({
-        id: space.id,
-        label: `${space.name} (${space.key})`,
-      }))
+      return {
+        items: (data.spaces || []).map(toSpaceOption),
+        nextCursor: data.nextCursor,
+      }
     },
+    /**
+     * Resolves a single space label. Hits only the first page — the dropdown's
+     * `fetchPage` stream populates the options cache for spaces beyond page 1,
+     * and `useSelectorOptionMap` merges them in. Walking all pages here would
+     * double API load since the stream is already running in parallel.
+     */
     fetchById: async ({ context, detailId, signal }: SelectorQueryArgs) => {
       if (!detailId) return null
       const credentialId = ensureCredential(context, 'confluence.spaces')
@@ -44,9 +67,9 @@ export const confluenceSelectors = {
         },
         signal,
       })
-      const space = (data.spaces || []).find((s) => s.id === detailId) ?? null
+      const space = (data.spaces || []).find((s) => s.key === detailId) ?? null
       if (!space) return null
-      return { id: space.id, label: `${space.name} (${space.key})` }
+      return toSpaceOption(space)
     },
   },
   'confluence.pages': {

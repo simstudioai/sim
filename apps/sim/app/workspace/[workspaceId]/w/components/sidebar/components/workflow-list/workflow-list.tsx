@@ -8,11 +8,11 @@ import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
-  SidebarDragContext,
+  SidebarListContext,
   useContextMenu,
   useDragDrop,
   useFolderSelection,
-  useSidebarDragContextValue,
+  useSidebarListContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
@@ -34,8 +34,6 @@ interface WorkflowListProps {
   regularWorkflows: WorkflowMetadata[]
   isLoading?: boolean
   canReorder?: boolean
-  handleFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-  fileInputRef: React.RefObject<HTMLInputElement | null>
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
   onCreateWorkflow?: () => void
   onCreateFolder?: () => void
@@ -71,8 +69,6 @@ export const WorkflowList = memo(function WorkflowList({
   regularWorkflows,
   isLoading = false,
   canReorder = true,
-  handleFileChange,
-  fileInputRef,
   scrollContainerRef,
   onCreateWorkflow,
   onCreateFolder,
@@ -109,8 +105,6 @@ export const WorkflowList = memo(function WorkflowList({
     handleDragStart,
     handleDragEnd,
   } = useDragDrop({ disabled: !canReorder })
-
-  const dragContextValue = useSidebarDragContextValue(isDragging)
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -347,6 +341,15 @@ export const WorkflowList = memo(function WorkflowList({
     folderDescendantIds,
   })
 
+  const listContextValue = useSidebarListContextValue({
+    isAnyDragActive: isDragging,
+    dragDisabled,
+    onWorkflowClick: handleWorkflowClick,
+    onFolderClick: handleFolderClick,
+    onItemDragStart: handleDragStart,
+    onItemDragEnd: handleDragEnd,
+  })
+
   const isWorkflowActive = useCallback((wfId: string) => wfId === workflowId, [workflowId])
 
   useEffect(() => {
@@ -377,29 +380,13 @@ export const WorkflowList = memo(function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createWorkflowDragHandlers(workflow.id, folderId)}
           >
-            <WorkflowItem
-              workflow={workflow}
-              active={isWorkflowActive(workflow.id)}
-              level={level}
-              dragDisabled={dragDisabled}
-              onWorkflowClick={handleWorkflowClick}
-              onDragStart={() => handleDragStart(folderId)}
-              onDragEnd={handleDragEnd}
-            />
+            <WorkflowItem workflow={workflow} active={isWorkflowActive(workflow.id)} />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
         </div>
       )
     },
-    [
-      dropIndicator,
-      isWorkflowActive,
-      dragDisabled,
-      createWorkflowDragHandlers,
-      handleWorkflowClick,
-      handleDragStart,
-      handleDragEnd,
-    ]
+    [dropIndicator, isWorkflowActive, createWorkflowDragHandlers]
   )
 
   const renderFolderSection = useCallback(
@@ -458,14 +445,7 @@ export const WorkflowList = memo(function WorkflowList({
             style={{ paddingLeft: `${level * TREE_SPACING.INDENT_PER_LEVEL}px` }}
             {...createFolderDragHandlers(folder.id, parentFolderId)}
           >
-            <FolderItem
-              folder={folder}
-              level={level}
-              dragDisabled={dragDisabled}
-              onFolderClick={handleFolderClick}
-              onDragStart={() => handleDragStart(parentFolderId)}
-              onDragEnd={handleDragEnd}
-            />
+            <FolderItem folder={folder} />
           </div>
           <DropIndicatorLine show={showAfter} level={level} position='after' />
 
@@ -495,13 +475,9 @@ export const WorkflowList = memo(function WorkflowList({
       expandedFolders,
       dropIndicator,
       isDragging,
-      dragDisabled,
       createFolderDragHandlers,
       createEmptyFolderDropZone,
       createFolderContentDropZone,
-      handleDragStart,
-      handleDragEnd,
-      handleFolderClick,
       renderWorkflowItem,
     ]
   )
@@ -567,11 +543,20 @@ export const WorkflowList = memo(function WorkflowList({
   )
 
   return (
-    <SidebarDragContext.Provider value={dragContextValue}>
+    <SidebarListContext.Provider value={listContextValue}>
       <div
+        role='tree'
+        aria-label='Workflows'
         className='flex min-h-full flex-col pb-2'
         onClick={handleContainerClick}
         onContextMenu={handleContainerContextMenu}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            if (e.target !== e.currentTarget) return
+            const { selectOnly, clearAllSelection } = useFolderStore.getState()
+            workflowId ? selectOnly(workflowId) : clearAllSelection()
+          }
+        }}
         data-empty-area
       >
         <div
@@ -605,15 +590,6 @@ export const WorkflowList = memo(function WorkflowList({
             />
           )}
         </div>
-
-        <input
-          ref={fileInputRef}
-          type='file'
-          accept='.json,.zip'
-          multiple
-          style={{ display: 'none' }}
-          onChange={handleFileChange}
-        />
       </div>
 
       {onCreateWorkflow && onCreateFolder && (
@@ -628,6 +604,6 @@ export const WorkflowList = memo(function WorkflowList({
           disableCreateFolder={disableCreate}
         />
       )}
-    </SidebarDragContext.Provider>
+    </SidebarListContext.Provider>
   )
 })

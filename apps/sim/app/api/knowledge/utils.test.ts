@@ -116,6 +116,32 @@ vi.mock('@sim/db', async () => {
             },
           }
         },
+        innerJoin() {
+          // document × knowledge_base context JOIN — return the first kb and
+          // doc row merged (covers processDocumentAsync's prefetch).
+          return {
+            leftJoin: () => ({
+              where: () => ({
+                limit: (n: number) =>
+                  Promise.resolve(
+                    kbRows.length > 0 && docRows.length > 0
+                      ? [
+                          { ...kbRows[0], ...docRows[0], billedAccountUserId: 'billing-user-1' },
+                        ].slice(0, n)
+                      : []
+                  ),
+              }),
+            }),
+            where: () => ({
+              limit: (n: number) =>
+                Promise.resolve(
+                  kbRows.length > 0 && docRows.length > 0
+                    ? [{ ...kbRows[0], ...docRows[0] }].slice(0, n)
+                    : []
+                ),
+            }),
+          }
+        },
       }
     },
   }
@@ -233,7 +259,12 @@ describe('Knowledge Utils', () => {
         {}
       )
 
-      expect(dbOps.order).toEqual(['insert', 'updateDoc'])
+      // Embeddings are inserted first, then the document counter update. A
+      // usage_log billing insert (recordUsage) may trail after updateDoc and is
+      // irrelevant to this ordering invariant, so assert position rather than
+      // exact array equality.
+      expect(dbOps.order[0]).toBe('insert')
+      expect(dbOps.order.indexOf('updateDoc')).toBeGreaterThan(0)
 
       expect(dbOps.updatePayloads[0]).toMatchObject({
         processingStatus: 'completed',

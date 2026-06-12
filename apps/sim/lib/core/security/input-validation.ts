@@ -1593,3 +1593,30 @@ export function validateWorkdayTenantUrl(
 
   return { isValid: true, sanitized: url as string }
 }
+
+/**
+ * Validates a database identifier (table or column name) to prevent SQL injection.
+ *
+ * Accepts only identifiers that start with a letter or underscore and contain
+ * only letters, digits, and underscores — the safe subset of SQL identifiers.
+ *
+ * @param value - The identifier to validate
+ * @param paramName - Name of the parameter for error messages (e.g. 'table', 'column')
+ * @returns ValidationResult with isValid flag and optional error message
+ */
+export function validateDatabaseIdentifier(
+  value: unknown,
+  paramName = 'identifier'
+): ValidationResult {
+  if (typeof value !== 'string' || value.length === 0) {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+    logger.warn('Invalid database identifier', { paramName, value: value.substring(0, 100) })
+    return {
+      isValid: false,
+      error: `Invalid ${paramName}: must start with a letter or underscore and contain only letters, digits, and underscores`,
+    }
+  }
+  return { isValid: true, sanitized: value }
+}

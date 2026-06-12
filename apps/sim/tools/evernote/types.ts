@@ -1,6 +1,6 @@
 import type { ToolResponse } from '@/tools/types'
 
-export interface EvernoteBaseParams {
+interface EvernoteBaseParams {
   apiKey: string
 }
 
@@ -58,7 +58,7 @@ export interface EvernoteCopyNoteParams extends EvernoteBaseParams {
   toNotebookGuid: string
 }
 
-export interface EvernoteNoteOutput {
+interface EvernoteNoteOutput {
   guid: string
   title: string
   content: string | null
@@ -71,7 +71,7 @@ export interface EvernoteNoteOutput {
   tagNames: string[]
 }
 
-export interface EvernoteNotebookOutput {
+interface EvernoteNotebookOutput {
   guid: string
   name: string
   defaultNotebook: boolean
@@ -80,7 +80,7 @@ export interface EvernoteNotebookOutput {
   stack: string | null
 }
 
-export interface EvernoteNoteMetadataOutput {
+interface EvernoteNoteMetadataOutput {
   guid: string
   title: string | null
   contentLength: number | null
@@ -90,7 +90,7 @@ export interface EvernoteNoteMetadataOutput {
   tagGuids: string[]
 }
 
-export interface EvernoteTagOutput {
+interface EvernoteTagOutput {
   guid: string
   name: string
   parentGuid: string | null

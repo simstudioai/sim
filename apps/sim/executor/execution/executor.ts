@@ -1,4 +1,9 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
+import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import { collectUserFileKeys } from '@/lib/core/utils/user-file'
+import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
+import { collectLargeValueKeys } from '@/lib/execution/payloads/large-execution-value'
 import { StartBlockPath } from '@/lib/workflows/triggers/triggers'
 import type { DAG } from '@/executor/dag/builder'
 import { DAGBuilder } from '@/executor/dag/builder'
@@ -16,6 +21,7 @@ import { LoopOrchestrator } from '@/executor/orchestrators/loop'
 import { NodeExecutionOrchestrator } from '@/executor/orchestrators/node'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
 import type { BlockState, ExecutionContext, ExecutionResult } from '@/executor/types'
+import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/parallel-expansion'
 import {
   computeExecutionSets,
   type RunFromBlockContext,
@@ -30,12 +36,19 @@ import {
 import {
   extractLoopIdFromSentinel,
   extractParallelIdFromSentinel,
+  stripCloneSuffixes,
+  stripOuterBranchSuffix,
 } from '@/executor/utils/subflow-utils'
 import { VariableResolver } from '@/executor/variables/resolver'
+import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedWorkflow } from '@/serializer/types'
 import type { SubflowType } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DAGExecutor')
+
+interface RestoredClonedSubflowInfo extends ClonedSubflowInfo {
+  parentParallelId: string
+}
 
 export interface DAGExecutorOptions {
   workflow: SerializedWorkflow
@@ -56,9 +69,9 @@ export class DAGExecutor {
 
   constructor(options: DAGExecutorOptions) {
     this.workflow = options.workflow
-    this.environmentVariables = options.envVarValues ?? {}
+    this.environmentVariables = normalizeStringRecord(options.envVarValues)
     this.workflowInput = options.workflowInput ?? {}
-    this.workflowVariables = options.workflowVariables ?? {}
+    this.workflowVariables = normalizeWorkflowVariables(options.workflowVariables)
     this.contextExtensions = options.contextExtensions ?? {}
     this.dagBuilder = new DAGBuilder()
     this.execLogger = logger.withMetadata({
@@ -76,8 +89,14 @@ export class DAGExecutor {
       triggerBlockId,
       savedIncomingEdges,
     })
+    const restoredClonedSubflows = this.restoreSnapshotParallelBatches(
+      dag,
+      this.contextExtensions.snapshotState
+    )
+    this.restoreSavedIncomingEdges(dag, savedIncomingEdges)
     const { context, state } = this.createExecutionContext(workflowId, triggerBlockId)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
+    this.registerRestoredClonedSubflows(context.subflowParentMap, restoredClonedSubflows)
 
     const engine = this.buildExecutionPipeline(context, dag, state)
     return await engine.run(triggerBlockId)
@@ -139,13 +158,31 @@ export class DAGExecutor {
     // This preserves sibling branch outputs that dirty blocks may reference
     const filteredBlockStates: Record<string, any> = {}
     for (const [blockId, state] of Object.entries(sourceSnapshot.blockStates)) {
-      if (reachableUpstreamSet.has(blockId) || reachableContainerIds.has(blockId)) {
+      const aliasBaseId = stripOuterBranchSuffix(blockId)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== blockId &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      if (
+        reachableUpstreamSet.has(blockId) ||
+        reachableContainerIds.has(blockId) ||
+        isReachableOuterBranchAlias
+      ) {
         filteredBlockStates[blockId] = state
       }
     }
-    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter(
-      (id) => reachableUpstreamSet.has(id) || reachableContainerIds.has(id)
-    )
+    const filteredExecutedBlocks = sourceSnapshot.executedBlocks.filter((id) => {
+      const aliasBaseId = stripOuterBranchSuffix(id)
+      const isReachableOuterBranchAlias =
+        aliasBaseId !== id &&
+        Array.from(reachableUpstreamSet).some(
+          (reachableId) => stripCloneSuffixes(reachableId) === aliasBaseId
+        )
+      return (
+        reachableUpstreamSet.has(id) || reachableContainerIds.has(id) || isReachableOuterBranchAlias
+      )
+    })
 
     // Filter loop/parallel executions to only include reachable containers
     const filteredLoopExecutions: Record<string, any> = {}
@@ -204,14 +241,117 @@ export class DAGExecutor {
       snapshotState: filteredSnapshot,
       runFromBlockContext,
     })
+    const filteredLargeValueKeys = collectLargeValueKeys({
+      blockStates: filteredBlockStates,
+      loopExecutions: filteredLoopExecutions,
+      parallelExecutions: filteredParallelExecutions,
+    })
+    mergeLargeValueKeys(context, filteredLargeValueKeys)
+    const filteredFileKeys = collectUserFileKeys({
+      blockStates: filteredBlockStates,
+      loopExecutions: filteredLoopExecutions,
+      parallelExecutions: filteredParallelExecutions,
+    })
+    mergeFileKeys(context, filteredFileKeys)
     context.subflowParentMap = this.buildSubflowParentMap(dag)
 
-    const engine = this.buildExecutionPipeline(context, dag, state)
-    return await engine.run()
+    const engine = this.buildExecutionPipeline(context, dag, state, filteredSnapshot)
+    const result = await engine.run()
+    if (result.metadata) {
+      result.metadata.largeValueKeys = context.largeValueKeys
+      result.metadata.fileKeys = context.fileKeys
+    }
+    return result
   }
 
-  private buildExecutionPipeline(context: ExecutionContext, dag: DAG, state: ExecutionState) {
-    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state)
+  private restoreSavedIncomingEdges(dag: DAG, savedIncomingEdges?: Record<string, string[]>): void {
+    if (!savedIncomingEdges) return
+
+    for (const [nodeId, incomingEdges] of Object.entries(savedIncomingEdges)) {
+      const node = dag.nodes.get(nodeId)
+      if (node) {
+        node.incomingEdges = new Set(incomingEdges)
+      }
+    }
+  }
+
+  private restoreSnapshotParallelBatches(
+    dag: DAG,
+    snapshotState?: SerializableExecutionState
+  ): RestoredClonedSubflowInfo[] {
+    if (!snapshotState?.parallelExecutions) return []
+
+    const expander = new ParallelExpander()
+    const clonedSubflows: RestoredClonedSubflowInfo[] = []
+    for (const [parallelId, scope] of Object.entries(snapshotState.parallelExecutions)) {
+      const currentBatchSize = Number(scope.currentBatchSize ?? 0)
+      if (!Number.isFinite(currentBatchSize) || currentBatchSize <= 0) continue
+
+      const currentBatchStart = Number(scope.currentBatchStart ?? 0)
+      const totalBranches = Number(scope.totalBranches ?? currentBatchStart + currentBatchSize)
+      const items = Array.isArray(scope.items)
+        ? scope.items.slice(currentBatchStart, currentBatchStart + currentBatchSize)
+        : undefined
+
+      const restoredBatch = expander.expandParallel(dag, parallelId, currentBatchSize, items, {
+        branchIndexOffset: currentBatchStart,
+        totalBranches,
+      })
+      clonedSubflows.push(
+        ...restoredBatch.clonedSubflows.map((clone) => ({
+          ...clone,
+          parentParallelId: parallelId,
+        }))
+      )
+    }
+
+    return clonedSubflows
+  }
+
+  private registerRestoredClonedSubflows(
+    parentMap: Map<string, { parentId: string; parentType: SubflowType; branchIndex?: number }>,
+    clonedSubflows: RestoredClonedSubflowInfo[]
+  ): void {
+    const branchCloneMaps = new Map<string, Map<number, Map<string, string>>>()
+
+    for (const clone of clonedSubflows) {
+      let parallelBranchMaps = branchCloneMaps.get(clone.parentParallelId)
+      if (!parallelBranchMaps) {
+        parallelBranchMaps = new Map()
+        branchCloneMaps.set(clone.parentParallelId, parallelBranchMaps)
+      }
+
+      let cloneMap = parallelBranchMaps.get(clone.outerBranchIndex)
+      if (!cloneMap) {
+        cloneMap = new Map()
+        parallelBranchMaps.set(clone.outerBranchIndex, cloneMap)
+      }
+
+      cloneMap.set(clone.originalId, clone.clonedId)
+    }
+
+    for (const clone of clonedSubflows) {
+      const originalEntry = parentMap.get(clone.originalId)
+      const cloneMap = branchCloneMaps.get(clone.parentParallelId)?.get(clone.outerBranchIndex)
+      const clonedParentId = originalEntry ? cloneMap?.get(originalEntry.parentId) : undefined
+
+      parentMap.set(clone.clonedId, {
+        parentId: clonedParentId ?? clone.parentParallelId,
+        parentType: clonedParentId && originalEntry ? originalEntry.parentType : 'parallel',
+        branchIndex: clonedParentId ? 0 : clone.outerBranchIndex,
+      })
+    }
+  }
+
+  private buildExecutionPipeline(
+    context: ExecutionContext,
+    dag: DAG,
+    state: ExecutionState,
+    snapshotState = this.contextExtensions.snapshotState
+  ) {
+    const resolver = new VariableResolver(this.workflow, this.workflowVariables, state, {
+      navigatePathAsync,
+    })
     const allHandlers = createBlockHandlers()
     const blockExecutor = new BlockExecutor(allHandlers, resolver, this.contextExtensions, state)
     const edgeManager = new EdgeManager(dag)
@@ -226,7 +366,12 @@ export class DAGExecutor {
       dag,
       state,
       resolver,
-      this.contextExtensions
+      this.contextExtensions,
+      edgeManager
+    )
+    edgeManager.restoreDeactivatedEdges(
+      snapshotState?.deactivatedEdges,
+      snapshotState?.nodesWithActivatedEdge
     )
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
@@ -269,6 +414,10 @@ export class DAGExecutor {
       workflowId,
       workspaceId: this.contextExtensions.workspaceId,
       executionId: this.contextExtensions.executionId,
+      largeValueExecutionIds: this.contextExtensions.largeValueExecutionIds,
+      largeValueKeys: this.contextExtensions.largeValueKeys,
+      fileKeys: this.contextExtensions.fileKeys,
+      allowLargeValueWorkflowScope: this.contextExtensions.allowLargeValueWorkflowScope,
       userId: this.contextExtensions.userId,
       isDeployedContext: this.contextExtensions.isDeployedContext,
       enforceCredentialAccess: this.contextExtensions.enforceCredentialAccess,
@@ -278,7 +427,9 @@ export class DAGExecutor {
         ...this.contextExtensions.metadata,
         startTime: new Date().toISOString(),
         duration: 0,
-        useDraftState: this.contextExtensions.isDeployedContext !== true,
+        useDraftState:
+          this.contextExtensions.metadata?.useDraftState ??
+          this.contextExtensions.isDeployedContext !== true,
       },
       environmentVariables: this.environmentVariables,
       workflowVariables: this.workflowVariables,
@@ -315,9 +466,17 @@ export class DAGExecutor {
                 branchOutputs: scope.branchOutputs
                   ? new Map(Object.entries(scope.branchOutputs).map(([k, v]) => [Number(k), v]))
                   : new Map(),
+                accumulatedOutputs: scope.accumulatedOutputs
+                  ? new Map(
+                      Object.entries(scope.accumulatedOutputs).map(([k, v]) => [Number(k), v])
+                    )
+                  : new Map(),
               },
             ])
           )
+        : new Map(),
+      parallelBlockMapping: snapshotState?.parallelBlockMapping
+        ? new Map(Object.entries(snapshotState.parallelBlockMapping))
         : new Map(),
       executedBlocks: state.getExecutedBlocks(),
       activeExecutionPath: snapshotState?.activeExecutionPath
@@ -325,7 +484,7 @@ export class DAGExecutor {
         : new Set(),
       workflow: this.workflow,
       stream: this.contextExtensions.stream ?? false,
-      selectedOutputs: this.contextExtensions.selectedOutputs ?? [],
+      selectedOutputs: normalizeStringArray(this.contextExtensions.selectedOutputs),
       edges: this.contextExtensions.edges ?? [],
       onStream: this.contextExtensions.onStream,
       onBlockStart: this.contextExtensions.onBlockStart,
@@ -385,8 +544,11 @@ export class DAGExecutor {
    */
   private buildSubflowParentMap(
     dag: DAG
-  ): Map<string, { parentId: string; parentType: SubflowType }> {
-    const parentMap = new Map<string, { parentId: string; parentType: SubflowType }>()
+  ): Map<string, { parentId: string; parentType: SubflowType; branchIndex?: number }> {
+    const parentMap = new Map<
+      string,
+      { parentId: string; parentType: SubflowType; branchIndex?: number }
+    >()
 
     // Scan loop configs: children can be loops or parallels
     for (const [loopId, config] of dag.loopConfigs) {
@@ -401,7 +563,7 @@ export class DAGExecutor {
     for (const [parallelId, config] of dag.parallelConfigs) {
       for (const nodeId of config.nodes ?? []) {
         if (dag.parallelConfigs.has(nodeId) || dag.loopConfigs.has(nodeId)) {
-          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel' })
+          parentMap.set(nodeId, { parentId: parallelId, parentType: 'parallel', branchIndex: 0 })
         }
       }
     }

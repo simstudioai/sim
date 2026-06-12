@@ -42,8 +42,8 @@ export default function Hero() {
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
-        1,000+ integrations and every major LLM — including OpenAI, Anthropic Claude, Google Gemini,
-        Mistral, and xAI Grok — to create agents that automate real work. Build agents visually with
+        1,000+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini,
+        Mistral, and xAI Grok, to create agents that automate real work. Build agents visually with
         the workflow builder, conversationally through Mothership, or programmatically with the API.
         Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 compliant.
       </p>

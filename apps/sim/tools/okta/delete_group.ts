@@ -40,7 +40,7 @@ export const oktaDeleteGroupTool: ToolConfig<OktaDeleteGroupParams, OktaDeleteGr
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}`
+      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
     },
     method: 'DELETE',
     headers: (params) => ({

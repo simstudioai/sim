@@ -1,22 +1,27 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, permissions, workspace } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, notInArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 
-interface AccessibleEnvCredential {
-  type: 'env_workspace' | 'env_personal'
-  envKey: string
-  envOwnerUserId: string | null
-  updatedAt: Date
+export interface WorkspaceMembership {
+  ownerId: string | null
+  /** All workspace members: the owner plus everyone with a workspace permission. */
+  memberUserIds: string[]
+  /**
+   * Members who default to a credential **admin** role on shared workspace
+   * credentials (secrets and service accounts): the owner plus anyone with
+   * workspace `admin` permission. Manual per-credential overrides are preserved
+   * separately on re-sync.
+   */
+  adminUserIds: Set<string>
 }
 
-function getPostgresErrorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object') return undefined
-  const err = error as { code?: string; cause?: { code?: string } }
-  return err.code || err.cause?.code
-}
-
-export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<string[]> {
+/**
+ * Resolves a workspace's membership in one owner lookup + one permissions scan,
+ * returning both the full member set and the admin-defaulting subset (owner +
+ * workspace `admin` permission).
+ */
+export async function getWorkspaceMembership(workspaceId: string): Promise<WorkspaceMembership> {
   const [workspaceRows, permissionRows] = await Promise.all([
     db
       .select({ ownerId: workspace.ownerId })
@@ -24,17 +29,80 @@ export async function getWorkspaceMemberUserIds(workspaceId: string): Promise<st
       .where(eq(workspace.id, workspaceId))
       .limit(1),
     db
-      .select({ userId: permissions.userId })
+      .select({ userId: permissions.userId, permissionType: permissions.permissionType })
       .from(permissions)
       .where(and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))),
   ])
-  const workspaceRow = workspaceRows[0]
 
-  const memberIds = new Set<string>(permissionRows.map((row) => row.userId))
-  if (workspaceRow?.ownerId) {
-    memberIds.add(workspaceRow.ownerId)
+  const ownerId = workspaceRows[0]?.ownerId ?? null
+  const memberUserIds = new Set<string>(permissionRows.map((row) => row.userId))
+  const adminUserIds = new Set<string>(
+    permissionRows.filter((row) => row.permissionType === 'admin').map((row) => row.userId)
+  )
+  if (ownerId) {
+    memberUserIds.add(ownerId)
+    adminUserIds.add(ownerId)
   }
-  return Array.from(memberIds)
+
+  return { ownerId, memberUserIds: Array.from(memberUserIds), adminUserIds }
+}
+
+export interface WorkspaceEnvKeyAdminAccess {
+  /** Keys for which the caller is an active credential admin. */
+  adminKeys: Set<string>
+  /** Keys that already have an `env_workspace` credential (regardless of role). */
+  knownKeys: Set<string>
+}
+
+/**
+ * For a set of workspace env keys, resolves which the caller may administer
+ * (active `credential_member` with role `admin`) and which already have an
+ * `env_workspace` credential at all. Keys absent from `knownKeys` have no ACL
+ * yet (new or legacy), letting routes fall back to a workspace-permission gate.
+ */
+export async function getWorkspaceEnvKeyAdminAccess(params: {
+  workspaceId: string
+  envKeys: string[]
+  userId: string
+}): Promise<WorkspaceEnvKeyAdminAccess> {
+  const { workspaceId, envKeys, userId } = params
+  const keys = Array.from(new Set(envKeys.filter(Boolean)))
+  if (keys.length === 0) return { adminKeys: new Set(), knownKeys: new Set() }
+
+  const rows = await db
+    .select({
+      envKey: credential.envKey,
+      role: credentialMember.role,
+      status: credentialMember.status,
+    })
+    .from(credential)
+    .leftJoin(
+      credentialMember,
+      and(eq(credentialMember.credentialId, credential.id), eq(credentialMember.userId, userId))
+    )
+    .where(
+      and(
+        eq(credential.workspaceId, workspaceId),
+        eq(credential.type, 'env_workspace'),
+        inArray(credential.envKey, keys)
+      )
+    )
+
+  const knownKeys = new Set<string>()
+  const adminKeys = new Set<string>()
+  for (const row of rows) {
+    if (!row.envKey) continue
+    knownKeys.add(row.envKey)
+    if (row.role === 'admin' && row.status === 'active') adminKeys.add(row.envKey)
+  }
+  return { adminKeys, knownKeys }
+}
+
+interface AccessibleEnvCredential {
+  type: 'env_workspace' | 'env_personal'
+  envKey: string
+  envOwnerUserId: string | null
+  updatedAt: Date
 }
 
 export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
@@ -64,16 +132,15 @@ export async function getUserWorkspaceIds(userId: string): Promise<string[]> {
 async function ensureWorkspaceCredentialMemberships(
   credentialId: string,
   memberUserIds: string[],
-  ownerUserId: string
+  adminUserIds: Set<string>,
+  invitedBy: string
 ) {
   if (!memberUserIds.length) return
 
   const existingMemberships = await db
     .select({
-      id: credentialMember.id,
       userId: credentialMember.userId,
       status: credentialMember.status,
-      joinedAt: credentialMember.joinedAt,
     })
     .from(credentialMember)
     .where(
@@ -83,41 +150,39 @@ async function ensureWorkspaceCredentialMemberships(
       )
     )
 
-  const byUserId = new Map(existingMemberships.map((row) => [row.userId, row]))
+  // Revoked memberships are filtered out so ON CONFLICT cannot resurrect them.
+  const revokedUserIds = new Set<string>(
+    existingMemberships.filter((row) => row.status === 'revoked').map((row) => row.userId)
+  )
+  const targetUserIds = memberUserIds.filter((id) => !revokedUserIds.has(id))
+  if (targetUserIds.length === 0) return
+
   const now = new Date()
+  const values = targetUserIds.map((memberUserId) => ({
+    id: generateId(),
+    credentialId,
+    userId: memberUserId,
+    role: (adminUserIds.has(memberUserId) ? 'admin' : 'member') as 'admin' | 'member',
+    status: 'active' as const,
+    joinedAt: now,
+    invitedBy,
+    createdAt: now,
+    updatedAt: now,
+  }))
 
-  for (const memberUserId of memberUserIds) {
-    const targetRole = memberUserId === ownerUserId ? 'admin' : 'member'
-    const existing = byUserId.get(memberUserId)
-    if (existing) {
-      if (existing.status === 'revoked') {
-        continue
-      }
-      await db
-        .update(credentialMember)
-        .set({
-          role: targetRole,
-          status: 'active',
-          joinedAt: existing.joinedAt ?? now,
-          invitedBy: ownerUserId,
-          updatedAt: now,
-        })
-        .where(eq(credentialMember.id, existing.id))
-      continue
-    }
-
-    await db.insert(credentialMember).values({
-      id: generateId(),
-      credentialId,
-      userId: memberUserId,
-      role: targetRole,
-      status: 'active',
-      joinedAt: now,
-      invitedBy: ownerUserId,
-      createdAt: now,
-      updatedAt: now,
+  // Existing roles (including manual per-secret overrides) are preserved on
+  // conflict; only membership activeness and a missing joinedAt are reconciled.
+  await db
+    .insert(credentialMember)
+    .values(values)
+    .onConflictDoUpdate({
+      target: [credentialMember.credentialId, credentialMember.userId],
+      set: {
+        status: 'active',
+        joinedAt: sql`COALESCE(${credentialMember.joinedAt}, excluded.joined_at)`,
+        updatedAt: now,
+      },
     })
-  }
 }
 
 export async function syncWorkspaceEnvCredentials(params: {
@@ -126,16 +191,9 @@ export async function syncWorkspaceEnvCredentials(params: {
   actingUserId: string
 }) {
   const { workspaceId, envKeys, actingUserId } = params
-  const [[workspaceRow], memberUserIds] = await Promise.all([
-    db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1),
-    getWorkspaceMemberUserIds(workspaceId),
-  ])
+  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
 
-  if (!workspaceRow) return
+  if (!ownerId) return
 
   const normalizedKeys = Array.from(new Set(envKeys.filter(Boolean)))
   const existingCredentials = await db
@@ -157,32 +215,34 @@ export async function syncWorkspaceEnvCredentials(params: {
 
   for (const envKey of normalizedKeys) {
     const existingId = existingByKey.get(envKey)
-    if (existingId) {
-      credentialIdsToEnsureMembership.add(existingId)
-      continue
-    }
+    if (existingId) credentialIdsToEnsureMembership.add(existingId)
+  }
 
-    const createdId = generateId()
-    try {
-      await db.insert(credential).values({
-        id: createdId,
-        workspaceId,
-        type: 'env_workspace',
-        displayName: envKey,
-        envKey,
-        createdBy: actingUserId,
-        createdAt: now,
-        updatedAt: now,
-      })
-      credentialIdsToEnsureMembership.add(createdId)
-    } catch (error: unknown) {
-      const code = getPostgresErrorCode(error)
-      if (code !== '23505') throw error
+  const keysToCreate = normalizedKeys.filter((key) => !existingByKey.has(key))
+  if (keysToCreate.length > 0) {
+    const inserted = await db
+      .insert(credential)
+      .values(
+        keysToCreate.map((envKey) => ({
+          id: generateId(),
+          workspaceId,
+          type: 'env_workspace' as const,
+          displayName: envKey,
+          envKey,
+          createdBy: actingUserId,
+          createdAt: now,
+          updatedAt: now,
+        }))
+      )
+      .onConflictDoNothing()
+      .returning({ id: credential.id })
+    for (const row of inserted) {
+      credentialIdsToEnsureMembership.add(row.id)
     }
   }
 
   for (const credentialId of credentialIdsToEnsureMembership) {
-    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, workspaceRow.ownerId)
+    await ensureWorkspaceCredentialMemberships(credentialId, memberUserIds, adminUserIds, ownerId)
   }
 
   if (normalizedKeys.length > 0) {
@@ -216,40 +276,29 @@ export async function createWorkspaceEnvCredentials(params: {
   const keys = Array.from(new Set(newKeys.filter(Boolean)))
   if (keys.length === 0) return
 
-  const [[workspaceRow], memberUserIds] = await Promise.all([
-    db
-      .select({ ownerId: workspace.ownerId })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1),
-    getWorkspaceMemberUserIds(workspaceId),
-  ])
+  const { ownerId, memberUserIds, adminUserIds } = await getWorkspaceMembership(workspaceId)
 
-  if (!workspaceRow) return
+  if (!ownerId) return
 
-  const ownerUserId = workspaceRow.ownerId
   const now = new Date()
-  const createdIds: string[] = []
 
-  for (const envKey of keys) {
-    const createdId = generateId()
-    try {
-      await db.insert(credential).values({
-        id: createdId,
+  const inserted = await db
+    .insert(credential)
+    .values(
+      keys.map((envKey) => ({
+        id: generateId(),
         workspaceId,
-        type: 'env_workspace',
+        type: 'env_workspace' as const,
         displayName: envKey,
         envKey,
         createdBy: actingUserId,
         createdAt: now,
         updatedAt: now,
-      })
-      createdIds.push(createdId)
-    } catch (error: unknown) {
-      const code = getPostgresErrorCode(error)
-      if (code !== '23505') throw error
-    }
-  }
+      }))
+    )
+    .onConflictDoNothing()
+    .returning({ id: credential.id })
+  const createdIds = inserted.map((row) => row.id)
 
   if (createdIds.length === 0 || memberUserIds.length === 0) return
 
@@ -259,10 +308,12 @@ export async function createWorkspaceEnvCredentials(params: {
       id: generateId(),
       credentialId,
       userId: memberUserId,
-      role: (memberUserId === ownerUserId ? 'admin' : 'member') as 'admin' | 'member',
+      role: (adminUserIds.has(memberUserId) || memberUserId === actingUserId
+        ? 'admin'
+        : 'member') as 'admin' | 'member',
       status: 'active' as const,
       joinedAt: now,
-      invitedBy: ownerUserId,
+      invitedBy: actingUserId,
       createdAt: now,
       updatedAt: now,
     }))
@@ -297,7 +348,7 @@ export async function deleteWorkspaceEnvCredentials(params: {
 export async function syncPersonalEnvCredentialsForUser(params: {
   userId: string
   envKeys: string[]
-}) {
+}): Promise<void> {
   const { userId, envKeys } = params
   const workspaceIds = await getUserWorkspaceIds(userId)
   if (!workspaceIds.length) return

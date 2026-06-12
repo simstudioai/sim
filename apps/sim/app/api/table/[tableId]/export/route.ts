@@ -3,8 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { tableExportFormatSchema, tableIdParamsSchema } from '@/lib/api/contracts/tables'
 import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { neutralizeCsvFormula } from '@/lib/core/utils/csv'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { buildNameById, getColumnId, rowDataIdToName } from '@/lib/table/column-keys'
 import { queryRows } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
@@ -45,6 +47,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
   const { table } = access
 
   const columns = table.schema.columns
+  // Stored row data is id-keyed; CSV headers and JSON keys are display names, so
+  // translate id → name on the way out (export is a name-friendly boundary).
+  const nameById = buildNameById(table.schema)
   const safeName = sanitizeFilename(table.name)
   const filename = `${safeName}.${format}`
 
@@ -53,7 +58,9 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
       const encoder = new TextEncoder()
       try {
         if (format === 'csv') {
-          controller.enqueue(encoder.encode(`${toCsvRow(columns.map((c) => c.name))}\n`))
+          controller.enqueue(
+            encoder.encode(`${toCsvRow(columns.map((c) => neutralizeCsvFormula(c.name)))}\n`)
+          )
         } else {
           controller.enqueue(encoder.encode('['))
         }
@@ -62,20 +69,21 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Rou
         let firstJsonRow = true
         while (true) {
           const result = await queryRows(
-            tableId,
-            table.workspaceId,
+            table,
             { limit: EXPORT_BATCH_SIZE, offset, includeTotal: false },
             requestId
           )
 
           for (const row of result.rows) {
             if (format === 'csv') {
-              const values = columns.map((c) => formatCsvValue(row.data[c.name]))
+              const values = columns.map((c) => formatCsvValue(row.data[getColumnId(c)]))
               controller.enqueue(encoder.encode(`${toCsvRow(values)}\n`))
             } else {
               const prefix = firstJsonRow ? '' : ','
               firstJsonRow = false
-              controller.enqueue(encoder.encode(prefix + JSON.stringify({ ...row.data })))
+              controller.enqueue(
+                encoder.encode(prefix + JSON.stringify(rowDataIdToName(row.data, nameById)))
+              )
             }
           }
 
@@ -112,10 +120,15 @@ function sanitizeFilename(name: string): string {
   return cleaned || 'table'
 }
 
+/**
+ * Serializes a cell for CSV. Only string cells are formula-neutralized; numbers,
+ * booleans, dates, and JSON objects can never form a trigger and pass through verbatim.
+ */
 function formatCsvValue(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (value instanceof Date) return value.toISOString()
   if (typeof value === 'object') return JSON.stringify(value)
+  if (typeof value === 'string') return neutralizeCsvFormula(value)
   return String(value)
 }
 

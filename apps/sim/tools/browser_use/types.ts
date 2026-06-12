@@ -18,7 +18,7 @@ export interface BrowserUseRunTaskParams {
   profile_id?: string
 }
 
-export interface BrowserUseTaskStep {
+interface BrowserUseTaskStep {
   number: number
   memory: string
   evaluationPreviousGoal: string
@@ -29,7 +29,7 @@ export interface BrowserUseTaskStep {
   duration?: number | null
 }
 
-export interface BrowserUseTaskOutput {
+interface BrowserUseTaskOutput {
   id: string
   success: boolean
   output: string | null

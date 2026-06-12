@@ -1,20 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { Check, ChevronDown, Clipboard, Eye, EyeOff } from 'lucide-react'
 import {
   Button,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
+  ChipSelect,
+  ChipTextarea,
   Expandable,
   ExpandableContent,
-  FormField,
-  Input,
-  Skeleton,
+  Label,
   Switch,
-  Textarea,
   toast,
 } from '@/components/emcn'
+import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -27,6 +29,30 @@ import { useOrganizations } from '@/hooks/queries/organization'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 
 const logger = createLogger('SSO')
+
+interface FormFieldProps {
+  label: ReactNode
+  children: ReactNode
+  optional?: boolean
+  error?: ReactNode
+}
+
+/**
+ * Page-level labeled-field row for the SSO settings form, matching the
+ * standalone-field rhythm: muted label, control, then a caption-sized error.
+ */
+function FormField({ label, children, optional = false, error }: FormFieldProps) {
+  return (
+    <div className='flex flex-col gap-[9px]'>
+      <Label className='font-normal text-[var(--text-muted)]'>
+        {label}
+        {optional ? <span className='ml-1'>(optional)</span> : null}
+      </Label>
+      {children}
+      {error ? <p className='text-[var(--text-error)] text-caption'>{error}</p> : null}
+    </div>
+  )
+}
 
 interface SSOProvider {
   id: string
@@ -94,7 +120,7 @@ export function SSO() {
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 
   const isSSOProviderOwner =
-    !isBillingEnabled && userId ? providers.some((p: any) => p.userId === userId) : null
+    !isBillingEnabled && userId ? providers.some((p) => p.userId === userId) : null
 
   const configureSSOMutation = useConfigureSSO()
 
@@ -269,38 +295,42 @@ export function SSO() {
     try {
       const providerType = formData.providerType || 'oidc'
 
-      const requestBody: any = {
-        providerId: formData.providerId,
-        issuer: formData.issuerUrl,
-        domain: formData.domain,
-        providerType,
-        orgId: activeOrganization?.id,
-        mapping: {
-          id: 'sub',
-          email: 'email',
-          name: 'name',
-          image: 'picture',
-        },
-      }
-
-      if (providerType === 'oidc') {
-        requestBody.clientId = formData.clientId
-        requestBody.clientSecret = formData.clientSecret
-        requestBody.scopes = formData.scopes.split(',').map((s) => s.trim())
-      } else if (providerType === 'saml') {
-        requestBody.entryPoint = formData.entryPoint
-        requestBody.cert = formData.cert
-        requestBody.wantAssertionsSigned = formData.wantAssertionsSigned
-        if (formData.callbackUrl) requestBody.callbackUrl = formData.callbackUrl
-        if (formData.audience) requestBody.audience = formData.audience
-        if (formData.idpMetadata) requestBody.idpMetadata = formData.idpMetadata
-
-        requestBody.mapping = {
-          id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
-          email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
-          name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
-        }
-      }
+      const requestBody: SsoRegistrationBody =
+        providerType === 'oidc'
+          ? {
+              providerType: 'oidc',
+              providerId: formData.providerId,
+              issuer: formData.issuerUrl,
+              domain: formData.domain,
+              orgId: activeOrganization?.id,
+              mapping: {
+                id: 'sub',
+                email: 'email',
+                name: 'name',
+                image: 'picture',
+              },
+              clientId: formData.clientId,
+              clientSecret: formData.clientSecret,
+              scopes: formData.scopes.split(',').map((s) => s.trim()),
+            }
+          : {
+              providerType: 'saml',
+              providerId: formData.providerId,
+              issuer: formData.issuerUrl,
+              domain: formData.domain,
+              orgId: activeOrganization?.id,
+              mapping: {
+                id: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier',
+                email: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress',
+                name: 'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
+              },
+              entryPoint: formData.entryPoint,
+              cert: formData.cert,
+              wantAssertionsSigned: formData.wantAssertionsSigned,
+              ...(formData.callbackUrl ? { callbackUrl: formData.callbackUrl } : {}),
+              ...(formData.audience ? { audience: formData.audience } : {}),
+              ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
+            }
 
       await configureSSOMutation.mutateAsync(requestBody)
 
@@ -312,24 +342,21 @@ export function SSO() {
       setIsEditing(false)
       setShowAdvanced(false)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error occurred'
+      const message = getErrorMessage(err, 'Unknown error occurred')
       toast.error(message)
       logger.error('Failed to configure SSO provider', { error: err })
     }
   }
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData((prev) => {
-      const next = { ...prev, [field]: value }
+    const next = { ...formData, [field]: value }
 
-      if (field === 'providerType') {
-        setShowErrors(false)
-      }
+    if (field === 'providerType') {
+      setShowErrors(false)
+    }
 
-      validateAll(next)
-
-      return next
-    })
+    setFormData(next)
+    validateAll(next)
   }
 
   const isSaml = formData.providerType === 'saml'
@@ -399,16 +426,24 @@ export function SSO() {
   }
 
   if (isLoadingProviders) {
-    return <SsoSkeleton />
+    return null
   }
 
   if (existingProvider && !isEditing) {
     const providerCallbackUrl = `${getBaseUrl()}/api/auth/${existingProvider.providerType === 'saml' ? 'sso/saml2/callback' : 'sso/callback'}/${existingProvider.providerId}`
 
     return (
-      <div className='flex h-full flex-col gap-4.5'>
-        <div className='min-h-0 flex-1 overflow-y-auto'>
-          <div className='flex flex-col gap-4.5'>
+      <div className='flex h-full flex-col bg-[var(--bg)]'>
+        <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+          <div />
+          <div className='flex items-center'>
+            <Button onClick={handleEdit} variant='primary'>
+              Edit
+            </Button>
+          </div>
+        </div>
+        <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
             <FormField label='Provider ID'>
               <p className='text-[var(--text-primary)] text-small'>{existingProvider.providerId}</p>
             </FormField>
@@ -430,40 +465,41 @@ export function SSO() {
             </FormField>
 
             <FormField label='Callback URL'>
-              <div className='relative'>
-                <Input value={providerCallbackUrl} readOnly className='h-9 pr-9' />
-                <Button
-                  type='button'
-                  variant='ghost'
-                  onClick={() => copyToClipboard(providerCallbackUrl)}
-                  className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                  aria-label='Copy callback URL'
-                >
-                  {copied ? (
-                    <Check className='h-[14px] w-[14px]' />
-                  ) : (
-                    <Clipboard className='h-[14px] w-[14px]' />
-                  )}
-                </Button>
-              </div>
+              <ChipInput
+                value={providerCallbackUrl}
+                readOnly
+                endAdornment={
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    onClick={() => copyToClipboard(providerCallbackUrl)}
+                    className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                    aria-label='Copy callback URL'
+                  >
+                    {copied ? (
+                      <Check className='size-[14px]' />
+                    ) : (
+                      <Clipboard className='size-[14px]' />
+                    )}
+                  </Button>
+                }
+              />
               <p className='text-[var(--text-muted)] text-small'>
                 Configure this in your identity provider
               </p>
             </FormField>
           </div>
         </div>
-
-        <div className='mt-auto flex items-center justify-end'>
-          <Button onClick={handleEdit} variant='primary'>
-            Edit
-          </Button>
-        </div>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleSubmit} autoComplete='off' className='flex h-full flex-col gap-4.5'>
+    <form
+      onSubmit={handleSubmit}
+      autoComplete='off'
+      className='flex h-full flex-col bg-[var(--bg)]'
+    >
       {/* Off-screen inputs to prevent browser password manager autofill */}
       <input
         type='text'
@@ -489,13 +525,53 @@ export function SSO() {
         tabIndex={-1}
         readOnly
       />
-      <input type='text' name='hidden' className='hidden' autoComplete='false' />
+      <input type='text' name='hidden' className='hidden' autoComplete='off' />
 
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center gap-1'>
+          {isEditing && (
+            <Button
+              type='button'
+              variant='default'
+              onClick={() => {
+                setIsEditing(false)
+                setFormData(DEFAULT_FORM_DATA)
+                setErrors(DEFAULT_ERRORS)
+                setShowErrors(false)
+                setShowAdvanced(false)
+              }}
+            >
+              Cancel
+            </Button>
+          )}
+          <Button
+            type='submit'
+            variant='primary'
+            disabled={
+              configureSSOMutation.isPending ||
+              hasAnyErrors(errors) ||
+              !isFormValid() ||
+              (isEditing && !hasChanges())
+            }
+          >
+            {configureSSOMutation.isPending
+              ? isEditing
+                ? 'Updating...'
+                : 'Saving...'
+              : isEditing
+                ? 'Update'
+                : 'Save'}
+          </Button>
+        </div>
+      </div>
+
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-6 pb-6'>
           {/* Provider Type */}
           <FormField label='Provider Type'>
-            <Combobox
+            <ChipSelect
+              align='start'
               value={formData.providerType}
               onChange={(value: string) =>
                 handleInputChange('providerType', value as 'oidc' | 'saml')
@@ -505,8 +581,6 @@ export function SSO() {
                 { label: 'SAML', value: 'saml' },
               ]}
               placeholder='Select provider type'
-              editable={false}
-              className='h-9'
             />
             <p className='text-[var(--text-muted)] text-small'>
               {formData.providerType === 'oidc'
@@ -522,7 +596,9 @@ export function SSO() {
               showErrors && errors.providerId.length > 0 ? errors.providerId.join(' ') : undefined
             }
           >
-            <Combobox
+            {/* Editable combobox (not ChipSelect): provider IDs accept any
+                validated slug, with SSO_TRUSTED_PROVIDERS as autocomplete. */}
+            <ChipCombobox
               value={formData.providerId}
               onChange={(value: string) => handleInputChange('providerId', value)}
               options={SSO_TRUSTED_PROVIDERS.map((id) => ({
@@ -530,11 +606,7 @@ export function SSO() {
                 value: id,
               }))}
               placeholder='Select or enter a provider ID'
-              editable={true}
-              className={cn(
-                'h-9',
-                showErrors && errors.providerId.length > 0 && 'border-[var(--text-error)]'
-              )}
+              editable
             />
           </FormField>
 
@@ -545,7 +617,7 @@ export function SSO() {
               showErrors && errors.issuerUrl.length > 0 ? errors.issuerUrl.join(' ') : undefined
             }
           >
-            <Input
+            <ChipInput
               id='sso-issuer'
               type='url'
               placeholder='https://your-identity-provider.com/oauth2/default'
@@ -557,10 +629,7 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('issuerUrl', e.target.value)}
-              className={cn(
-                'h-9',
-                showErrors && errors.issuerUrl.length > 0 && 'border-[var(--text-error)]'
-              )}
+              error={showErrors && errors.issuerUrl.length > 0}
             />
           </FormField>
 
@@ -569,7 +638,7 @@ export function SSO() {
             label='Domain'
             error={showErrors && errors.domain.length > 0 ? errors.domain.join(' ') : undefined}
           >
-            <Input
+            <ChipInput
               id='sso-domain'
               type='text'
               placeholder='company.com'
@@ -581,10 +650,7 @@ export function SSO() {
               readOnly
               onFocus={(e) => e.target.removeAttribute('readOnly')}
               onChange={(e) => handleInputChange('domain', e.target.value)}
-              className={cn(
-                'h-9',
-                showErrors && errors.domain.length > 0 && 'border-[var(--text-error)]'
-              )}
+              error={showErrors && errors.domain.length > 0}
             />
             <p className='text-[var(--text-muted)] text-small'>
               The email domain users sign in with (e.g. company.com)
@@ -600,7 +666,7 @@ export function SSO() {
                   showErrors && errors.clientId.length > 0 ? errors.clientId.join(' ') : undefined
                 }
               >
-                <Input
+                <ChipInput
                   id='sso-client-id'
                   type='text'
                   placeholder='Enter Client ID'
@@ -612,10 +678,7 @@ export function SSO() {
                   readOnly
                   onFocus={(e) => e.target.removeAttribute('readOnly')}
                   onChange={(e) => handleInputChange('clientId', e.target.value)}
-                  className={cn(
-                    'h-9',
-                    showErrors && errors.clientId.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.clientId.length > 0}
                 />
               </FormField>
 
@@ -628,47 +691,40 @@ export function SSO() {
                     : undefined
                 }
               >
-                <div className='relative'>
-                  <Input
-                    id='sso-client-secret'
-                    type='text'
-                    placeholder='Enter Client Secret'
-                    value={formData.clientSecret}
-                    name='sso_client_key'
-                    autoComplete='off'
-                    autoCapitalize='none'
-                    spellCheck={false}
-                    readOnly
-                    onFocus={(e) => {
-                      e.target.removeAttribute('readOnly')
-                      setShowClientSecret(true)
-                    }}
-                    onBlurCapture={() => setShowClientSecret(false)}
-                    onChange={(e) => handleInputChange('clientSecret', e.target.value)}
-                    style={
-                      !showClientSecret
-                        ? ({ WebkitTextSecurity: 'disc' } as React.CSSProperties)
-                        : undefined
-                    }
-                    className={cn(
-                      'h-9 pr-9',
-                      showErrors && errors.clientSecret.length > 0 && 'border-[var(--text-error)]'
-                    )}
-                  />
-                  <Button
-                    type='button'
-                    variant='ghost'
-                    onClick={() => setShowClientSecret((s) => !s)}
-                    className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-                    aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
-                  >
-                    {showClientSecret ? (
-                      <EyeOff className='h-[14px] w-[14px]' />
-                    ) : (
-                      <Eye className='h-[14px] w-[14px]' />
-                    )}
-                  </Button>
-                </div>
+                <ChipInput
+                  id='sso-client-secret'
+                  type='text'
+                  placeholder='Enter Client Secret'
+                  value={formData.clientSecret}
+                  name='sso_client_key'
+                  autoComplete='off'
+                  autoCapitalize='none'
+                  spellCheck={false}
+                  readOnly
+                  onFocus={(e) => {
+                    e.target.removeAttribute('readOnly')
+                    setShowClientSecret(true)
+                  }}
+                  onBlurCapture={() => setShowClientSecret(false)}
+                  onChange={(e) => handleInputChange('clientSecret', e.target.value)}
+                  inputClassName={!showClientSecret ? '[-webkit-text-security:disc]' : undefined}
+                  error={showErrors && errors.clientSecret.length > 0}
+                  endAdornment={
+                    <Button
+                      type='button'
+                      variant='ghost'
+                      onClick={() => setShowClientSecret((s) => !s)}
+                      className='size-6 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                      aria-label={showClientSecret ? 'Hide client secret' : 'Show client secret'}
+                    >
+                      {showClientSecret ? (
+                        <EyeOff className='size-[14px]' />
+                      ) : (
+                        <Eye className='size-[14px]' />
+                      )}
+                    </Button>
+                  }
+                />
               </FormField>
 
               {/* Scopes */}
@@ -676,7 +732,7 @@ export function SSO() {
                 label='Scopes'
                 error={showErrors && errors.scopes.length > 0 ? errors.scopes.join(' ') : undefined}
               >
-                <Input
+                <ChipInput
                   id='sso-scopes'
                   type='text'
                   placeholder='openid,profile,email'
@@ -685,10 +741,7 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('scopes', e.target.value)}
-                  className={cn(
-                    'h-9',
-                    showErrors && errors.scopes.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.scopes.length > 0}
                 />
                 <p className='text-[var(--text-muted)] text-small'>
                   Comma-separated list of OIDC scopes to request
@@ -706,7 +759,7 @@ export function SSO() {
                     : undefined
                 }
               >
-                <Input
+                <ChipInput
                   id='sso-entry-point'
                   type='url'
                   placeholder='https://idp.example.com/sso/saml'
@@ -715,10 +768,7 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('entryPoint', e.target.value)}
-                  className={cn(
-                    'h-9',
-                    showErrors && errors.entryPoint.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  error={showErrors && errors.entryPoint.length > 0}
                 />
               </FormField>
 
@@ -727,7 +777,7 @@ export function SSO() {
                 label='Identity Provider Certificate'
                 error={showErrors && errors.cert.length > 0 ? errors.cert.join(' ') : undefined}
               >
-                <Textarea
+                <ChipTextarea
                   id='sso-cert'
                   placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
                   value={formData.cert}
@@ -735,10 +785,8 @@ export function SSO() {
                   autoCapitalize='none'
                   spellCheck={false}
                   onChange={(e) => handleInputChange('cert', e.target.value)}
-                  className={cn(
-                    'min-h-[80px] font-mono',
-                    showErrors && errors.cert.length > 0 && 'border-[var(--text-error)]'
-                  )}
+                  className='min-h-[80px] font-mono'
+                  error={showErrors && errors.cert.length > 0}
                   rows={3}
                 />
               </FormField>
@@ -751,10 +799,7 @@ export function SSO() {
                   className='w-fit gap-1.5 px-0 text-[var(--text-muted)] hover:bg-transparent hover:text-[var(--text-primary)]'
                 >
                   <ChevronDown
-                    className={cn(
-                      'h-[14px] w-[14px] transition-transform',
-                      showAdvanced && 'rotate-180'
-                    )}
+                    className={cn('size-[14px] transition-transform', showAdvanced && 'rotate-180')}
                   />
                   Advanced Options
                 </Button>
@@ -763,7 +808,7 @@ export function SSO() {
                   <ExpandableContent>
                     <div className='flex flex-col gap-4.5 pt-2'>
                       <FormField label='Audience (Entity ID)' optional>
-                        <Input
+                        <ChipInput
                           type='text'
                           placeholder='Enter Audience'
                           value={formData.audience}
@@ -771,12 +816,11 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('audience', e.target.value)}
-                          className='h-9'
                         />
                       </FormField>
 
                       <FormField label='Callback URL Override' optional>
-                        <Input
+                        <ChipInput
                           type='url'
                           placeholder={`${getBaseUrl()}/api/auth/sso/saml2/callback/provider-id`}
                           value={formData.callbackUrl}
@@ -784,7 +828,6 @@ export function SSO() {
                           autoCapitalize='none'
                           spellCheck={false}
                           onChange={(e) => handleInputChange('callbackUrl', e.target.value)}
-                          className='h-9'
                         />
                       </FormField>
 
@@ -798,7 +841,7 @@ export function SSO() {
                       </FormField>
 
                       <FormField label='IDP Metadata XML' optional>
-                        <Textarea
+                        <ChipTextarea
                           placeholder='Paste IDP metadata XML here'
                           value={formData.idpMetadata}
                           autoComplete='off'
@@ -818,84 +861,31 @@ export function SSO() {
 
           {/* Callback URL */}
           <FormField label='Callback URL'>
-            <div className='relative'>
-              <Input value={callbackUrl} readOnly className='h-9 pr-9' />
-              <Button
-                type='button'
-                variant='ghost'
-                onClick={() => copyToClipboard(callbackUrl)}
-                className='-translate-y-1/2 absolute top-1/2 right-[8px] h-6 w-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
-                aria-label='Copy callback URL'
-              >
-                {copied ? (
-                  <Check className='h-[14px] w-[14px]' />
-                ) : (
-                  <Clipboard className='h-[14px] w-[14px]' />
-                )}
-              </Button>
-            </div>
+            <ChipInput
+              value={callbackUrl}
+              readOnly
+              endAdornment={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  onClick={() => copyToClipboard(callbackUrl)}
+                  className='size-6 p-0 text-[var(--text-icon)] hover:text-[var(--text-primary)]'
+                  aria-label='Copy callback URL'
+                >
+                  {copied ? (
+                    <Check className='size-[14px]' />
+                  ) : (
+                    <Clipboard className='size-[14px]' />
+                  )}
+                </Button>
+              }
+            />
             <p className='text-[var(--text-muted)] text-small'>
               Configure this in your identity provider
             </p>
           </FormField>
         </div>
       </div>
-
-      <div className='mt-auto flex items-center justify-end gap-2'>
-        {isEditing && (
-          <Button
-            type='button'
-            variant='default'
-            onClick={() => {
-              setIsEditing(false)
-              setFormData(DEFAULT_FORM_DATA)
-              setErrors(DEFAULT_ERRORS)
-              setShowErrors(false)
-              setShowAdvanced(false)
-            }}
-          >
-            Cancel
-          </Button>
-        )}
-        <Button
-          type='submit'
-          variant='primary'
-          disabled={
-            configureSSOMutation.isPending ||
-            hasAnyErrors(errors) ||
-            !isFormValid() ||
-            (isEditing && !hasChanges())
-          }
-        >
-          {configureSSOMutation.isPending
-            ? isEditing
-              ? 'Updating...'
-              : 'Saving...'
-            : isEditing
-              ? 'Update'
-              : 'Save'}
-        </Button>
-      </div>
     </form>
-  )
-}
-
-function SsoSkeleton() {
-  return (
-    <div className='flex h-full flex-col gap-4.5'>
-      <div className='min-h-0 flex-1 overflow-y-auto'>
-        <div className='flex flex-col gap-4.5'>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2'>
-              <Skeleton className='h-[13px] w-[80px]' />
-              <Skeleton className='h-9 w-full' />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className='mt-auto flex items-center justify-end'>
-        <Skeleton className='h-9 w-[60px]' />
-      </div>
-    </div>
   )
 }

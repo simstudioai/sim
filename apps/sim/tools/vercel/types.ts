@@ -1,5 +1,18 @@
 import type { ToolResponse } from '@/tools/types'
 
+export interface VercelDomainVerification {
+  type?: string
+  domain?: string
+  value?: string
+  reason?: string
+}
+
+export interface VercelDomainCreator {
+  id: string | null
+  username: string | null
+  email: string | null
+}
+
 export interface VercelListDeploymentsParams {
   apiKey: string
   projectId?: string
@@ -67,6 +80,9 @@ export interface VercelListDeploymentsResponse extends ToolResponse {
       projectId: string
       source: string
       inspectorUrl: string
+      checksState: string | null
+      checksConclusion: string | null
+      errorMessage: string | null
       creator: {
         uid: string
         email: string
@@ -106,6 +122,9 @@ export interface VercelGetDeploymentResponse extends ToolResponse {
     } | null
     meta: Record<string, string>
     gitSource: Record<string, unknown> | null
+    errorCode: string | null
+    errorMessage: string | null
+    aliasAssigned: boolean | null
   }
 }
 
@@ -117,7 +136,6 @@ export interface VercelListProjectsResponse extends ToolResponse {
       framework: string | null
       createdAt: number
       updatedAt: number
-      domains: string[]
     }>
     count: number
     hasMore: boolean
@@ -131,7 +149,6 @@ export interface VercelGetProjectResponse extends ToolResponse {
     framework: string | null
     createdAt: number
     updatedAt: number
-    domains: string[]
     link: {
       type: string
       repo: string
@@ -151,6 +168,9 @@ export interface VercelCreateDeploymentResponse extends ToolResponse {
     alias: string[]
     target: string | null
     inspectorUrl: string
+    errorCode: string | null
+    errorMessage: string | null
+    aliasAssigned: boolean | null
   }
 }
 
@@ -167,6 +187,8 @@ export interface VercelListDomainsResponse extends ToolResponse {
       intendedNameservers: string[]
       renew: boolean
       boughtAt: number | null
+      transferredAt: number | null
+      creator: VercelDomainCreator | null
     }>
     count: number
     hasMore: boolean
@@ -183,6 +205,8 @@ export interface VercelGetEnvVarsResponse extends ToolResponse {
       target: string[]
       gitBranch: string | null
       comment: string | null
+      createdAt: number | null
+      updatedAt: number | null
     }>
     count: number
   }
@@ -200,6 +224,9 @@ export interface VercelCancelDeploymentResponse extends ToolResponse {
     name: string | null
     state: string
     url: string | null
+    status: string | null
+    projectId: string | null
+    inspectorUrl: string | null
   }
 }
 
@@ -238,6 +265,7 @@ export interface VercelGetDeploymentEventsResponse extends ToolResponse {
       deploymentId: string | null
       id: string | null
       level: string | null
+      info: Record<string, unknown> | null
     }>
     count: number
   }
@@ -264,6 +292,8 @@ export interface VercelCreateEnvVarResponse extends ToolResponse {
     target: string[]
     gitBranch: string | null
     comment: string | null
+    createdAt: number | null
+    updatedAt: number | null
   }
 }
 
@@ -289,6 +319,8 @@ export interface VercelUpdateEnvVarResponse extends ToolResponse {
     target: string[]
     gitBranch: string | null
     comment: string | null
+    createdAt: number | null
+    updatedAt: number | null
   }
 }
 
@@ -424,6 +456,8 @@ export interface VercelListProjectDomainsResponse extends ToolResponse {
       gitBranch: string | null
       createdAt: number
       updatedAt: number
+      projectId: string
+      verification: VercelDomainVerification[]
     }>
     count: number
     hasMore: boolean
@@ -450,6 +484,8 @@ export interface VercelAddProjectDomainResponse extends ToolResponse {
     redirectStatusCode: number | null
     createdAt: number
     updatedAt: number
+    projectId: string
+    verification: VercelDomainVerification[]
   }
 }
 
@@ -486,6 +522,10 @@ export interface VercelGetDomainResponse extends ToolResponse {
     renew: boolean
     boughtAt: number | null
     transferredAt: number | null
+    creator: VercelDomainCreator | null
+    userId: string | null
+    teamId: string | null
+    transferStartedAt: number | null
   }
 }
 
@@ -504,6 +544,12 @@ export interface VercelAddDomainResponse extends ToolResponse {
     serviceType: string | null
     nameservers: string[]
     intendedNameservers: string[]
+    expiresAt: number | null
+    customNameservers: string[]
+    renew: boolean | null
+    boughtAt: number | null
+    transferredAt: number | null
+    creator: VercelDomainCreator | null
   }
 }
 
@@ -609,6 +655,8 @@ export interface VercelListTeamsResponse extends ToolResponse {
       slug: string | null
       name: string | null
       avatar: string | null
+      description: string | null
+      stagingPrefix: string | null
       createdAt: number | null
       updatedAt: number | null
       creatorId: string | null
@@ -641,6 +689,7 @@ export interface VercelGetTeamResponse extends ToolResponse {
     name: string | null
     avatar: string | null
     description: string | null
+    stagingPrefix: string | null
     createdAt: number | null
     updatedAt: number | null
     creatorId: string | null
@@ -679,6 +728,8 @@ export interface VercelListTeamMembersResponse extends ToolResponse {
       role: string | null
       confirmed: boolean
       createdAt: number | null
+      accessRequestedAt: number | null
+      isEnterpriseManaged: boolean | null
       joinedFrom: {
         origin: string | null
       } | null
@@ -687,6 +738,8 @@ export interface VercelListTeamMembersResponse extends ToolResponse {
     pagination: {
       hasNext: boolean
       count: number
+      next: number | null
+      prev: number | null
     } | null
   }
 }
@@ -730,6 +783,9 @@ export interface VercelListAliasesResponse extends ToolResponse {
       projectId: string | null
       createdAt: number | null
       updatedAt: number | null
+      deployment: { id: string | null; url: string | null } | null
+      redirect: string | null
+      redirectStatusCode: number | null
     }>
     count: number
     hasMore: boolean
@@ -752,6 +808,7 @@ export interface VercelGetAliasResponse extends ToolResponse {
     updatedAt: number | null
     redirect: string | null
     redirectStatusCode: number | null
+    deployment: { id: string | null; url: string | null } | null
   }
 }
 
@@ -891,6 +948,7 @@ export interface VercelListWebhooksResponse extends ToolResponse {
       projectIds: string[]
       createdAt: number
       updatedAt: number
+      projectsMetadata: unknown[]
     }>
     count: number
   }
@@ -901,7 +959,7 @@ export interface VercelCreateWebhookParams {
   url: string
   events: string
   projectIds?: string
-  teamId: string
+  teamId?: string
 }
 
 export interface VercelCreateWebhookResponse extends ToolResponse {
@@ -958,6 +1016,7 @@ export interface VercelCheckResponse extends ToolResponse {
     updatedAt: number
     startedAt: number | null
     completedAt: number | null
+    output: unknown
   }
 }
 
@@ -992,6 +1051,7 @@ export interface VercelListChecksResponse extends ToolResponse {
       updatedAt: number
       startedAt: number | null
       completedAt: number | null
+      output: unknown
     }>
     count: number
   }
@@ -1021,5 +1081,121 @@ export interface VercelRerequestCheckParams {
 export interface VercelRerequestCheckResponse extends ToolResponse {
   output: {
     rerequested: boolean
+  }
+}
+
+export interface VercelUpdateDnsRecordParams {
+  apiKey: string
+  recordId: string
+  name?: string
+  value?: string
+  type?: string
+  ttl?: number
+  mxPriority?: number
+  comment?: string
+  teamId?: string
+}
+
+export interface VercelUpdateDnsRecordResponse extends ToolResponse {
+  output: {
+    id: string | null
+    name: string | null
+    type: string | null
+    value: string | null
+    creator: string | null
+    domain: string | null
+    ttl: number | null
+    comment: string | null
+    recordType: string | null
+    createdAt: number | null
+  }
+}
+
+export interface VercelGetWebhookParams {
+  apiKey: string
+  webhookId: string
+  teamId?: string
+}
+
+export interface VercelGetWebhookResponse extends ToolResponse {
+  output: {
+    id: string | null
+    url: string | null
+    events: string[]
+    ownerId: string | null
+    projectIds: string[]
+    createdAt: number | null
+    updatedAt: number | null
+  }
+}
+
+export interface VercelDeleteEdgeConfigParams {
+  apiKey: string
+  edgeConfigId: string
+  teamId?: string
+}
+
+export interface VercelDeleteEdgeConfigResponse extends ToolResponse {
+  output: {
+    deleted: boolean
+  }
+}
+
+export interface VercelUpdateProjectDomainParams {
+  apiKey: string
+  projectId: string
+  domain: string
+  redirect?: string
+  redirectStatusCode?: number
+  gitBranch?: string
+  teamId?: string
+}
+
+export interface VercelUpdateProjectDomainResponse extends ToolResponse {
+  output: {
+    name: string
+    apexName: string
+    projectId: string
+    verified: boolean
+    redirect: string | null
+    redirectStatusCode: number | null
+    gitBranch: string | null
+    createdAt: number | null
+    updatedAt: number | null
+    verification: VercelDomainVerification[]
+  }
+}
+
+export interface VercelVerifyProjectDomainParams {
+  apiKey: string
+  projectId: string
+  domain: string
+  teamId?: string
+}
+
+export interface VercelVerifyProjectDomainResponse extends ToolResponse {
+  output: {
+    name: string | null
+    apexName: string | null
+    projectId: string | null
+    verified: boolean
+    redirect: string | null
+    redirectStatusCode: number | null
+    gitBranch: string | null
+    createdAt: number | null
+    updatedAt: number | null
+  }
+}
+
+export interface VercelPromoteDeploymentParams {
+  apiKey: string
+  projectId: string
+  deploymentId: string
+  teamId?: string
+}
+
+export interface VercelPromoteDeploymentResponse extends ToolResponse {
+  output: {
+    promoted: boolean
   }
 }

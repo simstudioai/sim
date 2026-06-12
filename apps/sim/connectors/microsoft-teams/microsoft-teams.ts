@@ -1,9 +1,14 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { MicrosoftTeamsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { computeContentHash, htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  computeContentHash,
+  htmlToPlainText,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('MicrosoftTeamsConnector')
 
@@ -108,8 +113,11 @@ async function fetchChannelMessages(
       (msg) => msg.messageType === 'message' && !msg.deletedDateTime
     )
 
+    // Messages are sorted by lastModifiedDateTime (per Graph docs), so the first
+    // user message on the first page reflects the most recent activity.
     if (!lastActivityTs && userMessages.length > 0) {
-      lastActivityTs = userMessages[0].createdDateTime
+      const first = userMessages[0]
+      lastActivityTs = first.lastModifiedDateTime || first.createdDateTime
     }
 
     allMessages.push(...userMessages)
@@ -159,7 +167,8 @@ async function resolveChannel(
 
   // Fetch all channels for the team
   let nextLink: string | undefined
-  const initialPath = `/teams/${encodeURIComponent(teamId)}/channels`
+  // $select avoids the expensive `email` property per Graph perf guidance.
+  const initialPath = `/teams/${encodeURIComponent(teamId)}/channels?$select=id,displayName,description`
   let currentUrl: string = initialPath
 
   do {
@@ -184,7 +193,7 @@ async function resolveChannel(
 export const microsoftTeamsConnector: ConnectorConfig = {
   id: 'microsoft_teams',
   name: 'Microsoft Teams',
-  description: 'Sync channel messages from Microsoft Teams into your knowledge base',
+  description: 'Sync channel messages from Microsoft Teams',
   version: '1.0.0',
   icon: MicrosoftTeamsIcon,
 
@@ -217,24 +226,26 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     },
     {
       id: 'channelSelector',
-      title: 'Channel',
+      title: 'Channels',
       type: 'selector',
       selectorKey: 'microsoft.channels',
       canonicalParamId: 'channel',
       mode: 'basic',
+      multi: true,
       dependsOn: ['teamSelector'],
-      placeholder: 'Select a channel',
+      placeholder: 'Select one or more channels',
       required: true,
     },
     {
       id: 'channel',
-      title: 'Channel',
+      title: 'Channels',
       type: 'short-input',
       canonicalParamId: 'channel',
       mode: 'advanced',
-      placeholder: 'e.g. General or 19:abc123@thread.tacv2',
+      multi: true,
+      placeholder: 'e.g. General, Announcements (comma-separated for multiple)',
       required: true,
-      description: 'Channel name or ID to sync messages from',
+      description: 'Channel names or IDs to sync messages from',
     },
     {
       id: 'maxMessages',
@@ -252,60 +263,68 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     _syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const teamId = sourceConfig.teamId as string
-    const channelInput = sourceConfig.channel as string
+    const channelInputs = parseMultiValue(sourceConfig.channel)
     if (!teamId?.trim()) {
       throw new Error('Team ID is required')
     }
-    if (!channelInput?.trim()) {
-      throw new Error('Channel is required')
+    if (channelInputs.length === 0) {
+      throw new Error('At least one channel is required')
     }
 
     const maxMessages = sourceConfig.maxMessages
       ? Number(sourceConfig.maxMessages)
       : DEFAULT_MAX_MESSAGES
 
-    logger.info('Syncing Microsoft Teams channel', { teamId, channel: channelInput, maxMessages })
-
-    const channel = await resolveChannel(accessToken, teamId, channelInput)
-    if (!channel) {
-      throw new Error(`Channel not found: ${channelInput}`)
-    }
-
-    const { messages, lastActivityTs } = await fetchChannelMessages(
-      accessToken,
+    logger.info('Syncing Microsoft Teams channels', {
       teamId,
-      channel.id,
-      maxMessages
-    )
+      channels: channelInputs,
+      maxMessages,
+    })
 
-    const content = formatMessages(messages)
-    if (!content.trim()) {
-      logger.info(`No messages found in channel: ${channel.displayName}`)
-      return { documents: [], hasMore: false }
+    const documents: ExternalDocument[] = []
+
+    for (const channelInput of channelInputs) {
+      const channel = await resolveChannel(accessToken, teamId, channelInput)
+      if (!channel) {
+        throw new Error(`Channel not found: ${channelInput}`)
+      }
+
+      const { messages, lastActivityTs } = await fetchChannelMessages(
+        accessToken,
+        teamId,
+        channel.id,
+        maxMessages
+      )
+
+      const content = formatMessages(messages)
+      if (!content.trim()) {
+        logger.info(`No messages found in channel: ${channel.displayName}`)
+        continue
+      }
+
+      const contentHash = await computeContentHash(content)
+
+      const sourceUrl = `https://teams.microsoft.com/l/channel/${encodeURIComponent(channel.id)}/${encodeURIComponent(channel.displayName)}?groupId=${encodeURIComponent(teamId)}`
+
+      documents.push({
+        externalId: channel.id,
+        title: channel.displayName,
+        content,
+        mimeType: 'text/plain',
+        sourceUrl,
+        contentHash,
+        metadata: {
+          channelName: channel.displayName,
+          messageCount: messages.length,
+          lastActivity: lastActivityTs || undefined,
+          description: channel.description || undefined,
+        },
+      })
     }
 
-    const contentHash = await computeContentHash(content)
-
-    const sourceUrl = `https://teams.microsoft.com/l/channel/${encodeURIComponent(channel.id)}/${encodeURIComponent(channel.displayName)}?groupId=${encodeURIComponent(teamId)}`
-
-    const document: ExternalDocument = {
-      externalId: channel.id,
-      title: channel.displayName,
-      content,
-      mimeType: 'text/plain',
-      sourceUrl,
-      contentHash,
-      metadata: {
-        channelName: channel.displayName,
-        messageCount: messages.length,
-        lastActivity: lastActivityTs || undefined,
-        description: channel.description || undefined,
-      },
-    }
-
-    // Each channel is one document; no pagination needed
+    // All selected channels are emitted in a single page; no pagination needed
     return {
-      documents: [document],
+      documents,
       hasMore: false,
     }
   },
@@ -371,15 +390,15 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const teamId = sourceConfig.teamId as string | undefined
-    const channelInput = sourceConfig.channel as string | undefined
+    const channelInputs = parseMultiValue(sourceConfig.channel)
     const maxMessages = sourceConfig.maxMessages as string | undefined
 
     if (!teamId?.trim()) {
       return { valid: false, error: 'Team ID is required' }
     }
 
-    if (!channelInput?.trim()) {
-      return { valid: false, error: 'Channel is required' }
+    if (channelInputs.length === 0) {
+      return { valid: false, error: 'At least one channel is required' }
     }
 
     if (maxMessages && (Number.isNaN(Number(maxMessages)) || Number(maxMessages) <= 0)) {
@@ -387,18 +406,20 @@ export const microsoftTeamsConnector: ConnectorConfig = {
     }
 
     try {
-      const channel = await resolveChannel(accessToken, teamId, channelInput.trim())
-      if (!channel) {
-        return { valid: false, error: `Channel not found: ${channelInput}` }
-      }
+      for (const channelInput of channelInputs) {
+        const channel = await resolveChannel(accessToken, teamId, channelInput)
+        if (!channel) {
+          return { valid: false, error: `Channel not found: ${channelInput}` }
+        }
 
-      // Verify we can read messages by fetching a single message
-      const messagesPath = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channel.id)}/messages?$top=1`
-      await graphApiGet<TeamsMessagesResponse>(messagesPath, accessToken, VALIDATE_RETRY_OPTIONS)
+        // Verify we can read messages by fetching a single message
+        const messagesPath = `/teams/${encodeURIComponent(teamId)}/channels/${encodeURIComponent(channel.id)}/messages?$top=1`
+        await graphApiGet<TeamsMessagesResponse>(messagesPath, accessToken, VALIDATE_RETRY_OPTIONS)
+      }
 
       return { valid: true }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to validate configuration'
+      const message = getErrorMessage(error, 'Failed to validate configuration')
       return { valid: false, error: message }
     }
   },

@@ -8,6 +8,7 @@ import type {
   BatchRemoveBlocksOperation,
   BatchRemoveEdgesOperation,
   BatchUpdateParentOperation,
+  BatchUpdateSubblocksOperation,
   Operation,
   OperationEntry,
 } from '@/stores/undo-redo/types'
@@ -176,6 +177,28 @@ export function createInverseOperation(operation: Operation): Operation {
           previousStates: operation.data.previousStates,
         },
       }
+
+    case UNDO_REDO_OPERATIONS.BATCH_UPDATE_SUBBLOCKS: {
+      const op = operation as BatchUpdateSubblocksOperation
+      return {
+        ...operation,
+        data: {
+          updates: op.data.updates.map((update) => ({
+            blockId: update.blockId,
+            subBlockId: update.subBlockId,
+            before: update.after,
+            after: update.before,
+          })),
+          subflowUpdates: op.data.subflowUpdates?.map((update) => ({
+            blockId: update.blockId,
+            blockType: update.blockType,
+            fieldId: update.fieldId,
+            before: update.after,
+            after: update.before,
+          })),
+        },
+      } as BatchUpdateSubblocksOperation
+    }
 
     default: {
       const exhaustiveCheck: never = operation

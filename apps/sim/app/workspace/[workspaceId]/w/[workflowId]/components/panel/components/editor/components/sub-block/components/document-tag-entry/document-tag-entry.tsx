@@ -13,12 +13,15 @@ import {
   Trash,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
@@ -61,6 +64,7 @@ export function DocumentTagEntry({
   previewValue,
   previewContextValues,
 }: DocumentTagEntryProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})
@@ -243,8 +247,14 @@ export function DocumentTagEntry({
    */
   const renderTagHeader = (tag: DocumentTag, index: number) => (
     <div
+      role='group'
+      aria-label={`Tag ${index + 1}`}
       className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
       onClick={() => toggleCollapse(tag.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        handleKeyboardActivation(event, () => toggleCollapse(tag.id))
+      }}
     >
       <div className='flex min-w-0 flex-1 items-center gap-2'>
         <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
@@ -256,14 +266,18 @@ export function DocumentTagEntry({
           </Badge>
         )}
       </div>
-      <div className='flex items-center gap-2 pl-2' onClick={(e) => e.stopPropagation()}>
+      <div
+        role='presentation'
+        className='flex items-center gap-2 pl-2'
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
           variant='ghost'
           onClick={addTag}
           disabled={isReadOnly || !canAddMoreTags}
           className='h-auto p-0'
         >
-          <Plus className='h-[14px] w-[14px]' />
+          <Plus className='size-[14px]' />
           <span className='sr-only'>Add Tag</span>
         </Button>
         <Button
@@ -272,7 +286,7 @@ export function DocumentTagEntry({
           disabled={isReadOnly}
           className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
         >
-          <Trash className='h-[14px] w-[14px]' />
+          <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Tag</span>
         </Button>
       </div>
@@ -286,6 +300,12 @@ export function DocumentTagEntry({
     const fieldValue = tag.value || ''
     const cellKey = `${tag.id}-value`
     const placeholder = getPlaceholderForFieldType(tag.fieldType)
+    const tagIndex = tags.findIndex((candidate) => candidate.id === tag.id)
+    const workflowSearchHighlight = getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      subBlockId: subBlock.id,
+      valuePath: [tagIndex, 'value'],
+    })
 
     const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
     const handlers = inputController.fieldHelpers.createFieldHandlers(
@@ -335,7 +355,9 @@ export function DocumentTagEntry({
           <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
             {formatDisplayText(
               fieldValue,
-              accessiblePrefixes ? { accessiblePrefixes } : { highlightAll: true }
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
             )}
           </div>
         </div>

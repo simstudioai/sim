@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workdayAssignOnboardingContract } from '@/lib/api/contracts/tools/workday'
 import { parseRequest } from '@/lib/api/server'
@@ -36,7 +37,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       Onboarding_Plan_Assignment_Data: {
         Onboarding_Plan_Reference: wdRef('Onboarding_Plan_ID', data.onboardingPlanId),
         Person_Reference: wdRef('WID', data.workerId),
-        Action_Event_Reference: wdRef('Background_Check_ID', data.actionEventId),
+        Action_Event_Reference: wdRef('WID', data.actionEventId),
         Assignment_Effective_Moment: new Date().toISOString(),
         Active: true,
       },
@@ -53,7 +54,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Workday assign onboarding failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }

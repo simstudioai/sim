@@ -1,4 +1,19 @@
-{{- if and .Values.podDisruptionBudget.enabled .Values.app.enabled }}
+{{- /*
+Tri-state activation for the app PDB:
+  - enabled: true  → force on
+  - enabled: false → force off (explicit opt-out, even on HA)
+  - enabled: null  → auto-enable when the workload is HA — either a static
+                     replicaCount > 1, or HPA enabled with minReplicas > 1
+                     (HPA owns spec.replicas so replicaCount alone is not
+                     authoritative under autoscaling).
+*/ -}}
+{{- $pdbEnabled := .Values.podDisruptionBudget.enabled -}}
+{{- $hpaMin := 0 -}}
+{{- if .Values.autoscaling.enabled -}}
+{{- $hpaMin = int (default 1 .Values.autoscaling.minReplicas) -}}
+{{- end -}}
+{{- $pdbAuto := and (kindIs "invalid" $pdbEnabled) (or (gt (int .Values.app.replicaCount) 1) (gt $hpaMin 1)) -}}
+{{- if and .Values.app.enabled (or (eq $pdbEnabled true) $pdbAuto) }}
 {{- with .Values.podDisruptionBudget }}
 ---
 apiVersion: policy/v1
@@ -14,7 +29,7 @@ spec:
   {{- else if .maxUnavailable }}
   maxUnavailable: {{ .maxUnavailable }}
   {{- else }}
-  maxUnavailable: 1
+  minAvailable: 1
   {{- end }}
   {{- if .unhealthyPodEvictionPolicy }}
   unhealthyPodEvictionPolicy: {{ .unhealthyPodEvictionPolicy }}
@@ -24,7 +39,8 @@ spec:
       {{- include "sim.app.selectorLabels" $ | nindent 6 }}
 {{- end }}
 {{- end }}
-{{- if and .Values.podDisruptionBudget.enabled .Values.realtime.enabled }}
+{{- $rtPdbAuto := and (kindIs "invalid" .Values.podDisruptionBudget.enabled) (or (gt (int .Values.realtime.replicaCount) 1) (gt $hpaMin 1)) -}}
+{{- if and .Values.realtime.enabled (or (eq .Values.podDisruptionBudget.enabled true) $rtPdbAuto) }}
 {{- with .Values.podDisruptionBudget }}
 ---
 apiVersion: policy/v1
@@ -40,7 +56,7 @@ spec:
   {{- else if .maxUnavailable }}
   maxUnavailable: {{ .maxUnavailable }}
   {{- else }}
-  maxUnavailable: 1
+  minAvailable: 1
   {{- end }}
   {{- if .unhealthyPodEvictionPolicy }}
   unhealthyPodEvictionPolicy: {{ .unhealthyPodEvictionPolicy }}

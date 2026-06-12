@@ -22,7 +22,7 @@ export function BlockInfoCard({
       style={{ background: color }}
     >
       {ResolvedIcon ? (
-        <ResolvedIcon className='h-10 w-10 text-white' />
+        <ResolvedIcon className='size-10 text-white' />
       ) : (
         <div className='font-mono text-white text-xl opacity-70'>{type.substring(0, 2)}</div>
       )}

@@ -71,7 +71,11 @@ export interface MothershipStreamV1AdditionalPropertiesMap {
  * via the `definition` "RequestTraceV1UsageSummary".
  */
 export interface RequestTraceV1UsageSummary {
+  cacheAttemptedRequests?: number
+  cacheHitRequests?: number
   cacheReadTokens?: number
+  cacheSavingsRate?: number
+  cacheWriteRequests?: number
   cacheWriteTokens?: number
   inputTokens?: number
   outputTokens?: number

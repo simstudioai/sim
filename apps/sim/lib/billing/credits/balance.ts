@@ -10,6 +10,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toFixedString, toNumber } from '@/lib/billing/utils/decimal'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('CreditBalance')
 
@@ -28,10 +29,11 @@ export interface CreditBalanceInfo {
  */
 export async function getCreditBalanceForEntity(
   entityType: 'user' | 'organization',
-  entityId: string
+  entityId: string,
+  executor: DbClient = db
 ): Promise<number> {
   if (entityType === 'organization') {
-    const rows = await db
+    const rows = await executor
       .select({ creditBalance: organization.creditBalance })
       .from(organization)
       .where(eq(organization.id, entityId))
@@ -39,7 +41,7 @@ export async function getCreditBalanceForEntity(
     return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
   }
 
-  const rows = await db
+  const rows = await executor
     .select({ creditBalance: userStats.creditBalance })
     .from(userStats)
     .where(eq(userStats.userId, entityId))
@@ -47,19 +49,22 @@ export async function getCreditBalanceForEntity(
   return rows.length > 0 ? toNumber(toDecimal(rows[0].creditBalance)) : 0
 }
 
-export async function getCreditBalance(userId: string): Promise<CreditBalanceInfo> {
-  const subscription = await getHighestPrioritySubscription(userId)
+export async function getCreditBalance(
+  userId: string,
+  executor: DbClient = db
+): Promise<CreditBalanceInfo> {
+  const subscription = await getHighestPrioritySubscription(userId, { executor })
 
   if (isOrgScopedSubscription(subscription, userId) && subscription) {
     return {
-      balance: await getCreditBalanceForEntity('organization', subscription.referenceId),
+      balance: await getCreditBalanceForEntity('organization', subscription.referenceId, executor),
       entityType: 'organization',
       entityId: subscription.referenceId,
     }
   }
 
   return {
-    balance: await getCreditBalanceForEntity('user', userId),
+    balance: await getCreditBalanceForEntity('user', userId, executor),
     entityType: 'user',
     entityId: userId,
   }
@@ -87,7 +92,7 @@ export async function addCredits(
   }
 }
 
-export async function removeCredits(
+async function removeCredits(
   entityType: 'user' | 'organization',
   entityId: string,
   amount: number
@@ -109,7 +114,7 @@ export async function removeCredits(
   }
 }
 
-export interface DeductResult {
+interface DeductResult {
   creditsUsed: number
   overflow: number
 }
@@ -168,7 +173,7 @@ async function atomicDeductOrgCredits(orgId: string, cost: number): Promise<numb
   return toNumber(oldBalance.lessThan(costDecimal) ? oldBalance : costDecimal)
 }
 
-export async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
+async function deductFromCredits(userId: string, cost: number): Promise<DeductResult> {
   if (cost <= 0) {
     return { creditsUsed: 0, overflow: 0 }
   }

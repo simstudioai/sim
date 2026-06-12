@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { shopifyAuthorizeQuerySchema } from '@/lib/api/contracts/oauth-connections'
+import {
+  shopifyAuthorizeQuerySchema,
+  shopifyShopDomainSchema,
+} from '@/lib/api/contracts/oauth-connections'
 import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -159,6 +162,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     cleanShop = cleanShop.replace('https://', '').replace('http://', '')
     if (!cleanShop.endsWith('.myshopify.com')) {
       cleanShop = `${cleanShop.replace('.myshopify.com', '')}.myshopify.com`
+    }
+
+    if (!shopifyShopDomainSchema.safeParse(cleanShop).success) {
+      logger.warn('Rejected invalid Shopify shop domain', { shop: shopDomain })
+      return NextResponse.json({ error: 'Invalid Shopify shop domain' }, { status: 400 })
     }
 
     const baseUrl = getBaseUrl()

@@ -8,10 +8,59 @@ import {
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('PlanLookup')
 
 export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPrioritySubscription>>
+
+interface GetHighestPrioritySubscriptionOptions {
+  onError?: 'return-null' | 'throw'
+  /** Read-routing client (primary or replica); defaults to the primary. */
+  executor?: DbClient
+}
+
+function pickHighestPrioritySubscription<TSubscription>(
+  subscriptions: TSubscription[],
+  predicates: Array<(subscription: TSubscription) => boolean>
+): TSubscription | null {
+  for (const predicate of predicates) {
+    const match = subscriptions.find(predicate)
+    if (match) return match
+  }
+
+  return null
+}
+
+export async function getHighestPriorityPersonalSubscription(
+  userId: string,
+  options: GetHighestPrioritySubscriptionOptions = {}
+) {
+  const { onError = 'return-null', executor = db } = options
+  try {
+    const personalSubs = await executor
+      .select()
+      .from(subscription)
+      .where(
+        and(
+          eq(subscription.referenceId, userId),
+          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+        )
+      )
+
+    return pickHighestPrioritySubscription(personalSubs, [
+      checkEnterprisePlan,
+      checkTeamPlan,
+      checkProPlan,
+    ])
+  } catch (error) {
+    logger.error('Error getting highest priority personal subscription', { error, userId })
+    if (onError === 'throw') {
+      throw error
+    }
+    return null
+  }
+}
 
 /**
  * Get the highest priority paid subscription for a user.
@@ -27,9 +76,13 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
  * the runoff personal sub; otherwise usage, credits, and rate limits would
  * leak onto the user's row until the next billing cycle.
  */
-export async function getHighestPrioritySubscription(userId: string) {
+export async function getHighestPrioritySubscription(
+  userId: string,
+  options: GetHighestPrioritySubscriptionOptions = {}
+) {
+  const { onError = 'return-null', executor = db } = options
   try {
-    const personalSubs = await db
+    const personalSubs = await executor
       .select()
       .from(subscription)
       .where(
@@ -39,7 +92,7 @@ export async function getHighestPrioritySubscription(userId: string) {
         )
       )
 
-    const memberships = await db
+    const memberships = await executor
       .select({ organizationId: member.organizationId })
       .from(member)
       .where(eq(member.userId, userId))
@@ -49,7 +102,7 @@ export async function getHighestPrioritySubscription(userId: string) {
     let orgSubs: typeof personalSubs = []
     if (orgIds.length > 0) {
       // Verify orgs exist to filter out orphaned subscriptions
-      const existingOrgs = await db
+      const existingOrgs = await executor
         .select({ id: organization.id })
         .from(organization)
         .where(inArray(organization.id, orgIds))
@@ -57,7 +110,7 @@ export async function getHighestPrioritySubscription(userId: string) {
       const validOrgIds = existingOrgs.map((o) => o.id)
 
       if (validOrgIds.length > 0) {
-        orgSubs = await db
+        orgSubs = await executor
           .select()
           .from(subscription)
           .where(
@@ -71,22 +124,15 @@ export async function getHighestPrioritySubscription(userId: string) {
 
     if (personalSubs.length === 0 && orgSubs.length === 0) return null
 
-    // Within each tier, prefer org-scoped over personally-scoped.
-    const pickAtTier = (predicate: (sub: (typeof personalSubs)[number]) => boolean) =>
-      orgSubs.find(predicate) ?? personalSubs.find(predicate)
-
-    const enterpriseSub = pickAtTier(checkEnterprisePlan)
-    if (enterpriseSub) return enterpriseSub
-
-    const teamSub = pickAtTier(checkTeamPlan)
-    if (teamSub) return teamSub
-
-    const proSub = pickAtTier(checkProPlan)
-    if (proSub) return proSub
-
-    return null
+    return pickHighestPrioritySubscription(
+      [...orgSubs, ...personalSubs],
+      [checkEnterprisePlan, checkTeamPlan, checkProPlan]
+    )
   } catch (error) {
     logger.error('Error getting highest priority subscription', { error, userId })
+    if (onError === 'throw') {
+      throw error
+    }
     return null
   }
 }

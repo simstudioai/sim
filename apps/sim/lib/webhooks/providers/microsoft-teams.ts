@@ -477,7 +477,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     return null
   },
 
-  verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
+  verifyAuth({ webhook, request, rawBody, requestId, providerConfig }: AuthContext) {
     if (providerConfig.hmacSecret) {
       const authHeader = request.headers.get('authorization')
 
@@ -493,6 +493,43 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
       ) {
         logger.warn(`[${requestId}] Microsoft Teams HMAC signature verification failed`)
         return new NextResponse('Unauthorized - Invalid HMAC signature', { status: 401 })
+      }
+    }
+
+    if (providerConfig.triggerId === 'microsoftteams_chat_subscription') {
+      const expectedClientState = String(webhook.id ?? '')
+      if (!expectedClientState) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams chat subscription webhook missing id for clientState verification`
+        )
+        return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
+      }
+
+      let notifications: unknown[] = []
+      try {
+        const parsed = JSON.parse(rawBody) as Record<string, unknown>
+        if (Array.isArray(parsed?.value)) {
+          notifications = parsed.value
+        }
+      } catch {
+        notifications = []
+      }
+
+      if (notifications.length === 0) {
+        logger.warn(
+          `[${requestId}] Microsoft Teams chat subscription notification missing value array`
+        )
+        return new NextResponse('Unauthorized - Invalid notification payload', { status: 401 })
+      }
+
+      for (const notification of notifications) {
+        const clientState = (notification as Record<string, unknown>)?.clientState
+        if (typeof clientState !== 'string' || !safeCompare(clientState, expectedClientState)) {
+          logger.warn(
+            `[${requestId}] Microsoft Teams chat subscription clientState verification failed`
+          )
+          return new NextResponse('Unauthorized - Invalid clientState', { status: 401 })
+        }
       }
     }
 
@@ -675,6 +712,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
     webhook,
     workflow,
     requestId,
+    strict,
   }: DeleteSubscriptionContext): Promise<void> {
     try {
       const config = getProviderConfig(webhook)
@@ -688,6 +726,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
 
       if (!externalSubscriptionId || !credentialId) {
         logger.info(`[${requestId}] No external subscription to delete for webhook ${webhook.id}`)
+        if (strict) throw new Error('Missing Teams subscription cleanup configuration')
         return
       }
 
@@ -703,6 +742,7 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Could not get access token to delete Teams subscription for webhook ${webhook.id}`
         )
+        if (strict) throw new Error('Missing Teams access token for subscription deletion')
         return
       }
 
@@ -723,12 +763,14 @@ export const microsoftTeamsHandler: WebhookProviderHandler = {
         logger.warn(
           `[${requestId}] Failed to delete Teams subscription ${externalSubscriptionId} for webhook ${webhook.id}. Status: ${res.status}`
         )
+        if (strict) throw new Error(`Failed to delete Teams subscription: ${res.status}`)
       }
     } catch (error) {
       logger.error(
         `[${requestId}] Error deleting Teams subscription for webhook ${webhook.id}`,
         error
       )
+      if (strict) throw error
     }
   },
 

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { ExecutionState } from '@/executor/execution/state'
 import { BlockResolver } from './block'
 import { RESOLVED_EMPTY, type ResolutionContext } from './reference'
@@ -140,7 +141,8 @@ function createTestWorkflow(
     name?: string
     type?: string
     outputs?: Record<string, any>
-  }> = []
+  }> = [],
+  subflows: { loops?: Record<string, any>; parallels?: Record<string, any> } = {}
 ) {
   return {
     version: '1.0',
@@ -154,8 +156,8 @@ function createTestWorkflow(
       enabled: true,
     })),
     connections: [],
-    loops: {},
-    parallels: {},
+    loops: subflows.loops ?? {},
+    parallels: subflows.parallels ?? {},
   }
 }
 
@@ -165,7 +167,8 @@ function createTestWorkflow(
 function createTestContext(
   currentNodeId: string,
   blockOutputs: Record<string, any> = {},
-  contextBlockStates?: Map<string, { output: any }>
+  contextBlockStates?: Map<string, { output: any }>,
+  parallelBlockMapping?: Map<string, any>
 ): ResolutionContext {
   const state = new ExecutionState()
   for (const [blockId, output] of Object.entries(blockOutputs)) {
@@ -174,7 +177,11 @@ function createTestContext(
 
   return {
     executionContext: {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
       blockStates: contextBlockStates ?? new Map(),
+      parallelBlockMapping,
     },
     executionState: state,
     currentNodeId,
@@ -236,6 +243,34 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<My Source Block>', ctx)).toEqual({ message: 'hello' })
     })
 
+    it.concurrent('should resolve blocks whose names contain dots via dot-stripped names', () => {
+      const workflow = createTestWorkflow([{ id: 'block-dot', name: 'Hunter.io 1' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        'block-dot': { email: 'jane@acme.com', score: 92 },
+      })
+
+      expect(resolver.resolve('<hunterio1.email>', ctx)).toBe('jane@acme.com')
+      expect(resolver.resolve('<hunterio1.score>', ctx)).toBe(92)
+    })
+
+    it.concurrent('should keep dot-free names as the reference target on legacy collisions', () => {
+      const blocks = [
+        { id: 'block-dotted', name: 'Hunter.io 1' },
+        { id: 'block-plain', name: 'Hunterio 1' },
+      ]
+      const ctx = createTestContext('current', {
+        'block-dotted': { email: 'dotted@acme.com' },
+        'block-plain': { email: 'plain@acme.com' },
+      })
+
+      const resolver = new BlockResolver(createTestWorkflow(blocks))
+      expect(resolver.resolve('<hunterio1.email>', ctx)).toBe('plain@acme.com')
+
+      const reversedResolver = new BlockResolver(createTestWorkflow([...blocks].reverse()))
+      expect(reversedResolver.resolve('<hunterio1.email>', ctx)).toBe('plain@acme.com')
+    })
+
     it.concurrent('should resolve nested property path', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)
@@ -245,6 +280,153 @@ describe('BlockResolver', () => {
 
       expect(resolver.resolve('<source.user.profile.name>', ctx)).toBe('Alice')
       expect(resolver.resolve('<source.user.profile.email>', ctx)).toBe('alice@test.com')
+    })
+
+    it('does not fall back to unscoped block state inside cloned subflow branches', () => {
+      const workflow = createTestWorkflow([{ id: 'source' }], {
+        parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['source'] } },
+      })
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer__clone-inner__obranch-1₍0₎',
+        {},
+        new Map([['source', { output: { result: 'branch-0' } }]])
+      )
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe(RESOLVED_EMPTY)
+    })
+
+    it('allows cloned subflows to resolve top-level upstream block state', () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer__clone-inner__obranch-1₍0₎',
+        {},
+        new Map([['source', { output: { result: 'global' } }]])
+      )
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe('global')
+    })
+
+    it('uses parallel block mappings to resolve cloned subflow outputs in later batches', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'nested-loop', name: 'Nested Loop' },
+          { id: 'consumer', name: 'Consumer' },
+        ],
+        {
+          loops: { 'nested-loop': { id: 'nested-loop', nodes: ['loop-task'] } },
+          parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['nested-loop', 'consumer'] } },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'consumer₍0₎',
+        {
+          'nested-loop': { results: ['branch-0'] },
+          'nested-loop__obranch-2': { results: ['branch-2'] },
+        },
+        undefined,
+        new Map([
+          [
+            'consumer₍0₎',
+            { originalBlockId: 'consumer', parallelId: 'parallel-1', iterationIndex: 2 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<nestedloop.results>', ctx)).toEqual(['branch-2'])
+    })
+
+    it('resolves regular block outputs from the same cloned branch scope', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'source', name: 'Source' },
+          { id: 'consumer', name: 'Consumer' },
+        ],
+        {
+          parallels: { 'parallel-1': { id: 'parallel-1', nodes: ['source', 'consumer'] } },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('consumer__cloneabc__obranch-2₍0₎', {
+        'source__obranch-2': { result: 'wrong-container-alias' },
+        'source__cloneabc__obranch-2₍0₎': { result: 'same-branch' },
+      })
+
+      expect(resolver.resolve('<source.result>', ctx)).toBe('same-branch')
+    })
+
+    it('uses outer branch suffix over inner parallel mappings for cloned subflow outputs', () => {
+      const workflow = createTestWorkflow(
+        [
+          { id: 'sibling-loop', name: 'Sibling Loop' },
+          { id: 'inner-task', name: 'Inner Task' },
+        ],
+        {
+          loops: { 'sibling-loop': { id: 'sibling-loop', nodes: ['loop-task'] } },
+          parallels: {
+            'outer-parallel': { id: 'outer-parallel', nodes: ['sibling-loop', 'inner-parallel'] },
+            'inner-parallel': { id: 'inner-parallel', nodes: ['inner-task'] },
+          },
+        }
+      )
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext(
+        'inner-task__clone-inner__obranch-2₍0₎',
+        {
+          'sibling-loop__obranch-1': { results: ['inner-branch-1'] },
+          'sibling-loop__obranch-2': { results: ['outer-branch-2'] },
+        },
+        undefined,
+        new Map([
+          [
+            'inner-task__clone-inner__obranch-2₍0₎',
+            { originalBlockId: 'inner-task', parallelId: 'inner-parallel', iterationIndex: 1 },
+          ],
+        ])
+      )
+
+      expect(resolver.resolve('<siblingloop.results>', ctx)).toEqual(['outer-branch-2'])
+    })
+
+    it('should resolve nested scalar paths inside compacted block references', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        {
+          user: { profile: { name: 'Alice' } },
+          items: Array.from({ length: 100 }, (_, index) => ({ id: index })),
+        },
+        {
+          thresholdBytes: 64,
+          workspaceId: 'workspace-1',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }
+      )
+      const ctx = createTestContext('current', { source: compacted })
+
+      expect(resolver.resolve('<source.user.profile.name>', ctx)).toBe('Alice')
+      expect(resolver.resolve('<source.items[1].id>', ctx)).toBe(1)
+      expect(() => resolver.resolve('<source>', ctx)).toThrow('too large to inline')
+    })
+
+    it('should reject full container references that contain compacted children', async () => {
+      const workflow = createTestWorkflow([{ id: 'source' }])
+      const resolver = new BlockResolver(workflow)
+      const compacted = await compactExecutionPayload(
+        {
+          metadata: { id: 'event-1' },
+          attachment: { body: 'x'.repeat(2048) },
+        },
+        { thresholdBytes: 256, preserveRoot: true }
+      )
+      const ctx = createTestContext('current', { source: compacted })
+
+      expect(resolver.resolve('<source.metadata.id>', ctx)).toBe('event-1')
+      expect(() => resolver.resolve('<source>', ctx)).toThrow('too large to inline')
+      expect(() => resolver.resolve('<source.attachment>', ctx)).toThrow('too large to inline')
     })
 
     it.concurrent('should resolve array index in path', () => {

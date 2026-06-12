@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
+import { truncate } from '@sim/utils/string'
 import { buildSelectorContextFromBlock } from '@/lib/workflows/subblocks/context'
 import { getBlock } from '@/blocks/registry'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { CREDENTIAL_SET, isUuid } from '@/executor/constants'
 import { fetchCredentialSetById } from '@/hooks/queries/credential-sets'
 import { fetchOAuthCredentialDetail } from '@/hooks/queries/oauth/oauth-credentials'
-import { getSelectorDefinition } from '@/hooks/selectors/registry'
+import { getSelectorDefinition, loadAllSelectorOptions } from '@/hooks/selectors/registry'
 import { resolveSelectorForSubBlock } from '@/hooks/selectors/resolution'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -106,7 +107,7 @@ async function resolveSelectorValue(
       }
     }
 
-    const options = await definition.fetchList({
+    const options = await loadAllSelectorOptions(definition, {
       key: selectorKey,
       context: selectorContext,
     })
@@ -160,7 +161,7 @@ function resolveDropdownLabel(subBlockConfig: SubBlockConfig, value: string): st
 export function formatValueForDisplay(value: unknown): string {
   if (value === null || value === undefined) return '(none)'
   if (typeof value === 'string') {
-    if (value.length > 50) return `${value.slice(0, 50)}...`
+    if (value.length > 50) return truncate(value, 50)
     return value || '(empty)'
   }
   if (typeof value === 'boolean') return value ? 'enabled' : 'disabled'
@@ -168,7 +169,7 @@ export function formatValueForDisplay(value: unknown): string {
   if (Array.isArray(value)) return `[${value.length} items]`
   if (typeof value === 'object') {
     const json = JSON.stringify(value)
-    return json.length > 50 ? `${json.slice(0, 50)}...` : json
+    return truncate(json, 50)
   }
   return String(value)
 }

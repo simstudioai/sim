@@ -4,24 +4,20 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatAbsoluteDate } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
-import {
-  Button,
-  Combobox,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-} from '@/components/emcn'
-import { Calendar } from '@/components/emcn/icons'
+import { Calendar, ChipCombobox, ChipConfirmModal, Plus } from '@/components/emcn'
 import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import type {
   FilterTag,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource, timeCell } from '@/app/workspace/[workspaceId]/components'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+  timeCell,
+} from '@/app/workspace/[workspaceId]/components'
 import { ScheduleModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/create-schedule-modal'
 import { ScheduleContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-context-menu'
 import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-list-context-menu'
@@ -43,12 +39,12 @@ function getScheduleDescription(s: WorkspaceScheduleData) {
     const timing = parseCronToHumanReadable(s.cronExpression, s.timezone)
     return `Recurring, ${timing.charAt(0).toLowerCase()}${timing.slice(1)}`
   }
-  return '-  -  -'
+  return EMPTY_CELL_PLACEHOLDER
 }
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'task', header: 'Task' },
-  { id: 'schedule', header: 'Schedule', widthMultiplier: 1.5 },
+  { id: 'schedule', header: 'Schedule' },
   { id: 'nextRun', header: 'Next Run' },
   { id: 'lastRun', header: 'Last Run' },
 ]
@@ -170,7 +166,7 @@ export function ScheduledTasks() {
         id: item.id,
         cells: {
           task: {
-            icon: <Calendar className='h-[14px] w-[14px]' />,
+            icon: <Calendar className='size-[14px]' />,
             label: item.prompt,
           },
           schedule: { label: getScheduleDescription(item) },
@@ -214,6 +210,11 @@ export function ScheduledTasks() {
     } catch (err) {
       logger.error('Failed to delete scheduled task:', err)
     }
+  }
+
+  const handleDeleteDialogOpenChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open)
+    if (!open) setActiveTask(null)
   }
 
   const handlePause = async () => {
@@ -282,7 +283,7 @@ export function ScheduledTasks() {
           <span className='font-medium text-[var(--text-secondary)] text-caption'>
             Schedule Type
           </span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'recurring', label: 'Recurring' },
               { value: 'once', label: 'One-time' },
@@ -297,13 +298,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-          <Combobox
+          <ChipCombobox
             options={[
               { value: 'active', label: 'Active' },
               { value: 'paused', label: 'Paused' },
@@ -316,13 +316,12 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         <div className='flex flex-col gap-1.5'>
           <span className='font-medium text-[var(--text-secondary)] text-caption'>Health</span>
-          <Combobox
+          <ChipCombobox
             options={[{ value: 'has-failures', label: 'Has failures' }]}
             multiSelect
             multiSelectValues={healthFilter}
@@ -332,8 +331,7 @@ export function ScheduledTasks() {
             }
             showAllOption
             allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
           />
         </div>
         {hasActiveFilters && (
@@ -362,6 +360,18 @@ export function ScheduledTasks() {
     ]
   )
 
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: 'New scheduled task',
+        icon: Plus,
+        onSelect: () => setIsCreateModalOpen(true),
+        variant: 'primary',
+      },
+    ],
+    []
+  )
+
   const filterTags: FilterTag[] = useMemo(() => {
     const tags: FilterTag[] = []
     if (scheduleTypeFilter.length > 0) {
@@ -386,27 +396,26 @@ export function ScheduledTasks() {
 
   return (
     <>
-      <Resource
-        icon={Calendar}
-        title='Scheduled Tasks'
-        create={{
-          label: 'New scheduled task',
-          onClick: () => setIsCreateModalOpen(true),
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: 'Search scheduled tasks...',
-        }}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        columns={COLUMNS}
-        rows={rows}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header icon={Calendar} title='Scheduled Tasks' actions={headerActions} />
+        <Resource.Options
+          search={{
+            value: searchQuery,
+            onChange: setSearchQuery,
+            placeholder: 'Search scheduled tasks...',
+          }}
+          sort={sortConfig}
+          filter={{ content: filterContent }}
+          filterTags={filterTags}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          sort={sortConfig}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <ScheduleListContextMenu
         isOpen={isListContextMenuOpen}
@@ -443,39 +452,27 @@ export function ScheduledTasks() {
         schedule={activeTask ?? undefined}
       />
 
-      <Modal open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <ModalContent size='sm'>
-          <ModalHeader>Delete Scheduled Task</ModalHeader>
-          <ModalBody>
-            <p className='text-[var(--text-secondary)]'>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {activeTask?.jobTitle || 'this task'}
-              </span>
-              ? This action cannot be undone.
-            </p>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              variant='default'
-              onClick={() => {
-                setIsDeleteDialogOpen(false)
-                setActiveTask(null)
-              }}
-              disabled={deleteSchedule.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              onClick={handleDelete}
-              disabled={deleteSchedule.isPending}
-            >
-              {deleteSchedule.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={isDeleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
+        srTitle='Delete Scheduled Task'
+        title='Delete Scheduled Task'
+        description={
+          <>
+            Are you sure you want to delete{' '}
+            <span className='font-medium text-[var(--text-primary)]'>
+              {activeTask?.jobTitle || 'this task'}
+            </span>
+            ? This action cannot be undone.
+          </>
+        }
+        confirm={{
+          label: 'Delete',
+          onClick: handleDelete,
+          pending: deleteSchedule.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
     </>
   )
 }

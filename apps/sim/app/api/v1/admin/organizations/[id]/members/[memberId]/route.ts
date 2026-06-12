@@ -35,7 +35,11 @@ import {
   adminV1UpdateOrganizationMemberContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { removeUserFromOrganization } from '@/lib/billing/organizations/membership'
+import { getOrgMemberLedgerByUser } from '@/lib/billing/core/organization'
+import {
+  removeUserFromOrganization,
+  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR,
+} from '@/lib/billing/organizations/membership'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -86,7 +90,6 @@ export const GET = withRouteHandler(
           userEmail: user.email,
           currentPeriodCost: userStats.currentPeriodCost,
           currentUsageLimit: userStats.currentUsageLimit,
-          lastActive: userStats.lastActive,
           billingBlocked: userStats.billingBlocked,
         })
         .from(member)
@@ -99,6 +102,10 @@ export const GET = withRouteHandler(
         return notFoundResponse('Member')
       }
 
+      // currentPeriodCost is only a baseline; add this member's attributed
+      // usage_log for the org's period so admin shows real current usage.
+      const ledgerByUser = await getOrgMemberLedgerByUser(organizationId)
+
       const data: AdminMemberDetail = {
         id: memberData.id,
         userId: memberData.userId,
@@ -107,9 +114,10 @@ export const GET = withRouteHandler(
         createdAt: memberData.createdAt.toISOString(),
         userName: memberData.userName,
         userEmail: memberData.userEmail,
-        currentPeriodCost: memberData.currentPeriodCost ?? '0',
+        currentPeriodCost: (
+          Number(memberData.currentPeriodCost ?? 0) + (ledgerByUser.get(memberData.userId) ?? 0)
+        ).toString(),
         currentUsageLimit: memberData.currentUsageLimit,
-        lastActive: memberData.lastActive?.toISOString() ?? null,
         billingBlocked: memberData.billingBlocked ?? false,
       }
 
@@ -255,6 +263,9 @@ export const DELETE = withRouteHandler(
         }
         if (result.error === 'Member not found') {
           return notFoundResponse('Member')
+        }
+        if (result.error === WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR) {
+          return badRequestResponse(result.error)
         }
         return internalErrorResponse(result.error || 'Failed to remove member')
       }

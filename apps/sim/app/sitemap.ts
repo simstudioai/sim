@@ -1,12 +1,20 @@
 import type { MetadataRoute } from 'next'
 import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
-import { getBaseUrl } from '@/lib/core/utils/urls'
-import integrations from '@/app/(landing)/integrations/data/integrations.json'
+import { SITE_URL } from '@/lib/core/utils/urls'
+import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
+/**
+ * Generate the public sitemap by composing static landing pages with the
+ * dynamic catalogs (blog posts, authors, integrations, model providers,
+ * individual models, and academy courses). Per-integration entries are
+ * emitted under `/integrations/{slug}` to match the landing route at
+ * `app/(landing)/integrations/(shell)/[slug]`; slugs are guaranteed unique
+ * by the catalog generator in `scripts/generate-docs.ts`.
+ */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = getBaseUrl()
+  const baseUrl = SITE_URL
   const posts = await getAllPostMeta()
 
   const latestPostDate =
@@ -18,6 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     provider.models.map((model) => new Date(model.pricing.updatedAt).getTime())
   )
   const latestModelDate = modelTimes.length > 0 ? new Date(Math.max(...modelTimes)) : undefined
+
+  const integrationsUpdatedAt = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`)
 
   const staticPages: MetadataRoute.Sitemap = [
     {
@@ -37,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/integrations`,
-      lastModified: latestModelDate,
+      lastModified: integrationsUpdatedAt,
     },
     {
       url: `${baseUrl}/models`,
@@ -45,6 +55,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/partners`,
+    },
+    {
+      url: `${baseUrl}/contact`,
     },
     {
       url: `${baseUrl}/terms`,
@@ -76,8 +89,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: date,
   }))
 
-  const integrationPages: MetadataRoute.Sitemap = integrations.map((integration) => ({
+  const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
+    lastModified: integrationsUpdatedAt,
   }))
 
   const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {

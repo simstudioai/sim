@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useSearchParams } from 'next/navigation'
 import { Loader } from '@/components/emcn'
 import { requestJson } from '@/lib/api/client/request'
@@ -34,7 +35,7 @@ function UnsubscribeContent() {
         setData(response)
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Failed to validate unsubscribe link'
+        const message = getErrorMessage(err, 'Failed to validate unsubscribe link')
         setError(message)
       })
       .finally(() => {
@@ -80,7 +81,7 @@ function UnsubscribeContent() {
         }
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to process unsubscribe request'
+      const message = getErrorMessage(err, 'Failed to process unsubscribe request')
       setError(message)
     } finally {
       setProcessing(false)
@@ -95,11 +96,11 @@ function UnsubscribeContent() {
             Loading
           </h1>
           <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-            Validating your unsubscribe link...
+            Validating your unsubscribe link…
           </p>
         </div>
         <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-          <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
+          <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
         </div>
       </InviteLayout>
     )
@@ -190,8 +191,8 @@ function UnsubscribeContent() {
         >
           {processing ? (
             <span className='flex items-center gap-2'>
-              <Loader className='h-4 w-4' animate />
-              Unsubscribing...
+              <Loader className='size-4' animate />
+              Unsubscribing…
             </span>
           ) : isAlreadyUnsubscribedFromAll ? (
             'Unsubscribed from All Emails'
@@ -269,11 +270,11 @@ export default function Unsubscribe() {
               Loading
             </h1>
             <p className={'font-[380] text-[var(--landing-text-muted)] text-md'}>
-              Validating your unsubscribe link...
+              Validating your unsubscribe link…
             </p>
           </div>
           <div className={'mt-8 flex w-full items-center justify-center py-8'}>
-            <Loader className='h-8 w-8 text-[var(--landing-text-muted)]' animate />
+            <Loader className='size-8 text-[var(--landing-text-muted)]' animate />
           </div>
         </InviteLayout>
       }

@@ -18,7 +18,7 @@ export interface DocumentTag {
   value: string
 }
 
-export interface CreateTagDefinitionData {
+interface CreateTagDefinitionData {
   tagSlot: string
   displayName: string
   fieldType: string

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workdayListWorkersContract } from '@/lib/api/contracts/tools/workday'
 import { parseRequest } from '@/lib/api/server'
@@ -9,6 +10,7 @@ import {
   createWorkdaySoapClient,
   extractRefId,
   normalizeSoapArray,
+  parseSoapNumber,
   type WorkdayWorkerSoap,
 } from '@/tools/workday/soap'
 
@@ -61,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       employmentData: w.Worker_Data?.Employment_Data ?? null,
     }))
 
-    const total = result?.Response_Results?.Total_Results ?? workers.length
+    const total = parseSoapNumber(result?.Response_Results?.Total_Results) ?? workers.length
 
     return NextResponse.json({
       success: true,
@@ -70,7 +72,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     logger.error(`[${requestId}] Workday list workers failed`, { error })
     return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      { success: false, error: getErrorMessage(error, 'Unknown error') },
       { status: 500 }
     )
   }

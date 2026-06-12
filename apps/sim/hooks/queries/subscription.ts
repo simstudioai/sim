@@ -3,19 +3,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
-  type BillingUsageData,
   createBillingPortalContract,
+  getInvoicesContract,
   getUserBillingContract,
   getUserUsageLimitContract,
+  type InvoicesApiResponse,
   purchaseCreditsContract,
   type SubscriptionApiResponse,
-  type SubscriptionBillingData,
   updateUsageLimitContract,
 } from '@/lib/api/contracts/subscription'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export type { BillingUsageData, SubscriptionApiResponse, SubscriptionBillingData }
+export type { SubscriptionApiResponse }
 
 /**
  * Query key factories for subscription-related queries
@@ -25,6 +25,9 @@ export const subscriptionKeys = {
   users: () => [...subscriptionKeys.all, 'user'] as const,
   user: (includeOrg?: boolean) => [...subscriptionKeys.users(), { includeOrg }] as const,
   usage: () => [...subscriptionKeys.all, 'usage'] as const,
+  invoicesAll: () => [...subscriptionKeys.all, 'invoices'] as const,
+  invoices: (context: 'user' | 'organization' = 'user', organizationId?: string) =>
+    [...subscriptionKeys.invoicesAll(), context, organizationId ?? ''] as const,
 }
 
 /**
@@ -55,7 +58,7 @@ interface UseSubscriptionDataOptions {
  * @param options - Optional configuration
  */
 export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
-  const { includeOrg = false, enabled = true, staleTime = 30 * 1000 } = options
+  const { includeOrg = false, enabled = true, staleTime = 5 * 60 * 1000 } = options
 
   return useQuery({
     queryKey: subscriptionKeys.user(includeOrg),
@@ -74,6 +77,30 @@ export function prefetchSubscriptionData(queryClient: QueryClient) {
   queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: ({ signal }) => fetchSubscriptionData(false, signal),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Prefetch the billing queries the Upgrade page gates on: the
+ * organization-scoped subscription variant (`includeOrg: true`, a different
+ * cache key than the credits chip's `false` variant) and the usage-limit
+ * metadata. Use on hover to warm both before navigating to `/upgrade`.
+ *
+ * Org-scoped subscribers additionally gate on the organization-billing query,
+ * which is intentionally not prewarmed here: its key depends on the resolved
+ * billing organization id, which is only derivable after the subscription and
+ * workspace queries land, so it cannot be warmed at hover time.
+ */
+export function prefetchUpgradeBillingData(queryClient: QueryClient) {
+  queryClient.prefetchQuery({
+    queryKey: subscriptionKeys.user(true),
+    queryFn: ({ signal }) => fetchSubscriptionData(true, signal),
+    staleTime: 5 * 60 * 1000,
+  })
+  queryClient.prefetchQuery({
+    queryKey: subscriptionKeys.usage(),
+    queryFn: ({ signal }) => fetchUsageLimitData(signal),
     staleTime: 30 * 1000,
   })
 }
@@ -108,6 +135,45 @@ export function useUsageLimitData(options: UseUsageLimitDataOptions = {}) {
     queryFn: ({ signal }) => fetchUsageLimitData(signal),
     staleTime: 30 * 1000,
     enabled,
+  })
+}
+
+/**
+ * Fetch finalized invoices for the active billing customer (personal or
+ * organization-scoped).
+ */
+async function fetchInvoices(
+  context: 'user' | 'organization',
+  organizationId: string | undefined,
+  signal?: AbortSignal
+): Promise<InvoicesApiResponse> {
+  return requestJson(getInvoicesContract, {
+    query: { context, organizationId },
+    signal,
+  })
+}
+
+interface UseInvoicesOptions {
+  /** Billing context to read invoices for (defaults to the personal customer). */
+  context?: 'user' | 'organization'
+  /** Required when `context` is `organization`. */
+  organizationId?: string
+  /** Whether to enable the query (defaults to true). */
+  enabled?: boolean
+}
+
+/**
+ * Hook to fetch finalized Stripe invoices for the current billing customer.
+ * Returns an empty list when there is no customer or Stripe is not configured.
+ */
+export function useInvoices(options: UseInvoicesOptions = {}) {
+  const { context = 'user', organizationId, enabled = true } = options
+
+  return useQuery({
+    queryKey: subscriptionKeys.invoices(context, organizationId),
+    queryFn: ({ signal }) => fetchInvoices(context, organizationId, signal),
+    staleTime: 5 * 60 * 1000,
+    enabled: enabled && (context !== 'organization' || Boolean(organizationId)),
   })
 }
 

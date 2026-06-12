@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { generateRandomString } from '@sim/utils/random'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('GoogleSlidesAddSlideTool')
@@ -106,7 +107,7 @@ export const addSlideTool: ToolConfig<AddSlideParams, AddSlideResponse> = {
     },
     body: (params) => {
       // Generate a unique object ID for the new slide
-      const slideObjectId = `slide_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+      const slideObjectId = `slide_${Date.now()}_${generateRandomString(7)}`
 
       // Validate and normalize the layout
       let layout = (params.layout || 'BLANK').toUpperCase()

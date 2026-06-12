@@ -1,14 +1,15 @@
 import { useMemo, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
-import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
+import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
 interface EvalMetric {
@@ -44,6 +45,7 @@ export function EvalInput({
   previewValue,
   disabled = false,
 }: EvalInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const descriptionInputRefs = useRef<Record<string, HTMLTextAreaElement>>({})
@@ -66,6 +68,16 @@ export function EvalInput({
 
   const defaultMetric = useMemo(() => createDefaultMetric(), [])
   const metrics: EvalMetric[] = value || [defaultMetric]
+
+  const getMetricSearchHighlight = (metricIndex: number, metricPath: Array<string | number>) =>
+    getActiveWorkflowSearchHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [metricIndex, ...metricPath],
+    })
+
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   const addMetric = () => {
     if (isPreview || disabled) return
@@ -139,7 +151,7 @@ export function EvalInput({
               disabled={isPreview || disabled}
               className='h-auto p-0'
             >
-              <Plus className='h-[14px] w-[14px]' />
+              <Plus className='size-[14px]' />
               <span className='sr-only'>Add Metric</span>
             </Button>
           </Tooltip.Trigger>
@@ -154,7 +166,7 @@ export function EvalInput({
               disabled={isPreview || disabled || metrics.length === 1}
               className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
             >
-              <Trash className='h-[14px] w-[14px]' />
+              <Trash className='size-[14px]' />
               <span className='sr-only'>Delete Metric</span>
             </Button>
           </Tooltip.Trigger>
@@ -176,18 +188,35 @@ export function EvalInput({
 
           <div className='flex flex-col gap-2 border-[var(--border-1)] px-2.5 pt-1.5 pb-2.5'>
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
-              <Label className='text-small'>Name</Label>
-              <Input
-                name='name'
-                value={metric.name}
-                onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
-                placeholder='Accuracy'
-                disabled={isPreview || disabled}
-              />
+              {renderFieldLabel('Name')}
+              <div className='relative'>
+                <Input
+                  name='name'
+                  value={metric.name}
+                  onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
+                  placeholder='Accuracy'
+                  disabled={isPreview || disabled}
+                  className='text-transparent caret-foreground placeholder:text-muted-foreground/50'
+                />
+                <div
+                  className={cn(
+                    'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
+                    (isPreview || disabled) && 'opacity-50'
+                  )}
+                >
+                  <span className='truncate'>
+                    {formatDisplayText(metric.name || '', {
+                      accessiblePrefixes,
+                      highlightAll: !accessiblePrefixes,
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['name']),
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div key={`description-${metric.id}`} className='flex flex-col gap-1.5'>
-              <Label className='text-small'>Description</Label>
+              {renderFieldLabel('Description')}
               <div className='relative'>
                 {(() => {
                   const fieldState = inputController.fieldHelpers.getFieldState(metric.id)
@@ -234,6 +263,9 @@ export function EvalInput({
                           {formatDisplayText(metric.description || '', {
                             accessiblePrefixes,
                             highlightAll: !accessiblePrefixes,
+                            workflowSearchHighlight: getMetricSearchHighlight(index, [
+                              'description',
+                            ]),
                           })}
                         </div>
                       </div>
@@ -259,30 +291,46 @@ export function EvalInput({
 
             <div key={`range-${metric.id}`} className='grid grid-cols-2 gap-2'>
               <div className='flex flex-col gap-1.5'>
-                <Label className='text-small'>Min Value</Label>
-                <Input
-                  type='text'
-                  value={metric.range.min}
-                  onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-min'
-                />
+                {renderFieldLabel('Min Value')}
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.min ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'min', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-min'
+                    className='text-transparent caret-foreground'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.min ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
+                    })}
+                  </div>
+                </div>
               </div>
               <div className='flex flex-col gap-1.5'>
-                <Label className='text-small'>Max Value</Label>
-                <Input
-                  type='text'
-                  value={metric.range.max}
-                  onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
-                  onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
-                  disabled={isPreview || disabled}
-                  autoComplete='off'
-                  data-form-type='other'
-                  name='eval-range-max'
-                />
+                {renderFieldLabel('Max Value')}
+                <div className='relative'>
+                  <Input
+                    type='text'
+                    value={metric.range.max ?? ''}
+                    onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
+                    onBlur={(e) => handleRangeBlur(metric.id, 'max', e.target.value)}
+                    disabled={isPreview || disabled}
+                    autoComplete='off'
+                    data-form-type='other'
+                    name='eval-range-max'
+                    className='text-transparent caret-foreground'
+                  />
+                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-medium font-sans text-sm'>
+                    {formatDisplayText(String(metric.range.max ?? ''), {
+                      workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

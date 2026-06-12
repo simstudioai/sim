@@ -6,6 +6,7 @@ import {
   unsubscribePostContract,
 } from '@/lib/api/contracts/user'
 import { parseRequest } from '@/lib/api/server'
+import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { EmailType } from '@/lib/messaging/email/mailer'
@@ -19,8 +20,17 @@ import {
 
 const logger = createLogger('UnsubscribeAPI')
 
+const UNSUBSCRIBE_RATE_LIMIT = {
+  maxTokens: 10,
+  refillRate: 10,
+  refillIntervalMs: 60_000,
+}
+
 export const GET = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
+
+  const rateLimited = await enforceIpRateLimit('unsubscribe', req, UNSUBSCRIBE_RATE_LIMIT)
+  if (rateLimited) return rateLimited
 
   try {
     const parsed = await parseRequest(
@@ -69,6 +79,9 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
+
+  const rateLimited = await enforceIpRateLimit('unsubscribe', req, UNSUBSCRIBE_RATE_LIMIT)
+  if (rateLimited) return rateLimited
 
   try {
     const contentType = req.headers.get('content-type') || ''

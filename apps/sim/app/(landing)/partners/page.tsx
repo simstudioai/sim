@@ -242,7 +242,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.requirements.map((r) => (
                         <li key={r} className='flex items-start gap-2 text-[#999] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#555]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#555]' />
                           {r}
                         </li>
                       ))}
@@ -254,7 +254,7 @@ export default async function PartnersPage() {
                     <ul className='space-y-1.5'>
                       {tier.perks.map((p) => (
                         <li key={p} className='flex items-start gap-2 text-[#ECECEC] text-[13px]'>
-                          <span className='mt-1.5 h-1 w-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
+                          <span className='mt-1.5 size-1 flex-shrink-0 rounded-full bg-[#4CAF50]' />
                           {p}
                         </li>
                       ))}
@@ -274,7 +274,7 @@ export default async function PartnersPage() {
             </h2>
             <p className='mb-10 text-[#F6F6F0]/60 text-[18px] leading-[160%]'>
               Complete Sim Academy to earn your first certification and unlock partner benefits.
-              It's free to start — no credit card required.
+              It's free to start, no credit card required.
             </p>
             {/* TODO: Uncomment when academy is public */}
             {/* <Link

@@ -1,17 +1,25 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { headers } from 'next/headers'
-import { NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { enforceIpRateLimit } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('SocketTokenAPI')
 
-export const POST = withRouteHandler(async () => {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   if (isAuthDisabled) {
     return NextResponse.json({ token: 'anonymous-socket-token' })
   }
+
+  const rateLimited = await enforceIpRateLimit('socket-token', request, {
+    maxTokens: 30,
+    refillRate: 30,
+    refillIntervalMs: 60_000,
+  })
+  if (rateLimited) return rateLimited
 
   try {
     const hdrs = await headers()

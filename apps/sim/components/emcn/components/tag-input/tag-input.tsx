@@ -40,93 +40,33 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Paperclip, Plus, X } from 'lucide-react'
+import { ChipTag, chipTagVariants } from '@/components/emcn/components/chip-tag/chip-tag'
 import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
 import { cn } from '@/lib/core/utils/cn'
-
-/**
- * Variant styles for the Tag component.
- * No vertical padding to fit within the input's natural line height without causing expansion.
- * Uses colored badge-style variants (blue for valid, red for invalid).
- */
-const tagVariants = cva(
-  'flex w-auto cursor-default items-center gap-[3px] rounded-sm px-1 font-medium font-sans text-small leading-[20px] transition-colors',
-  {
-    variants: {
-      variant: {
-        default: 'bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]',
-        secondary:
-          'border border-[var(--border-1)] bg-[var(--surface-4)] text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
-        invalid: 'bg-[var(--badge-error-bg)] text-[var(--text-error)]',
-      },
-    },
-    defaultVariants: {
-      variant: 'default',
-    },
-  }
-)
-
-/**
- * Props for the Tag component.
- */
-export interface TagProps extends VariantProps<typeof tagVariants> {
-  /** The tag value to display */
-  value: string
-  /** Callback when remove button is clicked */
-  onRemove?: () => void
-  /** Whether the tag is disabled */
-  disabled?: boolean
-  /** Additional class names */
-  className?: string
-  /** Optional suffix content (e.g., "sent" label) */
-  suffix?: React.ReactNode
-}
-
-/**
- * A single tag badge with optional remove button.
- */
-const Tag = React.memo(function Tag({
-  value,
-  onRemove,
-  disabled,
-  variant,
-  className,
-  suffix,
-}: TagProps) {
-  return (
-    <div className={cn(tagVariants({ variant }), className)}>
-      <span className='max-w-[200px] truncate'>{value}</span>
-      {suffix}
-      {!disabled && onRemove && (
-        <button
-          type='button'
-          onClick={onRemove}
-          className={cn(
-            'relative flex-shrink-0 opacity-80 transition-opacity before:absolute before:inset-[-8px] before:content-[""] hover-hover:opacity-100 focus:outline-none',
-            variant === 'invalid'
-              ? 'text-[var(--text-error)]'
-              : variant === 'secondary'
-                ? 'text-[var(--text-tertiary)]'
-                : 'text-[var(--badge-blue-text)]'
-          )}
-          aria-label={`Remove ${value}`}
-        >
-          <X className='h-3 w-3 translate-y-[0.5px]' />
-        </button>
-      )}
-    </div>
-  )
-})
+import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 
 /**
  * Variant styles for the TagInput container.
- * Matches the Input component styling exactly for consistent height.
+ *
+ * @remarks
+ * - `default` matches the standard Input component styling for consistent height.
+ * - `block` matches the multi-row "Description" textarea pattern: larger radius,
+ *   top-aligned items, taller min-height, and no focus ring — for use inside
+ *   form sections where the tag input visually pairs with textarea fields.
+ *   Uses `content-start` so wrapped flex lines pack tightly at `h-5` (20px) row
+ *   pitch instead of being stretched by the `min-h-[112px]` floor; unused
+ *   vertical space stays at the bottom of the container, and content beyond
+ *   `max-h` scrolls vertically.
  */
 const tagInputVariants = cva(
-  'scrollbar-hide flex w-full cursor-text flex-wrap items-center gap-x-2 gap-y-1 overflow-y-auto rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 transition-colors focus-within:outline-none dark:bg-[var(--surface-5)]',
+  'flex w-full cursor-text flex-wrap gap-2 overflow-y-auto border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors',
   {
     variants: {
       variant: {
-        default: '',
+        default:
+          'items-center rounded-sm py-1.5 focus-within:outline-none focus-within:ring-1 focus-within:ring-[var(--brand-accent)] dark:bg-[var(--surface-5)]',
+        block:
+          'min-h-[112px] content-start items-start rounded-lg py-2 focus-within:outline-none dark:bg-[var(--surface-4)]',
       },
     },
     defaultVariants: {
@@ -141,6 +81,11 @@ const tagInputVariants = cva(
 export interface TagItem {
   value: string
   isValid: boolean
+  /**
+   * Why the item is invalid. Shown in a tooltip on the invalid chip (and as
+   * screen-reader-only text inside it). Ignored when `isValid` is true.
+   */
+  error?: string
 }
 
 /**
@@ -162,7 +107,7 @@ export interface FileInputOptions {
 /**
  * Props for the TagInput component.
  */
-export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
+interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   /** Array of tag items with value and validity status */
   items: TagItem[]
   /**
@@ -184,7 +129,10 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   className?: string
   /** Additional class names for the input */
   inputClassName?: string
-  /** Maximum height for the container (defaults to 128px / max-h-32) */
+  /**
+   * Maximum height for the container. Defaults to `max-h-48` (192px) for the
+   * `block` variant, `max-h-32` (128px) otherwise.
+   */
   maxHeight?: string
   /** HTML id for the input element */
   id?: string
@@ -198,9 +146,55 @@ export interface TagInputProps extends VariantProps<typeof tagInputVariants> {
   renderTagSuffix?: (value: string, index: number) => React.ReactNode
   /** Options for enabling file input (drag/drop and file picker) */
   fileInputOptions?: FileInputOptions
-  /** Variant for valid tags (defaults to 'default') */
-  tagVariant?: 'default' | 'secondary'
 }
+
+interface TagInputTagProps {
+  item: TagItem
+  index: number
+  onRemove: TagInputProps['onRemove']
+  disabled: boolean
+  suffix?: React.ReactNode
+}
+
+const TagInputTag = React.memo(function TagInputTag({
+  item,
+  index,
+  onRemove,
+  disabled,
+  suffix,
+}: TagInputTagProps) {
+  const handleRemove = React.useCallback(() => {
+    onRemove(item.value, index, item.isValid)
+  }, [item.value, item.isValid, index, onRemove])
+
+  const showError = !item.isValid && !!item.error
+
+  const tag = (
+    <ChipTag
+      variant='invite'
+      invalid={!item.isValid}
+      className='min-w-0 max-w-full bg-[var(--surface-6)] shadow-none dark:bg-[var(--surface-3)]'
+      rightIcon={disabled ? undefined : X}
+      onRightIconClick={disabled ? undefined : handleRemove}
+      rightIconLabel={`Remove ${item.value}`}
+    >
+      <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-medium font-sans text-sm leading-5'>
+        {item.value}
+      </span>
+      {showError && <span className='sr-only'>{item.error}</span>}
+      {suffix}
+    </ChipTag>
+  )
+
+  if (!showError) return tag
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{tag}</Tooltip.Trigger>
+      <Tooltip.Content>{item.error}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+})
 
 /**
  * An input component for managing a list of tags.
@@ -223,18 +217,18 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       disabled = false,
       className,
       inputClassName,
-      maxHeight = 'max-h-32',
+      maxHeight,
       id,
       name,
       autoFocus = false,
       triggerKeys = ['Enter', ',', ' '],
       renderTagSuffix,
       fileInputOptions,
-      tagVariant = 'default',
       variant,
     },
     ref
   ) => {
+    const effectiveMaxHeight = maxHeight ?? (variant === 'block' ? 'max-h-48' : 'max-h-32')
     const [inputValue, setInputValue] = React.useState('')
     const [isDragging, setIsDragging] = React.useState(false)
     const internalRef = React.useRef<HTMLInputElement>(null)
@@ -261,9 +255,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
             const values = extractValues(text)
             values.forEach((value) => onAdd(value))
           }
-        } catch {
-          // Silently handle file read errors
-        }
+        } catch {}
       },
       [fileInputOptions?.extractValues, onAdd]
     )
@@ -377,15 +369,21 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
     return (
       <div
+        role='group'
+        aria-label='Tag input'
         className={cn(
           tagInputVariants({ variant }),
-          maxHeight,
+          effectiveMaxHeight,
           'relative',
           fileInputEnabled && 'pr-7',
           isDragging && 'border-[var(--border)] border-dashed bg-[var(--surface-5)]',
           className
         )}
         onClick={handleContainerClick}
+        onKeyDown={(event) => {
+          if (event.target !== event.currentTarget) return
+          handleKeyboardActivation(event, handleContainerClick)
+        }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -405,26 +403,29 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
           </div>
         )}
         {items.map((item, index) => (
-          <Tag
+          <TagInputTag
             key={`item-${index}`}
-            value={item.value}
-            variant={item.isValid ? tagVariant : 'invalid'}
-            onRemove={() => onRemove(item.value, index, item.isValid)}
+            item={item}
+            index={index}
+            onRemove={onRemove}
             disabled={disabled}
             suffix={item.isValid ? renderTagSuffix?.(item.value, index) : undefined}
           />
         ))}
         <div
           className={cn(
-            'flex items-center',
+            'flex h-5 min-w-0 max-w-full items-center',
             inputValue.trim() &&
-              cn(tagVariants({ variant: tagVariant }), 'gap-0 py-0 pr-0 pl-1 opacity-80')
+              cn(
+                chipTagVariants({ variant: 'invite' }),
+                'min-w-0 max-w-full bg-[var(--surface-6)] shadow-none dark:bg-[var(--surface-3)]'
+              )
           )}
         >
-          <div className='relative inline-flex'>
+          <div className='relative inline-flex h-5 min-w-0 max-w-full items-center overflow-hidden'>
             {inputValue.trim() && (
               <span
-                className='invisible whitespace-pre font-medium font-sans text-small leading-[20px]'
+                className='invisible whitespace-pre font-medium font-sans text-sm leading-5'
                 aria-hidden='true'
               >
                 {inputValue}
@@ -446,10 +447,10 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
               placeholder={hasItems ? placeholderWithTags : placeholder}
               size={hasItems ? placeholderWithTags?.length || 10 : placeholder?.length || 12}
               className={cn(
-                'border-none bg-transparent font-medium font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
+                'appearance-none border-none bg-transparent align-middle font-sans outline-none placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed disabled:opacity-50',
                 inputValue.trim()
-                  ? 'absolute top-0 left-0 h-full w-full p-0 text-inherit text-small leading-[20px]'
-                  : 'w-auto min-w-0 p-0 text-foreground text-sm',
+                  ? 'absolute top-0 left-0 h-full w-full p-0 font-medium text-inherit text-sm leading-5'
+                  : 'h-5 w-auto min-w-0 p-0 font-medium text-[var(--text-body)] text-sm leading-5',
                 inputClassName
               )}
               disabled={disabled}
@@ -473,11 +474,11 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                   inputRef.current?.focus()
                 }
               }}
-              className='relative flex items-center px-[3px] opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
+              className='relative flex flex-shrink-0 items-center opacity-80 transition-opacity before:absolute before:inset-[-10px] before:content-[""] hover-hover:opacity-100 focus:outline-none'
               disabled={disabled}
               aria-label='Add tag'
             >
-              <Plus className='h-3 w-3' />
+              <Plus className='size-[14px]' />
             </button>
           )}
         </div>
@@ -493,7 +494,7 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
                 className='-m-1.5 absolute right-2 bottom-[9px] p-1.5 text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-secondary)]'
                 aria-label={fileInputOptions?.tooltip ?? 'Upload file'}
               >
-                <FileIcon className='h-3.5 w-3.5' strokeWidth={2} />
+                <FileIcon className='size-3.5' strokeWidth={2} />
               </button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
@@ -508,4 +509,4 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
 
 TagInput.displayName = 'TagInput'
 
-export { Tag, TagInput, tagInputVariants, tagVariants }
+export { TagInput, tagInputVariants }

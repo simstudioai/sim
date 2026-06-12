@@ -1,5 +1,5 @@
 import type { DeleteCustomerParams, DeleteCustomerResponse } from '@/tools/revenuecat/types'
-import { DELETE_OUTPUT_PROPERTIES } from '@/tools/revenuecat/types'
+import { DELETE_OUTPUT_PROPERTIES, throwIfRevenueCatError } from '@/tools/revenuecat/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const revenuecatDeleteCustomerTool: ToolConfig<
@@ -28,7 +28,7 @@ export const revenuecatDeleteCustomerTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId)}`,
+      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(params.appUserId.trim())}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -37,11 +37,19 @@ export const revenuecatDeleteCustomerTool: ToolConfig<
   },
 
   transformResponse: async (response, params) => {
+    await throwIfRevenueCatError(response)
+    let body: Record<string, unknown> = {}
+    try {
+      body = await response.json()
+    } catch {
+      // Some delete responses have empty bodies — treat as success
+    }
     return {
-      success: response.ok,
+      success: true,
       output: {
-        deleted: response.ok,
-        app_user_id: params?.appUserId ?? '',
+        deleted: typeof body.deleted === 'boolean' ? body.deleted : true,
+        app_user_id:
+          typeof body.app_user_id === 'string' ? body.app_user_id : (params?.appUserId ?? ''),
       },
     }
   },

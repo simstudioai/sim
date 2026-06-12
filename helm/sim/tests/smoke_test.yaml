@@ -1,0 +1,33 @@
+suite: smoke — minimal install renders
+templates:
+  - deployment-app.yaml
+  - deployment-realtime.yaml
+  - secrets-app.yaml
+  - services.yaml
+release:
+  name: t
+  namespace: sim
+set:
+  app.env.BETTER_AUTH_SECRET: test-better-auth-secret-32-bytes
+  app.env.ENCRYPTION_KEY: test-encryption-key-32-bytes
+  app.env.INTERNAL_API_SECRET: test-internal-api-secret-32-bytes
+  app.env.CRON_SECRET: test-cron-secret-32-bytes
+  postgresql.auth.password: testpassword
+tests:
+  - it: renders the app deployment
+    template: deployment-app.yaml
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: metadata.name, value: t-sim-app }
+
+  - it: renders the realtime deployment
+    template: deployment-realtime.yaml
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: metadata.name, value: t-sim-realtime }
+
+  - it: renders the chart-managed app secret
+    template: secrets-app.yaml
+    asserts:
+      - isKind: { of: Secret }
+      - equal: { path: metadata.name, value: t-sim-app-secrets }

@@ -1,21 +1,28 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+} from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
-  Bell,
   Button,
-  Combobox,
+  ChipCombobox,
   type ComboboxOption,
   DatePicker,
-  Download,
   Library,
   RefreshCw,
   toast,
 } from '@/components/emcn'
+import { Download, Workflow } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -36,20 +43,15 @@ import {
   type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 import type {
   FilterTag,
-  HeaderAction,
+  ResourceAction,
   ResourceColumn,
   ResourceRow,
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import {
-  ResourceHeader,
-  ResourceOptionsBar,
-  ResourceTable,
-} from '@/app/workspace/[workspaceId]/components'
+import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -71,18 +73,12 @@ import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
+import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
 import {
-  Dashboard,
-  ExecutionSnapshot,
-  LogDetails,
-  LogRowContextMenu,
-  NotificationSettings,
-} from './components'
-import {
-  DELETED_WORKFLOW_COLOR,
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,
   formatDate,
+  formatDateShort,
   getDisplayStatus,
   type LogStatus,
   parseDuration,
@@ -94,6 +90,8 @@ import {
 const LOGS_PER_PAGE = 50 as const
 const SORTABLE_COLUMNS: readonly LogSortBy[] = ['date', 'duration', 'cost', 'status'] as const
 const REFRESH_SPINNER_DURATION_MS = 1000 as const
+const LIVE_REFRESH_INTERVAL_MS = 10_000 as const
+const ACTIVE_RUN_DETAIL_REFRESH_MS = 3_000 as const
 
 const LOG_COLUMNS: ResourceColumn[] = [
   { id: 'workflow', header: 'Workflow' },
@@ -152,31 +150,27 @@ const TIME_RANGE_OPTIONS: ComboboxOption[] = [
 
 const colorIconCache = new Map<string, React.ComponentType<{ className?: string }>>()
 
-function getColorIcon(
-  color: string,
-  withRing = false
-): React.ComponentType<{ className?: string }> {
-  const cacheKey = withRing ? `${color}-ring` : color
-  const cached = colorIconCache.get(cacheKey)
+function getColorIcon(color: string): React.ComponentType<{ className?: string }> {
+  const cached = colorIconCache.get(color)
   if (cached) return cached
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'flex-shrink-0 rounded-[3px]', withRing && 'border-[1.5px]')}
+      className={cn(className, 'flex-shrink-0 rounded-[3px]')}
       style={{
         backgroundColor: color,
         width: 10,
         height: 10,
-        ...(withRing && {
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box' as const,
-        }),
       }}
     />
   )
-  ColorIcon.displayName = `ColorIcon(${color}${withRing ? '-ring' : ''})`
-  colorIconCache.set(cacheKey, ColorIcon)
+  ColorIcon.displayName = `ColorIcon(${color})`
+  colorIconCache.set(color, ColorIcon)
   return ColorIcon
+}
+
+function WorkflowOptionIcon({ className }: { className?: string }) {
+  return <Workflow className={cn(className, 'flex-shrink-0 text-[var(--text-icon)]')} />
 }
 
 function getTriggerIcon(
@@ -193,23 +187,8 @@ function getTriggerIcon(
   return TriggerIcon
 }
 
-function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr)
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ]
-  return `${months[date.getMonth()]} ${date.getDate()}`
+function SpinningRefreshCw(props: React.SVGProps<SVGSVGElement>) {
+  return <RefreshCw {...props} animate />
 }
 
 /**
@@ -304,7 +283,6 @@ export default function Logs() {
   const activeLogRefetchRef = useRef<() => void>(() => {})
   const activeLogTabRef = useRef<string>('overview')
   const logsQueryRef = useRef({ isFetching: false, hasNextPage: false, fetchNextPage: () => {} })
-  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [activeSort, setActiveSort] = useState<{
     column: string
     direction: 'asc' | 'desc'
@@ -323,7 +301,7 @@ export default function Logs() {
     (query: { state: { data?: WorkflowLogDetail } }) => {
       if (!isLive) return false
       const status = query.state.data?.status
-      return status === 'running' || status === 'pending' ? 3000 : false
+      return status === 'running' || status === 'pending' ? ACTIVE_RUN_DETAIL_REFRESH_MS : false
     },
     [isLive]
   )
@@ -371,7 +349,7 @@ export default function Logs() {
   )
 
   const logsQuery = useLogsList(workspaceId, logFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const dashboardFilters = useMemo(
@@ -389,7 +367,7 @@ export default function Logs() {
   )
 
   const dashboardStatsQuery = useDashboardStats(workspaceId, dashboardFilters, {
-    refetchInterval: isLive ? 3000 : false,
+    refetchInterval: isLive ? LIVE_REFRESH_INTERVAL_MS : false,
   })
 
   const logs = useMemo(() => {
@@ -689,6 +667,9 @@ export default function Logs() {
     }
   }, [])
 
+  const handleNavigateNextEvent = useEffectEvent(handleNavigateNext)
+  const handleNavigatePrevEvent = useEffectEvent(handleNavigatePrev)
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
@@ -707,7 +688,7 @@ export default function Logs() {
 
       if (e.key === 'ArrowUp' && !e.metaKey && !e.ctrlKey && currentIndex > 0) {
         e.preventDefault()
-        handleNavigatePrev()
+        handleNavigatePrevEvent()
       }
 
       if (
@@ -717,7 +698,7 @@ export default function Logs() {
         currentIndex < currentLogs.length - 1
       ) {
         e.preventDefault()
-        handleNavigateNext()
+        handleNavigateNextEvent()
       }
 
       if (e.key === 'Enter' && selectedLogIdRef.current) {
@@ -728,10 +709,9 @@ export default function Logs() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleNavigateNext, handleNavigatePrev])
+  }, [])
 
   const handleCloseContextMenu = useCallback(() => setContextMenuOpen(false), [])
-  const handleOpenNotificationSettings = useCallback(() => setIsNotificationSettingsOpen(true), [])
   function handleClosePreview() {
     setPreviewLogId(null)
   }
@@ -750,11 +730,6 @@ export default function Logs() {
           : isDeletedWorkflow
             ? DELETED_WORKFLOW_LABEL
             : log.workflow?.name || 'Unknown'
-        const workflowColor = isMothershipJob
-          ? '#ec4899'
-          : isDeletedWorkflow
-            ? DELETED_WORKFLOW_COLOR
-            : log.workflow?.color
 
         const durationMs = parseDuration({ duration: log.duration ?? undefined })
         const durationText =
@@ -771,16 +746,6 @@ export default function Logs() {
           id: log.id,
           cells: {
             workflow: {
-              icon: workflowColor ? (
-                <div
-                  className='h-[10px] w-[10px] rounded-[3px] border-[1.5px]'
-                  style={{
-                    backgroundColor: workflowColor,
-                    borderColor: workflowBorderColor(workflowColor),
-                    backgroundClip: 'padding-box',
-                  }}
-                />
-              ) : undefined,
               label: workflowName,
             },
             date: { label: `${formattedDate.compactDate} ${formattedDate.compactTime}` },
@@ -851,7 +816,7 @@ export default function Logs() {
       tags.push({
         label:
           timeRange === 'Custom range' && startDate && endDate
-            ? `${startDate} – ${endDate}`
+            ? `${formatDateShort(startDate)} – ${formatDateShort(endDate)}`
             : timeRange,
         onRemove: () => {
           clearDateRange()
@@ -1095,40 +1060,30 @@ export default function Logs() {
     ]
   )
 
-  const refreshIcon = useMemo(() => {
-    if (!isVisuallyRefreshing) return RefreshCw
-    const Spinning = (props: React.SVGProps<SVGSVGElement>) => <RefreshCw {...props} animate />
-    Spinning.displayName = 'SpinningRefresh'
-    return Spinning
-  }, [isVisuallyRefreshing])
+  const refreshIcon = isVisuallyRefreshing ? SpinningRefreshCw : RefreshCw
 
-  const headerActions = useMemo<HeaderAction[]>(
+  const headerActions = useMemo<ResourceAction[]>(
     () => [
       {
-        label: 'Export',
+        text: 'Export',
         icon: Download,
-        onClick: handleExport,
+        onSelect: handleExport,
         disabled: !userPermissions.canEdit || isExporting || logs.length === 0,
       },
       {
-        label: 'Notifications',
-        icon: Bell,
-        onClick: handleOpenNotificationSettings,
-      },
-      {
-        label: 'Refresh',
+        text: 'Refresh',
         icon: refreshIcon,
-        onClick: handleRefresh,
+        onSelect: handleRefresh,
         disabled: isVisuallyRefreshing,
       },
       {
-        label: 'Logs',
-        onClick: () => setViewMode('logs'),
+        text: 'Logs',
+        onSelect: () => setViewMode('logs'),
         active: !isDashboardView,
       },
       {
-        label: 'Dashboard',
-        onClick: () => setViewMode('dashboard'),
+        text: 'Dashboard',
+        onSelect: () => setViewMode('dashboard'),
         active: isDashboardView,
       },
     ],
@@ -1142,20 +1097,21 @@ export default function Logs() {
       userPermissions.canEdit,
       isExporting,
       logs.length,
-      handleOpenNotificationSettings,
     ]
   )
 
   return (
     <>
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
-        <ResourceHeader icon={Library} title='Logs' actions={headerActions} />
-        <ResourceOptionsBar
+      <Resource>
+        <Resource.Header icon={Library} title='Logs' actions={headerActions} />
+        <Resource.Options
           search={searchConfig}
           sort={sortConfig}
-          filter={
-            <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
-          }
+          filter={{
+            content: (
+              <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+            ),
+          }}
           filterTags={filterTags}
         />
         {isDashboardView ? (
@@ -1170,7 +1126,7 @@ export default function Logs() {
             {sidebarOverlay}
           </div>
         ) : (
-          <ResourceTable
+          <Resource.Table
             columns={LOG_COLUMNS}
             rows={rows}
             selectedRowId={selectedLogId}
@@ -1185,13 +1141,7 @@ export default function Logs() {
             overlay={sidebarOverlay}
           />
         )}
-      </div>
-
-      <NotificationSettings
-        workspaceId={workspaceId}
-        open={isNotificationSettingsOpen}
-        onOpenChange={setIsNotificationSettingsOpen}
-      />
+      </Resource>
 
       <LogRowContextMenu
         isOpen={contextMenuOpen}
@@ -1275,7 +1225,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   const { data: folders = {} } = useFolderMap(workspaceId)
   const { data: allWorkflowList = [] } = useWorkflows(workspaceId)
 
-  const workflows = allWorkflowList.map((w) => ({ id: w.id, name: w.name, color: w.color }))
+  const workflows = allWorkflowList.map((w) => ({ id: w.id, name: w.name }))
   const folderList = Object.values(folders).filter((f) => f.workspaceId === workspaceId)
 
   const selectedStatuses = level === 'all' || !level ? [] : level.split(',').filter(Boolean)
@@ -1311,7 +1261,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   const workflowOptions: ComboboxOption[] = workflows.map((w) => ({
     value: w.id,
     label: w.name,
-    icon: getColorIcon(w.color, true),
+    icon: WorkflowOptionIcon,
   }))
 
   const workflowDisplayLabel =
@@ -1397,10 +1347,10 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
   }
 
   return (
-    <div className='flex w-[240px] flex-col gap-3 p-3'>
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Status</span>
-        <Combobox
+    <div className='flex w-[240px] flex-col gap-4 p-3'>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Status</span>
+        <ChipCombobox
           options={statusOptions}
           multiSelect
           multiSelectValues={selectedStatuses}
@@ -1419,14 +1369,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           }
           showAllOption
           allOptionLabel='All statuses'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Workflow</span>
-        <Combobox
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Workflow</span>
+        <ChipCombobox
           options={workflowOptions}
           multiSelect
           multiSelectValues={workflowIds}
@@ -1435,14 +1384,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           overlayContent={
             <span className='flex items-center gap-1.5 truncate text-[var(--text-primary)]'>
               {selectedWorkflow && (
-                <div
-                  className='h-[8px] w-[8px] flex-shrink-0 rounded-xs border-[1.5px]'
-                  style={{
-                    backgroundColor: selectedWorkflow.color,
-                    borderColor: workflowBorderColor(selectedWorkflow.color),
-                    backgroundClip: 'padding-box',
-                  }}
-                />
+                <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
               )}
               <span className='truncate'>{workflowDisplayLabel}</span>
             </span>
@@ -1451,14 +1393,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search workflows...'
           showAllOption
           allOptionLabel='All workflows'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Folder</span>
-        <Combobox
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Folder</span>
+        <ChipCombobox
           options={folderOptions}
           multiSelect
           multiSelectValues={folderIds}
@@ -1471,14 +1412,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search folders...'
           showAllOption
           allOptionLabel='All folders'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Trigger</span>
-        <Combobox
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Trigger</span>
+        <ChipCombobox
           options={triggerOptions}
           multiSelect
           multiSelectValues={triggers}
@@ -1491,15 +1431,14 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
           searchPlaceholder='Search triggers...'
           showAllOption
           allOptionLabel='All triggers'
-          size='sm'
-          className='h-[32px] w-full rounded-md'
+          className='w-full'
         />
       </div>
 
-      <div className='flex flex-col gap-1.5'>
-        <span className='font-medium text-[var(--text-secondary)] text-caption'>Time Range</span>
+      <div className='flex flex-col gap-[9px]'>
+        <span className='text-[var(--text-muted)] text-small'>Time Range</span>
         <div className='relative'>
-          <Combobox
+          <ChipCombobox
             options={TIME_RANGE_OPTIONS}
             value={timeRange}
             onChange={handleTimeRangeChange}
@@ -1507,12 +1446,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             overlayContent={
               <span className='truncate text-[var(--text-primary)]'>{timeDisplayLabel}</span>
             }
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
+            maxHeight={320}
           />
           <DatePicker
             mode='range'
             showTrigger={false}
+            showTime
             open={datePickerOpen}
             onOpenChange={(isOpen) => {
               if (!isOpen) {

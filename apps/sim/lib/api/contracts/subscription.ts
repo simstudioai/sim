@@ -20,6 +20,16 @@ export const billingUpdateCostBodySchema = z.object({
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
+  /**
+   * Originating workspace, used for org-workspace cost attribution on hosted
+   * Sim. Best-effort by design: self-hosted and headless clients bill through
+   * this endpoint with workspace IDs that exist only in their own deployment
+   * (or with none at all — the Go client omits the field when empty), so the
+   * value is optional and the route only stamps it onto the ledger when it
+   * resolves to a workspace in this deployment. Billing is keyed on the
+   * user's billing entity and must never fail over attribution metadata.
+   */
+  workspaceId: z.string().min(1).optional(),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 
@@ -103,7 +113,6 @@ export const organizationBillingMemberSchema = z
     userName: z.string().nullable().optional(),
     userEmail: z.string().nullable().optional(),
     joinedAt: z.string().nullable().optional(),
-    lastActive: z.string().nullable().optional(),
   })
   .passthrough()
 
@@ -200,6 +209,33 @@ export const billingPortalBodySchema = z.object({
   returnUrl: z.string().min(1).optional(),
 })
 
+export const invoicesQuerySchema = z.object({
+  context: z.enum(['user', 'organization']).optional().default('user'),
+  organizationId: z.string().min(1).optional(),
+})
+
+export const invoiceItemSchema = z.object({
+  id: z.string(),
+  number: z.string().nullable(),
+  /** Invoice creation time as a Unix timestamp in seconds. */
+  created: z.number(),
+  /** Invoice total in the currency's minor units (e.g. cents). */
+  total: z.number(),
+  /** Amount paid in the currency's minor units (e.g. cents). */
+  amountPaid: z.number(),
+  currency: z.string(),
+  status: z.string().nullable(),
+  hostedInvoiceUrl: z.string().nullable(),
+  invoicePdf: z.string().nullable(),
+})
+
+export const invoicesApiResponseSchema = z.object({
+  success: z.boolean(),
+  invoices: z.array(invoiceItemSchema),
+  /** True when Stripe has more invoices than the returned page (overflow). */
+  hasMore: z.boolean(),
+})
+
 const successResponseSchema = z.object({
   success: z.boolean(),
 })
@@ -293,6 +329,16 @@ export const createBillingPortalContract = defineRouteContract({
   },
 })
 
+export const getInvoicesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/billing/invoices',
+  query: invoicesQuerySchema,
+  response: {
+    mode: 'json',
+    schema: invoicesApiResponseSchema,
+  },
+})
+
 export const billingSwitchPlanResponseSchema = z.object({
   success: z.literal(true),
   plan: z.string().optional(),
@@ -337,3 +383,5 @@ export type SubscriptionBillingData = z.infer<typeof subscriptionBillingDataSche
 export type SubscriptionApiResponse = z.infer<typeof subscriptionApiResponseSchema>
 export type OrganizationBillingApiResponse = z.infer<typeof organizationBillingApiResponseSchema>
 export type UsageLimitApiResponse = z.infer<typeof usageLimitApiResponseSchema>
+export type InvoiceItem = z.infer<typeof invoiceItemSchema>
+export type InvoicesApiResponse = z.infer<typeof invoicesApiResponseSchema>

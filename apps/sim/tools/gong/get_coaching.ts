@@ -5,6 +5,7 @@ import type {
   GongGetCoachingParams,
   GongGetCoachingResponse,
 } from '@/tools/gong/types'
+import { getGongErrorMessage } from '@/tools/gong/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingResponse> = {
@@ -55,10 +56,10 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   request: {
     url: (params) => {
       const url = new URL('https://api.gong.io/v2/coaching')
-      url.searchParams.set('manager-id', params.managerId)
-      url.searchParams.set('workspace-id', params.workspaceId)
-      url.searchParams.set('from', params.fromDate)
-      url.searchParams.set('to', params.toDate)
+      url.searchParams.set('manager-id', params.managerId.trim())
+      url.searchParams.set('workspace-id', params.workspaceId.trim())
+      url.searchParams.set('from', params.fromDate.trim())
+      url.searchParams.set('to', params.toDate.trim())
       return url.toString()
     },
     method: 'GET',
@@ -71,7 +72,7 @@ export const getCoachingTool: ToolConfig<GongGetCoachingParams, GongGetCoachingR
   transformResponse: async (response: Response) => {
     const data = await response.json()
     if (!response.ok) {
-      throw new Error(data.errors?.[0]?.message || data.message || 'Failed to get coaching metrics')
+      throw new Error(getGongErrorMessage(data, 'Failed to get coaching metrics'))
     }
 
     const mapUser = (u: Record<string, unknown> | null | undefined): GongCoachingUser | null => {

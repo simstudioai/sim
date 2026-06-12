@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { workflow, workflowBlocks } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withMcpAuth } from '@/lib/mcp/middleware'
@@ -33,13 +33,13 @@ export const GET = withRouteHandler(
       const agentBlocks = await db
         .select({ workflowId: workflowBlocks.workflowId, subBlocks: workflowBlocks.subBlocks })
         .from(workflowBlocks)
-        .where(eq(workflowBlocks.type, 'agent'))
+        .where(
+          and(eq(workflowBlocks.type, 'agent'), inArray(workflowBlocks.workflowId, workflowIds))
+        )
 
       const storedTools: StoredMcpTool[] = []
 
       for (const block of agentBlocks) {
-        if (!workflowMap.has(block.workflowId)) continue
-
         const subBlocks = block.subBlocks as Record<string, unknown> | null
         if (!subBlocks) continue
 

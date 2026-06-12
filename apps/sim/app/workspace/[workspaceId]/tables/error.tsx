@@ -1,13 +1,8 @@
 'use client'
 
-import { ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
 
-interface TablesErrorProps {
-  error: Error & { digest?: string }
-  reset: () => void
-}
-
-export default function TablesError({ error, reset }: TablesErrorProps) {
+export default function TablesError({ error, reset }: ErrorBoundaryProps) {
   return (
     <ErrorState
       error={error}

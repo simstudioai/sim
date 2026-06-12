@@ -4,13 +4,20 @@ import { type CSSProperties, memo, useMemo } from 'react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 import {
+  getDisplayValue,
+  resolveDropdownLabel,
+  resolveSkillsLabel,
+  resolveToolsLabel,
+  resolveVariablesLabel,
+  resolveWorkflowMultiSelectLabel,
+  resolveWorkflowSelectionLabel,
+} from '@/lib/workflows/subblocks/display'
+import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockVisibleForMode,
 } from '@/lib/workflows/subblocks/visibility'
-import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
-import { getDisplayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/workflow-block'
 import { getBlock } from '@/blocks'
 import { SELECTOR_TYPES_HYDRATION_REQUIRED, type SubBlockConfig } from '@/blocks/types'
 import { useVariablesStore } from '@/stores/variables/store'
@@ -84,149 +91,13 @@ interface SubBlockRowProps {
 }
 
 /**
- * Resolves dropdown/combobox value to its display label.
- * Returns null if not a dropdown/combobox or no matching option found.
- */
-function resolveDropdownLabel(
-  subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
-): string | null {
-  if (!subBlock || (subBlock.type !== 'dropdown' && subBlock.type !== 'combobox')) return null
-  if (!rawValue || typeof rawValue !== 'string') return null
-
-  const options = typeof subBlock.options === 'function' ? subBlock.options() : subBlock.options
-  if (!options) return null
-
-  const option = options.find((opt) =>
-    typeof opt === 'string' ? opt === rawValue : opt.id === rawValue
-  )
-
-  if (!option) return null
-  return typeof option === 'string' ? option : option.label
-}
-
-/**
- * Resolves workflow ID to workflow name using the workflow registry.
- * Uses synchronous store access to avoid hook dependencies.
- */
-function resolveWorkflowName(
-  subBlock: SubBlockConfig | undefined,
-  rawValue: unknown,
-  workflowMap: Record<string, WorkflowMetadata>,
-  workflowLabelsReady: boolean
-): string | null {
-  if (subBlock?.type !== 'workflow-selector') return null
-  if (!rawValue || typeof rawValue !== 'string') return null
-  if (!workflowLabelsReady) return null
-
-  return workflowMap[rawValue]?.name ?? DELETED_WORKFLOW_LABEL
-}
-
-/**
- * Type guard for variable assignments array
- */
-function isVariableAssignmentsArray(
-  value: unknown
-): value is Array<{ id?: string; variableId?: string; variableName?: string; value: unknown }> {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(
-      (item) =>
-        typeof item === 'object' &&
-        item !== null &&
-        ('variableName' in item || 'variableId' in item)
-    )
-  )
-}
-
-/**
- * Resolves variables-input to display names.
- * Uses synchronous store access to avoid hook dependencies.
- */
-function resolveVariablesDisplay(
-  subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
-): string | null {
-  if (subBlock?.type !== 'variables-input') return null
-  if (!isVariableAssignmentsArray(rawValue)) return null
-
-  const variables = useVariablesStore.getState().variables
-  const variablesArray = Object.values(variables)
-
-  const names = rawValue
-    .map((a) => {
-      if (a.variableId) {
-        const variable = variablesArray.find((v) => v.id === a.variableId)
-        return variable?.name
-      }
-      if (a.variableName) return a.variableName
-      return null
-    })
-    .filter((name): name is string => !!name)
-
-  if (names.length === 0) return null
-  if (names.length === 1) return names[0]
-  if (names.length === 2) return `${names[0]}, ${names[1]}`
-  return `${names[0]}, ${names[1]} +${names.length - 2}`
-}
-
-/**
- * Resolves tool-input to display names.
- * Resolves built-in tools from block registry (no API needed).
- */
-function resolveToolsDisplay(
-  subBlock: SubBlockConfig | undefined,
-  rawValue: unknown
-): string | null {
-  if (subBlock?.type !== 'tool-input') return null
-  if (!Array.isArray(rawValue) || rawValue.length === 0) return null
-
-  const toolNames = rawValue
-    .map((tool: unknown) => {
-      if (!tool || typeof tool !== 'object') return null
-      const t = tool as Record<string, unknown>
-
-      if (t.title && typeof t.title === 'string') return t.title
-
-      const schema = t.schema as Record<string, unknown> | undefined
-      if (schema?.function && typeof schema.function === 'object') {
-        const fn = schema.function as Record<string, unknown>
-        if (fn.name && typeof fn.name === 'string') return fn.name
-      }
-
-      const fn = t.function as Record<string, unknown> | undefined
-      if (fn?.name && typeof fn.name === 'string') return fn.name
-
-      if (
-        typeof t.type === 'string' &&
-        t.type !== 'custom-tool' &&
-        t.type !== 'mcp' &&
-        t.type !== 'workflow' &&
-        t.type !== 'workflow_input'
-      ) {
-        const blockConfig = getBlock(t.type)
-        if (blockConfig?.name) return blockConfig.name
-      }
-
-      return null
-    })
-    .filter((name): name is string => !!name)
-
-  if (toolNames.length === 0) return null
-  if (toolNames.length === 1) return toolNames[0]
-  if (toolNames.length === 2) return `${toolNames[0]}, ${toolNames[1]}`
-  return `${toolNames[0]}, ${toolNames[1]} +${toolNames.length - 2}`
-}
-
-/**
  * Renders a single subblock row with title and optional value.
  * Matches the SubBlockRow component in WorkflowBlock.
  * - Masks password fields with bullets
  * - Resolves dropdown/combobox labels
  * - Resolves workflow names from registry
  * - Resolves variable names from store
- * - Resolves tool names from block registry
+ * - Resolves tool and skill names (registry + stored names; no API access)
  * - Shows '-' for other selector types that need hydration
  */
 const SubBlockRow = memo(function SubBlockRow({
@@ -240,14 +111,37 @@ const SubBlockRow = memo(function SubBlockRow({
   const isPasswordField = subBlock?.password === true
   const maskedValue = isPasswordField && value && value !== '-' ? '•••' : null
 
+  const workflowLookup = { workflowMap, ready: workflowLabelsReady }
   const dropdownLabel = resolveDropdownLabel(subBlock, rawValue)
-  const variablesDisplay = resolveVariablesDisplay(subBlock, rawValue)
-  const toolsDisplay = resolveToolsDisplay(subBlock, rawValue)
-  const workflowName = resolveWorkflowName(subBlock, rawValue, workflowMap, workflowLabelsReady)
+  // Materialize the variables store only for variables-input rows.
+  const variablesDisplay =
+    subBlock?.type === 'variables-input'
+      ? resolveVariablesLabel(
+          subBlock,
+          rawValue,
+          Object.values(useVariablesStore.getState().variables)
+        )
+      : null
+  // The preview is hook-free, so custom tools referenced only by id resolve
+  // through their inline schema/registry fallbacks rather than the API.
+  const toolsDisplay = resolveToolsLabel(subBlock, rawValue, [])
+  const skillsDisplay = resolveSkillsLabel(subBlock, rawValue, [])
+  const workflowName = resolveWorkflowSelectionLabel(subBlock, rawValue, workflowLookup)
+  const workflowMultiSelectionNames = resolveWorkflowMultiSelectLabel(
+    subBlock,
+    rawValue,
+    workflowLookup
+  )
 
   const isSelectorType = subBlock?.type && SELECTOR_TYPES_HYDRATION_REQUIRED.includes(subBlock.type)
 
-  const hydratedName = dropdownLabel || variablesDisplay || toolsDisplay || workflowName
+  const hydratedName =
+    dropdownLabel ||
+    variablesDisplay ||
+    toolsDisplay ||
+    skillsDisplay ||
+    workflowName ||
+    workflowMultiSelectionNames
   const displayValue = maskedValue || hydratedName || (isSelectorType && value ? '-' : value)
 
   return (
@@ -478,10 +372,10 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         <div className='relative z-10 flex min-w-0 flex-1 items-center gap-2.5'>
           {!isNoteBlock && (
             <div
-              className='flex h-[24px] w-[24px] flex-shrink-0 items-center justify-center rounded-md'
+              className='flex size-[24px] flex-shrink-0 items-center justify-center rounded-md'
               style={{ background: enabled ? blockConfig.bgColor : 'gray' }}
             >
-              <IconComponent className='h-[16px] w-[16px] text-white' />
+              <IconComponent className='size-[16px] text-white' />
             </div>
           )}
           <span

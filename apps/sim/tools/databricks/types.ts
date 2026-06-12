@@ -27,6 +27,11 @@ export interface DatabricksExecuteSqlResponse extends ToolResponse {
   }
 }
 
+/** Get Statement (poll an async SQL statement by its ID) */
+export interface DatabricksGetStatementParams extends DatabricksBaseParams {
+  statementId: string
+}
+
 /** List Jobs */
 export interface DatabricksListJobsParams extends DatabricksBaseParams {
   limit?: number
@@ -62,6 +67,27 @@ export interface DatabricksRunJobResponse extends ToolResponse {
   output: {
     runId: number
     numberInJob: number
+  }
+}
+
+/** Get Job */
+export interface DatabricksGetJobParams extends DatabricksBaseParams {
+  jobId: number
+}
+
+export interface DatabricksGetJobResponse extends ToolResponse {
+  output: {
+    jobId: number
+    name: string
+    creatorUserName: string
+    runAsUserName: string
+    createdTime: number
+    format: string
+    maxConcurrentRuns: number
+    timeoutSeconds: number | null
+    schedule: Record<string, unknown> | null
+    tags: Record<string, unknown> | null
+    tasks: Array<Record<string, unknown>>
   }
 }
 
@@ -158,23 +184,57 @@ export interface DatabricksGetRunOutputResponse extends ToolResponse {
   }
 }
 
+/** Shared cluster shape returned by list_clusters and get_cluster */
+export interface DatabricksCluster {
+  clusterId: string
+  clusterName: string
+  state: string
+  stateMessage: string
+  creatorUserName: string
+  sparkVersion: string
+  nodeTypeId: string
+  driverNodeTypeId: string
+  numWorkers: number | null
+  autoscale: { minWorkers: number; maxWorkers: number } | null
+  clusterSource: string
+  autoterminationMinutes: number
+  startTime: number | null
+}
+
 /** List Clusters */
 export interface DatabricksListClustersResponse extends ToolResponse {
   output: {
-    clusters: Array<{
-      clusterId: string
-      clusterName: string
+    clusters: DatabricksCluster[]
+  }
+}
+
+/** Get Cluster */
+export interface DatabricksGetClusterParams extends DatabricksBaseParams {
+  clusterId: string
+}
+
+export interface DatabricksGetClusterResponse extends ToolResponse {
+  output: {
+    cluster: DatabricksCluster
+  }
+}
+
+/** List Warehouses */
+export interface DatabricksListWarehousesResponse extends ToolResponse {
+  output: {
+    warehouses: Array<{
+      warehouseId: string
+      name: string
+      clusterSize: string
       state: string
-      stateMessage: string
-      creatorUserName: string
-      sparkVersion: string
-      nodeTypeId: string
-      driverNodeTypeId: string
-      numWorkers: number | null
-      autoscale: { minWorkers: number; maxWorkers: number } | null
-      clusterSource: string
-      autoterminationMinutes: number
-      startTime: number | null
+      warehouseType: string
+      creatorName: string
+      autoStopMinutes: number
+      numClusters: number
+      minNumClusters: number
+      maxNumClusters: number
+      numActiveSessions: number
+      enableServerlessCompute: boolean
     }>
   }
 }
@@ -184,8 +244,11 @@ export type DatabricksResponse =
   | DatabricksExecuteSqlResponse
   | DatabricksListJobsResponse
   | DatabricksRunJobResponse
+  | DatabricksGetJobResponse
   | DatabricksGetRunResponse
   | DatabricksListRunsResponse
   | DatabricksCancelRunResponse
   | DatabricksGetRunOutputResponse
   | DatabricksListClustersResponse
+  | DatabricksGetClusterResponse
+  | DatabricksListWarehousesResponse

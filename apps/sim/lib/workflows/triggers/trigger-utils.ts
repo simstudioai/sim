@@ -146,7 +146,7 @@ export function generateMockPayloadFromOutputsDefinition(
   return generateMockPayloadFromOutputs(outputs)
 }
 
-export interface TriggerInfo {
+interface TriggerInfo {
   id: string
   name: string
   description: string
@@ -229,21 +229,6 @@ export function getTriggersForSidebar(): BlockConfig[] {
     if (block.hideFromToolbar) return false
     // Include blocks with triggers category or trigger-config subblock
     return block.category === 'triggers' || hasTriggerCapability(block)
-  })
-}
-
-/**
- * Get blocks that should appear in the blocks tab
- * This excludes only dedicated trigger blocks, not tools with trigger capability
- */
-export function getBlocksForSidebar(): BlockConfig[] {
-  const allBlocks = getAllBlocks()
-  return allBlocks.filter((block) => {
-    if (block.hideFromToolbar) return false
-    if (block.type === 'starter') return false // Legacy block
-    // Only exclude blocks with 'triggers' category
-    // Tools with trigger capability should still appear in blocks tab
-    return block.category !== 'triggers'
   })
 }
 

@@ -10,14 +10,13 @@ import {
   getBlockByToolName,
   getBlocksByCategory,
   isValidBlockType,
-  registry,
 } from '@/blocks/registry'
 import { AuthMode } from '@/blocks/types'
 
 describe.concurrent('Blocks Module', () => {
   describe('Registry', () => {
     it('should have a non-empty registry of blocks', () => {
-      expect(Object.keys(registry).length).toBeGreaterThan(0)
+      expect(getAllBlocks().length).toBeGreaterThan(0)
     })
 
     it('should have all blocks with required properties', () => {
@@ -91,6 +90,175 @@ describe.concurrent('Blocks Module', () => {
     it('should return undefined for non-existent tool name', () => {
       const block = getBlockByToolName('non_existent_tool')
       expect(block).toBeUndefined()
+    })
+  })
+
+  describe('File block', () => {
+    it('should keep v3 read and get routed to the legacy tools', () => {
+      const block = getBlock('file_v3')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(true)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_parser_v3',
+        'file_get',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.tools.config?.tool({ operation: 'file_parser_v3' })).toBe('file_parser_v3')
+      expect(block?.tools.config?.tool({ operation: 'file_get' })).toBe('file_get')
+    })
+
+    it('should keep v4 read and fetch routed to the expected tools', () => {
+      const block = getBlock('file_v4')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(true)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_read',
+        'file_fetch',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
+      expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: '["file-1","file-2"]',
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileId: ['file-1', 'file-2'],
+        workspaceId: 'workspace-1',
+      })
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_read',
+          readFileInput: [
+            {
+              key: 'workspace/workspace-1/example.md',
+              name: 'example.md',
+              path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+              size: 123,
+              type: 'text/markdown',
+            },
+          ],
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileInput: [
+          {
+            key: 'workspace/workspace-1/example.md',
+            name: 'example.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+            size: 123,
+            type: 'text/markdown',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      })
+    })
+
+    it('should expose v5 with read (files only) and a get content operation', () => {
+      const block = getBlock('file_v5')
+
+      expect(block).toBeDefined()
+      expect(block?.hideFromToolbar).toBe(false)
+      expect(block?.subBlocks[0].options?.map((option) => option.id)).toEqual([
+        'file_read',
+        'file_get_content',
+        'file_fetch',
+        'file_write',
+        'file_append',
+      ])
+      expect(block?.subBlocks.find((subBlock) => subBlock.id === 'readFile')?.multiple).toBe(true)
+      expect(block?.tools.config?.tool({ operation: 'file_read' })).toBe('file_read')
+      expect(block?.tools.config?.tool({ operation: 'file_get_content' })).toBe('file_get_content')
+      expect(block?.tools.config?.tool({ operation: 'file_fetch' })).toBe('file_fetch')
+
+      // Read exposes files only; the redundant single-file output is gone
+      expect(block?.outputs.files).toBeDefined()
+      expect(block?.outputs.file).toBeUndefined()
+      // Get content exposes a contents array
+      expect(block?.outputs.contents).toBeDefined()
+
+      // Get content resolves canonical IDs
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_get_content',
+          getContentInput: '["file-1","file-2"]',
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileId: ['file-1', 'file-2'],
+        workspaceId: 'workspace-1',
+      })
+
+      // Get content resolves selected file objects
+      expect(
+        block?.tools.config?.params?.({
+          operation: 'file_get_content',
+          getContentInput: [
+            {
+              key: 'workspace/workspace-1/example.md',
+              name: 'example.md',
+              path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+              size: 123,
+              type: 'text/markdown',
+            },
+          ],
+          _context: { workspaceId: 'workspace-1' },
+        })
+      ).toEqual({
+        fileInput: [
+          {
+            key: 'workspace/workspace-1/example.md',
+            name: 'example.md',
+            path: '/api/files/serve/workspace%2Fworkspace-1%2Fexample.md?context=workspace',
+            size: 123,
+            type: 'text/markdown',
+          },
+        ],
+        workspaceId: 'workspace-1',
+      })
+    })
+  })
+
+  describe('Agent block', () => {
+    it('should expose canonical file attachments and normalize file params', () => {
+      const block = getBlock('agent')
+
+      expect(block).toBeDefined()
+      const uploadSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'attachmentFiles')
+      const advancedSubBlock = block?.subBlocks.find((subBlock) => subBlock.id === 'files')
+
+      expect(uploadSubBlock?.type).toBe('file-upload')
+      expect(uploadSubBlock?.canonicalParamId).toBe('files')
+      expect(uploadSubBlock?.multiple).toBe(true)
+      expect(advancedSubBlock?.canonicalParamId).toBe('files')
+      expect(block?.inputs.files).toEqual({
+        type: 'array',
+        description: 'Files to include with the latest user message',
+      })
+
+      expect(
+        block?.tools.config?.params?.({
+          model: 'gpt-4o',
+          files:
+            '[{"id":"file-1","key":"workspace/ws-1/example.png","name":"example.png","url":"/api/files/serve/workspace%2Fws-1%2Fexample.png?context=workspace","size":123,"type":"image/png"}]',
+        })
+      ).toMatchObject({
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            type: 'image/png',
+          },
+        ],
+      })
     })
   })
 
@@ -528,10 +696,10 @@ describe.concurrent('Blocks Module', () => {
 
     it('should handle blocks with docsLink', () => {
       const functionBlock = getBlock('function')
-      expect(functionBlock?.docsLink).toBe('https://docs.sim.ai/blocks/function')
+      expect(functionBlock?.docsLink).toBe('https://docs.sim.ai/workflows/blocks/function')
 
       const apiBlock = getBlock('api')
-      expect(apiBlock?.docsLink).toBe('https://docs.sim.ai/blocks/api')
+      expect(apiBlock?.docsLink).toBe('https://docs.sim.ai/workflows/blocks/api')
     })
   })
 
@@ -629,12 +797,71 @@ describe.concurrent('Blocks Module', () => {
       expect(temperatureSubBlock?.min).toBe(0)
       expect(temperatureSubBlock?.max).toBe(2)
     })
+
+    it('should mark generator provider dropdowns as command-searchable', () => {
+      const imageGeneratorBlock = getBlock('image_generator_v2')
+      const videoGeneratorBlock = getBlock('video_generator_v3')
+
+      const imageProviderSubBlock = imageGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const videoProviderSubBlock = videoGeneratorBlock?.subBlocks.find(
+        (sb) => sb.id === 'provider'
+      )
+      const imageProviderOptions = imageProviderSubBlock?.options
+      const videoProviderOptions = videoProviderSubBlock?.options
+
+      expect(imageGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(videoGeneratorBlock?.hideFromToolbar).not.toBe(true)
+      expect(imageProviderSubBlock?.commandSearchable).toBe(true)
+      expect(videoProviderSubBlock?.commandSearchable).toBe(true)
+      expect(imageProviderSubBlock?.value?.()).toBe('falai')
+      expect(videoProviderSubBlock?.value?.()).toBe('falai')
+      expect(
+        Array.isArray(imageProviderOptions) ? imageProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(
+        Array.isArray(videoProviderOptions) ? videoProviderOptions.map((option) => option.id) : []
+      ).toContain('falai')
+      expect(getBlock('image_generator')?.hideFromToolbar).toBe(true)
+      expect(getBlock('video_generator_v2')?.hideFromToolbar).toBe(true)
+    })
+
+    it('should mark the agent model combobox as command-searchable', () => {
+      const agentBlock = getBlock('agent')
+      const modelSubBlock = agentBlock?.subBlocks.find((sb) => sb.id === 'model')
+
+      expect(agentBlock?.hideFromToolbar).not.toBe(true)
+      expect(modelSubBlock?.type).toBe('combobox')
+      expect(modelSubBlock?.commandSearchable).toBe(true)
+    })
+
+    it('should hide generator API keys on hosted only for Fal.ai providers', () => {
+      for (const blockType of ['image_generator_v2', 'video_generator_v3']) {
+        const block = getBlock(blockType)
+        const apiKeySubBlocks = block?.subBlocks.filter((sb) => sb.id === 'apiKey') ?? []
+
+        const falApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) => sb.condition?.field === 'provider' && sb.condition.value === 'falai'
+        )
+        const nonFalApiKeySubBlock = apiKeySubBlocks.find(
+          (sb) =>
+            sb.condition?.field === 'provider' &&
+            sb.condition.value === 'falai' &&
+            sb.condition.not === true
+        )
+
+        expect(falApiKeySubBlock?.hideWhenHosted).toBe(true)
+        expect(nonFalApiKeySubBlock).toBeDefined()
+        expect(nonFalApiKeySubBlock?.hideWhenHosted).not.toBe(true)
+      }
+    })
   })
 
   describe('Block Consistency', () => {
     it('should have consistent registry keys matching block types', () => {
-      for (const [key, block] of Object.entries(registry)) {
-        expect(key).toBe(block.type)
+      for (const block of getAllBlocks()) {
+        expect(getBlock(block.type)).toBe(block)
       }
     })
 

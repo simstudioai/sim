@@ -29,7 +29,7 @@ export const schedulesDeleteTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `https://api.incident.io/v2/schedules/${params.id}`,
+    url: (params) => `https://api.incident.io/v2/schedules/${params.id.trim()}`,
     method: 'DELETE',
     headers: (params) => ({
       'Content-Type': 'application/json',

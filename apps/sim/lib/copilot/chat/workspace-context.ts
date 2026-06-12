@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import {
   knowledgeBase,
   knowledgeConnector,
@@ -13,6 +13,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, count, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
@@ -57,8 +58,13 @@ export interface WorkspaceMdData {
     connectorTypes?: string[]
   }>
   tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
-  files: Array<{ id: string; name: string; type: string; size: number }>
-  oauthIntegrations: Array<{ providerId: string }>
+  files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
+  oauthIntegrations: Array<{
+    id: string
+    providerId: string
+    displayName?: string | null
+    role?: string | null
+  }>
   envVariables: string[]
   tasks?: Array<{ id: string; title: string; updatedAt: Date }>
   customTools?: Array<{ id: string; name: string }>
@@ -73,23 +79,6 @@ export interface WorkspaceMdData {
     lifecycle: string
     sourceTaskName: string | null
   }>
-}
-
-function normalizeFolderPathForVfs(folderPath?: string | null): string | null {
-  if (!folderPath) return null
-  const segments = folderPath
-    .split('/')
-    .map((segment) => normalizeVfsSegment(segment))
-    .filter(Boolean)
-  return segments.length > 0 ? segments.join('/') : null
-}
-
-function buildWorkflowStatePath(workflowName: string, folderPath?: string | null): string {
-  const normalizedFolderPath = normalizeFolderPathForVfs(folderPath)
-  const normalizedWorkflowName = normalizeVfsSegment(workflowName)
-  return normalizedFolderPath
-    ? `workflows/${normalizedFolderPath}/${normalizedWorkflowName}/state.json`
-    : `workflows/${normalizedWorkflowName}/state.json`
 }
 
 /**
@@ -129,25 +118,21 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
 
     const formatWf = (wf: (typeof data.workflows)[0], indent: string) => {
       const parts = [`${indent}- **${wf.name}** (${wf.id})`]
+      const workflowDir = canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath })
+      parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
+      parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
       if (wf.description) parts.push(`${indent}  ${wf.description}`)
       const flags: string[] = []
       if (wf.isDeployed) flags.push('deployed')
       if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
       if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
-      if (wf.folderPath) {
-        parts.push(
-          `${indent}  VFS state path: \`${buildWorkflowStatePath(wf.name, wf.folderPath)}\``
-        )
-      }
       return parts.join('\n')
     }
 
     const lines: string[] = []
-    if (data.workflows.some((workflow) => workflow.folderPath)) {
-      lines.push(
-        'Use the canonical VFS state path shown under nested workflows. Do not infer nested workflow paths from the leaf workflow name alone.'
-      )
-    }
+    lines.push(
+      'Use the canonical VFS dir/state path shown under each workflow. Paths are percent-encoded per segment; copy them verbatim and do not infer paths from display names.'
+    )
     for (const wf of rootWorkflows) {
       lines.push(formatWf(wf, ''))
     }
@@ -189,21 +174,50 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.files.length > 0) {
-    const lines = data.files.map(
-      (f) => `- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)}`
-    )
+    const rootFiles: typeof data.files = []
+    const folderFiles = new Map<string, typeof data.files>()
+    for (const f of data.files) {
+      if (f.folderPath) {
+        const existing = folderFiles.get(f.folderPath) ?? []
+        existing.push(f)
+        folderFiles.set(f.folderPath, existing)
+      } else {
+        rootFiles.push(f)
+      }
+    }
+    const fileLine = (f: (typeof data.files)[0], indent: string) => {
+      const vfsPath = canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name })
+      return `${indent}- **${f.name}** (${f.id}) — ${f.type}, ${formatSize(f.size)} — \`${vfsPath}\``
+    }
+    const lines: string[] = [
+      'Read or edit a file by the exact VFS path shown in backticks below — copy it verbatim (it is already percent-encoded) and append `/content` to read the contents. Do not retype the display name or re-encode the path.',
+    ]
+    for (const f of rootFiles) {
+      lines.push(fileLine(f, ''))
+    }
+    const sortedFolders = [...folderFiles.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    for (const [folder, folderFileList] of sortedFolders) {
+      lines.push(`- 📁 **${folder}/**`)
+      for (const f of folderFileList) {
+        lines.push(fileLine(f, '  '))
+      }
+    }
     sections.push(`## Files (${data.files.length})\n${lines.join('\n')}`)
   } else {
     sections.push('## Files (0)\n(none)')
   }
 
   if (data.oauthIntegrations.length > 0) {
-    const providers = [...new Set(data.oauthIntegrations.map((c) => c.providerId))]
-    const lines = providers.map((p) => {
-      const services = PROVIDER_SERVICES[p]
-      return services ? `- ${p} (${services.join(', ')})` : `- ${p}`
+    const lines = data.oauthIntegrations.map((c) => {
+      const services = PROVIDER_SERVICES[c.providerId]
+      const svc = services ? ` (${services.join(', ')})` : ''
+      const who = c.displayName ? ` — ${c.displayName}` : ''
+      const role = c.role ? `, ${c.role}` : ''
+      return `- ${c.providerId}${svc}${who}${role} — credentialId: \`${c.id}\``
     })
-    sections.push(`## Connected Integrations\n${lines.join('\n')}`)
+    sections.push(
+      `## Connected Integrations\nPass these credentialId values directly on OAuth tool calls — no need to read environment/credentials.json for them.\n${lines.join('\n')}`
+    )
   } else {
     sections.push('## Connected Integrations\n(none)')
   }
@@ -228,7 +242,11 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
 
   if (data.skills && data.skills.length > 0) {
     const lines = data.skills.map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
-    sections.push(`## Skills (${data.skills.length})\n${lines.join('\n')}`)
+    sections.push(
+      `## Skills (${data.skills.length})\n` +
+        'To use a skill, call the load_user_skill tool with its name to load the full instructions, then follow them. The descriptions below only say when each skill applies — they are not the instructions.\n' +
+        lines.join('\n')
+    )
   }
 
   if (data.jobs && data.jobs.length > 0) {
@@ -248,10 +266,15 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   return sections.join('\n\n')
 }
 
+export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
+  return ['# Workspace Context', '', buildWorkspaceMd(data)].join('\n\n')
+}
+
 /**
  * Generate WORKSPACE.md content from actual database state.
- * Auto-injected into the system prompt and served as a top-level VFS file.
- * The LLM never writes it directly.
+ * Served as a top-level VFS file. The Go system prompt keeps only stable
+ * discovery rules; the LLM reads dynamic workspace state from VFS files.
+ * The LLM never writes this file directly.
  */
 export async function generateWorkspaceContext(
   workspaceId: string,
@@ -279,7 +302,7 @@ export async function generateWorkspaceContext(
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
 
-      db
+      dbReplica
         .select({
           id: workflow.id,
           name: workflow.name,
@@ -291,7 +314,7 @@ export async function generateWorkspaceContext(
         .from(workflow)
         .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
 
-      db
+      dbReplica
         .select({
           id: workflowFolder.id,
           name: workflowFolder.name,
@@ -300,7 +323,7 @@ export async function generateWorkspaceContext(
         .from(workflowFolder)
         .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt))),
 
-      db
+      dbReplica
         .select({
           id: knowledgeBase.id,
           name: knowledgeBase.name,
@@ -309,7 +332,7 @@ export async function generateWorkspaceContext(
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
 
-      db
+      dbReplica
         .select({
           id: userTableDefinitions.id,
           name: userTableDefinitions.name,
@@ -329,7 +352,7 @@ export async function generateWorkspaceContext(
 
       listCustomTools({ userId, workspaceId }),
 
-      db
+      dbReplica
         .select({
           id: mcpServers.id,
           name: mcpServers.name,
@@ -339,9 +362,9 @@ export async function generateWorkspaceContext(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt))),
 
-      listSkills({ workspaceId }),
+      listSkills({ workspaceId, includeBuiltins: false }),
 
-      db
+      dbReplica
         .select({
           id: workflowSchedule.id,
           jobTitle: workflowSchedule.jobTitle,
@@ -365,7 +388,7 @@ export async function generateWorkspaceContext(
       tables.length > 0
         ? await Promise.all(
             tables.map(async (t) => {
-              const [row] = await db
+              const [row] = await dbReplica
                 .select({ count: count() })
                 .from(userTableRows)
                 .where(eq(userTableRows.tableId, t.id))
@@ -377,7 +400,7 @@ export async function generateWorkspaceContext(
     const kbIds = kbs.map((kb) => kb.id)
     const connectorRows =
       kbIds.length > 0
-        ? await db
+        ? await dbReplica
             .select({
               knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
               connectorType: knowledgeConnector.connectorType,
@@ -426,8 +449,19 @@ export async function generateWorkspaceContext(
         connectorTypes: connectorTypesByKb.get(kb.id),
       })),
       tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
-      files: files.map((f) => ({ id: f.id, name: f.name, type: f.type, size: f.size })),
-      oauthIntegrations: credentials.map((c) => ({ providerId: c.providerId })),
+      files: files.map((f) => ({
+        id: f.id,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        folderPath: f.folderPath ?? null,
+      })),
+      oauthIntegrations: credentials.map((c) => ({
+        id: c.id,
+        providerId: c.providerId,
+        displayName: c.displayName,
+        role: c.role,
+      })),
       envVariables: [],
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       mcpServers: mcpServerRows,

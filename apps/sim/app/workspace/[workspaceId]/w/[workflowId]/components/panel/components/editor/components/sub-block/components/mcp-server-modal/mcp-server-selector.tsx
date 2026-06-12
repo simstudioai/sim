@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Combobox } from '@/components/emcn/components'
+import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpServers } from '@/hooks/queries/mcp'
 
@@ -22,6 +25,7 @@ export function McpServerSelector({
   isPreview = false,
   previewValue,
 }: McpServerSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const [inputValue, setInputValue] = useState('')
@@ -66,6 +70,12 @@ export function McpServerSelector({
       setInputValue('')
     }
   }, [selectedServer])
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: inputValue,
+  })
 
   return (
     <Combobox
@@ -79,6 +89,13 @@ export function McpServerSelector({
       filterOptions={true}
       isLoading={isLoading}
       error={error instanceof Error ? error.message : null}
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span className='block truncate'>
+            {formatDisplayText(inputValue, { workflowSearchHighlight })}
+          </span>
+        ) : undefined
+      }
     />
   )
 }

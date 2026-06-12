@@ -3,6 +3,11 @@ import { workflowExecutionLogs } from '@sim/db/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
+export interface ExecutionStateRecord {
+  executionId: string
+  state: SerializableExecutionState
+}
+
 function isSerializableExecutionState(value: unknown): value is SerializableExecutionState {
   if (!value || typeof value !== 'object') return false
   const state = value as Record<string, unknown>
@@ -52,11 +57,49 @@ export async function getExecutionStateForWorkflow(
   return extractExecutionState(row?.executionData)
 }
 
+/**
+ * Returns the workflow input recorded for a past execution so a new run can
+ * reuse it by reference. `found` distinguishes a missing execution from an
+ * execution that recorded no input.
+ */
+export async function getExecutionInputForWorkflow(
+  executionId: string,
+  workflowId: string
+): Promise<{ found: boolean; input?: unknown }> {
+  const [row] = await db
+    .select({ executionData: workflowExecutionLogs.executionData })
+    .from(workflowExecutionLogs)
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+
+  if (!row) {
+    return { found: false }
+  }
+
+  const data = row.executionData as { workflowInput?: unknown } | null | undefined
+  return { found: true, input: data?.workflowInput }
+}
+
 export async function getLatestExecutionState(
   workflowId: string
 ): Promise<SerializableExecutionState | null> {
+  const record = await getLatestExecutionStateWithExecutionId(workflowId)
+  return record?.state ?? null
+}
+
+export async function getLatestExecutionStateWithExecutionId(
+  workflowId: string
+): Promise<ExecutionStateRecord | null> {
   const [row] = await db
-    .select({ executionData: workflowExecutionLogs.executionData })
+    .select({
+      executionId: workflowExecutionLogs.executionId,
+      executionData: workflowExecutionLogs.executionData,
+    })
     .from(workflowExecutionLogs)
     .where(
       and(
@@ -67,5 +110,6 @@ export async function getLatestExecutionState(
     .orderBy(desc(workflowExecutionLogs.startedAt))
     .limit(1)
 
-  return extractExecutionState(row?.executionData)
+  const state = extractExecutionState(row?.executionData)
+  return row && state ? { executionId: row.executionId, state } : null
 }

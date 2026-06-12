@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { evernoteCreateNoteContract } from '@/lib/api/contracts/tools/evernote'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -54,7 +55,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       output: { note },
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error('Failed to create note', { error: message })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }

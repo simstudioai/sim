@@ -42,18 +42,36 @@ export function CircleStop({ className }: { className?: string }) {
   )
 }
 
+function Hyphen({ className }: { className?: string }) {
+  return (
+    <svg
+      width='16'
+      height='16'
+      viewBox='0 0 16 16'
+      fill='none'
+      xmlns='http://www.w3.org/2000/svg'
+      className={className}
+    >
+      <path d='M4 8H12' stroke='currentColor' strokeWidth='1.25' strokeLinecap='round' />
+    </svg>
+  )
+}
+
 function StatusIcon({ status, toolName }: { status: ToolCallStatus; toolName: string }) {
   if (status === 'executing') {
-    return <PillsRing className='h-[15px] w-[15px] text-[var(--text-tertiary)]' animate />
+    return <PillsRing className='size-[15px] text-[var(--text-tertiary)]' animate />
   }
   if (status === 'cancelled') {
-    return <CircleStop className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
+    return <CircleStop className='size-[15px] text-[var(--text-tertiary)]' />
+  }
+  if (status === 'interrupted') {
+    return <Hyphen className='size-[15px] text-[var(--text-tertiary)]' />
   }
   const Icon = getToolIcon(toolName)
   if (Icon) {
-    return <Icon className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
+    return <Icon className='size-[15px] text-[var(--text-tertiary)]' />
   }
-  return <CircleCheck className='h-[15px] w-[15px] text-[var(--text-tertiary)]' />
+  return <CircleCheck className='size-[15px] text-[var(--text-tertiary)]' />
 }
 
 interface ToolCallItemProps {
@@ -95,10 +113,10 @@ export function ToolCallItem({ toolName, displayTitle, status, streamingArgs }: 
 
   return (
     <div className='flex items-center gap-[8px] pl-[24px]'>
-      <div className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center'>
+      <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
         <StatusIcon status={status} toolName={toolName} />
       </div>
-      <span className='font-base text-[13px] text-[var(--text-secondary)]'>
+      <span className='text-[13px] text-[var(--text-secondary)]'>
         {liveWorkspaceFileTitle || displayTitle}
       </span>
     </div>

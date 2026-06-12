@@ -1,7 +1,7 @@
 import type { ToolResponse } from '@/tools/types'
 
 /** Base parameters shared by all Gong tools */
-export interface GongBaseParams {
+interface GongBaseParams {
   accessKey: string
   accessKeySecret: string
 }
@@ -14,7 +14,31 @@ export interface GongListCallsParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongCallBasic {
+/** Create Call */
+export interface GongCreateCallParams extends GongBaseParams {
+  clientUniqueId: string
+  actualStart: string
+  primaryUser: string
+  parties: unknown
+  direction: string
+  downloadMediaUrl: string
+  title?: string
+  workspaceId?: string
+  disposition?: string
+  purpose?: string
+  context?: unknown
+  callProviderCode?: string
+}
+
+export interface GongCreateCallResponse extends ToolResponse {
+  output: {
+    callId: string
+    requestId: string
+    url: string | null
+  }
+}
+
+interface GongCallBasic {
   id: string
   title: string | null
   scheduled: string | null
@@ -37,7 +61,7 @@ export interface GongCallBasic {
   calendarEventId: string | null
 }
 
-export interface GongParty {
+interface GongParty {
   id: string | null
   name: string | null
   emailAddress: string | null
@@ -52,9 +76,12 @@ export interface GongParty {
 
 export interface GongListCallsResponse extends ToolResponse {
   output: {
+    requestId: string | null
     calls: GongCallBasic[]
     cursor: string | null
     totalRecords: number
+    currentPageSize: number | null
+    currentPageNumber: number | null
   }
 }
 
@@ -76,19 +103,19 @@ export interface GongGetCallTranscriptParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongTranscriptSentence {
+interface GongTranscriptSentence {
   start: number
   end: number
   text: string
 }
 
-export interface GongTranscriptEntry {
+interface GongTranscriptEntry {
   speakerId: string | null
   topic: string | null
   sentences: GongTranscriptSentence[]
 }
 
-export interface GongCallTranscript {
+interface GongCallTranscript {
   callId: string
   transcript: GongTranscriptEntry[]
 }
@@ -110,7 +137,7 @@ export interface GongGetExtensiveCallsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongExtensiveCall {
+interface GongExtensiveCall {
   metaData: Record<string, unknown>
   parties: GongParty[]
   content: Record<string, unknown>
@@ -132,7 +159,7 @@ export interface GongListUsersParams extends GongBaseParams {
   includeAvatars?: string
 }
 
-export interface GongUserSettings {
+interface GongUserSettings {
   webConferencesRecorded: boolean
   preventWebConferenceRecording: boolean
   telephonyCallsImported: boolean
@@ -142,12 +169,12 @@ export interface GongUserSettings {
   gongConnectEnabled: boolean
 }
 
-export interface GongSpokenLanguage {
+interface GongSpokenLanguage {
   language: string
   primary: boolean
 }
 
-export interface GongUser {
+interface GongUser {
   id: string
   emailAddress: string | null
   created: string | null
@@ -168,6 +195,7 @@ export interface GongUser {
 
 export interface GongListUsersResponse extends ToolResponse {
   output: {
+    requestId: string | null
     users: GongUser[]
     cursor: string | null
     totalRecords: number | null
@@ -210,7 +238,7 @@ export interface GongAggregateActivityParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongUserActivity {
+interface GongUserActivity {
   userId: string
   userEmailAddress: string | null
   callsAsHost: number | null
@@ -241,12 +269,12 @@ export interface GongAggregateActivityResponse extends ToolResponse {
 }
 
 /** Interaction Stats */
-export interface GongInteractionStatEntry {
+interface GongInteractionStatEntry {
   name: string
   value: number | null
 }
 
-export interface GongUserInteractionStats {
+interface GongUserInteractionStats {
   userId: string
   userEmailAddress: string | null
   personInteractionStats: GongInteractionStatEntry[]
@@ -269,6 +297,91 @@ export interface GongInteractionStatsResponse extends ToolResponse {
   }
 }
 
+/** Day-by-Day Activity */
+export interface GongDayByDayActivityParams extends GongBaseParams {
+  userIds?: string
+  fromDate: string
+  toDate: string
+  cursor?: string
+}
+
+interface GongDailyActivity {
+  fromDate: string | null
+  toDate: string | null
+  callsAsHost: string[]
+  callsAttended: string[]
+  callsGaveFeedback: string[]
+  callsReceivedFeedback: string[]
+  callsRequestedFeedback: string[]
+  callsScorecardsFilled: string[]
+  callsScorecardsReceived: string[]
+  ownCallsListenedTo: string[]
+  othersCallsListenedTo: string[]
+  callsSharedInternally: string[]
+  callsSharedExternally: string[]
+  callsCommentsGiven: string[]
+  callsCommentsReceived: string[]
+  callsMarkedAsFeedbackGiven: string[]
+  callsMarkedAsFeedbackReceived: string[]
+}
+
+interface GongUserDayByDayActivity {
+  userId: string
+  userEmailAddress: string | null
+  userDailyActivityStats: GongDailyActivity[]
+}
+
+export interface GongDayByDayActivityResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    usersDetailedActivities: GongUserDayByDayActivity[]
+    cursor: string | null
+  }
+}
+
+/** Aggregate by Period */
+export interface GongAggregateByPeriodParams extends GongBaseParams {
+  aggregationPeriod: string
+  userIds?: string
+  fromDate: string
+  toDate: string
+  cursor?: string
+}
+
+interface GongPeriodActivity {
+  fromDate: string | null
+  toDate: string | null
+  callsAsHost: number | null
+  callsAttended: number | null
+  callsGaveFeedback: number | null
+  callsReceivedFeedback: number | null
+  callsRequestedFeedback: number | null
+  callsScorecardsFilled: number | null
+  callsScorecardsReceived: number | null
+  ownCallsListenedTo: number | null
+  othersCallsListenedTo: number | null
+  callsSharedInternally: number | null
+  callsSharedExternally: number | null
+  callsCommentsGiven: number | null
+  callsCommentsReceived: number | null
+  callsMarkedAsFeedbackGiven: number | null
+  callsMarkedAsFeedbackReceived: number | null
+}
+
+interface GongUserAggregateByPeriod {
+  userId: string
+  userEmailAddress: string | null
+  userAggregateActivity: GongPeriodActivity[]
+}
+
+export interface GongAggregateByPeriodResponse extends ToolResponse {
+  output: {
+    requestId: string | null
+    usersAggregateActivity: GongUserAggregateByPeriod[]
+    cursor: string | null
+  }
+}
+
 /** Answered Scorecards */
 export interface GongAnsweredScorecardsParams extends GongBaseParams {
   callFromDate?: string
@@ -280,7 +393,7 @@ export interface GongAnsweredScorecardsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongScorecardAnswer {
+interface GongScorecardAnswer {
   questionId: number | null
   questionRevisionId: number | null
   isOverall: boolean | null
@@ -289,7 +402,7 @@ export interface GongScorecardAnswer {
   notApplicable: boolean | null
 }
 
-export interface GongAnsweredScorecard {
+interface GongAnsweredScorecard {
   answeredScorecardId: number
   scorecardId: number | null
   scorecardName: string | null
@@ -314,7 +427,7 @@ export interface GongListLibraryFoldersParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongLibraryFolder {
+interface GongLibraryFolder {
   id: string
   name: string
   parentFolderId: string | null
@@ -333,12 +446,12 @@ export interface GongGetFolderContentParams extends GongBaseParams {
   folderId: string
 }
 
-export interface GongFolderCallSnippet {
+interface GongFolderCallSnippet {
   fromSec: number | null
   toSec: number | null
 }
 
-export interface GongFolderCall {
+interface GongFolderCall {
   id: string
   title: string | null
   note: string | null
@@ -361,7 +474,7 @@ export interface GongGetFolderContentResponse extends ToolResponse {
 /** List Scorecards */
 export interface GongListScorecardsParams extends GongBaseParams {}
 
-export interface GongScorecardQuestion {
+interface GongScorecardQuestion {
   questionId: string
   questionText: string
   questionRevisionId: string | null
@@ -371,7 +484,7 @@ export interface GongScorecardQuestion {
   updaterUserId: string | null
 }
 
-export interface GongScorecard {
+interface GongScorecard {
   scorecardId: string
   scorecardName: string
   workspaceId: string | null
@@ -393,13 +506,13 @@ export interface GongListTrackersParams extends GongBaseParams {
   workspaceId?: string
 }
 
-export interface GongTrackerLanguageKeyword {
+interface GongTrackerLanguageKeyword {
   language: string | null
   keywords: string[]
   includeRelatedForms: boolean
 }
 
-export interface GongTracker {
+interface GongTracker {
   trackerId: string
   trackerName: string
   workspaceId: string | null
@@ -427,7 +540,7 @@ export interface GongListTrackersResponse extends ToolResponse {
 /** List Workspaces */
 export interface GongListWorkspacesParams extends GongBaseParams {}
 
-export interface GongWorkspace {
+interface GongWorkspace {
   id: string
   name: string | null
   description: string | null
@@ -446,7 +559,7 @@ export interface GongListFlowsParams extends GongBaseParams {
   cursor?: string
 }
 
-export interface GongFlow {
+interface GongFlow {
   id: string
   name: string | null
   folderId: string | null
@@ -501,7 +614,7 @@ export interface GongGetCoachingResponse extends ToolResponse {
 }
 
 /** Shared data-privacy sub-types */
-export interface GongCallReference {
+interface GongCallReference {
   id: string
   status: string
   externalSystems: {
@@ -513,7 +626,7 @@ export interface GongCallReference {
   }[]
 }
 
-export interface GongEmailMessage {
+interface GongEmailMessage {
   id: string
   from: string
   sentTime: string
@@ -521,11 +634,11 @@ export interface GongEmailMessage {
   messageHash: string
 }
 
-export interface GongMeeting {
+interface GongMeeting {
   id: string
 }
 
-export interface GongCustomerDataObject {
+interface GongCustomerDataObject {
   id: string
   objectType: string
   externalId: string
@@ -533,12 +646,12 @@ export interface GongCustomerDataObject {
   fields: { name: string; value: unknown }[]
 }
 
-export interface GongCustomerData {
+interface GongCustomerData {
   system: string
   objects: GongCustomerDataObject[]
 }
 
-export interface GongCustomerEngagement {
+interface GongCustomerEngagement {
   eventType: string
   eventName: string
   timestamp: string
@@ -585,12 +698,15 @@ export interface GongLookupPhoneResponse extends ToolResponse {
 /** Union type for all Gong responses */
 export type GongResponse =
   | GongListCallsResponse
+  | GongCreateCallResponse
   | GongGetCallResponse
   | GongGetCallTranscriptResponse
   | GongGetExtensiveCallsResponse
   | GongListUsersResponse
   | GongGetUserResponse
   | GongAggregateActivityResponse
+  | GongDayByDayActivityResponse
+  | GongAggregateByPeriodResponse
   | GongInteractionStatsResponse
   | GongAnsweredScorecardsResponse
   | GongListLibraryFoldersResponse

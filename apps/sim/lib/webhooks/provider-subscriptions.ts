@@ -119,12 +119,14 @@ export async function createExternalWebhookSubscription(
 
 /**
  * Clean up external webhook subscriptions for a webhook.
- * Errors are swallowed — cleanup failure should not block webhook deletion.
+ * By default, cleanup failure is logged but non-fatal for legacy best-effort callers.
+ * Deployment outbox cleanup passes `throwOnError` so provider failures stay retryable.
  */
 export async function cleanupExternalWebhook(
   webhook: Record<string, unknown>,
   workflow: Record<string, unknown>,
-  requestId: string
+  requestId: string,
+  options: { throwOnError?: boolean } = {}
 ): Promise<void> {
   const provider = webhook.provider as string
   const handler = getProviderHandler(provider)
@@ -134,12 +136,15 @@ export async function cleanupExternalWebhook(
   }
 
   try {
-    await handler.deleteSubscription({ webhook, workflow, requestId })
+    await handler.deleteSubscription({ webhook, workflow, requestId, strict: options.throwOnError })
   } catch (error) {
     logger.warn(`[${requestId}] Error cleaning up external webhook (non-fatal)`, {
       provider,
       webhookId: webhook.id,
       error: toError(error).message,
     })
+    if (options.throwOnError) {
+      throw error
+    }
   }
 }

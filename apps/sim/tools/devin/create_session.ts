@@ -1,6 +1,7 @@
 import type { ToolConfig } from '@/tools/types'
 import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
+import { normalizeTags } from './utils'
 
 export const devinCreateSessionTool: ToolConfig<
   DevinCreateSessionParams,
@@ -18,6 +19,12 @@ export const devinCreateSessionTool: ToolConfig<
       required: true,
       visibility: 'user-only',
       description: 'Devin API key (service user credential starting with cog_)',
+    },
+    orgId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Devin organization ID (prefixed with org-)',
     },
     prompt: {
       type: 'string',
@@ -46,7 +53,7 @@ export const devinCreateSessionTool: ToolConfig<
   },
 
   request: {
-    url: 'https://api.devin.ai/v3/organizations/sessions',
+    url: (params) => `https://api.devin.ai/v3/organizations/${params.orgId.trim()}/sessions`,
     method: 'POST',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -60,9 +67,8 @@ export const devinCreateSessionTool: ToolConfig<
       if (params.maxAcuLimit != null) {
         body.max_acu_limit = params.maxAcuLimit
       }
-      if (params.tags) {
-        body.tags = params.tags.split(',').map((t: string) => t.trim())
-      }
+      const tags = normalizeTags(params.tags)
+      if (tags.length > 0) body.tags = tags
       return body
     },
   },
@@ -80,10 +86,11 @@ export const devinCreateSessionTool: ToolConfig<
         createdAt: data.created_at ?? null,
         updatedAt: data.updated_at ?? null,
         acusConsumed: data.acus_consumed ?? null,
-        tags: data.tags ?? null,
-        pullRequests: data.pull_requests ?? null,
+        tags: data.tags ?? [],
+        pullRequests: data.pull_requests ?? [],
         structuredOutput: data.structured_output ?? null,
         playbookId: data.playbook_id ?? null,
+        isArchived: data.is_archived ?? false,
       },
     }
   },
@@ -101,5 +108,6 @@ export const devinCreateSessionTool: ToolConfig<
     pullRequests: DEVIN_SESSION_OUTPUT_PROPERTIES.pullRequests,
     structuredOutput: DEVIN_SESSION_OUTPUT_PROPERTIES.structuredOutput,
     playbookId: DEVIN_SESSION_OUTPUT_PROPERTIES.playbookId,
+    isArchived: DEVIN_SESSION_OUTPUT_PROPERTIES.isArchived,
   },
 }

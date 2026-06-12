@@ -21,7 +21,7 @@ Adding an integration involves these steps in order:
 ## Step 1: Research the API
 
 Before writing any code:
-1. Use Context7 to find official documentation: `mcp__plugin_context7_context7__resolve-library-id`
+1. Use Context7 to find official documentation: `mcp__context7__resolve-library-id`, then fetch with `mcp__context7__query-docs`
 2. Or use WebFetch to read API docs directly
 3. Identify:
    - Authentication method (OAuth, API Key, both)
@@ -221,6 +221,28 @@ export const {Service}Block: BlockConfig = {
 - **Inputs section:** Must list canonical param IDs (e.g., `fileId`), NOT raw subblock IDs (e.g., `fileSelector`, `manualFileId`)
 - **Params function:** Must use canonical param IDs, NOT raw subblock IDs (raw IDs are deleted after canonical transformation)
 
+### BlockMeta (Required)
+
+Export a `{Service}BlockMeta` in the same file as the block — **minimum 7 templates**. See `add-block.md` → "BlockMeta (Required)" for valid `modules` and `category` values and the full pattern.
+
+```typescript
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} <use-case>',
+      prompt: 'Build a workflow that...',  // concrete trigger → transformation → output
+      modules: ['agent', 'workflows'],
+      category: 'operations',
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],        // when the prompt references another service
+    },
+    // ... at least 6 more
+  ],
+} as const satisfies BlockMeta
+```
+
 ## Step 4: Add Icon
 
 ### File Location
@@ -376,9 +398,9 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
 
 ## Step 7: Generate Docs
 
-Run the documentation generator:
+Run the documentation generator (from `apps/sim`):
 ```bash
-bun run scripts/generate-docs.ts
+bun run generate-docs
 ```
 
 This creates `apps/docs/content/docs/en/tools/{service}.mdx`
@@ -424,6 +446,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Registered block in `blocks/registry.ts`
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
+- [ ] Exported `{Service}BlockMeta` with at least 7 templates
 
 ### OAuth Scopes (if OAuth service)
 - [ ] Defined scopes in `lib/oauth/oauth.ts` under `OAUTH_PROVIDERS`
@@ -454,6 +477,7 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Verified block subBlocks cover all required tool params with correct conditions
 - [ ] Verified block outputs match what the tools actually return
 - [ ] Verified `tools.config.params` correctly maps and coerces all param types
+- [ ] `{Service}BlockMeta` exported with at least 7 templates, each having `icon`, `title`, `prompt`, `modules`, `category`, and `tags`
 
 ## Example Command
 
@@ -569,33 +593,29 @@ Create `apps/sim/app/api/tools/{service}/{action}/route.ts`:
 ```typescript
 import { createLogger } from '@sim/logger'
 import { NextResponse, type NextRequest } from 'next/server'
-import { z } from 'zod'
+import { {service}UploadContract } from '@/lib/api/contracts/tools/{service}'
+import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { FileInputSchema, type RawFileInput } from '@/lib/uploads/utils/file-schemas'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { type RawFileInput } from '@/lib/uploads/utils/file-schemas'
 import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 
 const logger = createLogger('{Service}UploadAPI')
 
-const RequestSchema = z.object({
-  accessToken: z.string(),
-  file: FileInputSchema.optional().nullable(),
-  // Legacy field for backwards compatibility
-  fileContent: z.string().optional().nullable(),
-  // ... other params
-})
-
-export async function POST(request: NextRequest) {
+export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  // Auth always runs BEFORE parseRequest — never validate untrusted input before authenticating.
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
-  const data = RequestSchema.parse(body)
+  const parsed = await parseRequest({service}UploadContract, request, {})
+  if (!parsed.success) return parsed.response
+  const data = parsed.data.body
 
   let fileBuffer: Buffer
   let fileName: string
@@ -625,7 +645,7 @@ export async function POST(request: NextRequest) {
   })
 
   // ... handle response
-}
+})
 ```
 
 #### 4. Update Tool to Use Internal Route

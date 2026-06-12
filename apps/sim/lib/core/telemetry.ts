@@ -18,9 +18,10 @@
 
 import { context, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import type { TraceSpan } from '@/lib/logs/types'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 
 /**
  * GenAI Semantic Convention Attributes
@@ -421,7 +422,7 @@ export async function traceBlockExecution<T>(
       } catch (error) {
         span.setStatus({
           code: SpanStatusCode.ERROR,
-          message: error instanceof Error ? error.message : 'Block execution failed',
+          message: getErrorMessage(error, 'Block execution failed'),
         })
         span.recordException(toError(error))
         throw error
@@ -860,25 +861,6 @@ export const PlatformEvents = {
   },
 
   /**
-   * Track template used
-   */
-  templateUsed: (attrs: {
-    templateId: string
-    templateName: string
-    newWorkflowId: string
-    blocksCount: number
-    workspaceId: string
-  }) => {
-    trackPlatformEvent('platform.template.used', {
-      'template.id': attrs.templateId,
-      'template.name': attrs.templateName,
-      'workflow.created_id': attrs.newWorkflowId,
-      'workflow.blocks_count': attrs.blocksCount,
-      'workspace.id': attrs.workspaceId,
-    })
-  },
-
-  /**
    * Track subscription created
    */
   subscriptionCreated: (attrs: {
@@ -954,14 +936,10 @@ export const PlatformEvents = {
     workspaceId?: string
     workflowId?: string
   }) => {
-    trackPlatformEvent('platform.hosted_key.user_throttled', {
-      'tool.id': attrs.toolId,
-      'throttle.reason': attrs.reason,
-      ...(attrs.provider && { 'provider.id': attrs.provider }),
-      ...(attrs.retryAfterMs != null && { 'rate_limit.retry_after_ms': attrs.retryAfterMs }),
-      ...(attrs.userId && { 'user.id': attrs.userId }),
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
-      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
+    hostedKeyMetrics.recordThrottled({
+      provider: attrs.provider ?? attrs.toolId,
+      tool: attrs.toolId,
+      reason: attrs.reason,
     })
   },
 
@@ -978,16 +956,7 @@ export const PlatformEvents = {
     workspaceId?: string
     workflowId?: string
   }) => {
-    trackPlatformEvent('platform.hosted_key.rate_limited', {
-      'tool.id': attrs.toolId,
-      'hosted_key.env_var': attrs.envVarName,
-      'rate_limit.attempt': attrs.attempt,
-      'rate_limit.max_retries': attrs.maxRetries,
-      'rate_limit.delay_ms': attrs.delayMs,
-      ...(attrs.userId && { 'user.id': attrs.userId }),
-      ...(attrs.workspaceId && { 'workspace.id': attrs.workspaceId }),
-      ...(attrs.workflowId && { 'workflow.id': attrs.workflowId }),
-    })
+    hostedKeyMetrics.recordUpstreamRateLimited({ tool: attrs.toolId, key: attrs.envVarName })
   },
 
   hostedKeyUnknownModelCost: (attrs: {
@@ -995,10 +964,42 @@ export const PlatformEvents = {
     modelName: string
     defaultCost: number
   }) => {
-    trackPlatformEvent('platform.hosted_key.unknown_model_cost', {
-      'tool.id': attrs.toolId,
-      'model.name': attrs.modelName,
-      'cost.default_cost': attrs.defaultCost,
+    hostedKeyMetrics.recordUnknownModelCost({ tool: attrs.toolId })
+  },
+
+  /**
+   * Track a successful hosted-key acquisition that had to wait — either for a slot at
+   * the head of the FIFO queue, or for the actor/dimension bucket to refill once at the
+   * head. `queuePosition` is the position at the moment of enqueue (0 = ready to proceed).
+   */
+  hostedKeyQueueWaited: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    attempts: number
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
+    dimension?: string
+    queuePosition?: number
+  }) => {
+    hostedKeyMetrics.recordQueueWait(attrs.waitedMs, {
+      provider: attrs.provider,
+      reason: attrs.reason,
+    })
+  },
+
+  /**
+   * Track a hosted-key acquisition that exceeded the queue wait cap and fell back to a 429.
+   */
+  hostedKeyQueueWaitExceeded: (attrs: {
+    provider: string
+    workspaceId: string
+    waitedMs: number
+    reason: 'actor_requests' | 'dimension' | 'queue_position'
+    dimension?: string
+  }) => {
+    hostedKeyMetrics.recordQueueWaitExceeded({
+      provider: attrs.provider,
+      reason: attrs.reason,
     })
   },
 

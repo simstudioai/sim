@@ -66,7 +66,10 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
 
     request: {
       url: (params) => {
-        const host = params.host.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        const host = params.host
+          .trim()
+          .replace(/^https?:\/\//, '')
+          .replace(/\/$/, '')
         return `https://${host}/api/2.0/sql/statements/`
       },
       method: 'POST',

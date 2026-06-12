@@ -8,22 +8,26 @@ const mockAzurePollUntilDone = vi.fn()
 
 vi.mock('resend', () => {
   return {
-    Resend: vi.fn().mockImplementation(() => ({
-      emails: {
-        send: (...args: any[]) => mockSend(...args),
-      },
-      batch: {
-        send: (...args: any[]) => mockBatchSend(...args),
-      },
-    })),
+    Resend: vi.fn().mockImplementation(
+      class {
+        emails = {
+          send: (...args: any[]) => mockSend(...args),
+        }
+        batch = {
+          send: (...args: any[]) => mockBatchSend(...args),
+        }
+      }
+    ),
   }
 })
 
 vi.mock('@azure/communication-email', () => {
   return {
-    EmailClient: vi.fn().mockImplementation(() => ({
-      beginSend: (...args: any[]) => mockAzureBeginSend(...args),
-    })),
+    EmailClient: vi.fn().mockImplementation(
+      class {
+        beginSend = (...args: any[]) => mockAzureBeginSend(...args)
+      }
+    ),
   }
 })
 
@@ -250,6 +254,20 @@ describe('mailer', () => {
       await sendBatchEmails({ emails: batchEmails })
 
       expect(isUnsubscribed).not.toHaveBeenCalled()
+    })
+
+    it('should degrade isUnsubscribed rejections to per-entry failures', async () => {
+      ;(isUnsubscribed as Mock).mockRejectedValue(new Error('Database connection failed'))
+
+      const result = await sendBatchEmails({
+        emails: [
+          { ...testEmailOptions, to: 'user1@example.com', emailType: 'marketing' as EmailType },
+          { ...testEmailOptions, to: 'user2@example.com', emailType: 'marketing' as EmailType },
+        ],
+      })
+
+      expect(result.results).toHaveLength(2)
+      expect(result.results.every((r) => r.success === false)).toBe(true)
     })
   })
 })

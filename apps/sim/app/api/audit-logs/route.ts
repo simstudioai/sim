@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { listAuditLogsContract } from '@/lib/api/contracts/audit-logs'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -9,6 +10,7 @@ import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
 import {
   buildFilterConditions,
   buildOrgScopeCondition,
+  getOrgWorkspaceIds,
   queryAuditLogs,
 } from '@/app/api/v1/audit-logs/query'
 
@@ -28,7 +30,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return authResult.response
     }
 
-    const { orgMemberIds } = authResult.context
+    const { organizationId, orgMemberIds } = authResult.context
 
     const parsed = await parseRequest(
       listAuditLogsContract,
@@ -56,7 +58,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       cursor,
     } = parsed.data.query
 
-    const scopeCondition = await buildOrgScopeCondition(orgMemberIds, includeDeparted)
+    const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)
+    const scopeCondition = buildOrgScopeCondition({
+      organizationId,
+      orgWorkspaceIds,
+      orgMemberIds,
+      includeDeparted,
+    })
     const filterConditions = buildFilterConditions({
       action,
       resourceType,
@@ -78,7 +86,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       nextCursor,
     })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error'
+    const message = getErrorMessage(error, 'Unknown error')
     logger.error('Audit logs fetch error', { error: message })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
