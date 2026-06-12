@@ -9,7 +9,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
-import { markTableJobRunning } from '@/lib/table/service'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportIntoAsync')
@@ -93,7 +93,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     } catch (error) {
       // A failed dispatch must not leave a ghost `running` job holding the
       // table's one-write-job slot until the stale-job janitor fires.
-      const { releaseJobClaim } = await import('@/lib/table/service')
       await releaseJobClaim(tableId, importId).catch(() => {})
       throw error
     }

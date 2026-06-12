@@ -11,8 +11,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
+  deleteTable,
   getWorkspaceTableLimits,
   listTables,
+  releaseJobClaim,
   sanitizeName,
   TABLE_LIMITS,
   TableConflictError,
@@ -125,7 +127,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // table's one-write-job slot — nor, in create mode, the placeholder
       // table itself: the user never saw it, so archive it back out of the
       // workspace (no hard-delete surface exists; archived is invisible).
-      const { releaseJobClaim, deleteTable } = await import('@/lib/table/service')
       await releaseJobClaim(table.id, importId).catch(() => {})
       await deleteTable(table.id, requestId).catch(() => {})
       throw error
