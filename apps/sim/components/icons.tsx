@@ -5968,6 +5968,55 @@ export function DatadogIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function DaytonaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 69 73' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect x='3.63965' y='49.2356' width='24.9293' height='8.54716' fill='#000000' />
+      <rect x='37.1162' y='19.3206' width='28.4906' height='8.54716' fill='#000000' />
+      <rect
+        width='29.9151'
+        height='8.54717'
+        transform='matrix(0.707107 -0.707106 0.707107 0.707106 22.1582 21.9543)'
+        fill='#000000'
+      />
+      <rect
+        width='22.9746'
+        height='8.54717'
+        transform='matrix(-0.707107 -0.707106 -0.707107 0.707106 22.2891 43.3223)'
+        fill='#000000'
+      />
+      <rect
+        width='24.217'
+        height='8.54717'
+        transform='matrix(-0.707107 0.707106 -0.707107 -0.707106 43.6572 55.2791)'
+        fill='#000000'
+      />
+      <rect
+        width='27.066'
+        height='8.54717'
+        transform='matrix(0.707107 0.707106 0.707107 -0.707106 43.5264 33.9111)'
+        fill='#000000'
+      />
+      <rect
+        x='22.1582'
+        y='12.9094'
+        width='20.6556'
+        height='8.54718'
+        transform='rotate(90 22.1582 12.9094)'
+        fill='#000000'
+      />
+      <rect
+        x='52.0732'
+        y='42.825'
+        width='25.6415'
+        height='8.54718'
+        transform='rotate(90 52.0732 42.825)'
+        fill='#000000'
+      />
+    </svg>
+  )
+}
+
 export function MicrosoftDataverseIcon(props: SVGProps<SVGSVGElement>) {
   const id = useId()
   const clip0 = `dataverse_clip0_${id}`
