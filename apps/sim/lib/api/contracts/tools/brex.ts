@@ -4,7 +4,11 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 export const brexUploadReceiptBodySchema = z.object({
-  apiKey: z.string().min(1, 'API key is required').max(512, 'API key is too long'),
+  apiKey: z
+    .string()
+    .min(1, 'API key is required')
+    .max(512, 'API key is too long')
+    .regex(/^[\x21-\x7e]+$/, 'API key contains invalid characters'),
   expenseId: z
     .string()
     .trim()

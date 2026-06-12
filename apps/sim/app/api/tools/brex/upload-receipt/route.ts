@@ -4,6 +4,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { brexUploadReceiptContract } from '@/lib/api/contracts/tools/brex'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
@@ -93,10 +97,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    const uploadResponse = await fetch(createData.uri, {
-      method: 'PUT',
-      body: new Uint8Array(fileBuffer),
-    })
+    const uriValidation = await validateUrlWithDNS(createData.uri, 'uri')
+    if (!uriValidation.isValid) {
+      logger.error(`[${requestId}] Pre-signed upload URL failed SSRF validation:`, {
+        error: uriValidation.error,
+      })
+      return NextResponse.json(
+        { success: false, error: 'Brex returned an invalid upload URL' },
+        { status: 502 }
+      )
+    }
+
+    const uploadResponse = await secureFetchWithPinnedIP(
+      createData.uri,
+      uriValidation.resolvedIP!,
+      {
+        method: 'PUT',
+        body: new Uint8Array(fileBuffer),
+      }
+    )
 
     if (!uploadResponse.ok) {
       logger.error(`[${requestId}] Receipt upload to pre-signed URL failed:`, {
