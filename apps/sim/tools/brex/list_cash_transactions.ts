@@ -8,6 +8,7 @@ import {
   BREX_API_BASE,
   buildBrexHeaders,
   parseBrexJson,
+  toBrexDateTime,
 } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -56,7 +57,8 @@ export const brexListCashTransactionsTool: ToolConfig<
   request: {
     url: (params) => {
       const query = new URLSearchParams()
-      if (params.postedAtStart) query.append('posted_at_start', params.postedAtStart)
+      if (params.postedAtStart)
+        query.append('posted_at_start', toBrexDateTime(params.postedAtStart))
       appendBrexPagination(query, params)
       const queryString = query.toString()
       const base = `${BREX_API_BASE}/v2/transactions/cash/${encodeURIComponent(params.accountId.trim())}`

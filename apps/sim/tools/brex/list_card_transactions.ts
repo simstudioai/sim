@@ -9,6 +9,7 @@ import {
   BREX_API_BASE,
   buildBrexHeaders,
   parseBrexJson,
+  toBrexDateTime,
 } from '@/tools/brex/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -59,7 +60,8 @@ export const brexListCardTransactionsTool: ToolConfig<
       const query = new URLSearchParams()
       query.append('expand[]', 'expense_id')
       appendBrexArrayParam(query, 'user_ids', params.userIds)
-      if (params.postedAtStart) query.append('posted_at_start', params.postedAtStart)
+      if (params.postedAtStart)
+        query.append('posted_at_start', toBrexDateTime(params.postedAtStart))
       appendBrexPagination(query, params)
       return `${BREX_API_BASE}/v2/transactions/card/primary?${query.toString()}`
     },

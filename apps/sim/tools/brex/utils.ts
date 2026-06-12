@@ -50,3 +50,16 @@ export function appendBrexPagination(
   if (params.cursor) query.append('cursor', params.cursor)
   if (params.limit) query.append('limit', params.limit)
 }
+
+/**
+ * Converts a timestamp to the timezone-less date-time form the Brex Transactions
+ * API requires (e.g., 2026-01-01T00:00:00). Brex rejects timezone-suffixed
+ * timestamps on these endpoints, so offsets are converted to UTC and stripped.
+ */
+export function toBrexDateTime(value: string): string {
+  const trimmed = value.trim()
+  if (!/(?:z|[+-]\d{2}:?\d{2})$/i.test(trimmed)) return trimmed
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return trimmed
+  return parsed.toISOString().slice(0, 19)
+}
