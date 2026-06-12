@@ -316,7 +316,7 @@ export const BrexBlock: BlockConfig<BrexResponse> = {
       id: 'limit',
       title: 'Limit',
       type: 'short-input',
-      placeholder: 'Number of results to return (default 100, max 1000)',
+      placeholder: 'Number of results to return (default 100; List Expenses caps at 100)',
       mode: 'advanced',
       condition: {
         field: 'operation',
