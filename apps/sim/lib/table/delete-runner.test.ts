@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockGetTableById,
+  mockGetJobProgress,
   mockSelectRowIdPage,
   mockDeletePageByIds,
   mockUpdateJobProgress,
@@ -14,6 +15,7 @@ const {
   mockBuildFilterClause,
 } = vi.hoisted(() => ({
   mockGetTableById: vi.fn(),
+  mockGetJobProgress: vi.fn(),
   mockSelectRowIdPage: vi.fn(),
   mockDeletePageByIds: vi.fn(),
   mockUpdateJobProgress: vi.fn(),
@@ -25,6 +27,7 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+  getJobProgress: mockGetJobProgress,
   selectRowIdPage: mockSelectRowIdPage,
   deletePageByIds: mockDeletePageByIds,
   updateJobProgress: mockUpdateJobProgress,
@@ -38,7 +41,7 @@ vi.mock('@/lib/table/constants', () => ({
   USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
 }))
 
-import { runTableDelete } from '@/lib/table/delete-runner'
+import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 
 const table = { id: 'tbl_1', workspaceId: 'ws_1', schema: { columns: [] } }
 const cutoff = new Date('2026-06-05T00:00:00Z')
@@ -51,6 +54,7 @@ describe('runTableDelete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
+    mockGetJobProgress.mockResolvedValue(0)
     mockUpdateJobProgress.mockResolvedValue(true)
     mockMarkJobReady.mockResolvedValue(true)
     mockMarkJobFailed.mockResolvedValue(undefined)
@@ -103,15 +107,55 @@ describe('runTableDelete', () => {
     )
   })
 
-  it('marks the job failed and emits a failed event on error', async () => {
+  it('rethrows unexpected errors without failing the job (caller retries decide)', async () => {
     mockSelectRowIdPage.mockRejectedValue(new Error('boom'))
+
+    await expect(runTableDelete(basePayload())).rejects.toThrow('boom')
+
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+    expect(mockAppendTableEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed' })
+    )
+  })
+
+  it('returns quietly when superseded mid-run without failing the job', async () => {
+    mockSelectRowIdPage.mockResolvedValue(['a', 'b'])
+    mockUpdateJobProgress.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+  })
+
+  it('rethrows the root cause so the clean message survives serialization', async () => {
+    const cause = new Error('canceling statement due to statement timeout')
+    mockSelectRowIdPage.mockRejectedValue(new Error('Failed query: delete ...', { cause }))
+
+    await expect(runTableDelete(basePayload())).rejects.toThrow(
+      'canceling statement due to statement timeout'
+    )
+  })
+
+  it('resumes cumulative progress on retry instead of resetting to zero', async () => {
+    mockGetJobProgress.mockResolvedValue(7)
+    mockSelectRowIdPage.mockResolvedValueOnce(['a', 'b']).mockResolvedValueOnce([])
 
     await runTableDelete(basePayload())
 
-    expect(mockMarkJobFailed).toHaveBeenCalledWith('tbl_1', 'job_1', 'boom')
+    expect(mockUpdateJobProgress).toHaveBeenNthCalledWith(1, 'tbl_1', 7, 'job_1')
     expect(mockAppendTableEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'job', type: 'delete', status: 'failed', error: 'boom' })
+      expect.objectContaining({ status: 'ready', progress: 9 })
     )
+  })
+
+  it('stops at the seed read when the job is no longer owned', async () => {
+    mockGetJobProgress.mockResolvedValue(null)
+
+    await expect(runTableDelete(basePayload())).resolves.toBeUndefined()
+
+    expect(mockSelectRowIdPage).not.toHaveBeenCalled()
+    expect(mockDeletePageByIds).not.toHaveBeenCalled()
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
   })
 
   it('passes the cutoff and filter clause through to the page query', async () => {
@@ -127,5 +171,44 @@ describe('runTableDelete', () => {
     expect(mockSelectRowIdPage).toHaveBeenCalledWith(
       expect.objectContaining({ cutoff, filterClause: {}, limit: 2 })
     )
+  })
+})
+
+describe('markTableDeleteFailed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockMarkJobFailed.mockResolvedValue(undefined)
+  })
+
+  it('marks the job failed and emits the failed event', async () => {
+    await markTableDeleteFailed('tbl_1', 'job_1', new Error('boom'))
+
+    expect(mockMarkJobFailed).toHaveBeenCalledWith('tbl_1', 'job_1', 'boom')
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'job', type: 'delete', status: 'failed', error: 'boom' })
+    )
+  })
+
+  it('prefers the error cause over a verbose wrapper message', async () => {
+    const cause = new Error('canceling statement due to statement timeout')
+    const wrapper = new Error(`Failed query: delete from x where id in (${'$1,'.repeat(5000)})`, {
+      cause,
+    })
+
+    await markTableDeleteFailed('tbl_1', 'job_1', wrapper)
+
+    expect(mockMarkJobFailed).toHaveBeenCalledWith(
+      'tbl_1',
+      'job_1',
+      'canceling statement due to statement timeout'
+    )
+  })
+
+  it('truncates oversized messages', async () => {
+    await markTableDeleteFailed('tbl_1', 'job_1', new Error('x'.repeat(2000)))
+
+    const [, , message] = mockMarkJobFailed.mock.calls[0]
+    expect(message).toHaveLength(503)
+    expect(message.endsWith('...')).toBe(true)
   })
 })

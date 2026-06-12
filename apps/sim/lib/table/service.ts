@@ -1577,11 +1577,8 @@ async function deleteOrderedRowsByIds(params: {
   tableId: string
   workspaceId: string
   rowIds: string[]
-  /** Skip the post-delete position recompaction (the paginated delete worker compacts once at
-   *  the end instead of per page — per-page compaction is O(N) each, O(N²) over a full delete). */
-  skipCompaction?: boolean
 }): Promise<{ id: string; position: number }[]> {
-  const { tableId, workspaceId, rowIds, skipCompaction = false } = params
+  const { tableId, workspaceId, rowIds } = params
   if (rowIds.length === 0) return []
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx, { statementMs: 60_000 })
@@ -1601,7 +1598,7 @@ async function deleteOrderedRowsByIds(params: {
       deleted.push(...rows)
     }
     // Fractional ordering: deletes leave order_key untouched, so no recompaction.
-    if (!isTablesFractionalOrderingEnabled && !skipCompaction && deleted.length > 0) {
+    if (!isTablesFractionalOrderingEnabled && deleted.length > 0) {
       const minDeletedPos = deleted.reduce(
         (min, r) => (r.position < min ? r.position : min),
         deleted[0].position
@@ -1652,23 +1649,39 @@ export async function selectRowIdPage(params: {
 }
 
 /**
- * Deletes one page of rows by id (the statement-level row_count trigger fires once). Skips legacy
- * position compaction: under fractional ordering it's unnecessary (order keys are authoritative),
- * and in the legacy path a bulk delete leaving `position` gaps is harmless — rows still order by
- * position. (Compacting per page would be O(N²) over a full delete.) Returns the count deleted.
+ * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
+ * chunk in its own short transaction. One statement per transaction bounds how long the
+ * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
+ * held it for the entire page, starving concurrent inserts and overrunning `statement_timeout`),
+ * and a mid-page failure loses at most one uncommitted batch — the keyset walker (or a task
+ * retry) re-walks whatever remains. Skips legacy position compaction: under fractional ordering
+ * it's unnecessary, and in the legacy path `position` gaps are harmless — rows still order by
+ * position. Returns the count deleted.
  */
 export async function deletePageByIds(
   tableId: string,
   workspaceId: string,
   rowIds: string[]
 ): Promise<number> {
-  const deleted = await deleteOrderedRowsByIds({
-    tableId,
-    workspaceId,
-    rowIds,
-    skipCompaction: true,
-  })
-  return deleted.length
+  let deleted = 0
+  for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+    const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
+    const rows = await db.transaction(async (trx) => {
+      await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      return trx
+        .delete(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, workspaceId),
+            inArray(userTableRows.id, batch)
+          )
+        )
+        .returning({ id: userTableRows.id })
+    })
+    deleted += rows.length
+  }
+  return deleted
 }
 
 /**
@@ -2076,6 +2089,21 @@ export async function updateJobProgress(
     .where(ownsActiveJob(tableId, jobId))
     .returning({ id: tableJobs.id })
   return updated.length > 0
+}
+
+/**
+ * Reads the persisted progress of an in-flight job this worker still owns (`null` when the job
+ * was canceled/superseded). A retried run seeds its counter from this so progress stays
+ * cumulative — earlier attempts' batches are already committed, and restarting from zero would
+ * clobber `rows_processed` (and every count derived from it) with the retry's smaller number.
+ */
+export async function getJobProgress(tableId: string, jobId: string): Promise<number | null> {
+  const [job] = await db
+    .select({ rowsProcessed: tableJobs.rowsProcessed })
+    .from(tableJobs)
+    .where(ownsActiveJob(tableId, jobId))
+    .limit(1)
+  return job ? job.rowsProcessed : null
 }
 
 /**

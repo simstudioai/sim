@@ -1632,6 +1632,13 @@
       "when": 1781227386156,
       "tag": "0233_table_jobs_and_keyset",
       "breakpoints": true
+    },
+    {
+      "idx": 234,
+      "version": "7",
+      "when": 1781277096869,
+      "tag": "0234_analyze_user_table_rows",
+      "breakpoints": true
     }
   ]
 }
