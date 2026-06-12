@@ -12,7 +12,6 @@ const {
   mockCreatePendingInvitation,
   mockSendInvitationEmail,
   mockCancelPendingInvitation,
-  mockFindPendingGrantForWorkspaceEmail,
 } = vi.hoisted(() => ({
   mockDbState: {
     selectResults: [] as any[],
@@ -23,7 +22,6 @@ const {
   mockCreatePendingInvitation: vi.fn(),
   mockSendInvitationEmail: vi.fn(),
   mockCancelPendingInvitation: vi.fn(),
-  mockFindPendingGrantForWorkspaceEmail: vi.fn(),
 }))
 
 function createSelectChain() {
@@ -86,6 +84,10 @@ vi.mock('@sim/db/schema', () => ({
     entityType: 'permissions.entityType',
     userId: 'permissions.userId',
   },
+  invitationWorkspaceGrant: {
+    invitationId: 'invitationWorkspaceGrant.invitationId',
+    workspaceId: 'invitationWorkspaceGrant.workspaceId',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -111,7 +113,6 @@ vi.mock('@/lib/invitations/send', () => ({
   createPendingInvitation: mockCreatePendingInvitation,
   sendInvitationEmail: mockSendInvitationEmail,
   cancelPendingInvitation: mockCancelPendingInvitation,
-  findPendingGrantForWorkspaceEmail: mockFindPendingGrantForWorkspaceEmail,
 }))
 
 vi.mock('@/lib/messaging/email/validation', () => ({
@@ -150,7 +151,6 @@ describe('POST /api/organizations/[id]/invitations', () => {
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     })
     mockSendInvitationEmail.mockResolvedValue({ success: true })
-    mockFindPendingGrantForWorkspaceEmail.mockResolvedValue(null)
   })
 
   it('creates a unified invitation and sends a single email', async () => {
@@ -202,7 +202,8 @@ describe('POST /api/organizations/[id]/invitations', () => {
       [{ id: 'ws-2', organizationId: 'org-1', workspaceMode: 'organization' }],
       [{ userId: 'user-2', userEmail: 'member@example.com' }],
       [],
-      [{ workspaceId: 'ws-1' }],
+      [{ userId: 'user-2', workspaceId: 'ws-1' }],
+      [],
       [{ name: 'Owner', email: 'owner@example.com' }],
     ]
 
@@ -257,7 +258,8 @@ describe('POST /api/organizations/[id]/invitations', () => {
       [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
       [{ userId: 'user-2', userEmail: 'member@example.com' }],
       [],
-      [{ workspaceId: 'ws-1' }],
+      [{ userId: 'user-2', workspaceId: 'ws-1' }],
+      [],
     ]
 
     const response = await POST(
@@ -288,6 +290,7 @@ describe('POST /api/organizations/[id]/invitations', () => {
       [{ name: 'Org One' }],
       [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
       [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
       [],
       [],
       [{ name: 'Owner', email: 'owner@example.com' }],

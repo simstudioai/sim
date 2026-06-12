@@ -98,14 +98,6 @@ export function TeamManagement() {
       }
     : null
 
-  const memberEmails = useMemo(
-    () =>
-      (roster?.members ?? [])
-        .filter((member) => member.role !== 'external')
-        .map((member) => member.email),
-    [roster]
-  )
-
   const externalEmails = useMemo(
     () =>
       (roster?.members ?? [])
@@ -114,10 +106,22 @@ export function TeamManagement() {
     [roster]
   )
 
-  const pendingEmails = useMemo(
-    () => (roster?.pendingInvitations ?? []).map((invitation) => invitation.email),
-    [roster]
-  )
+  /**
+   * Pending invitations for emails that already belong to a member are
+   * excluded: members can always be re-invited to additional workspaces (the
+   * server dedupes per workspace), so only non-member pending emails are
+   * blocked in the invite modal.
+   */
+  const pendingEmails = useMemo(() => {
+    const memberEmailSet = new Set(
+      (roster?.members ?? [])
+        .filter((member) => member.role !== 'external')
+        .map((member) => member.email.toLowerCase())
+    )
+    return (roster?.pendingInvitations ?? [])
+      .map((invitation) => invitation.email)
+      .filter((email) => !memberEmailSet.has(email.toLowerCase()))
+  }, [roster])
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -359,7 +363,6 @@ export function TeamManagement() {
         onOpenChange={setInviteModalOpen}
         organizationId={displayOrganization.id}
         workspaces={roster?.workspaces ?? []}
-        memberEmails={memberEmails}
         externalEmails={externalEmails}
         pendingEmails={pendingEmails}
       />

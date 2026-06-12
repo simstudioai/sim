@@ -29,14 +29,14 @@ interface OrganizationInviteModalProps {
   organizationId: string
   /** Workspaces the inviter can grant access to. */
   workspaces: Array<{ id: string; name: string }>
-  /**
-   * Emails of current organization members. These are allowed: members receive
-   * workspace invitations for the selected workspaces they aren't in yet.
-   */
-  memberEmails?: string[]
   /** Emails of external collaborators (rejected — they cannot join the organization). */
   externalEmails?: string[]
-  /** Emails with a pending invitation (rejected as duplicates unless they belong to a member). */
+  /**
+   * Non-member emails with a pending invitation (rejected as duplicates).
+   * Member emails are always allowed — they receive workspace invitations for
+   * the selected workspaces they aren't in yet, deduped per workspace by the
+   * server — so the parent excludes them from this list.
+   */
   pendingEmails?: string[]
 }
 
@@ -52,7 +52,6 @@ export function OrganizationInviteModal({
   onOpenChange,
   organizationId,
   workspaces,
-  memberEmails = [],
   externalEmails = [],
   pendingEmails = [],
 }: OrganizationInviteModalProps) {
@@ -68,11 +67,6 @@ export function OrganizationInviteModal({
   const workspaceOptions = useMemo<ChipDropdownOption[]>(
     () => workspaces.map((workspace) => ({ value: workspace.id, label: workspace.name })),
     [workspaces]
-  )
-
-  const memberEmailSet = useMemo(
-    () => new Set(memberEmails.map((email) => email.toLowerCase())),
-    [memberEmails]
   )
 
   const externalEmailSet = useMemo(
@@ -93,12 +87,12 @@ export function OrganizationInviteModal({
       if (externalEmailSet.has(email)) {
         return `${email} belongs to another organization and can't be invited. Invite them to individual workspaces from the Teammates tab.`
       }
-      if (!memberEmailSet.has(email) && pendingEmailSet.has(email)) {
+      if (pendingEmailSet.has(email)) {
         return `${email} already has a pending invitation`
       }
       return null
     },
-    [session?.user?.email, externalEmailSet, memberEmailSet, pendingEmailSet]
+    [session?.user?.email, externalEmailSet, pendingEmailSet]
   )
 
   const handleEmailsChange = useCallback((next: string[]) => {

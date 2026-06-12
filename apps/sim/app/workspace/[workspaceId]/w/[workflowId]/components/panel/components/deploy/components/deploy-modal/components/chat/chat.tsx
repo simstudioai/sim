@@ -620,6 +620,13 @@ function AuthSelector({
   const [copySuccess, setCopySuccess] = useState(false)
   const [invalidEmailItems, setInvalidEmailItems] = useState<TagItem[]>([])
 
+  const emailsRef = useRef(emails)
+  const invalidEmailItemsRef = useRef(invalidEmailItems)
+
+  useEffect(() => {
+    emailsRef.current = emails
+  }, [emails])
+
   useEffect(() => {
     if (!copySuccess) return
     const timer = setTimeout(() => setCopySuccess(false), 2000)
@@ -645,20 +652,22 @@ function AuthSelector({
     const isValid = validation.isValid || isDomainPattern
 
     if (
-      emails.includes(normalized) ||
-      invalidEmailItems.some((item) => item.value === normalized)
+      emailsRef.current.includes(normalized) ||
+      invalidEmailItemsRef.current.some((item) => item.value === normalized)
     ) {
       return false
     }
 
     if (isValid) {
       setEmailError('')
-      onEmailsChange([...emails, normalized])
+      emailsRef.current = [...emailsRef.current, normalized]
+      onEmailsChange(emailsRef.current)
     } else {
-      setInvalidEmailItems((prev) => [
-        ...prev,
+      invalidEmailItemsRef.current = [
+        ...invalidEmailItemsRef.current,
         { value: normalized, isValid, error: validation.reason ?? 'Invalid email format' },
-      ])
+      ]
+      setInvalidEmailItems(invalidEmailItemsRef.current)
     }
 
     return isValid
@@ -674,9 +683,13 @@ function AuthSelector({
     if (!itemToRemove) return
 
     if (itemToRemove.isValid) {
-      onEmailsChange(emails.filter((e) => e !== itemToRemove.value))
+      emailsRef.current = emailsRef.current.filter((e) => e !== itemToRemove.value)
+      onEmailsChange(emailsRef.current)
     } else {
-      setInvalidEmailItems((prev) => prev.filter((item) => item.value !== itemToRemove.value))
+      invalidEmailItemsRef.current = invalidEmailItemsRef.current.filter(
+        (item) => item.value !== itemToRemove.value
+      )
+      setInvalidEmailItems(invalidEmailItemsRef.current)
     }
   }
 

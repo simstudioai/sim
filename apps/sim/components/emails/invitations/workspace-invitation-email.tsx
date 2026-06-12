@@ -4,19 +4,18 @@ import { EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceInvitationEmailProps {
-  /** One workspace name, or several when a single invitation grants access to multiple workspaces. */
-  workspaceName?: string | string[]
+  /** Workspaces this invitation grants access to (one entry per workspace). */
+  workspaceNames?: string[]
   inviterName?: string
   invitationLink?: string
 }
 
 export function WorkspaceInvitationEmail({
-  workspaceName = 'Workspace',
+  workspaceNames = ['Workspace'],
   inviterName = 'Someone',
   invitationLink = '',
 }: WorkspaceInvitationEmailProps) {
   const brand = getBrandConfig()
-  const workspaceNames = Array.isArray(workspaceName) ? workspaceName : [workspaceName]
   const isMultiple = workspaceNames.length > 1
   const preview = isMultiple
     ? `You've been invited to join ${workspaceNames.length} workspaces on ${brand.name}!`

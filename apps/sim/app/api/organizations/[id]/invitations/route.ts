@@ -1,6 +1,14 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { invitation, member, organization, permissions, user, workspace } from '@sim/db/schema'
+import {
+  invitation,
+  invitationWorkspaceGrant,
+  member,
+  organization,
+  permissions,
+  user,
+  workspace,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -21,7 +29,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   cancelPendingInvitation,
   createPendingInvitation,
-  findPendingGrantForWorkspaceEmail,
   sendInvitationEmail,
 } from '@/lib/invitations/send'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -190,6 +197,10 @@ export const POST = withRouteHandler(
         }
 
         for (const wsInvitation of workspaceInvitations) {
+          if (validGrants.some((grant) => grant.workspaceId === wsInvitation.workspaceId)) {
+            continue
+          }
+
           const canInvite = await hasWorkspaceAdminAccess(session.user.id, wsInvitation.workspaceId)
           if (!canInvite) {
             return NextResponse.json(
@@ -259,38 +270,77 @@ export const POST = withRouteHandler(
        * Existing organization members are not re-invited to the organization,
        * but in batch mode they still receive a workspace invitation covering
        * the selected workspaces they don't already have access to (or a
-       * pending invitation for).
+       * pending invitation for). The inviter's own email is always treated as
+       * covered.
        */
       const memberWorkspaceInvites: Array<{ email: string; grants: WorkspaceGrantPayload[] }> = []
       const membersAlreadyCovered: string[] = []
 
-      if (isBatch && validGrants.length > 0) {
+      if (isBatch) {
+        const inviterEmail = session.user.email?.toLowerCase() ?? null
+        const eligibleMemberEmails = memberEmails.filter((email) => email !== inviterEmail)
+        membersAlreadyCovered.push(...memberEmails.filter((email) => email === inviterEmail))
+
         const grantWorkspaceIds = validGrants.map((grant) => grant.workspaceId)
+        const eligibleMemberUserIds = eligibleMemberEmails.map(
+          (email) => memberUserIdByEmail.get(email) as string
+        )
 
-        for (const email of memberEmails) {
+        const accessibleRows =
+          eligibleMemberUserIds.length > 0
+            ? await db
+                .select({ userId: permissions.userId, workspaceId: permissions.entityId })
+                .from(permissions)
+                .where(
+                  and(
+                    eq(permissions.entityType, 'workspace'),
+                    inArray(permissions.userId, eligibleMemberUserIds),
+                    inArray(permissions.entityId, grantWorkspaceIds)
+                  )
+                )
+            : []
+        const accessibleByUserId = new Map<string, Set<string>>()
+        for (const row of accessibleRows) {
+          const workspaceIds = accessibleByUserId.get(row.userId) ?? new Set<string>()
+          workspaceIds.add(row.workspaceId)
+          accessibleByUserId.set(row.userId, workspaceIds)
+        }
+
+        const pendingGrantRows =
+          eligibleMemberEmails.length > 0
+            ? await db
+                .select({
+                  email: invitation.email,
+                  workspaceId: invitationWorkspaceGrant.workspaceId,
+                })
+                .from(invitationWorkspaceGrant)
+                .innerJoin(invitation, eq(invitation.id, invitationWorkspaceGrant.invitationId))
+                .where(
+                  and(
+                    inArray(invitationWorkspaceGrant.workspaceId, grantWorkspaceIds),
+                    inArray(invitation.email, eligibleMemberEmails),
+                    eq(invitation.status, 'pending')
+                  )
+                )
+            : []
+        const pendingWorkspaceIdsByEmail = new Map<string, Set<string>>()
+        for (const row of pendingGrantRows) {
+          const email = row.email.toLowerCase()
+          const workspaceIds = pendingWorkspaceIdsByEmail.get(email) ?? new Set<string>()
+          workspaceIds.add(row.workspaceId)
+          pendingWorkspaceIdsByEmail.set(email, workspaceIds)
+        }
+
+        for (const email of eligibleMemberEmails) {
           const memberUserId = memberUserIdByEmail.get(email) as string
-          const accessibleRows = await db
-            .select({ workspaceId: permissions.entityId })
-            .from(permissions)
-            .where(
-              and(
-                eq(permissions.userId, memberUserId),
-                eq(permissions.entityType, 'workspace'),
-                inArray(permissions.entityId, grantWorkspaceIds)
-              )
-            )
-          const accessibleWorkspaceIds = new Set(accessibleRows.map((row) => row.workspaceId))
+          const accessibleWorkspaceIds = accessibleByUserId.get(memberUserId)
+          const pendingWorkspaceIds = pendingWorkspaceIdsByEmail.get(email)
 
-          const grantsNeeded: WorkspaceGrantPayload[] = []
-          for (const grant of validGrants) {
-            if (accessibleWorkspaceIds.has(grant.workspaceId)) continue
-            const pendingGrant = await findPendingGrantForWorkspaceEmail({
-              workspaceId: grant.workspaceId,
-              email,
-            })
-            if (pendingGrant) continue
-            grantsNeeded.push(grant)
-          }
+          const grantsNeeded = validGrants.filter(
+            (grant) =>
+              !accessibleWorkspaceIds?.has(grant.workspaceId) &&
+              !pendingWorkspaceIds?.has(grant.workspaceId)
+          )
 
           if (grantsNeeded.length > 0) {
             memberWorkspaceInvites.push({ email, grants: grantsNeeded })
@@ -332,8 +382,9 @@ export const POST = withRouteHandler(
 
         return NextResponse.json(
           {
-            error:
-              'All emails are already members with access to the selected workspaces or have pending invitations.',
+            error: isBatch
+              ? 'All emails are already members with access to the selected workspaces or have pending invitations.'
+              : 'All emails are already members or have pending invitations.',
             details: {
               existingMembers: membersAlreadyCovered,
               pendingInvitations: pendingInvitationEmails,
@@ -371,138 +422,116 @@ export const POST = withRouteHandler(
         .limit(1)
       const inviterName = inviterRow?.name || inviterRow?.email || 'A user'
 
-      const sentInvitations: Array<{ id: string; email: string }> = []
-      const failedInvitations: Array<{ email: string; error: string }> = []
+      /**
+       * Organization invitations (new emails, all selected grants) and
+       * workspace invitations (existing members, only the grants they lack)
+       * share one create/send/rollback pipeline; they differ only in `kind`,
+       * grants, and audit treatment.
+       */
+      const pendingSends = [
+        ...emailsToInvite.map((email) => ({
+          kind: 'organization' as const,
+          email,
+          grants: validGrants,
+        })),
+        ...memberWorkspaceInvites.map((memberInvite) => ({
+          kind: 'workspace' as const,
+          email: memberInvite.email,
+          grants: memberInvite.grants,
+        })),
+      ]
 
-      for (const email of emailsToInvite) {
-        try {
-          const { invitationId, token } = await createPendingInvitation({
-            kind: 'organization',
-            email,
-            inviterId: session.user.id,
-            organizationId,
-            role,
-            grants: validGrants,
-          })
-
-          const emailResult = await sendInvitationEmail({
-            invitationId,
-            token,
-            kind: 'organization',
-            email,
-            inviterName,
-            organizationId,
-            organizationRole: role,
-            grants: validGrants,
-          })
-
-          if (!emailResult.success) {
-            logger.error('Failed to send organization invitation email', {
-              email,
-              error: emailResult.error,
-            })
-            failedInvitations.push({
-              email,
-              error: emailResult.error || 'Unknown email delivery error',
-            })
-            await cancelPendingInvitation(invitationId)
-            continue
-          }
-
-          sentInvitations.push({ id: invitationId, email })
-        } catch (creationError) {
-          logger.error('Failed to create organization invitation', { email, error: creationError })
-          failedInvitations.push({
-            email,
-            error: getErrorMessage(creationError, 'Failed to create invitation'),
-          })
-        }
-      }
-
-      const sentWorkspaceInvitations: Array<{
+      const sentInvitations: Array<{
         id: string
         email: string
+        kind: 'organization' | 'workspace'
         workspaceIds: string[]
       }> = []
+      const failedInvitations: Array<{ email: string; error: string }> = []
 
-      for (const memberInvite of memberWorkspaceInvites) {
+      for (const send of pendingSends) {
+        const sendRole = send.kind === 'organization' ? role : 'member'
         try {
           const { invitationId, token } = await createPendingInvitation({
-            kind: 'workspace',
-            email: memberInvite.email,
+            kind: send.kind,
+            email: send.email,
             inviterId: session.user.id,
             organizationId,
             membershipIntent: 'internal',
-            role: 'member',
-            grants: memberInvite.grants,
+            role: sendRole,
+            grants: send.grants,
           })
 
           const emailResult = await sendInvitationEmail({
             invitationId,
             token,
-            kind: 'workspace',
-            email: memberInvite.email,
+            kind: send.kind,
+            email: send.email,
             inviterName,
             organizationId,
-            organizationRole: 'member',
-            grants: memberInvite.grants,
+            organizationRole: sendRole,
+            grants: send.grants,
           })
 
           if (!emailResult.success) {
-            logger.error('Failed to send workspace invitation email to existing member', {
-              email: memberInvite.email,
+            logger.error('Failed to send invitation email', {
+              kind: send.kind,
+              email: send.email,
               error: emailResult.error,
             })
             failedInvitations.push({
-              email: memberInvite.email,
+              email: send.email,
               error: emailResult.error || 'Unknown email delivery error',
             })
             await cancelPendingInvitation(invitationId)
             continue
           }
 
-          sentWorkspaceInvitations.push({
+          sentInvitations.push({
             id: invitationId,
-            email: memberInvite.email,
-            workspaceIds: memberInvite.grants.map((grant) => grant.workspaceId),
+            email: send.email,
+            kind: send.kind,
+            workspaceIds: send.grants.map((grant) => grant.workspaceId),
           })
         } catch (creationError) {
-          logger.error('Failed to create workspace invitation for existing member', {
-            email: memberInvite.email,
+          logger.error('Failed to create invitation', {
+            kind: send.kind,
+            email: send.email,
             error: creationError,
           })
           failedInvitations.push({
-            email: memberInvite.email,
+            email: send.email,
             error: getErrorMessage(creationError, 'Failed to create invitation'),
           })
         }
       }
 
       for (const inv of sentInvitations) {
-        recordAudit({
-          workspaceId: null,
-          actorId: session.user.id,
-          action: AuditAction.ORG_INVITATION_CREATED,
-          resourceType: AuditResourceType.ORGANIZATION,
-          resourceId: organizationId,
-          actorName: session.user.name ?? undefined,
-          actorEmail: session.user.email ?? undefined,
-          resourceName: organizationEntry.name,
-          description: `Invited ${inv.email} to organization as ${role}`,
-          metadata: {
-            invitationId: inv.id,
-            targetEmail: inv.email,
-            targetRole: role,
-            isBatch,
-            workspaceGrantCount: validGrants.length,
-            enforcedFixedSeats: enforceFixedSeats,
-            plan: orgSubscription?.plan ?? null,
-          },
-          request,
-        })
-      }
+        if (inv.kind === 'organization') {
+          recordAudit({
+            workspaceId: null,
+            actorId: session.user.id,
+            action: AuditAction.ORG_INVITATION_CREATED,
+            resourceType: AuditResourceType.ORGANIZATION,
+            resourceId: organizationId,
+            actorName: session.user.name ?? undefined,
+            actorEmail: session.user.email ?? undefined,
+            resourceName: organizationEntry.name,
+            description: `Invited ${inv.email} to organization as ${role}`,
+            metadata: {
+              invitationId: inv.id,
+              targetEmail: inv.email,
+              targetRole: role,
+              isBatch,
+              workspaceGrantCount: validGrants.length,
+              enforcedFixedSeats: enforceFixedSeats,
+              plan: orgSubscription?.plan ?? null,
+            },
+            request,
+          })
+          continue
+        }
 
-      for (const inv of sentWorkspaceInvitations) {
         for (const workspaceId of inv.workspaceIds) {
           recordAudit({
             workspaceId,
@@ -525,13 +554,11 @@ export const POST = withRouteHandler(
         }
       }
 
-      const totalInvitationsSent = sentInvitations.length + sentWorkspaceInvitations.length
+      const sentOrgInvitations = sentInvitations.filter((inv) => inv.kind === 'organization')
+      const totalInvitationsSent = sentInvitations.length
       const responseData = {
         invitationsSent: totalInvitationsSent,
-        invitedEmails: [
-          ...sentInvitations.map((inv) => inv.email),
-          ...sentWorkspaceInvitations.map((inv) => inv.email),
-        ],
+        invitedEmails: sentInvitations.map((inv) => inv.email),
         failedInvitations,
         existingMembers: membersAlreadyCovered,
         pendingInvitations: processedEmails.filter(
@@ -544,9 +571,9 @@ export const POST = withRouteHandler(
         ...(seatValidation
           ? {
               seatInfo: {
-                seatsUsed: seatValidation.currentSeats + sentInvitations.length,
+                seatsUsed: seatValidation.currentSeats + sentOrgInvitations.length,
                 maxSeats: seatValidation.maxSeats,
-                availableSeats: seatValidation.availableSeats - sentInvitations.length,
+                availableSeats: seatValidation.availableSeats - sentOrgInvitations.length,
               },
             }
           : {}),
