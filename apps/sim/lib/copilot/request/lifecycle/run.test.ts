@@ -7,19 +7,23 @@ import type { ExecutionContext, StreamingContext } from '@/lib/copilot/request/t
 
 const {
   mockCreateRunSegment,
+  mockForceFailHungToolCall,
   mockGetEffectiveDecryptedEnv,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
+  mockToolWatchdogTimeoutMs,
   mockUpdateRunStatus,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
+  mockForceFailHungToolCall: vi.fn(),
   mockGetEffectiveDecryptedEnv: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
+  mockToolWatchdogTimeoutMs: vi.fn(() => 60_000),
   mockUpdateRunStatus: vi.fn(),
 }))
 
@@ -84,6 +88,8 @@ vi.mock('@/lib/copilot/request/tools/billing', () => ({
 
 vi.mock('@/lib/copilot/request/tools/executor', () => ({
   executeToolAndReport: vi.fn(),
+  forceFailHungToolCall: mockForceFailHungToolCall,
+  toolWatchdogTimeoutMs: mockToolWatchdogTimeoutMs,
 }))
 
 import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothership-stream-v1'
@@ -582,5 +588,103 @@ describe('runCopilotLifecycle', () => {
     expect(bodies[2].willRetryOnStreamError).toBe(true)
     // Final attempt (2) is terminal → not flagged, so Go bills + surfaces it.
     expect(bodies[3].willRetryOnStreamError).toBeUndefined()
+  })
+
+  it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchUrls: string[] = []
+      const bodies: Record<string, unknown>[] = []
+      const executionContext: ExecutionContext = {
+        userId: 'user-1',
+        workflowId: '',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        decryptedEnvVars: {},
+      }
+
+      // Mirror the real helper: settle the tool call into a terminal error
+      // state so the resume loop can serialize an error result for it.
+      mockForceFailHungToolCall.mockImplementation(
+        async (toolCallId: string, context: StreamingContext, message: string) => {
+          const tool = context.toolCalls.get(toolCallId)
+          if (!tool) return
+          tool.status = MothershipStreamV1ToolOutcome.error
+          tool.endTime = Date.now()
+          tool.result = { success: false }
+          tool.error = message
+        }
+      )
+
+      // Initial leg checkpoints on an async tool whose promise NEVER settles —
+      // the exact shape of the prod incident (claimed, marked running, hung).
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          fetchUrls.push(fetchUrl)
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.toolCalls.set('tool-hung', {
+            id: 'tool-hung',
+            name: 'read',
+            status: 'executing',
+          })
+          context.pendingToolPromises.set('tool-hung', new Promise(() => {}))
+          context.awaitingAsyncContinuation = {
+            checkpointId: 'ckpt-1',
+            pendingToolCallIds: ['tool-hung'],
+          }
+        }
+      )
+
+      // Resume leg completes normally with the error result delivered.
+      mockRunStreamLoop.mockImplementationOnce(
+        async (
+          fetchUrl: string,
+          fetchOptions: RequestInit,
+          context: StreamingContext
+        ): Promise<void> => {
+          fetchUrls.push(fetchUrl)
+          bodies.push(JSON.parse(String(fetchOptions.body)))
+          context.accumulatedContent = 'The file read failed, but here is what I know.'
+        }
+      )
+
+      const lifecycle = runCopilotLifecycle(
+        { message: 'hello', messageId: 'stream-1' },
+        {
+          userId: 'user-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+          executionId: 'exec-1',
+          runId: 'run-1',
+          executionContext,
+        }
+      )
+
+      // Wait budget = watchdog (60s, mocked) + resume grace (30s). Advance past it.
+      await vi.advanceTimersByTimeAsync(91_000)
+      const result = await lifecycle
+
+      expect(mockForceFailHungToolCall).toHaveBeenCalledWith(
+        'tool-hung',
+        expect.anything(),
+        expect.stringContaining('hung')
+      )
+      expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+      expect(bodies[1].results).toEqual([
+        expect.objectContaining({
+          callId: 'tool-hung',
+          name: 'read',
+          success: false,
+          data: { error: expect.stringContaining('hung') },
+        }),
+      ])
+      expect(result.success).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

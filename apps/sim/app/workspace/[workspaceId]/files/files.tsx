@@ -1293,25 +1293,31 @@ export function Files() {
     closeListContextMenu()
   }, [canEdit, uploading, closeListContextMenu])
 
-  const prevFileIdRef = useRef(fileIdFromRoute)
+  /**
+   * Tracks the route target whose preview mode has been applied. Starts at
+   * null (the list view) rather than the initial route id because on a hard
+   * load the files list may not have arrived when the mode initializer ran —
+   * a deep-linked previewable file would otherwise be locked into the code
+   * editor. The effect therefore defers until the routed file is resolvable:
+   * either its record exists, or the files query has settled (so a missing
+   * id decides 'editor' instead of waiting forever).
+   */
+  const appliedModeFileIdRef = useRef<string | null>(null)
+  const routedFileResolved = selectedFile != null || !isLoading
   useEffect(() => {
-    if (fileIdFromRoute === prevFileIdRef.current) return
-    prevFileIdRef.current = fileIdFromRoute
+    if (fileIdFromRoute === appliedModeFileIdRef.current) return
     const isJustCreated =
       isNewFile || (fileIdFromRoute != null && justCreatedFileIdRef.current === fileIdFromRoute)
     if (justCreatedFileIdRef.current && !isJustCreated) {
       justCreatedFileIdRef.current = null
     }
-    const nextMode: PreviewMode = isJustCreated
-      ? 'editor'
-      : (() => {
-          const file = fileIdFromRoute
-            ? filesRef.current.find((f) => f.id === fileIdFromRoute)
-            : null
-          return file && isPreviewable(file) ? 'preview' : 'editor'
-        })()
+    if (fileIdFromRoute != null && !routedFileResolved && !isJustCreated) return
+    appliedModeFileIdRef.current = fileIdFromRoute
+    const file = fileIdFromRoute ? selectedFileRef.current : null
+    const nextMode: PreviewMode =
+      !isJustCreated && file && isPreviewable(file) ? 'preview' : 'editor'
     setPreviewMode((current) => (nextMode === current ? current : nextMode))
-  }, [fileIdFromRoute, isNewFile])
+  }, [fileIdFromRoute, isNewFile, routedFileResolved])
 
   useEffect(() => {
     if (isNewFile && fileIdFromRoute) {

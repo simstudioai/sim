@@ -1,6 +1,10 @@
 'use client'
 
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { createLogger } from '@sim/logger'
 import { cn } from '@/lib/core/utils/cn'
+
+const logger = createLogger('FilePreview')
 
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (
@@ -11,6 +15,61 @@ export function PreviewError({ label, error }: { label: string; error: string })
       <p className='text-[13px] text-[var(--text-muted)]'>{error}</p>
     </div>
   )
+}
+
+interface PreviewErrorBoundaryProps {
+  /** Format label shown in the fallback, e.g. "PDF". */
+  label: string
+  children: ReactNode
+}
+
+interface PreviewErrorBoundaryState {
+  hasError: boolean
+  error?: Error
+}
+
+/**
+ * Error boundary for preview renderers. Catches render-time crashes (including
+ * a preview module whose dynamic import rejected) and degrades to the standard
+ * PreviewError fallback instead of unwinding to the route-level error boundary
+ * and replacing the whole workspace view.
+ *
+ * Callers must `key` this boundary by the identity of the rendered content
+ * (e.g. file id + data version) — the error state resets only via remount, so
+ * keying the child alone would leave a tripped boundary stuck on the fallback.
+ */
+export class PreviewErrorBoundary extends Component<
+  PreviewErrorBoundaryProps,
+  PreviewErrorBoundaryState
+> {
+  public state: PreviewErrorBoundaryState = {
+    hasError: false,
+  }
+
+  public static getDerivedStateFromError(error: Error): PreviewErrorBoundaryState {
+    return { hasError: true, error }
+  }
+
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    logger.error('Preview crashed', {
+      label: this.props.label,
+      error: error.message,
+      componentStack: errorInfo.componentStack,
+    })
+  }
+
+  public render() {
+    if (this.state.hasError) {
+      return (
+        <PreviewError
+          label={this.props.label}
+          error={this.state.error?.message ?? 'An unexpected error occurred'}
+        />
+      )
+    }
+
+    return this.props.children
+  }
 }
 
 export function resolvePreviewError(

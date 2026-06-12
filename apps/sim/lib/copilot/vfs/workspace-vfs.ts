@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   a2aAgent,
@@ -23,7 +24,10 @@ import {
   buildWorkspaceMd,
   type WorkspaceMdData,
 } from '@/lib/copilot/chat/workspace-context'
+import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { markSpanForError } from '@/lib/copilot/request/otel'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
@@ -32,10 +36,7 @@ import {
   collectWorkflowFieldIssues,
   lintEditedWorkflowState,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
-import {
-  collectUnresolvedReferences,
-  UNRESOLVABLE_AT_LINT_NOTE,
-} from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
+import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -75,7 +76,6 @@ import {
   serializeVersions,
   serializeWorkflowMeta,
 } from '@/lib/copilot/vfs/serializers'
-import { ensureWorkflowAliasBackingQuietly } from '@/lib/copilot/vfs/workflow-alias-backing'
 import {
   buildWorkflowAliasLinks,
   isWorkflowAliasBackingPath,
@@ -393,63 +393,95 @@ export class WorkspaceVFS {
     this.files = new Map()
     this._workspaceId = workspaceId
 
-    const [
-      wfSummary,
-      kbSummary,
-      tblSummary,
-      fileSummary,
-      envSummary,
-      toolsSummary,
-      mcpServersSummary,
-      skillsSummary,
-      taskSummary,
-      jobsSummary,
-      wsRow,
-      members,
-    ] = await Promise.all([
-      this.materializeWorkflows(workspaceId, userId),
-      this.materializeKnowledgeBases(workspaceId, userId),
-      this.materializeTables(workspaceId),
-      this.materializeFiles(workspaceId),
-      this.materializeEnvironment(workspaceId, userId),
-      this.materializeCustomTools(workspaceId, userId),
-      this.materializeMcpServers(workspaceId),
-      this.materializeSkills(workspaceId),
-      this.materializeTasks(workspaceId, userId),
-      this.materializeJobs(workspaceId),
-      getWorkspaceWithOwner(workspaceId),
-      getUsersWithPermissions(workspaceId),
-    ])
-
-    const workspaceMdData = {
-      workspace: wsRow,
-      members,
-      workflows: wfSummary,
-      knowledgeBases: kbSummary,
-      tables: tblSummary,
-      files: fileSummary,
-      oauthIntegrations: envSummary.oauthIntegrations,
-      envVariables: envSummary.envVariables,
-      tasks: taskSummary,
-      customTools: toolsSummary,
-      mcpServers: mcpServersSummary,
-      skills: skillsSummary,
-      jobs: jobsSummary,
+    // Per-phase wall-clock, stamped on the span so a slow materialize in a
+    // trace names its bottleneck instead of showing up as unattributed dead
+    // time inside read/glob/grep (how the v0.7 lint.json regression hid).
+    const phaseMs: Record<string, number> = {}
+    const timed = <T>(phase: string, promise: Promise<T>): Promise<T> => {
+      const t0 = Date.now()
+      return promise.finally(() => {
+        phaseMs[phase] = Date.now() - t0
+      })
     }
 
-    this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
-    this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
+    await trace
+      .getTracer('sim-copilot-vfs', '1.0.0')
+      .startActiveSpan(
+        TraceSpan.CopilotVfsMaterialize,
+        { attributes: { [TraceAttr.WorkspaceId]: workspaceId } },
+        async (span) => {
+          try {
+            const [
+              wfSummary,
+              kbSummary,
+              tblSummary,
+              fileSummary,
+              envSummary,
+              toolsSummary,
+              mcpServersSummary,
+              skillsSummary,
+              taskSummary,
+              jobsSummary,
+              wsRow,
+              members,
+            ] = await Promise.all([
+              timed('workflows', this.materializeWorkflows(workspaceId)),
+              timed('knowledge_bases', this.materializeKnowledgeBases(workspaceId, userId)),
+              timed('tables', this.materializeTables(workspaceId)),
+              timed('files', this.materializeFiles(workspaceId)),
+              timed('environment', this.materializeEnvironment(workspaceId, userId)),
+              timed('custom_tools', this.materializeCustomTools(workspaceId, userId)),
+              timed('mcp_servers', this.materializeMcpServers(workspaceId)),
+              timed('skills', this.materializeSkills(workspaceId)),
+              timed('tasks', this.materializeTasks(workspaceId, userId)),
+              timed('jobs', this.materializeJobs(workspaceId)),
+              timed('workspace_row', getWorkspaceWithOwner(workspaceId)),
+              timed('members', getUsersWithPermissions(workspaceId)),
+            ])
 
-    await this.materializeRecentlyDeleted(workspaceId, userId)
+            const workspaceMdData = {
+              workspace: wsRow,
+              members,
+              workflows: wfSummary,
+              knowledgeBases: kbSummary,
+              tables: tblSummary,
+              files: fileSummary,
+              oauthIntegrations: envSummary.oauthIntegrations,
+              envVariables: envSummary.envVariables,
+              tasks: taskSummary,
+              customTools: toolsSummary,
+              mcpServers: mcpServersSummary,
+              skills: skillsSummary,
+              jobs: jobsSummary,
+            }
 
-    for (const [path, content] of getStaticComponentFiles()) {
-      this.files.set(path, content)
-    }
+            this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
+            this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
+
+            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
+
+            for (const [path, content] of getStaticComponentFiles()) {
+              this.files.set(path, content)
+            }
+
+            span.setAttributes({
+              [TraceAttr.CopilotVfsMaterializeFileCount]: this.files.size,
+              [TraceAttr.CopilotVfsMaterializePhaseMs]: JSON.stringify(phaseMs),
+            })
+          } catch (err) {
+            markSpanForError(span, err)
+            throw err
+          } finally {
+            span.end()
+          }
+        }
+      )
 
     logger.info('VFS materialized', {
       workspaceId,
       fileCount: this.files.size,
       durationMs: Date.now() - start,
+      phaseMs,
     })
   }
 
@@ -972,10 +1004,7 @@ export class WorkspaceVFS {
    *   workflows/{name}/           (if at workspace root)
    * Returns a summary for WORKSPACE.md generation.
    */
-  private async materializeWorkflows(
-    workspaceId: string,
-    userId: string
-  ): Promise<WorkspaceMdData['workflows']> {
+  private async materializeWorkflows(workspaceId: string): Promise<WorkspaceMdData['workflows']> {
     const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
@@ -984,18 +1013,12 @@ export class WorkspaceVFS {
 
     const folderPaths = this.buildFolderPaths(folderRows)
 
-    if (workflowArtifactsEnabled) {
-      await Promise.all(
-        workflowRows.map((wf) =>
-          ensureWorkflowAliasBackingQuietly({
-            workspaceId,
-            userId,
-            workflowId: wf.id,
-            workflowName: wf.name,
-          })
-        )
-      )
-    }
+    // NOTE: materialization is a pure READ. Alias backing (changelog/plan
+    // folders + files) is ensured at write time — workflow create/rename
+    // (lib/workflows/utils) and alias writes (vfs/resource-writer,
+    // tools/server/files/workspace-file) — never here. Ensuring per workflow
+    // on every materialize meant N storage/DB writes per read tool call, and
+    // concurrent materializations contending on the same rows.
     const workspaceFiles = workflowArtifactsEnabled
       ? await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
       : []
@@ -1099,31 +1122,26 @@ export class WorkspaceVFS {
             // Dynamically-computed validation state (lint.json), derived from
             // the raw normalized state so subBlock values, advancedMode,
             // canonicalModes, and subflow edges are all available.
+            //
+            // CPU-only by design: tier-2 reference resolution
+            // (collectUnresolvedReferences) runs DB queries per selector field
+            // and is validated where it matters — at edit_workflow apply time.
+            // Running it here meant workflows × selectors sequential DB queries
+            // on every read/glob/grep call, which is what made `files/` reads
+            // take ~40s in large workspaces.
             try {
               const graphLint = lintEditedWorkflowState(normalized as any)
               const fieldIssues = collectWorkflowFieldIssues(normalized.blocks as any)
-              let unresolvedReferences: Awaited<ReturnType<typeof collectUnresolvedReferences>> = []
-              try {
-                unresolvedReferences = await collectUnresolvedReferences(normalized as any, {
-                  userId,
-                  workspaceId,
-                })
-              } catch (resolveErr) {
-                // Tier-2 resolution is best-effort; degrade to graph + config lint.
-                logger.warn('Failed to resolve workflow references for lint.json', {
-                  workflowId: wf.id,
-                  error: toError(resolveErr).message,
-                })
-              }
-
               this.files.set(
                 `${prefix}lint.json`,
                 JSON.stringify(
                   {
                     ...graphLint,
                     fieldIssues,
-                    unresolvedReferences,
-                    notes: [UNRESOLVABLE_AT_LINT_NOTE],
+                    notes: [
+                      UNRESOLVABLE_AT_LINT_NOTE,
+                      'Credential/resource reference resolution is validated when editing the workflow, not in this snapshot.',
+                    ],
                   },
                   null,
                   2

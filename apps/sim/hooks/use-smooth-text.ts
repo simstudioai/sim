@@ -73,9 +73,15 @@ interface SmoothTextOptions {
  * full string, avoiding a flash on the streaming→static handoff.
  *
  * @remarks
- * The reveal loop keys on `hasBacklog` rather than `content` so a new chunk on
- * every render does not re-subscribe the timer (and trip React's
- * max-update-depth guard); the running tick reads the latest value from a ref.
+ * The re-arm effect runs on every committed render with a cheap
+ * `timeoutRef === null` guard instead of keying on a `hasBacklog` dependency.
+ * The tick chain self-terminates whenever the reveal catches up, and a chain
+ * keyed on the `hasBacklog` boolean could die for good: when the final tick's
+ * `setRevealed` and a new chunk land in the same React commit, `hasBacklog`
+ * stays `true` across commits, the effect never re-fires, and the reveal
+ * freezes mid-stream until remount. Re-arming per render closes that
+ * interleaving while still avoiding per-chunk timer teardown (no cleanup on
+ * content changes), so it cannot trip React's max-update-depth guard either.
  * If upstream sanitization rewrites earlier text and shrinks the string, the
  * cursor is pulled back to the new end so regrowth stays paced instead of
  * jumping past it.
@@ -137,14 +143,17 @@ export function useSmoothText(
     if (hasBacklog && timeoutRef.current === null) {
       timeoutRef.current = setTimeout(run, PACE_MS)
     }
+  })
 
-    return () => {
+  useEffect(
+    () => () => {
       if (timeoutRef.current !== null) {
         clearTimeout(timeoutRef.current)
         timeoutRef.current = null
       }
-    }
-  }, [hasBacklog])
+    },
+    []
+  )
 
   if (effectiveRevealed >= content.length) return content
   return content.slice(0, effectiveRevealed)

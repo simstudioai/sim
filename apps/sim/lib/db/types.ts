@@ -15,3 +15,15 @@ export type DbOrTx =
       typeof schema,
       ExtractTablesWithRelations<typeof schema>
     >
+
+/**
+ * Read-routing client: the primary `db` or the read replica `dbReplica`.
+ *
+ * For read-path helpers (billing summaries, dashboard aggregations) whose
+ * executor param exists to route SELECT fan-outs to a replica. Deliberately
+ * excludes transaction handles — these helpers issue multi-step query fans
+ * that must never run while a transaction holds a pooled connection. Use
+ * `DbOrTx` only for helpers genuinely designed to join a caller's
+ * transaction.
+ */
+export type DbClient = typeof db

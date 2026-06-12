@@ -8,7 +8,7 @@ import { and, desc, eq, gte, inArray, lt, lte, sql } from 'drizzle-orm'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbClient, DbOrTx } from '@/lib/db/types'
 
 const logger = createLogger('UsageLog')
 
@@ -184,7 +184,7 @@ export async function getBillingPeriodUsageCost(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
   source?: UsageLogSource | UsageLogSource[],
-  executor: DbOrTx = db
+  executor: DbClient = db
 ): Promise<number> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
@@ -212,7 +212,7 @@ export async function getBillingPeriodUsageCostByUser(
   billingEntity: BillingEntity,
   billingPeriod: { start: Date; end: Date },
   source?: UsageLogSource | UsageLogSource[],
-  executor: DbOrTx = db
+  executor: DbClient = db
 ): Promise<Map<string, number>> {
   const conditions = [
     eq(usageLog.billingEntityType, billingEntity.type),
