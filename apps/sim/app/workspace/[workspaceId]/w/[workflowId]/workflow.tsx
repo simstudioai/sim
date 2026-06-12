@@ -4036,236 +4036,227 @@ const WorkflowContent = React.memo(
     }, [embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
-      <div className='flex h-full w-full overflow-hidden'>
-        <div className='flex min-w-0 flex-1 flex-col'>
-          <div ref={canvasContainerRef} className='relative flex-1 overflow-hidden'>
-            {!isWorkflowReady && (
-              <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
-                <div
-                  className='size-[18px] animate-spin rounded-full'
-                  style={{
-                    background:
-                      'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
-                    mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                    WebkitMask:
-                      'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
-                  }}
-                />
-              </div>
-            )}
-
-            {isWorkflowReady && (
+      <div className='flex h-full w-full flex-col overflow-hidden'>
+        {/* Standalone title bar — the same 44px bordered header every other
+            main view has (the staged editor gets it from the panel header).
+            The chrome cluster hides while a chat is docked: the chat pane's
+            title bar carries it. */}
+        {!embedded && (
+          <div className='flex h-[44px] flex-shrink-0 items-center gap-1 border-[var(--border)] border-b px-4'>
+            {!chatDock?.isOpen && (
               <>
-                <ReactFlow
-                  nodes={nodesForRender}
-                  edges={edgesWithSelection}
-                  onNodesChange={onNodesChange}
-                  onEdgesChange={onEdgesChange}
-                  onConnect={effectivePermissions.canEdit ? onConnect : undefined}
-                  onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
-                  onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
-                  nodeTypes={nodeTypes}
-                  edgeTypes={edgeTypes}
-                  onMouseDown={handleCanvasMouseDown}
-                  onDrop={
-                    effectivePermissions.canEdit
-                      ? onDrop
-                      : workflowReadOnly
-                        ? onDropLocked
-                        : undefined
-                  }
-                  onDragOver={
-                    effectivePermissions.canEdit || workflowReadOnly ? onDragOver : undefined
-                  }
-                  onInit={(instance) => {
-                    if (embedded) {
-                      return
-                    }
-
-                    requestAnimationFrame(() => {
-                      instance.fitView(reactFlowFitViewOptions)
-                      setIsCanvasReady(true)
-                    })
-                  }}
-                  fitViewOptions={embedded ? embeddedFitViewOptions : reactFlowFitViewOptions}
-                  minZoom={0.1}
-                  maxZoom={1.3}
-                  panOnScroll
-                  defaultEdgeOptions={defaultEdgeOptions}
-                  proOptions={reactFlowProOptions}
-                  connectionLineStyle={connectionLineStyle}
-                  connectionLineType={ConnectionLineType.SmoothStep}
-                  onPaneClick={onPaneClick}
-                  onEdgeClick={onEdgeClick}
-                  onNodeClick={handleNodeClick}
-                  onPaneContextMenu={handlePaneContextMenu}
-                  onNodeContextMenu={handleNodeContextMenu}
-                  onSelectionContextMenu={handleSelectionContextMenu}
-                  onPointerMove={handleCanvasPointerMove}
-                  onPointerLeave={handleCanvasPointerLeave}
-                  elementsSelectable
-                  selectionOnDrag={selectionProps.selectionOnDrag}
-                  selectionMode={SelectionMode.Partial}
-                  panOnDrag={selectionProps.panOnDrag}
-                  selectionKeyCode={selectionProps.selectionKeyCode}
-                  multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
-                  nodesConnectable={effectivePermissions.canEdit}
-                  nodesDraggable={effectivePermissions.canEdit}
-                  draggable={false}
-                  noWheelClassName='allow-scroll'
-                  edgesFocusable
-                  edgesUpdatable={effectivePermissions.canEdit}
-                  className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
-                  onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
-                  onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
-                  onSelectionDragStart={
-                    effectivePermissions.canEdit ? onSelectionDragStart : undefined
-                  }
-                  onSelectionDrag={effectivePermissions.canEdit ? onSelectionDrag : undefined}
-                  onSelectionDragStop={
-                    effectivePermissions.canEdit ? onSelectionDragStop : undefined
-                  }
-                  onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
-                  snapToGrid={snapToGrid}
-                  snapGrid={snapGrid}
-                  elevateEdgesOnSelect={false}
-                  onlyRenderVisibleElements={false}
-                  deleteKeyCode={null}
-                  elevateNodesOnSelect={false}
-                  autoPanOnConnect={effectivePermissions.canEdit}
-                  autoPanOnNodeDrag={effectivePermissions.canEdit}
+                <SidebarToggle className='-ml-[9px]' />
+                <ChatSwitcher
+                  iconOnly
+                  navigateOnSelect={!chatDock}
+                  onSelectChat={chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined}
                 />
-
-                <Cursors />
-
-                <>
-                  <WorkflowControls />
-                  <Suspense fallback={null}>
-                    <LazyChat />
-                  </Suspense>
-
-                  <BlockMenu
-                    isOpen={isBlockMenuOpen}
-                    position={contextMenuPosition}
-                    menuRef={contextMenuRef}
-                    onClose={closeContextMenu}
-                    selectedBlocks={contextMenuBlocks}
-                    onCopy={handleContextCopy}
-                    onCut={handleContextCut}
-                    onPaste={handleContextPaste}
-                    onDuplicate={handleContextDuplicate}
-                    onDelete={handleContextDelete}
-                    onToggleEnabled={handleContextToggleEnabled}
-                    onToggleHandles={handleContextToggleHandles}
-                    onRemoveFromSubflow={handleContextRemoveFromSubflow}
-                    onOpenEditor={handleContextOpenEditor}
-                    onRename={handleContextRename}
-                    onRunFromBlock={handleContextRunFromBlock}
-                    onRunUntilBlock={handleContextRunUntilBlock}
-                    hasClipboard={hasClipboard()}
-                    showRemoveFromSubflow={contextMenuBlocks.some(
-                      (b) => b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
-                    )}
-                    canRunFromBlock={runFromBlockState.canRun}
-                    disableEdit={
-                      !effectivePermissions.canEdit ||
-                      contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
-                    }
-                    userCanEdit={effectivePermissions.canEdit}
-                    isExecuting={isExecuting}
-                    isPositionalTrigger={
-                      contextMenuBlocks.length === 1 &&
-                      edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
-                    }
-                    onToggleLocked={handleContextToggleLocked}
-                    canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
-                  />
-
-                  <CanvasMenu
-                    isOpen={isPaneMenuOpen}
-                    position={contextMenuPosition}
-                    menuRef={contextMenuRef}
-                    onClose={closeContextMenu}
-                    onUndo={undo}
-                    onRedo={redo}
-                    onPaste={handleContextPaste}
-                    onAddBlock={handleContextAddBlock}
-                    onAutoLayout={handleAutoLayout}
-                    onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
-                    onOpenLogs={handleContextOpenLogs}
-                    onOpenSearchReplace={handleContextOpenSearchReplace}
-                    onToggleVariables={handleContextToggleVariables}
-                    onToggleChat={handleContextToggleChat}
-                    isVariablesOpen={isVariablesOpen}
-                    isChatOpen={isChatOpen}
-                    hasClipboard={hasClipboard()}
-                    disableEdit={!effectivePermissions.canEdit}
-                    canUndo={canUndo}
-                    canRedo={canRedo}
-                    hasLockedBlocks={hasLockedBlocks}
-                    onToggleWorkflowLock={handleToggleWorkflowLock}
-                    allBlocksLocked={allBlocksLocked}
-                    canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
-                    hasBlocks={hasBlocks}
-                  />
-                </>
               </>
             )}
+            {workflowMetadata?.name && (
+              <span className='min-w-0 max-w-[320px] truncate px-1 font-medium text-[14px] text-[var(--text-primary)]'>
+                {workflowMetadata.name}
+              </span>
+            )}
+          </div>
+        )}
+        <div className='flex min-h-0 w-full flex-1 overflow-hidden'>
+          <div className='flex min-w-0 flex-1 flex-col'>
+            <div ref={canvasContainerRef} className='relative flex-1 overflow-hidden'>
+              {!isWorkflowReady && (
+                <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+                  <div
+                    className='size-[18px] animate-spin rounded-full'
+                    style={{
+                      background:
+                        'conic-gradient(from 0deg, hsl(var(--muted-foreground)) 0deg 120deg, transparent 120deg 180deg, hsl(var(--muted-foreground)) 180deg 300deg, transparent 300deg 360deg)',
+                      mask: 'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                      WebkitMask:
+                        'radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px))',
+                    }}
+                  />
+                </div>
+              )}
 
-            <WorkflowSearchReplace />
+              {isWorkflowReady && (
+                <>
+                  <ReactFlow
+                    nodes={nodesForRender}
+                    edges={edgesWithSelection}
+                    onNodesChange={onNodesChange}
+                    onEdgesChange={onEdgesChange}
+                    onConnect={effectivePermissions.canEdit ? onConnect : undefined}
+                    onConnectStart={effectivePermissions.canEdit ? onConnectStart : undefined}
+                    onConnectEnd={effectivePermissions.canEdit ? onConnectEnd : undefined}
+                    nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    onMouseDown={handleCanvasMouseDown}
+                    onDrop={
+                      effectivePermissions.canEdit
+                        ? onDrop
+                        : workflowReadOnly
+                          ? onDropLocked
+                          : undefined
+                    }
+                    onDragOver={
+                      effectivePermissions.canEdit || workflowReadOnly ? onDragOver : undefined
+                    }
+                    onInit={(instance) => {
+                      if (embedded) {
+                        return
+                      }
 
-            {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}
+                      requestAnimationFrame(() => {
+                        instance.fitView(reactFlowFitViewOptions)
+                        setIsCanvasReady(true)
+                      })
+                    }}
+                    fitViewOptions={embedded ? embeddedFitViewOptions : reactFlowFitViewOptions}
+                    minZoom={0.1}
+                    maxZoom={1.3}
+                    panOnScroll
+                    defaultEdgeOptions={defaultEdgeOptions}
+                    proOptions={reactFlowProOptions}
+                    connectionLineStyle={connectionLineStyle}
+                    connectionLineType={ConnectionLineType.SmoothStep}
+                    onPaneClick={onPaneClick}
+                    onEdgeClick={onEdgeClick}
+                    onNodeClick={handleNodeClick}
+                    onPaneContextMenu={handlePaneContextMenu}
+                    onNodeContextMenu={handleNodeContextMenu}
+                    onSelectionContextMenu={handleSelectionContextMenu}
+                    onPointerMove={handleCanvasPointerMove}
+                    onPointerLeave={handleCanvasPointerLeave}
+                    elementsSelectable
+                    selectionOnDrag={selectionProps.selectionOnDrag}
+                    selectionMode={SelectionMode.Partial}
+                    panOnDrag={selectionProps.panOnDrag}
+                    selectionKeyCode={selectionProps.selectionKeyCode}
+                    multiSelectionKeyCode={['Meta', 'Control', 'Shift']}
+                    nodesConnectable={effectivePermissions.canEdit}
+                    nodesDraggable={effectivePermissions.canEdit}
+                    draggable={false}
+                    noWheelClassName='allow-scroll'
+                    edgesFocusable
+                    edgesUpdatable={effectivePermissions.canEdit}
+                    className={`workflow-container h-full bg-[var(--bg)] transition-opacity duration-150 ${reactFlowStyles} ${canvasOpacityClass} ${isHandMode ? 'canvas-mode-hand' : 'canvas-mode-cursor'}`}
+                    onNodeDrag={effectivePermissions.canEdit ? onNodeDrag : undefined}
+                    onNodeDragStop={effectivePermissions.canEdit ? onNodeDragStop : undefined}
+                    onSelectionDragStart={
+                      effectivePermissions.canEdit ? onSelectionDragStart : undefined
+                    }
+                    onSelectionDrag={effectivePermissions.canEdit ? onSelectionDrag : undefined}
+                    onSelectionDragStop={
+                      effectivePermissions.canEdit ? onSelectionDragStop : undefined
+                    }
+                    onNodeDragStart={effectivePermissions.canEdit ? onNodeDragStart : undefined}
+                    snapToGrid={snapToGrid}
+                    snapGrid={snapGrid}
+                    elevateEdgesOnSelect={false}
+                    onlyRenderVisibleElements={false}
+                    deleteKeyCode={null}
+                    elevateNodesOnSelect={false}
+                    autoPanOnConnect={effectivePermissions.canEdit}
+                    autoPanOnNodeDrag={effectivePermissions.canEdit}
+                  />
 
-            <DiffControls />
+                  <Cursors />
 
-            {/* Top fade between the canvas and the chrome row: nodes panning
+                  <>
+                    <WorkflowControls />
+                    <Suspense fallback={null}>
+                      <LazyChat />
+                    </Suspense>
+
+                    <BlockMenu
+                      isOpen={isBlockMenuOpen}
+                      position={contextMenuPosition}
+                      menuRef={contextMenuRef}
+                      onClose={closeContextMenu}
+                      selectedBlocks={contextMenuBlocks}
+                      onCopy={handleContextCopy}
+                      onCut={handleContextCut}
+                      onPaste={handleContextPaste}
+                      onDuplicate={handleContextDuplicate}
+                      onDelete={handleContextDelete}
+                      onToggleEnabled={handleContextToggleEnabled}
+                      onToggleHandles={handleContextToggleHandles}
+                      onRemoveFromSubflow={handleContextRemoveFromSubflow}
+                      onOpenEditor={handleContextOpenEditor}
+                      onRename={handleContextRename}
+                      onRunFromBlock={handleContextRunFromBlock}
+                      onRunUntilBlock={handleContextRunUntilBlock}
+                      hasClipboard={hasClipboard()}
+                      showRemoveFromSubflow={contextMenuBlocks.some(
+                        (b) =>
+                          b.parentId && (b.parentType === 'loop' || b.parentType === 'parallel')
+                      )}
+                      canRunFromBlock={runFromBlockState.canRun}
+                      disableEdit={
+                        !effectivePermissions.canEdit ||
+                        contextMenuBlocks.some((b) => b.locked || b.isParentLocked)
+                      }
+                      userCanEdit={effectivePermissions.canEdit}
+                      isExecuting={isExecuting}
+                      isPositionalTrigger={
+                        contextMenuBlocks.length === 1 &&
+                        edges.filter((e) => e.target === contextMenuBlocks[0]?.id).length === 0
+                      }
+                      onToggleLocked={handleContextToggleLocked}
+                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
+                    />
+
+                    <CanvasMenu
+                      isOpen={isPaneMenuOpen}
+                      position={contextMenuPosition}
+                      menuRef={contextMenuRef}
+                      onClose={closeContextMenu}
+                      onUndo={undo}
+                      onRedo={redo}
+                      onPaste={handleContextPaste}
+                      onAddBlock={handleContextAddBlock}
+                      onAutoLayout={handleAutoLayout}
+                      onFitToView={() => fitViewToBounds({ padding: 0.1, duration: 300 })}
+                      onOpenLogs={handleContextOpenLogs}
+                      onOpenSearchReplace={handleContextOpenSearchReplace}
+                      onToggleVariables={handleContextToggleVariables}
+                      onToggleChat={handleContextToggleChat}
+                      isVariablesOpen={isVariablesOpen}
+                      isChatOpen={isChatOpen}
+                      hasClipboard={hasClipboard()}
+                      disableEdit={!effectivePermissions.canEdit}
+                      canUndo={canUndo}
+                      canRedo={canRedo}
+                      hasLockedBlocks={hasLockedBlocks}
+                      onToggleWorkflowLock={handleToggleWorkflowLock}
+                      allBlocksLocked={allBlocksLocked}
+                      canAdmin={effectivePermissions.canAdmin && !workflowReadOnly}
+                      hasBlocks={hasBlocks}
+                    />
+                  </>
+                </>
+              )}
+
+              <WorkflowSearchReplace />
+
+              {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
+                <CommandList />
+              )}
+
+              <DiffControls />
+
+              {/* Top fade between the canvas and the chrome row: nodes panning
                 under the toggle/switcher/title dissolve into the page bg
                 instead of colliding with them. Solid through the 44px chrome
                 zone, faded out by 72px. Gradient only — a backdrop blur here
                 would tax every canvas pan/zoom repaint. */}
-            {!embedded && (
-              <div
-                aria-hidden='true'
-                className='pointer-events-none absolute inset-x-0 top-0 z-[9] h-[72px] bg-gradient-to-b from-40% from-[var(--bg)] to-transparent'
-              />
-            )}
+            </div>
 
-            {/* Workspace chrome over the canvas: sidebar toggle + chat switcher
-                + workflow title at the top-left, matching the title-bar rhythm
-                on other pages. The controls hide while a chat is docked (the
-                chat pane's title bar carries them); the title stays — it's the
-                editor's identity. */}
-            {!embedded && (
-              /* Fixed 30px height so the title centers on the same midline
-                 (y=22) whether or not the 30px control pills render — without
-                 it the docked state floats the title to the text's own
-                 line-height. */
-              <div className='absolute top-[7px] left-[7px] z-10 flex h-[30px] items-center gap-1'>
-                {!chatDock?.isOpen && (
-                  <>
-                    <SidebarToggle />
-                    <ChatSwitcher
-                      iconOnly
-                      navigateOnSelect={!chatDock}
-                      onSelectChat={
-                        chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined
-                      }
-                    />
-                  </>
-                )}
-                {workflowMetadata?.name && (
-                  <span className='max-w-[320px] truncate px-1 font-medium text-[14px] text-[var(--text-primary)]'>
-                    {workflowMetadata.name}
-                  </span>
-                )}
-              </div>
-            )}
+            <Terminal />
           </div>
 
-          <Terminal />
+          <Panel workspaceId={sandbox ? workspaceId : undefined} />
         </div>
-
-        <Panel workspaceId={sandbox ? workspaceId : undefined} />
 
         {!sandbox && oauthModal && (
           <ConnectOAuthModal
