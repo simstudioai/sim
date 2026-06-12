@@ -1186,6 +1186,44 @@ export async function findPreviousDeploymentVersion(
   return { ok: true, version: previousRow.version }
 }
 
+/**
+ * Fetches a single deployment version of a workflow, including its state
+ * snapshot. Returns null when the version does not exist.
+ */
+export async function getWorkflowDeploymentVersion(
+  workflowId: string,
+  version: number
+): Promise<{
+  id: string
+  version: number
+  name: string | null
+  description: string | null
+  isActive: boolean
+  createdAt: Date
+  state: unknown
+} | null> {
+  const [row] = await db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      state: workflowDeploymentVersion.state,
+    })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.version, version)
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function listWorkflowVersions(workflowId: string): Promise<{
   versions: Array<{
     id: string
