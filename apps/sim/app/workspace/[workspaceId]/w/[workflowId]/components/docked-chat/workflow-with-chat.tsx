@@ -287,9 +287,11 @@ export function WorkflowWithChat() {
     return () => window.removeEventListener('resize', handleWindowResize)
   }, [])
 
-  // Stacked-card mode: the stage stops being a panel — everything floats as
-  // detached modules on the workspace chrome backdrop, chat included.
-  const isStackMode = stackOpen && stageFront === 'card'
+  // While the stack exists — either side forward — the stage stops being a
+  // panel: everything floats as detached modules on the workspace chrome
+  // backdrop, chat included. Flipping only changes which card is in front.
+  const isStackMode = stackOpen
+  const isEditorCard = stackOpen && stageFront === 'editor'
 
   // The workspace chrome drops its content card frame while modules float.
   // Layout effect: the frame must flip in the same paint as the cards, never
@@ -339,11 +341,25 @@ export function WorkflowWithChat() {
         </>
       )}
       <div className='relative h-full min-w-0 flex-1'>
-        <Workflow
-          workspaceId={workspaceId}
-          workflowId={workflowId}
-          chatDock={{ isOpen: dock.open, onSelectChat: openChat }}
-        />
+        {/* When the editor is the front of the stack it wears card chrome —
+            inset above the tucked resource tab so the stack stays visible.
+            The wrappers are permanent (classes toggle) so the editor never
+            remounts across flips. */}
+        <div className={cn('h-full w-full', isEditorCard && 'p-2 pb-[36px]')}>
+          <div
+            className={cn(
+              'h-full w-full',
+              isEditorCard &&
+                'overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm'
+            )}
+          >
+            <Workflow
+              workspaceId={workspaceId}
+              workflowId={workflowId}
+              chatDock={{ isOpen: dock.open, onSelectChat: openChat }}
+            />
+          </div>
+        </div>
         {stackOpen && stageFront === 'card' && (
           <>
             {/* Opaque stage backdrop in the chrome's own color: the editor
