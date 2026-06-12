@@ -64,6 +64,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       fileName = params.fileName || userFile.name
     } else if (params.fileContent) {
       logger.info(`[${requestId}] Using legacy base64 content input`)
+      const estimatedSize = Math.floor((params.fileContent.length * 3) / 4)
+      if (estimatedSize > MAX_UPLOAD_SIZE_BYTES) {
+        const sizeMB = (estimatedSize / (1024 * 1024)).toFixed(2)
+        return NextResponse.json(
+          { success: false, error: `File size (${sizeMB}MB) exceeds upload limit of 100MB` },
+          { status: 400 }
+        )
+      }
       fileBuffer = Buffer.from(params.fileContent, 'base64')
       fileName = params.fileName || 'file'
     } else {
