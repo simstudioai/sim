@@ -1565,7 +1565,10 @@ export function Files() {
   }, [router, workspaceId])
 
   const loadingBreadcrumbs = useMemo(
-    () => [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }],
+    (): BreadcrumbItem[] => [
+      { label: 'Files', onClick: handleNavigateToFiles },
+      { label: '…', terminal: true },
+    ],
     [handleNavigateToFiles]
   )
 
