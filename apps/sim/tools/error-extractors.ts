@@ -146,6 +146,31 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'nestjs-validation-errors',
+    description: 'NestJS validation errors with a message array of field/message objects',
+    examples: ['Quartr API'],
+    extract: (errorInfo) => {
+      const message = errorInfo?.data?.message
+      if (!Array.isArray(message) || message.length === 0) return undefined
+
+      const entries = message
+        .map((entry) => {
+          if (typeof entry === 'string') return entry
+          if (entry && typeof entry === 'object' && typeof entry.message === 'string') {
+            return typeof entry.field === 'string' && entry.field
+              ? `${entry.field}: ${entry.message}`
+              : entry.message
+          }
+          return undefined
+        })
+        .filter((entry): entry is string => Boolean(entry))
+      if (entries.length === 0) return undefined
+
+      const prefix = typeof errorInfo?.data?.error === 'string' ? `${errorInfo.data.error}: ` : ''
+      return `${prefix}${entries.join('; ')}`
+    },
+  },
+  {
     id: 'hunter-errors',
     description: 'Hunter API error details',
     examples: ['Hunter.io API'],
@@ -275,6 +300,7 @@ export const ErrorExtractorId = {
   DETAILS_ARRAY: 'details-array',
   DETAILS_STRING_ARRAY: 'details-string-array',
   BATCH_VALIDATION_ERRORS: 'batch-validation-errors',
+  NESTJS_VALIDATION_ERRORS: 'nestjs-validation-errors',
   HUNTER_ERRORS: 'hunter-errors',
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',

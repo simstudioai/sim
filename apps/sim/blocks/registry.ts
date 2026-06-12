@@ -227,6 +227,7 @@ import { ProfoundBlock, ProfoundBlockMeta } from '@/blocks/blocks/profound'
 import { ProspeoBlock, ProspeoBlockMeta } from '@/blocks/blocks/prospeo'
 import { PulseBlock, PulseBlockMeta, PulseV2Block } from '@/blocks/blocks/pulse'
 import { QdrantBlock, QdrantBlockMeta } from '@/blocks/blocks/qdrant'
+import { QuartrBlock, QuartrBlockMeta } from '@/blocks/blocks/quartr'
 import { QuiverBlock, QuiverBlockMeta } from '@/blocks/blocks/quiver'
 import { RailwayBlock, RailwayBlockMeta } from '@/blocks/blocks/railway'
 import { RB2BBlock, RB2BBlockMeta } from '@/blocks/blocks/rb2b'
@@ -520,6 +521,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   pulse: PulseBlock,
   pulse_v2: PulseV2Block,
   qdrant: QdrantBlock,
+  quartr: QuartrBlock,
   quiver: QuiverBlock,
   railway: RailwayBlock,
   rb2b: RB2BBlock,
@@ -784,6 +786,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   prospeo: ProspeoBlockMeta,
   pulse: PulseBlockMeta,
   qdrant: QdrantBlockMeta,
+  quartr: QuartrBlockMeta,
   quiver: QuiverBlockMeta,
   railway: RailwayBlockMeta,
   rb2b: RB2BBlockMeta,
