@@ -3,11 +3,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import Link from 'next/link'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { chipContentIconClass, chipVariants } from '@/components/emcn'
 import { Lock, MoreHorizontal, Workflow } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
+import { stageResourceForOpenChat } from '@/lib/mothership/chat-aware-nav'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -60,6 +61,7 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
     useSidebarListContext()
   const params = useParams()
   const workspaceId = params.workspaceId as string
+  const router = useRouter()
   const selectedWorkflows = useFolderStore((state) => state.selectedWorkflows)
   const updateWorkflowMutation = useUpdateWorkflow()
   const userPermissions = useUserPermissionsContext()
@@ -386,8 +388,29 @@ export function WorkflowItem({ workflow, active }: WorkflowItemProps) {
       }
 
       onWorkflowClick(workflow.id, e.shiftKey)
+
+      // An open chat keeps the conversation: the workflow stages as the
+      // panel's full editor beside it instead of swapping the whole page.
+      if (
+        !e.shiftKey &&
+        stageResourceForOpenChat(
+          workspaceId,
+          { type: 'workflow', id: workflow.id, title: workflow.name },
+          router.push
+        )
+      ) {
+        e.preventDefault()
+      }
     },
-    [shouldPreventClickRef, workflow.id, onWorkflowClick, isEditing]
+    [
+      shouldPreventClickRef,
+      workflow.id,
+      workflow.name,
+      onWorkflowClick,
+      isEditing,
+      workspaceId,
+      router,
+    ]
   )
 
   return (

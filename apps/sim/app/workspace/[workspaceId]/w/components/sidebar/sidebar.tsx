@@ -35,9 +35,11 @@ import {
   Table,
 } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
+import { MOTHERSHIP_PAGES, type MothershipPageId } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { getFolderPath } from '@/lib/folders/tree'
+import { stageResourceForOpenChat } from '@/lib/mothership/chat-aware-nav'
 import { captureEvent } from '@/lib/posthog/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -452,6 +454,24 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
     [workspaceId, openSearchModal, permissionConfig.hideIntegrationsTab]
   )
 
+  /**
+   * Workspace area navigation that keeps an open chat open: when a Mothership
+   * chat is on screen, the page stages on its resource panel (only the panel
+   * switches); without one, this is plain page navigation. Modifier clicks
+   * never reach here — the ChipLink lets them follow the href.
+   */
+  const handleWorkspacePageNav = useCallback(
+    (pageId: MothershipPageId, href: string) => {
+      const staged = stageResourceForOpenChat(
+        workspaceId,
+        { type: 'page', id: pageId, title: MOTHERSHIP_PAGES[pageId] },
+        router.push
+      )
+      if (!staged) router.push(href)
+    },
+    [workspaceId, router]
+  )
+
   const workspaceNavItems = useMemo(
     () =>
       [
@@ -460,9 +480,12 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
           label: 'Tables',
           icon: Table,
           href: `/workspace/${workspaceId}/tables`,
+          onClick: () => handleWorkspacePageNav('tables', `/workspace/${workspaceId}/tables`),
           hidden: permissionConfig.hideTablesTab,
         },
         {
+          // The Files page has no embedded panel view yet (URL-coupled), so
+          // it always navigates — the only workspace page that closes a chat.
           id: 'files',
           label: 'Files',
           icon: File,
@@ -474,6 +497,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
           label: 'Knowledge base',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
+          onClick: () => handleWorkspacePageNav('knowledge', `/workspace/${workspaceId}/knowledge`),
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
@@ -481,16 +505,20 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
           label: 'Scheduled tasks',
           icon: CalendarClock,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
+          onClick: () =>
+            handleWorkspacePageNav('scheduled-tasks', `/workspace/${workspaceId}/scheduled-tasks`),
         },
         {
           id: 'logs',
           label: 'Logs',
           icon: Logs,
           href: `/workspace/${workspaceId}/logs`,
+          onClick: () => handleWorkspacePageNav('logs', `/workspace/${workspaceId}/logs`),
         },
       ].filter((item) => !item.hidden),
     [
       workspaceId,
+      handleWorkspacePageNav,
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,

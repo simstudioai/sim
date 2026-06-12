@@ -10,14 +10,9 @@ export const useMothershipStageStore = create<MothershipStageState>()(
         byWorkspace: {},
         setStage: (workspaceId, resource) => {
           if (isEphemeralResource(resource)) return
-          const current = get().byWorkspace[workspaceId]?.resource
-          if (
-            current &&
-            current.type === resource.type &&
-            current.id === resource.id &&
-            current.title === resource.title
-          )
-            return
+          // Always a fresh object, even for the already-staged resource:
+          // re-staging is a "surface this" signal, and the panel's expand
+          // effect keys on the staged resource's identity.
           set((state) => ({
             byWorkspace: {
               ...state.byWorkspace,
