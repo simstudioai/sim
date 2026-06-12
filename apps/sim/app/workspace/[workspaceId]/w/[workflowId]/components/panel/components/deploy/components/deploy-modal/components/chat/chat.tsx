@@ -655,7 +655,10 @@ function AuthSelector({
       setEmailError('')
       onEmailsChange([...emails, normalized])
     } else {
-      setInvalidEmailItems((prev) => [...prev, { value: normalized, isValid }])
+      setInvalidEmailItems((prev) => [
+        ...prev,
+        { value: normalized, isValid, error: validation.reason },
+      ])
     }
 
     return isValid
