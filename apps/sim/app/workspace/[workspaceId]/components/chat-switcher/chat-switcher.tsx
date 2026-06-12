@@ -169,7 +169,7 @@ export function ChatSwitcher({
             type='button'
             aria-label='Open most recent chat'
             onClick={handleOpenMostRecent}
-            className='before:-z-10 relative isolate flex items-center rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+            className='before:-z-10 relative isolate flex items-center rounded-l-lg px-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
           >
             {chipIcon}
           </button>

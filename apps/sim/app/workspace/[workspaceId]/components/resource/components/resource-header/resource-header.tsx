@@ -143,13 +143,7 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className={cn(
-        'flex items-center gap-2 border-[var(--border)] border-b px-4',
-        // Panel mode pins the exact chat-title-bar height (not padding-derived:
-        // a 31px chip would push a padded row to 45px and misalign the divider
-        // across the chat/panel split).
-        panelChrome ? 'h-[44px] flex-shrink-0' : 'py-[8.5px]'
-      )}
+      className='flex h-[44px] flex-shrink-0 items-center gap-2 border-[var(--border)] border-b px-4'
     >
       {/* Chrome controls live outside the overflow-hidden breadcrumb group so
           the toggle's 9px pull-out (7px edge inset, matching the chat title
