@@ -139,6 +139,14 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onApply,
   onToggleLogical,
 }: FilterRuleRowProps) {
+  // Keep a stale column id selectable/visible (e.g. after the column was
+  // removed) instead of falling back to the placeholder while the rule still
+  // filters on it.
+  const columnOptions =
+    rule.column && !columns.some((col) => col.value === rule.column)
+      ? [...columns, { value: rule.column, label: rule.column }]
+      : columns
+
   return (
     <div className='flex items-center gap-1.5'>
       {isFirst ? (
@@ -153,7 +161,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       )}
 
       <ChipDropdown
-        options={columns}
+        options={columnOptions}
         value={rule.column}
         onChange={(value) => onUpdate(rule.id, 'column', value)}
         placeholder='Column'

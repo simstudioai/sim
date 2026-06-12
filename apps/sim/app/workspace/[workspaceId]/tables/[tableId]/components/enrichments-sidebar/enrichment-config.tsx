@@ -18,6 +18,7 @@ import { ArrowLeft, X } from '@/components/emcn/icons'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
+import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
   useAddWorkflowGroup,
@@ -281,7 +282,7 @@ export function EnrichmentConfig({
                     }
                   />
                   {showValidation && input.required && !inputMappings[input.id] && (
-                    <p className='text-[var(--text-error)] text-caption'>Required</p>
+                    <FieldError message='Required' />
                   )}
                 </CollapsibleCard>
               ))}
@@ -323,7 +324,7 @@ export function EnrichmentConfig({
                     autoComplete='off'
                     error={Boolean(outErr)}
                   />
-                  {outErr && <p className='text-[var(--text-error)] text-caption'>{outErr}</p>}
+                  {outErr && <FieldError message={outErr} />}
                 </CollapsibleCard>
               )
             })}
