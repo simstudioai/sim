@@ -20,14 +20,14 @@ import { cn } from '@/lib/core/utils/cn'
 import { useSidebarToggleHidden } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import { ChatHistoryList } from '@/app/workspace/[workspaceId]/home/components/chat-history/chat-history-list'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
-import { useMothershipTabsStore } from '@/stores/mothership-tabs/store'
+import { useMothershipStageStore } from '@/stores/mothership-stage/store'
 
 const FALLBACK_TITLE = 'New chat'
 
 /**
  * Resolves the resource the current page represents, so opening a chat keeps
- * that page on screen as the focused panel tab instead of teleporting away.
- * Titles are placeholders — the tab strip resolves live names from queries.
+ * that page on screen as the staged panel resource instead of teleporting
+ * away. Titles are placeholders — the panel resolves live names from queries.
  */
 function derivePageResource(pathname: string, workspaceId: string): MothershipResource | null {
   const prefix = `/workspace/${workspaceId}/`
@@ -103,7 +103,7 @@ export function ChatSwitcher({
   const { workspaceId } = useParams<{ workspaceId?: string }>()
   const router = useRouter()
   const pathname = usePathname()
-  const openTabs = useMothershipTabsStore((state) => state.openTabs)
+  const setStage = useMothershipStageStore((state) => state.setStage)
   const { data: tasks = [] } = useMothershipChats(workspaceId)
   const [open, setOpen] = useState(false)
 
@@ -130,10 +130,10 @@ export function ChatSwitcher({
     if (!navigateOnSelect) return
     if (selectedChatId === chatId) return
     // Opening a chat never takes away what you're looking at: the current
-    // page becomes the focused panel tab, and the chat slides in beside it.
+    // page becomes the staged panel resource, and the chat slides in beside it.
     const pageResource = derivePageResource(pathname, workspaceId)
     if (pageResource) {
-      openTabs(workspaceId, [pageResource], { focusId: pageResource.id })
+      setStage(workspaceId, pageResource)
       router.push(`/workspace/${workspaceId}/chat/${selectedChatId}?resource=${pageResource.id}`)
       return
     }

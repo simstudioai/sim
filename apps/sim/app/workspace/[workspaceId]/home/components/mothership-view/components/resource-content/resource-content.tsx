@@ -31,12 +31,12 @@ import {
   type PreviewMode,
   resolveFileCategory,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  PANEL_ICON_BUTTON_CLASS,
+  PANEL_ICON_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
 import { GenericResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/generic-resource-content'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
   GenericResourceData,
@@ -411,13 +411,13 @@ function EmbeddedWorkflowActions({ workflowId }: EmbeddedWorkflowActionsProps) {
           variant='subtle'
           onClick={() => void handleRun()}
           disabled={isRunButtonDisabled}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          className={PANEL_ICON_BUTTON_CLASS}
           aria-label={isExecuting ? 'Stop workflow' : 'Run workflow'}
         >
           {isExecuting ? (
-            <Square className={RESOURCE_TAB_ICON_CLASS} />
+            <Square className={PANEL_ICON_CLASS} />
           ) : (
-            <PlayOutline className={RESOURCE_TAB_ICON_CLASS} />
+            <PlayOutline className={PANEL_ICON_CLASS} />
           )}
         </Button>
       </Tooltip.Trigger>
@@ -450,10 +450,10 @@ function EmbeddedTableActions({ tableId, tableName }: EmbeddedTableActionsProps)
         <Button
           variant='subtle'
           onClick={() => void handleExport()}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          className={PANEL_ICON_BUTTON_CLASS}
           aria-label='Export table as CSV'
         >
-          <Download className={RESOURCE_TAB_ICON_CLASS} />
+          <Download className={PANEL_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>
@@ -500,10 +500,10 @@ function EmbeddedFileActions({ workspaceId, fileId, filePath }: EmbeddedFileActi
           variant='subtle'
           onClick={() => void handleDownload()}
           disabled={!file}
-          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          className={PANEL_ICON_BUTTON_CLASS}
           aria-label='Download file'
         >
-          <Download className={RESOURCE_TAB_ICON_CLASS} />
+          <Download className={PANEL_ICON_CLASS} />
         </Button>
       </Tooltip.Trigger>
       <Tooltip.Content side='bottom'>

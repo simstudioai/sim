@@ -20,7 +20,7 @@ import {
   FileFolderTreeItems,
   type useAvailableResources,
   WorkflowFolderTreeItems,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-pickers'
 import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import type {

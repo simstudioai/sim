@@ -14,7 +14,7 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ResourceActions, ResourceContent, ResourceTabs } from './components'
+import { PanelHeader, ResourceActions, ResourceContent } from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
   editor: 'split',
@@ -24,8 +24,8 @@ const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
 
 /**
  * Whether the active resource should show the in-progress file stream.
- * The synthetic `streaming-file` tab always shows it; a real file tab only shows it
- * after a preview content event has arrived for that exact resource.
+ * The synthetic `streaming-file` resource always shows it; a real file only
+ * shows it after a preview content event has arrived for that exact resource.
  */
 function shouldShowStreamingFilePanel(
   previewSession: FilePreviewSession | null | undefined,
@@ -43,40 +43,38 @@ function shouldShowStreamingFilePanel(
 interface MothershipViewProps {
   workspaceId: string
   chatId?: string
-  resources: MothershipResource[]
-  activeResourceId: string | null
+  /** The staged resource — the single thing the panel shows. */
+  resource: MothershipResource | null
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
   genericResourceData?: GenericResourceData
-  /** Controls rendered before the tab strip (see {@link ResourceTabs}). */
-  tabsLeading?: ReactNode
-  /**
-   * `type:id` keys of the artifacts the active chat has surfaced — used to
-   * group the resource switcher dropdown by provenance.
-   */
-  chatArtifactKeys?: ReadonlySet<string>
+  /** Controls rendered before the panel title (see {@link PanelHeader}). */
+  headerLeading?: ReactNode
 }
 
+/**
+ * The right-side resource panel. It has no tabs: it shows exactly one resource
+ * at a time — whatever the Mothership conversation last touched (a table, a
+ * file, a knowledge base, a workspace page, or a workflow's full editor).
+ */
 export const MothershipView = memo(
   forwardRef<HTMLDivElement, MothershipViewProps>(function MothershipView(
     {
       workspaceId,
       chatId,
-      resources,
-      activeResourceId,
+      resource,
       isCollapsed,
       className,
       previewSession,
       genericResourceData,
-      tabsLeading,
-      chatArtifactKeys,
+      headerLeading,
     }: MothershipViewProps,
     ref
   ) {
-    const active = resources.find((r) => r.id === activeResourceId) ?? resources[0] ?? null
+    const active = resource
     const { canEdit } = useUserPermissionsContext()
-    const { addResource, removeResource } = useMothershipResources()
+    const { openResource, closeResource } = useMothershipResources()
 
     const previewForActive =
       previewSession && active && shouldShowStreamingFilePanel(previewSession, active)
@@ -107,21 +105,18 @@ export const MothershipView = memo(
         )}
       >
         <div className='flex min-h-0 flex-1 flex-col'>
-          <ResourceTabs
-            workspaceId={workspaceId}
-            chatId={chatId}
-            leading={tabsLeading}
-            chatArtifactKeys={chatArtifactKeys}
-            resources={resources}
-            activeId={active?.id ?? null}
-            actions={
-              active ? <ResourceActions workspaceId={workspaceId} resource={active} /> : null
-            }
-            previewMode={isActivePreviewable ? previewMode : undefined}
-            onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
-          />
+          {active && (
+            <PanelHeader
+              workspaceId={workspaceId}
+              resource={active}
+              leading={headerLeading}
+              actions={<ResourceActions workspaceId={workspaceId} resource={active} />}
+              previewMode={isActivePreviewable ? previewMode : undefined}
+              onCyclePreviewMode={isActivePreviewable ? handleCyclePreview : undefined}
+            />
+          )}
           <div className='min-h-0 flex-1 overflow-hidden'>
-            {active ? (
+            {active && (
               <SidebarToggleHidden>
                 <ResourceContent
                   workspaceId={workspaceId}
@@ -130,14 +125,10 @@ export const MothershipView = memo(
                   previewSession={previewForActive}
                   genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                   previewContextKey={chatId}
-                  onNotFound={(resourceId) => removeResource('log', resourceId)}
-                  onAddResource={addResource}
+                  onNotFound={closeResource}
+                  onAddResource={openResource}
                 />
               </SidebarToggleHidden>
-            ) : (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "+" above to add a resource
-              </div>
             )}
           </div>
         </div>

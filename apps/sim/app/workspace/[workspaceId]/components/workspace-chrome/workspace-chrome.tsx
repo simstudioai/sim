@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
@@ -61,18 +61,6 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
   const openFlyout = useSidebarStore((s) => s.openFlyout)
   const scheduleFlyoutClose = useSidebarStore((s) => s.scheduleFlyoutClose)
   const closeFlyout = useSidebarStore((s) => s.closeFlyout)
-  const storeStageFloating = useSidebarStore((s) => s.isStageFloating)
-
-  // The store flag only flips after hydration, but the frame must already be
-  // gone in server HTML and the streaming/loading window. Until hydration,
-  // derive the same answer the workflow shell will reach from the URL alone;
-  // afterwards the store is the single source (replaceState URL changes are
-  // invisible to useSearchParams, so the URL goes stale in-session).
-  const searchParams = useSearchParams()
-  const urlStageFloating = /\/w\/[^/]+$/.test(pathname) && searchParams.has('resource')
-  const [hydrated, setHydrated] = useState(false)
-  useEffect(() => setHydrated(true), [])
-  const isStageFloating = hydrated ? storeStageFloating : urlStageFloating
 
   // Hide the flyout after navigating from it.
   useEffect(() => {
@@ -146,13 +134,8 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
       >
         <div
           className={cn(
-            'flex-1 overflow-hidden',
-            // Floating-stage mode: the content renders as detached cards on
-            // the chrome backdrop, so the content card frame disappears.
-            isStageFloating ? 'bg-[var(--surface-1)]' : 'bg-[var(--bg)]',
-            (isFullscreen || !isCollapsed) &&
-              !isStageFloating &&
-              'rounded-[8px] border border-[var(--border)]'
+            'flex-1 overflow-hidden bg-[var(--bg)]',
+            (isFullscreen || !isCollapsed) && 'rounded-[8px] border border-[var(--border)]'
           )}
         >
           {children}
@@ -172,18 +155,12 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
               popover surface (rounded-xl, --border-1, --bg, shadow-sm) and enter
               motion (fade + zoom + slide from top, 150ms ease-out). Content-fit
               like a dropdown: height tracks the menu, capped so it scrolls
-              internally instead of overflowing the viewport. In floating-stage
-              mode the toggle sits ~28px lower (under the peek bar, inside the
-              front card), so the flyout drops with it instead of covering the
-              stack. */}
+              internally instead of overflowing the viewport. */}
           <div
             onMouseEnter={openFlyout}
             onMouseLeave={scheduleFlyoutClose}
             className={cn(
-              'absolute left-[8px] z-50 flex w-[var(--sidebar-width)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm',
-              isStageFloating
-                ? 'top-[78px] max-h-[calc(100%-86px)]'
-                : 'top-[50px] max-h-[calc(100%-58px)]',
+              'absolute top-[50px] left-[8px] z-50 flex max-h-[calc(100%-58px)] w-[var(--sidebar-width)] flex-col overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)] shadow-sm',
               'origin-top-left transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none',
               isFlyoutOpen
                 ? 'translate-y-0 scale-100 opacity-100'

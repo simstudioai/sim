@@ -9,6 +9,7 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useMothershipChatHistory } from '@/hooks/queries/mothership-chats'
+import { useMothershipStageStore } from '@/stores/mothership-stage/store'
 import type { ChatContext } from '@/stores/panel'
 
 interface DockedChatProps {
@@ -22,19 +23,14 @@ interface DockedChatProps {
   onSelectChat: (chatId: string) => void
   /** A new chat resolved its server id — host reflects it into the URL. */
   onChatResolved: (chatId: string) => void
-  /**
-   * A non-workflow resource needs the stage: the host stacks the resource
-   * card in front of the editor instead of navigating away.
-   */
-  onStageResource: (resource: MothershipResource) => void
 }
 
 /**
  * The Mothership chat docked beside the workflow editor. The editor owns the
  * stage: workflow chips for other workflows swap the stage to their editor,
- * and any other resource chip swaps back to the tabbed chat view with that
- * tab focused. The conversation itself is the same chat that the chat view
- * hosts — same history, same drafts.
+ * and any other resource stages on the home surface's single resource panel —
+ * the chat carries along via `?chat=`. The conversation itself is the same
+ * chat that the chat view hosts — same history, same drafts.
  */
 export function DockedChat({
   workspaceId,
@@ -43,11 +39,25 @@ export function DockedChat({
   onClose,
   onSelectChat,
   onChatResolved,
-  onStageResource,
 }: DockedChatProps) {
   const router = useRouter()
   /** Readable from stream callbacks before the hook's return is in scope. */
   const activeChatIdRef = useRef<string | undefined>(chatId)
+
+  /**
+   * Stages a non-workflow resource on the home surface's panel and follows it
+   * there, keeping the chat open beside it. The panel shows one resource at a
+   * time, so there is nothing to stack here.
+   */
+  const stageOnHome = (resource: MothershipResource) => {
+    useMothershipStageStore.getState().setStage(workspaceId, resource)
+    const chatKey = activeChatIdRef.current
+    router.push(
+      chatKey
+        ? `/workspace/${workspaceId}/chat/${chatKey}?resource=${resource.id}`
+        : `/workspace/${workspaceId}/home?resource=${resource.id}`
+    )
+  }
   const {
     messages,
     isSending,
@@ -67,7 +77,7 @@ export function DockedChat({
     chatId,
     getMothershipUseChatOptions({
       // The stage follows the conversation: another workflow swaps the
-      // editor; anything else stacks the resource card in front of it.
+      // editor; anything else stages on the home surface's panel.
       onResourceTouched: (resource) => {
         if (resource.type === 'workflow') {
           if (resource.id === workflowId) return
@@ -77,7 +87,7 @@ export function DockedChat({
           )
           return
         }
-        onStageResource(resource)
+        stageOnHome(resource)
       },
     })
   )
@@ -108,7 +118,7 @@ export function DockedChat({
       router.push(`/workspace/${workspaceId}/w/${resource.id}${chatParam}`)
       return
     }
-    onStageResource(resource)
+    stageOnHome(resource)
   }
 
   return (

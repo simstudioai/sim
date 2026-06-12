@@ -53,7 +53,6 @@ export const useSidebarStore = create<SidebarState>()(
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
       isCollapsed: false,
       isFlyoutOpen: false,
-      isStageFloating: false,
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
@@ -106,9 +105,6 @@ export const useSidebarStore = create<SidebarState>()(
         const clampedWidth = clampSidebarWidth(sidebarWidth)
         if (clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
         applySidebarWidth(clampedWidth)
-      },
-      setStageFloating: (floating) => {
-        if (get().isStageFloating !== floating) set({ isStageFloating: floating })
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),
     }),

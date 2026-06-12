@@ -8,12 +8,6 @@ export interface SidebarState {
   isCollapsed: boolean
   /** Whether the hover flyout menu is showing while the sidebar is collapsed */
   isFlyoutOpen: boolean
-  /**
-   * The content area is in floating-stage mode (workflow stage stack): panes
-   * render as detached cards on the chrome backdrop, so the workspace chrome
-   * drops its content card frame entirely.
-   */
-  isStageFloating: boolean
   _hasHydrated: boolean
   setWorkspaceDropdownOpen: (isOpen: boolean) => void
   setSidebarWidth: (width: number) => void
@@ -38,7 +32,5 @@ export interface SidebarState {
    * default (e.g. soft navigation) or grew wider than a now-smaller window.
    */
   syncWidth: () => void
-  /** Enters/leaves floating-stage mode (see {@link SidebarState.isStageFloating}). */
-  setStageFloating: (floating: boolean) => void
   setHasHydrated: (hasHydrated: boolean) => void
 }

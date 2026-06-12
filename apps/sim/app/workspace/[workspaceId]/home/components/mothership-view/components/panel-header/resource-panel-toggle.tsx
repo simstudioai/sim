@@ -4,9 +4,9 @@ import { Button, Tooltip } from '@/components/emcn'
 import { PanelRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
-  RESOURCE_TAB_ICON_BUTTON_CLASS,
-  RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+  PANEL_ICON_BUTTON_CLASS,
+  PANEL_ICON_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/panel-header/panel-controls'
 
 interface ResourcePanelToggleProps {
   /** Collapsed state — drives the tooltip label and aria-label. Ignored for the spacer. */
@@ -44,9 +44,9 @@ export function ResourcePanelToggle({
       aria-hidden={placeholder}
       tabIndex={placeholder ? -1 : undefined}
       aria-label={isCollapsed ? 'Expand resource view' : 'Collapse resource view'}
-      className={cn(RESOURCE_TAB_ICON_BUTTON_CLASS, placeholder && 'invisible', className)}
+      className={cn(PANEL_ICON_BUTTON_CLASS, placeholder && 'invisible', className)}
     >
-      <PanelRight className={RESOURCE_TAB_ICON_CLASS} />
+      <PanelRight className={PANEL_ICON_CLASS} />
     </Button>
   )
 

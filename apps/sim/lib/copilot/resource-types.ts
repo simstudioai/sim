@@ -21,7 +21,7 @@ export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   folders: 'folder',
 } as const
 
-/** MIME type for a single dragged resource (used by resource-tabs internal reordering). */
+/** MIME type for a single dragged resource. */
 export const SIM_RESOURCE_DRAG_TYPE = 'application/x-sim-resource' as const
 
 /** MIME type for an array of dragged resources (used by sidebar drag-to-chat). */

@@ -1,5 +1,10 @@
-export type { AddResourceDropdownProps, AvailableItem } from './add-resource-dropdown'
-export { AddResourceDropdown, useAvailableResources } from './add-resource-dropdown'
+export {
+  PANEL_HEADER_GAP_CLASS,
+  PANEL_ICON_BUTTON_CLASS,
+  PANEL_ICON_CLASS,
+  PanelHeader,
+  ResourcePanelToggle,
+} from './panel-header'
 export { ResourceActions, ResourceContent } from './resource-content'
 export type { ResourceTypeConfig } from './resource-registry'
 export {
@@ -8,4 +13,3 @@ export {
   RESOURCE_REGISTRY,
   RESOURCE_TYPES,
 } from './resource-registry'
-export { ResourceTabs } from './resource-tabs'
