@@ -28,7 +28,7 @@ export function IntegrationTabsHeader({
           8.5px inset the old padding produced. */}
       <div className='mr-2 flex flex-shrink-0 items-center gap-1'>
         <SidebarToggle className='-ml-[9px]' />
-        <ChatSwitcher iconOnly />
+        <ChatSwitcher />
       </div>
       <ChipLink href={`/workspace/${workspaceId}/integrations`} active={active === 'integrations'}>
         Integrations

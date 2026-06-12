@@ -56,11 +56,6 @@ interface ChatSwitcherProps {
    */
   isNewChat?: boolean
   /**
-   * Compact icon-only chip for non-chat pages, where the page title owns the
-   * bar — a chat name beside it would read as a breadcrumb segment.
-   */
-  iconOnly?: boolean
-  /**
    * Called with the picked chat id before navigation. The chat view uses this
    * to reopen a hidden chat pane (including re-picking the current chat).
    */
@@ -94,7 +89,6 @@ interface ChatSwitcherProps {
 export function ChatSwitcher({
   chatId,
   isNewChat = false,
-  iconOnly = false,
   onSelectChat,
   navigateOnSelect = true,
   onOpenChat,
@@ -156,130 +150,135 @@ export function ChatSwitcher({
     <BubbleChatDelay className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
   )
 
-  const trigger = iconOnly ? (
-    /* Split chip: the icon opens the most recent chat outright; the chevron
-       opens the Recents list. Hovering either segment tints the whole pill —
-       the hovered (or open) segment at full fill, its sibling lighter — and
-       the 1px bg-colored divider slices the fills into two buttons. The fills
-       are before-pseudos so opacity never dims the glyphs. */
-    <span className='before:-z-10 relative isolate flex h-[30px] flex-shrink-0 items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            aria-label='Open most recent chat'
-            onClick={handleOpenMostRecent}
-            className='before:-z-10 relative isolate flex items-center rounded-l-lg px-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
-          >
-            {chipIcon}
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open chat</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            aria-label='Recents'
-            onClick={() => setOpen((prev) => !prev)}
-            className={cn(
-              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
-              open && 'before:opacity-100'
-            )}
-          >
-            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Recents</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </span>
-  ) : onOpenChat ? (
-    /* Closed-chat double button: icon+title reopens the chat outright, the
+  const trigger =
+    !onOpenChat && !chatId && !isNewChat ? (
+      /* Non-chat pages: the same titled split as everywhere — icon + the most
+       recent chat's name opens that chat outright; the chevron opens Recents.
+       Hovering either segment tints the whole pill — the hovered (or open)
+       segment at full fill, its sibling lighter — and the 1px bg-colored
+       divider slices the fills into two buttons. The fills are before-pseudos
+       so opacity never dims the glyphs. */
+      <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Open most recent chat'
+              onClick={handleOpenMostRecent}
+              className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+            >
+              {chipIcon}
+              <span className='min-w-0 max-w-[200px] truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                {title}
+              </span>
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open chat</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+        <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Recents'
+              onClick={() => setOpen((prev) => !prev)}
+              className={cn(
+                'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+                open && 'before:opacity-100'
+              )}
+            >
+              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Recents</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </span>
+    ) : onOpenChat ? (
+      /* Closed-chat double button: icon+title reopens the chat outright, the
        chevron opens Recents — the same pill split as the icon-only variant. */
-    <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            aria-label='Open chat'
-            onClick={onOpenChat}
-            className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
-          >
-            {chipIcon}
-            <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-              {title}
-            </span>
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Open chat</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            aria-label='Recents'
-            onClick={() => setOpen((prev) => !prev)}
-            className={cn(
-              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
-              open && 'before:opacity-100'
-            )}
-          >
-            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Recents</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </span>
-  ) : (
-    /* Open-chat chip: the same split pill as the other states (divider and
+      <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Open chat'
+              onClick={onOpenChat}
+              className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
+            >
+              {chipIcon}
+              <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+                {title}
+              </span>
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Open chat</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+        <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Recents'
+              onClick={() => setOpen((prev) => !prev)}
+              className={cn(
+                'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+                open && 'before:opacity-100'
+              )}
+            >
+              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Recents</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </span>
+    ) : (
+      /* Open-chat chip: the same split pill as the other states (divider and
        all) so the control never changes design between surfaces. Both
        segments open Recents — the split here is purely the family look. */
-    <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
-      <button
-        type='button'
-        aria-label='Switch chat'
-        onClick={() => setOpen((prev) => !prev)}
-        className={cn(
-          'before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
-          open && 'before:opacity-100'
-        )}
-      >
-        {chipIcon}
-        <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-          {title}
-        </span>
-      </button>
-      <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <button
-            type='button'
-            aria-label='Recents'
-            onClick={() => setOpen((prev) => !prev)}
-            className={cn(
-              'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
-              open && 'before:opacity-100'
-            )}
-          >
-            <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-          </button>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Recents</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    </span>
-  )
+      <span className='before:-z-10 relative isolate flex h-[30px] min-w-0 flex-shrink items-stretch before:absolute before:inset-0 before:rounded-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-40'>
+        <button
+          type='button'
+          aria-label='Switch chat'
+          onClick={() => setOpen((prev) => !prev)}
+          className={cn(
+            'before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+            open && 'before:opacity-100'
+          )}
+        >
+          {chipIcon}
+          <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
+            {title}
+          </span>
+        </button>
+        <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Recents'
+              onClick={() => setOpen((prev) => !prev)}
+              className={cn(
+                'before:-z-10 relative isolate flex items-center rounded-r-lg px-1 before:absolute before:inset-0 before:rounded-r-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100',
+                open && 'before:opacity-100'
+              )}
+            >
+              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>
+            <p>Recents</p>
+          </Tooltip.Content>
+        </Tooltip.Root>
+      </span>
+    )
 
   return (
     <Popover size='md' open={open} onOpenChange={setOpen}>

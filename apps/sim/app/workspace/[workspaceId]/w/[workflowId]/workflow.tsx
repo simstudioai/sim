@@ -4047,7 +4047,6 @@ const WorkflowContent = React.memo(
               <>
                 <SidebarToggle className='-ml-[9px]' />
                 <ChatSwitcher
-                  iconOnly
                   navigateOnSelect={!chatDock}
                   onSelectChat={chatDock ? (chatId) => chatDock.onSelectChat(chatId) : undefined}
                 />

@@ -158,7 +158,7 @@ export const ResourceHeader = memo(function ResourceHeader({
       ) : (
         <div className='flex flex-shrink-0 items-center gap-1'>
           <SidebarToggle className='-ml-[9px]' />
-          <ChatSwitcher iconOnly />
+          <ChatSwitcher />
         </div>
       )}
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
