@@ -935,8 +935,8 @@ export const auth = betterAuth({
     ...(isSignupEmailValidationEnabled
       ? [
           emailHarmony({
-            validator: (email) =>
-              validateEmailWithMailchecker(email) && !isDisposableEmailDomain(email),
+            validator: async (email) =>
+              validateEmailWithMailchecker(email) && !(await isDisposableEmailDomain(email)),
           }),
         ]
       : []),
