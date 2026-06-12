@@ -250,6 +250,8 @@ export const dbChainMock = {
   db: dbChainInstance,
   /** Same instance as `db` so per-test chain overrides cover both clients. */
   dbReplica: dbChainInstance,
+  runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
+  instrumentPoolClient: <T>(client: T): T => client,
 }
 
 /**
@@ -320,6 +322,8 @@ export const databaseMock = {
   /** Same instance as `db` so per-test overrides cover both clients. */
   dbReplica: mockDbInstance,
   sql: createMockSql(),
+  runOutsideTransactionContext: <T>(fn: () => T): T => fn(),
+  instrumentPoolClient: <T>(client: T): T => client,
   ...createMockSqlOperators(),
 }
 

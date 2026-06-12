@@ -1,6 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import * as schema from '@sim/db'
-import { workflow, workflowBlocks, workflowEdges, workflowSubflows } from '@sim/db'
+import {
+  instrumentPoolClient,
+  workflow,
+  workflowBlocks,
+  workflowEdges,
+  workflowSubflows,
+} from '@sim/db'
 import { createLogger } from '@sim/logger'
 import {
   BLOCK_OPERATIONS,
@@ -27,13 +33,16 @@ const logger = createLogger('SocketDatabase')
 
 const connectionString = env.DATABASE_URL
 const socketDb = drizzle(
-  postgres(connectionString, {
-    prepare: false,
-    idle_timeout: 10,
-    connect_timeout: 20,
-    max: 15,
-    onnotice: () => {},
-  }),
+  instrumentPoolClient(
+    postgres(connectionString, {
+      prepare: false,
+      idle_timeout: 10,
+      connect_timeout: 20,
+      max: 15,
+      onnotice: () => {},
+    }),
+    'socketDb'
+  ),
   { schema }
 )
 
