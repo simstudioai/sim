@@ -817,20 +817,17 @@ export function Table({
           onClick: () => {
             if (!deletingAll) return
             const { excludeRowIds, estimatedCount } = deletingAll
-            deleteRowsAsyncMutation.mutate(
-              {
-                filter: queryOptions.filter ?? undefined,
-                sort: queryOptions.sort,
-                excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
-                estimatedCount,
-              },
-              {
-                // Clear the selection only once the kickoff succeeds — on
-                // failure the optimistic row clear rolls back and the user's
-                // selection should still be intact.
-                onSuccess: () => afterDeleteAllSinkRef.current?.(),
-              }
-            )
+            deleteRowsAsyncMutation.mutate({
+              filter: queryOptions.filter ?? undefined,
+              sort: queryOptions.sort,
+              excludeRowIds: excludeRowIds.length > 0 ? excludeRowIds : undefined,
+              estimatedCount,
+            })
+            // Clear at click so the header checkbox doesn't linger in its
+            // select-all state over the optimistically-emptied grid. If the
+            // kickoff fails the rows visibly return with an error toast —
+            // re-selecting is cheaper than a stale-looking selection.
+            afterDeleteAllSinkRef.current?.()
             setDeletingAll(null)
           },
         }}

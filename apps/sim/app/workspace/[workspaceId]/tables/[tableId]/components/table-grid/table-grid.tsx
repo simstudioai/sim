@@ -749,11 +749,16 @@ export function TableGrid({
 
   // Header select-all: filled check when all rows are selected, filled minus when
   // some are, empty when none. Any non-empty selection turns it into a "clear" affordance.
-  const selectAllState: boolean | 'indeterminate' = isAllRowsSelected
-    ? true
-    : rowSelectionIsEmpty(rowSelection)
+  // An empty grid renders unchecked regardless — a selection over zero rows is vacuous
+  // (e.g. the optimistic strip right after a select-all delete kicks off).
+  const selectAllState: boolean | 'indeterminate' =
+    rows.length === 0
       ? false
-      : 'indeterminate'
+      : isAllRowsSelected
+        ? true
+        : rowSelectionIsEmpty(rowSelection)
+          ? false
+          : 'indeterminate'
 
   const columnsRef = useRef(displayColumns)
   const schemaColumnsRef = useRef(columns)
