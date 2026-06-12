@@ -673,12 +673,16 @@ export const vantaQueryContract = defineRouteContract({
   response: { mode: 'json', schema: vantaQueryResponseSchema },
 })
 
+const VANTA_MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+/** Base64 length of the largest allowed upload (4 chars per 3 bytes). */
+const VANTA_MAX_UPLOAD_BASE64_LENGTH = Math.ceil(VANTA_MAX_UPLOAD_BYTES / 3) * 4
+
 export const vantaUploadBodySchema = vantaBaseBodySchema.extend({
   documentId: requiredId('Document ID'),
   file: FileInputSchema.optional().nullable(),
   fileContent: z
     .string()
-    .max(140 * 1024 * 1024, 'fileContent exceeds the 100MB upload limit')
+    .max(VANTA_MAX_UPLOAD_BASE64_LENGTH, 'fileContent exceeds the 100MB upload limit')
     .nullish(),
   fileName: z.string().nullish(),
   mimeType: z.string().nullish(),
