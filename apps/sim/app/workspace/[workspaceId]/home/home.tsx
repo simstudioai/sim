@@ -139,7 +139,8 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   const { isPending: isChatHistoryPending } = useMothershipChatHistory(chatId)
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
-  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize()
+  const { mothershipRef, handleResizePointerDown, clearWidth, applyStoredWidth } =
+    useMothershipResize()
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
@@ -159,6 +160,15 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
   }, [clearWidth])
 
   const reopenChatPane = useCallback(() => setIsChatCollapsed(false), [])
+
+  // The user's split is sticky: whenever the panel is visible beside the chat
+  // pane, restore the persisted width (collapse paths clear the inline width,
+  // and the chat-hidden state needs the panel back at w-full).
+  useEffect(() => {
+    if (!isResourceCollapsed && !isChatCollapsed) {
+      applyStoredWidth()
+    }
+  }, [isResourceCollapsed, isChatCollapsed, applyStoredWidth])
 
   // The panel is a single-resource stage, owned per workspace: it shows the
   // one resource the Mothership conversation last touched (or the user last
@@ -324,11 +334,9 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     return () => cancelAnimationFrame(id)
   }, [displayResource])
 
-  useEffect(() => {
-    if (!displayResource && !isResourceCollapsedRef.current) {
-      collapseResource()
-    }
-  }, [displayResource, collapseResource])
+  // Clearing the stage (the header's ✕, a vanished resource) does NOT collapse
+  // the panel — it falls back to the quick-open empty state. Only the toggle
+  // closes the panel.
 
   function handleStopGeneration() {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
