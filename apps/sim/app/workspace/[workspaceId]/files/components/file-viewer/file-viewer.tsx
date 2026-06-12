@@ -146,12 +146,8 @@ const IframePreview = memo(function IframePreview({
   }
 
   return (
-    <PreviewErrorBoundary label='PDF'>
-      <PdfViewerCore
-        key={`${file.id}:${preview.dataUpdatedAt}`}
-        source={bufferSource}
-        filename={file.name}
-      />
+    <PreviewErrorBoundary key={`${file.id}:${preview.dataUpdatedAt}`} label='PDF'>
+      <PdfViewerCore source={bufferSource} filename={file.name} />
     </PreviewErrorBoundary>
   )
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, type ReactNode } from 'react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { createLogger } from '@sim/logger'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -33,6 +33,10 @@ interface PreviewErrorBoundaryState {
  * a preview module whose dynamic import rejected) and degrades to the standard
  * PreviewError fallback instead of unwinding to the route-level error boundary
  * and replacing the whole workspace view.
+ *
+ * Callers must `key` this boundary by the identity of the rendered content
+ * (e.g. file id + data version) — the error state resets only via remount, so
+ * keying the child alone would leave a tripped boundary stuck on the fallback.
  */
 export class PreviewErrorBoundary extends Component<
   PreviewErrorBoundaryProps,
@@ -46,8 +50,12 @@ export class PreviewErrorBoundary extends Component<
     return { hasError: true, error }
   }
 
-  public componentDidCatch(error: Error) {
-    logger.error('Preview crashed', { label: this.props.label, error: error.message })
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    logger.error('Preview crashed', {
+      label: this.props.label,
+      error: error.message,
+      componentStack: errorInfo.componentStack,
+    })
   }
 
   public render() {
