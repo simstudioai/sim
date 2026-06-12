@@ -193,7 +193,7 @@ describe('Model Capabilities', () => {
         'gpt-4.1-mini',
         'gpt-4.1-nano',
         'gpt-5-chat-latest',
-        'azure/gpt-5-chat-latest',
+        'azure/gpt-5-chat',
         'gemini-2.5-flash',
         'claude-sonnet-4-0',
         'claude-opus-4-0',
@@ -258,7 +258,7 @@ describe('Model Capabilities', () => {
         'gpt-4o',
         'azure/gpt-4o',
         'gpt-5-chat-latest',
-        'azure/gpt-5-chat-latest',
+        'azure/gpt-5-chat',
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'deepseek-v3',
@@ -481,7 +481,7 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o4-mini')
 
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-5-chat-latest')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat-latest')
+      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat')
 
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
       expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-0')
@@ -506,7 +506,7 @@ describe('Model Capabilities', () => {
       expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.2')
 
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-chat-latest')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat-latest')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat')
 
       expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
       expect(MODELS_WITH_VERBOSITY).not.toContain('o3')
@@ -603,7 +603,9 @@ describe('Model Capabilities', () => {
       const values = getReasoningEffortValuesForModel('azure/gpt-5.2')
       expect(values).toBeDefined()
       expect(values).not.toContain('minimal')
-      expect(values).toContain('xhigh')
+      expect(values).toContain('none')
+      expect(values).toContain('high')
+      expect(values).not.toContain('xhigh')
     })
   })
 
@@ -713,7 +715,7 @@ describe('Max Output Tokens', () => {
 
     it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
       expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
-        64000
+        32768
       )
     })
 
