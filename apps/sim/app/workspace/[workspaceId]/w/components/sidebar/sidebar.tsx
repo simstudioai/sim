@@ -484,12 +484,11 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
           hidden: permissionConfig.hideTablesTab,
         },
         {
-          // The Files page has no embedded panel view yet (URL-coupled), so
-          // it always navigates — the only workspace page that closes a chat.
           id: 'files',
           label: 'Files',
           icon: File,
           href: `/workspace/${workspaceId}/files`,
+          onClick: () => handleWorkspacePageNav('files', `/workspace/${workspaceId}/files`),
           hidden: permissionConfig.hideFilesTab,
         },
         {

@@ -66,6 +66,9 @@ const Workflow = lazy(() => import('@/app/workspace/[workspaceId]/w/[workflowId]
 const Tables = lazy(() =>
   import('@/app/workspace/[workspaceId]/tables/tables').then((m) => ({ default: m.Tables }))
 )
+const Files = lazy(() =>
+  import('@/app/workspace/[workspaceId]/files/files').then((m) => ({ default: m.Files }))
+)
 const Knowledge = lazy(() =>
   import('@/app/workspace/[workspaceId]/knowledge/knowledge').then((m) => ({
     default: m.Knowledge,
@@ -302,6 +305,15 @@ function EmbeddedPage({ pageId, onAddResource }: EmbeddedPageProps) {
           <Tables
             onOpenTable={(tableId, tableName) =>
               onAddResource?.({ type: 'table', id: tableId, title: tableName })
+            }
+          />
+        )
+      case 'files':
+        return (
+          <Files
+            embedded
+            onOpenFile={(fileId, fileName) =>
+              onAddResource?.({ type: 'file', id: fileId, title: fileName })
             }
           />
         )

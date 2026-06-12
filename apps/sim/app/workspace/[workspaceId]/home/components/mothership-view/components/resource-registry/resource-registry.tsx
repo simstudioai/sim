@@ -99,6 +99,7 @@ function IntegrationDropdownItem({ item }: DropdownItemRenderProps) {
 
 const PAGE_ICONS: Record<MothershipPageId, ElementType> = {
   tables: TableIcon,
+  files: FileIcon,
   knowledge: Database,
   logs: Logs,
   'scheduled-tasks': CalendarClock,

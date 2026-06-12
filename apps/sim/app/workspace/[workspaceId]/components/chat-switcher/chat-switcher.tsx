@@ -34,6 +34,7 @@ function derivePageResource(pathname: string, workspaceId: string): MothershipRe
   if (!pathname.startsWith(prefix)) return null
   const [segment, detail] = pathname.slice(prefix.length).split('/')
   if (segment === 'tables' && detail) return { type: 'table', id: detail, title: 'Table' }
+  if (segment === 'files' && detail) return { type: 'file', id: detail, title: 'File' }
   if (segment === 'knowledge' && detail) {
     return { type: 'knowledgebase', id: detail, title: 'Knowledge Base' }
   }

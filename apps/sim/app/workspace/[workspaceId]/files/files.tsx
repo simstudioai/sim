@@ -162,16 +162,33 @@ function formatFileType(mimeType: string | null, filename: string): string {
   return mimeType ?? 'File'
 }
 
-export function Files() {
+interface FilesProps {
+  /**
+   * Panel-embedded mode (the chat's resource panel): folder browsing becomes
+   * component state instead of URL state, and opening a file is delegated to
+   * the host via {@link FilesProps.onOpenFile} rather than routing to the
+   * detail page. The standalone-only flows (`?new=1`, the `/files/[fileId]`
+   * detail route, the hidden-tab redirect) never apply.
+   */
+  embedded?: boolean
+  /** Opens a file from the embedded list (the host stages it in the panel). */
+  onOpenFile?: (fileId: string, fileName: string) => void
+}
+
+export function Files({ embedded = false, onOpenFile }: FilesProps = {}) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveRef = useRef<(() => Promise<void>) | null>(null)
+  const onOpenFileRef = useRef(onOpenFile)
+  onOpenFileRef.current = onOpenFile
 
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const isNewFile = searchParams.get('new') === '1'
-  const currentFolderId = searchParams.get('folderId')
   const workspaceId = params?.workspaceId as string
+
+  const [embeddedFolderId, setEmbeddedFolderId] = useState<string | null>(null)
+  const isNewFile = !embedded && searchParams.get('new') === '1'
+  const currentFolderId = embedded ? embeddedFolderId : searchParams.get('folderId')
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -184,10 +201,43 @@ export function Files() {
   const { config: permissionConfig } = usePermissionConfig()
 
   useEffect(() => {
-    if (permissionConfig.hideFilesTab) {
+    if (permissionConfig.hideFilesTab && !embedded) {
       router.replace(`/workspace/${workspaceId}`)
     }
-  }, [permissionConfig.hideFilesTab, router, workspaceId])
+  }, [permissionConfig.hideFilesTab, router, workspaceId, embedded])
+
+  /** Folder browsing: URL state on the standalone page, local state embedded. */
+  const navigateToFolder = useCallback(
+    (folderId: string | null) => {
+      if (embedded) {
+        setEmbeddedFolderId(folderId)
+        return
+      }
+      router.push(
+        folderId
+          ? `/workspace/${workspaceId}/files?folderId=${folderId}`
+          : `/workspace/${workspaceId}/files`
+      )
+    },
+    [embedded, router, workspaceId]
+  )
+
+  /** Opening a file: the detail route standalone, delegated to the host embedded. */
+  const openFileById = useCallback(
+    (fileId: string, fileName: string, options?: { isNew?: boolean; folderId?: string | null }) => {
+      if (embedded) {
+        onOpenFileRef.current?.(fileId, fileName)
+        return
+      }
+      const query = new URLSearchParams()
+      if (options?.isNew) query.set('new', '1')
+      const folderId = options?.folderId !== undefined ? options.folderId : currentFolderId
+      if (folderId) query.set('folderId', folderId)
+      const qs = query.toString()
+      router.push(`/workspace/${workspaceId}/files/${fileId}${qs ? `?${qs}` : ''}`)
+    },
+    [embedded, router, workspaceId, currentFolderId]
+  )
 
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
   const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
@@ -940,16 +990,12 @@ export function Files() {
       if (target.fileIds.includes(fileIdFromRouteRef.current ?? '')) {
         setIsDirty(false)
         setSaveStatus('idle')
-        router.push(
-          currentFolderId
-            ? `/workspace/${workspaceId}/files?folderId=${currentFolderId}`
-            : `/workspace/${workspaceId}/files`
-        )
+        navigateToFolder(currentFolderId)
       }
     } catch (err) {
       logger.error('Failed to delete file:', err)
     }
-  }, [workspaceId, router, currentFolderId])
+  }, [workspaceId, navigateToFolder, currentFolderId])
 
   const isDirtyRef = useRef(isDirty)
   isDirtyRef.current = isDirty
@@ -1135,16 +1181,14 @@ export function Files() {
       const fileId = result.file?.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId
-        const params = new URLSearchParams({ new: '1' })
-        if (currentFolderId) params.set('folderId', currentFolderId)
-        router.push(`/workspace/${workspaceId}/files/${fileId}?${params.toString()}`)
+        openFileById(fileId, name, { isNew: true })
       }
     } catch (err) {
       logger.error('Failed to create file:', err)
     } finally {
       setCreatingFile(false)
     }
-  }, [workspaceId, router, currentFolderId])
+  }, [workspaceId, openFileById, currentFolderId])
 
   const handleCreateFolder = useCallback(async () => {
     if (!workspaceId) return
@@ -1198,17 +1242,13 @@ export function Files() {
     const item = contextMenuItemRef.current
     if (!item) return
     if (item.kind === 'folder') {
-      router.push(`/workspace/${workspaceId}/files?folderId=${item.folder.id}`)
+      navigateToFolder(item.folder.id)
       closeContextMenu()
       return
     }
-    router.push(
-      item.file.folderId
-        ? `/workspace/${workspaceId}/files/${item.file.id}?folderId=${item.file.folderId}`
-        : `/workspace/${workspaceId}/files/${item.file.id}`
-    )
+    openFileById(item.file.id, item.file.name, { folderId: item.file.folderId ?? null })
     closeContextMenu()
-  }, [closeContextMenu, router, workspaceId])
+  }, [closeContextMenu, navigateToFolder, openFileById])
 
   const handleContextMenuDownload = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1486,17 +1526,14 @@ export function Files() {
       if (listRenameRef.current.editingId !== rowId && !headerRenameRef.current.editingId) {
         const parsed = parseRowId(rowId)
         if (parsed.kind === 'folder') {
-          router.push(`/workspace/${workspaceId}/files?folderId=${parsed.id}`)
+          navigateToFolder(parsed.id)
           return
         }
-        router.push(
-          currentFolderId
-            ? `/workspace/${workspaceId}/files/${parsed.id}?folderId=${currentFolderId}`
-            : `/workspace/${workspaceId}/files/${parsed.id}`
-        )
+        const file = filesRef.current.find((f) => f.id === parsed.id)
+        openFileById(parsed.id, file?.name ?? '')
       }
     },
-    [router, workspaceId, currentFolderId]
+    [navigateToFolder, openFileById]
   )
 
   const handleUploadClick = useCallback(() => {
@@ -1555,8 +1592,8 @@ export function Files() {
   )
 
   const handleNavigateToFiles = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/files`)
-  }, [router, workspaceId])
+    navigateToFolder(null)
+  }, [navigateToFolder])
 
   const loadingBreadcrumbs = useMemo(
     () => [{ label: 'Files', onClick: handleNavigateToFiles }, { label: '...' }],
@@ -1581,9 +1618,7 @@ export function Files() {
       const isCurrentFolder = folder.id === currentFolderId
       breadcrumbs.push({
         label: folder.name,
-        onClick: isCurrentFolder
-          ? undefined
-          : () => router.push(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
+        onClick: isCurrentFolder ? undefined : () => navigateToFolder(folder.id),
         editing:
           isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
             ? {
@@ -1613,8 +1648,7 @@ export function Files() {
     currentFolderId,
     folders,
     handleNavigateToFiles,
-    router,
-    workspaceId,
+    navigateToFolder,
     canEdit,
     userPermissions.isLoading,
     breadcrumbRename.editingId,

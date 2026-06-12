@@ -26,11 +26,12 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
 }
 
 /**
- * Workspace area pages that can be opened as chat resource tabs.
+ * Workspace area pages that can stage on the chat's resource panel.
  * Keys double as the page's route segment under `/workspace/[workspaceId]/`.
  */
 export const MOTHERSHIP_PAGES = {
   tables: 'Tables',
+  files: 'Files',
   knowledge: 'Knowledge Base',
   logs: 'Logs',
   'scheduled-tasks': 'Scheduled Tasks',
