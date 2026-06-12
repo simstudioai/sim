@@ -14,11 +14,20 @@
 
 import { stripVersionSuffix } from '@sim/utils/string'
 import integrationsJson from '@/lib/integrations/integrations.json'
+import integrationsMeta from '@/lib/integrations/integrations-meta.json'
 import type { Integration } from '@/lib/integrations/types'
 import { getAllBlockMeta } from '@/blocks/registry'
 
 /** All integrations surfaced in the catalog, ordered by `scripts/generate-docs.ts`. */
 export const INTEGRATIONS: readonly Integration[] = integrationsJson as readonly Integration[]
+
+/**
+ * ISO date (YYYY-MM-DD) of the last real catalog content change, stamped by
+ * `scripts/generate-docs.ts` only when `integrations.json` actually changes.
+ * Drives sitemap `lastModified`, JSON-LD `dateModified`, and the visible
+ * last-updated line on integration pages — never fabricate freshness here.
+ */
+export const INTEGRATIONS_UPDATED_AT: string = integrationsMeta.catalogUpdatedAt
 
 /** A curated `from → to` block-pair workflow surfaced on the landing page. */
 export interface PopularWorkflow {

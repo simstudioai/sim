@@ -61,7 +61,7 @@ function SimLogoFull() {
   )
 }
 
-interface ModelsOgImageProps {
+interface LandingOgImageProps {
   eyebrow: string
   title: string
   subtitle: string
@@ -69,13 +69,18 @@ interface ModelsOgImageProps {
   domainLabel?: string
 }
 
-export async function createModelsOgImage({
+/**
+ * Shared dynamic OG image for landing catalog pages (models, integrations).
+ * Used from edge OG routes — callers must keep heavy registries (blocks,
+ * tools, icons) out of their import graph.
+ */
+export async function createLandingOgImage({
   eyebrow,
   title,
   subtitle,
   pills = [],
-  domainLabel = 'sim.ai/models',
-}: ModelsOgImageProps) {
+  domainLabel = 'sim.ai',
+}: LandingOgImageProps) {
   const text = `${eyebrow}${title}${subtitle}${pills.join('')}${domainLabel}`
   const [regularFontData, mediumFontData] = await Promise.all([
     loadGoogleFont('Geist', '400', text),

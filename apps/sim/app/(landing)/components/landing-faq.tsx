@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { useId, useState } from 'react'
+import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { ChevronDown } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -14,7 +14,19 @@ interface LandingFAQProps {
   faqs: LandingFAQItem[]
 }
 
+/**
+ * Accordion FAQ for landing pages.
+ *
+ * Every answer stays mounted and is collapsed via animated height rather than
+ * being rendered on demand: AI crawlers (GPTBot, ClaudeBot, PerplexityBot) and
+ * non-rendering search crawlers only read the served HTML, so the full Q&A
+ * text must exist in the initial document to be indexed or cited. Keeping the
+ * answers in the DOM also keeps the FAQPage JSON-LD emitted by consuming pages
+ * aligned with visible content, as Google's structured-data policy requires.
+ * Questions render as h3 headings so each Q&A forms an extractable section.
+ */
 export function LandingFAQ({ faqs }: LandingFAQProps) {
+  const baseId = useId()
   const [openIndex, setOpenIndex] = useState<number | null>(0)
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
@@ -23,8 +35,8 @@ export function LandingFAQ({ faqs }: LandingFAQProps) {
       <div>
         {faqs.map(({ question, answer }, index) => {
           const isOpen = openIndex === index
-          const isHovered = hoveredIndex === index
           const showDivider = index > 0 && hoveredIndex !== index && hoveredIndex !== index - 1
+          const panelId = `${baseId}-faq-panel-${index}`
 
           return (
             <div key={question}>
@@ -34,50 +46,50 @@ export function LandingFAQ({ faqs }: LandingFAQProps) {
                   index === 0 || !showDivider ? 'invisible' : 'visible'
                 )}
               />
-              <button
-                type='button'
-                onClick={() => setOpenIndex(isOpen ? null : index)}
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
-                className='-mx-6 flex w-[calc(100%+3rem)] items-center justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-[var(--landing-bg-elevated)]'
-                aria-expanded={isOpen}
-              >
-                <span
-                  className={cn(
-                    'text-[15px] leading-snug tracking-[-0.02em] transition-colors',
-                    isOpen
-                      ? 'text-[var(--landing-text)]'
-                      : 'text-[var(--landing-text-body)] hover:text-[var(--landing-text)]'
-                  )}
+              <h3>
+                <button
+                  type='button'
+                  onClick={() => setOpenIndex(isOpen ? null : index)}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  className='-mx-6 flex w-[calc(100%+3rem)] items-center justify-between gap-4 px-6 py-4 text-left transition-colors hover:bg-[var(--landing-bg-elevated)]'
+                  aria-expanded={isOpen}
+                  aria-controls={panelId}
                 >
-                  {question}
-                </span>
-                <ChevronDown
-                  className={cn(
-                    'h-3 w-3 shrink-0 text-[var(--landing-text-subtle)] transition-transform duration-200',
-                    isOpen ? 'rotate-180' : 'rotate-0'
-                  )}
-                  aria-hidden='true'
-                />
-              </button>
-
-              <AnimatePresence initial={false}>
-                {isOpen && (
-                  <m.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                    className='overflow-hidden'
+                  <span
+                    className={cn(
+                      'text-[15px] leading-snug tracking-[-0.02em] transition-colors',
+                      isOpen
+                        ? 'text-[var(--landing-text)]'
+                        : 'text-[var(--landing-text-body)] hover:text-[var(--landing-text)]'
+                    )}
                   >
-                    <div className='pt-2 pb-4'>
-                      <p className='text-[14px] text-[var(--landing-text-body)] leading-[1.75]'>
-                        {answer}
-                      </p>
-                    </div>
-                  </m.div>
-                )}
-              </AnimatePresence>
+                    {question}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-3 w-3 shrink-0 text-[var(--landing-text-subtle)] transition-transform duration-200',
+                      isOpen ? 'rotate-180' : 'rotate-0'
+                    )}
+                    aria-hidden='true'
+                  />
+                </button>
+              </h3>
+
+              <m.div
+                id={panelId}
+                initial={false}
+                animate={{ height: isOpen ? 'auto' : 0, opacity: isOpen ? 1 : 0 }}
+                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                className='overflow-hidden'
+                aria-hidden={!isOpen}
+              >
+                <div className='pt-2 pb-4'>
+                  <p className='text-[14px] text-[var(--landing-text-body)] leading-[1.75]'>
+                    {answer}
+                  </p>
+                </div>
+              </m.div>
             </div>
           )
         })}
