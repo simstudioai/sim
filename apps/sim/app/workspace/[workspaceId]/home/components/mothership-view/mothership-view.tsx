@@ -136,7 +136,10 @@ export const MothershipView = memo(
       <div
         ref={ref}
         className={cn(
-          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width,border-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
+          // Border toggles are instant (not in the transition list): animating
+          // border-width leaves a 200ms ghost line at the content's left edge
+          // when the chat pane closes and the panel snaps to full width.
+          'relative z-10 flex h-full flex-col overflow-hidden border-[var(--border)] bg-[var(--bg)] transition-[width,min-width] duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
           isCollapsed ? 'w-0 min-w-0 border-l-0' : 'w-1/2 border-l',
           className
         )}
