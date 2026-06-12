@@ -6,6 +6,8 @@ import { Tooltip } from '@/components/emcn'
 import { Workflow as WorkflowIcon, X } from '@/components/emcn/icons'
 import { isMothershipPageId, MOTHERSHIP_PAGES } from '@/lib/copilot/resources/types'
 import { cn } from '@/lib/core/utils/cn'
+import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
+import { SidebarToggle } from '@/app/workspace/[workspaceId]/components/sidebar-toggle'
 import {
   MothershipResourcesProvider,
   MothershipView,
@@ -443,6 +445,21 @@ export function WorkflowWithChat() {
                   activeResourceId={stageActiveId}
                   isCollapsed={false}
                   className='h-full w-full border-l-0'
+                  tabsLeading={
+                    !dock.open ? (
+                      /* With the chat closed, the card's tab strip doubles as
+                         the title bar — same chrome cluster as everywhere
+                         else; the canvas copy is buried under the stack. */
+                      <div className='flex flex-shrink-0 items-center gap-1'>
+                        <SidebarToggle className='-ml-[9px]' />
+                        <ChatSwitcher
+                          iconOnly
+                          navigateOnSelect={false}
+                          onSelectChat={(chatId) => openChat(chatId)}
+                        />
+                      </div>
+                    ) : undefined
+                  }
                 />
               </MothershipResourcesProvider>
               <Tooltip.Root>
