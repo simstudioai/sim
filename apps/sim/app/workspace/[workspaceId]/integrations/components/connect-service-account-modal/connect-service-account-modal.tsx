@@ -288,7 +288,7 @@ function GoogleServiceAccountModal({
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         secondaryAction={{
-          label: 'Documentation',
+          label: 'Setup guide',
           onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
         }}
         primaryAction={{
@@ -428,7 +428,7 @@ function AtlassianServiceAccountModal({
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
         secondaryAction={{
-          label: 'Documentation',
+          label: 'Setup guide',
           onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
         }}
         primaryAction={{
