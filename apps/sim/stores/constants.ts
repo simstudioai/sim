@@ -24,7 +24,9 @@ export const SIDEBAR_WIDTH = {
   MIN: 248,
   /** Collapsed sidebar is fully hidden; the toggle lives in the page title bar */
   COLLAPSED: 0,
-  /** Maximum is 30% of viewport, enforced dynamically */
+  /** Hard ceiling — a nav list never needs more, however wide the window. */
+  MAX: 400,
+  /** On narrow windows the max tightens further to 30% of the viewport. */
   MAX_PERCENTAGE: 0.3,
 } as const
 

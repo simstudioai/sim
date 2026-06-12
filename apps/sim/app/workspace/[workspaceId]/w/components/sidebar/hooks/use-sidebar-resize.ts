@@ -47,7 +47,10 @@ export function useSidebarResize() {
       const onPointerMove = (ev: PointerEvent) => {
         if (rafId !== null) cancelAnimationFrame(rafId)
         rafId = requestAnimationFrame(() => {
-          const max = Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+          const max = Math.max(
+            SIDEBAR_WIDTH.MIN,
+            Math.min(SIDEBAR_WIDTH.MAX, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+          )
           const clamped = Math.min(Math.max(ev.clientX, SIDEBAR_WIDTH.MIN), max)
           document.documentElement.style.setProperty('--sidebar-width', `${clamped}px`)
           rafId = null

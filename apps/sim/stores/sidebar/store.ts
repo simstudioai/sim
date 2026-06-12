@@ -13,8 +13,11 @@ function clampSidebarWidth(width: number): number {
   if (!Number.isFinite(width)) return SIDEBAR_WIDTH.DEFAULT
   const max =
     typeof window === 'undefined'
-      ? Number.POSITIVE_INFINITY
-      : Math.max(SIDEBAR_WIDTH.MIN, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+      ? SIDEBAR_WIDTH.MAX
+      : Math.max(
+          SIDEBAR_WIDTH.MIN,
+          Math.min(SIDEBAR_WIDTH.MAX, window.innerWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)
+        )
   return Math.min(Math.max(width, SIDEBAR_WIDTH.MIN), max)
 }
 
