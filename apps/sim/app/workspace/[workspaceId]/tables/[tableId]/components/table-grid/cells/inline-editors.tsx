@@ -161,11 +161,12 @@ function InlineSelectEditor({
     initialCharacter !== undefined ? initialCharacter : formatValueForInput(value, column.type)
   )
   const [highlightIndex, setHighlightIndex] = useState(0)
-  // Enter/Tab only auto-pick the highlighted option after the user has typed
-  // or arrow-navigated; a bare Enter on an untouched draft saves it verbatim,
-  // so confirming a cell never silently rewrites its value to an option's
-  // casing. Typeahead-opened editors start interacted (the char was typed).
-  const [interacted, setInteracted] = useState(initialCharacter !== undefined)
+  // Enter/Tab only auto-pick the highlighted option after the user has arrow-
+  // navigated, or typed a non-empty filter; a bare Enter on an untouched draft
+  // saves it verbatim, so confirming a cell never silently rewrites its value
+  // to an option's casing. Typeahead-opened editors start typed.
+  const [typed, setTyped] = useState(initialCharacter !== undefined)
+  const [navigated, setNavigated] = useState(false)
 
   const options = column.options ?? []
   const query = draft.trim().toLowerCase()
@@ -202,13 +203,14 @@ function InlineSelectEditor({
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault()
         if (filtered.length === 0) return
-        setInteracted(true)
+        setNavigated(true)
         const delta = e.key === 'ArrowDown' ? 1 : -1
         setHighlightIndex((i) => (i + delta + filtered.length) % filtered.length)
       } else if (e.key === 'Enter' || e.key === 'Tab') {
         e.preventDefault()
         const reason: SaveReason = e.key === 'Tab' ? (e.shiftKey ? 'shift-tab' : 'tab') : 'enter'
-        doSave(reason, interacted && query !== '' && highlighted ? highlighted : undefined)
+        const pick = highlighted !== undefined && (navigated || (typed && query !== ''))
+        doSave(reason, pick ? highlighted : undefined)
       } else if (e.key === 'Escape') {
         e.preventDefault()
         doneRef.current = true
@@ -216,7 +218,7 @@ function InlineSelectEditor({
         onCancel()
       }
     },
-    [doSave, onCancel, filtered.length, highlighted, query, interacted]
+    [doSave, onCancel, filtered.length, highlighted, query, typed, navigated]
   )
 
   const handleBlur = useCallback(() => {
@@ -233,7 +235,8 @@ function InlineSelectEditor({
           onChange={(e) => {
             setDraft(e.target.value)
             setHighlightIndex(0)
-            setInteracted(true)
+            setTyped(true)
+            setNavigated(false)
           }}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
