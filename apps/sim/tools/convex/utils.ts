@@ -19,6 +19,12 @@ export function convexApiUrl(deploymentUrl: string, path: string): string {
   if (!validation.isValid) {
     throw new Error(`${validation.error} (e.g., https://your-deployment.convex.cloud)`)
   }
+  const parsed = new URL(trimmed)
+  if (parsed.search || parsed.hash) {
+    throw new Error(
+      'Deployment URL must not include a query string or fragment (e.g., https://your-deployment.convex.cloud)'
+    )
+  }
   return `${trimmed}${path}`
 }
 
@@ -51,6 +57,9 @@ export function parseFunctionArgs(
       throw new Error('Invalid function arguments: expected a JSON object, not an array or scalar')
     }
     return parsed as Record<string, unknown>
+  }
+  if (typeof args !== 'object' || Array.isArray(args)) {
+    throw new Error('Invalid function arguments: expected a JSON object, not an array or scalar')
   }
   return args
 }

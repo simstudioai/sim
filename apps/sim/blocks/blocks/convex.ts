@@ -290,7 +290,7 @@ export const ConvexBlockMeta = {
       name: 'sync-convex-changes',
       description: 'Fetch only changed Convex documents since a snapshot using Document Deltas.',
       content:
-        '# Sync Convex Changes Incrementally\n\nAfter an initial export, keep a downstream copy fresh by reading only what changed.\n\n## Steps\n1. Run an initial export with List Documents and keep the final snapshot value.\n2. On each sync run, call Document Deltas with that value as the Cursor (and optionally a table name).\n3. While hasMore is true, keep calling Document Deltas with the returned cursor; persist the last cursor for the next run.\n4. Apply each document by _id; documents with _deleted set to true should be removed downstream.\n\n## Output\nThe changed documents since the stored cursor plus a new cursor to persist, giving exactly-once incremental sync.',
+        '# Sync Convex Changes Incrementally\n\nAfter an initial export, keep a downstream copy fresh by reading only what changed.\n\n## Steps\n1. Run an initial export with List Documents and keep the final snapshot value.\n2. On each sync run, call Document Deltas with that value as the Cursor (and optionally a table name).\n3. While hasMore is true, keep calling Document Deltas with the returned cursor; persist the last cursor for the next run.\n4. Apply each document by _id; documents with _deleted set to true should be removed downstream.\n\n## Output\nThe changed documents since the stored cursor plus a new cursor to persist, giving reliable incremental sync when documents are applied idempotently by _id.',
     },
   ],
 } as const satisfies BlockMeta
