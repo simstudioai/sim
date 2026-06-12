@@ -18,6 +18,7 @@ Pick one event per Sim trigger block:
   <li><strong>Execution Error</strong>: a watched workflow's run failed</li>
   <li><strong>Execution Success</strong>: a watched workflow's run completed successfully</li>
   <li><strong>Workflow Deployed</strong>: a watched workflow was deployed (including redeploys and version rollbacks)</li>
+  <li><strong>Workflow Undeployed</strong>: a watched workflow was taken offline</li>
 </ul>
 
 **Alert conditions** — evaluated as runs complete (failure-based conditions evaluate on failed runs), with a cooldown so they fire at most once per cooldown window:
@@ -60,6 +61,7 @@ All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the s
     <ul className="list-disc space-y-1 pl-6">
       <li><strong>version</strong>: the deployment version number that was activated</li>
     </ul>
+    <p>Workflow Undeployed carries only the base fields.</p>
   </Tab>
 </Tabs>
 

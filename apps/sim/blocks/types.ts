@@ -378,11 +378,6 @@ export interface SubBlockConfig {
   rows?: number
   // Multi-select functionality
   multiSelect?: boolean
-  /**
-   * Dropdown-specific: when false, an empty value stays unset instead of
-   * auto-selecting the first option. Defaults to true.
-   */
-  autoSelectFirstOption?: boolean
   // Combobox specific: Enable search input in dropdown
   searchable?: boolean
   /** Dropdown-specific: include static options as Cmd K search entries that preset this subblock. */

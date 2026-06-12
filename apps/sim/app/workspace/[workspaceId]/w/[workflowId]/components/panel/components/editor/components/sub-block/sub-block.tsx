@@ -682,7 +682,6 @@ function SubBlockComponent({
               previewValue={previewValue}
               disabled={isDisabled}
               multiSelect={config.multiSelect}
-              autoSelectFirstOption={config.autoSelectFirstOption}
               fetchOptions={config.fetchOptions}
               fetchOptionById={config.fetchOptionById}
               dependsOn={config.dependsOn}

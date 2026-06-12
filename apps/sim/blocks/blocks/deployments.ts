@@ -1,5 +1,4 @@
 import { SimDeploymentsIcon } from '@/components/icons'
-import { fetchWorkspaceWorkflowOptions } from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 
 export const DeploymentsBlock: BlockConfig = {
@@ -37,14 +36,12 @@ export const DeploymentsBlock: BlockConfig = {
     {
       id: 'workflowSelector',
       title: 'Workflow',
-      type: 'dropdown',
-      options: [],
+      type: 'workflow-selector',
+      selectorKey: 'sim.workflows',
       placeholder: 'Select workflow',
       mode: 'basic',
       canonicalParamId: 'workflowId',
       required: true,
-      autoSelectFirstOption: false,
-      fetchOptions: () => fetchWorkspaceWorkflowOptions(),
     },
     {
       id: 'manualWorkflowId',

@@ -67,7 +67,7 @@ function summarizeRun(context: ExecutionEventContext): SimRunSummary {
  * the condition that fired, so it nests under `triggeringRun`.
  */
 export function buildExecutionEventPayload(params: {
-  event: Exclude<SimPlainEventType, 'workflow_deployed'> | SimRuleEventType
+  event: Exclude<SimPlainEventType, 'workflow_deployed' | 'workflow_undeployed'> | SimRuleEventType
   workflowName: string
   context: ExecutionEventContext
 }): SimEventPayload {
@@ -97,6 +97,18 @@ export function buildDeployEventPayload(params: {
     }),
     version: params.version,
   }
+}
+
+/** Payload for workflow_undeployed events. */
+export function buildUndeployEventPayload(params: {
+  workflowId: string
+  workflowName: string
+}): SimEventPayload {
+  return basePayload({
+    event: 'workflow_undeployed',
+    workflowId: params.workflowId,
+    workflowName: params.workflowName,
+  })
 }
 
 /** Payload for no_activity events (no source run exists). */
