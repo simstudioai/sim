@@ -414,9 +414,11 @@ export const DaytonaBlock: BlockConfig = {
             if (rest.sandboxUser) baseParams.user = rest.sandboxUser
             if (rest.envVars) baseParams.env = rest.envVars
             if (rest.sandboxLabels) baseParams.labels = rest.sandboxLabels
-            if (rest.cpu) baseParams.cpu = Number(rest.cpu)
-            if (rest.memory) baseParams.memory = Number(rest.memory)
-            if (rest.disk) baseParams.disk = Number(rest.disk)
+            if (rest.cpu !== undefined && rest.cpu !== '') baseParams.cpu = Number(rest.cpu)
+            if (rest.memory !== undefined && rest.memory !== '') {
+              baseParams.memory = Number(rest.memory)
+            }
+            if (rest.disk !== undefined && rest.disk !== '') baseParams.disk = Number(rest.disk)
             if (rest.autoStopInterval !== undefined && rest.autoStopInterval !== '') {
               baseParams.autoStopInterval = Number(rest.autoStopInterval)
             }
