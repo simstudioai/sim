@@ -12,6 +12,7 @@ import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup 
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
+  type BreadcrumbItem,
   type ColumnOption,
   Resource,
   type SortConfig,
@@ -483,34 +484,36 @@ export function Table({
   }
 
   const breadcrumbs = useMemo(
-    () => [
+    (): BreadcrumbItem[] => [
       { label: 'Tables', onClick: handleNavigateBack },
-      {
-        label: tableData?.name ?? '',
-        editing: tableHeaderRename.editingId
-          ? {
-              isEditing: true,
-              value: tableHeaderRename.editValue,
-              onChange: tableHeaderRename.setEditValue,
-              onSubmit: tableHeaderRename.submitRename,
-              onCancel: tableHeaderRename.cancelRename,
-            }
-          : undefined,
-        dropdownItems: [
-          {
-            label: 'Rename',
-            icon: Pencil,
-            disabled: !tableData,
-            onClick: handleStartTableRename,
-          },
-          {
-            label: 'Delete',
-            icon: Trash,
-            disabled: !tableData,
-            onClick: onRequestDeleteTable,
-          },
-        ],
-      },
+      // While the table loads, mirror this route's loading.tsx (terminal "…" crumb)
+      // so no empty-label / orphaned-chevron frame renders in between.
+      tableData
+        ? {
+            label: tableData.name,
+            editing: tableHeaderRename.editingId
+              ? {
+                  isEditing: true,
+                  value: tableHeaderRename.editValue,
+                  onChange: tableHeaderRename.setEditValue,
+                  onSubmit: tableHeaderRename.submitRename,
+                  onCancel: tableHeaderRename.cancelRename,
+                }
+              : undefined,
+            dropdownItems: [
+              {
+                label: 'Rename',
+                icon: Pencil,
+                onClick: handleStartTableRename,
+              },
+              {
+                label: 'Delete',
+                icon: Trash,
+                onClick: onRequestDeleteTable,
+              },
+            ],
+          }
+        : { label: '…', terminal: true },
     ],
     [
       handleNavigateBack,
