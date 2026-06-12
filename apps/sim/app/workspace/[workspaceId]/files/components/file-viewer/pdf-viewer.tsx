@@ -29,6 +29,7 @@ const PDF_ZOOM_MAX = 3
 const PDF_ZOOM_DEFAULT = 1
 const PDF_ZOOM_STEP = 1.25
 const PDF_VIEWER_PADDING = 24
+const PDF_RESIZE_DEBOUNCE_MS = 150
 
 export type PdfDocumentSource =
   | { kind: 'url'; url: string }
@@ -70,14 +71,32 @@ export const PdfViewerCore = memo(function PdfViewerCore({ source, filename }: P
     [sourceValue]
   )
 
+  /**
+   * The first measurement applies immediately so the document renders without
+   * delay; subsequent ones (panel-divider drags) are debounced because every
+   * pageWidth change makes pdf.js re-rasterise all page canvases — per-tick
+   * updates during a drag would re-render the whole document continuously.
+   */
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    let hasMeasured = false
+    let debounce: ReturnType<typeof setTimeout> | undefined
     const observer = new ResizeObserver(([entry]) => {
-      setContainerWidth(entry.contentRect.width)
+      const { width } = entry.contentRect
+      if (!hasMeasured) {
+        hasMeasured = true
+        setContainerWidth(width)
+        return
+      }
+      clearTimeout(debounce)
+      debounce = setTimeout(() => setContainerWidth(width), PDF_RESIZE_DEBOUNCE_MS)
     })
     observer.observe(container)
-    return () => observer.disconnect()
+    return () => {
+      clearTimeout(debounce)
+      observer.disconnect()
+    }
   }, [])
 
   /**
