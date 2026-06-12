@@ -97,9 +97,13 @@ export function PanelEmptyState({ workspaceId }: PanelEmptyStateProps) {
     <div className='flex h-full flex-col items-center overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
       <div className='flex w-full max-w-[400px] flex-col pt-[16vh] pb-8'>
         <div className='animate-stream-fade-in'>
-          {/* Decorative brand mark — soft grey, invisible to screen readers. */}
+          {/* Decorative brand mark — watermark-light grey (the subtle token
+              at half opacity tracks both themes), invisible to screen readers. */}
           <div className='mb-7 flex justify-center'>
-            <SimLogotype aria-hidden='true' className='h-[44px] w-auto text-[var(--text-subtle)]' />
+            <SimLogotype
+              aria-hidden='true'
+              className='h-[44px] w-auto text-[var(--text-subtle)] opacity-50'
+            />
           </div>
           <ChipInput
             icon={Search}
