@@ -2261,6 +2261,17 @@ export function BrandfetchIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function BrexIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 223 179.3' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#FFFFFF'
+        d='M144.9,14.3c-8.7,11.6-10.8,15.5-19.2,15.5H0v149.4h49.3c11.1,0,21.9-5.4,28.9-14.3c9-12,10.2-15.5,18.9-15.5 H223V0h-49.6C162.3,0,151.5,5.4,144.9,14.3L144.9,14.3z M183.9,110.9h-52.6c-11.4,0-21.9,4.8-28.9,14c-9,12-10.8,15.5-19.2,15.5 H38.8V68.7h52.6c11.4,0,21.9-5.4,28.9-14.3c9-11.6,11.4-15.2,19.5-15.2h44.2V110.9z'
+      />
+    </svg>
+  )
+}
+
 export function BrightDataIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
