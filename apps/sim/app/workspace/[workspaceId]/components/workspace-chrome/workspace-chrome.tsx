@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import { Sidebar } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
@@ -61,7 +61,18 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
   const openFlyout = useSidebarStore((s) => s.openFlyout)
   const scheduleFlyoutClose = useSidebarStore((s) => s.scheduleFlyoutClose)
   const closeFlyout = useSidebarStore((s) => s.closeFlyout)
-  const isStageFloating = useSidebarStore((s) => s.isStageFloating)
+  const storeStageFloating = useSidebarStore((s) => s.isStageFloating)
+
+  // The store flag only flips after hydration, but the frame must already be
+  // gone in server HTML and the streaming/loading window. Until hydration,
+  // derive the same answer the workflow shell will reach from the URL alone;
+  // afterwards the store is the single source (replaceState URL changes are
+  // invisible to useSearchParams, so the URL goes stale in-session).
+  const searchParams = useSearchParams()
+  const urlStageFloating = /\/w\/[^/]+$/.test(pathname) && searchParams.has('resource')
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => setHydrated(true), [])
+  const isStageFloating = hydrated ? storeStageFloating : urlStageFloating
 
   // Hide the flyout after navigating from it.
   useEffect(() => {
