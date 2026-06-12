@@ -25,6 +25,7 @@ import {
   isProviderBlacklisted,
   MODELS_TEMP_RANGE_0_1,
   MODELS_TEMP_RANGE_0_2,
+  MODELS_TEMP_RANGE_0_15,
   MODELS_WITH_REASONING_EFFORT,
   MODELS_WITH_TEMPERATURE_SUPPORT,
   MODELS_WITH_THINKING,
@@ -200,6 +201,9 @@ describe('Model Capabilities', () => {
         'grok-3-latest',
         'grok-3-fast-latest',
         'deepseek-v3',
+        'deepseek-chat',
+        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
+        'mistral-large-latest',
       ]
 
       for (const model of supportedModels) {
@@ -211,14 +215,12 @@ describe('Model Capabilities', () => {
       const unsupportedModels = [
         'unsupported-model',
         'cerebras/llama-3.3-70b',
-        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
         'o1',
         'o3',
         'o4-mini',
         'azure/o3',
         'azure/o4-mini',
         'deepseek-r1',
-        'deepseek-chat',
         'azure/model-router',
         'gpt-5.1',
         'azure/gpt-5.1',
@@ -262,6 +264,10 @@ describe('Model Capabilities', () => {
         'gemini-2.5-pro',
         'gemini-2.5-flash',
         'deepseek-v3',
+        'deepseek-chat',
+        'grok-3-latest',
+        'grok-3-fast-latest',
+        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
       ]
 
       for (const model of modelsRange02) {
@@ -270,22 +276,24 @@ describe('Model Capabilities', () => {
     })
 
     it.concurrent('should return 1 for models with temperature range 0-1', () => {
-      const modelsRange01 = [
-        'claude-sonnet-4-0',
-        'claude-opus-4-0',
-        'grok-3-latest',
-        'grok-3-fast-latest',
-      ]
+      const modelsRange01 = ['claude-sonnet-4-0', 'claude-opus-4-0']
 
       for (const model of modelsRange01) {
         expect(getMaxTemperature(model)).toBe(1)
       }
     })
 
+    it.concurrent('should return 1.5 for models with temperature range 0-1.5', () => {
+      const modelsRange015 = ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest']
+
+      for (const model of modelsRange015) {
+        expect(getMaxTemperature(model)).toBe(1.5)
+      }
+    })
+
     it.concurrent('should return undefined for models that do not support temperature', () => {
       expect(getMaxTemperature('unsupported-model')).toBeUndefined()
       expect(getMaxTemperature('cerebras/llama-3.3-70b')).toBeUndefined()
-      expect(getMaxTemperature('groq/meta-llama/llama-4-scout-17b-16e-instruct')).toBeUndefined()
       expect(getMaxTemperature('o1')).toBeUndefined()
       expect(getMaxTemperature('o3')).toBeUndefined()
       expect(getMaxTemperature('o4-mini')).toBeUndefined()
@@ -428,12 +436,13 @@ describe('Model Capabilities', () => {
       expect(MODELS_TEMP_RANGE_0_2).toContain('gpt-4o')
       expect(MODELS_TEMP_RANGE_0_2).toContain('gemini-2.5-flash')
       expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
+      expect(MODELS_TEMP_RANGE_0_2).toContain('grok-3-latest')
       expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-0')
     })
 
     it.concurrent('should have correct models in MODELS_TEMP_RANGE_0_1', () => {
       expect(MODELS_TEMP_RANGE_0_1).toContain('claude-sonnet-4-0')
-      expect(MODELS_TEMP_RANGE_0_1).toContain('grok-3-latest')
+      expect(MODELS_TEMP_RANGE_0_1).not.toContain('grok-3-latest')
       expect(MODELS_TEMP_RANGE_0_1).not.toContain('gpt-4o')
     })
 
@@ -449,7 +458,9 @@ describe('Model Capabilities', () => {
       'should combine both temperature ranges in MODELS_WITH_TEMPERATURE_SUPPORT',
       () => {
         expect(MODELS_WITH_TEMPERATURE_SUPPORT.length).toBe(
-          MODELS_TEMP_RANGE_0_2.length + MODELS_TEMP_RANGE_0_1.length
+          MODELS_TEMP_RANGE_0_2.length +
+            MODELS_TEMP_RANGE_0_15.length +
+            MODELS_TEMP_RANGE_0_1.length
         )
         expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('gpt-4o')
         expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-0')
@@ -538,6 +549,7 @@ describe('Model Capabilities', () => {
         (m) =>
           m.includes('gpt-5') &&
           !m.includes('chat-latest') &&
+          !m.includes('gpt-5.5-pro') &&
           !m.includes('gpt-5.4-pro') &&
           !m.includes('gpt-5.2-pro') &&
           !m.includes('gpt-5-pro')
@@ -546,6 +558,9 @@ describe('Model Capabilities', () => {
         (m) => m.includes('gpt-5') && !m.includes('chat-latest')
       )
       expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
+
+      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.5-pro')
+      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.5-pro')
 
       expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
       expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
@@ -715,7 +730,7 @@ describe('Max Output Tokens', () => {
 
     it.concurrent('should return published max for Bedrock Claude Opus 4.1', () => {
       expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
-        32768
+        32000
       )
     })
 
