@@ -20,6 +20,7 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import { isDefaultDescription } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/lib/default-description'
 import { useDeploymentInfo, useUpdatePublicApi } from '@/hooks/queries/deployments'
 import { useUpdateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
@@ -89,14 +90,12 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
   useEffect(() => {
     if (open) {
-      const normalizedDesc = workflowMetadata?.description?.toLowerCase().trim()
-      const isDefaultDescription =
-        !workflowMetadata?.description ||
-        workflowMetadata.description === workflowMetadata.name ||
-        normalizedDesc === 'new workflow' ||
-        normalizedDesc === 'your first workflow - start building here!'
-
-      const initialDescription = isDefaultDescription ? '' : workflowMetadata?.description || ''
+      const initialDescription = isDefaultDescription(
+        workflowMetadata?.description,
+        workflowMetadata?.name || ''
+      )
+        ? ''
+        : workflowMetadata?.description || ''
       setDescription(initialDescription)
       initialDescriptionRef.current = initialDescription
 

@@ -8,17 +8,18 @@ import {
   Button,
   ChipCombobox,
   ChipInput,
+  ChipTextarea,
   type ComboboxOption,
   Label,
   Skeleton,
-  Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components/create-workflow-mcp-server-modal'
+import { isDefaultDescription } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/lib/default-description'
 import {
   useAddWorkflowMcpTool,
   useDeleteWorkflowMcpTool,
@@ -28,6 +29,7 @@ import {
   type WorkflowMcpServer,
   type WorkflowMcpTool,
 } from '@/hooks/queries/workflow-mcp-servers'
+import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -52,22 +54,14 @@ interface McpDeployProps {
   onAddedToServer?: () => void
   onSubmittingChange?: (submitting: boolean) => void
   onCanSaveChange?: (canSave: boolean) => void
+  /** Reports whether this workflow is currently exposed as a tool on any server. */
+  onExposedChange?: (exposed: boolean) => void
 }
 
 function haveSameServerSelection(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false
   const bSet = new Set(b)
   return a.every((id) => bSet.has(id))
-}
-
-function haveSameParameterDescriptions(
-  a: Record<string, string>,
-  b: Record<string, string>
-): boolean {
-  const aKeys = Object.keys(a)
-  const bKeys = Object.keys(b)
-  if (aKeys.length !== bKeys.length) return false
-  return aKeys.every((key) => a[key] === b[key])
 }
 
 /**
@@ -102,6 +96,7 @@ export function McpDeploy({
   onAddedToServer,
   onSubmittingChange,
   onCanSaveChange,
+  onExposedChange,
 }: McpDeployProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -111,6 +106,7 @@ export function McpDeploy({
   const addToolMutation = useAddWorkflowMcpTool()
   const deleteToolMutation = useDeleteWorkflowMcpTool()
   const updateToolMutation = useUpdateWorkflowMcpTool()
+  const { collaborativeSetSubblockValue } = useCollaborativeWorkflow()
 
   const blocks = useWorkflowStore((state) => state.blocks)
 
@@ -142,23 +138,31 @@ export function McpDeploy({
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
-  const [toolDescription, setToolDescription] = useState(() => {
-    const normalizedDesc = workflowDescription?.toLowerCase().trim()
-    const isDefaultDescription =
-      !workflowDescription ||
-      workflowDescription === workflowName ||
-      normalizedDesc === 'new workflow' ||
-      normalizedDesc === 'your first workflow - start building here!'
-
-    return isDefaultDescription ? '' : workflowDescription
-  })
-  const [parameterDescriptions, setParameterDescriptions] = useState<Record<string, string>>({})
+  const [toolDescription, setToolDescription] = useState(() =>
+    isDefaultDescription(workflowDescription, workflowName) ? '' : (workflowDescription ?? '')
+  )
   const [pendingServerChanges, setPendingServerChanges] = useState<Set<string>>(() => new Set())
   const [saveErrors, setSaveErrors] = useState<string[]>([])
 
-  const parameterSchema = useMemo(
-    () => generateParameterSchema(inputFormat, parameterDescriptions),
-    [inputFormat, parameterDescriptions]
+  /**
+   * Per-parameter descriptions live on the start block's input format — the single
+   * source of truth shared by every deployment surface. The tool's parameter schema
+   * is derived server-side from the deployed workflow on each deploy, so the tool can
+   * never drift from what actually runs and descriptions are never wiped by a redeploy.
+   * Editing a description here mutates the workflow and surfaces the redeploy prompt.
+   */
+  const updateFieldDescription = useCallback(
+    (fieldName: string, description: string) => {
+      if (!starterBlockId) return
+      const currentFields = normalizeInputFormatValue(
+        useSubBlockStore.getState().getValue(starterBlockId, 'inputFormat')
+      ) as NormalizedField[]
+      const nextFields = currentFields.map((field) =>
+        field.name === fieldName ? { ...field, description } : field
+      )
+      collaborativeSetSubblockValue(starterBlockId, 'inputFormat', nextFields)
+    },
+    [starterBlockId, collaborativeSetSubblockValue]
   )
 
   const toolNameError = useMemo(() => {
@@ -207,7 +211,6 @@ export function McpDeploy({
   const [savedValues, setSavedValues] = useState<{
     toolName: string
     toolDescription: string
-    parameterDescriptions: Record<string, string>
   } | null>(null)
 
   useEffect(() => {
@@ -219,38 +222,15 @@ export function McpDeploy({
         const initialToolName = toolInfo.tool.toolName
 
         const loadedDescription = toolInfo.tool.toolDescription || ''
-        const normalizedLoadedDesc = loadedDescription.toLowerCase().trim()
-        const isDefaultDescription =
-          !loadedDescription ||
-          loadedDescription === workflowName ||
-          normalizedLoadedDesc === 'new workflow' ||
-          normalizedLoadedDesc === 'your first workflow - start building here!'
-        const initialToolDescription = isDefaultDescription ? '' : loadedDescription
-
-        const schema = toolInfo.tool.parameterSchema as Record<string, unknown> | undefined
-        const properties = schema?.properties as
-          | Record<string, { description?: string }>
-          | undefined
-        const initialParameterDescriptions: Record<string, string> = {}
-        if (properties) {
-          for (const [name, prop] of Object.entries(properties)) {
-            if (
-              prop.description &&
-              prop.description !== name &&
-              prop.description !== 'Array of file objects'
-            ) {
-              initialParameterDescriptions[name] = prop.description
-            }
-          }
-        }
+        const initialToolDescription = isDefaultDescription(loadedDescription, workflowName)
+          ? ''
+          : loadedDescription
 
         setToolName(initialToolName)
         setToolDescription(initialToolDescription)
-        setParameterDescriptions(initialParameterDescriptions)
         setSavedValues({
           toolName: initialToolName,
           toolDescription: initialToolDescription,
-          parameterDescriptions: initialParameterDescriptions,
         })
         break
       }
@@ -263,11 +243,8 @@ export function McpDeploy({
     if (!savedValues) return false
     if (toolName !== savedValues.toolName) return true
     if (toolDescription !== savedValues.toolDescription) return true
-    if (!haveSameParameterDescriptions(parameterDescriptions, savedValues.parameterDescriptions)) {
-      return true
-    }
     return false
-  }, [toolName, toolDescription, parameterDescriptions, savedValues])
+  }, [toolName, toolDescription, savedValues])
   const hasServerSelectionChanges = useMemo(
     () => !haveSameServerSelection(selectedServerIdsForForm, selectedServerIds),
     [selectedServerIdsForForm, selectedServerIds]
@@ -279,6 +256,10 @@ export function McpDeploy({
   useEffect(() => {
     onCanSaveChange?.(hasChanges && !!toolName.trim() && !toolNameError)
   }, [hasChanges, toolName, toolNameError, onCanSaveChange])
+
+  useEffect(() => {
+    onExposedChange?.(selectedServerIds.length > 0)
+  }, [selectedServerIds, onExposedChange])
 
   const handleSave = async () => {
     if (!toolName.trim() || toolNameError) return
@@ -307,7 +288,6 @@ export function McpDeploy({
             workflowId,
             toolName: toolName.trim(),
             toolDescription: toolDescription.trim() || undefined,
-            parameterSchema,
           })
           addedEntries[serverId] = { tool: addedTool, isLoading: false }
           onAddedToServer?.()
@@ -363,7 +343,6 @@ export function McpDeploy({
               toolId: toolInfo.tool.id,
               toolName: toolName.trim(),
               toolDescription: toolDescription.trim() || undefined,
-              parameterSchema,
             })
           } catch (error) {
             const serverName = servers.find((s) => s.id === serverId)?.name || serverId
@@ -387,7 +366,6 @@ export function McpDeploy({
         setSavedValues({
           toolName,
           toolDescription,
-          parameterDescriptions: { ...parameterDescriptions },
         })
         onCanSaveChange?.(false)
       }
@@ -516,7 +494,7 @@ export function McpDeploy({
         <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
           Description
         </Label>
-        <Textarea
+        <ChipTextarea
           placeholder='Describe what this tool does...'
           className='min-h-[100px] resize-none'
           value={toolDescription}
@@ -529,6 +507,9 @@ export function McpDeploy({
           <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
             Parameters ({inputFormat.length})
           </Label>
+          <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
+            Descriptions are part of the workflow's inputs. Redeploy to apply changes to the tool.
+          </p>
           <div className='flex flex-col gap-2'>
             {inputFormat.map((field) => (
               <div
@@ -549,13 +530,8 @@ export function McpDeploy({
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
                     <ChipInput
-                      value={parameterDescriptions[field.name] || ''}
-                      onChange={(e) =>
-                        setParameterDescriptions((prev) => ({
-                          ...prev,
-                          [field.name]: e.target.value,
-                        }))
-                      }
+                      value={field.description ?? ''}
+                      onChange={(e) => updateFieldDescription(field.name, e.target.value)}
                       placeholder={`Enter description for ${field.name}`}
                     />
                   </div>

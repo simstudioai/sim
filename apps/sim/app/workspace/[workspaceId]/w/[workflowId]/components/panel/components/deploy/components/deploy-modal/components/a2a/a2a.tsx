@@ -23,6 +23,7 @@ import type { AgentAuthentication, AgentCapabilities } from '@/lib/a2a/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { isDefaultDescription } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/lib/default-description'
 import {
   useA2AAgentByWorkflow,
   useCreateA2AAgent,
@@ -42,20 +43,6 @@ interface InputFormatField {
   type?: string
   value?: unknown
   collapsed?: boolean
-}
-
-/**
- * Check if a description is a default/placeholder value that should be filtered out
- */
-function isDefaultDescription(desc: string | null | undefined, workflowName: string): boolean {
-  if (!desc) return true
-  const normalized = desc.toLowerCase().trim()
-  return (
-    normalized === '' ||
-    normalized === 'new workflow' ||
-    normalized === 'your first workflow - start building here!' ||
-    normalized === workflowName.toLowerCase()
-  )
 }
 
 type CodeLanguage = 'curl' | 'python' | 'javascript' | 'typescript'

@@ -126,6 +126,7 @@ export function DeployModal({
   const [undeployTargetWorkflowId, setUndeployTargetWorkflowId] = useState<string | null>(null)
   const [mcpToolSubmitting, setMcpToolSubmitting] = useState(false)
   const [mcpToolCanSave, setMcpToolCanSave] = useState(false)
+  const [mcpToolExposed, setMcpToolExposed] = useState(false)
   const [a2aSubmitting, setA2aSubmitting] = useState(false)
   const [a2aCanSave, setA2aCanSave] = useState(false)
   const [a2aNeedsRepublish, setA2aNeedsRepublish] = useState(false)
@@ -642,6 +643,7 @@ export function DeployModal({
                     isDeployed={isDeployed}
                     onSubmittingChange={setMcpToolSubmitting}
                     onCanSaveChange={setMcpToolCanSave}
+                    onExposedChange={setMcpToolExposed}
                   />
                 )}
               </ModalTabsContent>
@@ -733,7 +735,13 @@ export function DeployModal({
           )}
           {activeTab === 'mcp' && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center justify-between'>
-              <div />
+              {mcpToolExposed ? (
+                <Badge variant={needsRedeployment ? 'amber' : 'green'} size='lg' dot>
+                  {needsRedeployment ? 'Update deployment' : 'Live'}
+                </Badge>
+              ) : (
+                <div />
+              )}
               <div className='flex items-center gap-2'>
                 <Button
                   type='button'
