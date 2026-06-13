@@ -257,8 +257,8 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
             k3='1'
             result='innerMask'
           />
-          {/* Glow color + per-theme opacity ride a CSS var (light 0.9 / dark
-              0.6) so one filter serves both themes. */}
+          {/* Glow color + per-theme opacity ride a CSS var (light 0.6 / dark
+              0.9) so one filter serves both themes. */}
           <feFlood className={styles.glow} result='glowColor' />
           <feComposite in='glowColor' in2='innerMask' operator='in' result='glow' />
           <feMerge>
@@ -267,8 +267,11 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
           </feMerge>
         </filter>
         {/* Radial gradient (center → edge), theme stops via CSS vars. Matches
-            the Figma loader: dark #4F4F4F→#6F6F6F, light #A7A7A7→#D6D6D6. */}
-        <radialGradient id={gradientId} cx='50' cy='50' r='50' gradientUnits='userSpaceOnUse'>
+            the Figma loader: light #4F4F4F→#6F6F6F, dark #A7A7A7→#D6D6D6.
+            objectBoundingBox (default units) so EACH blob is shaded on its own
+            box — Figma fits the gradient per shape, so small/offset dots read
+            glossy (center dark, edge light) instead of flat. */}
+        <radialGradient id={gradientId} cx='0.5' cy='0.5' r='0.5'>
           <stop className={styles.gradInner} />
           <stop offset='1' className={styles.gradOuter} />
         </radialGradient>
