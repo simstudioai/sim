@@ -113,15 +113,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    // Mark stale table jobs (import or delete) as failed. Jobs run detached on the web container
+    // Mark stale table jobs (import, export, or delete) as failed. Jobs run detached on the web container
     // and are lost if the pod is killed mid-run. `updated_at` is bumped by progress updates, so a
     // `running` job with no recent update has stalled (not merely slow). Committed work is left in
     // place (no rollback); the user retries. Also prune long-settled terminal jobs so the table
     // doesn't grow unbounded (the latest job per table is what list/detail reads surface).
-    let staleImportsMarkedFailed = 0
+    let staleTableJobsMarkedFailed = 0
     try {
       const now = new Date()
-      const staleImports = await db
+      const staleJobs = await db
         .update(tableJobs)
         .set({
           status: 'failed',
@@ -132,9 +132,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         .where(and(eq(tableJobs.status, 'running'), lt(tableJobs.updatedAt, staleThreshold)))
         .returning({ id: tableJobs.id })
 
-      staleImportsMarkedFailed = staleImports.length
-      if (staleImportsMarkedFailed > 0) {
-        logger.info(`Marked ${staleImportsMarkedFailed} stale table jobs as failed`)
+      staleTableJobsMarkedFailed = staleJobs.length
+      if (staleTableJobsMarkedFailed > 0) {
+        logger.info(`Marked ${staleTableJobsMarkedFailed} stale table jobs as failed`)
       }
 
       const terminalRetention = new Date(Date.now() - TABLE_JOB_RETENTION_HOURS * 60 * 60 * 1000)
@@ -236,8 +236,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
         retentionHours: JOB_RETENTION_HOURS,
       },
-      tableImports: {
-        staleMarkedFailed: staleImportsMarkedFailed,
+      tableJobs: {
+        staleMarkedFailed: staleTableJobsMarkedFailed,
       },
     })
   } catch (error) {
