@@ -32,7 +32,7 @@ export function BlockInfoCard({
   const ResolvedIcon = IconComponent || blockTypeToIconMap[type] || null
 
   return (
-    <div className='mb-6'>
+    <div className='not-prose mb-6'>
       <div
         className='flex items-center justify-center overflow-hidden rounded-lg p-8'
         style={{ background: color }}
@@ -48,12 +48,12 @@ export function BlockInfoCard({
           href={href}
           target='_blank'
           rel='noopener noreferrer'
-          className='mt-3 inline-flex items-center gap-1.5 text-[var(--text-muted)] text-sm transition-colors hover:text-[var(--text-body)]'
+          className='mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 font-normal text-[var(--text-muted)] text-sm no-underline transition-colors hover:bg-[var(--surface-4)] hover:text-[var(--text-body)]'
         >
           {name ? `Visit ${name}` : formatHostname(href)}
           <svg
             aria-hidden='true'
-            className='size-3 shrink-0'
+            className='size-3 shrink-0 opacity-70'
             viewBox='0 0 24 24'
             fill='none'
             stroke='currentColor'
