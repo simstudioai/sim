@@ -14,10 +14,12 @@ const { ensureWorkflowAccessMock, checkNeedsRedeploymentMock } = vi.hoisted(() =
 const performRevertToVersionMock = workflowsOrchestrationMockFns.mockPerformRevertToVersion
 const performActivateVersionMock = workflowsOrchestrationMockFns.mockPerformActivateVersion
 
-const { resolveWorkflowStateRefMock, generateWorkflowDiffSummaryMock } = vi.hoisted(() => ({
-  resolveWorkflowStateRefMock: vi.fn(),
-  generateWorkflowDiffSummaryMock: vi.fn(),
-}))
+const { resolveWorkflowStateRefMock, generateWorkflowDiffSummaryMock, listWorkflowVersionsMock } =
+  vi.hoisted(() => ({
+    resolveWorkflowStateRefMock: vi.fn(),
+    generateWorkflowDiffSummaryMock: vi.fn(),
+    listWorkflowVersionsMock: vi.fn(),
+  }))
 
 vi.mock('@sim/db', () => ({
   db: {
@@ -70,6 +72,11 @@ vi.mock('@/lib/workflows/comparison', () => ({
 
 vi.mock('@/app/api/workflows/utils', () => ({
   checkNeedsRedeployment: checkNeedsRedeploymentMock,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  listWorkflowVersions: listWorkflowVersionsMock,
+  updateDeploymentVersionMetadata: vi.fn(),
 }))
 
 import { db } from '@sim/db'
@@ -216,34 +223,38 @@ describe('executeGetDeploymentLog', () => {
     })
   })
 
-  it('returns versions from the deployment-version table', async () => {
-    const rows = [
-      {
-        id: 'v2',
-        version: 2,
-        name: null,
-        description: null,
-        isActive: true,
-        createdAt: new Date('2026-05-30T00:00:00.000Z'),
-        createdBy: 'user-1',
-      },
-      {
-        id: 'v1',
-        version: 1,
-        name: 'first',
-        description: 'initial',
-        isActive: false,
-        createdAt: new Date('2026-05-29T00:00:00.000Z'),
-        createdBy: null,
-      },
-    ]
-    vi.mocked(db.select).mockReturnValueOnce(selectChain(rows) as never)
+  it('returns versions from the shared listWorkflowVersions helper', async () => {
+    listWorkflowVersionsMock.mockResolvedValue({
+      versions: [
+        {
+          id: 'v2',
+          version: 2,
+          name: null,
+          description: null,
+          isActive: true,
+          createdAt: new Date('2026-05-30T00:00:00.000Z'),
+          createdBy: 'user-1',
+          deployedByName: 'Waleed',
+        },
+        {
+          id: 'v1',
+          version: 1,
+          name: 'first',
+          description: 'initial',
+          isActive: false,
+          createdAt: new Date('2026-05-29T00:00:00.000Z'),
+          createdBy: null,
+          deployedByName: null,
+        },
+      ],
+    })
 
     const result = await executeGetDeploymentLog({ workflowId: 'wf-1' }, {
       userId: 'user-1',
       workflowId: 'wf-1',
     } as ExecutionContext)
 
+    expect(listWorkflowVersionsMock).toHaveBeenCalledWith('wf-1')
     expect(result.success).toBe(true)
     expect(result.output).toMatchObject({
       workflowId: 'wf-1',

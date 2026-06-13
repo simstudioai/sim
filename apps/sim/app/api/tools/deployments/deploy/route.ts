@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performFullDeploy } from '@/lib/workflows/orchestration'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import {
   authenticateDeploymentToolRequest,
   authorizeDeploymentWorkflow,
@@ -58,9 +59,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     })
 
     if (!result.success) {
-      const status =
-        result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
-      return deploymentToolError(result.error || 'Failed to deploy workflow', status)
+      return deploymentToolError(
+        result.error || 'Failed to deploy workflow',
+        statusForOrchestrationError(result.errorCode)
+      )
     }
 
     return NextResponse.json({
