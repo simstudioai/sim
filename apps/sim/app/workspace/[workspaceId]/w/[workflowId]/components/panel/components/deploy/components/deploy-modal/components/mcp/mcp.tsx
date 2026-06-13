@@ -65,6 +65,22 @@ function haveSameServerSelection(a: string[], b: string[]): boolean {
 }
 
 /**
+ * Resolves the start block's input fields from the subblock store, falling back
+ * to the block's persisted value when the store entry is empty (fields hydrated
+ * from block defaults). Shared by the display memo and the description writer so
+ * both read the exact same source — a writer that skipped the fallback could
+ * persist `[]` and wipe every field.
+ */
+function resolveInputFormatFields(
+  storeValue: unknown,
+  blockFallbackValue: unknown
+): NormalizedField[] {
+  const fromStore = normalizeInputFormatValue(storeValue) as NormalizedField[]
+  if (fromStore.length > 0) return fromStore
+  return normalizeInputFormatValue(blockFallbackValue) as NormalizedField[]
+}
+
+/**
  * Component to query tools for a single server and report back via callback.
  */
 function ServerToolsQuery({
@@ -127,14 +143,10 @@ export function McpDeploy({
 
   const inputFormat = useMemo((): NormalizedField[] => {
     if (!starterBlockId) return []
-
-    const storeValue = subBlockValues[starterBlockId]?.inputFormat
-    const normalized = normalizeInputFormatValue(storeValue) as NormalizedField[]
-    if (normalized.length > 0) return normalized
-
-    const startBlock = blocks[starterBlockId]
-    const blockValue = startBlock?.subBlocks?.inputFormat?.value
-    return normalizeInputFormatValue(blockValue) as NormalizedField[]
+    return resolveInputFormatFields(
+      subBlockValues[starterBlockId]?.inputFormat,
+      blocks[starterBlockId]?.subBlocks?.inputFormat?.value
+    )
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
@@ -154,9 +166,13 @@ export function McpDeploy({
   const updateFieldDescription = useCallback(
     (fieldName: string, description: string) => {
       if (!starterBlockId) return
-      const currentFields = normalizeInputFormatValue(
-        useSubBlockStore.getState().getValue(starterBlockId, 'inputFormat')
-      ) as NormalizedField[]
+      const currentFields = resolveInputFormatFields(
+        useSubBlockStore.getState().getValue(starterBlockId, 'inputFormat'),
+        useWorkflowStore.getState().blocks[starterBlockId]?.subBlocks?.inputFormat?.value
+      )
+      // Never persist an empty list: the description inputs only render when fields
+      // exist, so an empty resolution means a transient state we must not write back.
+      if (currentFields.length === 0) return
       const nextFields = currentFields.map((field) =>
         field.name === fieldName ? { ...field, description } : field
       )
