@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
@@ -49,6 +49,8 @@ export interface TaskDraft {
 export interface TaskEditSeed {
   scheduleId: string
   prompt: string
+  /** Stored `@`-mention contexts, re-registered so editing preserves them. */
+  contexts?: ChatContext[]
   launchDate: string
   launchTime: string
   recurrence: Recurrence
@@ -114,6 +116,15 @@ function TaskModalContent({
 }: Omit<TaskModalProps, 'open'>) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const editor = usePromptEditor({ workspaceId, initialValue: edit?.prompt })
+
+  // Re-register the stored mentions once on open so saving an edit preserves
+  // them — the editor seeds from `initialValue` text only, not its contexts.
+  const setContexts = editor.setContexts
+  useEffect(() => {
+    if (edit?.contexts && edit.contexts.length > 0) setContexts(edit.contexts)
+    // Runs once per open; content remounts each time the dialog opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [launchDate, setLaunchDate] = useState(
     () => edit?.launchDate ?? format(slot?.date ?? new Date(), 'yyyy-MM-dd')
   )

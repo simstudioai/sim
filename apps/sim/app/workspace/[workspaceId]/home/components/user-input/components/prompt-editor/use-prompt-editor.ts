@@ -563,6 +563,9 @@ export function usePromptEditor({
       }
 
       const caret = e.target.selectionStart ?? finalValue.length
+      // Keep the ref in lockstep with state so synchronous readers (getValue /
+      // getPlainValue) never see pre-keystroke text before the next render.
+      valueRef.current = finalValue
       setValueState(finalValue)
       syncMentionState(e.target, finalValue, caret)
       syncSlashState(e.target, finalValue, caret)

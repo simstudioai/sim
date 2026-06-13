@@ -139,6 +139,7 @@ export function useScheduledTasks({
       return {
         scheduleId: schedule.id,
         prompt: schedule.prompt ?? '',
+        contexts: task.contexts,
         launchDate: format(task.runAt, 'yyyy-MM-dd'),
         launchTime,
         recurrence,
