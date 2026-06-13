@@ -221,6 +221,42 @@ describe('withMcpOauthRefreshLock', () => {
     }
   })
 
+  it('bounds the queue wait: callers stalled behind a wedged link reject without running fn', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAcquireLock.mockResolvedValue(true)
+      let resolveFirst: (value: string) => void
+      const hungFn = vi.fn(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveFirst = resolve
+          })
+      )
+      const queuedFn = vi.fn(async () => 'second')
+
+      const first = withMcpOauthRefreshLock('row-stall', hungFn)
+      const second = withMcpOauthRefreshLock('row-stall', queuedFn)
+      const secondAssertion = expect(second).rejects.toThrow(/stalled for/)
+
+      await vi.advanceTimersByTimeAsync(90_000)
+      await secondAssertion
+      expect(queuedFn).not.toHaveBeenCalled()
+
+      // The wedged link is untouched by the queue deadline (its own fn keeps
+      // the lock, protecting a possibly mid-rotation refresh) and the row
+      // heals once it settles — including skipping the abandoned link's fn.
+      resolveFirst!('first')
+      await expect(first).resolves.toBe('first')
+
+      await expect(withMcpOauthRefreshLock('row-stall', async () => 'healed')).resolves.toBe(
+        'healed'
+      )
+      expect(queuedFn).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('extends the lock TTL while fn() is running so long refreshes do not lose the lock', async () => {
     vi.useFakeTimers()
     try {
