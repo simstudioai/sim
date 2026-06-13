@@ -3,11 +3,13 @@ import {
   addMonths,
   addWeeks,
   eachDayOfInterval,
+  endOfDay,
   endOfMonth,
   endOfWeek,
   format,
   isSameDay,
   isSameMonth,
+  startOfDay,
   startOfMonth,
   startOfWeek,
 } from 'date-fns'
@@ -115,6 +117,28 @@ export function buildCalendarGrid(scope: CalendarScope, anchor: Date, today: Dat
       return buildWeekGrid(anchor, today)
     case 'day':
       return buildDayGrid(anchor, today)
+  }
+}
+
+/**
+ * The inclusive [start, end] instant window the current view renders, matching
+ * `buildCalendarGrid` exactly (the month view spans its 4–6 spillover weeks).
+ * Used to bound recurrence expansion to occurrences that are actually on screen.
+ */
+export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
+  switch (scope) {
+    case 'month':
+      return {
+        start: startOfWeek(startOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }),
+        end: endOfWeek(endOfMonth(anchor), { weekStartsOn: WEEK_STARTS_ON }),
+      }
+    case 'week':
+      return {
+        start: startOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON }),
+        end: endOfWeek(anchor, { weekStartsOn: WEEK_STARTS_ON }),
+      }
+    case 'day':
+      return { start: startOfDay(anchor), end: endOfDay(anchor) }
   }
 }
 

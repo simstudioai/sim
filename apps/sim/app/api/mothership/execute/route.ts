@@ -6,6 +6,7 @@ import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
+import { processContextsServer } from '@/lib/copilot/chat/process-contents'
 import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
 import {
   MothershipStreamV1EventType,
@@ -22,6 +23,7 @@ import {
   getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
 } from '@/lib/workspaces/permissions/utils'
+import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
 
@@ -102,6 +104,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       messageId: providedMessageId,
       requestId: providedRequestId,
       fileAttachments,
+      contexts,
       workflowId,
       executionId,
       userMetadata,
@@ -135,12 +138,22 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       workflowId,
       executionId,
     })
-    const [workspaceContext, integrationTools, userSkillTool, userPermission] = await Promise.all([
-      generateWorkspaceContext(workspaceId, userId),
-      buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
-      buildUserSkillTool(workspaceId),
-      getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-    ])
+    const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
+    const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
+      await Promise.all([
+        generateWorkspaceContext(workspaceId, userId),
+        buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
+        buildUserSkillTool(workspaceId),
+        getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
+        // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
+        processContextsServer(
+          contexts as unknown as ChatContext[] | undefined,
+          userId,
+          lastUserMessage,
+          workspaceId,
+          effectiveChatId
+        ).catch(() => []),
+      ])
     const requestPayload: Record<string, unknown> = {
       messages,
       responseFormat,
@@ -159,6 +172,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       ...(isE2BDocEnabled ? { docCompiler: 'python' } : {}),
       ...(userMetadata ? { userMetadata } : {}),
       ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
+      ...(agentContexts.length > 0 ? { contexts: agentContexts } : {}),
       ...(integrationTools.length > 0 ? { integrationTools } : {}),
       ...(userSkillTool ? { mothershipTools: [userSkillTool] } : {}),
       ...(userPermission ? { userPermission } : {}),

@@ -44,9 +44,9 @@ import {
 import {
   type BlockState,
   calculateNextRunTime as calculateNextTime,
+  computeNextRunAt,
   getScheduleTimeValues,
   getSubBlockValue,
-  validateCronExpression,
 } from '@/lib/workflows/schedules/utils'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -1241,6 +1241,9 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       workspaceId: jobRecord.sourceWorkspaceId,
       userId: jobRecord.sourceUserId,
       chatId: jobRecord.sourceChatId || generateId(),
+      ...(jobRecord.contexts && jobRecord.contexts.length > 0
+        ? { contexts: jobRecord.contexts }
+        : {}),
     }
 
     const startTime = new Date()
@@ -1331,14 +1334,16 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       let nextRunAt: Date | null = null
 
       if (!isOneTime && jobRecord.cronExpression) {
-        const validation = validateCronExpression(
-          jobRecord.cronExpression,
-          jobRecord.timezone || 'UTC'
-        )
-        nextRunAt = validation.nextRun || null
+        nextRunAt = computeNextRunAt({
+          cronExpression: jobRecord.cronExpression,
+          timezone: jobRecord.timezone || 'UTC',
+          from: now,
+          excludedDates: jobRecord.excludedDates,
+          endsAt: jobRecord.endsAt,
+        })
       }
 
-      const maxRunsReached = jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns
+      const maxRunsReached = Boolean(jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns)
       if (maxRunsReached) {
         logger.info(`[${requestId}] Job hit maxRuns limit`, {
           scheduleId: payload.scheduleId,
@@ -1347,16 +1352,20 @@ export async function executeJobInline(payload: JobExecutionPayload) {
         })
       }
 
+      // A recurring job with no remaining occurrence (past its end date or out of
+      // non-excluded runs) is finished, just like a one-time or maxRuns-capped job.
+      const isComplete = isOneTime || maxRunsReached || !nextRunAt
+
       await applyScheduleUpdate(
         payload.scheduleId,
         {
           lastRanAt: now,
           updatedAt: now,
-          nextRunAt: isOneTime || maxRunsReached ? null : nextRunAt,
+          nextRunAt: isComplete ? null : nextRunAt,
           failedCount: 0,
           lastQueuedAt: null,
           runCount: newRunCount,
-          status: isOneTime || maxRunsReached ? 'completed' : 'active',
+          status: isComplete ? 'completed' : 'active',
         },
         requestId,
         `Error updating job ${payload.scheduleId} after success`,
@@ -1377,11 +1386,13 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
     let nextRunAt: Date | null = null
     if (jobRecord.cronExpression) {
-      const validation = validateCronExpression(
-        jobRecord.cronExpression,
-        jobRecord.timezone || 'UTC'
-      )
-      nextRunAt = validation.nextRun || null
+      nextRunAt = computeNextRunAt({
+        cronExpression: jobRecord.cronExpression,
+        timezone: jobRecord.timezone || 'UTC',
+        from: now,
+        excludedDates: jobRecord.excludedDates,
+        endsAt: jobRecord.endsAt,
+      })
     }
 
     await applyScheduleUpdate(

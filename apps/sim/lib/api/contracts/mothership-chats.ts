@@ -76,6 +76,14 @@ export const mothershipExecuteBodySchema = z.object({
   messageId: z.string().optional(),
   requestId: z.string().optional(),
   fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
+  /**
+   * `@`-mentioned resources / `/`-invoked skills to resolve into the agent run,
+   * mirroring the interactive chat path. Used by scheduled tasks, whose
+   * captured contexts must reach the run without a live client.
+   */
+  contexts: z
+    .array(z.object({ kind: z.string().min(1), label: z.string() }).passthrough())
+    .optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
   userMetadata: z

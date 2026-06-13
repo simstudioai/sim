@@ -15,7 +15,11 @@ import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteJob, performUpdateJob } from '@/lib/workflows/schedules/orchestration'
+import {
+  performDeleteJob,
+  performExcludeOccurrence,
+  performUpdateJob,
+} from '@/lib/workflows/schedules/orchestration'
 import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -185,6 +189,9 @@ export const PUT = withRouteHandler(
           lifecycle: validatedBody.lifecycle,
           maxRuns: validatedBody.maxRuns,
           cronExpression: validatedBody.cronExpression,
+          time: validatedBody.time,
+          endsAt: validatedBody.endsAt,
+          contexts: validatedBody.contexts,
           request,
         })
         if (!updateResult.success) {
@@ -197,6 +204,45 @@ export const PUT = withRouteHandler(
         logger.info(`[${requestId}] Updated job schedule: ${scheduleId}`)
 
         return NextResponse.json({ message: 'Schedule updated successfully' })
+      }
+
+      if (action === 'exclude_occurrence') {
+        if (schedule.sourceType !== 'job') {
+          return NextResponse.json(
+            { error: 'Only standalone job schedules have occurrences' },
+            { status: 400 }
+          )
+        }
+        if (!workspaceId) {
+          return NextResponse.json({ error: 'Job has no workspace' }, { status: 400 })
+        }
+
+        const excludeResult = await performExcludeOccurrence({
+          jobId: scheduleId,
+          workspaceId,
+          userId: session.user.id,
+          actorName: session.user.name,
+          actorEmail: session.user.email,
+          occurrence: validatedBody.occurrence,
+          request,
+        })
+        if (!excludeResult.success) {
+          return NextResponse.json(
+            { error: excludeResult.error || 'Failed to delete occurrence' },
+            {
+              status:
+                excludeResult.errorCode === 'not_found'
+                  ? 404
+                  : excludeResult.errorCode === 'validation'
+                    ? 400
+                    : 500,
+            }
+          )
+        }
+
+        logger.info(`[${requestId}] Excluded occurrence on job schedule: ${scheduleId}`)
+
+        return NextResponse.json({ message: 'Occurrence deleted successfully' })
       }
 
       // reactivate
