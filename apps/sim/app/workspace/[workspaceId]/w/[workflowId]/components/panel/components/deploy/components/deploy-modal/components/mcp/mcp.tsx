@@ -65,11 +65,9 @@ function haveSameServerSelection(a: string[], b: string[]): boolean {
 }
 
 /**
- * Resolves the start block's input fields from the subblock store, falling back
- * to the block's persisted value when the store entry is empty (fields hydrated
- * from block defaults). Shared by the display memo and the description writer so
- * both read the exact same source — a writer that skipped the fallback could
- * persist `[]` and wipe every field.
+ * Resolves the start block's input fields from the subblock store, falling back to
+ * the block's persisted value when the store entry is empty. Shared by the display
+ * memo and the description writer so both read the exact same source.
  */
 function resolveInputFormatFields(
   storeValue: unknown,
@@ -157,11 +155,9 @@ export function McpDeploy({
   const [saveErrors, setSaveErrors] = useState<string[]>([])
 
   /**
-   * Per-parameter descriptions live on the start block's input format — the single
-   * source of truth shared by every deployment surface. The tool's parameter schema
-   * is derived server-side from the deployed workflow on each deploy, so the tool can
-   * never drift from what actually runs and descriptions are never wiped by a redeploy.
-   * Editing a description here mutates the workflow and surfaces the redeploy prompt.
+   * Persists a parameter description to the start block's input format, the single
+   * source the deployed tool schema is derived from. Bails on an empty resolution so
+   * a transient read can never overwrite existing fields.
    */
   const updateFieldDescription = useCallback(
     (fieldName: string, description: string) => {
@@ -170,8 +166,6 @@ export function McpDeploy({
         useSubBlockStore.getState().getValue(starterBlockId, 'inputFormat'),
         useWorkflowStore.getState().blocks[starterBlockId]?.subBlocks?.inputFormat?.value
       )
-      // Never persist an empty list: the description inputs only render when fields
-      // exist, so an empty resolution means a transient state we must not write back.
       if (currentFields.length === 0) return
       const nextFields = currentFields.map((field) =>
         field.name === fieldName ? { ...field, description } : field

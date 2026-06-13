@@ -1,8 +1,4 @@
-/**
- * Placeholder descriptions auto-assigned to new workflows. These should be
- * treated as "no description" so deployment surfaces (API info, MCP tool, A2A
- * agent) don't echo boilerplate back to the user as if it were intentional copy.
- */
+/** Placeholder descriptions auto-assigned to new workflows; treated as "no description". */
 const DEFAULT_WORKFLOW_DESCRIPTIONS = [
   'new workflow',
   'your first workflow - start building here!',
@@ -10,9 +6,8 @@ const DEFAULT_WORKFLOW_DESCRIPTIONS = [
 
 /**
  * Returns true when a workflow description is empty or a known auto-generated
- * placeholder (including the workflow name used as a fallback description).
- * Shared by every deployment tab so the "is this a real description?" rule has
- * a single definition.
+ * placeholder (including the workflow name used as a fallback). Shared by every
+ * deployment tab so the "is this a real description?" rule has one definition.
  */
 export function isDefaultDescription(
   description: string | null | undefined,
