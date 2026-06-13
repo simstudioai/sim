@@ -72,6 +72,12 @@ describe('crw scrape', () => {
       metadata: { title: 'Hello', sourceURL: 'https://example.com', statusCode: 200 },
     })
   })
+
+  it('reports failure when the API body indicates an error', async () => {
+    const result = await transform(respond({ success: false, error: 'invalid url' }))
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('invalid url')
+  })
 })
 
 describe('crw search', () => {
@@ -100,6 +106,12 @@ describe('crw search', () => {
     expect(result.output.data).toEqual([
       { title: 'Sim', url: 'https://sim.ai', description: 'AI workspace' },
     ])
+  })
+
+  it('reports failure when the API body indicates an error', async () => {
+    const result = await transform(respond({ success: false, error: 'search unavailable' }))
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('search unavailable')
   })
 })
 
@@ -155,5 +167,12 @@ describe('crw crawl', () => {
     expect(result.output.jobId).toBe('job-123')
     expect(result.output.pages).toEqual([])
     expect(result.output.total).toBe(0)
+  })
+
+  it('fails fast when job creation reports an error instead of polling', async () => {
+    const result = await transform(respond({ success: false, error: 'quota exceeded' }))
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('quota exceeded')
+    expect(result.output.jobId).toBeUndefined()
   })
 })

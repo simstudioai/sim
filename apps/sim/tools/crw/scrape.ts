@@ -88,7 +88,8 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     const result = data.data ?? data
 
     return {
-      success: true,
+      success: data.success !== false,
+      error: data.success === false ? data.error || 'fastCRW scrape failed' : undefined,
       output: {
         markdown: result.markdown,
         html: result.html,

@@ -116,6 +116,17 @@ export const crawlTool: ToolConfig<CrwCrawlParams, CrwCrawlResponse> = {
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
+    if (data.success === false || !data.id) {
+      return {
+        success: false,
+        error: data.error || 'fastCRW crawl job creation failed',
+        output: {
+          pages: [],
+          total: 0,
+        },
+      }
+    }
+
     return {
       success: true,
       output: {

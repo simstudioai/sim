@@ -67,7 +67,8 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
     const data = await response.json()
 
     return {
-      success: true,
+      success: data.success !== false,
+      error: data.success === false ? data.error || 'fastCRW search failed' : undefined,
       output: {
         data: data.data,
       },
