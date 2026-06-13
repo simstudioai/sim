@@ -126,7 +126,6 @@
     "csv-parse": "6.1.0",
     "date-fns": "4.1.0",
     "decimal.js": "10.6.0",
-    "disposable-email-domains": "1.0.62",
     "docx": "^9.6.1",
     "docx-preview": "^0.3.7",
     "drizzle-orm": "^0.45.2",
