@@ -30,9 +30,14 @@ interface AllowedIntegrationsResponse {
   allowedIntegrations: string[] | null
 }
 
+const allowedIntegrationsKeys = {
+  all: ['allowedIntegrations'] as const,
+  env: () => [...allowedIntegrationsKeys.all, 'env'] as const,
+}
+
 function useAllowedIntegrationsFromEnv() {
   return useQuery<AllowedIntegrationsResponse>({
-    queryKey: ['allowedIntegrations', 'env'],
+    queryKey: allowedIntegrationsKeys.env(),
     queryFn: async ({ signal }) => {
       try {
         return await requestJson(getAllowedIntegrationsContract, { signal })
