@@ -2,22 +2,23 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createPermissionGroupContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
+  PERMISSION_GROUP_CONSTRAINTS,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
-import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import { authorizeOrgAccessControl } from '@/app/api/organizations/[id]/permission-groups/utils'
 
-const logger = createLogger('WorkspacePermissionGroups')
+const logger = createLogger('OrganizationPermissionGroups')
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
@@ -26,23 +27,10 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId } = await params
+    const { id: organizationId } = await params
 
-    const access = await checkWorkspaceAccess(workspaceId, session.user.id)
-    if (!access.exists) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-    if (!access.hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-    if (!entitled) {
-      return NextResponse.json(
-        { error: 'Access Control is an Enterprise feature' },
-        { status: 403 }
-      )
-    }
+    const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+    if (denied) return denied
 
     const groups = await db
       .select({
@@ -53,29 +41,33 @@ export const GET = withRouteHandler(
         createdBy: permissionGroup.createdBy,
         createdAt: permissionGroup.createdAt,
         updatedAt: permissionGroup.updatedAt,
-        autoAddNewMembers: permissionGroup.autoAddNewMembers,
+        isDefault: permissionGroup.isDefault,
         creatorName: user.name,
         creatorEmail: user.email,
       })
       .from(permissionGroup)
       .leftJoin(user, eq(permissionGroup.createdBy, user.id))
-      .where(eq(permissionGroup.workspaceId, workspaceId))
+      .where(eq(permissionGroup.organizationId, organizationId))
       .orderBy(desc(permissionGroup.createdAt))
 
-    const groupsWithCounts = await Promise.all(
-      groups.map(async (group) => {
-        const [memberCount] = await db
-          .select({ count: count() })
+    const groupIds = groups.map((group) => group.id)
+    const memberCounts = groupIds.length
+      ? await db
+          .select({
+            permissionGroupId: permissionGroupMember.permissionGroupId,
+            count: count(),
+          })
           .from(permissionGroupMember)
-          .where(eq(permissionGroupMember.permissionGroupId, group.id))
+          .where(inArray(permissionGroupMember.permissionGroupId, groupIds))
+          .groupBy(permissionGroupMember.permissionGroupId)
+      : []
+    const countByGroupId = new Map(memberCounts.map((row) => [row.permissionGroupId, row.count]))
 
-        return {
-          ...group,
-          config: parsePermissionGroupConfig(group.config),
-          memberCount: memberCount?.count ?? 0,
-        }
-      })
-    )
+    const groupsWithCounts = groups.map((group) => ({
+      ...group,
+      config: parsePermissionGroupConfig(group.config),
+      memberCount: countByGroupId.get(group.id) ?? 0,
+    }))
 
     return NextResponse.json({ permissionGroups: groupsWithCounts })
   }
@@ -88,33 +80,25 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId } = await context.params
+    const { id: organizationId } = await context.params
 
     try {
-      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      if (!isWorkspaceAdmin) {
-        return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
-      }
-
-      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-      if (!entitled) {
-        return NextResponse.json(
-          { error: 'Access Control is an Enterprise feature' },
-          { status: 403 }
-        )
-      }
+      const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+      if (denied) return denied
 
       const parsed = await parseRequest(createPermissionGroupContract, req, context, {
         validationErrorResponse: (error) =>
           NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
       })
       if (!parsed.success) return parsed.response
-      const { name, description, config, autoAddNewMembers } = parsed.data.body
+      const { name, description, config, isDefault } = parsed.data.body
 
       const existingGroup = await db
         .select({ id: permissionGroup.id })
         .from(permissionGroup)
-        .where(and(eq(permissionGroup.workspaceId, workspaceId), eq(permissionGroup.name, name)))
+        .where(
+          and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.name, name))
+        )
         .limit(1)
 
       if (existingGroup.length > 0) {
@@ -132,25 +116,25 @@ export const POST = withRouteHandler(
       const now = new Date()
       const newGroup = {
         id: generateId(),
-        workspaceId,
+        organizationId,
         name,
         description: description || null,
         config: groupConfig,
         createdBy: session.user.id,
         createdAt: now,
         updatedAt: now,
-        autoAddNewMembers: autoAddNewMembers || false,
+        isDefault: isDefault || false,
       }
 
       await db.transaction(async (tx) => {
-        if (autoAddNewMembers) {
+        if (isDefault) {
           await tx
             .update(permissionGroup)
-            .set({ autoAddNewMembers: false, updatedAt: now })
+            .set({ isDefault: false, updatedAt: now })
             .where(
               and(
-                eq(permissionGroup.workspaceId, workspaceId),
-                eq(permissionGroup.autoAddNewMembers, true)
+                eq(permissionGroup.organizationId, organizationId),
+                eq(permissionGroup.isDefault, true)
               )
             )
         }
@@ -159,12 +143,11 @@ export const POST = withRouteHandler(
 
       logger.info('Created permission group', {
         permissionGroupId: newGroup.id,
-        workspaceId,
+        organizationId,
         userId: session.user.id,
       })
 
       recordAudit({
-        workspaceId,
         actorId: session.user.id,
         action: AuditAction.PERMISSION_GROUP_CREATED,
         resourceType: AuditResourceType.PERMISSION_GROUP,
@@ -173,12 +156,30 @@ export const POST = withRouteHandler(
         actorEmail: session.user.email ?? undefined,
         resourceName: name,
         description: `Created permission group "${name}"`,
-        metadata: { workspaceId, autoAddNewMembers: autoAddNewMembers || false },
+        metadata: { organizationId, isDefault: isDefault || false },
         request: req,
       })
 
       return NextResponse.json({ permissionGroup: newGroup }, { status: 201 })
     } catch (error) {
+      if (getPostgresErrorCode(error) === '23505') {
+        const constraint = getPostgresConstraintName(error)
+        if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationName) {
+          return NextResponse.json(
+            { error: 'A permission group with this name already exists' },
+            { status: 409 }
+          )
+        }
+        if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationDefault) {
+          return NextResponse.json(
+            {
+              error:
+                'Another group was concurrently set as the default. Please refresh and try again.',
+            },
+            { status: 409 }
+          )
+        }
+      }
       logger.error('Error creating permission group', error)
       return NextResponse.json({ error: 'Failed to create permission group' }, { status: 500 })
     }

@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, permissions } from '@sim/db/schema'
+import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -9,26 +9,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { bulkAddPermissionGroupMembersContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
-import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  authorizeOrgAccessControl,
+  loadGroupInOrganization,
+} from '@/app/api/organizations/[id]/permission-groups/utils'
 
-const logger = createLogger('WorkspacePermissionGroupBulkMembers')
-
-async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
-  const [group] = await db
-    .select({
-      id: permissionGroup.id,
-      workspaceId: permissionGroup.workspaceId,
-      name: permissionGroup.name,
-    })
-    .from(permissionGroup)
-    .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.workspaceId, workspaceId)))
-    .limit(1)
-
-  return group ?? null
-}
+const logger = createLogger('OrganizationPermissionGroupBulkMembers')
 
 export const POST = withRouteHandler(
   async (req: NextRequest, context: { params: Promise<{ id: string; groupId: string }> }) => {
@@ -37,23 +25,13 @@ export const POST = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await context.params
+    const { id: organizationId, groupId: id } = await context.params
 
     try {
-      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      if (!isWorkspaceAdmin) {
-        return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
-      }
+      const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+      if (denied) return denied
 
-      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-      if (!entitled) {
-        return NextResponse.json(
-          { error: 'Access Control is an Enterprise feature' },
-          { status: 403 }
-        )
-      }
-
-      const group = await loadGroupInWorkspace(id, workspaceId)
+      const group = await loadGroupInOrganization(id, organizationId)
       if (!group) {
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
@@ -63,30 +41,24 @@ export const POST = withRouteHandler(
           NextResponse.json({ error: getValidationErrorMessage(error) }, { status: 400 }),
       })
       if (!parsed.success) return parsed.response
-      const { userIds, addAllWorkspaceMembers } = parsed.data.body
+      const { userIds, addAllOrganizationMembers } = parsed.data.body
 
       let targetUserIds: string[] = []
 
-      if (addAllWorkspaceMembers) {
-        const workspaceMembers = await db
-          .select({ userId: permissions.userId })
-          .from(permissions)
-          .where(
-            and(eq(permissions.entityType, 'workspace'), eq(permissions.entityId, workspaceId))
-          )
+      if (addAllOrganizationMembers) {
+        const orgMembers = await db
+          .select({ userId: member.userId })
+          .from(member)
+          .where(eq(member.organizationId, organizationId))
 
-        targetUserIds = Array.from(new Set(workspaceMembers.map((m) => m.userId)))
+        targetUserIds = Array.from(new Set(orgMembers.map((m) => m.userId)))
       } else if (userIds && userIds.length > 0) {
         const uniqueUserIds = Array.from(new Set(userIds))
         const validMembers = await db
-          .select({ userId: permissions.userId })
-          .from(permissions)
+          .select({ userId: member.userId })
+          .from(member)
           .where(
-            and(
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspaceId),
-              inArray(permissions.userId, uniqueUserIds)
-            )
+            and(eq(member.organizationId, organizationId), inArray(member.userId, uniqueUserIds))
           )
 
         targetUserIds = Array.from(new Set(validMembers.map((m) => m.userId)))
@@ -110,7 +82,7 @@ export const POST = withRouteHandler(
           )
           .where(
             and(
-              eq(permissionGroup.workspaceId, workspaceId),
+              eq(permissionGroup.organizationId, organizationId),
               inArray(permissionGroupMember.userId, targetUserIds)
             )
           )
@@ -140,7 +112,7 @@ export const POST = withRouteHandler(
         const newMembers = usersToAdd.map((userId) => ({
           id: generateId(),
           permissionGroupId: id,
-          workspaceId,
+          organizationId,
           userId,
           assignedBy: session.user.id,
           assignedAt: new Date(),
@@ -157,14 +129,13 @@ export const POST = withRouteHandler(
 
       logger.info('Bulk added members to permission group', {
         permissionGroupId: id,
-        workspaceId,
+        organizationId,
         addedCount: addedUserIds.length,
         movedCount,
         assignedBy: session.user.id,
       })
 
       recordAudit({
-        workspaceId,
         actorId: session.user.id,
         action: AuditAction.PERMISSION_GROUP_MEMBER_ADDED,
         resourceType: AuditResourceType.PERMISSION_GROUP,
@@ -174,6 +145,7 @@ export const POST = withRouteHandler(
         actorEmail: session.user.email ?? undefined,
         description: `Bulk added ${addedUserIds.length} member(s) to permission group "${group.name}"`,
         metadata: {
+          organizationId,
           permissionGroupId: id,
           addedUserIds,
           movedCount,
@@ -186,13 +158,13 @@ export const POST = withRouteHandler(
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)
         if (
-          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.workspaceUser ||
+          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.organizationUser ||
           constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
         ) {
           return NextResponse.json(
             {
               error:
-                'One or more users were concurrently added to a group in this workspace. Please refresh and try again.',
+                'One or more users were concurrently added to a group in this organization. Please refresh and try again.',
             },
             { status: 409 }
           )
