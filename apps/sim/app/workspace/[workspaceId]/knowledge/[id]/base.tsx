@@ -12,6 +12,7 @@ import {
   Badge,
   Button,
   ChipConfirmModal,
+  type ChipConfirmTextSegment,
   ChipDatePicker,
   ChipDropdown,
   type ChipDropdownOption,
@@ -47,8 +48,7 @@ import type {
   SelectableConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
-import { Resource } from '@/app/workspace/[workspaceId]/components'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
 import {
   ActionBar,
   AddConnectorModal,
@@ -320,7 +320,6 @@ export function KnowledgeBase({
 
   const {
     knowledgeBase,
-    isLoading: isLoadingKnowledgeBase,
     error: knowledgeBaseError,
     refresh: refreshKnowledgeBase,
   } = useKnowledgeBase(id)
@@ -333,8 +332,6 @@ export function KnowledgeBase({
   const {
     documents,
     pagination,
-    isLoading: isLoadingDocuments,
-    isFetching: isFetchingDocuments,
     isPlaceholderData: isPlaceholderDocuments,
     error: documentsError,
     hasProcessingDocuments,
@@ -371,6 +368,12 @@ export function KnowledgeBase({
   }, [hasSyncingConnectors, refreshKnowledgeBase, refreshDocuments])
 
   const knowledgeBaseName = knowledgeBase?.name || passedKnowledgeBaseName || 'Knowledge Base'
+  /**
+   * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
+   * the name loads (mirroring loading.tsx) instead of duplicating the root
+   * "Knowledge Base" crumb.
+   */
+  const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
@@ -786,16 +789,6 @@ export function KnowledgeBase({
     setContextMenuDocument(null)
   }, [closeContextMenu])
 
-  const prevKnowledgeBaseIdRef = useRef<string>(id)
-  const isNavigatingToNewKB = prevKnowledgeBaseIdRef.current !== id
-
-  if (knowledgeBase && knowledgeBase.id === id) {
-    prevKnowledgeBaseIdRef.current = id
-  }
-
-  const isInitialLoad = isLoadingKnowledgeBase && !knowledgeBase
-  const isFetchingNewKB = isNavigatingToNewKB && isFetchingDocuments
-
   const breadcrumbs: BreadcrumbItem[] = [
     {
       label: 'Knowledge Base',
@@ -803,7 +796,7 @@ export function KnowledgeBase({
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
     {
-      label: knowledgeBaseName,
+      label: knowledgeBaseCrumbLabel,
       icon: Database,
       editing: kbRename.editingId
         ? {
@@ -1116,12 +1109,6 @@ export function KnowledgeBase({
     [documents, tagDefinitions, searchQuery]
   )
 
-  const emptyMessage = searchQuery
-    ? 'No documents found'
-    : enabledFilter !== 'all' || activeTagFilters.length > 0
-      ? 'Nothing matches your filter'
-      : undefined
-
   if (error && !knowledgeBase) {
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
@@ -1170,19 +1157,14 @@ export function KnowledgeBase({
         <Resource.Table
           columns={DOCUMENT_COLUMNS}
           rows={documentRows}
-          sort={sortConfig}
           selectable={selectableConfig}
           onRowClick={handleDocumentClick}
           onRowContextMenu={handleDocumentContextMenu}
-          isLoading={
-            isInitialLoad || isFetchingNewKB || (isLoadingDocuments && documents.length === 0)
-          }
           pagination={{
             currentPage,
             totalPages,
             onPageChange: (page) => setCurrentPage(page),
           }}
-          emptyMessage={emptyMessage}
           overlay={
             <ActionBar
               className={totalPages > 1 ? 'bottom-[72px]' : undefined}
@@ -1213,17 +1195,16 @@ export function KnowledgeBase({
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Knowledge Base'
         title='Delete Knowledge Base'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-            <span className='text-[var(--text-error)]'>
-              The knowledge base and all {pagination.total} document
-              {pagination.total === 1 ? '' : 's'} within it will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: knowledgeBaseName, bold: true },
+          '? ',
+          {
+            text: `The knowledge base and all ${pagination.total} document${pagination.total === 1 ? '' : 's'} within it will be removed.`,
+            error: true,
+          },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete Knowledge Base',
           onClick: handleDeleteKnowledgeBase,
@@ -1240,30 +1221,26 @@ export function KnowledgeBase({
         }}
         srTitle='Delete Document'
         title='Delete Document'
-        description={(() => {
+        text={(() => {
           const docToDelete = documents.find((doc) => doc.id === documentToDelete)
-          return (
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>
-                {docToDelete?.filename ?? 'this document'}
-              </span>
-              ?{' '}
-              {docToDelete?.connectorId ? (
-                <span className='text-[var(--text-error)]'>
-                  This document is synced from a connector. Deleting it will permanently exclude it
-                  from future syncs. To temporarily hide it from search, disable it instead.
-                </span>
-              ) : (
-                <>
-                  <span className='text-[var(--text-error)]'>
-                    This will permanently delete the document.
-                  </span>{' '}
-                  This action cannot be undone.
-                </>
-              )}
-            </>
-          )
+          const base: ChipConfirmTextSegment[] = [
+            'Are you sure you want to delete ',
+            { text: docToDelete?.filename ?? 'this document', bold: true },
+            '? ',
+          ]
+          return docToDelete?.connectorId
+            ? [
+                ...base,
+                {
+                  text: 'This document is synced from a connector. Deleting it will permanently exclude it from future syncs. To temporarily hide it from search, disable it instead.',
+                  error: true,
+                },
+              ]
+            : [
+                ...base,
+                { text: 'This will permanently delete the document.', error: true },
+                ' This action cannot be undone.',
+              ]
         })()}
         confirm={{
           label: 'Delete Document',
@@ -1276,17 +1253,14 @@ export function KnowledgeBase({
         onOpenChange={setShowBulkDeleteModal}
         srTitle='Delete Documents'
         title='Delete Documents'
-        description={
-          <>
-            Are you sure you want to delete {selectedDocuments.size} document
-            {selectedDocuments.size === 1 ? '' : 's'}?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently delete the selected document
-              {selectedDocuments.size === 1 ? '' : 's'}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          `Are you sure you want to delete ${selectedDocuments.size} document${selectedDocuments.size === 1 ? '' : 's'}? `,
+          {
+            text: `This will permanently delete the selected document${selectedDocuments.size === 1 ? '' : 's'}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: `Delete ${selectedDocuments.size} Document${selectedDocuments.size === 1 ? '' : 's'}`,
           onClick: confirmBulkDelete,

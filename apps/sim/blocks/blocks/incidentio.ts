@@ -5,7 +5,7 @@ import type { IncidentioResponse } from '@/tools/incidentio/types'
 
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
-  name: 'incidentio',
+  name: 'incident.io',
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
   longDescription:

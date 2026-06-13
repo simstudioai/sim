@@ -22,7 +22,7 @@ const ACTIONS: ChromeActionSpec[] = [{ text: 'New chunk', icon: Plus, variant: '
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Knowledge Base', icon: Database, onClick: noop },
-  { label: '…' },
+  { label: '…', icon: Database },
   { label: '…', terminal: true },
 ]
 

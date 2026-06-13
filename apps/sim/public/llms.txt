@@ -1,6 +1,6 @@
 # Sim
 
-Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Create agents visually with the workflow builder, conversationally through Mothership, or programmatically with the API — connected to 1,000+ integrations and every major LLM.
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Create agents visually with the workflow builder, conversationally through Chat, or programmatically with the API — connected to 1,000+ integrations and every major LLM.
 
 ## Key Facts
 

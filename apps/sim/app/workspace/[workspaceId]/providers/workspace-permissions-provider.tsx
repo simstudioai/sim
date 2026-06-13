@@ -6,8 +6,6 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useToast } from '@/components/emcn'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import { useSocket } from '@/app/workspace/providers/socket-provider'
 import {
   useWorkspacePermissionsQuery,
@@ -111,7 +109,6 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
   const workspaceId = params?.workspaceId as string
   const urlWorkflowId = params?.workflowId as string | undefined
   const queryClient = useQueryClient()
-  const { toast } = useToast()
 
   const hasOperationError = useOperationQueueStore((state) => state.hasOperationError)
   const { isReconnecting, isRetryingWorkflowJoin, blockedJoinWorkflowId } = useSocket()
@@ -137,20 +134,6 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
     description: 'Changes cannot be saved. Refresh to retry.',
     action: { label: 'Refresh', onClick: () => window.location.reload() },
   })
-
-  useRegisterGlobalCommands(() =>
-    createCommands([
-      {
-        id: 'clear-notifications',
-        handler: () => {
-          toast.dismissAll()
-        },
-        overrides: {
-          allowInEditable: false,
-        },
-      },
-    ])
-  )
 
   const {
     data: workspacePermissions,

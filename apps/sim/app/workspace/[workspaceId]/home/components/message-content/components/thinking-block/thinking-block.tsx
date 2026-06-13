@@ -85,7 +85,7 @@ export function ThinkingBlock({
         <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
           <Blimp className='size-[16px] text-[var(--text-icon)]' />
         </div>
-        <span className='text-[var(--text-body)] text-sm'>Mothership</span>
+        <span className='text-[var(--text-body)] text-sm'>Sim</span>
         <ChevronDown
           className={cn(
             'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',

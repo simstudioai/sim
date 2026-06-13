@@ -110,19 +110,12 @@ export function InboxEnableToggle() {
         onOpenChange={setIsDisableOpen}
         srTitle='Disable email inbox'
         title='Disable email inbox'
-        description={
-          <>
-            Are you sure you want to disable the inbox
-            {config?.address && (
-              <>
-                {' '}
-                <span className='font-medium text-[var(--text-primary)]'>{config.address}</span>
-              </>
-            )}
-            ? Any emails sent to this address after disabling will not be delivered. This action
-            cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to disable the inbox',
+          config?.address && ' ',
+          config?.address && { text: config.address, bold: true },
+          '? Any emails sent to this address after disabling will not be delivered. This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Disable inbox',
           onClick: handleDisable,

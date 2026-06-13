@@ -238,7 +238,7 @@ export function ConnectorsSection({
         }}
         srTitle='Remove Connector'
         title='Remove Connector'
-        description='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        text='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
         confirm={{
           label: 'Remove',
           onClick: handleDeleteConnector,

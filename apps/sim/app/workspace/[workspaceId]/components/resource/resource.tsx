@@ -5,14 +5,11 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
-  ArrowDown,
-  ArrowUp,
   Button,
   Checkbox,
   cellIconNodeClass,
@@ -23,9 +20,8 @@ import {
 import { cn } from '@/lib/core/utils/cn'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { ResourceHeader } from './components/resource-header'
-import type { SortConfig } from './components/resource-options'
-import { ResourceOptions } from './components/resource-options'
+import { ResourceHeader } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
 export interface ResourceColumn {
   id: string
@@ -62,7 +58,6 @@ export interface ResourceCell {
 export interface ResourceRow {
   id: string
   cells: Record<string, ResourceCell>
-  sortValues?: Record<string, string | number>
 }
 
 export interface SelectableConfig {
@@ -108,12 +103,19 @@ interface ResourceProps {
  * - `Resource.Options` — required, the search/filter/sort toolbar
  * - `Resource.Table` — optional; swap for any custom body (dashboard, grid, …)
  *
- * The shell owns the fixed column layout; the children own their own chrome.
+ * Invariant: the shell renders identically for every consumer. Consumers supply
+ * content (columns, rows, cells) and behavior (handlers, configs) only — no
+ * prop changes the shell's chrome, spacing, or structure. The only sanctioned
+ * variation is replacing `Resource.Table` with a custom body.
+ *
+ * The shell owns the fixed column layout and is the positioning context for
+ * absolutely-positioned overlays (action bars, slide-out sidebars); the
+ * children own their own chrome.
  */
 function ResourceRoot({ children, onContextMenu }: ResourceProps) {
   return (
     <div
-      className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
+      className='relative flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
       {children}
@@ -124,52 +126,50 @@ function ResourceRoot({ children, onContextMenu }: ResourceProps) {
 interface ResourceTableProps {
   columns: ResourceColumn[]
   rows: ResourceRow[]
-  defaultSort?: string
-  sort?: SortConfig
   selectedRowId?: string | null
   selectable?: SelectableConfig
   rowDragDrop?: RowDragDropConfig
   onRowClick?: (rowId: string) => void
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
-  isLoading?: boolean
   onLoadMore?: () => void
   hasMore?: boolean
   isLoadingMore?: boolean
   pagination?: PaginationConfig
-  emptyMessage?: string
+  /**
+   * Sanctioned overlay slot. Rendered absolutely against the table region
+   * (action bars, slide-out sidebars, drop targets). The overlay owns its own
+   * chrome and positioning; it never alters the table's rendering.
+   */
   overlay?: ReactNode
 }
 
 /**
  * Data table body, module-private and exposed only as `Resource.Table` — the
  * compound member is the sole way consumers render it.
+ *
+ * Chrome guarantee: the `<table>`, `<colgroup>`, and column headers render
+ * unconditionally — no prop or row state (empty, loading, error) ever drops
+ * them. Structural additions (checkbox column, load-more sentinel, pagination
+ * bar) are driven purely by which configs the consumer supplies and always
+ * render the canonical chrome.
  */
 const ResourceTable = memo(function ResourceTable({
   columns,
   rows,
-  defaultSort,
-  sort: externalSort,
   selectedRowId,
   selectable,
   rowDragDrop,
   onRowClick,
   onRowHover,
   onRowContextMenu,
-  isLoading,
   onLoadMore,
   hasMore,
   isLoadingMore,
   pagination,
-  emptyMessage,
   overlay,
 }: ResourceTableProps) {
   const loadMoreRef = useRef<HTMLDivElement>(null)
-  const sortEnabled = defaultSort != null
-  const [internalSort, setInternalSort] = useState<{ column: string; direction: 'asc' | 'desc' }>({
-    column: defaultSort ?? '',
-    direction: 'desc',
-  })
 
   const [contextMenuRowId, setContextMenuRowId] = useState<string | null>(null)
 
@@ -201,24 +201,6 @@ const ResourceTable = memo(function ResourceTable({
     }
   }, [contextMenuRowId])
 
-  const handleSort = useCallback((column: string, direction: 'asc' | 'desc') => {
-    setInternalSort({ column, direction })
-  }, [])
-
-  const displayRows = useMemo(() => {
-    if (!sortEnabled || externalSort) return rows
-    return [...rows].sort((a, b) => {
-      const col = internalSort.column
-      const aVal = a.sortValues?.[col] ?? a.cells[col]?.label ?? ''
-      const bVal = b.sortValues?.[col] ?? b.cells[col]?.label ?? ''
-      const cmp =
-        typeof aVal === 'number' && typeof bVal === 'number'
-          ? aVal - bVal
-          : String(aVal).localeCompare(String(bVal))
-      return internalSort.direction === 'asc' ? -cmp : cmp
-    })
-  }, [rows, internalSort, sortEnabled, externalSort])
-
   useEffect(() => {
     if (!onLoadMore || !hasMore) return
     const el = loadMoreRef.current
@@ -242,22 +224,9 @@ const ResourceTable = memo(function ResourceTable({
     [selectable]
   )
 
-  /**
-   * While loading, the table chrome (column headers) renders with an empty body
-   * and the rows "just load in" — never a skeleton, and never a false
-   * empty-state (the empty message is gated on `!isLoading`).
-   */
-  if (!isLoading && rows.length === 0 && emptyMessage) {
-    return (
-      <div className='flex min-h-0 flex-1 items-center justify-center'>
-        <span className='text-[var(--text-secondary)] text-small'>{emptyMessage}</span>
-      </div>
-    )
-  }
-
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
-      <div className='min-h-0 flex-1 overflow-auto'>
+      <div className='min-h-0 flex-1 overflow-auto overscroll-none'>
         <table className='w-full table-fixed text-small'>
           <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
           <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
@@ -273,41 +242,18 @@ const ResourceTable = memo(function ResourceTable({
                   />
                 </th>
               )}
-              {columns.map((col) => {
-                if (!sortEnabled) {
-                  return (
-                    <th
-                      key={col.id}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-small'
-                    >
-                      {col.header}
-                    </th>
-                  )
-                }
-                const isActive = internalSort.column === col.id
-                const SortIcon = internalSort.direction === 'asc' ? ArrowUp : ArrowDown
-                return (
-                  <th key={col.id} className='h-10 px-4 py-1.5 text-left align-middle'>
-                    <button
-                      type='button'
-                      className='inline-flex items-center gap-1 rounded-lg px-2 py-1 font-normal text-[var(--text-muted)] text-small transition-colors hover-hover:bg-[var(--surface-active)]'
-                      onClick={() =>
-                        handleSort(
-                          col.id,
-                          isActive ? (internalSort.direction === 'desc' ? 'asc' : 'desc') : 'desc'
-                        )
-                      }
-                    >
-                      {col.header}
-                      {isActive && <SortIcon className='size-[12px] text-[var(--text-icon)]' />}
-                    </button>
-                  </th>
-                )
-              })}
+              {columns.map((col) => (
+                <th
+                  key={col.id}
+                  className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-small'
+                >
+                  {col.header}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {displayRows.map((row) => (
+            {rows.map((row) => (
               <DataRow
                 key={row.id}
                 row={row}
