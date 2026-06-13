@@ -34,6 +34,13 @@ import {
 const logger = createLogger('WorkspaceEnvironmentAPI')
 
 /**
+ * Bounds the workspace-environment advisory-lock wait so a stuck holder fails
+ * fast (SQLSTATE 55P03) rather than hanging, even if the deployment lacks a
+ * server-side `lock_timeout`. Transaction-scoped via `set_config(..., true)`.
+ */
+const WORKSPACE_ENV_LOCK_TIMEOUT_MS = 5_000
+
+/**
  * Restricts decrypted workspace env values to administrators. Members (including
  * read-only) receive the variable names with empty values so editor autocomplete
  * and conflict detection keep working without leaking secret values. A value is
@@ -200,7 +207,10 @@ export const PUT = withRouteHandler(
       ).then((entries) => Object.fromEntries(entries))
 
       const { existingEncrypted, merged } = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
+        await tx.execute(
+          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
+        )
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
 
         const [existingRow] = await tx
           .select()
@@ -328,7 +338,10 @@ export const DELETE = withRouteHandler(
       }
 
       const result = await db.transaction(async (tx) => {
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${workspaceId}))`)
+        await tx.execute(
+          sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_ENV_LOCK_TIMEOUT_MS}ms`}, true)`
+        )
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${workspaceId}, 0))`)
 
         const [existingRow] = await tx
           .select()
