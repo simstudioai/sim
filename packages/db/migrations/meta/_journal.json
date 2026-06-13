@@ -1639,13 +1639,6 @@
       "when": 1781277096869,
       "tag": "0234_analyze_user_table_rows",
       "breakpoints": true
-    },
-    {
-      "idx": 235,
-      "version": "7",
-      "when": 1781390064675,
-      "tag": "0235_cute_blue_marvel",
-      "breakpoints": true
     }
   ]
 }
