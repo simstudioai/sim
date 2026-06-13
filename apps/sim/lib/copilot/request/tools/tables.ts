@@ -30,9 +30,10 @@ async function replaceTableRowsFromWire(
 ): Promise<{ error?: string }> {
   const idByName = buildIdByName(table.schema)
   const idKeyedRows = rows.map((row) => rowDataNameToId(row as RowData, idByName))
-  if (idKeyedRows.every((row) => Object.keys(row).length === 0)) {
+  const emptyIndex = idKeyedRows.findIndex((row) => Object.keys(row).length === 0)
+  if (emptyIndex !== -1) {
     return {
-      error: `None of the row keys match columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
+      error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
     }
   }
   await replaceTableRows(

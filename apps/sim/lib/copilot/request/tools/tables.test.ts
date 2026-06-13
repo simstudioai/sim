@@ -123,7 +123,20 @@ describe('maybeWriteOutputToTable', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toContain('None of the row keys match columns')
+    expect(result.error).toContain('Row 1 has no keys matching columns')
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
+  it('fails fast when only some rows match instead of writing empty rows', async () => {
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'tbl_1' },
+      { success: true, output: { result: [{ name: 'Alice' }, { wrong: 'x' }] } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Row 2 has no keys matching columns')
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 
@@ -177,5 +190,32 @@ describe('maybeWriteReadCsvToTable', () => {
       { col_name: 'Alice', col_age: '30' },
       { col_name: 'Bob', col_age: '40' },
     ])
+  })
+
+  it('fails fast when the file headers match no table columns', async () => {
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'wrong,headers\n1,2' } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Row 1 has no keys matching columns')
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
+  it('surfaces service validation failures as tool errors', async () => {
+    mockReplaceTableRows.mockRejectedValue(new Error('Row 1: name is required'))
+
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'age\n30' } },
+      buildContext()
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Row 1: name is required')
   })
 })
