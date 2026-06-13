@@ -52,6 +52,7 @@ import { ChipTextarea } from '@/components/emcn/components/chip-textarea/chip-te
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
 import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
+import { Loader } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
@@ -377,6 +378,14 @@ interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
    * for a single-line zone.
    */
   description?: React.ReactNode
+  /**
+   * Renders a spinner inside the drop zone and blocks further picks while an
+   * async import/upload is in flight. Use for slow selections (zip extraction,
+   * remote fetches) where the zone would otherwise look idle. Pair with a
+   * `label` such as `'Importing…'` for an explicit status line.
+   * @default false
+   */
+  loading?: boolean
 }
 
 export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
@@ -692,6 +701,7 @@ function ChipModalFileControl({
   multiple = false,
   label = 'Drop files here or click to browse',
   description,
+  loading = false,
   disabled,
   id,
   'aria-required': ariaRequired,
@@ -700,6 +710,7 @@ function ChipModalFileControl({
 }: ChipModalFileFieldProps & { id: string } & React.AriaAttributes) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = React.useState(false)
+  const isInteractive = !disabled && !loading
 
   const emitFiles = React.useCallback(
     (files: FileList | null) => {
@@ -713,7 +724,8 @@ function ChipModalFileControl({
     <button
       type='button'
       id={id}
-      disabled={disabled}
+      disabled={!isInteractive}
+      aria-busy={loading || undefined}
       aria-required={ariaRequired}
       aria-invalid={ariaInvalid}
       aria-describedby={ariaDescribedby}
@@ -721,7 +733,7 @@ function ChipModalFileControl({
       onDragEnter={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        if (!disabled) setIsDragging(true)
+        if (isInteractive) setIsDragging(true)
       }}
       onDragOver={(event) => {
         event.preventDefault()
@@ -736,7 +748,7 @@ function ChipModalFileControl({
         event.preventDefault()
         event.stopPropagation()
         setIsDragging(false)
-        if (!disabled) emitFiles(event.dataTransfer.files)
+        if (isInteractive) emitFiles(event.dataTransfer.files)
       }}
       className={cn(
         'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-none transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
@@ -748,13 +760,14 @@ function ChipModalFileControl({
         type='file'
         accept={accept}
         multiple={multiple}
-        disabled={disabled}
+        disabled={!isInteractive}
         className='hidden'
         onChange={(event) => {
           emitFiles(event.target.files)
           event.target.value = ''
         }}
       />
+      {loading ? <Loader animate className='size-[14px] text-[var(--text-tertiary)]' /> : null}
       <span className='text-[var(--text-primary)] text-caption'>
         {isDragging ? 'Drop files here' : label}
       </span>
