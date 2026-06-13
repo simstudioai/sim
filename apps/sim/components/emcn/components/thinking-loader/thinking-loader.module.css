@@ -121,13 +121,16 @@
   }
 }
 
-/* orbit — two blobs chase each other around a square track */
-.orbitA,
-.orbitB {
+/* orbit — two blobs chase each other around a square track. The second blob
+   is the track offset by 50% (opposite corner) via its OWN keyframes, not an
+   animation-delay: the shared wall-clock phase lock (.frame.frame *) forces
+   one delay on every element, which would otherwise stack both blobs and hide
+   one. */
+.orbitA {
   animation: orbit 2s infinite;
 }
 .orbitB {
-  animation-delay: -1s;
+  animation: orbit-b 2s infinite;
 }
 @keyframes orbit {
   0% {
@@ -144,6 +147,23 @@
   }
   100% {
     transform: translate(0, 0);
+  }
+}
+@keyframes orbit-b {
+  0% {
+    transform: translate(40px, 40px);
+  }
+  25% {
+    transform: translate(0, 40px);
+  }
+  50% {
+    transform: translate(0, 0);
+  }
+  75% {
+    transform: translate(40px, 0);
+  }
+  100% {
+    transform: translate(40px, 40px);
   }
 }
 
