@@ -433,7 +433,7 @@ export const OneDriveBlock: BlockConfig<OneDriveResponse> = {
 
 export const OneDriveBlockMeta = {
   tags: ['microsoft-365', 'cloud', 'document-processing'],
-  url: 'https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage',
+  url: 'https://www.microsoft.com/microsoft-365/onedrive',
   templates: [
     {
       icon: MicrosoftOneDriveIcon,

@@ -664,7 +664,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const MicrosoftPlannerBlockMeta = {
   tags: ['project-management', 'microsoft-365'],
-  url: 'https://www.microsoft.com/en-us/microsoft-365/business/task-management-software',
+  url: 'https://www.microsoft.com/microsoft-365/business/task-management-software',
   templates: [
     {
       icon: MicrosoftPlannerIcon,

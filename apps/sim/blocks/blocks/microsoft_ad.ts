@@ -397,7 +397,7 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
 
 export const MicrosoftAdBlockMeta = {
   tags: ['identity', 'microsoft-365'],
-  url: 'https://www.microsoft.com/en-us/security/business/identity-access/microsoft-entra-id',
+  url: 'https://www.microsoft.com/security/business/identity-access/microsoft-entra-id',
   templates: [
     {
       icon: AzureIcon,

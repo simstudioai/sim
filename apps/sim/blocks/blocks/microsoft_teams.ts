@@ -483,7 +483,7 @@ export const MicrosoftTeamsBlock: BlockConfig<MicrosoftTeamsResponse> = {
 
 export const MicrosoftTeamsBlockMeta = {
   tags: ['messaging', 'microsoft-365'],
-  url: 'https://www.microsoft.com/en-us/microsoft-teams/group-chat-software',
+  url: 'https://www.microsoft.com/microsoft-teams/group-chat-software',
   templates: [
     {
       icon: MicrosoftTeamsIcon,

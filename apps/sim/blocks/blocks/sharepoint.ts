@@ -1052,7 +1052,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
 
 export const SharepointBlockMeta = {
   tags: ['microsoft-365', 'content-management', 'document-processing'],
-  url: 'https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration',
+  url: 'https://www.microsoft.com/microsoft-365/sharepoint/collaboration',
   templates: [
     {
       icon: MicrosoftSharepointIcon,
