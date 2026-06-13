@@ -1,12 +1,10 @@
-import { db } from '@sim/db'
-import { workflowDeploymentVersion } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deploymentsGetVersionContract } from '@/lib/api/contracts/tools/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import {
   authenticateDeploymentToolRequest,
   authorizeDeploymentWorkflow,
@@ -41,25 +39,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const access = await authorizeDeploymentWorkflow(auth.userId, workflowId, workspaceId, 'read')
     if (!access.ok) return access.response
 
-    const [row] = await db
-      .select({
-        id: workflowDeploymentVersion.id,
-        version: workflowDeploymentVersion.version,
-        name: workflowDeploymentVersion.name,
-        description: workflowDeploymentVersion.description,
-        isActive: workflowDeploymentVersion.isActive,
-        createdAt: workflowDeploymentVersion.createdAt,
-        state: workflowDeploymentVersion.state,
-      })
-      .from(workflowDeploymentVersion)
-      .where(
-        and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.version, version)
-        )
-      )
-      .limit(1)
-
+    const row = await getWorkflowDeploymentVersion(workflowId, version)
     if (!row) {
       return deploymentToolError('Deployment version not found', 404)
     }

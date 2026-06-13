@@ -1,10 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  assertWorkflowMutable,
-  getActiveWorkflowRecord,
-  WorkflowLockedError,
-} from '@sim/workflow-authz'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1DeployWorkflowBodySchema,
@@ -16,12 +12,10 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import {
-  checkRateLimit,
-  createRateLimitResponse,
-  validateWorkspaceAccess,
-} from '@/app/api/v1/middleware'
+import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 
 const logger = createLogger('V1WorkflowDeployAPI')
 
@@ -55,16 +49,9 @@ export const POST = withRouteHandler(
         return validationErrorResponse(body.error)
       }
 
-      const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-      const workspaceId = workflowData.workspaceId
-
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
-      if (accessError) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      if (!target.ok) return target.response
+      const { workflow, workspaceId } = target
 
       await assertWorkflowMutable(id)
 
@@ -73,7 +60,7 @@ export const POST = withRouteHandler(
       const result = await performFullDeploy({
         workflowId: id,
         userId,
-        workflowName: workflowData.name || undefined,
+        workflowName: workflow.name || undefined,
         versionName: body.data.name,
         versionDescription: body.data.description ?? undefined,
         requestId,
@@ -81,9 +68,10 @@ export const POST = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
-        return NextResponse.json({ error: result.error || 'Failed to deploy workflow' }, { status })
+        return NextResponse.json(
+          { error: result.error || 'Failed to deploy workflow' },
+          { status: statusForOrchestrationError(result.errorCode) }
+        )
       }
 
       captureServerEvent(
@@ -142,18 +130,11 @@ export const DELETE = withRouteHandler(
 
       const { id } = parsed.data.params
 
-      const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-      const workspaceId = workflowData.workspaceId
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      if (!target.ok) return target.response
+      const { workflow, workspaceId } = target
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
-      if (accessError) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      if (!workflowData.isDeployed) {
+      if (!workflow.isDeployed) {
         return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })
       }
 

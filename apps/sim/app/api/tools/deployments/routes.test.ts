@@ -5,7 +5,6 @@
  * session/internal auth, workspace permission enforcement, and the mapping of
  * orchestration results to tool responses.
  */
-import { db } from '@sim/db'
 import { createMockRequest, hybridAuthMockFns, workflowAuthzMockFns } from '@sim/testing'
 import { WorkflowLockedError } from '@sim/workflow-authz'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -16,12 +15,14 @@ const {
   mockPerformFullUndeploy,
   mockPerformActivateVersion,
   mockListWorkflowVersions,
+  mockGetWorkflowDeploymentVersion,
 } = vi.hoisted(() => ({
   mockEnforceUserRateLimit: vi.fn(),
   mockPerformFullDeploy: vi.fn(),
   mockPerformFullUndeploy: vi.fn(),
   mockPerformActivateVersion: vi.fn(),
   mockListWorkflowVersions: vi.fn(),
+  mockGetWorkflowDeploymentVersion: vi.fn(),
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
@@ -36,6 +37,7 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   listWorkflowVersions: mockListWorkflowVersions,
+  getWorkflowDeploymentVersion: mockGetWorkflowDeploymentVersion,
 }))
 
 import { POST as deployPost } from '@/app/api/tools/deployments/deploy/route'
@@ -313,26 +315,16 @@ describe('GET /api/tools/deployments/versions', () => {
 })
 
 describe('GET /api/tools/deployments/version', () => {
-  function mockVersionRow(rows: unknown[]) {
-    vi.mocked(db.select).mockReturnValueOnce({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve(rows)) })),
-      })),
-    } as never)
-  }
-
   it('returns version metadata and the deployed state', async () => {
-    mockVersionRow([
-      {
-        id: 'v-3',
-        version: 3,
-        name: 'Release 3',
-        description: null,
-        isActive: false,
-        createdAt: '2026-06-12T00:00:00.000Z',
-        state: { blocks: {}, edges: [] },
-      },
-    ])
+    mockGetWorkflowDeploymentVersion.mockResolvedValue({
+      id: 'v-3',
+      version: 3,
+      name: 'Release 3',
+      description: null,
+      isActive: false,
+      createdAt: '2026-06-12T00:00:00.000Z',
+      state: { blocks: {}, edges: [] },
+    })
 
     const response = await getVersionGet(
       makeGet('version', `workflowId=${WORKFLOW_ID}&workspaceId=ws-1&version=3`)
@@ -352,7 +344,7 @@ describe('GET /api/tools/deployments/version', () => {
   })
 
   it('returns 404 when the version does not exist', async () => {
-    mockVersionRow([])
+    mockGetWorkflowDeploymentVersion.mockResolvedValue(null)
 
     const response = await getVersionGet(
       makeGet('version', `workflowId=${WORKFLOW_ID}&workspaceId=ws-1&version=9`)

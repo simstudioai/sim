@@ -1,10 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  assertWorkflowMutable,
-  getActiveWorkflowRecord,
-  WorkflowLockedError,
-} from '@sim/workflow-authz'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   v1RollbackWorkflowBodySchema,
@@ -15,13 +11,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { findPreviousDeploymentVersion } from '@/lib/workflows/persistence/utils'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
-import {
-  checkRateLimit,
-  createRateLimitResponse,
-  validateWorkspaceAccess,
-} from '@/app/api/v1/middleware'
+import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
+import { resolveV1DeploymentWorkflow } from '@/app/api/v1/workflows/utils'
 
 const logger = createLogger('V1WorkflowRollbackAPI')
 
@@ -55,18 +49,11 @@ export const POST = withRouteHandler(
         return validationErrorResponse(body.error)
       }
 
-      const workflowData = await getActiveWorkflowRecord(id)
-      if (!workflowData?.workspaceId) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-      const workspaceId = workflowData.workspaceId
+      const target = await resolveV1DeploymentWorkflow(rateLimit, userId, id)
+      if (!target.ok) return target.response
+      const { workflow, workspaceId } = target
 
-      const accessError = await validateWorkspaceAccess(rateLimit, userId, workspaceId, 'admin')
-      if (accessError) {
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      if (!workflowData.isDeployed) {
+      if (!workflow.isDeployed) {
         return NextResponse.json({ error: 'Workflow is not deployed' }, { status: 400 })
       }
 
@@ -94,17 +81,15 @@ export const POST = withRouteHandler(
         workflowId: id,
         version: targetVersion,
         userId,
-        workflow: workflowData as Record<string, unknown>,
+        workflow: workflow as Record<string, unknown>,
         requestId,
         request,
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
         return NextResponse.json(
           { error: result.error || 'Failed to roll back workflow' },
-          { status }
+          { status: statusForOrchestrationError(result.errorCode) }
         )
       }
 
