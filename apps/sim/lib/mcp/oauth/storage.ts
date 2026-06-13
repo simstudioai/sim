@@ -276,7 +276,9 @@ export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promis
 
   let queueTimedOut = false
   const next = prevSettled.then(() => {
-    if (queueTimedOut) return undefined
+    if (queueTimedOut) {
+      throw new Error(`MCP OAuth refresh queue for ${rowId} abandoned after timeout`)
+    }
     return runWithRedisMutex(lockKey, rowId, fn)
   })
   inflightChains.set(lockKey, next)
@@ -304,7 +306,7 @@ export async function withMcpOauthRefreshLock<T>(rowId: string, fn: () => Promis
     clearTimeout(queueTimer)
   }
 
-  return next as Promise<T>
+  return next
 }
 
 async function runWithRedisMutex<T>(
