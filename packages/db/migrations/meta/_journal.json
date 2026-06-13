@@ -1646,6 +1646,13 @@
       "when": 1781386157632,
       "tag": "0235_schedule_task_contexts_recurrence",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1781394340181,
+      "tag": "0236_org_scope_permission_groups",
+      "breakpoints": true
     }
   ]
 }
