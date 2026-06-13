@@ -139,15 +139,16 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       executionId,
     })
     const lastUserMessage = messages.filter((m) => m.role === 'user').at(-1)?.content
+    // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
+    const agentMentions = contexts as unknown as ChatContext[] | undefined
     const [workspaceContext, integrationTools, userSkillTool, userPermission, agentContexts] =
       await Promise.all([
         generateWorkspaceContext(workspaceId, userId),
         buildIntegrationToolSchemas(userId, messageId, undefined, workspaceId),
         buildUserSkillTool(workspaceId),
         getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null),
-        // double-cast-allowed: the contract validates contexts as open kind/label objects; processContextsServer narrows on `kind` at runtime
         processContextsServer(
-          contexts as unknown as ChatContext[] | undefined,
+          agentMentions,
           userId,
           lastUserMessage,
           workspaceId,
