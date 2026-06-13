@@ -65,17 +65,15 @@ function haveSameServerSelection(a: string[], b: string[]): boolean {
 }
 
 /**
- * Resolves the start block's input fields from the subblock store, falling back to
- * the block's persisted value when the store entry is empty. Shared by the display
- * memo and the description writer so both read the exact same source.
+ * Picks the active raw input-format array: the subblock store value, or the block's
+ * persisted value when the store holds no named fields. Returns the array untouched
+ * (no filtering) so the writer can preserve in-progress fields; the display memo
+ * normalizes the result. Shared so both read the exact same source.
  */
-function resolveInputFormatFields(
-  storeValue: unknown,
-  blockFallbackValue: unknown
-): NormalizedField[] {
-  const fromStore = normalizeInputFormatValue(storeValue) as NormalizedField[]
-  if (fromStore.length > 0) return fromStore
-  return normalizeInputFormatValue(blockFallbackValue) as NormalizedField[]
+function pickRawInputFormat(storeValue: unknown, blockFallbackValue: unknown): unknown[] {
+  const storeArray = Array.isArray(storeValue) ? storeValue : []
+  if (normalizeInputFormatValue(storeArray).length > 0) return storeArray
+  return Array.isArray(blockFallbackValue) ? blockFallbackValue : []
 }
 
 /**
@@ -141,10 +139,12 @@ export function McpDeploy({
 
   const inputFormat = useMemo((): NormalizedField[] => {
     if (!starterBlockId) return []
-    return resolveInputFormatFields(
-      subBlockValues[starterBlockId]?.inputFormat,
-      blocks[starterBlockId]?.subBlocks?.inputFormat?.value
-    )
+    return normalizeInputFormatValue(
+      pickRawInputFormat(
+        subBlockValues[starterBlockId]?.inputFormat,
+        blocks[starterBlockId]?.subBlocks?.inputFormat?.value
+      )
+    ) as NormalizedField[]
   }, [starterBlockId, subBlockValues, blocks])
 
   const [toolName, setToolName] = useState(() => sanitizeToolName(workflowName))
@@ -156,19 +156,21 @@ export function McpDeploy({
 
   /**
    * Persists a parameter description to the start block's input format, the single
-   * source the deployed tool schema is derived from. Bails on an empty resolution so
-   * a transient read can never overwrite existing fields.
+   * source the deployed tool schema is derived from. Maps over the raw array so every
+   * other field — including unnamed, in-progress rows — is preserved untouched.
    */
   const updateFieldDescription = useCallback(
     (fieldName: string, description: string) => {
       if (!starterBlockId) return
-      const currentFields = resolveInputFormatFields(
+      const rawFields = pickRawInputFormat(
         useSubBlockStore.getState().getValue(starterBlockId, 'inputFormat'),
         useWorkflowStore.getState().blocks[starterBlockId]?.subBlocks?.inputFormat?.value
       )
-      if (currentFields.length === 0) return
-      const nextFields = currentFields.map((field) =>
-        field.name === fieldName ? { ...field, description } : field
+      if (rawFields.length === 0) return
+      const nextFields = rawFields.map((field) =>
+        field && typeof field === 'object' && (field as { name?: string }).name === fieldName
+          ? { ...field, description }
+          : field
       )
       collaborativeSetSubblockValue(starterBlockId, 'inputFormat', nextFields)
     },
