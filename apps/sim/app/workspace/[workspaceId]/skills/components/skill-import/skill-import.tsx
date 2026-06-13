@@ -128,7 +128,7 @@ export function SkillImport({ onImport }: SkillImportProps) {
         title='Upload File'
         accept='.md,.zip'
         onChange={handleFiles}
-        disabled={fileState === 'loading'}
+        loading={fileState === 'loading'}
         label={fileState === 'loading' ? 'Importing…' : undefined}
         description='.md file with YAML frontmatter, or .zip containing a SKILL.md'
         error={fileError || undefined}
