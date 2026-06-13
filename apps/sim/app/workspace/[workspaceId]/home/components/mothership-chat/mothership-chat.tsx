@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -26,7 +27,6 @@ import type {
   QueuedMessage,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
-import { useProgressiveList } from '@/hooks/use-progressive-list'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 
@@ -61,12 +61,31 @@ interface MothershipChatProps {
   className?: string
 }
 
+/**
+ * Estimated row heights seed the virtualizer before each row is measured. They
+ * only affect the scrollbar thumb on not-yet-rendered rows, so an approximate
+ * value is fine — every visible row is measured precisely via `measureElement`.
+ * Tuned to the blended average of short user rows and taller assistant rows so
+ * the scrollbar barely drifts as off-screen rows resolve.
+ */
+const ESTIMATED_ROW_HEIGHT = {
+  'mothership-view': 200,
+  'copilot-view': 130,
+} as const
+
+/**
+ * Rows render farther beyond the viewport edges than the default so fast scroll
+ * and the streaming tail stay painted without a blank flash before measurement.
+ */
+const OVERSCAN = 6
+
 const LAYOUT_STYLES = {
   'mothership-view': {
     scrollContainer:
       'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pt-4 pb-8 [scrollbar-gutter:stable_both-edges]',
-    content: 'mx-auto max-w-[48rem] space-y-6',
-    userRow: 'flex flex-col items-end gap-[6px] pt-3',
+    sizer: 'relative mx-auto w-full max-w-[48rem]',
+    rowGap: 'pb-6',
+    userRow: 'flex flex-col items-end gap-[6px]',
     attachmentWidth: 'max-w-[70%]',
     userBubble: 'max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
     assistantRow: 'group/msg',
@@ -75,8 +94,9 @@ const LAYOUT_STYLES = {
   },
   'copilot-view': {
     scrollContainer: 'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4',
-    content: 'space-y-4',
-    userRow: 'flex flex-col items-end gap-[6px] pt-2',
+    sizer: 'relative w-full',
+    rowGap: 'pb-4',
+    userRow: 'flex flex-col items-end gap-[6px]',
     attachmentWidth: 'max-w-[85%]',
     userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
     assistantRow: 'group/msg',
@@ -201,14 +221,41 @@ export function MothershipChat({
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
-  const { ref: scrollContainerRef, scrollToBottom } = useAutoScroll(isStreamActive, {
-    scrollOnMount: true,
-  })
+  const scrollElementRef = useRef<HTMLDivElement | null>(null)
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive)
+  const setScrollElement = useCallback(
+    (el: HTMLDivElement | null) => {
+      scrollElementRef.current = el
+      autoScrollRef(el)
+    },
+    [autoScrollRef]
+  )
+
   const hasMessages = messages.length > 0
-  const stagingKey = chatId ?? 'pending-chat'
-  const { staged: stagedMessages, isStaging } = useProgressiveList(messages, stagingKey)
-  const stagedMessageCount = stagedMessages.length
-  const stagedOffset = messages.length - stagedMessages.length
+
+  /**
+   * Stable per-row identity for virtualizer measurement caching and React
+   * reconciliation. User rows key on their message id; assistant rows key on
+   * their turn position (`assistant:<userId>:<ordinal>`) so a streaming
+   * placeholder keeps the same element — and its smooth-text state — when the
+   * persisted message arrives with a new id.
+   */
+  const rowKeyByIndex = useMemo(() => {
+    const out: string[] = []
+    let lastUserId: string | undefined
+    let ordinal = 0
+    for (const [index, message] of messages.entries()) {
+      if (message.role === 'user') {
+        lastUserId = message.id
+        ordinal = 0
+        out[index] = message.id
+      } else {
+        out[index] = lastUserId ? `assistant:${lastUserId}:${ordinal++}` : message.id
+      }
+    }
+    return out
+  }, [messages])
+
   const precedingUserContentByIndex = useMemo(() => {
     const out: Array<string | undefined> = []
     let lastUserContent: string | undefined
@@ -218,22 +265,21 @@ export function MothershipChat({
     }
     return out
   }, [messages])
-  const assistantTurnKeyByIndex = useMemo(() => {
-    const out: string[] = []
-    let lastUserId: string | undefined
-    let ordinal = 0
-    for (const [index, message] of messages.entries()) {
-      if (message.role === 'user') {
-        lastUserId = message.id
-        ordinal = 0
-      } else {
-        out[index] = lastUserId ? `assistant:${lastUserId}:${ordinal++}` : message.id
-      }
-    }
-    return out
-  }, [messages])
-  const initialScrollDoneRef = useRef(false)
+
+  const virtualizer = useVirtualizer({
+    count: messages.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT[layout],
+    overscan: OVERSCAN,
+    getItemKey: (index) => rowKeyByIndex[index] ?? index,
+  })
+
+  const scrolledChatRef = useRef<string | undefined>(undefined)
   const userInputRef = useRef<UserInputHandle>(null)
+  const messageQueueRef = useRef(messageQueue)
+  useEffect(() => {
+    messageQueueRef.current = messageQueue
+  }, [messageQueue])
 
   const onSubmitRef = useRef(onSubmit)
   useEffect(() => {
@@ -243,37 +289,40 @@ export function MothershipChat({
     onSubmitRef.current(id)
   }, [])
 
-  function handleSendQueuedHead() {
-    const topMessage = messageQueue[0]
+  const handleSendQueuedHead = useCallback(() => {
+    const topMessage = messageQueueRef.current[0]
     if (!topMessage) return
     void onSendQueuedMessage(topMessage.id)
-  }
+  }, [onSendQueuedMessage])
 
-  function handleEditQueued(id: string) {
-    const msg = onEditQueuedMessage(id)
-    if (msg) userInputRef.current?.loadQueuedMessage(msg)
-  }
+  const handleEditQueued = useCallback(
+    (id: string) => {
+      const msg = onEditQueuedMessage(id)
+      if (msg) userInputRef.current?.loadQueuedMessage(msg)
+    },
+    [onEditQueuedMessage]
+  )
 
-  function handleEditQueuedTail() {
-    const tail = messageQueue[messageQueue.length - 1]
+  const handleEditQueuedTail = useCallback(() => {
+    const tail = messageQueueRef.current[messageQueueRef.current.length - 1]
     if (!tail) return
     handleEditQueued(tail.id)
-  }
+  }, [handleEditQueued])
 
+  /**
+   * Land at the most recent message once per chat — on open and when switching
+   * chats (keyed on `chatId`, so it re-fires even between chats of equal length).
+   * Runs before paint so a long transcript never flashes at the top. Subsequent
+   * growth within the same chat is handled by {@link useAutoScroll}'s streaming
+   * sticky-scroll, not here.
+   */
   useLayoutEffect(() => {
-    if (!hasMessages) {
-      initialScrollDoneRef.current = false
-      return
-    }
-    if (initialScrollDoneRef.current || initialScrollBlocked) return
-    initialScrollDoneRef.current = true
-    scrollToBottom()
-  }, [hasMessages, initialScrollBlocked, scrollToBottom])
+    if (!hasMessages || initialScrollBlocked || scrolledChatRef.current === chatId) return
+    scrolledChatRef.current = chatId
+    virtualizer.scrollToIndex(messages.length - 1, { align: 'end' })
+  }, [chatId, hasMessages, initialScrollBlocked, messages.length, virtualizer])
 
-  useLayoutEffect(() => {
-    if (!isStaging || initialScrollBlocked || !initialScrollDoneRef.current) return
-    scrollToBottom()
-  }, [isStaging, stagedMessageCount, initialScrollBlocked, scrollToBottom])
+  const virtualItems = virtualizer.getVirtualItems()
 
   return (
     <ChatSurfaceProvider
@@ -284,37 +333,42 @@ export function MothershipChat({
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
       <div className={cn('flex h-full min-h-0 flex-col', className)}>
-        <div ref={scrollContainerRef} className={styles.scrollContainer}>
+        <div ref={setScrollElement} className={styles.scrollContainer}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
-            <div className={styles.content}>
-              {stagedMessages.map((msg, localIndex) => {
-                const index = stagedOffset + localIndex
-                if (msg.role === 'user') {
-                  return (
-                    <UserMessageRow
-                      key={msg.id}
-                      content={msg.content}
-                      contexts={msg.contexts}
-                      attachments={msg.attachments}
-                      rowClassName={styles.userRow}
-                      bubbleClassName={styles.userBubble}
-                      attachmentWidthClassName={styles.attachmentWidth}
-                    />
-                  )
-                }
-
+            <div className={styles.sizer} style={{ height: virtualizer.getTotalSize() }}>
+              {virtualItems.map((virtualItem) => {
+                const index = virtualItem.index
+                const msg = messages[index]
                 const isLast = index === messages.length - 1
                 return (
-                  <AssistantMessageRow
-                    key={assistantTurnKeyByIndex[index] ?? msg.id}
-                    message={msg}
-                    isStreaming={isStreamActive && isLast}
-                    precedingUserContent={precedingUserContentByIndex[index]}
-                    rowClassName={styles.assistantRow}
-                    onOptionSelect={isLast ? stableOnOptionSelect : undefined}
-                  />
+                  <div
+                    key={virtualItem.key}
+                    data-index={index}
+                    ref={virtualizer.measureElement}
+                    className={cn('absolute top-0 left-0 w-full', styles.rowGap)}
+                    style={{ transform: `translateY(${virtualItem.start}px)` }}
+                  >
+                    {msg.role === 'user' ? (
+                      <UserMessageRow
+                        content={msg.content}
+                        contexts={msg.contexts}
+                        attachments={msg.attachments}
+                        rowClassName={styles.userRow}
+                        bubbleClassName={styles.userBubble}
+                        attachmentWidthClassName={styles.attachmentWidth}
+                      />
+                    ) : (
+                      <AssistantMessageRow
+                        message={msg}
+                        isStreaming={isStreamActive && isLast}
+                        precedingUserContent={precedingUserContentByIndex[index]}
+                        rowClassName={styles.assistantRow}
+                        onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                      />
+                    )}
+                  </div>
                 )
               })}
             </div>
