@@ -18,6 +18,25 @@
 .frame {
   color: #4f4f4f;
   flex: none;
+  /* Loader fill is a radial gradient (center → edge) plus a soft white inner
+     glow, per the Figma loader spec. Stops and glow opacity are theme vars,
+     inherited by the gradient stops and feFlood inside the SVG, so one set of
+     defs serves both themes. Light: #A7A7A7 → #D6D6D6, glow white 0.9. */
+  --tl-grad-inner: #a7a7a7;
+  --tl-grad-outer: #d6d6d6;
+  --tl-glow: rgba(255, 255, 255, 0.9);
+}
+
+/* Gradient stops + glow flood read the theme vars via CSS (a raw `var()` in an
+   SVG presentation attribute would not resolve — it must come through CSS). */
+.gradInner {
+  stop-color: var(--tl-grad-inner);
+}
+.gradOuter {
+  stop-color: var(--tl-grad-outer);
+}
+.glow {
+  flood-color: var(--tl-glow);
 }
 
 /* Wall-clock phase lock: the component sets --tl-sync to a shared negative
@@ -31,6 +50,10 @@
 
 :global(.dark) .frame {
   color: #d6d6d6;
+  /* Dark: #4F4F4F → #6F6F6F, glow white 0.6. */
+  --tl-grad-inner: #4f4f4f;
+  --tl-grad-outer: #6f6f6f;
+  --tl-glow: rgba(255, 255, 255, 0.6);
 }
 
 .labelRow {

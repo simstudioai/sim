@@ -180,6 +180,7 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
   const filterId = `tl-goo-${id}`
   const clipId = `tl-clip-${id}`
   const windowClipId = `tl-window-${id}`
+  const gradientId = `tl-grad-${id}`
   const [cycleVariant, setCycleVariant] = useState<ThinkingLoaderVariant>('metaballs')
   const cycling = variant === undefined
 
@@ -220,10 +221,57 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
       style={syncDelay ? ({ '--tl-sync': syncDelay } as CSSProperties) : undefined}
     >
       <defs>
-        <filter id={filterId} x='-30%' y='-30%' width='160%' height='160%'>
+        {/* sRGB so the radial gradient fill keeps its authored midtones
+            through the blur (linearRGB would wash the gradient out). The goo
+            crush runs first; the inner glow then rides the merged silhouette's
+            edge — a soft white inset, per the Figma loader spec. */}
+        <filter
+          id={filterId}
+          x='-30%'
+          y='-30%'
+          width='160%'
+          height='160%'
+          colorInterpolationFilters='sRGB'
+        >
           <feGaussianBlur in='SourceGraphic' stdDeviation='5' result='blur' />
-          <feColorMatrix in='blur' values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9' />
+          <feColorMatrix
+            in='blur'
+            values='1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9'
+            result='goo'
+          />
+          {/* Inner shadow from the goo silhouette's alpha (Figma technique:
+              blur the alpha, subtract it from itself to leave an inner ring,
+              tint white). stdDeviation 4.86 = the spec's 3.5 scaled 72→100. */}
+          <feColorMatrix
+            in='goo'
+            type='matrix'
+            values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 127 0'
+            result='gooAlpha'
+          />
+          <feGaussianBlur in='gooAlpha' stdDeviation='4.86' result='innerBlur' />
+          <feComposite
+            in='innerBlur'
+            in2='gooAlpha'
+            operator='arithmetic'
+            k2='-1'
+            k3='1'
+            result='innerMask'
+          />
+          {/* Glow color + per-theme opacity ride a CSS var (light 0.9 / dark
+              0.6) so one filter serves both themes. */}
+          <feFlood className={styles.glow} result='glowColor' />
+          <feComposite in='glowColor' in2='innerMask' operator='in' result='glow' />
+          <feMerge>
+            <feMergeNode in='goo' />
+            <feMergeNode in='glow' />
+          </feMerge>
         </filter>
+        {/* Radial gradient (center → edge), theme stops via CSS vars. Matches
+            the Figma loader: dark #4F4F4F→#6F6F6F, light #A7A7A7→#D6D6D6. */}
+        <radialGradient id={gradientId} cx='50' cy='50' r='50' gradientUnits='userSpaceOnUse'>
+          <stop className={styles.gradInner} />
+          <stop offset='1' className={styles.gradOuter} />
+        </radialGradient>
         {/* Shapes clip BEFORE the goo filter, so anything exiting the frame
             melts into the edge instead of getting a hard post-filter cut. */}
         <clipPath id={clipId}>
@@ -235,7 +283,7 @@ export function ThinkingLoader({ variant, size = 20, label, className }: Thinkin
           <rect x='12.5' y='12.5' width='75' height='75' />
         </clipPath>
       </defs>
-      <g filter={`url(#${filterId})`} fill='currentColor'>
+      <g filter={`url(#${filterId})`} fill={`url(#${gradientId})`}>
         {stages.map((v) => (
           <g
             key={v}
