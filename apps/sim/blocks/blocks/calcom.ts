@@ -6,13 +6,13 @@ import { getTrigger } from '@/triggers'
 
 export const CalComBlock: BlockConfig<ToolResponse> = {
   type: 'calcom',
-  name: 'Cal Com',
+  name: 'Cal.com',
   description: 'Manage Cal.com bookings, event types, schedules, and availability',
   authMode: AuthMode.OAuth,
   triggerAllowed: true,
   longDescription:
     'Integrate Cal.com into your workflow. Create and manage bookings, event types, schedules, and check availability slots. Supports creating, listing, rescheduling, and canceling bookings, as well as managing event types and schedules. Can also trigger workflows based on Cal.com webhook events (booking created, cancelled, rescheduled). Connect your Cal.com account via OAuth.',
-  docsLink: 'https://docs.sim.ai/tools/calcom',
+  docsLink: 'https://docs.sim.ai/integrations/calcom',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#292929',

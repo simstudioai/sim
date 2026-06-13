@@ -69,7 +69,8 @@ export const slackWebhookTrigger: TriggerConfig = {
       properties: {
         event_type: {
           type: 'string',
-          description: 'Type of Slack event (e.g., app_mention, message)',
+          description:
+            'Type of Slack payload: an Events API event (e.g., app_mention, message), an interactivity type (e.g., block_actions), or "slash_command" for slash commands',
         },
         subtype: {
           type: 'string',
@@ -103,7 +104,8 @@ export const slackWebhookTrigger: TriggerConfig = {
         },
         text: {
           type: 'string',
-          description: 'Message text content',
+          description:
+            'Message text content. For slash commands, the text after the command. For interactivity, the source message text (falls back to the triggering action value)',
         },
         timestamp: {
           type: 'string',
@@ -130,6 +132,50 @@ export const slackWebhookTrigger: TriggerConfig = {
           type: 'string',
           description:
             'User ID of the original message author. Present for reaction_added/reaction_removed events',
+        },
+        command: {
+          type: 'string',
+          description:
+            'Slash command name including the leading slash (e.g., /deploy). Present for slash commands',
+        },
+        action_id: {
+          type: 'string',
+          description:
+            'action_id of the first interactive element triggered. Present for block_actions (button/select clicks)',
+        },
+        action_value: {
+          type: 'string',
+          description:
+            'Value carried by the first interactive element (button value, selected option, date, etc.). Present for block_actions',
+        },
+        actions: {
+          type: 'json',
+          description:
+            'Full array of interactive actions from the payload, preserving every element and its value. Present for block_actions',
+        },
+        response_url: {
+          type: 'string',
+          description:
+            'Temporary URL to post a response back to the originating message or command. Present for interactivity and slash commands',
+        },
+        trigger_id: {
+          type: 'string',
+          description:
+            'Short-lived trigger ID used to open a modal in response. Present for interactivity and slash commands',
+        },
+        callback_id: {
+          type: 'string',
+          description:
+            'Callback ID of the shortcut or view. Present for shortcuts and modal submissions',
+        },
+        api_app_id: {
+          type: 'string',
+          description: 'Slack app ID. Present for interactivity and slash commands',
+        },
+        message_ts: {
+          type: 'string',
+          description:
+            'Timestamp of the message the interaction originated from. Present for block_actions',
         },
         hasFiles: {
           type: 'boolean',

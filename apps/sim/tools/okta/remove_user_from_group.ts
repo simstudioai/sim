@@ -48,7 +48,7 @@ export const oktaRemoveUserFromGroupTool: ToolConfig<
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}/users/${encodeURIComponent(params.userId)}`
+      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}/users/${encodeURIComponent(params.userId.trim())}`
     },
     method: 'DELETE',
     headers: (params) => ({

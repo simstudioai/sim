@@ -1,14 +1,11 @@
+import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+
 /**
- * Normalize a string for use as a single VFS path segment (workflow name, file name, etc.).
- * Applies NFC normalization, trims, strips ASCII control characters, maps `/` to `-`, and
- * collapses Unicode whitespace (including U+202F as in macOS screenshot names) to a single
- * ASCII space.
+ * Normalize and encode a string for use as one canonical VFS path segment.
+ *
+ * Uses the platform URL encoder for escaping rather than hand-written character maps.
+ * Slashes are encoded inside a segment, so callers must still join path segments with `/`.
  */
 export function normalizeVfsSegment(name: string): string {
-  return name
-    .normalize('NFC')
-    .trim()
-    .replace(/[\x00-\x1f\x7f]/g, '')
-    .replace(/\//g, '-')
-    .replace(/\s+/g, ' ')
+  return encodeVfsSegment(name)
 }

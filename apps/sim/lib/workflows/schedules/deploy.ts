@@ -24,12 +24,13 @@ export interface ScheduleDeployResult {
 
 /**
  * Create or update schedule records for a workflow during deployment.
- * Uses a transaction to ensure atomicity - all schedules are created or none are.
+ * Atomic either way: writes run inside the caller's transaction when `tx`
+ * is provided, otherwise inside a transaction opened here.
  */
 export async function createSchedulesForDeploy(
   workflowId: string,
   blocks: Record<string, BlockState>,
-  dbCtx: DbOrTx,
+  tx?: DbOrTx,
   deploymentVersionId?: string
 ): Promise<ScheduleDeployResult> {
   const scheduleBlocks = findScheduleBlocks(blocks)
@@ -73,10 +74,10 @@ export async function createSchedulesForDeploy(
   } | null = null
 
   try {
-    const writeSchedules = async (tx: DbOrTx) => {
+    const writeSchedules = async (trx: DbOrTx) => {
       const currentBlockIds = new Set(validatedBlocks.map((b) => b.blockId))
 
-      const existingSchedules = await tx
+      const existingSchedules = await trx
         .select({ id: workflowSchedule.id, blockId: workflowSchedule.blockId })
         .from(workflowSchedule)
         .where(
@@ -97,7 +98,7 @@ export async function createSchedulesForDeploy(
         logger.info(
           `Deleting ${orphanedScheduleIds.length} orphaned schedule(s) for workflow ${workflowId}`
         )
-        await tx.delete(workflowSchedule).where(inArray(workflowSchedule.id, orphanedScheduleIds))
+        await trx.delete(workflowSchedule).where(inArray(workflowSchedule.id, orphanedScheduleIds))
       }
 
       for (const validated of validatedBlocks) {
@@ -133,7 +134,7 @@ export async function createSchedulesForDeploy(
           infraRetryCount: 0,
         }
 
-        await tx
+        await trx
           .insert(workflowSchedule)
           .values(values)
           .onConflictDoUpdate({
@@ -156,11 +157,9 @@ export async function createSchedulesForDeploy(
       }
     }
 
-    if (dbCtx === db || !hasScheduleWriteMethods(dbCtx)) {
-      await db.transaction(writeSchedules)
-    } else {
-      await writeSchedules(dbCtx)
-    }
+    // The global client is not a transaction — wrap it so the atomicity
+    // contract holds even if a caller passes `db` explicitly.
+    await (tx && tx !== db ? writeSchedules(tx) : db.transaction(writeSchedules))
   } catch (error) {
     logger.error(`Failed to create schedules for workflow ${workflowId}`, error)
     return {
@@ -173,15 +172,6 @@ export async function createSchedulesForDeploy(
     success: true,
     ...(lastScheduleInfo ?? {}),
   }
-}
-
-function hasScheduleWriteMethods(value: DbOrTx): boolean {
-  const candidate = value as Partial<Pick<DbOrTx, 'select' | 'insert' | 'delete'>>
-  return (
-    typeof candidate.select === 'function' &&
-    typeof candidate.insert === 'function' &&
-    typeof candidate.delete === 'function'
-  )
 }
 
 /**

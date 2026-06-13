@@ -11,7 +11,7 @@ export const WorkflowInputBlock: BlockConfig = {
   - Remember, that the start point of the child workflow is the Start block.
   `,
   category: 'blocks',
-  docsLink: 'https://docs.sim.ai/blocks/workflow',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/workflow',
   bgColor: '#6366F1',
   icon: WorkflowIcon,
   subBlocks: [

@@ -378,6 +378,7 @@ export function useCollaborativeWorkflow() {
               }
               break
             case VARIABLE_OPERATIONS.REMOVE:
+              useOperationQueueStore.getState().cancelOperationsForVariable(payload.variableId)
               useVariablesStore.getState().deleteVariable(payload.variableId)
               break
           }
@@ -443,6 +444,8 @@ export function useCollaborativeWorkflow() {
               })
 
               if (ids && ids.length > 0) {
+                const operationQueue = useOperationQueueStore.getState()
+                ids.forEach((id: string) => operationQueue.cancelOperationsForBlock(id))
                 useWorkflowStore.getState().batchRemoveBlocks(ids)
               }
 

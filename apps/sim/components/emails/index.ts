@@ -8,8 +8,6 @@ export * from './billing'
 export * from './components'
 // Invitation emails
 export * from './invitations'
-// Notification emails
-export * from './notifications'
 // Render functions and subjects
 export * from './render'
 export * from './subjects'

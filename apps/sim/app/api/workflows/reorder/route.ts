@@ -2,9 +2,11 @@ import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
+  assertFolderInWorkspace,
   assertFolderMutable,
   assertWorkflowMutable,
   FolderLockedError,
+  FolderNotFoundError,
   WorkflowLockedError,
 } from '@sim/workflow-authz'
 import { eq, inArray } from 'drizzle-orm'
@@ -59,6 +61,7 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
     for (const update of validUpdates) {
       await assertWorkflowMutable(update.id)
       if (update.folderId !== undefined) {
+        await assertFolderInWorkspace(update.folderId, workspaceId)
         await assertFolderMutable(update.folderId)
       }
     }
@@ -82,7 +85,11 @@ export const PUT = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ success: true, updated: validUpdates.length })
   } catch (error) {
-    if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
+    if (
+      error instanceof WorkflowLockedError ||
+      error instanceof FolderLockedError ||
+      error instanceof FolderNotFoundError
+    ) {
       return NextResponse.json({ error: error.message }, { status: error.status })
     }
 

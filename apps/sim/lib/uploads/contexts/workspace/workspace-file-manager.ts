@@ -16,6 +16,9 @@ import {
   incrementStorageUsage,
 } from '@/lib/billing/storage'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
+import { canonicalWorkspaceFilePath, decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
+import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isReservedWorkflowAliasBackingDisplayPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import { getServePathPrefix } from '@/lib/uploads'
 import {
@@ -75,6 +78,7 @@ interface ListWorkspaceFilesOptions {
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
   hydrateFolderPaths?: boolean
+  includeReservedSystemFiles?: boolean
 }
 
 /**
@@ -167,12 +171,13 @@ export async function uploadWorkspaceFile(
   fileBuffer: Buffer,
   fileName: string,
   contentType: string,
-  options?: { folderId?: string | null }
+  options?: { folderId?: string | null; exactName?: boolean }
 ): Promise<UserFile> {
   logger.info(`Uploading workspace file: ${fileName} for workspace ${workspaceId}`)
 
   const folderId = await assertWorkspaceFileFolderTarget(workspaceId, options?.folderId)
   const normalizedFileName = normalizeWorkspaceFileItemName(fileName, 'File')
+  const exactName = options?.exactName ?? false
   const quotaCheck = await checkStorageQuota(userId, fileBuffer.length)
 
   if (!quotaCheck.allowed) {
@@ -180,12 +185,14 @@ export async function uploadWorkspaceFile(
   }
 
   let lastError: unknown
-  for (let attempt = 0; attempt < MAX_UPLOAD_UNIQUE_RETRIES; attempt++) {
-    const uniqueName = await allocateUniqueWorkspaceFileName(
-      workspaceId,
-      normalizedFileName,
-      folderId
-    )
+  const maxAttempts = exactName ? 1 : MAX_UPLOAD_UNIQUE_RETRIES
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const uniqueName = exactName
+      ? normalizedFileName
+      : await allocateUniqueWorkspaceFileName(workspaceId, normalizedFileName, folderId)
+    if (exactName && (await fileExistsInWorkspace(workspaceId, uniqueName, folderId))) {
+      throw new FileConflictError(uniqueName)
+    }
     const storageKey = generateWorkspaceFileKey(workspaceId, uniqueName)
     let fileId = `wf_${generateShortId()}`
 
@@ -280,6 +287,9 @@ export async function uploadWorkspaceFile(
         throw error
       }
       if (getPostgresErrorCode(error) === '23505') {
+        if (exactName) {
+          throw new FileConflictError(normalizedFileName)
+        }
         logger.warn(
           `Unique name conflict on upload (attempt ${attempt + 1}/${MAX_UPLOAD_UNIQUE_RETRIES}), retrying with a new name`
         )
@@ -629,7 +639,11 @@ export async function listWorkspaceFiles(
   options?: ListWorkspaceFilesOptions
 ): Promise<WorkspaceFileRecord[]> {
   try {
-    const { scope = 'active', hydrateFolderPaths = true } = options ?? {}
+    const {
+      scope = 'active',
+      hydrateFolderPaths = true,
+      includeReservedSystemFiles = false,
+    } = options ?? {}
     const files = await db
       .select()
       .from(workspaceFiles)
@@ -653,13 +667,24 @@ export async function listWorkspaceFiles(
       )
       .orderBy(workspaceFiles.uploadedAt)
 
-    const needsFolderPaths = hydrateFolderPaths && files.some((file) => file.folderId)
+    const needsFolderPaths =
+      files.some((file) => file.folderId) && (hydrateFolderPaths || !includeReservedSystemFiles)
     const folders = needsFolderPaths
-      ? (options?.folders ?? (await listWorkspaceFileFolders(workspaceId, { scope: 'all' })))
+      ? includeReservedSystemFiles && options?.folders
+        ? options.folders
+        : await listWorkspaceFileFolders(workspaceId, {
+            scope: 'all',
+            includeReservedSystemFolders: true,
+          })
       : []
     const folderPaths = needsFolderPaths ? buildWorkspaceFileFolderPathMap(folders) : new Map()
 
-    return files.map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+    return files
+      .map((file) => mapWorkspaceFileRecord(file, workspaceId, folderPaths))
+      .filter((file) => {
+        if (includeReservedSystemFiles) return true
+        return !isReservedWorkflowAliasBackingDisplayPath(file.folderPath)
+      })
   } catch (error) {
     logger.error(`Failed to list workspace files for ${workspaceId}:`, error)
     return []
@@ -668,8 +693,8 @@ export async function listWorkspaceFiles(
 
 /**
  * Normalize a workspace file reference to either a display name or canonical file ID.
- * Supports raw IDs, `files/{name}`, `files/{name}/content`, `files/{name}/meta.json`,
- * and canonical VFS aliases like `files/by-id/{fileId}/content`.
+ * Supports raw IDs, `files/{name}`, `files/{name}/content`, and `files/{name}/meta.json`.
+ * Files are addressed by their sanitized canonical path; id-based VFS paths are not supported.
  */
 export function normalizeWorkspaceFileReference(fileReference: string): string {
   const trimmed = fileReference.trim().replace(/^\/+/, '')
@@ -677,44 +702,27 @@ export function normalizeWorkspaceFileReference(fileReference: string): string {
     ? trimmed.slice('recently-deleted/'.length)
     : trimmed
 
-  if (withoutDeletedPrefix.startsWith('files/by-id/')) {
-    const byIdRef = withoutDeletedPrefix.slice('files/by-id/'.length)
-    const match = byIdRef.match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
-    if (match?.[1]) {
-      return match[1]
-    }
-  }
-
-  if (withoutDeletedPrefix.startsWith('by-id/')) {
-    const match = withoutDeletedPrefix
-      .slice('by-id/'.length)
-      .match(/^([^/]+)(?:\/(?:meta\.json|content))?$/)
-    if (match?.[1]) {
-      return match[1]
-    }
-  }
-
   if (withoutDeletedPrefix.startsWith('files/')) {
     const withoutPrefix = withoutDeletedPrefix.slice('files/'.length)
     if (withoutPrefix.endsWith('/meta.json')) {
-      return withoutPrefix.slice(0, -'/meta.json'.length)
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/meta.json'.length)).join('/')
     }
     if (withoutPrefix.endsWith('/content')) {
-      return withoutPrefix.slice(0, -'/content'.length)
+      return decodeVfsPathSegments(withoutPrefix.slice(0, -'/content'.length)).join('/')
     }
-    return withoutPrefix
+    return decodeVfsPathSegments(withoutPrefix).join('/')
   }
 
-  return withoutDeletedPrefix
+  return decodeVfsPathSegments(withoutDeletedPrefix).join('/')
 }
 
 /**
  * Canonical sandbox mount path for an existing workspace file.
  */
 export function getSandboxWorkspaceFilePath(
-  file: Pick<WorkspaceFileRecord, 'id' | 'name'>
+  file: Pick<WorkspaceFileRecord, 'folderPath' | 'name'>
 ): string {
-  return `/home/user/files/${file.id}/${file.name}`
+  return `/home/user/${canonicalWorkspaceFilePath({ folderPath: file.folderPath, name: file.name })}`
 }
 
 /**
@@ -769,7 +777,9 @@ async function getWorkspaceFileByExactReference(
     return getWorkspaceFileByName(workspaceId, segments[0], { folderId: null })
   }
 
-  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1))
+  const folderId = await findWorkspaceFileFolderIdByPath(workspaceId, segments.slice(0, -1), {
+    includeReservedSystemFolders: true,
+  })
   return folderId ? getWorkspaceFileByName(workspaceId, segments.at(-1) ?? '', { folderId }) : null
 }
 
@@ -780,6 +790,12 @@ export async function resolveWorkspaceFileReference(
   workspaceId: string,
   fileReference: string
 ): Promise<WorkspaceFileRecord | null> {
+  const alias = await resolveWorkflowAliasForWorkspace({ workspaceId, path: fileReference })
+  if (alias) {
+    if (alias.kind === 'plans_dir') return null
+    return resolveWorkspaceFileReference(workspaceId, alias.backingPath)
+  }
+
   const normalizedReference = normalizeWorkspaceFileReference(fileReference)
   if (normalizedReference.startsWith('wf_')) {
     const file = await getWorkspaceFile(workspaceId, normalizedReference)
@@ -792,7 +808,7 @@ export async function resolveWorkspaceFileReference(
   )
   if (exactReferenceFile) return exactReferenceFile
 
-  const files = await listWorkspaceFiles(workspaceId)
+  const files = await listWorkspaceFiles(workspaceId, { includeReservedSystemFiles: true })
   return findWorkspaceFileRecord(files, fileReference)
 }
 

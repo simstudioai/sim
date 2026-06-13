@@ -10,6 +10,8 @@ export const skillSchema = z.object({
   content: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** True for built-in template skills, which are read-only and not stored in the DB. */
+  readOnly: z.boolean().optional(),
 })
 
 export type Skill = z.output<typeof skillSchema>

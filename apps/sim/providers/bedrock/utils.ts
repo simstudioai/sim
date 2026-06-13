@@ -82,9 +82,30 @@ export function generateToolUseId(toolName: string): string {
 }
 
 /**
+ * Models whose AWS model cards state geo/cross-region inference profiles are
+ * not supported ("Geo inference ID: Not supported"). These must be invoked
+ * with the bare in-region model ID — prefixing them with a geo profile
+ * (e.g. us.mistral...) produces an invalid model identifier.
+ */
+const GEO_PROFILE_UNSUPPORTED_MODEL_IDS = new Set([
+  'mistral.mistral-large-3-675b-instruct',
+  'mistral.mistral-large-2411-v1:0',
+  'mistral.mistral-large-2407-v1:0',
+  'mistral.magistral-small-2509',
+  'mistral.ministral-3-14b-instruct',
+  'mistral.ministral-3-8b-instruct',
+  'mistral.ministral-3-3b-instruct',
+  'mistral.mixtral-8x7b-instruct-v0:1',
+  'amazon.titan-text-premier-v1:0',
+  'cohere.command-r-v1:0',
+  'cohere.command-r-plus-v1:0',
+])
+
+/**
  * Converts a model ID to the Bedrock inference profile format.
  * AWS Bedrock requires inference profile IDs (e.g., us.anthropic.claude-...)
- * for on-demand invocation of newer models.
+ * for on-demand invocation of newer models, while some models only accept
+ * the bare in-region model ID.
  *
  * @param modelId - The model ID (e.g., "bedrock/anthropic.claude-sonnet-4-5-20250929-v1:0")
  * @param region - The AWS region (e.g., "us-east-1")
@@ -94,6 +115,10 @@ export function getBedrockInferenceProfileId(modelId: string, region: string): s
   const baseModelId = modelId.startsWith('bedrock/') ? modelId.slice(8) : modelId
 
   if (/^(us-gov|us|eu|apac|au|ca|jp|global)\./.test(baseModelId)) {
+    return baseModelId
+  }
+
+  if (GEO_PROFILE_UNSUPPORTED_MODEL_IDS.has(baseModelId)) {
     return baseModelId
   }
 

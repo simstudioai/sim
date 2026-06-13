@@ -50,7 +50,7 @@ export const oktaDeactivateUserTool: ToolConfig<
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
       const sendEmail = params.sendEmail === true
-      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/deactivate?sendEmail=${sendEmail}`
+      return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/deactivate?sendEmail=${sendEmail}`
     },
     method: 'POST',
     headers: (params) => ({

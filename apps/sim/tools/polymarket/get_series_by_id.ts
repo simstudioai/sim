@@ -26,13 +26,13 @@ export const polymarketGetSeriesByIdTool: ToolConfig<
     seriesId: {
       type: 'string',
       required: true,
-      description: 'The series ID (e.g., "12345" or UUID format).',
+      description: 'The numeric series ID (e.g., "12345").',
       visibility: 'user-or-llm',
     },
   },
 
   request: {
-    url: (params) => buildGammaUrl(`/series/${params.seriesId}`),
+    url: (params) => buildGammaUrl(`/series/${params.seriesId.trim()}`),
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

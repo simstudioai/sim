@@ -1,6 +1,13 @@
 import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
+import {
+  buildCanonicalIndex,
+  buildSubBlockValues,
+  isCanonicalPair,
+  resolveCanonicalMode,
+} from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
@@ -714,24 +721,48 @@ export function isBlockTypeAllowed(
 }
 
 /**
- * Validates selector IDs in the workflow state exist in the database
- * Returns validation errors for any invalid selector IDs
+ * A credential/resource reference whose value does not resolve to an accessible
+ * workspace entity (the "set in basic mode but the dropdown shows nothing" case).
+ * Structurally compatible with the copilot WorkflowLintUnresolvedReference.
  */
-export async function validateWorkflowSelectorIds(
-  workflowState: any,
-  context: { userId: string; workspaceId?: string }
-): Promise<ValidationError[]> {
-  const logger = createLogger('EditWorkflowSelectorValidation')
-  const errors: ValidationError[] = []
+export interface UnresolvedSelectorReference {
+  blockId: string
+  blockName?: string
+  blockType?: string
+  field: string
+  value: string | string[]
+  kind: 'credential' | 'resource'
+  reason: string
+}
 
-  // Collect all selector fields from all blocks
-  const selectorsToValidate: Array<{
-    blockId: string
-    blockType: string
-    fieldName: string
-    selectorType: string
-    value: string | string[]
-  }> = []
+/**
+ * External selector IDs (Slack channels, Drive files, Jira projects, folders,
+ * MCP tools) are validated only at run time, so a clean Tier-2 result is not
+ * proof those references resolve. Surface this in the lint output.
+ */
+export const UNRESOLVABLE_AT_LINT_NOTE =
+  'Credential/resource resolution covers oauth credentials, knowledge bases, documents, workflows, and MCP servers. External selector IDs (Slack channels, Drive files, Jira projects, folders, MCP tools) are validated only at run time.'
+
+interface SelectorFieldToValidate {
+  blockId: string
+  blockType: string
+  blockName?: string
+  fieldName: string
+  selectorType: string
+  value: string | string[]
+}
+
+/**
+ * Walk a workflow state and collect selector/credential fields to validate.
+ * For canonical pairs only the ACTIVE member is collected (an intentionally-empty
+ * inactive member is never flagged). oauth-input credentials are included only
+ * when `options.includeCredentials` is set.
+ */
+function collectSelectorFields(
+  workflowState: any,
+  options: { includeCredentials?: boolean } = {}
+): SelectorFieldToValidate[] {
+  const fields: SelectorFieldToValidate[] = []
 
   for (const [blockId, block] of Object.entries(workflowState.blocks || {})) {
     const blockData = block as any
@@ -741,13 +772,29 @@ export async function validateWorkflowSelectorIds(
     const blockConfig = getBlock(blockType)
     if (!blockConfig) continue
 
-    // Check each subBlock for selector types
+    const canonicalIndex = buildCanonicalIndex(blockConfig.subBlocks)
+    const allValues = buildSubBlockValues(blockData.subBlocks || {})
+    const canonicalModeOverrides = blockData.data?.canonicalModes
+
     for (const subBlockConfig of blockConfig.subBlocks) {
       if (!SELECTOR_TYPES.has(subBlockConfig.type)) continue
 
-      // Skip oauth-input - credentials are pre-validated before edit application
-      // This allows existing collaborator credentials to remain untouched
-      if (subBlockConfig.type === 'oauth-input') continue
+      // oauth-input credentials are only validated when explicitly requested
+      // (the edit path pre-validates them separately; the lint opts in).
+      if (subBlockConfig.type === 'oauth-input' && !options.includeCredentials) continue
+
+      // For canonical pairs, only validate the active member's value so an
+      // intentionally-empty inactive member is never flagged.
+      const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlockConfig.id]
+      const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+      if (group && isCanonicalPair(group)) {
+        const mode = resolveCanonicalMode(group, allValues, canonicalModeOverrides)
+        const isActiveMember =
+          mode === 'advanced'
+            ? group.advancedIds.includes(subBlockConfig.id)
+            : group.basicId === subBlockConfig.id
+        if (!isActiveMember) continue
+      }
 
       const subBlockValue = blockData.subBlocks?.[subBlockConfig.id]?.value
       if (!subBlockValue) continue
@@ -761,15 +808,37 @@ export async function validateWorkflowSelectorIds(
           .filter(Boolean)
       }
 
-      selectorsToValidate.push({
+      fields.push({
         blockId,
         blockType,
+        blockName: blockData.name,
         fieldName: subBlockConfig.id,
         selectorType: subBlockConfig.type,
         value: values,
       })
     }
   }
+
+  return fields
+}
+
+/**
+ * Validates selector IDs in the workflow state exist in the database.
+ * Returns validation errors for any invalid selector IDs.
+ *
+ * `options.includeCredentials` controls whether oauth-input credential fields
+ * are validated (the edit path defaults to skipping them since they are
+ * pre-validated; the lint opts in to close that gap).
+ */
+export async function validateWorkflowSelectorIds(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string },
+  options: { includeCredentials?: boolean } = {}
+): Promise<ValidationError[]> {
+  const logger = createLogger('EditWorkflowSelectorValidation')
+  const errors: ValidationError[] = []
+
+  const selectorsToValidate = collectSelectorFields(workflowState, options)
 
   if (selectorsToValidate.length === 0) {
     return errors
@@ -812,6 +881,56 @@ export async function validateWorkflowSelectorIds(
   }
 
   return errors
+}
+
+/**
+ * Lint-facing Tier-2 resolution: validate every ACTIVE credential/resource
+ * member (including oauth-input) against the workspace and return the references
+ * that do not resolve to an accessible entity. This is the "set in basic mode
+ * but the dropdown shows nothing" check, using the same resolver the dropdown
+ * options come from. Best-effort: per-field resolution failures are skipped.
+ */
+export async function collectUnresolvedReferences(
+  workflowState: any,
+  context: { userId: string; workspaceId?: string }
+): Promise<UnresolvedSelectorReference[]> {
+  const logger = createLogger('EditWorkflowResolutionLint')
+  const references: UnresolvedSelectorReference[] = []
+
+  const selectorsToValidate = collectSelectorFields(workflowState, { includeCredentials: true })
+  if (selectorsToValidate.length === 0) {
+    return references
+  }
+
+  for (const selector of selectorsToValidate) {
+    let result: Awaited<ReturnType<typeof validateSelectorIds>>
+    try {
+      result = await validateSelectorIds(selector.selectorType, selector.value, context)
+    } catch (error) {
+      logger.warn('Selector resolution failed; skipping field', {
+        blockId: selector.blockId,
+        fieldName: selector.fieldName,
+        error: toError(error).message,
+      })
+      continue
+    }
+
+    if (result.invalid.length > 0) {
+      const kind = selector.selectorType === 'oauth-input' ? 'credential' : 'resource'
+      const warningInfo = result.warning ? `. ${result.warning}` : ''
+      references.push({
+        blockId: selector.blockId,
+        blockType: selector.blockType,
+        blockName: selector.blockName,
+        field: selector.fieldName,
+        value: selector.value,
+        kind,
+        reason: `${selector.selectorType} ID(s) ${result.invalid.join(', ')} do not resolve to an accessible ${kind}${warningInfo}`,
+      })
+    }
+  }
+
+  return references
 }
 
 /**

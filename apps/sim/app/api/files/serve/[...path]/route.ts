@@ -5,6 +5,12 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  DocCompileUserError,
+  getE2BDocFormat,
+  loadCompiledDocByExt,
+} from '@/lib/copilot/tools/server/files/doc-compile'
+import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
@@ -72,14 +78,55 @@ async function compileDocumentIfNeeded(
   if (raw) return { buffer, contentType: getContentType(filename) }
 
   const ext = filename.slice(filename.lastIndexOf('.')).toLowerCase()
+  const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
-  if (!format) return { buffer, contentType: getContentType(filename) }
 
-  const magicLen = format.magic.length
-  if (buffer.length >= magicLen && buffer.subarray(0, magicLen).equals(format.magic)) {
+  // Already a binary file (uploaded or pre-compiled)? Serve as-is.
+  if (format) {
+    const magicLen = format.magic.length
+    if (buffer.length >= magicLen && buffer.subarray(0, magicLen).equals(format.magic)) {
+      return { buffer, contentType: getContentType(filename) }
+    }
+  }
+
+  // .xlsx is a ZIP container with no JS compile path. An uploaded/binary xlsx
+  // must short-circuit here (it isn't in COMPILABLE_FORMATS) — otherwise every
+  // xlsx open would utf-8-decode the whole binary and do an always-miss S3 GET.
+  // Only a Python-source xlsx (UTF-8 text, no ZIP magic) falls through.
+  if (
+    extNoDot === 'xlsx' &&
+    buffer.length >= ZIP_MAGIC.length &&
+    buffer.subarray(0, ZIP_MAGIC.length).equals(ZIP_MAGIC)
+  ) {
     return { buffer, contentType: getContentType(filename) }
   }
 
+  // Generated docs render from a content-addressed compiled binary that is built
+  // exactly ONCE per edit_content/create (at write time) and stored in S3. Serve
+  // only LOADS it — it must never compile, or it would re-run E2B on every preview
+  // fetch, including against the incomplete source mid-generation. A hit returns
+  // the (possibly partial) committed doc; a miss in the E2B regime means the doc
+  // is still being generated → 409, and the client polls until the artifact lands.
+  if (workspaceId && (format || extNoDot === 'xlsx')) {
+    const source = buffer.toString('utf-8')
+    // Load the prebuilt artifact directly from S3 (content-addressed). No extra
+    // in-memory layer here: the store is the source of truth, the client (react
+    // query) already caches the bytes, and this branch never recomputes.
+    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
+    if (stored) {
+      return { buffer: stored.buffer, contentType: stored.contentType }
+    }
+
+    if (isE2BDocEnabled && getE2BDocFormat(filename)) {
+      // Artifact not built yet (still generating, or the source didn't compile at
+      // write time). Signal "not ready" without compiling — handled as 409.
+      throw new DocCompileUserError('Document is still being generated')
+    }
+  }
+
+  if (!format) return { buffer, contentType: getContentType(filename) }
+
+  // E2B disabled and no stored artifact → compile JS source via isolated-vm.
   const code = buffer.toString('utf-8')
   const cacheKey = sha256Hex(`${ext}${code}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)
@@ -104,6 +151,24 @@ function stripStorageKeyPrefix(segment: string): string {
 
 function getWorkspaceIdForCompile(key: string): string | undefined {
   return parseWorkspaceFileKey(key) ?? undefined
+}
+
+const IMMUTABLE_CACHE_CONTROL = 'private, max-age=31536000, immutable'
+const WORKSPACE_REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+
+/**
+ * Cache-Control for a served file. A versioned request (`?v=<updatedAt>`) addresses
+ * content-immutable bytes — generated docs are content-addressed and the version
+ * bumps on every edit — so the browser may cache it indefinitely; re-opens and
+ * focus refetches then resolve from cache with no round trip. Unversioned workspace
+ * reads stay revalidated because the same storage key is edited in place.
+ */
+function resolveServeCacheControl(
+  versioned: boolean,
+  context: string | undefined
+): string | undefined {
+  if (versioned) return IMMUTABLE_CACHE_CONTROL
+  return context === 'workspace' ? WORKSPACE_REVALIDATE_CACHE_CONTROL : undefined
 }
 
 export const GET = withRouteHandler(
@@ -143,8 +208,10 @@ export const GET = withRouteHandler(
 
       const query = fileServeQuerySchema.parse({
         raw: request.nextUrl.searchParams.get('raw'),
+        v: request.nextUrl.searchParams.get('v'),
       })
       const raw = query.raw === '1'
+      const versioned = query.v != null
 
       const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
 
@@ -159,11 +226,22 @@ export const GET = withRouteHandler(
       const userId = authResult.userId
 
       if (isUsingCloudStorage()) {
-        return await handleCloudProxy(cloudKey, userId, raw, request.signal)
+        return await handleCloudProxy(cloudKey, userId, raw, versioned, request.signal)
       }
 
-      return await handleLocalFile(cloudKey, userId, raw, request.signal)
+      return await handleLocalFile(cloudKey, userId, raw, versioned, request.signal)
     } catch (error) {
+      // An in-progress/incomplete doc source fails to compile — this is expected
+      // mid-generation, not a server fault. Return 409 (not 500) so it isn't an
+      // alarming error; the client re-fetches once the doc finishes (the serve
+      // URL is busted on the file's updatedAt).
+      if (error instanceof DocCompileUserError) {
+        logger.info('Serve: document still compiling, returning 409', {
+          message: error.message,
+        })
+        return NextResponse.json({ error: 'Document is still being generated' }, { status: 409 })
+      }
+
       logger.error('Error serving file:', error)
 
       if (error instanceof FileNotFoundError) {
@@ -179,6 +257,7 @@ async function handleLocalFile(
   filename: string,
   userId: string,
   raw: boolean,
+  versioned: boolean,
   signal: AbortSignal | undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -225,7 +304,7 @@ async function handleLocalFile(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: contextParam === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
+      cacheControl: resolveServeCacheControl(versioned, contextParam),
     })
   } catch (error) {
     logger.error('Error reading local file:', error)
@@ -237,6 +316,7 @@ async function handleCloudProxy(
   cloudKey: string,
   userId: string,
   raw = false,
+  versioned = false,
   signal: AbortSignal | undefined = undefined
 ): Promise<NextResponse> {
   const ownerKey = `user:${userId}`
@@ -291,7 +371,7 @@ async function handleCloudProxy(
       buffer: fileBuffer,
       contentType,
       filename: displayName,
-      cacheControl: context === 'workspace' ? 'private, no-cache, must-revalidate' : undefined,
+      cacheControl: resolveServeCacheControl(versioned, context),
     })
   } catch (error) {
     logger.error('Error downloading from cloud storage:', error)

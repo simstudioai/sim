@@ -485,9 +485,16 @@ export function escapeRegExp(value: string): string {
 }
 
 /**
- * Normalizes a name for comparison by converting to lowercase and removing spaces.
- * Used for both block names and variable names to ensure consistent matching.
+ * Normalizes a name for comparison by converting to lowercase and removing
+ * spaces and dots. Used for both block names and variable names to ensure
+ * consistent matching.
+ *
+ * Dots are stripped because `.` is the reference path delimiter — a name like
+ * "Trigger.dev 1" must normalize to "triggerdev1" so the reference
+ * `<triggerdev1.output>` parses unambiguously. Dotted names could never be
+ * referenced before (the first path segment cut the name at the dot), so
+ * stripping dots cannot break any previously working reference.
  */
 export function normalizeName(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, '')
+  return name.toLowerCase().replace(/\s+/g, '').replace(/\./g, '')
 }

@@ -9,7 +9,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
   description: 'Manage secrets with Infisical',
   longDescription:
     'Integrate Infisical into your workflow. List, get, create, update, and delete secrets across project environments.',
-  docsLink: 'https://docs.sim.ai/tools/infisical',
+  docsLink: 'https://docs.sim.ai/integrations/infisical',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#F7FE62',
@@ -225,9 +225,17 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
     secretVersion: { type: 'string', description: 'Specific secret version to retrieve' },
   },
   outputs: {
-    secrets: { type: 'json', description: 'Array of secrets (list operation)' },
+    secrets: {
+      type: 'json',
+      description:
+        'Array of secrets from the list operation, each with [{id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt}]',
+    },
     count: { type: 'number', description: 'Number of secrets returned' },
-    secret: { type: 'json', description: 'Secret object (get/create/update/delete operations)' },
+    secret: {
+      type: 'json',
+      description:
+        'Secret object from get/create/update/delete operations (id, secretKey, secretValue, secretComment, secretPath, version, type, environment, isRotatedSecret, rotationId, tags, secretMetadata, actor, createdAt, updatedAt)',
+    },
   },
 }
 

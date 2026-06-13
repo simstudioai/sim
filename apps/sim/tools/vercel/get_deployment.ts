@@ -84,6 +84,9 @@ export const vercelGetDeploymentTool: ToolConfig<
           : null,
         meta: data.meta ?? {},
         gitSource: data.gitSource ?? null,
+        errorCode: data.errorCode ?? null,
+        errorMessage: data.errorMessage ?? null,
+        aliasAssigned: data.aliasAssigned ?? null,
       },
     }
   },
@@ -171,6 +174,13 @@ export const vercelGetDeploymentTool: ToolConfig<
         sha: { type: 'string', description: 'Git commit SHA' },
         repoId: { type: 'string', description: 'Repository ID', optional: true },
       },
+    },
+    errorCode: { type: 'string', description: 'Deployment error code', optional: true },
+    errorMessage: { type: 'string', description: 'Deployment error message', optional: true },
+    aliasAssigned: {
+      type: 'boolean',
+      description: 'Whether the alias has been assigned',
+      optional: true,
     },
   },
 }

@@ -1,0 +1,78 @@
+---
+title: Organizing a workspace
+description: Folders, colors, and naming conventions for keeping a growing workspace understandable.
+pageType: concept
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+A **folder** is a container in the sidebar that groups workflows. It is the primary way you organize a [workspace](/platform/workspaces) once it holds more than a handful of workflows. Folders work like folders in a desktop file system: they nest, they collapse, and you arrange them by convention so the structure tells you where things live.
+
+A flat list of twenty workflows is hard to scan, but grouping the same twenty under three or four top-level folders gives you a map of where everything lives.
+
+{/* VISUAL: before/after sidebar. Left: a flat list of ~20 workflows, no grouping. Right: the same workflows under 3-4 top-level color-coded folders ("Internal", "Customer-Facing", "Ops"), some expanded to show nested subfolders. */}
+
+## The parts of a folder
+
+Here's an example: a folder named **Customer Deployments**, colored red, holding five workflows and two subfolders.
+
+### Name
+
+A **name** is the label you give a folder. It is plain text with no enforced format, so the convention is yours to set. Pick names that read as categories, not as one-off labels: `Internal`, `Customer-Facing`, `Ops`. Our example folder is named `Customer Deployments`. Naming is covered in [Conventions](#conventions) below.
+
+{/* VISUAL: a single sidebar folder row showing the expand chevron, color dot, and name "Customer Deployments". */}
+
+### Color
+
+A **color** is a hex value assigned to a folder for visual grouping, shown as a dot next to the name. It defaults to gray (`#6B7280`) and you can change it from the folder's menu. Color is the fastest way to read the sidebar at a glance. Reserve one color per top-level category (red for production, gray for scratch work) so you can find the right branch before reading a single name. Our example is red (`#EF4444`).
+
+{/* VISUAL: a short vertical stack of folders with distinct color dots: red "Production", gray "Internal", another color for "Customer-Facing", showing color as the grouping signal. */}
+
+### Nesting
+
+A folder can sit inside another folder. The inner one is a **subfolder**, and the structure is a tree: a top-level folder has no parent, a subfolder points at the folder that contains it, and that chain can go as deep as you need. Our example, `Customer Deployments`, holds two subfolders and itself sits under a `Production` folder.
+
+Lead with shallow trees. Two or three levels (`Production` > `Customer A` > `Deployments`) stay readable. Go deeper than that and you end up scrolling the sidebar instead of scanning it.
+
+{/* VISUAL: a three-level nested tree: "Production" (red, top level) > "Customer A" (yellow) > "Deployments" (purple), each row indented one step, showing the parent-to-child chain. */}
+
+### Order
+
+Folders display in a set **order**, top to bottom, that you control by dragging them in the sidebar. Drag a folder up or down to reorder it within its level, or drag it onto another folder to move it inside as a subfolder. Order is a convention too: put the folders a team touches daily at the top.
+
+### Locking
+
+A **locked** folder is read-only: its workflows can be viewed but not edited. Locking is off by default. Lock a `Production` folder so members can open and run its workflows without changing them by accident. Locking a folder also locks everything inside it, so a locked parent protects its subfolders and their workflows in one move. Who can lock and unlock follows the workspace [roles and permissions](/platform/permissions).
+
+{/* VISUAL: the folder context menu open on a folder row, showing the options: rename, change color, lock, duplicate, export, new subfolder, delete. */}
+
+### Archiving
+
+**Archiving** a folder removes it from your active sidebar without deleting it. An archived folder drops out of the normal view, and you restore it when you need it again. Use archiving for cleanup: a finished customer engagement or a retired experiment leaves the sidebar but stays recoverable. There is no permanent hard-delete in the folder menu, so archiving is the safe way to get something out of the way.
+
+## Conventions
+
+Naming conventions make the structure legible to someone who did not build it. Nothing here is enforced, so the value comes from applying one rule consistently across the workspace.
+
+- **Group by audience or function at the top level.** A common split is `Internal`, `Customer-Facing`, and `Ops`. Someone new can find the right branch from the top-level names alone.
+- **Name folders as categories, workflows as actions.** A folder is a noun (`Billing`); a workflow is a thing it does (`Send overdue reminder`). The folder path plus the workflow name should read as a sentence.
+- **Use color for the top level, names for everything below.** Color carries the coarse grouping; names carry the detail. Mixing both at every level turns into noise.
+- **Mirror the convention everywhere.** The same category words you use for folders are worth reusing for [tables](/platform/workspaces), [secrets](/platform/credentials), and [integrations](/integrations), so a team learns one vocabulary instead of three.
+
+## One workspace or several
+
+Folders organize within a workspace. A separate workspace draws a hard boundary: resources never cross it, and access is granted per workspace. Reach for a new workspace when you need that boundary, not just tidier grouping.
+
+- **Group in folders** when everything belongs to the same team and the same access rules, and you only want it easier to navigate.
+- **Split into workspaces** when a set of work needs its own members, its own integrations and secrets, or its own isolation. The classic case is one workspace per customer, where the workspace itself is the deliverable the customer owns.
+
+See [Workspace fundamentals](/platform/workspaces) for what the boundary scopes and [Roles and permissions](/platform/permissions) for how members and seats work across workspaces.
+
+## Next
+
+<Cards>
+  <Card title="Workspace fundamentals" href="/platform/workspaces" description="What a workspace holds and the boundary it scopes." />
+  <Card title="Roles and permissions" href="/platform/permissions" description="Permission levels, members, and seat rules." />
+  <Card title="Secrets" href="/platform/credentials" description="Workspace and personal API keys and variables." />
+  <Card title="Integrations" href="/integrations" description="Connect third-party accounts to a workspace." />
+</Cards>

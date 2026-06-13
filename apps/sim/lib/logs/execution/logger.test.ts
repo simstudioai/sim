@@ -50,6 +50,10 @@ vi.mock('@/lib/billing/core/usage', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({
   recordUsage: vi.fn(() => Promise.resolve()),
   stableEventKey: vi.fn((parts: Record<string, unknown>) => JSON.stringify(parts)),
+  deriveBillingContext: vi.fn((userId: string) => ({
+    billingEntity: { type: 'user', id: userId },
+    billingPeriod: { start: new Date('2024-01-01'), end: new Date('2024-02-01') },
+  })),
 }))
 
 vi.mock('@/lib/billing/threshold-billing', () => ({
@@ -68,9 +72,9 @@ vi.mock('@/lib/core/utils/display-filters', () => ({
   filterForDisplay: vi.fn((data) => data),
 }))
 
-// Mock events
-vi.mock('@/lib/logs/events', () => ({
-  emitWorkflowExecutionCompleted: vi.fn(() => Promise.resolve()),
+// Mock workspace event emission
+vi.mock('@/lib/workspace-events/emitter', () => ({
+  emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
 // Mock snapshot service

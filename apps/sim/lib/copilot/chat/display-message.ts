@@ -25,6 +25,9 @@ const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.cancelled]: ToolCallStatus.cancelled,
   [MothershipStreamV1ToolOutcome.rejected]: ToolCallStatus.rejected,
   [MothershipStreamV1ToolOutcome.skipped]: ToolCallStatus.skipped,
+  aborted: ToolCallStatus.cancelled,
+  failed: ToolCallStatus.error,
+  interrupted: ToolCallStatus.interrupted,
   pending: ToolCallStatus.executing,
   executing: ToolCallStatus.executing,
 }
@@ -50,6 +53,12 @@ function toDisplayBlock(block: PersistedContentBlock): ContentBlock | undefined 
   if (!displayed) return undefined
   if (block.parentToolCallId && displayed.parentToolCallId === undefined) {
     displayed.parentToolCallId = block.parentToolCallId
+  }
+  if (block.spanId && displayed.spanId === undefined) {
+    displayed.spanId = block.spanId
+  }
+  if (block.parentSpanId && displayed.parentSpanId === undefined) {
+    displayed.parentSpanId = block.parentSpanId
   }
   return withBlockTiming(displayed, block)
 }

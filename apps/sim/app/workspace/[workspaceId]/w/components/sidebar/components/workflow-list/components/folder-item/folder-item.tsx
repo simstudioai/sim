@@ -18,7 +18,7 @@ import {
   useFolderExpand,
   useItemDrag,
   useItemRename,
-  useSidebarDragContext,
+  useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import {
@@ -51,25 +51,11 @@ const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
-  dragDisabled?: boolean
-  hoverHandlers?: {
-    onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
-    onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
-  }
-  onFolderClick?: (folderId: string, shiftKey: boolean, metaKey: boolean) => void
-  onDragStart?: () => void
-  onDragEnd?: () => void
 }
 
-export function FolderItem({
-  folder,
-  dragDisabled = false,
-  hoverHandlers,
-  onFolderClick,
-  onDragStart: onDragStartProp,
-  onDragEnd: onDragEndProp,
-}: FolderItemProps) {
-  const { isAnyDragActive } = useSidebarDragContext()
+export function FolderItem({ folder }: FolderItemProps) {
+  const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
+    useSidebarListContext()
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -234,9 +220,9 @@ export function FolderItem({
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       dragGhostRef.current = ghost
 
-      onDragStartProp?.()
+      onItemDragStart(folder.parentId)
     },
-    [folder.id, folder.name, workspaceId, onDragStartProp]
+    [folder.id, folder.name, folder.parentId, workspaceId, onItemDragStart]
   )
 
   const {
@@ -254,8 +240,8 @@ export function FolderItem({
       dragGhostRef.current = null
     }
     handleDragEndBase()
-    onDragEndProp?.()
-  }, [handleDragEndBase, onDragEndProp])
+    onItemDragEnd()
+  }, [handleDragEndBase, onItemDragEnd])
 
   const {
     isOpen: isContextMenuOpen,
@@ -362,7 +348,7 @@ export function FolderItem({
 
       const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
 
-      if (isModifierClick && onFolderClick) {
+      if (isModifierClick) {
         e.preventDefault()
         onFolderClick(folder.id, e.shiftKey, e.metaKey || e.ctrlKey)
         return
@@ -496,7 +482,6 @@ export function FolderItem({
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        {...hoverHandlers}
       >
         <ChevronRight
           className={clsx(

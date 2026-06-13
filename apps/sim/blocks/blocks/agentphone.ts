@@ -30,7 +30,7 @@ export const AgentPhoneBlock: BlockConfig = {
   description: 'Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone',
   longDescription:
     'Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messages and tapback reactions, place outbound voice calls, manage conversations and contacts, and track usage — all through a single AgentPhone API key.',
-  docsLink: 'https://docs.sim.ai/tools/agentphone',
+  docsLink: 'https://docs.sim.ai/integrations/agentphone',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: 'linear-gradient(135deg, #1a1a1a 0%, #0a2a14 100%)',

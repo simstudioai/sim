@@ -102,11 +102,6 @@ export const AuditAction = {
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
 
-  // Notifications
-  NOTIFICATION_CREATED: 'notification.created',
-  NOTIFICATION_UPDATED: 'notification.updated',
-  NOTIFICATION_DELETED: 'notification.deleted',
-
   // OAuth / Credentials
   OAUTH_DISCONNECTED: 'oauth.disconnected',
   CREDENTIAL_CREATED: 'credential.created',
@@ -128,6 +123,7 @@ export const AuditAction = {
   ORG_MEMBER_ADDED: 'org_member.added',
   ORG_MEMBER_REMOVED: 'org_member.removed',
   ORG_MEMBER_ROLE_CHANGED: 'org_member.role_changed',
+  ORG_MEMBER_USAGE_LIMIT_CHANGED: 'org_member.usage_limit_changed',
   ORG_INVITATION_CREATED: 'org_invitation.created',
   ORG_INVITATION_UPDATED: 'org_invitation.updated',
   ORG_INVITATION_ACCEPTED: 'org_invitation.accepted',
@@ -206,7 +202,6 @@ export const AuditResourceType = {
   FOLDER: 'folder',
   KNOWLEDGE_BASE: 'knowledge_base',
   MCP_SERVER: 'mcp_server',
-  NOTIFICATION: 'notification',
   OAUTH: 'oauth',
   ORGANIZATION: 'organization',
   PASSWORD: 'password',

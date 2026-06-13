@@ -1,4 +1,4 @@
-import { db, workflow, workflowDeploymentVersion } from '@sim/db'
+import { db, runOutsideTransactionContext, workflow, workflowDeploymentVersion } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -12,7 +12,7 @@ import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } f
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -159,6 +159,7 @@ export async function loadDeployedWorkflowState(
 interface MigrationContext {
   blocks: Record<string, BlockState>
   workspaceId: string
+  executor: DbOrTx
   migrated: boolean
 }
 
@@ -167,9 +168,10 @@ type BlockMigration = (ctx: MigrationContext) => MigrationContext | Promise<Migr
 function createMigrationPipeline(migrations: BlockMigration[]) {
   return async (
     blocks: Record<string, BlockState>,
-    workspaceId: string
+    workspaceId: string,
+    executor: DbOrTx = db
   ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> => {
-    let ctx: MigrationContext = { blocks, workspaceId, migrated: false }
+    let ctx: MigrationContext = { blocks, workspaceId, executor, migrated: false }
     for (const migration of migrations) {
       ctx = await migration(ctx)
     }
@@ -194,7 +196,11 @@ const applyBlockMigrations = createMigrationPipeline([
   },
 
   async (ctx) => {
-    const { blocks, migrated } = await migrateCredentialIds(ctx.blocks, ctx.workspaceId)
+    const { blocks, migrated } = await migrateCredentialIds(
+      ctx.blocks,
+      ctx.workspaceId,
+      ctx.executor
+    )
     return { ...ctx, blocks, migrated: ctx.migrated || migrated }
   },
 
@@ -273,7 +279,8 @@ export const CREDENTIAL_SUBBLOCK_IDS = new Set([
 
 async function migrateCredentialIds(
   blocks: Record<string, BlockState>,
-  workspaceId: string
+  workspaceId: string,
+  executor: DbOrTx
 ): Promise<{ blocks: Record<string, BlockState>; migrated: boolean }> {
   const potentialLegacyIds = new Set<string>()
 
@@ -305,7 +312,7 @@ async function migrateCredentialIds(
     return { blocks, migrated: false }
   }
 
-  const rows = await db
+  const rows = await executor
     .select({ id: credential.id, accountId: credential.accountId })
     .from(credential)
     .where(
@@ -379,12 +386,21 @@ export async function loadWorkflowFromNormalizedTables(
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
 
-  const { blocks: finalBlocks, migrated } = await applyBlockMigrations(raw.blocks, raw.workspaceId)
+  const { blocks: finalBlocks, migrated } = await applyBlockMigrations(
+    raw.blocks,
+    raw.workspaceId,
+    externalTx ?? db
+  )
 
   if (migrated) {
-    Promise.resolve().then(() =>
-      persistMigratedBlocks(workflowId, raw.blocks, finalBlocks, raw.blockUpdatedAtById)
-    )
+    // Deliberate fire-and-forget persistence on the global pool: it must not
+    // join (or block) a read transaction this load may be running inside, so
+    // it escapes the transaction context instead of tripping the wire.
+    runOutsideTransactionContext(() => {
+      Promise.resolve().then(() =>
+        persistMigratedBlocks(workflowId, raw.blocks, finalBlocks, raw.blockUpdatedAtById)
+      )
+    })
   }
 
   const patchedLoops: Record<string, Loop> = { ...raw.loops }
@@ -497,13 +513,67 @@ type DeployWorkflowValidationResult =
   | { success: true }
   | { success: false; error: string; errorCode?: 'validation' }
 
+/**
+ * Update the name and/or description metadata of an existing deployment version.
+ * Shared by the workflow deployment-version PATCH route and the copilot
+ * `update_deployment_version` tool so both behave identically. Returns the
+ * resulting name/description, or null if the version does not exist.
+ */
+export async function updateDeploymentVersionMetadata(params: {
+  workflowId: string
+  version: number
+  name?: string | null
+  description?: string | null
+}): Promise<{ name: string | null; description: string | null } | null> {
+  const updateData: { name?: string | null; description?: string | null } = {}
+  if (params.name !== undefined) updateData.name = params.name
+  if (params.description !== undefined) updateData.description = params.description
+
+  if (Object.keys(updateData).length === 0) {
+    const [row] = await db
+      .select({
+        name: workflowDeploymentVersion.name,
+        description: workflowDeploymentVersion.description,
+      })
+      .from(workflowDeploymentVersion)
+      .where(
+        and(
+          eq(workflowDeploymentVersion.workflowId, params.workflowId),
+          eq(workflowDeploymentVersion.version, params.version)
+        )
+      )
+      .limit(1)
+    return row ?? null
+  }
+
+  const [updated] = await db
+    .update(workflowDeploymentVersion)
+    .set(updateData)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, params.workflowId),
+        eq(workflowDeploymentVersion.version, params.version)
+      )
+    )
+    .returning({
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+    })
+  return updated ?? null
+}
+
 export async function deployWorkflow(params: {
   workflowId: string
   deployedBy: string
   workflowName?: string
+  /** Optional human-readable summary of what changed, stored on the deployment version. */
+  description?: string | null
+  /** Optional human-readable name/label for the deployment version. */
+  name?: string | null
   workflowState?: WorkflowState
   validateWorkflowState?: (
-    workflowState: WorkflowState
+    workflowState: WorkflowState,
+    executor: DbOrTx
   ) => DeployWorkflowValidationResult | Promise<DeployWorkflowValidationResult>
   onDeployTransaction?: (
     tx: DbOrTx,
@@ -543,7 +613,7 @@ export async function deployWorkflow(params: {
         }
       }
 
-      const validationError = await params.validateWorkflowState?.(currentState)
+      const validationError = await params.validateWorkflowState?.(currentState, tx)
       if (validationError && !validationError.success) {
         return {
           success: false as const,
@@ -585,6 +655,8 @@ export async function deployWorkflow(params: {
         isActive: true,
         createdBy: deployedBy,
         createdAt: now,
+        description: params.description?.trim() || null,
+        name: params.name?.trim() || null,
       })
 
       const updateData: Record<string, unknown> = {
@@ -1071,11 +1143,93 @@ async function activateWorkflowVersionById(params: {
   }
 }
 
+/**
+ * Resolves the deployment version that precedes the currently active one —
+ * the default rollback target when no explicit version is given.
+ */
+export async function findPreviousDeploymentVersion(
+  workflowId: string
+): Promise<
+  { ok: true; version: number } | { ok: false; reason: 'no_active_version' | 'no_previous_version' }
+> {
+  const [activeRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!activeRow) {
+    return { ok: false, reason: 'no_active_version' }
+  }
+
+  const [previousRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        lt(workflowDeploymentVersion.version, activeRow.version)
+      )
+    )
+    .orderBy(desc(workflowDeploymentVersion.version))
+    .limit(1)
+
+  if (!previousRow) {
+    return { ok: false, reason: 'no_previous_version' }
+  }
+
+  return { ok: true, version: previousRow.version }
+}
+
+/**
+ * Fetches a single deployment version of a workflow, including its state
+ * snapshot. Returns null when the version does not exist.
+ */
+export async function getWorkflowDeploymentVersion(
+  workflowId: string,
+  version: number
+): Promise<{
+  id: string
+  version: number
+  name: string | null
+  description: string | null
+  isActive: boolean
+  createdAt: Date
+  state: unknown
+} | null> {
+  const [row] = await db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      state: workflowDeploymentVersion.state,
+    })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.version, version)
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function listWorkflowVersions(workflowId: string): Promise<{
   versions: Array<{
     id: string
     version: number
     name: string | null
+    description: string | null
     isActive: boolean
     createdAt: Date
     createdBy: string | null
@@ -1084,11 +1238,12 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
-  const versions = await db
+  const rows = await db
     .select({
       id: workflowDeploymentVersion.id,
       version: workflowDeploymentVersion.version,
       name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
       isActive: workflowDeploymentVersion.isActive,
       createdAt: workflowDeploymentVersion.createdAt,
       createdBy: workflowDeploymentVersion.createdBy,
@@ -1099,5 +1254,10 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
     .where(eq(workflowDeploymentVersion.workflowId, workflowId))
     .orderBy(desc(workflowDeploymentVersion.version))
 
-  return { versions }
+  return {
+    versions: rows.map((row) => ({
+      ...row,
+      deployedByName: row.deployedByName ?? (row.createdBy === 'admin-api' ? 'Admin' : null),
+    })),
+  }
 }

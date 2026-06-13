@@ -8,7 +8,6 @@ import {
   AvatarFallback,
   AvatarImage,
   Badge,
-  Breadcrumb,
   BubbleChatClose,
   BubbleChatPreview,
   Button,
@@ -153,7 +152,7 @@ export default function PlaygroundPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState('')
   const [tagItems, setTagItems] = useState<TagItem[]>([
     { value: 'user@example.com', isValid: true },
-    { value: 'invalid-email', isValid: false },
+    { value: 'invalid-email', isValid: false, error: 'Invalid email format' },
   ])
 
   const toggleDarkMode = () => {
@@ -810,17 +809,6 @@ export default function PlaygroundPage() {
               <VariantRow label='inline'>
                 <DatePicker inline value={dateValue} onChange={setDateValue} />
               </VariantRow>
-            </Section>
-
-            {/* Breadcrumb */}
-            <Section title='Breadcrumb'>
-              <Breadcrumb
-                items={[
-                  { label: 'Home', href: '#' },
-                  { label: 'Settings', href: '#' },
-                  { label: 'Profile' },
-                ]}
-              />
             </Section>
 
             {/* Tooltip */}

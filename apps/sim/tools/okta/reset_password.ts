@@ -48,7 +48,7 @@ export const oktaResetPasswordTool: ToolConfig<OktaResetPasswordParams, OktaRese
       url: (params) => {
         const domain = validateOktaDomain(params.domain)
         const sendEmail = params.sendEmail ?? true
-        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId)}/lifecycle/reset_password?sendEmail=${sendEmail}`
+        return `https://${domain}/api/v1/users/${encodeURIComponent(params.userId.trim())}/lifecycle/reset_password?sendEmail=${sendEmail}`
       },
       method: 'POST',
       headers: (params) => ({

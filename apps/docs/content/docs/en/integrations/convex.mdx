@@ -1,0 +1,187 @@
+---
+title: Convex
+description: Use Convex database
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="convex"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Convex](https://www.convex.dev/) is an open-source reactive backend platform that combines a document database, serverless functions, and real-time sync in one developer-friendly package. Instead of writing SQL, you define queries, mutations, and actions in TypeScript that run right next to your data, and every client subscribed to a query updates automatically when the underlying data changes.
+
+**Why Convex?**
+
+- **Functions as the API:** Queries (reads), mutations (transactional writes), and actions (side effects like calling external APIs) are the building blocks of your backend — typed, versioned, and deployed together.
+- **Reactive by default:** Query results update live as data changes, with no cache invalidation or polling logic to maintain.
+- **Transactional writes:** Mutations run as ACID transactions with serializable isolation, so your data stays consistent without manual locking.
+- **Built-in schema awareness:** Convex tracks the shape of every table, so tooling can introspect your data model without a separate migration system.
+
+**Using Convex in Sim**
+
+Sim's Convex integration connects your workflows to any Convex deployment with two fields: the deployment URL and a deploy key from the dashboard Settings page. From there you can:
+
+- **Run functions:** Call query, mutation, and action functions with named JSON arguments — or use Run Function when you don't want to specify the function type.
+- **Inspect your data model:** List Tables returns every table in the deployment with the JSON schema of its documents.
+- **Export and sync data:** List Documents pages through a consistent snapshot of a table, and Document Deltas returns only the documents that changed since a snapshot — including deletions — making incremental syncs to warehouses, search indexes, or other tools straightforward.
+
+The Run Query, Run Mutation, Run Action, and Run Function operations work on every Convex plan. List Tables, List Documents, and Document Deltas use Convex's streaming export API, which is available on Convex paid plans.
+
+Typical patterns include agents that read and write application data through your existing Convex functions, scheduled exports to analytics destinations, and change-driven automations that react to new or updated documents.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Convex into the workflow. Run query, mutation, and action functions on your deployment, list tables with their schemas, and export documents with snapshot pagination and change deltas.
+
+
+
+## Actions
+
+### `convex_query`
+
+Run a Convex query function and return its result
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `functionPath` | string | Yes | Path to the query function \(e.g., messages:list or folder/file:myQuery\) |
+| `args` | json | No | Named arguments to pass to the function as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `value` | json | Result returned by the query function |
+| `logLines` | array | Log lines printed during the function execution |
+
+### `convex_mutation`
+
+Run a Convex mutation function to write data and return its result
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `functionPath` | string | Yes | Path to the mutation function \(e.g., messages:send or folder/file:myMutation\) |
+| `args` | json | No | Named arguments to pass to the function as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `value` | json | Result returned by the mutation function |
+| `logLines` | array | Log lines printed during the function execution |
+
+### `convex_action`
+
+Run a Convex action function and return its result
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `functionPath` | string | Yes | Path to the action function \(e.g., emails:send or folder/file:myAction\) |
+| `args` | json | No | Named arguments to pass to the function as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `value` | json | Result returned by the action function |
+| `logLines` | array | Log lines printed during the function execution |
+
+### `convex_run_function`
+
+Run any Convex function (query, mutation, or action) by path without specifying its type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `functionPath` | string | Yes | Path to the function \(e.g., messages:list or folder/file:myFunction\) |
+| `args` | json | No | Named arguments to pass to the function as a JSON object |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `value` | json | Result returned by the function |
+| `logLines` | array | Log lines printed during the function execution |
+
+### `convex_list_tables`
+
+List all tables in a Convex deployment along with their JSON schemas. Requires streaming export, available on Convex paid plans.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `tables` | array | Names of the tables in the deployment |
+| `schemas` | json | Map of table name to the JSON schema of its documents |
+
+### `convex_list_documents`
+
+List documents from a Convex table via a paginated snapshot. Pass the returned snapshot and page cursor back in to fetch the next page. Requires streaming export, available on Convex paid plans.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `tableName` | string | No | Table to list documents from. Omit to list documents from all tables. |
+| `snapshot` | string | No | Snapshot timestamp from a previous page. Omit on the first request to start a new snapshot. |
+| `pageCursor` | string | No | Page cursor from a previous page of the same snapshot. Omit on the first request. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | array | Documents in this page of the snapshot |
+| `hasMore` | boolean | Whether more pages remain in the snapshot |
+| `snapshot` | string | Snapshot timestamp to pass back in when fetching the next page |
+| `pageCursor` | string | Page cursor to pass back in when fetching the next page |
+
+### `convex_document_deltas`
+
+List documents that changed after a snapshot or previous delta cursor. Deleted documents are returned with a _deleted flag. Requires streaming export, available on Convex paid plans.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `deploymentUrl` | string | Yes | Convex deployment URL \(e.g., https://your-deployment.convex.cloud\) |
+| `deployKey` | string | Yes | Convex deploy key from the dashboard Settings page |
+| `cursor` | string | Yes | Timestamp cursor to read deltas after. Use the snapshot value from List Documents or the cursor from a previous Document Deltas page. |
+| `tableName` | string | No | Table to read deltas from. Omit to read deltas from all tables. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | array | Changed documents, each including _table and _ts fields |
+| `hasMore` | boolean | Whether more delta pages remain |
+| `cursor` | string | Cursor to pass back in when fetching the next page of deltas |
+
+

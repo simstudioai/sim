@@ -9,5 +9,5 @@ export const ParallelTool = {
   name: 'Parallel',
   icon: SplitIcon,
   bgColor: '#FEE12B',
-  docsLink: 'https://docs.sim.ai/blocks/parallel',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/parallel',
 } as const

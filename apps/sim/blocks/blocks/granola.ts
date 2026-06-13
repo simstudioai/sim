@@ -7,7 +7,7 @@ export const GranolaBlock: BlockConfig = {
   description: 'Access meeting notes and transcripts from Granola',
   longDescription:
     'Integrate Granola into your workflow to retrieve meeting notes, summaries, attendees, and transcripts.',
-  docsLink: 'https://docs.sim.ai/tools/granola',
+  docsLink: 'https://docs.sim.ai/integrations/granola',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#B2C147',
@@ -22,6 +22,7 @@ export const GranolaBlock: BlockConfig = {
       options: [
         { label: 'List Notes', id: 'list_notes' },
         { label: 'Get Note', id: 'get_note' },
+        { label: 'List Folders', id: 'list_folders' },
       ],
       value: () => 'list_notes',
     },
@@ -108,7 +109,7 @@ export const GranolaBlock: BlockConfig = {
       title: 'Page Size',
       type: 'short-input',
       placeholder: '10 (1-30)',
-      condition: { field: 'operation', value: 'list_notes' },
+      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
       mode: 'advanced',
     },
     {
@@ -116,13 +117,13 @@ export const GranolaBlock: BlockConfig = {
       title: 'Cursor',
       type: 'short-input',
       placeholder: 'Pagination cursor from previous response',
-      condition: { field: 'operation', value: 'list_notes' },
+      condition: { field: 'operation', value: ['list_notes', 'list_folders'] },
       mode: 'advanced',
     },
   ],
 
   tools: {
-    access: ['granola_list_notes', 'granola_get_note'],
+    access: ['granola_list_notes', 'granola_get_note', 'granola_list_folders'],
     config: {
       tool: (params) => `granola_${params.operation}`,
       params: (params) => {
@@ -163,7 +164,11 @@ export const GranolaBlock: BlockConfig = {
     summaryText: { type: 'string', description: 'Plain text meeting summary' },
     summaryMarkdown: { type: 'string', description: 'Markdown meeting summary' },
     attendees: { type: 'json', description: 'Meeting attendees (name, email)' },
-    folders: { type: 'json', description: 'Folders the note belongs to (id, name)' },
+    folders: {
+      type: 'json',
+      description:
+        'Folders — a note’s folder memberships (id, name) for Get Note, or the workspace folder listing (id, name, parentFolderId) for List Folders',
+    },
     calendarEventTitle: { type: 'string', description: 'Calendar event title' },
     calendarOrganiser: { type: 'string', description: 'Calendar event organiser email' },
     calendarEventId: { type: 'string', description: 'Calendar event ID' },
@@ -172,7 +177,7 @@ export const GranolaBlock: BlockConfig = {
     invitees: { type: 'json', description: 'Calendar event invitee emails' },
     transcript: {
       type: 'json',
-      description: 'Meeting transcript entries (speaker, text, startTime, endTime)',
+      description: 'Meeting transcript entries (speaker, speakerLabel, text, startTime, endTime)',
     },
   },
 }

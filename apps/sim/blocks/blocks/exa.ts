@@ -10,7 +10,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate Exa into the workflow. Can search, get contents, find similar links, answer a question, and perform research.',
-  docsLink: 'https://docs.sim.ai/tools/exa',
+  docsLink: 'https://docs.sim.ai/integrations/exa',
   category: 'tools',
   integrationType: IntegrationType.Search,
   bgColor: '#1F40ED',

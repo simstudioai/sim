@@ -10,7 +10,7 @@ export const DubBlock: BlockConfig<DubResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
-  docsLink: 'https://docs.sim.ai/tools/dub',
+  docsLink: 'https://docs.sim.ai/integrations/dub',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
@@ -27,7 +27,13 @@ export const DubBlock: BlockConfig<DubResponse> = {
         { label: 'Update Link', id: 'update_link' },
         { label: 'Delete Link', id: 'delete_link' },
         { label: 'List Links', id: 'list_links' },
+        { label: 'Count Links', id: 'get_links_count' },
+        { label: 'Bulk Create Links', id: 'bulk_create_links' },
+        { label: 'Bulk Update Links', id: 'bulk_update_links' },
+        { label: 'Bulk Delete Links', id: 'bulk_delete_links' },
         { label: 'Get Analytics', id: 'get_analytics' },
+        { label: 'List Events', id: 'get_events' },
+        { label: 'Get QR Code', id: 'get_qr_code' },
       ],
       value: () => 'create_link',
     },
@@ -159,6 +165,30 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'linkRewrite',
+      title: 'Link Cloaking',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'linkArchived',
+      title: 'Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
       id: 'linkId',
       title: 'Link ID',
       type: 'short-input',
@@ -229,32 +259,6 @@ export const DubBlock: BlockConfig<DubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: 'list_links' },
-      mode: 'advanced',
-    },
-    {
-      id: 'sortBy',
-      title: 'Sort By',
-      type: 'dropdown',
-      options: [
-        { label: 'Created At', id: 'createdAt' },
-        { label: 'Clicks', id: 'clicks' },
-        { label: 'Sale Amount', id: 'saleAmount' },
-        { label: 'Last Clicked', id: 'lastClicked' },
-      ],
-      value: () => 'createdAt',
-      condition: { field: 'operation', value: 'list_links' },
-      mode: 'advanced',
-    },
-    {
-      id: 'sortOrder',
-      title: 'Sort Order',
-      type: 'dropdown',
-      options: [
-        { label: 'Descending', id: 'desc' },
-        { label: 'Ascending', id: 'asc' },
-      ],
-      value: () => 'desc',
       condition: { field: 'operation', value: 'list_links' },
       mode: 'advanced',
     },
@@ -393,6 +397,316 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'countSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search links by slug or destination URL',
+      condition: { field: 'operation', value: 'get_links_count' },
+    },
+    {
+      id: 'countDomain',
+      title: 'Filter by Domain',
+      type: 'short-input',
+      placeholder: 'dub.sh',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countTagIds',
+      title: 'Filter by Tag IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated tag IDs',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countTagNames',
+      title: 'Filter by Tag Names',
+      type: 'short-input',
+      placeholder: 'Comma-separated tag names',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countFolderId',
+      title: 'Filter by Folder ID',
+      type: 'short-input',
+      placeholder: 'Folder ID',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countShowArchived',
+      title: 'Show Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countGroupBy',
+      title: 'Group By',
+      type: 'dropdown',
+      options: [
+        { label: 'None (total)', id: '' },
+        { label: 'Domain', id: 'domain' },
+        { label: 'Tag', id: 'tagId' },
+        { label: 'User', id: 'userId' },
+        { label: 'Folder', id: 'folderId' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'bulkLinks',
+      title: 'Links',
+      type: 'code',
+      language: 'json',
+      placeholder: '[\n  { "url": "https://example.com", "key": "my-link" }\n]',
+      condition: { field: 'operation', value: 'bulk_create_links' },
+      required: { field: 'operation', value: 'bulk_create_links' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Dub link objects based on the user's description. Each object must include a "url" and may include "key", "domain", "tagIds" (array), and UTM fields. Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the links to create (e.g., "links for these 5 product pages")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'bulkUpdateLinkIds',
+      title: 'Link IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated link IDs (required unless External IDs is set)',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+    },
+    {
+      id: 'bulkUpdateExternalIds',
+      title: 'External IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated external IDs (used if no link IDs)',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'bulkUpdateData',
+      title: 'Update Data',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "archived": true,\n  "tagIds": ["tag_123"]\n}',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+      required: { field: 'operation', value: 'bulk_update_links' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object of Dub link fields to update based on the user's description (e.g. archived, tagIds, expiresAt, comments, UTM fields). Return ONLY the JSON object - no explanations, no extra text.`,
+        placeholder: 'Describe the changes to apply (e.g., "archive them and add the Q3 tag")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'bulkDeleteLinkIds',
+      title: 'Link IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated link IDs (max 100)',
+      condition: { field: 'operation', value: 'bulk_delete_links' },
+      required: { field: 'operation', value: 'bulk_delete_links' },
+    },
+    {
+      id: 'eventsEvent',
+      title: 'Event Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Clicks', id: 'clicks' },
+        { label: 'Leads', id: 'leads' },
+        { label: 'Sales', id: 'sales' },
+      ],
+      value: () => 'clicks',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsLinkId',
+      title: 'Link ID',
+      type: 'short-input',
+      placeholder: 'Filter events by link ID',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'Filter by external ID (prefix with ext_)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsDomain',
+      title: 'Domain',
+      type: 'short-input',
+      placeholder: 'Filter by domain',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsInterval',
+      title: 'Interval',
+      type: 'dropdown',
+      options: [
+        { label: '24 Hours', id: '24h' },
+        { label: '7 Days', id: '7d' },
+        { label: '30 Days', id: '30d' },
+        { label: '90 Days', id: '90d' },
+        { label: '1 Year', id: '1y' },
+        { label: 'Month to Date', id: 'mtd' },
+        { label: 'Quarter to Date', id: 'qtd' },
+        { label: 'Year to Date', id: 'ytd' },
+        { label: 'All Time', id: 'all' },
+      ],
+      value: () => '24h',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsStart',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 date (overrides interval)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description. Return ONLY the timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "7 days ago", "start of month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'eventsEnd',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 date (defaults to now)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description. Return ONLY the timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of last month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'eventsCountry',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'ISO 3166-1 alpha-2 code (e.g., US)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsTimezone',
+      title: 'Timezone',
+      type: 'short-input',
+      placeholder: 'IANA timezone (e.g., America/New_York)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsSortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Descending', id: 'desc' },
+        { label: 'Ascending', id: 'asc' },
+      ],
+      value: () => 'desc',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '100 (max: 1000)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrUrl',
+      title: 'Short Link URL',
+      type: 'short-input',
+      placeholder: 'https://dub.sh/my-link',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      required: { field: 'operation', value: 'get_qr_code' },
+    },
+    {
+      id: 'qrSize',
+      title: 'Size (px)',
+      type: 'short-input',
+      placeholder: '600',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrLevel',
+      title: 'Error Correction',
+      type: 'dropdown',
+      options: [
+        { label: 'Low (L)', id: 'L' },
+        { label: 'Medium (M)', id: 'M' },
+        { label: 'Quartile (Q)', id: 'Q' },
+        { label: 'High (H)', id: 'H' },
+      ],
+      value: () => 'L',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrFgColor',
+      title: 'Foreground Color',
+      type: 'short-input',
+      placeholder: '#000000',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrBgColor',
+      title: 'Background Color',
+      type: 'short-input',
+      placeholder: '#FFFFFF',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrHideLogo',
+      title: 'Hide Logo',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrMargin',
+      title: 'Margin',
+      type: 'short-input',
+      placeholder: '2',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -409,12 +723,26 @@ export const DubBlock: BlockConfig<DubResponse> = {
       'dub_update_link',
       'dub_delete_link',
       'dub_list_links',
+      'dub_get_links_count',
+      'dub_bulk_create_links',
+      'dub_bulk_update_links',
+      'dub_bulk_delete_links',
       'dub_get_analytics',
+      'dub_get_events',
+      'dub_get_qr_code',
     ],
     config: {
       tool: (params) => `dub_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
+        if (
+          params.operation === 'create_link' ||
+          params.operation === 'upsert_link' ||
+          params.operation === 'update_link'
+        ) {
+          if (params.linkRewrite === 'true') result.rewrite = true
+          if (params.linkArchived === 'true') result.archived = true
+        }
         if (params.operation === 'get_link') {
           if (params.getLinkExternalId) result.externalId = params.getLinkExternalId
           if (params.getLinkDomain) result.domain = params.getLinkDomain
@@ -442,6 +770,49 @@ export const DubBlock: BlockConfig<DubResponse> = {
           if (params.analyticsCountry) result.country = params.analyticsCountry
           if (params.analyticsTimezone) result.timezone = params.analyticsTimezone
         }
+        if (params.operation === 'get_links_count') {
+          if (params.countSearch) result.search = params.countSearch
+          if (params.countDomain) result.domain = params.countDomain
+          if (params.countTagIds) result.tagIds = params.countTagIds
+          if (params.countTagNames) result.tagNames = params.countTagNames
+          if (params.countFolderId) result.folderId = params.countFolderId
+          if (params.countShowArchived === 'true') result.showArchived = true
+          if (params.countGroupBy) result.groupBy = params.countGroupBy
+        }
+        if (params.operation === 'bulk_create_links') {
+          if (params.bulkLinks) result.links = params.bulkLinks
+        }
+        if (params.operation === 'bulk_update_links') {
+          if (params.bulkUpdateLinkIds) result.linkIds = params.bulkUpdateLinkIds
+          if (params.bulkUpdateExternalIds) result.externalIds = params.bulkUpdateExternalIds
+          if (params.bulkUpdateData) result.data = params.bulkUpdateData
+        }
+        if (params.operation === 'bulk_delete_links') {
+          if (params.bulkDeleteLinkIds) result.linkIds = params.bulkDeleteLinkIds
+        }
+        if (params.operation === 'get_events') {
+          if (params.eventsEvent) result.event = params.eventsEvent
+          if (params.eventsLinkId) result.linkId = params.eventsLinkId
+          if (params.eventsExternalId) result.externalId = params.eventsExternalId
+          if (params.eventsDomain) result.domain = params.eventsDomain
+          if (params.eventsInterval) result.interval = params.eventsInterval
+          if (params.eventsStart) result.start = params.eventsStart
+          if (params.eventsEnd) result.end = params.eventsEnd
+          if (params.eventsCountry) result.country = params.eventsCountry
+          if (params.eventsTimezone) result.timezone = params.eventsTimezone
+          if (params.eventsSortOrder) result.sortOrder = params.eventsSortOrder
+          if (params.eventsPage) result.page = Number(params.eventsPage)
+          if (params.eventsLimit) result.limit = Number(params.eventsLimit)
+        }
+        if (params.operation === 'get_qr_code') {
+          if (params.qrUrl) result.url = params.qrUrl
+          if (params.qrSize) result.size = Number(params.qrSize)
+          if (params.qrLevel) result.level = params.qrLevel
+          if (params.qrFgColor) result.fgColor = params.qrFgColor
+          if (params.qrBgColor) result.bgColor = params.qrBgColor
+          if (params.qrHideLogo === 'true') result.hideLogo = true
+          if (params.qrMargin) result.margin = Number(params.qrMargin)
+        }
         return result
       },
     },
@@ -454,6 +825,9 @@ export const DubBlock: BlockConfig<DubResponse> = {
     domain: { type: 'string', description: 'Custom domain for the short link' },
     key: { type: 'string', description: 'Custom slug for the short link' },
     search: { type: 'string', description: 'Search query for listing links' },
+    links: { type: 'json', description: 'JSON array of link objects for bulk create' },
+    data: { type: 'json', description: 'JSON object of fields to apply for bulk update' },
+    linkIds: { type: 'string', description: 'Comma-separated link IDs for bulk operations' },
   },
   outputs: {
     id: { type: 'string', description: 'Link ID' },
@@ -483,11 +857,34 @@ export const DubBlock: BlockConfig<DubResponse> = {
       type: 'json',
       description: 'Array of links (id, domain, key, url, shortLink, clicks, tags, createdAt)',
     },
-    count: { type: 'number', description: 'Number of links returned (list operation)' },
+    count: { type: 'number', description: 'Number of items returned (list/count/events/bulk)' },
     data: {
       type: 'json',
       description: 'Grouped analytics data (timeseries, countries, devices, etc.)',
     },
+    groups: {
+      type: 'json',
+      description: 'Per-group link counts when Count Links uses groupBy ([{ field, count }])',
+    },
+    events: {
+      type: 'json',
+      description: 'Array of events (event, timestamp, click, link, customer/sale data)',
+    },
+    created: {
+      type: 'json',
+      description: 'Bulk create: array of successfully created link objects',
+    },
+    errors: {
+      type: 'json',
+      description: 'Bulk create: array of per-link errors ({ link, error, code })',
+    },
+    updated: {
+      type: 'json',
+      description: 'Bulk update: array of updated link objects',
+    },
+    deletedCount: { type: 'number', description: 'Bulk delete: number of links deleted' },
+    file: { type: 'file', description: 'QR code image (PNG) stored in execution files' },
+    content: { type: 'string', description: 'QR code as base64-encoded PNG data' },
   },
 }
 

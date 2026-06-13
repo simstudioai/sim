@@ -4,10 +4,11 @@
 
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, or, type SQL, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getColumnId } from './column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
+import { withSeqscanOff } from './planner'
 import type { ColumnDefinition, JsonValue, RowData, TableSchema, ValidationResult } from './types'
 
 export type { ColumnDefinition, TableSchema, ValidationResult }
@@ -405,12 +406,17 @@ export function validateUniqueConstraints(
  * Checks unique constraints using targeted database queries.
  * Only queries for specific conflicting values instead of loading all rows.
  * This reduces memory usage from O(n) to O(1) where n is the number of rows.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the
+ * lookup runs on the transaction's connection and observes its uncommitted
+ * writes; otherwise the default `db` connection only observes committed state.
  */
 export async function checkUniqueConstraintsDb(
   tableId: string,
   data: RowData,
   schema: TableSchema,
-  excludeRowId?: string
+  excludeRowId?: string,
+  executor: UniqueCheckExecutor = db
 ): Promise<ValidationResult> {
   const errors: string[] = []
   const uniqueColumns = getUniqueColumns(schema)
@@ -420,7 +426,7 @@ export async function checkUniqueConstraintsDb(
   }
 
   // Build conditions for each unique column value
-  const conditions = []
+  const conditions: Array<{ column: ColumnDefinition; value: unknown; sql: SQL }> = []
 
   for (const column of uniqueColumns) {
     const key = getColumnId(column)
@@ -451,25 +457,40 @@ export async function checkUniqueConstraintsDb(
     return { valid: true, errors: [] }
   }
 
-  // Query for each unique column separately to provide specific error messages
-  for (const condition of conditions) {
-    const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
+  // Query for each unique column separately to provide specific error messages.
+  // Tenant-bounded: `lower(data->>'col') = ...` is unestimatable, so the planner
+  // otherwise seq-scans the whole shared relation per check — 3.5s on every
+  // insert/edit when the value is unique (no early exit). With an external
+  // transaction the flag is set on it directly — opening our own transaction
+  // inside the caller's would be the nested pool checkout the migration-
+  // hardening work eliminated (self-deadlock under pool exhaustion).
+  const checkConditions = async (ex: UniqueCheckExecutor) => {
+    for (const condition of conditions) {
+      const baseCondition = and(eq(userTableRows.tableId, tableId), condition.sql)
 
-    const whereClause = excludeRowId
-      ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
-      : baseCondition
+      const whereClause = excludeRowId
+        ? and(baseCondition, sql`${userTableRows.id} != ${excludeRowId}`)
+        : baseCondition
 
-    const conflictingRow = await db
-      .select({ id: userTableRows.id, position: userTableRows.position })
-      .from(userTableRows)
-      .where(whereClause)
-      .limit(1)
+      const conflictingRow = await ex
+        .select({ id: userTableRows.id, position: userTableRows.position })
+        .from(userTableRows)
+        .where(whereClause)
+        .limit(1)
 
-    if (conflictingRow.length > 0) {
-      errors.push(
-        `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].position + 1}`
-      )
+      if (conflictingRow.length > 0) {
+        errors.push(
+          `Column "${condition.column.name}" must be unique. Value "${condition.value}" already exists in row ${conflictingRow[0].position + 1}`
+        )
+      }
     }
+  }
+
+  if (executor === db) {
+    await withSeqscanOff(async (trx) => checkConditions(trx))
+  } else {
+    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
+    await checkConditions(executor)
   }
 
   return { valid: errors.length === 0, errors }
@@ -480,7 +501,7 @@ export async function checkUniqueConstraintsDb(
  * drizzle transaction (`trx`) satisfy this, letting callers run the lookup
  * inside an open transaction so it observes uncommitted prior-batch inserts.
  */
-type UniqueCheckExecutor = Pick<typeof db, 'select'>
+type UniqueCheckExecutor = Pick<typeof db, 'select' | 'execute'>
 
 /**
  * Checks unique constraints for a batch of rows using targeted database queries.
@@ -548,68 +569,82 @@ export async function checkBatchUniqueConstraintsDb(
     }
   }
 
-  // Now check against database for all unique values at once
-  for (const [columnId, { values, column }] of valuesByColumn) {
-    if (values.size === 0) continue
+  // Now check against database for all unique values at once. Tenant-bounded
+  // for the same reason as checkUniqueConstraintsDb: the lower(data->>...)
+  // predicates are unestimatable and otherwise trigger whole-relation seq
+  // scans. With an external transaction the flag is set on it directly (SET
+  // LOCAL dies at its commit; it only penalizes plan shape, and the statements
+  // that follow in those transactions are tenant-scoped writes).
+  const checkColumns = async (ex: UniqueCheckExecutor) => {
+    for (const [columnId, { values, column }] of valuesByColumn) {
+      if (values.size === 0) continue
 
-    if (!NAME_PATTERN.test(columnId)) {
-      throw new Error(`Invalid column id: ${columnId}`)
-    }
-
-    const valueArray = Array.from(values)
-    const valueConditions = valueArray.map((normalizedValue) => {
-      // Check if the original values are strings (normalized values for strings are lowercase)
-      // We need to determine the type from the column definition or the first row that has this value
-      const isStringColumn = column.type === 'string'
-
-      if (isStringColumn) {
-        return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
+      if (!NAME_PATTERN.test(columnId)) {
+        throw new Error(`Invalid column id: ${columnId}`)
       }
-      return sql`(${userTableRows.data}->${sql.raw(`'${columnId}'`)})::jsonb = ${normalizedValue}::jsonb`
-    })
 
-    const conflictingRows = await executor
-      .select({
-        id: userTableRows.id,
-        data: userTableRows.data,
-        position: userTableRows.position,
+      const valueArray = Array.from(values)
+      const valueConditions = valueArray.map((normalizedValue) => {
+        // Check if the original values are strings (normalized values for strings are lowercase)
+        // We need to determine the type from the column definition or the first row that has this value
+        const isStringColumn = column.type === 'string'
+
+        if (isStringColumn) {
+          return sql`lower(${userTableRows.data}->>${sql.raw(`'${columnId}'`)}) = ${normalizedValue}`
+        }
+        return sql`(${userTableRows.data}->${sql.raw(`'${columnId}'`)})::jsonb = ${normalizedValue}::jsonb`
       })
-      .from(userTableRows)
-      .where(and(eq(userTableRows.tableId, tableId), or(...valueConditions)))
-      .limit(valueArray.length) // We only need up to one conflict per value
 
-    // Map conflicts back to batch rows
-    for (const conflict of conflictingRows) {
-      const conflictData = conflict.data as RowData
-      const conflictValue = conflictData[columnId]
-      const normalizedConflictValue =
-        typeof conflictValue === 'string'
-          ? conflictValue.toLowerCase()
-          : JSON.stringify(conflictValue)
+      const conflictingRows = await ex
+        .select({
+          id: userTableRows.id,
+          data: userTableRows.data,
+          position: userTableRows.position,
+        })
+        .from(userTableRows)
+        .where(and(eq(userTableRows.tableId, tableId), or(...valueConditions)))
+        .limit(valueArray.length) // We only need up to one conflict per value
 
-      // Find which batch rows have this conflicting value
-      for (let i = 0; i < rows.length; i++) {
-        const rowValue = rows[i][columnId]
-        if (rowValue === null || rowValue === undefined) continue
+      // Map conflicts back to batch rows
+      for (const conflict of conflictingRows) {
+        const conflictData = conflict.data as RowData
+        const conflictValue = conflictData[columnId]
+        const normalizedConflictValue =
+          typeof conflictValue === 'string'
+            ? conflictValue.toLowerCase()
+            : JSON.stringify(conflictValue)
 
-        const normalizedRowValue =
-          typeof rowValue === 'string' ? rowValue.toLowerCase() : JSON.stringify(rowValue)
+        // Find which batch rows have this conflicting value
+        for (let i = 0; i < rows.length; i++) {
+          const rowValue = rows[i][columnId]
+          if (rowValue === null || rowValue === undefined) continue
 
-        if (normalizedRowValue === normalizedConflictValue) {
-          // Check if this row already has errors for this column
-          let rowError = rowErrors.find((e) => e.row === i)
-          if (!rowError) {
-            rowError = { row: i, errors: [] }
-            rowErrors.push(rowError)
-          }
+          const normalizedRowValue =
+            typeof rowValue === 'string' ? rowValue.toLowerCase() : JSON.stringify(rowValue)
 
-          const errorMsg = `Column "${column.name}" must be unique. Value "${rowValue}" already exists in row ${conflict.position + 1}`
-          if (!rowError.errors.includes(errorMsg)) {
-            rowError.errors.push(errorMsg)
+          if (normalizedRowValue === normalizedConflictValue) {
+            // Check if this row already has errors for this column
+            let rowError = rowErrors.find((e) => e.row === i)
+            if (!rowError) {
+              rowError = { row: i, errors: [] }
+              rowErrors.push(rowError)
+            }
+
+            const errorMsg = `Column "${column.name}" must be unique. Value "${rowValue}" already exists in row ${conflict.position + 1}`
+            if (!rowError.errors.includes(errorMsg)) {
+              rowError.errors.push(errorMsg)
+            }
           }
         }
       }
     }
+  }
+
+  if (executor === db) {
+    await withSeqscanOff(async (trx) => checkColumns(trx))
+  } else {
+    await executor.execute(sql`SET LOCAL enable_seqscan = off`)
+    await checkColumns(executor)
   }
 
   // Sort errors by row index

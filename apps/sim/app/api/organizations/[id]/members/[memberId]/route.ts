@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
+import { db, dbReplica } from '@sim/db'
 import { member, user, userStats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
@@ -97,7 +97,7 @@ export const GET = withRouteHandler(
           .where(eq(userStats.userId, memberId))
           .limit(1)
 
-        const computed = await getUserUsageData(memberId)
+        const computed = await getUserUsageData(memberId, dbReplica)
 
         if (usageData.length > 0) {
           // currentPeriodCost is only a baseline; add this member's attributed
@@ -109,7 +109,8 @@ export const GET = withRouteHandler(
                 organizationId,
                 computed.billingPeriodStart && computed.billingPeriodEnd
                   ? { start: computed.billingPeriodStart, end: computed.billingPeriodEnd }
-                  : null
+                  : null,
+                dbReplica
               )
             ).get(memberId) ?? 0
           memberData = {

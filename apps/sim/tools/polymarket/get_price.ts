@@ -58,10 +58,11 @@ export const polymarketGetPriceTool: ToolConfig<
       handlePolymarketError(data, response.status, 'get_price')
     }
 
+    // API returns { price: 0.45 }
     return {
       success: true,
       output: {
-        price: data.price || data,
+        price: String(data.price ?? ''),
       },
     }
   },

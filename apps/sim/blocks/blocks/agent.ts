@@ -77,7 +77,7 @@ export const AgentBlock: BlockConfig<AgentResponse> = {
   - Prefer using integrations as tools within the agent block over separate integration blocks unless complete determinism needed. 
   - Response Format should be a valid JSON Schema. This determines the output of the agent only if present. Fields can be accessed at root level by the following blocks: e.g. <agent1.field>. If response format is not present, the agent will return the standard outputs: content, model, tokens, toolCalls.
   `,
-  docsLink: 'https://docs.sim.ai/blocks/agent',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/agent',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: 'var(--brand)',
@@ -417,6 +417,28 @@ Return ONLY the JSON array.`,
       title: 'Temperature',
       type: 'slider',
       min: 0,
+      max: 1.5,
+      defaultValue: 0.3,
+      mode: 'advanced',
+      condition: () => ({
+        field: 'model',
+        value: (() => {
+          const deepResearch = new Set(MODELS_WITH_DEEP_RESEARCH.map((m) => m.toLowerCase()))
+          const allModels = Object.keys(getBaseModelProviders())
+          return allModels.filter(
+            (model) =>
+              supportsTemperature(model) &&
+              getMaxTemperature(model) === 1.5 &&
+              !deepResearch.has(model.toLowerCase())
+          )
+        })(),
+      }),
+    },
+    {
+      id: 'temperature',
+      title: 'Temperature',
+      type: 'slider',
+      min: 0,
       max: 2,
       defaultValue: 0.3,
       mode: 'advanced',
@@ -550,7 +572,7 @@ Return ONLY the JSON array.`,
     conversationId: {
       type: 'string',
       description:
-        'Specific conversation ID to retrieve memories from (when memoryType is conversation_id)',
+        'Specific conversation ID to retrieve memories from (used when memoryType is conversation, sliding_window, or sliding_window_tokens)',
     },
     slidingWindowSize: {
       type: 'string',

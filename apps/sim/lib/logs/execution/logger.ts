@@ -32,7 +32,6 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
-import { emitWorkflowExecutionCompleted } from '@/lib/logs/events'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import {
   externalizeExecutionData,
@@ -50,6 +49,7 @@ import type {
   WorkflowExecutionSnapshot,
   WorkflowState,
 } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 
 const logger = createLogger('ExecutionLogger')
@@ -991,8 +991,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
       createdAt: updatedLog.createdAt.toISOString(),
     }
 
-    emitWorkflowExecutionCompleted(completedLog).catch((error) => {
-      execLog.error('Failed to emit workflow execution completed event', { error })
+    emitExecutionCompletedEvent(completedLog).catch((error) => {
+      execLog.error('Failed to emit workspace execution event', { error })
     })
 
     return completedLog
@@ -1110,6 +1110,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
         })
         return 0
       }
+
+      // Resolved before the advisory-locked transaction below: resolving inside
+      // it would run the subscription lookups on the global pool while the tx
+      // already holds a pooled connection (see recordCumulativeUsage).
+      const resolvedBillingContext =
+        billingContext ?? deriveBillingContext(userId, await getHighestPrioritySubscription(userId))
 
       // Build the run's *cumulative* target ledger lines from the cost summary.
       // The usage_log is then reconciled to these targets: at each completion
@@ -1262,7 +1268,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
               workflowId,
               executionId,
               tx,
-              ...(billingContext ?? {}),
+              billingEntity: resolvedBillingContext.billingEntity,
+              billingPeriod: resolvedBillingContext.billingPeriod,
             })
             recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
 
@@ -1291,7 +1298,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
             entries,
             workspaceId: workflowRecord.workspaceId ?? undefined,
             workflowId,
-            ...(billingContext ?? {}),
+            billingEntity: resolvedBillingContext.billingEntity,
+            billingPeriod: resolvedBillingContext.billingPeriod,
           })
           recordedIncrement = entries.reduce((acc, e) => acc + e.cost, 0)
         }

@@ -7,6 +7,10 @@ import { wandGenerateContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import { getSession } from '@/lib/auth'
+import {
+  checkActorUsageLimits,
+  checkBillingBlocked,
+} from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { env } from '@/lib/core/config/env'
@@ -14,7 +18,6 @@ import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-f
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enrichTableSchema } from '@/lib/table/llm/wand'
-import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 import { extractResponseText, parseResponsesUsage } from '@/providers/openai/utils'
 import { getModelPricing } from '@/providers/utils'
@@ -170,6 +173,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       stream = false,
       history = [],
       workflowId,
+      workspaceId: requestedWorkspaceId,
       generationType,
       wandContext = {},
     } = body
@@ -221,22 +225,32 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           { status: 403 }
         )
       }
+    } else if (requestedWorkspaceId) {
+      // No workflow entity to resolve from (e.g. table-schema wand or an
+      // unhydrated editor); attribute to the workspace the wand is running in,
+      // but only when the caller is a member so usage can't be misattributed.
+      const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
+      if (permission) {
+        workspaceId = requestedWorkspaceId
+      }
     }
 
-    let billingUserId = session.user.id
-    if (workspaceId) {
-      const workspaceBilledAccountUserId = await getWorkspaceBilledAccountUserId(workspaceId)
-      if (!workspaceBilledAccountUserId) {
-        logger.error(`[${requestId}] Unable to resolve billed account for workspace`, {
-          workspaceId,
-        })
-        return NextResponse.json(
-          { success: false, error: 'Unable to resolve billing account for this workspace' },
-          { status: 500 }
-        )
-      }
-      billingUserId = workspaceBilledAccountUserId
+    // Per-member usage must be attributable to an org workspace. The editor always
+    // supplies a workflow or a workspace the caller belongs to; refuse to run rather
+    // than stamp usage workspace-less (which would silently skip the per-member cap).
+    if (!workspaceId) {
+      return NextResponse.json(
+        { success: false, error: 'Workspace context is required.' },
+        { status: 400 }
+      )
     }
+
+    // Wand is always an interactive, session-authenticated editor action, so the
+    // person using it is the billing actor — matching client-side executions and
+    // editor voice rather than the workspace billed account. deriveBillingContext
+    // still routes payment to the org for org-scoped members; per-member usage is
+    // attributed to the member who actually used the wand.
+    const billingUserId = session.user.id
 
     let isBYOK = false
     let activeOpenAIKey = openaiApiKey
@@ -256,6 +270,35 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         { success: false, error: 'Wand generation service is not configured.' },
         { status: 503 }
       )
+    }
+
+    // BYOK incurs no Sim-metered cost, so it skips usage gating — but a frozen /
+    // billing-blocked account is locked out of everything, so still check that.
+    // Non-BYOK runs the full actor gate, which already includes the billing-blocked
+    // check, so it isn't repeated here.
+    if (isBYOK) {
+      const blocked = await checkBillingBlocked(billingUserId)
+      if (blocked.blocked) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: blocked.message || 'Account is not in good standing. Please contact support.',
+          },
+          { status: 402 }
+        )
+      }
+    } else {
+      const usage = await checkActorUsageLimits(billingUserId, workspaceId)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            scope: usage.scope,
+          },
+          { status: 402 }
+        )
+      }
     }
 
     let finalSystemPrompt =

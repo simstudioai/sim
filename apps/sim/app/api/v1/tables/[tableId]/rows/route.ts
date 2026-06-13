@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type V1BatchInsertTableRowsBody,
@@ -34,7 +33,7 @@ import {
 } from '@/lib/table'
 import { queryRows } from '@/lib/table/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -104,18 +103,8 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Insufficient capacity') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.match(/^Row \d+:/)
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
     return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
@@ -149,7 +138,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     const { tableId } = parsed.data.params
     const validated = parsed.data.query
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'read')
@@ -229,14 +218,14 @@ export const POST = withRouteHandler(
       const { tableId } = parsed.data.params
       if ('rows' in parsed.data.body) {
         const batchValidated = parsed.data.body
-        const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
         if (scopeError) return scopeError
         return handleBatchInsert(requestId, tableId, batchValidated, userId)
       }
 
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')
@@ -287,17 +276,8 @@ export const POST = withRouteHandler(
       const validationResponse = validationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      const errorMessage = toError(error).message
-
-      if (
-        errorMessage.includes('row limit') ||
-        errorMessage.includes('Insufficient capacity') ||
-        errorMessage.includes('Schema validation') ||
-        errorMessage.includes('must be unique') ||
-        errorMessage.includes('Row size exceeds')
-      ) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
       return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
@@ -321,7 +301,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
@@ -350,6 +330,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         filter: filterNamesToIds(validated.filter as Filter, idByName),
         data: patchData,
         limit: validated.limit,
+        actorUserId: userId,
       },
       requestId
     )
@@ -380,18 +361,8 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column') ||
-      errorMessage.includes('Filter is required')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error updating rows by filter:`, error)
     return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
@@ -415,7 +386,7 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')
@@ -477,11 +448,8 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const errorMessage = toError(error).message
-
-      if (errorMessage.includes('Filter is required')) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)
       return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })

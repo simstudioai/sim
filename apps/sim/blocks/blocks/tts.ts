@@ -9,7 +9,7 @@ export const TtsBlock: BlockConfig<TtsBlockResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Generate natural-sounding speech from text using state-of-the-art AI voices from OpenAI, Deepgram, ElevenLabs, Cartesia, Google Cloud, Azure, and PlayHT. Supports multiple voices, languages, and audio formats.',
-  docsLink: 'https://docs.sim.ai/tools/tts',
+  docsLink: 'https://docs.sim.ai/integrations/tts',
   category: 'blocks',
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',

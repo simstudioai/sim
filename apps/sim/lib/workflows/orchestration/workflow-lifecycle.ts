@@ -4,6 +4,7 @@ import { workflow, workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isFolderInWorkspace } from '@sim/workflow-authz'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -182,6 +183,10 @@ export async function performCreateWorkflow(
   const folderId = params.folderId || null
 
   try {
+    if (!(await isFolderInWorkspace(folderId, params.workspaceId))) {
+      return { success: false, error: 'Target folder not found', errorCode: 'validation' }
+    }
+
     const name = params.deduplicate
       ? await deduplicateWorkflowName(params.name, params.workspaceId, folderId)
       : params.name
@@ -277,6 +282,13 @@ export async function performUpdateWorkflow(
     const targetName = params.name ?? params.currentName
     const targetFolderId =
       params.folderId !== undefined ? params.folderId || null : params.currentFolderId || null
+
+    if (
+      params.folderId !== undefined &&
+      !(await isFolderInWorkspace(targetFolderId, params.workspaceId))
+    ) {
+      return { success: false, error: 'Target folder not found', errorCode: 'validation' }
+    }
 
     if (params.name !== undefined || params.folderId !== undefined) {
       const duplicate = await workflowNameExistsInFolder({

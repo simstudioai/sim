@@ -1,0 +1,141 @@
+'use client'
+
+import { useEffect, useRef, useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
+import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  Info,
+} from '@/components/emcn'
+import { CopyableValueField } from '@/app/workspace/[workspaceId]/components/credential-detail/components/copyable-value-field'
+import {
+  useOrganizationMemberUsageLimit,
+  useUpdateOrganizationMemberUsageLimit,
+} from '@/hooks/queries/organization'
+
+export interface ManageCreditsTarget {
+  userId: string
+  name: string
+  email: string
+}
+
+interface ManageCreditsModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  organizationId: string
+  member: ManageCreditsTarget | null
+}
+
+/**
+ * Modal for viewing a member's credits used in the organization's workspaces and
+ * setting their per-member credit limit. "Credits used" is a read-only chip;
+ * "Credit limit" is editable (blank = no limit). Hosted-only feature — surfaced
+ * only from the Organization tab, which already requires hosted + Team plan.
+ */
+export function ManageCreditsModal({
+  open,
+  onOpenChange,
+  organizationId,
+  member,
+}: ManageCreditsModalProps) {
+  const userId = member?.userId
+  const { data, isLoading } = useOrganizationMemberUsageLimit(organizationId, userId, open)
+  const updateLimit = useUpdateOrganizationMemberUsageLimit()
+
+  const [draft, setDraft] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  // Seed the draft from server data only until the admin starts typing, so a
+  // background refetch (window focus, post-save invalidation) can't clobber an
+  // in-progress edit. Reset when the modal closes.
+  const hasEditedRef = useRef(false)
+
+  useEffect(() => {
+    if (!open) {
+      hasEditedRef.current = false
+      return
+    }
+    if (data && !hasEditedRef.current) {
+      setDraft(data.creditLimit === null ? '' : String(data.creditLimit))
+      setError(null)
+    }
+  }, [open, data])
+
+  const trimmed = draft.trim()
+  const parsedLimit = trimmed === '' ? null : Number(trimmed)
+  const isValid =
+    trimmed === '' || (parsedLimit !== null && Number.isInteger(parsedLimit) && parsedLimit >= 0)
+  const currentLimit = data?.creditLimit ?? null
+  const isDirty = parsedLimit !== currentLimit
+  const isSaving = updateLimit.isPending
+
+  const creditsUsed = data ? data.creditsUsed.toLocaleString() : '—'
+
+  const handleSave = () => {
+    if (!userId) return
+    if (!isValid) {
+      setError('Enter a whole number of credits, or leave blank for no limit.')
+      return
+    }
+    setError(null)
+    updateLimit.mutate(
+      { orgId: organizationId, userId, creditLimit: parsedLimit },
+      {
+        onSuccess: () => onOpenChange(false),
+        onError: (err) => setError(getErrorMessage(err, 'Failed to update credit limit')),
+      }
+    )
+  }
+
+  return (
+    <ChipModal open={open} onOpenChange={onOpenChange} srTitle='Manage credits'>
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        {member ? `Manage credits — ${member.name || member.email}` : 'Manage credits'}
+      </ChipModalHeader>
+      <ChipModalBody>
+        <ChipModalField type='custom' title='Credits used'>
+          <CopyableValueField
+            id='member-credits-used'
+            value={isLoading ? 'Loading…' : creditsUsed}
+            copyLabel='Copy credits used'
+          />
+        </ChipModalField>
+        <ChipModalField
+          type='input'
+          inputType='number'
+          title={
+            <span className='inline-flex items-center gap-1.5'>
+              Credit limit
+              <Info side='top'>
+                {
+                  "Set in credits — Sim's usage unit (1,000 credits = $5). Caps this member's usage across this organization's workspaces each billing period."
+                }
+              </Info>
+            </span>
+          }
+          value={draft}
+          onChange={(value) => {
+            hasEditedRef.current = true
+            setDraft(value)
+          }}
+          placeholder='No limit'
+          hint='Leave blank for no limit.'
+          disabled={isLoading || isSaving}
+        />
+        <ChipModalError>{error}</ChipModalError>
+      </ChipModalBody>
+      <ChipModalFooter
+        onCancel={() => onOpenChange(false)}
+        cancelDisabled={isSaving}
+        primaryAction={{
+          label: isSaving ? 'Saving…' : 'Save',
+          onClick: handleSave,
+          disabled: !isValid || !isDirty || isSaving || isLoading,
+        }}
+      />
+    </ChipModal>
+  )
+}

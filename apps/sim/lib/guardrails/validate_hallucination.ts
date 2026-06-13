@@ -14,6 +14,8 @@ export interface HallucinationValidationResult {
   error?: string
   score?: number
   reasoning?: string
+  /** Billable LLM cost (dollars) for the scoring call; 0 for BYOK/non-hosted. */
+  cost?: number
 }
 
 export interface HallucinationValidationInput {
@@ -107,7 +109,7 @@ async function scoreHallucinationWithLLM(
   providerCredentials: HallucinationValidationInput['providerCredentials'],
   workspaceId: string | undefined,
   requestId: string
-): Promise<{ score: number; reasoning: string }> {
+): Promise<{ score: number; reasoning: string; cost: number }> {
   try {
     const contextText = ragContext.join('\n\n---\n\n')
 
@@ -185,6 +187,10 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
       throw new Error('Unexpected streaming response from LLM')
     }
 
+    // executeProviderRequest already zeroes cost for BYOK / non-hosted models,
+    // so this is the billable amount as-is.
+    const cost = typeof response.cost?.total === 'number' ? response.cost.total : 0
+
     const content = response.content.trim()
 
     let jsonContent = content
@@ -209,6 +215,7 @@ Evaluate the consistency and provide your score and reasoning in JSON format.`
     return {
       score: result.score,
       reasoning: result.reasoning || 'No reasoning provided',
+      cost,
     }
   } catch (error: any) {
     logger.error(`[${requestId}] Error scoring with LLM`, {
@@ -271,7 +278,7 @@ export async function validateHallucination(
     }
 
     // Step 2: Use LLM to score confidence
-    const { score, reasoning } = await scoreHallucinationWithLLM(
+    const { score, reasoning, cost } = await scoreHallucinationWithLLM(
       userInput,
       ragContext,
       model,
@@ -293,6 +300,7 @@ export async function validateHallucination(
       passed,
       score,
       reasoning,
+      cost,
       error: passed
         ? undefined
         : `Low confidence: score ${score}/10 is below threshold ${threshold}`,

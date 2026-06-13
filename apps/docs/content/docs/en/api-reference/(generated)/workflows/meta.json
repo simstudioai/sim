@@ -5,6 +5,9 @@
     "cancelExecution",
     "listWorkflows",
     "getWorkflow",
+    "deployWorkflow",
+    "undeployWorkflow",
+    "rollbackWorkflow",
     "getJobStatus"
   ]
 }

@@ -38,6 +38,12 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       description: 'Execution timeout in milliseconds',
       default: DEFAULT_EXECUTION_TIMEOUT_MS,
     },
+    title: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Short user-visible label for this execution.',
+    },
     outputPath: {
       type: 'string',
       required: false,
@@ -71,6 +77,13 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
       visibility: 'hidden',
       description:
         'MIME type for the exported file. Required for binary files (e.g. "image/png", "application/pdf"). If omitted, inferred from outputPath extension for text formats.',
+    },
+    overwriteFileId: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description:
+        'Overwrite this existing workspace file ID instead of creating a duplicate output file.',
     },
     envVars: {
       type: 'object',
@@ -125,11 +138,15 @@ export const functionExecuteTool: ToolConfig<CodeExecutionInput, CodeExecutionOu
         sourceCode: params.sourceCode,
         language: params.language || DEFAULT_CODE_LANGUAGE,
         timeout: params.timeout || DEFAULT_EXECUTION_TIMEOUT_MS,
+        title: params.title,
         outputPath: params.outputPath,
         outputFormat: params.outputFormat,
         outputTable: params.outputTable,
         outputSandboxPath: params.outputSandboxPath,
         outputMimeType: params.outputMimeType,
+        overwriteFileId: params.overwriteFileId,
+        inputs: params.inputs,
+        outputs: params.outputs,
         envVars: normalizeStringRecord(params.envVars),
         workflowVariables: normalizeWorkflowVariables(params.workflowVariables),
         blockData: normalizeRecord(params.blockData),

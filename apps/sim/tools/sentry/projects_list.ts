@@ -45,7 +45,7 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
       }
 
       if (params.limit && params.limit !== null) {
-        queryParams.push(`limit=${Number(params.limit)}`)
+        queryParams.push(`per_page=${Number(params.limit)}`)
       }
 
       return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl
@@ -60,7 +60,6 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Extract pagination info from Link header
     const linkHeader = response.headers.get('Link')
     let nextCursor: string | undefined
     let hasMore = false
@@ -75,10 +74,12 @@ export const listProjectsTool: ToolConfig<SentryListProjectsParams, SentryListPr
       }
     }
 
+    const projects = Array.isArray(data) ? data : []
+
     return {
       success: true,
       output: {
-        projects: data.map((project: any) => ({
+        projects: projects.map((project: any) => ({
           id: project.id,
           slug: project.slug,
           name: project.name,

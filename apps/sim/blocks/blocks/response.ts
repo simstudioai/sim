@@ -8,7 +8,7 @@ export const ResponseBlock: BlockConfig<ResponseBlockOutput> = {
   description: 'Send structured API response',
   longDescription:
     'Integrate Response into the workflow. Can send build or edit structured responses into a final workflow response.',
-  docsLink: 'https://docs.sim.ai/blocks/response',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/response',
   bestPractices: `
   - Only use this if the trigger block is the API Trigger.
   - Prefer the builder mode over the editor mode.

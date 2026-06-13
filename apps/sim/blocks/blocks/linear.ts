@@ -15,7 +15,7 @@ export const LinearBlock: BlockConfig<LinearResponse> = {
   triggerAllowed: true,
   longDescription:
     'Integrate Linear into the workflow. Can manage issues, comments, projects, labels, workflow states, cycles, attachments, and more. Can also trigger workflows based on Linear webhook events.',
-  docsLink: 'https://docs.sim.ai/tools/linear',
+  docsLink: 'https://docs.sim.ai/integrations/linear',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   icon: LinearIcon,

@@ -59,7 +59,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Monday.com to list boards, get board details, fetch and search items, create and update items, archive or delete items, create subitems, move items between groups, add updates, and create groups.',
-  docsLink: 'https://docs.sim.ai/tools/monday',
+  docsLink: 'https://docs.sim.ai/integrations/monday',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',

@@ -45,6 +45,7 @@ import {
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -428,7 +429,7 @@ function DetailCodeSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const contentRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -459,9 +460,7 @@ function DetailCodeSection({
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(jsonString)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    copy(jsonString)
     setIsContextMenuOpen(false)
   }
 
@@ -819,6 +818,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  */
 export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
   const treeRef = useRef<HTMLDivElement>(null)
+  const { copied: traceCopied, copy: copyTrace } = useCopyToClipboard()
   const [searchQuery, setSearchQuery] = useState('')
   const [treePaneWidth, setTreePaneWidth] = useState(DEFAULT_TREE_PANE_WIDTH)
   const treePaneWidthRef = useRef(DEFAULT_TREE_PANE_WIDTH)
@@ -1042,6 +1042,26 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
             placeholder='Filter spans'
             className='w-[140px]'
           />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                className='!p-1'
+                onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
+                aria-label='Copy raw trace'
+              >
+                {traceCopied ? (
+                  <Check className='size-[12px] text-[var(--text-success)]' />
+                ) : (
+                  <Clipboard className='size-[12px]' />
+                )}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {traceCopied ? 'Copied' : 'Copy raw trace'}
+            </Tooltip.Content>
+          </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button

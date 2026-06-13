@@ -243,6 +243,34 @@ describe('BlockResolver', () => {
       expect(resolver.resolve('<My Source Block>', ctx)).toEqual({ message: 'hello' })
     })
 
+    it.concurrent('should resolve blocks whose names contain dots via dot-stripped names', () => {
+      const workflow = createTestWorkflow([{ id: 'block-dot', name: 'Hunter.io 1' }])
+      const resolver = new BlockResolver(workflow)
+      const ctx = createTestContext('current', {
+        'block-dot': { email: 'jane@acme.com', score: 92 },
+      })
+
+      expect(resolver.resolve('<hunterio1.email>', ctx)).toBe('jane@acme.com')
+      expect(resolver.resolve('<hunterio1.score>', ctx)).toBe(92)
+    })
+
+    it.concurrent('should keep dot-free names as the reference target on legacy collisions', () => {
+      const blocks = [
+        { id: 'block-dotted', name: 'Hunter.io 1' },
+        { id: 'block-plain', name: 'Hunterio 1' },
+      ]
+      const ctx = createTestContext('current', {
+        'block-dotted': { email: 'dotted@acme.com' },
+        'block-plain': { email: 'plain@acme.com' },
+      })
+
+      const resolver = new BlockResolver(createTestWorkflow(blocks))
+      expect(resolver.resolve('<hunterio1.email>', ctx)).toBe('plain@acme.com')
+
+      const reversedResolver = new BlockResolver(createTestWorkflow([...blocks].reverse()))
+      expect(reversedResolver.resolve('<hunterio1.email>', ctx)).toBe('plain@acme.com')
+    })
+
     it.concurrent('should resolve nested property path', () => {
       const workflow = createTestWorkflow([{ id: 'source' }])
       const resolver = new BlockResolver(workflow)

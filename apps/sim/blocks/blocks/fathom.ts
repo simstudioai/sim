@@ -12,7 +12,7 @@ export const FathomBlock: BlockConfig<FathomResponse> = {
   triggerAllowed: true,
   longDescription:
     'Integrate Fathom AI Notetaker into your workflow. List meetings, get transcripts and summaries, and manage team members and teams. Can also trigger workflows when new meeting content is ready.',
-  docsLink: 'https://docs.sim.ai/tools/fathom',
+  docsLink: 'https://docs.sim.ai/integrations/fathom',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#181C1E',

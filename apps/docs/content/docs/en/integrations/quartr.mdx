@@ -1,0 +1,687 @@
+---
+title: Quartr
+description: Access earnings calls, transcripts, filings, and slides
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="quartr"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Quartr](https://quartr.com/) is an investor relations data platform that provides structured, AI-ready access to live and historical earnings data from more than 15,000 public companies across 65+ markets. It covers earnings calls, transcripts, filings, reports, slide presentations, and AI-generated event summaries.
+
+With the Quartr integration in Sim, you can:
+
+- **Look up companies**: Find any covered public company by ticker, ISIN, CIK, OpenFIGI, country, or exchange, and resolve it to a Quartr company ID.
+- **Track corporate events**: List earnings calls and other corporate events by company, event type, and date range, or retrieve a single event with its fiscal period details.
+- **Summarize earnings calls**: Fetch AI-generated event summaries in one-line, short, or long form — with source references back to the underlying documents.
+- **Download filings and reports**: List 10-Ks, 10-Qs, earnings releases, and other filings, and download report PDFs directly into your workflow as files.
+- **Work with slide decks and transcripts**: Retrieve investor presentation PDFs and structured transcript JSON files (with timestamps and speaker identification) for downstream analysis.
+- **Access event audio**: Get download and streaming URLs for archived earnings call audio, including where the Q&A section starts.
+- **Monitor live events**: List live and upcoming events with their live audio and transcript stream URLs to react the moment a company goes live.
+
+Downloaded reports, slide decks, and transcripts are stored as execution files, so they can be passed straight into agents, knowledge bases, or other blocks in your workflow.
+
+To use the integration, generate an API key from the Quartr API portal and paste it into the block. Your key inherits the datasets enabled on your Quartr subscription.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Quartr into the workflow. Look up public companies, corporate events, and event types; fetch AI-generated event summaries; list and download filings, reports, slide decks, and transcripts; and access archived audio and live event streams. Requires API Key.
+
+
+
+## Actions
+
+### `quartr_list_companies`
+
+List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `openfigis` | string | No | Comma-separated list of OpenFIGI codes \(figi, compositeFigi, or shareClassFigi\) |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `companies` | array | Companies matching the filters |
+|   ↳ `id` | number | Quartr company ID |
+|   ↳ `name` | string | Legal company name |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `country` | string | ISO 3166-1 alpha-2 country code |
+|   ↳ `tickers` | array | Ticker listings for the company |
+|     ↳ `ticker` | string | Ticker symbol |
+|     ↳ `exchange` | string | Exchange symbol |
+|   ↳ `isins` | array | ISINs for the company |
+|   ↳ `cik` | string | SEC Central Index Key |
+|   ↳ `openfigi` | array | OpenFIGI share class identifiers |
+|   ↳ `backlinkUrl` | string | Quartr backlink URL for the company |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_company`
+
+Retrieve a single company from Quartr by its company ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyId` | number | Yes | Quartr company ID \(e.g., 4742\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `company` | object | The requested company |
+|   ↳ `id` | number | Quartr company ID |
+|   ↳ `name` | string | Legal company name |
+|   ↳ `displayName` | string | Display name |
+|   ↳ `country` | string | ISO 3166-1 alpha-2 country code |
+|   ↳ `tickers` | array | Ticker listings for the company |
+|     ↳ `ticker` | string | Ticker symbol |
+|     ↳ `exchange` | string | Exchange symbol |
+|   ↳ `isins` | array | ISINs for the company |
+|   ↳ `cik` | string | SEC Central Index Key |
+|   ↳ `openfigi` | array | OpenFIGI share class identifiers |
+|   ↳ `backlinkUrl` | string | Quartr backlink URL for the company |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+
+### `quartr_list_events`
+
+List corporate events (earnings calls, capital markets days, etc.) from Quartr, filterable by company, event type, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `eventTypeIds` | string | No | Comma-separated list of event type IDs \(e.g., "26,27"\) |
+| `startDate` | string | No | Only return events on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return events on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `sortBy` | string | No | Field to sort by: "id" or "date" \(default: id\) |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction applied to the sortBy field: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `events` | array | Events matching the filters |
+|   ↳ `id` | number | Quartr event ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `title` | string | Event title \(e.g., "Q1 2024"\) |
+|   ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `typeId` | number | Event type ID |
+|   ↳ `fiscalYear` | number | Fiscal year |
+|   ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|   ↳ `language` | string | Event language code |
+|   ↳ `backlinkUrl` | string | Quartr backlink URL for the event |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_event`
+
+Retrieve a single corporate event from Quartr by its event ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `eventId` | number | Yes | Quartr event ID \(e.g., 128301\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `event` | object | The requested event |
+|   ↳ `id` | number | Quartr event ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `title` | string | Event title \(e.g., "Q1 2024"\) |
+|   ↳ `date` | string | Event date \(ISO 8601\) |
+|   ↳ `typeId` | number | Event type ID |
+|   ↳ `fiscalYear` | number | Fiscal year |
+|   ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|   ↳ `language` | string | Event language code |
+|   ↳ `backlinkUrl` | string | Quartr backlink URL for the event |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+
+### `quartr_get_event_summary`
+
+Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `eventId` | number | Yes | Quartr event ID \(e.g., 128301\) |
+| `summaryLength` | string | No | Length preset for the summary: "line", "short", or "long" \(default: short\) |
+| `plainSummary` | boolean | No | Return a plain-text summary without embedded document source tags |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `summary` | string | AI-generated event summary in Markdown \(includes embedded document source tags unless a plain-text summary is requested\) |
+| `sources` | array | Source documents referenced by the summary |
+|   ↳ `sourceId` | string | ID linking the source document to tags embedded in the summary |
+|   ↳ `documentId` | number | Quartr document ID of the source |
+|   ↳ `page` | number | Page number or timestamp in seconds depending on the document type |
+|   ↳ `timestamp` | number | Timestamp in seconds |
+|   ↳ `typeId` | number | Document type ID of the source |
+| `summaryId` | number | Quartr summary ID |
+| `summaryCreatedAt` | string | Summary creation timestamp \(ISO 8601\) |
+| `summaryUpdatedAt` | string | Summary last update timestamp \(ISO 8601\) |
+
+### `quartr_list_event_types`
+
+List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `eventTypes` | array | Available event types |
+|   ↳ `id` | number | Event type ID |
+|   ↳ `name` | string | Event type name \(e.g., "Q1"\) |
+|   ↳ `parent` | string | Parent event type name \(e.g., "Earnings call"\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_list_documents`
+
+List documents of all kinds (reports, slide decks, and transcripts) from Quartr, filterable by company, event, document type, document group, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `documentTypeIds` | string | No | Comma-separated list of document type IDs \(e.g., "7,10"\) |
+| `documentGroupIds` | string | No | Comma-separated list of document group IDs: 1 = Earnings Release, 2 = Press Release, 3 = Interim Report, 4 = Annual Report, 5 = Proxy Statement, 6 = Registration Statement |
+| `startDate` | string | No | Only return documents dated on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return documents dated on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `expandEvent` | boolean | No | Include expanded event details on each document |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documents` | array | Documents matching the filters |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_list_document_types`
+
+List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `documentTypes` | array | Available document types |
+|   ↳ `id` | number | Document type ID |
+|   ↳ `name` | string | Document type name \(e.g., "Quarterly Report"\) |
+|   ↳ `description` | string | Document type description |
+|   ↳ `form` | string | Filing form \(e.g., "10-Q"\) |
+|   ↳ `category` | string | Document category \(e.g., "Report"\) |
+|   ↳ `documentGroupId` | number | Document group ID |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_list_reports`
+
+List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filterable by company, event, document type, document group, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `documentTypeIds` | string | No | Comma-separated list of document type IDs \(e.g., "7,10"\) |
+| `documentGroupIds` | string | No | Comma-separated list of document group IDs: 1 = Earnings Release, 2 = Press Release, 3 = Interim Report, 4 = Annual Report, 5 = Proxy Statement, 6 = Registration Statement |
+| `startDate` | string | No | Only return documents dated on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return documents dated on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `expandEvent` | boolean | No | Include expanded event details on each document |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `reports` | array | Reports matching the filters |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_report`
+
+Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `reportId` | number | Yes | Quartr document ID of the report \(e.g., 432907\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `document` | object | Report metadata |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `fileUrl` | string | URL of the report PDF |
+| `file` | file | Downloaded report PDF stored in execution files |
+
+### `quartr_list_slide_decks`
+
+List slide presentations from Quartr, filterable by company, event, document type, document group, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `documentTypeIds` | string | No | Comma-separated list of document type IDs \(e.g., "7,10"\) |
+| `documentGroupIds` | string | No | Comma-separated list of document group IDs: 1 = Earnings Release, 2 = Press Release, 3 = Interim Report, 4 = Annual Report, 5 = Proxy Statement, 6 = Registration Statement |
+| `startDate` | string | No | Only return documents dated on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return documents dated on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `expandEvent` | boolean | No | Include expanded event details on each document |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `slideDecks` | array | Slide decks matching the filters |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_slide_deck`
+
+Retrieve a slide presentation from Quartr by its document ID and download the PDF file.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `slideDeckId` | number | Yes | Quartr document ID of the slide deck \(e.g., 432907\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `document` | object | Slide deck metadata |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `fileUrl` | string | URL of the slide deck PDF |
+| `file` | file | Downloaded slide deck PDF stored in execution files |
+
+### `quartr_list_transcripts`
+
+List event transcripts from Quartr, filterable by company, event, document type, document group, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `documentTypeIds` | string | No | Comma-separated list of document type IDs \(e.g., "7,10"\) |
+| `documentGroupIds` | string | No | Comma-separated list of document group IDs: 1 = Earnings Release, 2 = Press Release, 3 = Interim Report, 4 = Annual Report, 5 = Proxy Statement, 6 = Registration Statement |
+| `startDate` | string | No | Only return documents dated on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return documents dated on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `expandEvent` | boolean | No | Include expanded event details on each document |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `transcripts` | array | Transcripts matching the filters |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_transcript`
+
+Retrieve an event transcript from Quartr by its document ID and download the transcript JSON file (paragraphs, sentences, timestamps, and speaker identification).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `transcriptId` | number | Yes | Quartr document ID of the transcript \(e.g., 432907\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `document` | object | Transcript metadata |
+|   ↳ `id` | number | Quartr document ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `typeId` | number | Document type ID |
+|   ↳ `fileUrl` | string | URL of the document file |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `fileUrl` | string | URL of the transcript JSON file |
+| `file` | file | Downloaded transcript JSON file stored in execution files |
+
+### `quartr_list_audio`
+
+List archived event audio recordings from Quartr, filterable by company, event, and date range. Returns download (MPEG) and streaming (M3U8) URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `startDate` | string | No | Only return audio dated on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return audio dated on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `expandEvent` | boolean | No | Include expanded event details on each audio recording |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audioRecordings` | array | Audio recordings matching the filters |
+|   ↳ `id` | number | Quartr audio ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `fileUrl` | string | Download URL of the audio file \(MPEG\) |
+|   ↳ `streamUrl` | string | Streaming URL of the audio \(M3U8\) |
+|   ↳ `qna` | number | Timestamp in seconds where the Q&A section starts |
+|   ↳ `audioMetadata` | object | Audio file metadata |
+|     ↳ `size` | string | File size \(e.g., "200.00 MB"\) |
+|     ↳ `duration` | number | Duration in seconds |
+|     ↳ `encoding` | string | Audio encoding |
+|     ↳ `mimetype` | string | Audio MIME type |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+### `quartr_get_audio`
+
+Retrieve an archived event audio recording from Quartr by its audio ID. Returns download (MPEG) and streaming (M3U8) URLs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `audioId` | number | Yes | Quartr audio ID \(e.g., 123964\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `audio` | object | The requested audio recording |
+|   ↳ `id` | number | Quartr audio ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `fileUrl` | string | Download URL of the audio file \(MPEG\) |
+|   ↳ `streamUrl` | string | Streaming URL of the audio \(M3U8\) |
+|   ↳ `qna` | number | Timestamp in seconds where the Q&A section starts |
+|   ↳ `audioMetadata` | object | Audio file metadata |
+|     ↳ `size` | string | File size \(e.g., "200.00 MB"\) |
+|     ↳ `duration` | number | Duration in seconds |
+|     ↳ `encoding` | string | Audio encoding |
+|     ↳ `mimetype` | string | Audio MIME type |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+|   ↳ `event` | object | Expanded event details \(present when event expansion is requested\) |
+|     ↳ `title` | string | Event title |
+|     ↳ `typeId` | number | Event type ID |
+|     ↳ `fiscalYear` | number | Fiscal year |
+|     ↳ `fiscalPeriod` | string | Fiscal period \(e.g., "Q1"\) |
+|     ↳ `language` | string | Event language code |
+|     ↳ `date` | string | Event date \(ISO 8601\) |
+
+### `quartr_list_live_events`
+
+List live and upcoming events from Quartr with live audio and transcript stream URLs, filterable by company, live state, and date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Quartr API key |
+| `companyIds` | string | No | Comma-separated list of Quartr company IDs \(e.g., "4742,128"\) |
+| `eventIds` | string | No | Comma-separated list of Quartr event IDs \(e.g., "128301"\) |
+| `tickers` | string | No | Comma-separated list of company tickers \(e.g., "AAPL,MSFT"\) |
+| `isins` | string | No | Comma-separated list of ISINs \(e.g., "US0378331005"\) |
+| `ciks` | string | No | Comma-separated list of SEC CIKs \(e.g., "0000320193"\) |
+| `countries` | string | No | Comma-separated list of ISO 3166-1 alpha-2 country codes \(e.g., "US,SE"\) |
+| `exchanges` | string | No | Comma-separated list of exchange symbols, without whitespace \(e.g., "NasdaqGS"\) |
+| `states` | string | No | Comma-separated list of live states to filter by: notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable |
+| `startDate` | string | No | Only return events on or after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `endDate` | string | No | Only return events on or before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `transcriptVersion` | string | No | Version of the live transcript stream: "1.6" or "1.7" \(default: 1.6\) |
+| `updatedAfter` | string | No | Only return data updated after this ISO 8601 date \(e.g., "2024-01-01"\) |
+| `updatedBefore` | string | No | Only return data updated before this ISO 8601 date \(e.g., "2024-12-31"\) |
+| `limit` | number | No | Maximum number of items to return in a single request \(default: 10, max: 500\) |
+| `cursor` | number | No | Pagination cursor from the previous response \(nextCursor\) for the next page |
+| `direction` | string | No | Sort direction by id: "asc" or "desc" \(default: asc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `liveEvents` | array | Live events matching the filters |
+|   ↳ `id` | number | Quartr live event ID |
+|   ↳ `eventId` | number | Quartr event ID |
+|   ↳ `companyId` | number | Quartr company ID |
+|   ↳ `date` | string | Scheduled event date \(ISO 8601\) |
+|   ↳ `wentLiveAt` | string | Timestamp when the event went live \(ISO 8601\) |
+|   ↳ `state` | string | Live state \(notLive, willBeLive, live, liveFailedInterrupted, liveFailedNoAccess, liveFailedNotStarted, processingRecording, processingRecordingFailed, recordingAvailable\) |
+|   ↳ `audio` | string | URL of the live audio stream or recording |
+|   ↳ `transcript` | string | URL of the live transcript stream \(JSON Lines\) |
+|   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
+|   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
+| `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
+
+

@@ -1,0 +1,143 @@
+---
+title: Guardrails
+description: The Guardrails block checks content against a validation type before it moves through the workflow.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Image } from '@/components/ui/image'
+import {
+  BlockPreview,
+  WorkflowPreview,
+  GUARDRAILS_JSON_WORKFLOW,
+  GUARDRAILS_HALLUCINATION_WORKFLOW,
+  GUARDRAILS_PII_WORKFLOW,
+} from '@/components/workflow-preview'
+import { Video } from '@/components/ui/video'
+import { FAQ } from '@/components/ui/faq'
+
+The **Guardrails block** checks content against one validation type and reports whether it passed. Use it to catch malformed JSON, off-pattern text, ungrounded answers, or PII before the content moves on. Each block runs one check; chain several to apply more than one.
+
+<BlockPreview type="guardrails" />
+
+## Validation Types
+
+### Valid JSON
+
+Checks that the content parses as valid JSON. Use it before a [Function](/workflows/blocks/function) or downstream block reads a model's structured output.
+
+- `<guardrails.passed>` — `true` if the content is valid JSON
+- `<guardrails.error>` — the parse error when it isn't, like `Invalid JSON: Unexpected token`
+
+### Regex Match
+
+Checks the content against a regular expression — an email, a phone number, a URL, or any pattern you define.
+
+- **Regex Pattern** — the expression to match, like `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$` for an email
+- `<guardrails.passed>` — `true` if the content matches; `<guardrails.error>` otherwise
+
+### Hallucination Check
+
+Scores how well AI output is grounded in a knowledge base. The block retrieves relevant context, sends it to a model with the output, and the model returns a confidence score from **0** (completely ungrounded) to **10** (fully supported). Validation passes when the score meets the threshold.
+
+- **Knowledge Base** — the knowledge base to check against
+- **Model** — the model that scores grounding. Use a strong reasoning model; the default is `claude-sonnet-4-6`. The API key is supplied for you on hosted Sim
+- **Confidence** — the minimum score to pass, from 0 to 10 (default 3)
+- **Top K** (advanced) — how many knowledge base chunks to retrieve (default 5)
+
+Outputs `<guardrails.score>` (0–10) and `<guardrails.reasoning>` (why the model scored it that way) alongside `passed`.
+
+### PII Detection
+
+Detects personally identifiable information with [Microsoft Presidio](https://microsoft.github.io/presidio/) — over 30 entity types across several countries and languages.
+
+<div className="flex justify-center">
+  <Image
+    src="/static/blocks/guardrails-2.png"
+    alt="PII Detection Configuration"
+    width={700}
+    height={450}
+    className="my-6"
+  />
+</div>
+
+<div className="mx-auto w-3/5 overflow-hidden rounded-lg">
+  <Video src="guardrails.mp4" width={500} height={350} />
+</div>
+
+- **PII Types to Detect** — pick the entity types from the modal, grouped by region:
+  - **Common** — person name, email, phone, credit card, IP address, and more
+  - **USA** — SSN, driver's license, passport, bank account, ITIN
+  - **UK** — NHS number, national insurance number
+  - **Spain** — NIF, NIE · **Italy** — fiscal code, driver's license, identity card, passport · **Poland** — PESEL · **Singapore** — NRIC/FIN
+  - **Australia** — ABN, ACN, TFN, Medicare · **India** — Aadhaar, PAN, vehicle registration, voter number, passport
+- **Action** — **Block** fails validation when any selected type is found (default); **Mask** also replaces the PII with masked values
+- **Language** — the detection language (default English)
+
+Outputs `<guardrails.detectedEntities>` (each with type, location, and confidence) and, in Mask mode, `<guardrails.maskedText>`. `passed` is `false` when any selected PII is found.
+
+## Configuration
+
+### Content to Validate
+
+The input to check. Usually an earlier output like `<agent.content>`, `<function.result>`, or an [API](/workflows/blocks/api) response.
+
+### Validation Type
+
+Which of the four checks to run: Valid JSON, Regex Match, Hallucination Check, or PII Detection.
+
+## Outputs
+
+Every validation type returns:
+
+| Output | What it is |
+| --- | --- |
+| `<guardrails.passed>` | Whether the check passed |
+| `<guardrails.validationType>` | The check that ran |
+| `<guardrails.input>` | The content that was checked |
+| `<guardrails.error>` | The failure message, when there is one |
+
+Hallucination adds `<guardrails.score>` and `<guardrails.reasoning>`; PII adds `<guardrails.detectedEntities>` and `<guardrails.maskedText>`.
+
+## Examples
+
+### Validate JSON before parsing
+
+<WorkflowPreview workflow={GUARDRAILS_JSON_WORKFLOW} />
+
+Check the Agent's output is valid JSON, then branch on `<guardrails.passed>` before a Function parses it.
+
+### Prevent hallucinations
+
+<WorkflowPreview workflow={GUARDRAILS_HALLUCINATION_WORKFLOW} />
+
+Score the answer against a knowledge base, then gate on `<guardrails.score>` to send a grounded answer or flag a weak one.
+
+### Block PII in user input
+
+<WorkflowPreview workflow={GUARDRAILS_PII_WORKFLOW} />
+
+Detect PII in the input and branch on `<guardrails.passed>` to process clean input or reject it.
+
+## Best Practices
+
+- **Branch on the result.** Read `<guardrails.passed>` in a [Condition](/workflows/blocks/condition) to route valid and invalid content down different paths.
+- **Validate JSON before you parse it.** A check upstream is cheaper than a parse error in a Function block.
+- **Pick only the PII types you need.** Selecting fewer entity types keeps detection fast and focused.
+- **Tune the hallucination threshold.** Raise the confidence floor for stricter grounding, lower it to allow more latitude.
+- **Mask when you log.** Use Mask mode for content you store or log, so PII never lands in plain text.
+- **Chain checks.** One block runs one type, so place several in sequence to validate format and then scan for PII.
+
+<Callout type="info">
+Guardrails runs synchronously in the workflow. For hallucination checks where latency matters, choose a faster model.
+</Callout>
+
+<FAQ items={[
+  { question: "Can I run multiple validation types on the same content?", answer: "Each Guardrails block runs one validation type. To apply several, chain Guardrails blocks in sequence — for example validate JSON, then scan for PII." },
+  { question: "What does the hallucination confidence score mean?", answer: "It ranges from 0 to 10. A 0 means the content is completely ungrounded (full hallucination), and a 10 means it is fully supported by the knowledge base. Validation passes when the score meets or exceeds your threshold (default 3)." },
+  { question: "How many knowledge base chunks are retrieved for hallucination detection?", answer: "Five by default. You can raise it up to 20 in Advanced settings. More chunks give broader context but add latency and tokens." },
+  { question: "What PII detection engine is used?", answer: "Microsoft Presidio. It supports over 30 entity types across the US, UK, Spain, Italy, Poland, Singapore, Australia, and India." },
+  { question: "What is the difference between Block and Mask modes for PII?", answer: "Block fails the validation (passed = false) when any selected PII is detected. Mask also detects it but replaces it with masked values in the output, so the content is safe to use downstream. Both return the list of detected entities." },
+  { question: "Which languages does PII detection support?", answer: "English, Spanish, Italian, Polish, and Finnish. The language setting selects the NLP models used for entity recognition, so matching it to your content improves accuracy." },
+  { question: "Does JSON validation check schema structure or just syntax?", answer: "Just syntax — it confirms the content parses as valid JSON, not that it matches a particular schema. For schema validation, use a Function block after the check." },
+]} />

@@ -33,8 +33,6 @@ export interface SubBlockInputControllerProps {
   onStreamingEnd?: () => void
   /** Optional preview value for read-only preview. */
   previewValue?: string | null
-  /** Optional workspace id for env var scoping. */
-  workspaceId?: string
   /**
    * Optional callback to force/show the env var dropdown (e.g., API key fields).
    * Return { show: true, searchTerm?: string } to override defaults.
@@ -84,7 +82,6 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     isStreaming,
     onStreamingEnd,
     previewValue,
-    workspaceId,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
     children,
@@ -101,7 +98,6 @@ export function SubBlockInputController(props: SubBlockInputControllerProps): Re
     isStreaming,
     onStreamingEnd,
     previewValue,
-    workspaceId,
     shouldForceEnvDropdown,
     shouldForceTagDropdown,
   })

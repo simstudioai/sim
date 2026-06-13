@@ -779,6 +779,57 @@ export interface SlackGetThreadParams extends SlackBaseParams {
   limit?: number
 }
 
+export interface SlackSetStatusParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  status: string
+  loadingMessages?: string[]
+}
+
+export interface SlackSetTitleParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  title: string
+}
+
+export interface SlackSuggestedPrompt {
+  title: string
+  message: string
+}
+
+export interface SlackSetSuggestedPromptsParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  prompts: SlackSuggestedPrompt[] | string
+  promptsTitle?: string
+}
+
+export interface SlackGetPermalinkParams extends SlackBaseParams {
+  channel: string
+  messageTs: string
+}
+
+export interface SlackGetChannelHistoryParams extends SlackBaseParams {
+  channel: string
+  oldest?: string
+  latest?: string
+  inclusive?: boolean
+  limit?: number
+  cursor?: string
+  maxPages?: number
+}
+
+export interface SlackGetThreadRepliesParams extends SlackBaseParams {
+  channel: string
+  threadTs: string
+  oldest?: string
+  latest?: string
+  inclusive?: boolean
+  limit?: number
+  cursor?: string
+  maxPages?: number
+}
+
 export interface SlackGetChannelInfoParams extends SlackBaseParams {
   channel: string
   includeNumMembers?: boolean
@@ -1293,6 +1344,60 @@ export interface SlackPublishViewResponse extends ToolResponse {
   }
 }
 
+export interface SlackSetStatusResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackSetTitleResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackSetSuggestedPromptsResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    threadTs: string
+  }
+}
+
+export interface SlackGetPermalinkResponse extends ToolResponse {
+  output: {
+    ok: boolean
+    channel: string
+    permalink: string
+  }
+}
+
+export interface SlackGetChannelHistoryResponse extends ToolResponse {
+  output: {
+    messages: SlackMessage[]
+    count: number
+    hasMore: boolean
+    nextCursor: string | null
+    pages: number
+  }
+}
+
+export interface SlackGetThreadRepliesResponse extends ToolResponse {
+  output: {
+    parentMessage: SlackMessage | null
+    replies: SlackMessage[]
+    messages: SlackMessage[]
+    replyCount: number
+    hasMore: boolean
+    nextCursor: string | null
+    pages: number
+  }
+}
+
 export type SlackResponse =
   | SlackCanvasResponse
   | SlackMessageReaderResponse
@@ -1309,6 +1414,12 @@ export type SlackResponse =
   | SlackEphemeralMessageResponse
   | SlackGetMessageResponse
   | SlackGetThreadResponse
+  | SlackSetStatusResponse
+  | SlackSetTitleResponse
+  | SlackSetSuggestedPromptsResponse
+  | SlackGetPermalinkResponse
+  | SlackGetChannelHistoryResponse
+  | SlackGetThreadRepliesResponse
   | SlackGetChannelInfoResponse
   | SlackGetUserPresenceResponse
   | SlackEditCanvasResponse

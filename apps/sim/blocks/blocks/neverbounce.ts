@@ -9,10 +9,10 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate NeverBounce to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.',
-  docsLink: 'https://docs.sim.ai/tools/neverbounce',
+  docsLink: 'https://docs.sim.ai/integrations/neverbounce',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#1A6DF0',
+  bgColor: '#064AF4',
   icon: NeverBounceIcon,
   subBlocks: [
     {

@@ -57,6 +57,14 @@ export interface ContentBlock {
   timestamp: number
   endedAt?: number
   parentToolCallId?: string
+  /**
+   * Deterministic agent-run identity. `spanId` is the stable per-invocation id
+   * of the subagent that produced the block; `parentSpanId` links it to the run
+   * that invoked it. These are the primary nesting keys; `parentToolCallId` is
+   * retained for tool linkage and legacy back-compat.
+   */
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface StreamingContext {
@@ -66,6 +74,8 @@ export interface StreamingContext {
   runId?: string
   messageId: string
   accumulatedContent: string
+  finalAssistantContent: string
+  sawMainToolCall: boolean
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
   pendingToolPromises: Map<string, Promise<AsyncCompletionSignal>>
@@ -97,7 +107,7 @@ export interface StreamingContext {
   activeFileIntent?: {
     toolCallId: string
     operation: string
-    target: { kind: string; fileId?: string; fileName?: string }
+    target: { kind: string; fileId?: string; fileName?: string; path?: string }
     title?: string
     contentType?: string
     edit?: Record<string, unknown>
@@ -136,7 +146,7 @@ export interface OrchestratorOptions {
   timeout?: number
   onEvent?: (event: StreamEvent) => void | Promise<void>
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
-  onError?: (error: Error) => void | Promise<void>
+  onError?: (error: Error, result?: OrchestratorResult) => void | Promise<void>
   abortSignal?: AbortSignal
   onAbortObserved?: (reason: string) => void
   interactive?: boolean

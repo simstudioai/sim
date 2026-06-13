@@ -10,7 +10,7 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Connect to Databricks to execute SQL queries against SQL warehouses, trigger and monitor job runs, manage clusters, and retrieve run outputs. Requires a Personal Access Token and workspace host URL.',
-  docsLink: 'https://docs.sim.ai/tools/databricks',
+  docsLink: 'https://docs.sim.ai/integrations/databricks',
   category: 'tools',
   integrationType: IntegrationType.Databases,
   bgColor: '#F9F7F4',
@@ -22,13 +22,17 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       type: 'dropdown',
       options: [
         { label: 'Execute SQL', id: 'execute_sql' },
+        { label: 'Get Statement', id: 'get_statement' },
+        { label: 'List Warehouses', id: 'list_warehouses' },
         { label: 'List Jobs', id: 'list_jobs' },
+        { label: 'Get Job', id: 'get_job' },
         { label: 'Run Job', id: 'run_job' },
         { label: 'Get Run', id: 'get_run' },
         { label: 'List Runs', id: 'list_runs' },
         { label: 'Cancel Run', id: 'cancel_run' },
         { label: 'Get Run Output', id: 'get_run_output' },
         { label: 'List Clusters', id: 'list_clusters' },
+        { label: 'Get Cluster', id: 'get_cluster' },
       ],
       value: () => 'execute_sql',
     },
@@ -83,6 +87,16 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       mode: 'advanced',
     },
 
+    // ── Get Statement ──
+    {
+      id: 'statementId',
+      title: 'Statement ID',
+      type: 'short-input',
+      placeholder: 'Enter the statement ID',
+      condition: { field: 'operation', value: 'get_statement' },
+      required: { field: 'operation', value: 'get_statement' },
+    },
+
     // ── List Jobs ──
     {
       id: 'name',
@@ -126,8 +140,8 @@ export const DatabricksBlock: BlockConfig<DatabricksResponse> = {
       title: 'Job ID',
       type: 'short-input',
       placeholder: 'Enter the job ID',
-      condition: { field: 'operation', value: ['run_job', 'list_runs'] },
-      required: { field: 'operation', value: 'run_job' },
+      condition: { field: 'operation', value: ['run_job', 'list_runs', 'get_job'] },
+      required: { field: 'operation', value: ['run_job', 'get_job'] },
     },
     {
       id: 'jobParameters',
@@ -295,6 +309,16 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
       },
     },
 
+    // ── Get Cluster ──
+    {
+      id: 'clusterId',
+      title: 'Cluster ID',
+      type: 'short-input',
+      placeholder: 'Enter the cluster ID',
+      condition: { field: 'operation', value: 'get_cluster' },
+      required: { field: 'operation', value: 'get_cluster' },
+    },
+
     // ── Credentials (common to all operations) ──
     {
       id: 'host',
@@ -315,13 +339,17 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
   tools: {
     access: [
       'databricks_execute_sql',
+      'databricks_get_statement',
+      'databricks_list_warehouses',
       'databricks_list_jobs',
+      'databricks_get_job',
       'databricks_run_job',
       'databricks_get_run',
       'databricks_list_runs',
       'databricks_cancel_run',
       'databricks_get_run_output',
       'databricks_list_clusters',
+      'databricks_get_cluster',
     ],
     config: {
       tool: (params) => `databricks_${params.operation}`,
@@ -350,6 +378,8 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     apiKey: { type: 'string', description: 'Databricks Personal Access Token' },
     warehouseId: { type: 'string', description: 'SQL warehouse ID' },
     statement: { type: 'string', description: 'SQL statement to execute' },
+    statementId: { type: 'string', description: 'Statement ID to poll for results' },
+    clusterId: { type: 'string', description: 'Cluster ID to retrieve' },
     catalog: { type: 'string', description: 'Unity Catalog name' },
     schema: { type: 'string', description: 'Schema name' },
     rowLimit: { type: 'number', description: 'Maximum rows to return' },
@@ -383,6 +413,25 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     jobs: { type: 'json', description: 'List of jobs' },
     hasMore: { type: 'boolean', description: 'Whether more results are available' },
     nextPageToken: { type: 'string', description: 'Pagination token for next page' },
+    // List Warehouses
+    warehouses: {
+      type: 'json',
+      description:
+        'List of SQL warehouses ([{warehouseId, name, clusterSize, state, warehouseType, ...}])',
+    },
+    // Get Job
+    name: { type: 'string', description: 'Job name' },
+    runAsUserName: { type: 'string', description: 'User the job runs as' },
+    format: { type: 'string', description: 'Job format (SINGLE_TASK or MULTI_TASK)' },
+    maxConcurrentRuns: { type: 'number', description: 'Maximum number of concurrent runs' },
+    timeoutSeconds: { type: 'number', description: 'Job-level timeout in seconds' },
+    createdTime: { type: 'number', description: 'Job creation timestamp (epoch ms)' },
+    schedule: {
+      type: 'json',
+      description: 'Cron schedule (quartz_cron_expression, timezone_id, pause_status)',
+    },
+    tags: { type: 'json', description: 'Key-value tags applied to the job' },
+    tasks: { type: 'json', description: 'Task definitions for the job' },
     // Run Job
     runId: { type: 'number', description: 'Triggered run ID' },
     numberInJob: { type: 'number', description: 'Run sequence number in job' },
@@ -415,6 +464,11 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
     logsTruncated: { type: 'boolean', description: 'Whether logs were truncated' },
     // List Clusters
     clusters: { type: 'json', description: 'List of clusters' },
+    // Get Cluster
+    cluster: {
+      type: 'json',
+      description: 'Cluster detail (clusterId, clusterName, state, sparkVersion, autoscale, ...)',
+    },
   },
 }
 

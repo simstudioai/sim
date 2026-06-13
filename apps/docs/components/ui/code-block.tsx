@@ -17,7 +17,7 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
   return (
     <FumadocsCodeBlock
       {...props}
-      className={cn('!border !border-fd-border !shadow-none', props.className)}
+      className={cn('!border !border-[var(--border)] !shadow-none', props.className)}
       Actions={({ className }) => (
         <div className={cn('empty:hidden', className)}>
           <button
@@ -27,13 +27,13 @@ export function CodeBlock(props: React.ComponentProps<typeof FumadocsCodeBlock>)
               const pre = (e.currentTarget as HTMLElement).closest('figure')?.querySelector('pre')
               if (pre) handleCopy(pre.textContent || '')
             }}
-            className='cursor-pointer rounded-md p-2 text-muted-foreground transition-colors hover:text-foreground'
+            className='cursor-pointer rounded-md p-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-icon)]'
           >
             <span className='flex items-center justify-center'>
               {copied ? (
-                <Check size={16} className='text-green-600 dark:text-green-400' />
+                <Check size={16} className='text-[var(--brand-accent)]' />
               ) : (
-                <Copy size={16} className='text-muted-foreground' />
+                <Copy size={16} className='text-[var(--text-muted)]' />
               )}
             </span>
           </button>

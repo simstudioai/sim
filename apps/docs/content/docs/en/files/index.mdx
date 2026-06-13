@@ -1,0 +1,25 @@
+---
+title: Overview
+description: Files are the documents, images, spreadsheets, and PDFs your workflows read and produce.
+pageType: concept
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+A **file** is a document, image, spreadsheet, or PDF in your workspace. Files are how documents and media move into and out of your agents. Your team uploads them, you create them in the editor, or a workflow produces them, and they all live in one store shared across the workspace.
+
+Any [workflow](/workflows) can read a file or produce one. You might upload a contract for an agent to review, generate a report from a table, or hand a workflow the document it needs to answer a question.
+
+## How files fit the workspace
+
+- **[Workflows](/workflows)** read files, like a PDF to summarize, and produce them, like a rendered report. See [using files in workflows](/files/using-in-workflows).
+- **[Knowledge bases](/knowledgebase)** are built from files you upload, turning their contents into searchable memory.
+- **[Deployments](/workflows/deployment)** can take a file as input and return one as output.
+
+Use a file when the document or media itself is what matters. Use a [table](/tables) when you need structured rows and fields, and a [knowledge base](/knowledgebase) when an agent needs to search across many documents.
+
+<Cards>
+  <Card title="Using files in workflows" href="/files/using-in-workflows" description="Read a file into a workflow and produce one from a run." />
+  <Card title="Passing files" href="/files/passing-files" description="Provide files to a workflow and receive generated files back." />
+  <Card title="Knowledge bases" href="/knowledgebase" description="Make uploaded documents searchable for your agents." />
+</Cards>

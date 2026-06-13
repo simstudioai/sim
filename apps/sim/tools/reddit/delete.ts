@@ -51,8 +51,7 @@ export const deleteTool: ToolConfig<RedditDeleteParams, RedditWriteResponse> = {
   },
 
   transformResponse: async (response: Response, requestParams?: RedditDeleteParams) => {
-    // Reddit delete API returns empty JSON {} on success
-    await response.json()
+    await response.json().catch(() => ({}))
 
     if (response.ok) {
       return {

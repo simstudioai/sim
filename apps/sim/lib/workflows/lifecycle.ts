@@ -13,6 +13,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { cleanupWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { env } from '@/lib/core/config/env'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { PlatformEvents } from '@/lib/core/telemetry'
@@ -206,6 +207,22 @@ export async function archiveWorkflow(
 
   if (options.notifySocket !== false) {
     await notifyWorkflowArchived(workflowId, options.requestId)
+  }
+
+  if (existingWorkflow.workspaceId) {
+    try {
+      await cleanupWorkflowAliasBacking({
+        workspaceId: existingWorkflow.workspaceId,
+        workflowId,
+        deletedAt: now,
+      })
+    } catch (error) {
+      logger.warn(`[${options.requestId}] Failed to clean up workflow alias backing`, {
+        workflowId,
+        workspaceId: existingWorkflow.workspaceId,
+        error,
+      })
+    }
   }
 
   await cleanupExternalWebhooksForWorkflow(workflowId, options.requestId)

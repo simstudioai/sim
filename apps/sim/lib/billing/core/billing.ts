@@ -22,6 +22,7 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
+import type { DbClient } from '@/lib/db/types'
 
 export { getPlanPricing }
 
@@ -31,6 +32,8 @@ const logger = createLogger('Billing')
 
 interface GetOrganizationSubscriptionOptions {
   onError?: 'return-null' | 'throw'
+  /** Read-routing client (primary or replica); defaults to the primary. */
+  executor?: DbClient
 }
 
 /**
@@ -41,14 +44,18 @@ interface GetOrganizationSubscriptionOptions {
  * For product-access gating use `getOrganizationSubscriptionUsable`
  * (from `core/subscription.ts`), which excludes `past_due`.
  * Returns `null` when there is no entitled sub.
+ *
+ * `options.executor` exists for replica routing on display/summary read
+ * paths only. Enforcement and webhook callers must read the primary —
+ * omit the executor (or pass `db`).
  */
 export async function getOrganizationSubscription(
   organizationId: string,
   options: GetOrganizationSubscriptionOptions = {}
 ) {
-  const { onError = 'return-null' } = options
+  const { onError = 'return-null', executor = db } = options
   try {
-    const orgSubs = await db
+    const orgSubs = await executor
       .select()
       .from(subscription)
       .where(
@@ -110,13 +117,16 @@ export async function isSubscriptionOrgScoped(sub: { referenceId: string }): Pro
  * column is `NOT NULL DEFAULT '0'` and mixing scopes would break
  * current-period billing math.
  */
-async function aggregateOrgMemberStats(organizationId: string): Promise<{
+async function aggregateOrgMemberStats(
+  organizationId: string,
+  executor: DbClient = db
+): Promise<{
   memberIds: string[]
   currentPeriodCost: number
   currentPeriodCopilotCost: number
   lastPeriodCopilotCost: number
 }> {
-  const rows = await db
+  const rows = await executor
     .select({
       userId: member.userId,
       currentPeriodCost: userStats.currentPeriodCost,
@@ -384,7 +394,8 @@ export async function calculateSubscriptionOverage(sub: {
  */
 export async function getSimplifiedBillingSummary(
   userId: string,
-  organizationId?: string
+  organizationId?: string,
+  executor: DbClient = db
 ): Promise<{
   type: 'individual' | 'organization'
   plan: string
@@ -430,9 +441,9 @@ export async function getSimplifiedBillingSummary(
     // Get subscription and usage data upfront
     const [subscription, usageData] = await Promise.all([
       organizationId
-        ? getOrganizationSubscription(organizationId)
-        : getHighestPrioritySubscription(userId),
-      getUserUsageData(userId),
+        ? getOrganizationSubscription(organizationId, { executor })
+        : getHighestPrioritySubscription(userId, { executor }),
+      getUserUsageData(userId, executor),
     ])
 
     const plan = subscription?.plan || 'free'
@@ -453,7 +464,7 @@ export async function getSimplifiedBillingSummary(
       // Pool usage/copilot across all members in one query. Must not use
       // `getUserUsageData` per-member — it now returns the pool itself
       // for org-scoped subs, which would N-times-count.
-      const pooled = await aggregateOrgMemberStats(organizationId)
+      const pooled = await aggregateOrgMemberStats(organizationId, executor)
 
       const rawCurrentUsage = pooled.currentPeriodCost
       const totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
@@ -469,7 +480,9 @@ export async function getSimplifiedBillingSummary(
       const ledgerUsage = orgBillingPeriod
         ? await getBillingPeriodUsageCost(
             { type: 'organization', id: organizationId },
-            orgBillingPeriod
+            orgBillingPeriod,
+            undefined,
+            executor
           )
         : 0
       // Copilot breakdown = member baselines (copilot + MCP) + the copilot-family
@@ -481,7 +494,8 @@ export async function getSimplifiedBillingSummary(
           ? await getBillingPeriodUsageCost(
               { type: 'organization', id: organizationId },
               orgBillingPeriod,
-              COPILOT_USAGE_SOURCES
+              COPILOT_USAGE_SOURCES,
+              executor
             )
           : 0)
       let refreshDeduction = 0
@@ -490,17 +504,21 @@ export async function getSimplifiedBillingSummary(
         if (planDollars > 0) {
           const userBounds = await getOrgMemberRefreshBounds(
             organizationId,
-            subscription.periodStart
+            subscription.periodStart,
+            executor
           )
-          refreshDeduction = await computeDailyRefreshConsumed({
-            userIds: pooled.memberIds,
-            periodStart: subscription.periodStart,
-            periodEnd: subscription.periodEnd ?? null,
-            planDollars,
-            seats: subscription.seats || 1,
-            userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
-            billingEntity: { type: 'organization', id: organizationId },
-          })
+          refreshDeduction = await computeDailyRefreshConsumed(
+            {
+              userIds: pooled.memberIds,
+              periodStart: subscription.periodStart,
+              periodEnd: subscription.periodEnd ?? null,
+              planDollars,
+              seats: subscription.seats || 1,
+              userBounds: Object.keys(userBounds).length > 0 ? userBounds : undefined,
+              billingEntity: { type: 'organization', id: organizationId },
+            },
+            executor
+          )
         }
       }
       const effectiveCurrentUsage = Math.max(0, rawCurrentUsage + ledgerUsage - refreshDeduction)
@@ -508,7 +526,8 @@ export async function getSimplifiedBillingSummary(
       const { limit: orgUsageLimit } = await getOrgUsageLimit(
         organizationId,
         plan,
-        subscription.seats ?? null
+        subscription.seats ?? null,
+        executor
       )
 
       const percentUsed =
@@ -524,7 +543,7 @@ export async function getSimplifiedBillingSummary(
           )
         : 0
 
-      const orgCredits = await getCreditBalance(userId)
+      const orgCredits = await getCreditBalance(userId, executor)
       const orgBillingInterval = getBillingInterval(subscription.metadata as SubscriptionMetadata)
 
       return {
@@ -568,7 +587,7 @@ export async function getSimplifiedBillingSummary(
       }
     }
 
-    const userStatsRows = await db
+    const userStatsRows = await executor
       .select({
         currentPeriodCopilotCost: userStats.currentPeriodCopilotCost,
         lastPeriodCopilotCost: userStats.lastPeriodCopilotCost,
@@ -589,7 +608,7 @@ export async function getSimplifiedBillingSummary(
     let totalCopilotCost = copilotCost
     let totalLastPeriodCopilotCost = lastPeriodCopilotCost
     if (orgScoped && subscription?.referenceId) {
-      const pooled = await aggregateOrgMemberStats(subscription.referenceId)
+      const pooled = await aggregateOrgMemberStats(subscription.referenceId, executor)
       totalCopilotCost = pooled.currentPeriodCopilotCost
       totalLastPeriodCopilotCost = pooled.lastPeriodCopilotCost
     }
@@ -609,7 +628,8 @@ export async function getSimplifiedBillingSummary(
       totalCopilotCost += await getBillingPeriodUsageCost(
         copilotEntity,
         copilotBillingPeriod,
-        COPILOT_USAGE_SOURCES
+        COPILOT_USAGE_SOURCES,
+        executor
       )
     }
 
@@ -622,7 +642,7 @@ export async function getSimplifiedBillingSummary(
         )
       : 0
 
-    const userCredits = await getCreditBalance(userId)
+    const userCredits = await getCreditBalance(userId, executor)
     const individualBillingInterval = getBillingInterval(
       subscription?.metadata as SubscriptionMetadata
     )

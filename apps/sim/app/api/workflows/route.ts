@@ -190,7 +190,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     if (!result.success || !result.workflow) {
-      const status = result.errorCode === 'conflict' ? 409 : 500
+      const status =
+        result.errorCode === 'conflict' ? 409 : result.errorCode === 'validation' ? 400 : 500
       return NextResponse.json({ error: result.error }, { status })
     }
 

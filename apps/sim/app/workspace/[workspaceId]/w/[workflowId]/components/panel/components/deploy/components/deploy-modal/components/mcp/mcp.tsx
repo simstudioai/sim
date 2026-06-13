@@ -14,7 +14,7 @@ import {
   Textarea,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import { generateToolInputSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
@@ -68,20 +68,6 @@ function haveSameParameterDescriptions(
   const bKeys = Object.keys(b)
   if (aKeys.length !== bKeys.length) return false
   return aKeys.every((key) => a[key] === b[key])
-}
-
-/**
- * Generate JSON Schema from input format with optional descriptions
- */
-function generateParameterSchema(
-  inputFormat: NormalizedField[],
-  descriptions: Record<string, string>
-): Record<string, unknown> {
-  const fieldsWithDescriptions = inputFormat.map((field) => ({
-    ...field,
-    description: descriptions[field.name]?.trim() || undefined,
-  }))
-  return { ...generateToolInputSchema(fieldsWithDescriptions) }
 }
 
 /**

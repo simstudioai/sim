@@ -6,6 +6,7 @@ import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, asc, eq, inArray, isNull, max, min, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
+import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { materializeInlineExecutionValue } from '@/lib/execution/payloads/inline-materialization.server'
 import type { ExecutionMaterializationContext } from '@/lib/execution/payloads/materialization.server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
@@ -52,17 +53,21 @@ export async function listWorkflows(workspaceId: string, options?: { scope?: Wor
 /**
  * Generates a unique workflow name within a workspace+folder scope.
  * If the name already exists among active workflows, appends (2), (3), etc.
+ *
+ * Pass a transaction as `executor` when running inside an open tx so the
+ * lookup observes workflows inserted earlier in the same transaction.
  */
 export async function deduplicateWorkflowName(
   name: string,
   workspaceId: string,
-  folderId: string | null | undefined
+  folderId: string | null | undefined,
+  executor: Pick<typeof db, 'select'> = db
 ): Promise<string> {
   const folderCondition = folderId
     ? eq(workflowTable.folderId, folderId)
     : isNull(workflowTable.folderId)
 
-  const [existing] = await db
+  const [existing] = await executor
     .select({ id: workflowTable.id })
     .from(workflowTable)
     .where(
@@ -81,7 +86,7 @@ export async function deduplicateWorkflowName(
 
   for (let i = 2; i < 100; i++) {
     const candidate = `${name} (${i})`
-    const [dup] = await db
+    const [dup] = await executor
       .select({ id: workflowTable.id })
       .from(workflowTable)
       .where(
@@ -106,6 +111,7 @@ export type WorkflowResolutionResult =
   | {
       status: 'resolved'
       workflowId: string
+      workspaceId: string
       workflowName?: string
     }
   | {
@@ -141,7 +147,18 @@ export async function resolveWorkflowIdForUser(
       }
     }
     const wf = await getWorkflowById(workflowId)
-    return { status: 'resolved', workflowId, workflowName: wf?.name || undefined }
+    if (!wf?.workspaceId) {
+      return {
+        status: 'not_found',
+        message: 'No workflows found. Create a workflow first or provide a valid workflowId.',
+      }
+    }
+    return {
+      status: 'resolved',
+      workflowId,
+      workspaceId: wf.workspaceId,
+      workflowName: wf.name || undefined,
+    }
   }
 
   const workspaceIds = await db
@@ -160,13 +177,18 @@ export async function resolveWorkflowIdForUser(
     }
   }
 
-  const workflows = await db
+  const workflowRows = await db
     .select()
     .from(workflowTable)
     .where(
       and(inArray(workflowTable.workspaceId, allowedWorkspaceIds), isNull(workflowTable.archivedAt))
     )
     .orderBy(asc(workflowTable.sortOrder), asc(workflowTable.createdAt), asc(workflowTable.id))
+
+  const workflows = workflowRows.filter(
+    (workflow): workflow is (typeof workflowRows)[number] & { workspaceId: string } =>
+      workflow.workspaceId !== null
+  )
 
   if (workflows.length === 0) {
     return {
@@ -187,6 +209,7 @@ export async function resolveWorkflowIdForUser(
       return {
         status: 'resolved',
         workflowId: match.id,
+        workspaceId: match.workspaceId,
         workflowName: match.name || undefined,
       }
     }
@@ -211,6 +234,7 @@ export async function resolveWorkflowIdForUser(
     return {
       status: 'resolved',
       workflowId: workflows[0].id,
+      workspaceId: workflows[0].workspaceId,
       workflowName: workflows[0].name || undefined,
     }
   }
@@ -431,6 +455,8 @@ export async function createWorkflowRecord(params: CreateWorkflowInput) {
   if (!saveResult.success) {
     throw new Error(saveResult.error || 'Failed to save workflow state')
   }
+
+  await ensureWorkflowAliasBacking({ workspaceId, userId, workflowId, workflowName: name })
 
   return { workflowId, name, workspaceId, folderId, sortOrder, createdAt: now, updatedAt: now }
 }

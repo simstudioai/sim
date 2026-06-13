@@ -1,5 +1,4 @@
 import { notFound } from 'next/navigation'
-import { createModelsOgImage } from '@/app/(landing)/models/og-utils'
 import {
   formatPrice,
   formatTokenCount,
@@ -7,8 +6,8 @@ import {
   getLargestContextProviderModel,
   getProviderBySlug,
 } from '@/app/(landing)/models/utils'
+import { createLandingOgImage } from '@/app/(landing)/og-utils'
 
-export const runtime = 'edge'
 export const contentType = 'image/png'
 export const size = {
   width: 1200,
@@ -26,7 +25,7 @@ export default async function Image({ params }: { params: Promise<{ provider: st
   const cheapestModel = getCheapestProviderModel(provider)
   const largestContextModel = getLargestContextProviderModel(provider)
 
-  return createModelsOgImage({
+  return createLandingOgImage({
     eyebrow: `${provider.name} on Sim`,
     title: `${provider.name} models`,
     subtitle: `Browse ${provider.modelCount} tracked ${provider.name} models with pricing, context windows, default model selection, and model capability coverage.`,

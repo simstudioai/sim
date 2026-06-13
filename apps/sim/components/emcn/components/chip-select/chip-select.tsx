@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { chipVariants } from '@/components/emcn/components/chip/chip'
+import { chipVariants, TRIGGER_BORDER_CLASS } from '@/components/emcn/components/chip/chip'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -164,9 +164,15 @@ export function ChipSelect({
     }
   }
 
+  /**
+   * Inline size constraints for the menu surface. When an explicit
+   * `dropdownWidth` is set it must also lift the menu's generic
+   * `max-w-[220px]` cap, otherwise the requested width would be clamped.
+   */
   const contentStyle: React.CSSProperties = {}
   if (dropdownWidth === 'trigger') contentStyle.width = 'var(--radix-dropdown-menu-trigger-width)'
   else if (typeof dropdownWidth === 'number') contentStyle.width = dropdownWidth
+  if (dropdownWidth != null) contentStyle.maxWidth = 'none'
   if (typeof maxHeight === 'number') contentStyle.maxHeight = maxHeight
 
   const renderOption = (opt: ChipSelectOption) => {
@@ -212,6 +218,7 @@ export function ChipSelect({
           aria-label={ariaLabel}
           className={cn(
             chipVariants({ variant: 'filled', flush: true, fullWidth }),
+            TRIGGER_BORDER_CLASS,
             fullWidth ? 'w-full justify-between' : 'w-fit max-w-[240px]',
             className
           )}
@@ -231,7 +238,7 @@ export function ChipSelect({
         align={align}
         onOpenAutoFocus={searchable ? (e) => e.preventDefault() : undefined}
         style={contentStyle}
-        className={cn('z-[var(--z-popover)] min-w-[160px]', contentClassName)}
+        className={cn('min-w-[160px]', contentClassName)}
       >
         {searchable ? (
           <DropdownMenuSearchInput

@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  SecretInput,
 } from '@/components/emcn'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
@@ -23,6 +24,15 @@ const GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID = 'google-service-account' as const
 export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
+
+/** Sim setup guides for each provider, docked bottom-left of each modal. */
+const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
+const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
+  'https://docs.sim.ai/integrations/atlassian-service-account'
+
+function openDocs(url: string): void {
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
 
 /**
  * Atlassian site domain hint — surfaced inline when the user types something
@@ -277,6 +287,10 @@ function GoogleServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryAction={{
+          label: 'Setup guide',
+          onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
+        }}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,
@@ -355,19 +369,22 @@ function AtlassianServiceAccountModal({
         Add {serviceName} service account
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='input'
-          inputType='password'
-          title='API token'
-          value={apiToken}
-          onChange={(value) => {
-            setApiToken(value)
-            if (error) setError(null)
-          }}
-          placeholder='Paste API token'
-          autoComplete='off'
-          required
-        />
+        <ChipModalField type='custom' title='API token' required>
+          <SecretInput
+            value={apiToken}
+            onChange={(value) => {
+              setApiToken(value)
+              if (error) setError(null)
+            }}
+            placeholder='Paste API token'
+            name='atlassian_service_account_api_token'
+            autoComplete='new-password'
+            autoCorrect='off'
+            autoCapitalize='off'
+            data-lpignore='true'
+            data-form-type='other'
+          />
+        </ChipModalField>
 
         <ChipModalField
           type='input'
@@ -410,6 +427,10 @@ function AtlassianServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryAction={{
+          label: 'Setup guide',
+          onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+        }}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,

@@ -29,7 +29,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
       },
       source: {
         type: 'string',
-        required: true,
+        required: false,
         visibility: 'user-or-llm',
         description: 'The source of the alert (e.g., api, manual, datadog, pagerduty)',
       },
@@ -87,8 +87,8 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
       body: (params) => {
         const attributes: Record<string, unknown> = {
           summary: params.summary,
-          source: params.source,
         }
+        if (params.source) attributes.source = params.source
         if (params.description) attributes.description = params.description
         if (params.status) attributes.status = params.status
         if (params.externalId) attributes.external_id = params.externalId

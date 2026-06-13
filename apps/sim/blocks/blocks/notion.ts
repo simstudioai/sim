@@ -16,10 +16,10 @@ export const NotionBlock: BlockConfig<NotionResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/tools/notion',
+  docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  bgColor: '#181C1E',
+  bgColor: '#FFFFFF',
   icon: NotionIcon,
   subBlocks: [
     {
@@ -427,10 +427,10 @@ export const NotionV2Block: BlockConfig<any> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate with Notion into the workflow. Can read page, read database, create page, create database, append content, query database, and search workspace.',
-  docsLink: 'https://docs.sim.ai/tools/notion',
+  docsLink: 'https://docs.sim.ai/integrations/notion',
   category: 'tools',
   integrationType: IntegrationType.Documents,
-  bgColor: '#181C1E',
+  bgColor: '#FFFFFF',
   icon: NotionIcon,
   hideFromToolbar: false,
   subBlocks: [

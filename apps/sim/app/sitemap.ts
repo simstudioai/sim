@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { INTEGRATIONS } from '@/lib/integrations'
+import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
 import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
 
 /**
@@ -27,6 +27,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   )
   const latestModelDate = modelTimes.length > 0 ? new Date(Math.max(...modelTimes)) : undefined
 
+  const integrationsUpdatedAt = new Date(`${INTEGRATIONS_UPDATED_AT}T00:00:00Z`)
+
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
@@ -45,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/integrations`,
-      lastModified: latestModelDate,
+      lastModified: integrationsUpdatedAt,
     },
     {
       url: `${baseUrl}/models`,
@@ -89,6 +91,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const integrationPages: MetadataRoute.Sitemap = INTEGRATIONS.map((integration) => ({
     url: `${baseUrl}/integrations/${integration.slug}`,
+    lastModified: integrationsUpdatedAt,
   }))
 
   const providerPages: MetadataRoute.Sitemap = MODEL_PROVIDERS_WITH_CATALOGS.flatMap((provider) => {

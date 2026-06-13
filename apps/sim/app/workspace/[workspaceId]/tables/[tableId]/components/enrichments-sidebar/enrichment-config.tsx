@@ -7,18 +7,18 @@ import {
   Badge,
   Button,
   ChipCombobox,
+  ChipInput,
   CollapsibleCard,
   FieldDivider,
-  Input,
   Label,
   Switch,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft, X } from '@/components/emcn/icons'
 import type { AddWorkflowGroupBodyInput } from '@/lib/api/contracts/tables'
-import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup, WorkflowGroupOutput } from '@/lib/table'
 import { deriveOutputColumnName } from '@/lib/table/column-naming'
+import { FieldError } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
   useAddWorkflowGroup,
@@ -216,7 +216,7 @@ export function EnrichmentConfig({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <div className='flex min-w-0 items-center gap-1.5'>
           <Button
             variant='ghost'
@@ -280,12 +280,10 @@ export function EnrichmentConfig({
                     onChange={(columnName: string) =>
                       setInputMappings((prev) => ({ ...prev, [input.id]: columnName }))
                     }
-                    error={
-                      showValidation && input.required && !inputMappings[input.id]
-                        ? 'Required'
-                        : null
-                    }
                   />
+                  {showValidation && input.required && !inputMappings[input.id] && (
+                    <FieldError message='Required' />
+                  )}
                 </CollapsibleCard>
               ))}
             </div>
@@ -317,16 +315,16 @@ export function EnrichmentConfig({
                   }
                 >
                   <Label className='text-small'>Column name</Label>
-                  <Input
+                  <ChipInput
                     value={outputNames[output.id] ?? ''}
                     onChange={(e) =>
                       setOutputNames((prev) => ({ ...prev, [output.id]: e.target.value }))
                     }
                     spellCheck={false}
                     autoComplete='off'
-                    className={cn(outErr && 'border-[var(--text-error)]')}
+                    error={Boolean(outErr)}
                   />
-                  {outErr && <p className='text-[var(--text-error)] text-caption'>{outErr}</p>}
+                  {outErr && <FieldError message={outErr} />}
                 </CollapsibleCard>
               )
             })}

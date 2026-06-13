@@ -28,7 +28,10 @@ export const FLAG_OUTPUT_PROPERTIES = {
     items: {
       type: 'object',
       properties: {
-        value: { type: 'string', description: 'The variation value' },
+        value: {
+          type: 'string',
+          description: 'The variation value (any JSON type, shown as text)',
+        },
         name: { type: 'string', description: 'The variation name', optional: true },
         description: { type: 'string', description: 'The variation description', optional: true },
       },
@@ -37,6 +40,11 @@ export const FLAG_OUTPUT_PROPERTIES = {
   maintainerId: {
     type: 'string',
     description: 'The ID of the member who maintains this flag',
+    optional: true,
+  },
+  maintainerEmail: {
+    type: 'string',
+    description: 'The email of the member who maintains this flag',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -83,7 +91,11 @@ export const AUDIT_LOG_ENTRY_OUTPUT_PROPERTIES = {
     optional: true,
   },
   targetName: { type: 'string', description: 'Name of the target resource', optional: true },
-  targetKind: { type: 'string', description: 'Kind of the target resource', optional: true },
+  targetKind: {
+    type: 'string',
+    description: 'Resource specifier of the target (e.g. proj/default:env/production:flag/my-flag)',
+    optional: true,
+  },
 } as const satisfies Record<string, OutputProperty>
 
 export const SEGMENT_OUTPUT_PROPERTIES = {
@@ -195,6 +207,7 @@ interface FlagItem {
   tags: string[]
   variations: Array<{ value: unknown; name?: string; description?: string }>
   maintainerId: string | null
+  maintainerEmail: string | null
 }
 
 interface ProjectItem {

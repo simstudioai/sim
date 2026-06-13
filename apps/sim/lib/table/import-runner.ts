@@ -24,12 +24,12 @@ import {
   bulkInsertImportBatch,
   deleteAllTableRows,
   getTableById,
-  markImportFailed,
-  markImportReady,
+  markJobFailed,
+  markJobReady,
   nextImportStartOrderKey,
   nextImportStartPosition,
   setTableSchemaForImport,
-  updateImportProgress,
+  updateJobProgress,
 } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
@@ -185,9 +185,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     const flush = async (rows: Record<string, unknown>[]) => {
       if (rows.length === 0 || !schema || !headerToColumn) return
       // Ownership gate before every insert: once this run loses the table (cancel/supersede),
-      // updateImportProgress returns false and we stop before writing into a table a newer import
+      // updateJobProgress returns false and we stop before writing into a table a newer import
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
-      const owns = await updateImportProgress(tableId, inserted, importId)
+      const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
       const result = await bulkInsertImportBatch(
@@ -214,10 +214,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         const percent =
           totalBytes > 0 ? Math.min(99, Math.round((bytesRead / totalBytes) * 100)) : undefined
         void appendTableEvent({
-          kind: 'import',
+          kind: 'job',
+          type: 'import',
           tableId,
-          importId,
-          status: 'importing',
+          jobId: importId,
+          status: 'running',
           progress: inserted,
           percent,
         })
@@ -247,11 +248,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (sample.length === 0) {
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
-        await markImportFailed(tableId, importId, message)
+        await markJobFailed(tableId, importId, message)
         void appendTableEvent({
-          kind: 'import',
+          kind: 'job',
+          type: 'import',
           tableId,
-          importId,
+          jobId: importId,
           status: 'failed',
           error: message,
         })
@@ -277,15 +279,16 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       await flush(batch)
     }
 
-    await updateImportProgress(tableId, inserted, importId)
+    await updateJobProgress(tableId, inserted, importId)
     // Only announce success if we actually won the transition — a cancel/supersede that landed
     // right at the end makes this a no-op, and we must not emit a false `ready`.
-    const becameReady = await markImportReady(tableId, importId)
+    const becameReady = await markJobReady(tableId, importId)
     if (becameReady) {
       void appendTableEvent({
-        kind: 'import',
+        kind: 'job',
+        type: 'import',
         tableId,
-        importId,
+        jobId: importId,
         status: 'ready',
         progress: inserted,
         percent: 100,
@@ -323,8 +326,15 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const message = getErrorMessage(err, 'Import failed')
       logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
       // Scoped to importId — a no-op if a newer import has taken over.
-      await markImportFailed(tableId, importId, message).catch(() => {})
-      void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+      await markJobFailed(tableId, importId, message).catch(() => {})
+      void appendTableEvent({
+        kind: 'job',
+        type: 'import',
+        tableId,
+        jobId: importId,
+        status: 'failed',
+        error: message,
+      })
       captureServerEvent(
         userId,
         'table_import_completed',

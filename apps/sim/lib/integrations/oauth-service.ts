@@ -1,10 +1,11 @@
 import type { ComponentType } from 'react'
 import integrationsJson from '@/lib/integrations/integrations.json'
 import type { Integration } from '@/lib/integrations/types'
-import { OAUTH_PROVIDERS } from '@/lib/oauth'
+import { getServiceConfigByServiceId } from '@/lib/oauth'
 import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
-const INTEGRATIONS_DATA: readonly Integration[] = integrationsJson as readonly Integration[]
+const INTEGRATIONS_DATA: readonly Integration[] =
+  integrationsJson.integrations as readonly Integration[]
 
 /**
  * Shape returned from resolving an integration to its OAuth service entry in
@@ -38,29 +39,25 @@ function asServiceAccountProviderId(
 }
 
 /**
- * Looks up the OAuth service entry whose display name matches the integration
- * (case-insensitive). Returns `null` for non-OAuth integrations or when no
- * matching service is registered in `OAUTH_PROVIDERS`.
+ * Looks up the OAuth service entry registered under the integration's
+ * `oauthServiceId` — the service id its block declares on the `oauth-input`
+ * subBlock, carried into the catalog at generation time. Returns `null` for
+ * non-OAuth integrations or when no matching service is registered in
+ * `OAUTH_PROVIDERS`.
  */
 export function resolveOAuthServiceForIntegration(
   integration: Integration
 ): OAuthServiceMatch | null {
-  if (integration.authType !== 'oauth') return null
-  const target = integration.name.toLowerCase()
-  for (const provider of Object.values(OAUTH_PROVIDERS)) {
-    for (const service of Object.values(provider.services)) {
-      if (service.name.toLowerCase() === target) {
-        return {
-          providerId: service.providerId,
-          requiredScopes: service.scopes ?? [],
-          serviceName: service.name,
-          serviceIcon: service.icon as ComponentType<{ className?: string }>,
-          serviceAccountProviderId: asServiceAccountProviderId(service.serviceAccountProviderId),
-        }
-      }
-    }
+  if (integration.authType !== 'oauth' || !integration.oauthServiceId) return null
+  const service = getServiceConfigByServiceId(integration.oauthServiceId)
+  if (!service) return null
+  return {
+    providerId: service.providerId,
+    requiredScopes: service.scopes ?? [],
+    serviceName: service.name,
+    serviceIcon: service.icon as ComponentType<{ className?: string }>,
+    serviceAccountProviderId: asServiceAccountProviderId(service.serviceAccountProviderId),
   }
-  return null
 }
 
 /**

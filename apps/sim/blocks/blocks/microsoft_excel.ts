@@ -16,7 +16,7 @@ export const MicrosoftExcelBlock: BlockConfig<MicrosoftExcelResponse> = {
   hideFromToolbar: true,
   longDescription:
     'Integrate Microsoft Excel into the workflow. Can read, write, update, add to table, and create new worksheets.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
@@ -354,7 +354,7 @@ export const MicrosoftExcelV2Block: BlockConfig<MicrosoftExcelV2Response> = {
   hideFromToolbar: false,
   longDescription:
     'Integrate Microsoft Excel into the workflow with explicit sheet selection. Can read and write data in specific sheets.',
-  docsLink: 'https://docs.sim.ai/tools/microsoft_excel',
+  docsLink: 'https://docs.sim.ai/integrations/microsoft_excel',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',

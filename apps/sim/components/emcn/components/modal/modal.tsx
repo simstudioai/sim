@@ -57,6 +57,18 @@ function hasOpenFloatingLayer() {
 }
 
 /**
+ * Whether the current subtree renders inside a `ModalContent`.
+ *
+ * Floating EMCN controls (e.g. `ChipDropdown`) read this to switch their
+ * Radix popper to modal behavior. A non-modal popper portaled to `body`
+ * underneath a modal dialog inherits the dialog's `pointer-events: none`
+ * body lock and its outside-scroll lock, leaving the popper unclickable and
+ * unscrollable; a modal popper pauses the dialog's focus trap and carries
+ * its own scroll allowance.
+ */
+const InsideModalContext = React.createContext(false)
+
+/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -129,6 +141,10 @@ export interface ModalContentProps
    * - lg: max 600px (content-heavy modals)
    * - xl: max 800px (complex editors)
    * - full: max 1200px (dashboards, large content)
+   *
+   * Sizes up to `xl` center within the content area (offset for the sidebar,
+   * and the panel on workflow pages). `full` modals span most of the viewport,
+   * so they center against the full viewport instead.
    * @default 'md'
    */
   size?: ModalSize
@@ -184,11 +200,15 @@ const ModalContent = React.forwardRef<
         <ModalOverlay />
         <div
           className='pointer-events-none fixed inset-0 z-[var(--z-modal)] flex items-center justify-center'
-          style={{
-            paddingLeft: isWorkflowPage
-              ? 'calc(var(--sidebar-width) - var(--panel-width))'
-              : 'var(--sidebar-width)',
-          }}
+          style={
+            size === 'full'
+              ? undefined
+              : {
+                  paddingLeft: isWorkflowPage
+                    ? 'calc(var(--sidebar-width) - var(--panel-width))'
+                    : 'var(--sidebar-width)',
+                }
+          }
         >
           <DialogPrimitive.Content
             ref={ref}
@@ -236,7 +256,7 @@ const ModalContent = React.forwardRef<
             {srTitle ? (
               <DialogPrimitive.Title className='sr-only'>{srTitle}</DialogPrimitive.Title>
             ) : null}
-            {children}
+            <InsideModalContext.Provider value={true}>{children}</InsideModalContext.Provider>
           </DialogPrimitive.Content>
         </div>
       </ModalPortal>
@@ -464,6 +484,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 ModalFooter.displayName = 'ModalFooter'
 
 export {
+  InsideModalContext,
   Modal,
   ModalTrigger,
   ModalContent,

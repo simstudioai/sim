@@ -9,10 +9,10 @@ export const MillionVerifierBlock: BlockConfig<MillionVerifierResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Integrate MillionVerifier to verify email deliverability in real time — classify addresses as valid, invalid, catch-all, disposable, or unknown — and check your remaining verification credits.',
-  docsLink: 'https://docs.sim.ai/tools/millionverifier',
+  docsLink: 'https://docs.sim.ai/integrations/millionverifier',
   category: 'tools',
   integrationType: IntegrationType.Sales,
-  bgColor: '#00B67A',
+  bgColor: '#FFFFFF',
   icon: MillionVerifierIcon,
   subBlocks: [
     {

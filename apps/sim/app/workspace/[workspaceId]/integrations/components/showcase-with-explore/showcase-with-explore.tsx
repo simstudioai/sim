@@ -30,7 +30,6 @@ export function ShowcaseWithExplore({ prompt }: ShowcaseWithExploreProps) {
     <div className='relative'>
       <IntegrationsShowcase />
       <Chip
-        variant='filled'
         rightIcon={ArrowRight}
         onClick={() => {
           storeCuratedPrompt(prompt)

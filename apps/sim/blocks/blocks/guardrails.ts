@@ -35,7 +35,7 @@ export const GuardrailsBlock: BlockConfig<GuardrailsResponse> = {
   - For PII detection, access <guardrails.detectedEntities> and <guardrails.maskedText>
   - Chain with Condition block to handle validation failures
   `,
-  docsLink: 'https://docs.sim.ai/blocks/guardrails',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/guardrails',
   category: 'blocks',
   bgColor: '#3D642D',
   icon: ShieldCheckIcon,

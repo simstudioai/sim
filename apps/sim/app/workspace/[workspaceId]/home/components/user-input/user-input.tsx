@@ -13,11 +13,12 @@ import {
 } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { Button, Paperclip, Slash, Tooltip } from '@/components/emcn'
+import { Button, Paperclip, Slash, Tooltip, toast } from '@/components/emcn'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { cn } from '@/lib/core/utils/cn'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { useAvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
@@ -130,9 +131,6 @@ interface UserInputProps {
   isSending: boolean
   onStopGeneration: () => void
   isInitialView?: boolean
-  userId?: string
-  onContextAdd?: (context: ChatContext) => void
-  onContextRemove?: (context: ChatContext) => void
   onSendQueuedHead?: () => void
   onEditQueuedTail?: () => void
 }
@@ -155,9 +153,6 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     isSending,
     onStopGeneration,
     isInitialView = true,
-    userId,
-    onContextAdd,
-    onContextRemove,
     onSendQueuedHead,
     onEditQueuedTail,
   },
@@ -166,6 +161,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: skills = [] } = useSkills(workspaceId)
+  const { userId, onContextAdd, onContextRemove } = useChatSurface()
   const [value, setValue] = useState(() => {
     if (defaultValue) return defaultValue
     if (!draftScopeKey) return ''
@@ -402,8 +398,20 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     valueRef.current = converted
   }
 
-  function handleUsageLimitExceeded() {
-    navigateToSettings({ section: 'billing' })
+  function handleUsageLimitExceeded(message?: string, isMemberLimit?: boolean) {
+    // A per-member cap can only be raised by an org admin, so don't offer Upgrade
+    // (the member can't act on it) — the message already tells them to ask an admin.
+    toast.error(
+      message || 'You are out of credits.',
+      isMemberLimit
+        ? undefined
+        : {
+            action: {
+              label: 'Upgrade',
+              onClick: () => navigateToSettings({ section: 'billing' }),
+            },
+          }
+    )
   }
 
   const {
@@ -414,6 +422,7 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
   } = useSpeechToText({
     onTranscript: handleTranscript,
     onUsageLimitExceeded: handleUsageLimitExceeded,
+    workspaceId,
   })
 
   const toggleListening = useCallback(() => {
@@ -1086,9 +1095,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
 
     // Adopt value changes that bypassed React's change tracking (browser
     // autofill, password managers, grammar extensions — see facebook/react#2125)
-    // so state never drifts from the DOM. The render rebuilds the overlay and
-    // selection logic resumes on the next event.
-    if (textarea.value !== valueRef.current) {
+    // so state never drifts from the DOM. Skip when state is empty: submit clears
+    // `value` synchronously, but a select/mouseUp can fire while the textarea
+    // still holds the just-sent text, and adopting it would resurrect the message.
+    if (valueRef.current !== '' && textarea.value !== valueRef.current) {
       adoptDomValue(textarea)
       return
     }

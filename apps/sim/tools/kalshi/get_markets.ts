@@ -131,7 +131,7 @@ export interface KalshiGetMarketsV2Params extends KalshiPaginationParams {
   minSettledTs?: number
   maxSettledTs?: number
   tickers?: string // comma-separated list
-  mveFilter?: string // display or all
+  mveFilter?: string // only or exclude
 }
 
 export interface KalshiGetMarketsV2Response {
@@ -275,7 +275,7 @@ export const kalshiGetMarketsV2Tool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'MVE filter: "display" or "all"',
+      description: 'Multivariate event filter: "only" or "exclude"',
     },
     limit: {
       type: 'string',

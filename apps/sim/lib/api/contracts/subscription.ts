@@ -20,6 +20,16 @@ export const billingUpdateCostBodySchema = z.object({
     .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
     .default('copilot'),
   idempotencyKey: z.string().min(1).optional(),
+  /**
+   * Originating workspace, used for org-workspace cost attribution on hosted
+   * Sim. Best-effort by design: self-hosted and headless clients bill through
+   * this endpoint with workspace IDs that exist only in their own deployment
+   * (or with none at all — the Go client omits the field when empty), so the
+   * value is optional and the route only stamps it onto the ledger when it
+   * resolves to a workspace in this deployment. Billing is keyed on the
+   * user's billing entity and must never fail over attribution metadata.
+   */
+  workspaceId: z.string().min(1).optional(),
 })
 export type BillingUpdateCostBody = z.input<typeof billingUpdateCostBodySchema>
 

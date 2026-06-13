@@ -52,7 +52,6 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
         framework: data.framework ?? null,
         createdAt: data.createdAt,
         updatedAt: data.updatedAt,
-        domains: data.domains ?? [],
         link: data.link
           ? {
               type: data.link.type,
@@ -70,11 +69,6 @@ export const vercelGetProjectTool: ToolConfig<VercelGetProjectParams, VercelGetP
     framework: { type: 'string', description: 'Project framework', optional: true },
     createdAt: { type: 'number', description: 'Creation timestamp' },
     updatedAt: { type: 'number', description: 'Last updated timestamp' },
-    domains: {
-      type: 'array',
-      description: 'Project domains',
-      items: { type: 'string', description: 'Domain' },
-    },
     link: {
       type: 'object',
       description: 'Git repository connection',

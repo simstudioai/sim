@@ -8,6 +8,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
+import {
+  getWorkflowDeploymentVersion,
+  updateDeploymentVersionMetadata,
+} from '@/lib/workflows/persistence/utils'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -36,17 +41,7 @@ export const GET = withRouteHandler(
         return createErrorResponse('Invalid version', 400)
       }
 
-      const [row] = await db
-        .select({ state: workflowDeploymentVersion.state })
-        .from(workflowDeploymentVersion)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.version, versionNum)
-          )
-        )
-        .limit(1)
-
+      const row = await getWorkflowDeploymentVersion(id, versionNum)
       if (!row?.state) {
         return createErrorResponse('Deployment version not found', 404)
       }
@@ -109,15 +104,9 @@ export const PATCH = withRouteHandler(
         })
 
         if (!activateResult.success) {
-          const status =
-            activateResult.errorCode === 'not_found'
-              ? 404
-              : activateResult.errorCode === 'validation'
-                ? 400
-                : 500
           return createErrorResponse(
             activateResult.error || 'Failed to activate deployment',
-            status
+            statusForOrchestrationError(activateResult.errorCode)
           )
         }
 
@@ -173,37 +162,21 @@ export const PATCH = withRouteHandler(
         })
       }
 
-      // Handle name/description updates
-      const updateData: { name?: string; description?: string | null } = {}
-      if (name !== undefined) {
-        updateData.name = name
-      }
-      if (description !== undefined) {
-        updateData.description = description
-      }
-
-      const [updated] = await db
-        .update(workflowDeploymentVersion)
-        .set(updateData)
-        .where(
-          and(
-            eq(workflowDeploymentVersion.workflowId, id),
-            eq(workflowDeploymentVersion.version, versionNum)
-          )
-        )
-        .returning({
-          id: workflowDeploymentVersion.id,
-          name: workflowDeploymentVersion.name,
-          description: workflowDeploymentVersion.description,
-        })
+      // Handle name/description updates (shared with the update_deployment_version copilot tool)
+      const updated = await updateDeploymentVersionMetadata({
+        workflowId: id,
+        version: versionNum,
+        name,
+        description,
+      })
 
       if (!updated) {
         return createErrorResponse('Deployment version not found', 404)
       }
 
       logger.info(`[${requestId}] Updated deployment version ${version} for workflow ${id}`, {
-        name: updateData.name,
-        description: updateData.description,
+        name,
+        description,
       })
 
       return createSuccessResponse({ name: updated.name, description: updated.description })

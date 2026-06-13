@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { skill } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray } from 'drizzle-orm'
+import { getBuiltinSkillById, getBuiltinSkillByName } from '@/lib/workflows/skills/builtin-skills'
 import type { SkillInput } from '@/executor/handlers/agent/types'
 
 const logger = createLogger('SkillsResolver')
@@ -29,18 +30,29 @@ export async function resolveSkillMetadata(
 ): Promise<SkillMetadata[]> {
   if (!skillInputs.length || !workspaceId) return []
 
-  const skillIds = skillInputs.map((s) => s.skillId)
+  const metadata: SkillMetadata[] = []
+  const dbSkillIds: string[] = []
+  for (const input of skillInputs) {
+    const builtin = getBuiltinSkillById(input.skillId)
+    if (builtin) {
+      metadata.push({ name: builtin.name, description: builtin.description })
+    } else {
+      dbSkillIds.push(input.skillId)
+    }
+  }
+
+  if (dbSkillIds.length === 0) return metadata
 
   try {
     const rows = await db
       .select({ name: skill.name, description: skill.description })
       .from(skill)
-      .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, skillIds)))
+      .where(and(eq(skill.workspaceId, workspaceId), inArray(skill.id, dbSkillIds)))
 
-    return rows
+    return [...metadata, ...rows]
   } catch (error) {
-    logger.error('Failed to resolve skill metadata', { error, skillIds, workspaceId })
-    return []
+    logger.error('Failed to resolve skill metadata', { error, dbSkillIds, workspaceId })
+    return metadata
   }
 }
 
@@ -53,6 +65,9 @@ export async function resolveSkillContent(
   workspaceId: string
 ): Promise<string | null> {
   if (!skillName || !workspaceId) return null
+
+  const builtin = getBuiltinSkillByName(skillName)
+  if (builtin) return builtin.content
 
   try {
     const rows = await db
@@ -78,6 +93,9 @@ export async function resolveSkillContentById(
   workspaceId: string
 ): Promise<{ name: string; content: string } | null> {
   if (!skillId || !workspaceId) return null
+
+  const builtin = getBuiltinSkillById(skillId)
+  if (builtin) return { name: builtin.name, content: builtin.content }
 
   try {
     const rows = await db

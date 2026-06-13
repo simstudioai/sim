@@ -11,7 +11,7 @@ export const GoogleFormsBlock: BlockConfig = {
   description: 'Manage Google Forms and responses',
   longDescription:
     'Integrate Google Forms into your workflow. Read form structure, get responses, create forms, update content, and manage notification watches.',
-  docsLink: 'https://docs.sim.ai/tools/google_forms',
+  docsLink: 'https://docs.sim.ai/integrations/google_forms',
   category: 'tools',
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',

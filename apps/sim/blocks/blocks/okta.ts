@@ -9,7 +9,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
   description: 'Manage users and groups in Okta',
   longDescription:
     'Integrate Okta identity management into your workflow. List, create, update, activate, suspend, and delete users. Reset passwords. Manage groups and group membership.',
-  docsLink: 'https://docs.sim.ai/tools/okta',
+  docsLink: 'https://docs.sim.ai/integrations/okta',
   category: 'tools',
   integrationType: IntegrationType.Security,
   bgColor: '#191919',
@@ -294,8 +294,11 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
         if (params.groupName) result.name = params.groupName
         if (params.groupDescription !== undefined) result.description = params.groupDescription
 
-        // Pass through all other non-empty params
-        // Allow empty strings so users can clear fields (e.g. update_user partial updates)
+        // Pass through all other params, skipping empty values. Blank fields in a
+        // partial update (e.g. update_user, a POST merge) must be omitted so they
+        // leave the existing Okta value unchanged rather than overwriting it with
+        // an empty string. This mirrors the agent tool-call path, which already
+        // filters empty params before execution.
         const skipKeys = new Set([
           'operation',
           'apiKey',
@@ -305,7 +308,7 @@ export const OktaBlock: BlockConfig<OktaResponse> = {
           'groupDescription',
         ])
         for (const [key, value] of Object.entries(params)) {
-          if (!skipKeys.has(key) && value !== undefined && value !== null) {
+          if (!skipKeys.has(key) && value !== undefined && value !== null && value !== '') {
             result[key] = value
           }
         }

@@ -1,8 +1,7 @@
 export type {
   BreadcrumbEditing,
   BreadcrumbItem,
-  CreateAction,
   DropdownOption,
-  HeaderAction,
+  ResourceAction,
 } from './resource-header'
 export { ResourceHeader } from './resource-header'

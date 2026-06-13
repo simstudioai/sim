@@ -15,7 +15,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Slack into the workflow. Can send, update, and delete messages, send ephemeral messages visible only to a specific user, open/update/push modal views, publish Home tab views, create canvases, read messages, and add or remove reactions. Requires Bot Token instead of OAuth in advanced mode. Can be used in trigger mode to trigger a workflow when a message is sent to a channel.',
-  docsLink: 'https://docs.sim.ai/tools/slack',
+  docsLink: 'https://docs.sim.ai/integrations/slack',
   category: 'tools',
   integrationType: IntegrationType.Communication,
   bgColor: '#611f69',
@@ -33,6 +33,12 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
         { label: 'Read Messages', id: 'read' },
         { label: 'Get Message', id: 'get_message' },
         { label: 'Get Thread', id: 'get_thread' },
+        { label: 'Get Thread Replies', id: 'get_thread_replies' },
+        { label: 'Get Channel History', id: 'get_channel_history' },
+        { label: 'Get Message Permalink', id: 'get_permalink' },
+        { label: 'Set Assistant Status', id: 'set_status' },
+        { label: 'Set Assistant Title', id: 'set_title' },
+        { label: 'Set Suggested Prompts', id: 'set_suggested_prompts' },
         { label: 'List Channels', id: 'list_channels' },
         { label: 'List Channel Members', id: 'list_members' },
         { label: 'List Users', id: 'list_users' },
@@ -548,7 +554,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       placeholder: 'Message timestamp (e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'get_message',
+        value: ['get_message', 'get_permalink'],
       },
       required: true,
       wandConfig: {
@@ -574,7 +580,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       placeholder: 'Thread timestamp (thread_ts, e.g., 1405894322.002768)',
       condition: {
         field: 'operation',
-        value: 'get_thread',
+        value: [
+          'get_thread',
+          'get_thread_replies',
+          'set_status',
+          'set_title',
+          'set_suggested_prompts',
+        ],
       },
       required: true,
       wandConfig: {
@@ -601,6 +613,152 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         field: 'operation',
         value: 'get_thread',
       },
+    },
+    // Set Assistant Status specific fields
+    {
+      id: 'status',
+      title: 'Status Text',
+      type: 'short-input',
+      placeholder: 'e.g., Working on it… (leave empty to clear)',
+      condition: {
+        field: 'operation',
+        value: 'set_status',
+      },
+      required: false,
+    },
+    {
+      id: 'loadingMessages',
+      title: 'Loading Messages',
+      type: 'long-input',
+      placeholder: 'Optional JSON array of phrases to animate (max 10)',
+      condition: {
+        field: 'operation',
+        value: 'set_status',
+      },
+      required: false,
+    },
+    // Set Assistant Title specific fields
+    {
+      id: 'assistantTitle',
+      title: 'Thread Title',
+      type: 'short-input',
+      placeholder: 'Title to display for the assistant thread',
+      condition: {
+        field: 'operation',
+        value: 'set_title',
+      },
+      required: true,
+    },
+    // Set Suggested Prompts specific fields
+    {
+      id: 'suggestedPrompts',
+      title: 'Suggested Prompts',
+      type: 'long-input',
+      placeholder: '[{"title": "Summarize", "message": "Summarize this thread"}]',
+      condition: {
+        field: 'operation',
+        value: 'set_suggested_prompts',
+      },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Slack assistant suggested prompts from the user's description.
+Each entry must be an object with exactly two string fields:
+- "title": the short label shown on the clickable chip
+- "message": the full message sent into the thread when the chip is clicked
+Return at most 4 prompts.
+Example:
+[{"title": "Summarize", "message": "Summarize the key points of this thread"}, {"title": "Next steps", "message": "What are the next steps?"}]
+
+Return ONLY the JSON array - no explanations, no quotes around the array, no extra text.`,
+        placeholder: 'Describe the prompts you want (e.g., "summarize and list action items")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'promptsTitle',
+      title: 'Prompts Heading',
+      type: 'short-input',
+      placeholder: 'e.g., Suggested Prompts (optional)',
+      condition: {
+        field: 'operation',
+        value: 'set_suggested_prompts',
+      },
+      mode: 'advanced',
+      required: false,
+    },
+    // Get Channel History / Get Thread Replies shared pagination fields
+    {
+      id: 'historyOldest',
+      title: 'Oldest Timestamp',
+      type: 'short-input',
+      placeholder: 'Unix seconds, e.g., 1700000000 (only messages after)',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
+    },
+    {
+      id: 'historyLatest',
+      title: 'Latest Timestamp',
+      type: 'short-input',
+      placeholder: 'Unix seconds, e.g., 1700000000 (only messages before)',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
+    },
+    {
+      id: 'historyLimit',
+      title: 'Page Size',
+      type: 'short-input',
+      placeholder: '200 (max 999)',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
+    },
+    {
+      id: 'historyMaxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: '10',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
+    },
+    {
+      id: 'historyCursor',
+      title: 'Start Cursor',
+      type: 'short-input',
+      placeholder: 'Resume from a previous nextCursor',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
+    },
+    {
+      id: 'historyInclusive',
+      title: 'Inclusive',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: {
+        field: 'operation',
+        value: ['get_channel_history', 'get_thread_replies'],
+      },
+      required: false,
     },
     {
       id: 'oldest',
@@ -1196,6 +1354,12 @@ Do not include any explanations, markdown formatting, or other text outside the 
       'slack_message_reader',
       'slack_get_message',
       'slack_get_thread',
+      'slack_get_thread_replies',
+      'slack_get_channel_history',
+      'slack_get_permalink',
+      'slack_set_status',
+      'slack_set_title',
+      'slack_set_suggested_prompts',
       'slack_list_channels',
       'slack_list_members',
       'slack_list_users',
@@ -1235,6 +1399,18 @@ Do not include any explanations, markdown formatting, or other text outside the 
             return 'slack_get_message'
           case 'get_thread':
             return 'slack_get_thread'
+          case 'get_thread_replies':
+            return 'slack_get_thread_replies'
+          case 'get_channel_history':
+            return 'slack_get_channel_history'
+          case 'get_permalink':
+            return 'slack_get_permalink'
+          case 'set_status':
+            return 'slack_set_status'
+          case 'set_title':
+            return 'slack_set_title'
+          case 'set_suggested_prompts':
+            return 'slack_set_suggested_prompts'
           case 'list_channels':
             return 'slack_list_channels'
           case 'list_members':
@@ -1318,6 +1494,17 @@ Do not include any explanations, markdown formatting, or other text outside the 
           getMessageTimestamp,
           getThreadTimestamp,
           threadLimit,
+          status,
+          loadingMessages,
+          assistantTitle,
+          suggestedPrompts,
+          promptsTitle,
+          historyOldest,
+          historyLatest,
+          historyLimit,
+          historyMaxPages,
+          historyCursor,
+          historyInclusive,
           includeNumMembers,
           presenceUserId,
           editCanvasId,
@@ -1435,6 +1622,65 @@ Do not include any explanations, markdown formatting, or other text outside the 
                 baseParams.limit = Math.min(parsedLimit, 200)
               }
             }
+            break
+          }
+
+          case 'set_status': {
+            baseParams.threadTs = getThreadTimestamp
+            baseParams.status = status ?? ''
+            if (loadingMessages) {
+              baseParams.loadingMessages = loadingMessages
+            }
+            break
+          }
+
+          case 'set_title': {
+            baseParams.threadTs = getThreadTimestamp
+            baseParams.title = assistantTitle
+            break
+          }
+
+          case 'set_suggested_prompts': {
+            baseParams.threadTs = getThreadTimestamp
+            baseParams.prompts = suggestedPrompts
+            if (promptsTitle) {
+              baseParams.promptsTitle = promptsTitle
+            }
+            break
+          }
+
+          case 'get_permalink': {
+            baseParams.messageTs = getMessageTimestamp
+            break
+          }
+
+          case 'get_channel_history':
+          case 'get_thread_replies': {
+            if (operation === 'get_thread_replies') {
+              baseParams.threadTs = getThreadTimestamp
+            }
+            if (historyOldest) {
+              baseParams.oldest = String(historyOldest).trim()
+            }
+            if (historyLatest) {
+              baseParams.latest = String(historyLatest).trim()
+            }
+            if (historyLimit) {
+              const parsedLimit = Number.parseInt(historyLimit, 10)
+              if (!Number.isNaN(parsedLimit) && parsedLimit > 0) {
+                baseParams.limit = parsedLimit
+              }
+            }
+            if (historyMaxPages) {
+              const parsedMaxPages = Number.parseInt(historyMaxPages, 10)
+              if (!Number.isNaN(parsedMaxPages) && parsedMaxPages > 0) {
+                baseParams.maxPages = parsedMaxPages
+              }
+            }
+            if (historyCursor) {
+              baseParams.cursor = String(historyCursor).trim()
+            }
+            baseParams.inclusive = historyInclusive === 'true'
             break
           }
 
@@ -1682,6 +1928,36 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'string',
       description: 'Maximum number of messages to return from thread',
     },
+    // Set Assistant Status inputs
+    status: { type: 'string', description: 'Status text to display (empty clears the status)' },
+    loadingMessages: {
+      type: 'json',
+      description: 'Optional array of phrases to animate as a loading indicator (max 10)',
+    },
+    // Set Assistant Title inputs
+    assistantTitle: { type: 'string', description: 'Title to display for the assistant thread' },
+    // Set Suggested Prompts inputs
+    suggestedPrompts: {
+      type: 'json',
+      description: 'Array of { title, message } prompt objects (max 4)',
+    },
+    promptsTitle: { type: 'string', description: 'Optional heading for the prompt list' },
+    // Get Channel History / Get Thread Replies inputs
+    historyOldest: {
+      type: 'string',
+      description: 'Only include messages after this Unix timestamp',
+    },
+    historyLatest: {
+      type: 'string',
+      description: 'Only include messages before this Unix timestamp',
+    },
+    historyLimit: { type: 'string', description: 'Messages to request per page (max 999)' },
+    historyMaxPages: { type: 'string', description: 'Maximum number of pages to fetch' },
+    historyCursor: { type: 'string', description: 'Pagination cursor to resume from' },
+    historyInclusive: {
+      type: 'string',
+      description: 'Include messages matching oldest/latest (true/false)',
+    },
     // Get Channel Info inputs
     includeNumMembers: { type: 'string', description: 'Include member count (true/false)' },
     // Get User Presence inputs
@@ -1806,6 +2082,22 @@ Do not include any explanations, markdown formatting, or other text outside the 
     hasMore: {
       type: 'boolean',
       description: 'Whether there are more messages in the thread',
+    },
+
+    // slack_get_channel_history / slack_get_thread_replies pagination outputs
+    pages: {
+      type: 'number',
+      description: 'Number of pages fetched during a paginated history/replies read',
+    },
+    threadTs: {
+      type: 'string',
+      description: 'Thread timestamp an assistant status/title/prompts op was set on',
+    },
+
+    // slack_get_permalink outputs (get_permalink operation)
+    permalink: {
+      type: 'string',
+      description: 'Permalink URL to the message',
     },
 
     // slack_list_channels outputs (list_channels operation)

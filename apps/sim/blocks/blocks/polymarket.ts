@@ -8,7 +8,7 @@ export const PolymarketBlock: BlockConfig = {
   description: 'Access prediction markets data from Polymarket',
   longDescription:
     'Integrate Polymarket prediction markets into the workflow. Can get markets, market, events, event, tags, series, orderbook, price, midpoint, price history, last trade price, spread, tick size, positions, trades, activity, leaderboard, holders, and search.',
-  docsLink: 'https://docs.sim.ai/tools/polymarket',
+  docsLink: 'https://docs.sim.ai/integrations/polymarket',
   category: 'tools',
   integrationType: IntegrationType.Analytics,
   bgColor: '#4C82FB',
@@ -48,7 +48,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'marketId',
       title: 'Market ID',
       type: 'short-input',
-      placeholder: 'Market ID (required if no slug)',
+      placeholder: 'Numeric market ID (required if no slug)',
       condition: { field: 'operation', value: ['get_market'] },
     },
     {
@@ -63,7 +63,7 @@ export const PolymarketBlock: BlockConfig = {
       id: 'eventId',
       title: 'Event ID',
       type: 'short-input',
-      placeholder: 'Event ID (required if no slug)',
+      placeholder: 'Numeric event ID (required if no slug)',
       condition: { field: 'operation', value: ['get_event'] },
     },
     {
@@ -261,6 +261,7 @@ export const PolymarketBlock: BlockConfig = {
         { label: 'Reward', id: 'REWARD' },
         { label: 'Conversion', id: 'CONVERSION' },
         { label: 'Maker Rebate', id: 'MAKER_REBATE' },
+        { label: 'Referral Reward', id: 'REFERRAL_REWARD' },
       ],
       condition: { field: 'operation', value: ['get_activity'] },
       mode: 'advanced',
@@ -885,7 +886,7 @@ Return ONLY the Unix timestamp as a number - no explanations, no quotes, no extr
     // Search
     results: {
       type: 'json',
-      description: 'Search results with markets, events, profiles (search)',
+      description: 'Search results with events, tags, profiles (search)',
     },
     // CLOB operations
     orderbook: {

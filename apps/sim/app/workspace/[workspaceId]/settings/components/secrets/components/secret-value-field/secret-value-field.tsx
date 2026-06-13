@@ -6,6 +6,13 @@ import { ChipInput } from '@/components/emcn'
 
 const BULLET = '\u2022'
 
+/**
+ * Viewers always see this many bullets regardless of the real value, which the
+ * server withholds (empty string) for non-admins. A fixed length also avoids
+ * leaking the secret's length.
+ */
+const VIEWER_MASK_LENGTH = 10
+
 type SecretValueFieldProps = Omit<
   ComponentProps<'input'>,
   'type' | 'value' | 'onChange' | 'readOnly'
@@ -50,7 +57,7 @@ export function SecretValueField({
   const [focused, setFocused] = useState(false)
   const editable = canEdit && !readOnly
   const maskActive = canEdit && !unmasked && !focused
-  const displayValue = canEdit ? value : value ? BULLET.repeat(value.length) : ''
+  const displayValue = canEdit ? value : BULLET.repeat(VIEWER_MASK_LENGTH)
 
   const mergedStyle: CSSProperties | undefined = maskActive
     ? ({ ...style, WebkitTextSecurity: 'disc' } as CSSProperties)

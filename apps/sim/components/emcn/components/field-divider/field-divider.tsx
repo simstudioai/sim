@@ -5,6 +5,21 @@ const DASHED_DIVIDER_STYLE = {
     'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
 } as const
 
+/**
+ * The bare dashed hairline used by `FieldDivider` and by inline divider rows
+ * (e.g. the "Show additional fields" disclosure flanks in the workflow editor
+ * and table sidebars). Single source of truth for the dash pattern and line
+ * thickness — consumers pass layout-only classes such as `flex-1`.
+ *
+ * @example
+ * ```tsx
+ * <DashedDividerLine className='flex-1' />
+ * ```
+ */
+function DashedDividerLine({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn('h-[1.25px]', className)} style={DASHED_DIVIDER_STYLE} {...props} />
+}
+
 interface FieldDividerProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Adds the `subblock-divider` marker class so the workflow editor's CSS
@@ -34,9 +49,9 @@ function FieldDivider({ className, subblockMarker = false, ...props }: FieldDivi
       className={cn('px-0.5 pt-4 pb-[13px]', subblockMarker && 'subblock-divider', className)}
       {...props}
     >
-      <div className='h-[1.25px]' style={DASHED_DIVIDER_STYLE} />
+      <DashedDividerLine />
     </div>
   )
 }
 
-export { FieldDivider }
+export { DashedDividerLine, FieldDivider }
