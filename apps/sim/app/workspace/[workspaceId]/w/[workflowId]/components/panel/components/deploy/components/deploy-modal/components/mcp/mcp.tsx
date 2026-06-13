@@ -77,6 +77,26 @@ function pickRawInputFormat(storeValue: unknown, blockFallbackValue: unknown): u
 }
 
 /**
+ * Extracts real per-parameter descriptions from a previously-saved tool schema,
+ * skipping the synthetic fallbacks the generator emits (the field name itself, or
+ * the file-array placeholder). Used only as a display fallback so descriptions on
+ * legacy tools — saved before descriptions moved to the start block — stay visible.
+ */
+function extractToolSchemaDescriptions(parameterSchema: unknown): Record<string, string> {
+  const properties = (parameterSchema as { properties?: Record<string, { description?: string }> })
+    ?.properties
+  if (!properties) return {}
+  const descriptions: Record<string, string> = {}
+  for (const [name, prop] of Object.entries(properties)) {
+    const description = prop?.description
+    if (description && description !== name && description !== 'Array of file objects') {
+      descriptions[name] = description
+    }
+  }
+  return descriptions
+}
+
+/**
  * Component to query tools for a single server and report back via callback.
  */
 function ServerToolsQuery({
@@ -224,6 +244,14 @@ export function McpDeploy({
     toolName: string
     toolDescription: string
   } | null>(null)
+  /**
+   * Descriptions read from an existing tool's saved schema, shown as a fallback when
+   * the start block has none yet — keeps descriptions from tools saved before the
+   * start-block migration visible. Editing one writes through to the start block.
+   */
+  const [legacyParameterDescriptions, setLegacyParameterDescriptions] = useState<
+    Record<string, string>
+  >({})
 
   useEffect(() => {
     if (savedValues) return
@@ -240,6 +268,7 @@ export function McpDeploy({
 
         setToolName(initialToolName)
         setToolDescription(initialToolDescription)
+        setLegacyParameterDescriptions(extractToolSchemaDescriptions(toolInfo.tool.parameterSchema))
         setSavedValues({
           toolName: initialToolName,
           toolDescription: initialToolDescription,
@@ -542,7 +571,7 @@ export function McpDeploy({
                   <div className='flex flex-col gap-1.5'>
                     <Label className='text-small'>Description</Label>
                     <ChipInput
-                      value={field.description ?? ''}
+                      value={field.description ?? legacyParameterDescriptions[field.name] ?? ''}
                       onChange={(e) => updateFieldDescription(field.name, e.target.value)}
                       placeholder={`Enter description for ${field.name}`}
                     />
