@@ -1,0 +1,50 @@
+---
+title: Chat
+description: Sim's natural-language builder and control plane — scaffold a system, inspect it, and converge on something that works.
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+import { Callout } from 'fumadocs-ui/components/callout'
+
+## Core thesis
+
+> Chat is where you build in natural language — Sim's conversational control plane. It helps you scaffold systems quickly, inspect what it created, and iteratively converge from a rough architecture to a working system.
+
+This module teaches the **actual mode of using Sim** — not "prompt and trust," and not "manual workflow builder first," but a loop:
+
+```
+specify → scaffold → inspect → run → debug → refine
+```
+
+And, more specifically, an annealing approach:
+
+```
+macro shape first
+→ then component refinement
+→ then execution verification
+→ then promotion / operationalization
+```
+
+<Callout type="info">
+Chat sits above the primitives, but it doesn't replace understanding them. It's how you describe the system you want before you manually reason about every block.
+</Callout>
+
+## The lifecycle this module teaches
+
+```
+prototype → stabilize → promote
+```
+
+- **Prototype** — describe the system, let Sim scaffold the macro shape, get a first draft fast.
+- **Stabilize** — inspect, run, read logs, and refine where real execution reveals what matters.
+- **Promote** — once stable, deploy it as an API, chat, or MCP surface and treat it as a real system, with logs as the verification layer.
+
+## Videos in this module
+
+<Cards>
+  <Card title="Building in Chat" href="/academy/chat/intro" description="What Chat is and the role it plays." />
+  <Card title="Building in Chat" href="/academy/chat/building" description="The macro → micro build loop." />
+  <Card title="Non-determinism & Convergence" href="/academy/chat/non-determinism" description="Why the exact graph varies, and how to evaluate a build." />
+  <Card title="Debugging in Chat" href="/academy/chat/debugging" description="Failures are expected — how to inspect and fix them." />
+  <Card title="Prototype, Refine, Promote" href="/academy/chat/prototype-refine-promote" description="The lifecycle of a system built in Chat." />
+</Cards>
