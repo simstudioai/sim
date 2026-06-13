@@ -676,6 +676,17 @@ async function applyPaidOrgJoinBillingTx(
     .limit(1)
 
   if (personalPro && !personalPro.cancelAtPeriodEnd) {
+    // Lock the personal Pro subscription before userStats (snapshotted below) so
+    // this matches restoreUserProSubscription's subscription → userStats order
+    // and cannot deadlock against a concurrent Pro restore for the same user.
+    // The cancel update further down re-locks this row (no-op).
+    await tx
+      .select({ id: subscriptionTable.id })
+      .from(subscriptionTable)
+      .where(eq(subscriptionTable.id, personalPro.id))
+      .for('update')
+      .limit(1)
+
     const [userStatsRow] = await tx
       .select({ currentPeriodCost: userStats.currentPeriodCost })
       .from(userStats)
@@ -1024,13 +1035,6 @@ export async function removeUserFromOrganization(
 
       const captureDepartedUsage = async () => {
         if (skipBillingLogic) return 0
-
-        await tx
-          .select({ id: organization.id })
-          .from(organization)
-          .where(eq(organization.id, organizationId))
-          .for('update')
-          .limit(1)
 
         const [departingUserStats] = await tx
           .select({ currentPeriodCost: userStats.currentPeriodCost })
