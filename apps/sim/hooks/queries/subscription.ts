@@ -285,8 +285,6 @@ export function useUpgradeSubscription() {
       return Promise.all([
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.users() }),
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.usage() }),
-        // An upgrade produces a new Stripe invoice; refresh the invoices subtree
-        // (both personal and org contexts) the original subscriptionKeys.all covered.
         queryClient.invalidateQueries({ queryKey: subscriptionKeys.invoicesAll() }),
         queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
         ...(variables.orgId

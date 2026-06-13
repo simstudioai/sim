@@ -5,7 +5,6 @@ import {
   getPauseContextDetailContract,
   resumeWorkflowExecutionContract,
 } from '@/lib/api/contracts/workflows'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { ResumeStatus } from '@/executor/types'
 
 export const resumeKeys = {
@@ -168,15 +167,12 @@ export function useResumeContext() {
       input,
     }: ResumeContextVariables): Promise<ResumeContextResult> => {
       // boundary-raw-fetch: resume-context POST contract has no body schema (route uses tolerant raw JSON parse for resume input forwarded to PauseResumeManager)
-      const response = await fetch(
-        `${getBaseUrl()}/api/resume/${workflowId}/${executionId}/${contextId}`,
-        {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(input ? { input } : {}),
-        }
-      )
+      const response = await fetch(`/api/resume/${workflowId}/${executionId}/${contextId}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input ? { input } : {}),
+      })
       const payload = await response.json().catch(() => ({}))
       return { ok: response.ok, payload }
     },

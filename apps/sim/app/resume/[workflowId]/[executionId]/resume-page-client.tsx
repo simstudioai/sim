@@ -586,8 +586,6 @@ export default function ResumeExecutionPage({
           executionDetail?.pausePoints.find(
             (point) => point.contextId !== selectedContextId && point.resumeStatus === 'paused'
           )?.contextId ?? null
-        // Optimistically reflect the new status in the cache; the mutation's
-        // onSettled invalidation refetches both queries to reconcile with the server.
         queryClient.setQueryData<PausedExecutionDetail>(
           resumeKeys.execution(workflowId, executionId),
           (prev) => {
@@ -628,7 +626,6 @@ export default function ResumeExecutionPage({
         setLoadingAction(false)
       }
     },
-    // resumeMutation.mutateAsync is referentially stable in TanStack Query v5
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       workflowId,

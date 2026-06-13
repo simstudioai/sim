@@ -69,8 +69,6 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
   )
 
   const { data: webhook } = useWebhookQuery(workflowId, blockId, isWebhookConfigured)
-  // Gate on isWebhookConfigured so this hook re-enforces its reset-when-unconfigured
-  // contract even though the byBlock cache may be populated by sibling observers.
   const isDisabled = isWebhookConfigured && webhook?.isActive === false
   const webhookId = isWebhookConfigured ? webhook?.id : undefined
 
@@ -83,7 +81,6 @@ export function useWebhookInfo(blockId: string, workflowId: string): UseWebhookI
         logger.error('Error reactivating webhook:', error)
       }
     },
-    // reactivateMutation.mutateAsync is referentially stable in TanStack Query v5
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workflowId, blockId]
   )
