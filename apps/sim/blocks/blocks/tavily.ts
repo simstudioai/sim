@@ -13,7 +13,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   docsLink: 'https://docs.sim.ai/integrations/tavily',
-  bgColor: '#0066FF',
+  bgColor: '#FFFFFF',
   icon: TavilyIcon,
   subBlocks: [
     {

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-12",
+  "updatedAt": "2026-06-13",
   "integrations": [
     {
       "type": "onepassword",
@@ -15051,7 +15051,7 @@
       "name": "Tavily",
       "description": "Search and extract information",
       "longDescription": "Integrate Tavily into the workflow. Can search the web and extract content from specific URLs. Requires API Key.",
-      "bgColor": "#0066FF",
+      "bgColor": "#FFFFFF",
       "iconName": "TavilyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tavily",
       "operations": [
