@@ -54,7 +54,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["secrets-management", "identity"]
+      "tags": ["secrets-management", "identity"],
+      "url": "https://1password.com"
     },
     {
       "type": "agentmail",
@@ -157,7 +158,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation"],
+      "url": "https://agentmail.to"
     },
     {
       "type": "agentphone",
@@ -264,7 +266,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation"],
+      "url": "https://agentphone.ai"
     },
     {
       "type": "agiloft",
@@ -335,7 +338,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["automation"]
+      "tags": ["automation"],
+      "url": "https://www.agiloft.com"
     },
     {
       "type": "ahrefs",
@@ -386,7 +390,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["seo", "marketing", "data-analytics"]
+      "tags": ["seo", "marketing", "data-analytics"],
+      "url": "https://ahrefs.com"
     },
     {
       "type": "airtable",
@@ -444,7 +449,8 @@
       "oauthServiceId": "airtable",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["spreadsheet", "automation"]
+      "tags": ["spreadsheet", "automation"],
+      "url": "https://www.airtable.com"
     },
     {
       "type": "airweave",
@@ -462,7 +468,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["vector-search", "knowledge-base"]
+      "tags": ["vector-search", "knowledge-base"],
+      "url": "https://airweave.ai"
     },
     {
       "type": "algolia",
@@ -541,7 +548,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["vector-search", "knowledge-base"]
+      "tags": ["vector-search", "knowledge-base"],
+      "url": "https://www.algolia.com"
     },
     {
       "type": "dynamodb",
@@ -588,7 +596,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud", "data-analytics"]
+      "tags": ["cloud", "data-analytics"],
+      "url": "https://aws.amazon.com/dynamodb"
     },
     {
       "type": "rds",
@@ -631,7 +640,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud"]
+      "tags": ["cloud"],
+      "url": "https://aws.amazon.com/rds"
     },
     {
       "type": "sqs",
@@ -654,7 +664,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "messaging", "automation"]
+      "tags": ["cloud", "messaging", "automation"],
+      "url": "https://aws.amazon.com/sqs"
     },
     {
       "type": "amplitude",
@@ -717,7 +728,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["data-analytics", "marketing"]
+      "tags": ["data-analytics", "marketing"],
+      "url": "https://amplitude.com"
     },
     {
       "type": "apify",
@@ -756,7 +768,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "automation", "data-analytics"]
+      "tags": ["web-scraping", "automation", "data-analytics"],
+      "url": "https://apify.com"
     },
     {
       "type": "apollo",
@@ -875,7 +888,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.apollo.io"
     },
     {
       "type": "arxiv",
@@ -906,7 +920,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["document-processing", "knowledge-base"]
+      "tags": ["document-processing", "knowledge-base"],
+      "url": "https://arxiv.org"
     },
     {
       "type": "asana",
@@ -950,7 +965,8 @@
       "oauthServiceId": "asana",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "ticketing", "automation"]
+      "tags": ["project-management", "ticketing", "automation"],
+      "url": "https://asana.com"
     },
     {
       "type": "ashby",
@@ -1112,7 +1128,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",
-      "tags": ["hiring"]
+      "tags": ["hiring"],
+      "url": "https://ashbyhq.com"
     },
     {
       "type": "athena",
@@ -1163,7 +1180,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["cloud", "data-analytics"]
+      "tags": ["cloud", "data-analytics"],
+      "url": "https://aws.amazon.com/athena"
     },
     {
       "type": "attio",
@@ -1458,7 +1476,8 @@
       "oauthServiceId": "attio",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["sales-engagement", "enrichment"]
+      "tags": ["sales-engagement", "enrichment"],
+      "url": "https://attio.com"
     },
     {
       "type": "appconfig",
@@ -1577,7 +1596,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "feature-flags", "automation"]
+      "tags": ["cloud", "feature-flags", "automation"],
+      "url": "https://aws.amazon.com/systems-manager/features/appconfig"
     },
     {
       "type": "iam",
@@ -1680,7 +1700,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["cloud", "identity"]
+      "tags": ["cloud", "identity"],
+      "url": "https://aws.amazon.com/iam"
     },
     {
       "type": "identity_center",
@@ -1747,7 +1768,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["cloud", "identity"]
+      "tags": ["cloud", "identity"],
+      "url": "https://aws.amazon.com/iam/identity-center"
     },
     {
       "type": "secrets_manager",
@@ -1786,7 +1808,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["cloud", "secrets-management"]
+      "tags": ["cloud", "secrets-management"],
+      "url": "https://aws.amazon.com/secrets-manager"
     },
     {
       "type": "ses",
@@ -1841,7 +1864,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["cloud", "email-marketing", "messaging"]
+      "tags": ["cloud", "email-marketing", "messaging"],
+      "url": "https://aws.amazon.com/ses"
     },
     {
       "type": "sts",
@@ -1876,7 +1900,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["cloud", "identity"]
+      "tags": ["cloud", "identity"],
+      "url": "https://docs.aws.amazon.com/STS/latest/APIReference/welcome.html"
     },
     {
       "type": "textract_v2",
@@ -1894,7 +1919,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["document-processing", "ocr", "cloud"]
+      "tags": ["document-processing", "ocr", "cloud"],
+      "url": "https://aws.amazon.com/textract"
     },
     {
       "type": "microsoft_ad",
@@ -1966,7 +1992,8 @@
       "oauthServiceId": "microsoft-ad",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "microsoft-365"]
+      "tags": ["identity", "microsoft-365"],
+      "url": "https://www.microsoft.com/security/business/identity-access/microsoft-entra-id"
     },
     {
       "type": "azure_devops",
@@ -2065,7 +2092,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["version-control", "ci-cd", "project-management"]
+      "tags": ["version-control", "ci-cd", "project-management"],
+      "url": "https://azure.microsoft.com/products/devops"
     },
     {
       "type": "box",
@@ -2145,7 +2173,8 @@
       "oauthServiceId": "box",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["cloud", "content-management", "e-signatures"]
+      "tags": ["cloud", "content-management", "e-signatures"],
+      "url": "https://www.box.com"
     },
     {
       "type": "brandfetch",
@@ -2172,7 +2201,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "marketing"]
+      "tags": ["enrichment", "marketing"],
+      "url": "https://brandfetch.com"
     },
     {
       "type": "brex",
@@ -2303,7 +2333,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
-      "tags": ["payments"]
+      "tags": ["payments"],
+      "url": "https://www.brex.com"
     },
     {
       "type": "brightdata",
@@ -2354,7 +2385,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "automation"]
+      "tags": ["web-scraping", "automation"],
+      "url": "https://brightdata.com"
     },
     {
       "type": "browser_use",
@@ -2372,7 +2404,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["web-scraping", "automation", "agentic"]
+      "tags": ["web-scraping", "automation", "agentic"],
+      "url": "https://browser-use.com"
     },
     {
       "type": "calcom",
@@ -2514,7 +2547,8 @@
       "oauthServiceId": "calcom",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["scheduling", "calendar", "meeting"]
+      "tags": ["scheduling", "calendar", "meeting"],
+      "url": "https://cal.com"
     },
     {
       "type": "calendly",
@@ -2582,7 +2616,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["scheduling", "calendar", "meeting"]
+      "tags": ["scheduling", "calendar", "meeting"],
+      "url": "https://calendly.com"
     },
     {
       "type": "clay",
@@ -2600,7 +2635,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement", "data-analytics"]
+      "tags": ["enrichment", "sales-engagement", "data-analytics"],
+      "url": "https://www.clay.com"
     },
     {
       "type": "clerk",
@@ -2663,7 +2699,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "automation"]
+      "tags": ["identity", "automation"],
+      "url": "https://clerk.com"
     },
     {
       "type": "clickhouse",
@@ -2786,7 +2823,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["data-warehouse", "data-analytics"]
+      "tags": ["data-warehouse", "data-analytics"],
+      "url": "https://clickhouse.com"
     },
     {
       "type": "cloudflare",
@@ -2857,7 +2895,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "monitoring"]
+      "tags": ["cloud", "monitoring"],
+      "url": "https://www.cloudflare.com"
     },
     {
       "type": "cloudformation",
@@ -2904,7 +2943,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud"]
+      "tags": ["cloud"],
+      "url": "https://aws.amazon.com/cloudformation"
     },
     {
       "type": "cloudwatch",
@@ -2963,7 +3003,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["cloud", "monitoring"]
+      "tags": ["cloud", "monitoring"],
+      "url": "https://aws.amazon.com/cloudwatch"
     },
     {
       "type": "codepipeline",
@@ -3014,7 +3055,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "ci-cd"]
+      "tags": ["cloud", "ci-cd"],
+      "url": "https://aws.amazon.com/codepipeline"
     },
     {
       "type": "confluence_v2",
@@ -3334,7 +3376,8 @@
       "oauthServiceId": "confluence",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["knowledge-base", "content-management", "note-taking"]
+      "tags": ["knowledge-base", "content-management", "note-taking"],
+      "url": "https://www.atlassian.com/software/confluence"
     },
     {
       "type": "convex",
@@ -3381,7 +3424,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud"]
+      "tags": ["cloud"],
+      "url": "https://www.convex.dev"
     },
     {
       "type": "crowdstrike",
@@ -3412,7 +3456,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "monitoring"]
+      "tags": ["identity", "monitoring"],
+      "url": "https://www.crowdstrike.com"
     },
     {
       "type": "cursor_v2",
@@ -3479,7 +3524,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["agentic", "automation"]
+      "tags": ["agentic", "automation"],
+      "url": "https://cursor.com"
     },
     {
       "type": "dagster",
@@ -3574,7 +3620,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["data-analytics", "automation"]
+      "tags": ["data-analytics", "automation"],
+      "url": "https://dagster.io"
     },
     {
       "type": "databricks",
@@ -3641,7 +3688,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["data-warehouse", "data-analytics", "cloud"]
+      "tags": ["data-warehouse", "data-analytics", "cloud"],
+      "url": "https://www.databricks.com"
     },
     {
       "type": "datadog",
@@ -3708,7 +3756,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "incident-management", "error-tracking"]
+      "tags": ["monitoring", "incident-management", "error-tracking"],
+      "url": "https://www.datadoghq.com"
     },
     {
       "type": "daytona",
@@ -3775,7 +3824,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["agentic", "cloud", "automation"]
+      "tags": ["agentic", "cloud", "automation"],
+      "url": "https://www.daytona.io"
     },
     {
       "type": "devin",
@@ -3838,7 +3888,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["agentic", "automation"]
+      "tags": ["agentic", "automation"],
+      "url": "https://devin.ai"
     },
     {
       "type": "discord",
@@ -3997,7 +4048,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "webhooks", "automation"]
+      "tags": ["messaging", "webhooks", "automation"],
+      "url": "https://discord.com"
     },
     {
       "type": "docusign",
@@ -4049,7 +4101,8 @@
       "oauthServiceId": "docusign",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["e-signatures", "document-processing"]
+      "tags": ["e-signatures", "document-processing"],
+      "url": "https://www.docusign.com"
     },
     {
       "type": "dropbox",
@@ -4109,7 +4162,8 @@
       "oauthServiceId": "dropbox",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["cloud", "document-processing"]
+      "tags": ["cloud", "document-processing"],
+      "url": "https://www.dropbox.com"
     },
     {
       "type": "dspy",
@@ -4140,7 +4194,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["llm", "agentic", "automation"]
+      "tags": ["llm", "agentic", "automation"],
+      "url": "https://dspy.ai"
     },
     {
       "type": "dub",
@@ -4211,7 +4266,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["link-management", "marketing", "data-analytics"]
+      "tags": ["link-management", "marketing", "data-analytics"],
+      "url": "https://dub.co"
     },
     {
       "type": "duckduckgo",
@@ -4229,7 +4285,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping"]
+      "tags": ["web-scraping"],
+      "url": "https://duckduckgo.com"
     },
     {
       "type": "elasticsearch",
@@ -4300,7 +4357,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["vector-search", "data-analytics"]
+      "tags": ["vector-search", "data-analytics"],
+      "url": "https://www.elastic.co/elasticsearch"
     },
     {
       "type": "elevenlabs",
@@ -4318,7 +4376,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["text-to-speech"]
+      "tags": ["text-to-speech"],
+      "url": "https://elevenlabs.io"
     },
     {
       "type": "emailbison",
@@ -4389,7 +4448,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["sales-engagement", "email-marketing", "automation"]
+      "tags": ["sales-engagement", "email-marketing", "automation"],
+      "url": "https://emailbison.com"
     },
     {
       "type": "openai",
@@ -4407,7 +4467,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["llm", "vector-search"]
+      "tags": ["llm", "vector-search"],
+      "url": "https://openai.com"
     },
     {
       "type": "enrich",
@@ -4554,7 +4615,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment"]
+      "tags": ["enrichment"],
+      "url": "https://www.enrich.so"
     },
     {
       "type": "evernote",
@@ -4617,7 +4679,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["note-taking", "knowledge-base"]
+      "tags": ["note-taking", "knowledge-base"],
+      "url": "https://evernote.com"
     },
     {
       "type": "exa",
@@ -4656,7 +4719,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping"]
+      "tags": ["web-scraping"],
+      "url": "https://exa.ai"
     },
     {
       "type": "extend_v2",
@@ -4674,7 +4738,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["document-processing", "ocr"]
+      "tags": ["document-processing", "ocr"],
+      "url": "https://www.extend.ai"
     },
     {
       "type": "fathom",
@@ -4724,7 +4789,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["meeting", "note-taking"]
+      "tags": ["meeting", "note-taking"],
+      "url": "https://fathom.ai"
     },
     {
       "type": "findymail",
@@ -4787,7 +4853,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.findymail.com"
     },
     {
       "type": "firecrawl",
@@ -4834,7 +4901,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "automation"]
+      "tags": ["web-scraping", "automation"],
+      "url": "https://www.firecrawl.dev"
     },
     {
       "type": "fireflies_v2",
@@ -4899,7 +4967,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["meeting", "note-taking"]
+      "tags": ["meeting", "note-taking"],
+      "url": "https://fireflies.ai"
     },
     {
       "type": "gamma",
@@ -4938,7 +5007,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "marketing",
-      "tags": ["document-processing", "content-management"]
+      "tags": ["document-processing", "content-management"],
+      "url": "https://gamma.app"
     },
     {
       "type": "github_v2",
@@ -5345,7 +5415,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["version-control", "ci-cd"]
+      "tags": ["version-control", "ci-cd"],
+      "url": "https://github.com"
     },
     {
       "type": "gitlab",
@@ -5440,7 +5511,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["version-control", "ci-cd"]
+      "tags": ["version-control", "ci-cd"],
+      "url": "https://about.gitlab.com"
     },
     {
       "type": "gmail_v2",
@@ -5518,7 +5590,8 @@
       "oauthServiceId": "gmail",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["google-workspace", "messaging"]
+      "tags": ["google-workspace", "messaging"],
+      "url": "https://www.google.com/gmail/about"
     },
     {
       "type": "gong",
@@ -5632,7 +5705,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["meeting", "sales-engagement", "speech-to-text"]
+      "tags": ["meeting", "sales-engagement", "speech-to-text"],
+      "url": "https://www.gong.io"
     },
     {
       "type": "google_ads",
@@ -5676,7 +5750,8 @@
       "oauthServiceId": "google-ads",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["marketing", "google-workspace", "data-analytics"]
+      "tags": ["marketing", "google-workspace", "data-analytics"],
+      "url": "https://ads.google.com"
     },
     {
       "type": "google_bigquery",
@@ -5716,7 +5791,8 @@
       "oauthServiceId": "google-bigquery",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["data-warehouse", "google-workspace", "data-analytics"]
+      "tags": ["data-warehouse", "google-workspace", "data-analytics"],
+      "url": "https://cloud.google.com/bigquery"
     },
     {
       "type": "google_books",
@@ -5743,7 +5819,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["google-workspace", "knowledge-base", "content-management"]
+      "tags": ["google-workspace", "knowledge-base", "content-management"],
+      "url": "https://books.google.com"
     },
     {
       "type": "google_calendar_v2",
@@ -5809,7 +5886,8 @@
       "oauthServiceId": "google-calendar",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["calendar", "scheduling", "google-workspace"]
+      "tags": ["calendar", "scheduling", "google-workspace"],
+      "url": "https://workspace.google.com/products/calendar"
     },
     {
       "type": "google_contacts",
@@ -5853,7 +5931,8 @@
       "oauthServiceId": "google-contacts",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["google-workspace", "customer-support", "enrichment"]
+      "tags": ["google-workspace", "customer-support", "enrichment"],
+      "url": "https://contacts.google.com"
     },
     {
       "type": "google_docs",
@@ -5885,7 +5964,8 @@
       "oauthServiceId": "google-docs",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["google-workspace", "document-processing", "content-management"]
+      "tags": ["google-workspace", "document-processing", "content-management"],
+      "url": "https://www.google.com/docs/about"
     },
     {
       "type": "google_drive",
@@ -5983,7 +6063,8 @@
       "oauthServiceId": "google-drive",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["cloud", "google-workspace", "document-processing"]
+      "tags": ["cloud", "google-workspace", "document-processing"],
+      "url": "https://workspace.google.com/products/drive"
     },
     {
       "type": "google_forms",
@@ -6045,7 +6126,8 @@
       "oauthServiceId": "google-forms",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["google-workspace", "forms", "data-analytics"]
+      "tags": ["google-workspace", "forms", "data-analytics"],
+      "url": "https://workspace.google.com/products/forms"
     },
     {
       "type": "google_groups",
@@ -6129,7 +6211,8 @@
       "oauthServiceId": "google-groups",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["google-workspace", "messaging", "identity"]
+      "tags": ["google-workspace", "messaging", "identity"],
+      "url": "https://groups.google.com"
     },
     {
       "type": "google_maps",
@@ -6200,7 +6283,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["google-workspace", "enrichment"]
+      "tags": ["google-workspace", "enrichment"],
+      "url": "https://mapsplatform.google.com"
     },
     {
       "type": "google_meet",
@@ -6244,7 +6328,8 @@
       "oauthServiceId": "google-meet",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["meeting", "google-workspace", "scheduling"]
+      "tags": ["meeting", "google-workspace", "scheduling"],
+      "url": "https://workspace.google.com/products/meet"
     },
     {
       "type": "google_pagespeed",
@@ -6262,7 +6347,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["google-workspace", "seo", "monitoring"]
+      "tags": ["google-workspace", "seo", "monitoring"],
+      "url": "https://pagespeed.web.dev"
     },
     {
       "type": "google_search",
@@ -6280,7 +6366,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "seo"]
+      "tags": ["web-scraping", "seo"],
+      "url": "https://developers.google.com/custom-search"
     },
     {
       "type": "google_sheets_v2",
@@ -6350,7 +6437,8 @@
       "oauthServiceId": "google-sheets",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["spreadsheet", "google-workspace", "data-analytics"]
+      "tags": ["spreadsheet", "google-workspace", "data-analytics"],
+      "url": "https://workspace.google.com/products/sheets"
     },
     {
       "type": "google_slides_v2",
@@ -6578,7 +6666,8 @@
       "oauthServiceId": "google-drive",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["google-workspace", "document-processing", "content-management"]
+      "tags": ["google-workspace", "document-processing", "content-management"],
+      "url": "https://workspace.google.com/products/slides"
     },
     {
       "type": "google_tasks",
@@ -6622,7 +6711,8 @@
       "oauthServiceId": "google-tasks",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["google-workspace", "project-management", "scheduling"]
+      "tags": ["google-workspace", "project-management", "scheduling"],
+      "url": "https://workspace.google.com/products/tasks"
     },
     {
       "type": "google_translate",
@@ -6649,7 +6739,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["google-workspace", "content-management", "automation"]
+      "tags": ["google-workspace", "content-management", "automation"],
+      "url": "https://cloud.google.com/translate"
     },
     {
       "type": "google_vault",
@@ -6697,7 +6788,8 @@
       "oauthServiceId": "google-vault",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["google-workspace", "document-processing"]
+      "tags": ["google-workspace", "document-processing"],
+      "url": "https://support.google.com/vault"
     },
     {
       "type": "grafana",
@@ -6792,7 +6884,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "data-analytics"]
+      "tags": ["monitoring", "data-analytics"],
+      "url": "https://grafana.com"
     },
     {
       "type": "grain",
@@ -6888,7 +6981,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["meeting", "note-taking"]
+      "tags": ["meeting", "note-taking"],
+      "url": "https://grain.com"
     },
     {
       "type": "granola",
@@ -6919,7 +7013,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["meeting", "note-taking"]
+      "tags": ["meeting", "note-taking"],
+      "url": "https://granola.ai"
     },
     {
       "type": "greenhouse",
@@ -7023,7 +7118,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",
-      "tags": ["hiring"]
+      "tags": ["hiring"],
+      "url": "https://www.greenhouse.com"
     },
     {
       "type": "greptile",
@@ -7058,7 +7154,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["version-control", "knowledge-base"]
+      "tags": ["version-control", "knowledge-base"],
+      "url": "https://www.greptile.com"
     },
     {
       "type": "hex",
@@ -7141,7 +7238,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["data-analytics"]
+      "tags": ["data-analytics"],
+      "url": "https://hex.tech"
     },
     {
       "type": "hubspot",
@@ -7283,7 +7381,8 @@
       "oauthServiceId": "hubspot",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["marketing", "sales-engagement", "customer-support"]
+      "tags": ["marketing", "sales-engagement", "customer-support"],
+      "url": "https://www.hubspot.com"
     },
     {
       "type": "huggingface",
@@ -7301,7 +7400,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["llm", "agentic"]
+      "tags": ["llm", "agentic"],
+      "url": "https://huggingface.co"
     },
     {
       "type": "hunter",
@@ -7344,7 +7444,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://hunter.io"
     },
     {
       "type": "incidentio",
@@ -7547,7 +7648,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["incident-management", "monitoring"]
+      "tags": ["incident-management", "monitoring"],
+      "url": "https://incident.io"
     },
     {
       "type": "infisical",
@@ -7586,7 +7688,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["secrets-management"]
+      "tags": ["secrets-management"],
+      "url": "https://infisical.com"
     },
     {
       "type": "instantly",
@@ -7758,7 +7861,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["sales-engagement", "email-marketing", "automation"]
+      "tags": ["sales-engagement", "email-marketing", "automation"],
+      "url": "https://instantly.ai"
     },
     {
       "type": "intercom_v2",
@@ -7932,7 +8036,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "support",
-      "tags": ["customer-support", "messaging"]
+      "tags": ["customer-support", "messaging"],
+      "url": "https://www.intercom.com"
     },
     {
       "type": "jina",
@@ -7959,7 +8064,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "knowledge-base"]
+      "tags": ["web-scraping", "knowledge-base"],
+      "url": "https://jina.ai"
     },
     {
       "type": "jira",
@@ -8155,7 +8261,8 @@
       "oauthServiceId": "jira",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "ticketing"]
+      "tags": ["project-management", "ticketing"],
+      "url": "https://www.atlassian.com/software/jira"
     },
     {
       "type": "jira_service_management",
@@ -8337,7 +8444,8 @@
       "oauthServiceId": "jira",
       "category": "tools",
       "integrationType": "support",
-      "tags": ["customer-support", "ticketing", "incident-management"]
+      "tags": ["customer-support", "ticketing", "incident-management"],
+      "url": "https://www.atlassian.com/software/jira/service-management"
     },
     {
       "type": "kalshi_v2",
@@ -8444,7 +8552,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["prediction-markets", "data-analytics"]
+      "tags": ["prediction-markets", "data-analytics"],
+      "url": "https://kalshi.com"
     },
     {
       "type": "ketch",
@@ -8483,7 +8592,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity"]
+      "tags": ["identity"],
+      "url": "https://www.ketch.com"
     },
     {
       "type": "langsmith",
@@ -8510,7 +8620,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "llm"]
+      "tags": ["monitoring", "llm"],
+      "url": "https://www.langchain.com/langsmith"
     },
     {
       "type": "latex",
@@ -8545,7 +8656,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["document-processing"]
+      "tags": ["document-processing"],
+      "url": "https://www.latex-project.org"
     },
     {
       "type": "launchdarkly",
@@ -8612,7 +8724,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["feature-flags", "ci-cd"]
+      "tags": ["feature-flags", "ci-cd"],
+      "url": "https://launchdarkly.com"
     },
     {
       "type": "lemlist",
@@ -8689,7 +8802,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["sales-engagement", "email-marketing", "automation"]
+      "tags": ["sales-engagement", "email-marketing", "automation"],
+      "url": "https://www.lemlist.com"
     },
     {
       "type": "linear_v2",
@@ -9097,7 +9211,8 @@
       "oauthServiceId": "linear",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "ticketing"]
+      "tags": ["project-management", "ticketing"],
+      "url": "https://linear.app"
     },
     {
       "type": "linkedin",
@@ -9125,7 +9240,8 @@
       "oauthServiceId": "linkedin",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["marketing", "sales-engagement"]
+      "tags": ["marketing", "sales-engagement"],
+      "url": "https://www.linkedin.com"
     },
     {
       "type": "linkup",
@@ -9143,7 +9259,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "enrichment"]
+      "tags": ["web-scraping", "enrichment"],
+      "url": "https://www.linkup.so"
     },
     {
       "type": "linq",
@@ -9298,7 +9415,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation", "webhooks"]
+      "tags": ["messaging", "automation", "webhooks"],
+      "url": "https://www.linqapp.com"
     },
     {
       "type": "loops",
@@ -9357,7 +9475,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["email-marketing", "marketing", "automation"]
+      "tags": ["email-marketing", "marketing", "automation"],
+      "url": "https://loops.so"
     },
     {
       "type": "luma",
@@ -9420,7 +9539,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["events", "calendar", "scheduling"]
+      "tags": ["events", "calendar", "scheduling"],
+      "url": "https://luma.com"
     },
     {
       "type": "mailchimp",
@@ -9731,7 +9851,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["email-marketing", "marketing", "automation"]
+      "tags": ["email-marketing", "marketing", "automation"],
+      "url": "https://mailchimp.com"
     },
     {
       "type": "mailgun",
@@ -9782,7 +9903,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["messaging", "email-marketing"]
+      "tags": ["messaging", "email-marketing"],
+      "url": "https://www.mailgun.com"
     },
     {
       "type": "mem0",
@@ -9813,7 +9935,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["llm", "knowledge-base", "agentic"]
+      "tags": ["llm", "knowledge-base", "agentic"],
+      "url": "https://mem0.ai"
     },
     {
       "type": "microsoft_dataverse",
@@ -9901,7 +10024,8 @@
       "oauthServiceId": "microsoft-dataverse",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["microsoft-365", "data-warehouse", "cloud"]
+      "tags": ["microsoft-365", "data-warehouse", "cloud"],
+      "url": "https://www.microsoft.com/power-platform/dataverse"
     },
     {
       "type": "microsoft_excel_v2",
@@ -9929,7 +10053,8 @@
       "oauthServiceId": "microsoft-excel",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["spreadsheet", "microsoft-365"]
+      "tags": ["spreadsheet", "microsoft-365"],
+      "url": "https://www.microsoft.com/microsoft-365/excel"
     },
     {
       "type": "microsoft_planner",
@@ -10001,7 +10126,8 @@
       "oauthServiceId": "microsoft-planner",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "microsoft-365"]
+      "tags": ["project-management", "microsoft-365"],
+      "url": "https://www.microsoft.com/microsoft-365/business/task-management-software"
     },
     {
       "type": "microsoft_teams",
@@ -10083,7 +10209,8 @@
       "oauthServiceId": "microsoft-teams",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "microsoft-365"]
+      "tags": ["messaging", "microsoft-365"],
+      "url": "https://www.microsoft.com/microsoft-teams/group-chat-software"
     },
     {
       "type": "millionverifier",
@@ -10110,7 +10237,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.millionverifier.com"
     },
     {
       "type": "mistral_parse_v3",
@@ -10128,7 +10256,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["document-processing", "ocr"]
+      "tags": ["document-processing", "ocr"],
+      "url": "https://mistral.ai"
     },
     {
       "type": "monday",
@@ -10246,7 +10375,8 @@
       "oauthServiceId": "monday",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "ticketing"]
+      "tags": ["project-management", "ticketing"],
+      "url": "https://monday.com"
     },
     {
       "type": "mongodb",
@@ -10289,7 +10419,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["data-warehouse", "cloud"]
+      "tags": ["data-warehouse", "cloud"],
+      "url": "https://www.mongodb.com"
     },
     {
       "type": "mysql",
@@ -10378,7 +10509,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["data-warehouse", "data-analytics"]
+      "tags": ["data-warehouse", "data-analytics"],
+      "url": "https://neo4j.com"
     },
     {
       "type": "neverbounce",
@@ -10405,7 +10537,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.neverbounce.com"
     },
     {
       "type": "new_relic",
@@ -10440,7 +10573,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["monitoring", "error-tracking", "incident-management"]
+      "tags": ["monitoring", "error-tracking", "incident-management"],
+      "url": "https://newrelic.com"
     },
     {
       "type": "notion_v2",
@@ -10505,7 +10639,8 @@
       "oauthServiceId": "notion",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["note-taking", "knowledge-base", "content-management"]
+      "tags": ["note-taking", "knowledge-base", "content-management"],
+      "url": "https://www.notion.com"
     },
     {
       "type": "obsidian",
@@ -10584,7 +10719,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["note-taking", "knowledge-base"]
+      "tags": ["note-taking", "knowledge-base"],
+      "url": "https://obsidian.md"
     },
     {
       "type": "okta",
@@ -10675,7 +10811,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity", "automation"]
+      "tags": ["identity", "automation"],
+      "url": "https://www.okta.com"
     },
     {
       "type": "onedrive",
@@ -10719,7 +10856,8 @@
       "oauthServiceId": "onedrive",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["microsoft-365", "cloud", "document-processing"]
+      "tags": ["microsoft-365", "cloud", "document-processing"],
+      "url": "https://www.microsoft.com/microsoft-365/onedrive"
     },
     {
       "type": "outlook",
@@ -10781,7 +10919,8 @@
       "oauthServiceId": "outlook",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["microsoft-365", "messaging", "automation"]
+      "tags": ["microsoft-365", "messaging", "automation"],
+      "url": "https://www.microsoft.com/microsoft-365/outlook"
     },
     {
       "type": "pagerduty",
@@ -10824,7 +10963,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["incident-management", "monitoring"]
+      "tags": ["incident-management", "monitoring"],
+      "url": "https://www.pagerduty.com"
     },
     {
       "type": "parallel_ai",
@@ -10855,7 +10995,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "llm", "agentic"]
+      "tags": ["web-scraping", "llm", "agentic"],
+      "url": "https://parallel.ai"
     },
     {
       "type": "peopledatalabs",
@@ -10918,7 +11059,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment"]
+      "tags": ["enrichment"],
+      "url": "https://www.peopledatalabs.com"
     },
     {
       "type": "perplexity",
@@ -10945,7 +11087,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["llm", "web-scraping", "agentic"]
+      "tags": ["llm", "web-scraping", "agentic"],
+      "url": "https://www.perplexity.ai"
     },
     {
       "type": "persona",
@@ -11068,7 +11211,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["identity"]
+      "tags": ["identity"],
+      "url": "https://withpersona.com"
     },
     {
       "type": "pinecone",
@@ -11107,7 +11251,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["vector-search", "knowledge-base"]
+      "tags": ["vector-search", "knowledge-base"],
+      "url": "https://www.pinecone.io"
     },
     {
       "type": "pipedrive",
@@ -11199,7 +11344,8 @@
       "oauthServiceId": "pipedrive",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["sales-engagement", "project-management"]
+      "tags": ["sales-engagement", "project-management"],
+      "url": "https://www.pipedrive.com"
     },
     {
       "type": "polymarket",
@@ -11298,7 +11444,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["prediction-markets", "data-analytics"]
+      "tags": ["prediction-markets", "data-analytics"],
+      "url": "https://polymarket.com"
     },
     {
       "type": "postgresql",
@@ -11531,7 +11678,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["data-analytics", "monitoring", "feature-flags"]
+      "tags": ["data-analytics", "monitoring", "feature-flags"],
+      "url": "https://posthog.com"
     },
     {
       "type": "profound",
@@ -11646,7 +11794,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["seo", "data-analytics"]
+      "tags": ["seo", "data-analytics"],
+      "url": "https://www.tryprofound.com"
     },
     {
       "type": "prospeo",
@@ -11697,7 +11846,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://prospeo.io"
     },
     {
       "type": "pulse_v2",
@@ -11715,7 +11865,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["document-processing", "ocr"]
+      "tags": ["document-processing", "ocr"],
+      "url": "https://www.runpulse.com"
     },
     {
       "type": "qdrant",
@@ -11746,7 +11897,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["vector-search", "knowledge-base"]
+      "tags": ["vector-search", "knowledge-base"],
+      "url": "https://qdrant.tech"
     },
     {
       "type": "quartr",
@@ -11833,7 +11985,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["data-analytics", "enrichment", "document-processing"]
+      "tags": ["data-analytics", "enrichment", "document-processing"],
+      "url": "https://quartr.com"
     },
     {
       "type": "quiver",
@@ -11864,7 +12017,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["image-generation"]
+      "tags": ["image-generation"],
+      "url": "https://quiver.ai"
     },
     {
       "type": "railway",
@@ -11963,7 +12117,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "ci-cd"]
+      "tags": ["cloud", "ci-cd"],
+      "url": "https://railway.com"
     },
     {
       "type": "rb2b",
@@ -12042,7 +12197,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement", "identity"]
+      "tags": ["enrichment", "sales-engagement", "identity"],
+      "url": "https://rb2b.com"
     },
     {
       "type": "reddit",
@@ -12210,7 +12366,8 @@
       "oauthServiceId": "reddit",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["content-management", "web-scraping"]
+      "tags": ["content-management", "web-scraping"],
+      "url": "https://www.reddit.com"
     },
     {
       "type": "redis",
@@ -12317,7 +12474,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud"]
+      "tags": ["cloud"],
+      "url": "https://redis.io"
     },
     {
       "type": "reducto_v2",
@@ -12335,7 +12493,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["document-processing", "ocr"]
+      "tags": ["document-processing", "ocr"],
+      "url": "https://reducto.ai"
     },
     {
       "type": "resend",
@@ -12427,7 +12586,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["email-marketing", "messaging"]
+      "tags": ["email-marketing", "messaging"],
+      "url": "https://resend.com"
     },
     {
       "type": "revenuecat",
@@ -12486,7 +12646,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
-      "tags": ["payments", "subscriptions"]
+      "tags": ["payments", "subscriptions"],
+      "url": "https://www.revenuecat.com"
     },
     {
       "type": "rippling",
@@ -12849,7 +13010,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",
-      "tags": ["hiring"]
+      "tags": ["hiring"],
+      "url": "https://www.rippling.com"
     },
     {
       "type": "rootly",
@@ -13032,7 +13194,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["incident-management", "monitoring"]
+      "tags": ["incident-management", "monitoring"],
+      "url": "https://rootly.com"
     },
     {
       "type": "s3",
@@ -13071,7 +13234,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["cloud", "automation"]
+      "tags": ["cloud", "automation"],
+      "url": "https://aws.amazon.com/s3"
     },
     {
       "type": "salesforce",
@@ -13262,7 +13426,8 @@
       "oauthServiceId": "salesforce",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["sales-engagement", "customer-support"]
+      "tags": ["sales-engagement", "customer-support"],
+      "url": "https://www.salesforce.com"
     },
     {
       "type": "sap_concur",
@@ -13561,7 +13726,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["automation"]
+      "tags": ["automation"],
+      "url": "https://www.concur.com"
     },
     {
       "type": "sap_s4hana",
@@ -13732,7 +13898,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "hr",
-      "tags": ["automation"]
+      "tags": ["automation"],
+      "url": "https://www.sap.com/products/erp/s4hana.html"
     },
     {
       "type": "sendblue",
@@ -13782,7 +13949,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation", "webhooks"]
+      "tags": ["messaging", "automation", "webhooks"],
+      "url": "https://sendblue.com"
     },
     {
       "type": "sendgrid",
@@ -13865,7 +14033,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email",
-      "tags": ["email-marketing", "messaging"]
+      "tags": ["email-marketing", "messaging"],
+      "url": "https://www.twilio.com/en-us/sendgrid"
     },
     {
       "type": "sentry",
@@ -13936,7 +14105,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "observability",
-      "tags": ["error-tracking", "monitoring"]
+      "tags": ["error-tracking", "monitoring"],
+      "url": "https://sentry.io"
     },
     {
       "type": "serper",
@@ -13954,7 +14124,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "seo"]
+      "tags": ["web-scraping", "seo"],
+      "url": "https://serper.dev"
     },
     {
       "type": "servicenow",
@@ -14031,7 +14202,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "support",
-      "tags": ["customer-support", "ticketing", "incident-management"]
+      "tags": ["customer-support", "ticketing", "incident-management"],
+      "url": "https://www.servicenow.com"
     },
     {
       "type": "sftp",
@@ -14125,7 +14297,8 @@
       "oauthServiceId": "sharepoint",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["microsoft-365", "content-management", "document-processing"]
+      "tags": ["microsoft-365", "content-management", "document-processing"],
+      "url": "https://www.microsoft.com/microsoft-365/sharepoint/collaboration"
     },
     {
       "type": "shopify",
@@ -14229,7 +14402,8 @@
       "oauthServiceId": "shopify",
       "category": "tools",
       "integrationType": "commerce",
-      "tags": ["payments", "automation"]
+      "tags": ["payments", "automation"],
+      "url": "https://www.shopify.com"
     },
     {
       "type": "similarweb",
@@ -14268,7 +14442,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["marketing", "data-analytics", "seo"]
+      "tags": ["marketing", "data-analytics", "seo"],
+      "url": "https://www.similarweb.com"
     },
     {
       "type": "sixtyfour",
@@ -14303,7 +14478,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://sixtyfour.ai"
     },
     {
       "type": "slack",
@@ -14470,6 +14646,7 @@
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "webhooks", "automation"],
+      "url": "https://slack.com",
       "landingContent": {
         "install": {
           "heading": "Add Sim to your Slack workspace",
@@ -14612,7 +14789,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["web-scraping", "automation", "agentic"]
+      "tags": ["web-scraping", "automation", "agentic"],
+      "url": "https://www.stagehand.dev"
     },
     {
       "type": "stripe",
@@ -14837,7 +15015,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "commerce",
-      "tags": ["payments", "subscriptions", "webhooks"]
+      "tags": ["payments", "subscriptions", "webhooks"],
+      "url": "https://stripe.com"
     },
     {
       "type": "supabase",
@@ -14944,7 +15123,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud", "data-warehouse", "vector-search"]
+      "tags": ["cloud", "data-warehouse", "vector-search"],
+      "url": "https://supabase.com"
     },
     {
       "type": "tailscale",
@@ -15043,7 +15223,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["monitoring"]
+      "tags": ["monitoring"],
+      "url": "https://tailscale.com"
     },
     {
       "type": "tavily",
@@ -15078,7 +15259,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["web-scraping", "enrichment"]
+      "tags": ["web-scraping", "enrichment"],
+      "url": "https://tavily.com"
     },
     {
       "type": "telegram",
@@ -15131,7 +15313,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "webhooks", "automation"]
+      "tags": ["messaging", "webhooks", "automation"],
+      "url": "https://telegram.org"
     },
     {
       "type": "temporal",
@@ -15230,7 +15413,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["automation"]
+      "tags": ["automation"],
+      "url": "https://temporal.io"
     },
     {
       "type": "tinybird",
@@ -15273,7 +15457,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
-      "tags": ["data-warehouse", "data-analytics"]
+      "tags": ["data-warehouse", "data-analytics"],
+      "url": "https://www.tinybird.co"
     },
     {
       "type": "trello",
@@ -15317,7 +15502,8 @@
       "oauthServiceId": "trello",
       "category": "tools",
       "integrationType": "productivity",
-      "tags": ["project-management", "ticketing"]
+      "tags": ["project-management", "ticketing"],
+      "url": "https://trello.com"
     },
     {
       "type": "trigger_dev",
@@ -15512,7 +15698,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["automation", "ci-cd", "monitoring"]
+      "tags": ["automation", "ci-cd", "monitoring"],
+      "url": "https://trigger.dev"
     },
     {
       "type": "twilio_sms",
@@ -15530,7 +15717,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation"],
+      "url": "https://www.twilio.com"
     },
     {
       "type": "twilio_voice",
@@ -15567,7 +15755,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "text-to-speech"]
+      "tags": ["messaging", "text-to-speech"],
+      "url": "https://www.twilio.com"
     },
     {
       "type": "typeform",
@@ -15624,7 +15813,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "documents",
-      "tags": ["forms", "data-analytics"]
+      "tags": ["forms", "data-analytics"],
+      "url": "https://www.typeform.com"
     },
     {
       "type": "upstash",
@@ -15707,7 +15897,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
-      "tags": ["cloud"]
+      "tags": ["cloud"],
+      "url": "https://upstash.com"
     },
     {
       "type": "vanta",
@@ -15842,7 +16033,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "security",
-      "tags": ["monitoring", "automation", "document-processing"]
+      "tags": ["monitoring", "automation", "document-processing"],
+      "url": "https://www.vanta.com"
     },
     {
       "type": "vercel",
@@ -16126,7 +16318,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "devops",
-      "tags": ["cloud", "ci-cd"]
+      "tags": ["cloud", "ci-cd"],
+      "url": "https://vercel.com"
     },
     {
       "type": "wealthbox",
@@ -16170,7 +16363,8 @@
       "oauthServiceId": "wealthbox",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["sales-engagement"]
+      "tags": ["sales-engagement"],
+      "url": "https://www.wealthbox.com"
     },
     {
       "type": "webflow",
@@ -16231,7 +16425,8 @@
       "oauthServiceId": "webflow",
       "category": "tools",
       "integrationType": "marketing",
-      "tags": ["content-management", "seo"]
+      "tags": ["content-management", "seo"],
+      "url": "https://webflow.com"
     },
     {
       "type": "whatsapp",
@@ -16255,7 +16450,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["messaging", "automation"]
+      "tags": ["messaging", "automation"],
+      "url": "https://www.whatsapp.com"
     },
     {
       "type": "wikipedia",
@@ -16290,7 +16486,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "search",
-      "tags": ["knowledge-base"]
+      "tags": ["knowledge-base"],
+      "url": "https://www.wikipedia.org"
     },
     {
       "type": "wiza",
@@ -16325,7 +16522,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://wiza.co"
     },
     {
       "type": "wordpress",
@@ -16449,7 +16647,8 @@
       "oauthServiceId": "wordpress",
       "category": "tools",
       "integrationType": "marketing",
-      "tags": ["content-management", "seo"]
+      "tags": ["content-management", "seo"],
+      "url": "https://wordpress.org"
     },
     {
       "type": "workday",
@@ -16508,7 +16707,8 @@
       "authType": "none",
       "category": "tools",
       "integrationType": "hr",
-      "tags": ["hiring"]
+      "tags": ["hiring"],
+      "url": "https://www.workday.com"
     },
     {
       "type": "x",
@@ -16640,7 +16840,8 @@
       "oauthServiceId": "x",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["marketing", "messaging"]
+      "tags": ["marketing", "messaging"],
+      "url": "https://x.com"
     },
     {
       "type": "youtube",
@@ -16695,7 +16896,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["marketing", "content-management"]
+      "tags": ["marketing", "content-management"],
+      "url": "https://www.youtube.com"
     },
     {
       "type": "zendesk",
@@ -16818,7 +17020,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "support",
-      "tags": ["customer-support", "ticketing"]
+      "tags": ["customer-support", "ticketing"],
+      "url": "https://www.zendesk.com"
     },
     {
       "type": "zep",
@@ -16873,7 +17076,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "ai",
-      "tags": ["knowledge-base", "agentic"]
+      "tags": ["knowledge-base", "agentic"],
+      "url": "https://www.getzep.com"
     },
     {
       "type": "zerobounce",
@@ -16900,7 +17104,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.zerobounce.net"
     },
     {
       "type": "zoom",
@@ -16991,7 +17196,8 @@
       "oauthServiceId": "zoom",
       "category": "tools",
       "integrationType": "communication",
-      "tags": ["meeting", "calendar", "scheduling"]
+      "tags": ["meeting", "calendar", "scheduling"],
+      "url": "https://www.zoom.com"
     },
     {
       "type": "zoominfo",
@@ -17034,7 +17240,8 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "sales",
-      "tags": ["enrichment", "sales-engagement"]
+      "tags": ["enrichment", "sales-engagement"],
+      "url": "https://www.zoominfo.com"
     }
   ]
 }

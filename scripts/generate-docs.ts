@@ -161,6 +161,8 @@ interface BlockConfig {
   }
   operations?: OperationInfo[]
   docsLink?: string
+  /** Canonical homepage of the external service, sourced from `*BlockMeta.url`. */
+  url?: string
   [key: string]: any
 }
 
@@ -233,6 +235,8 @@ interface IntegrationEntry {
   category: BlockCategory
   integrationType: IntegrationType
   tags?: string[]
+  /** Canonical homepage of the external service, sourced from `*BlockMeta.url`. */
+  url?: string
   landingContent?: Record<string, unknown>
 }
 
@@ -903,6 +907,7 @@ async function writeIntegrationsJson(iconMapping: Record<string, string>): Promi
           category: 'tools',
           integrationType,
           ...(config.tags ? { tags: config.tags } : {}),
+          ...(config.url ? { url: config.url } : {}),
           ...(landingContentMap[slug] ? { landingContent: landingContentMap[slug] } : {}),
         })
       }
@@ -1098,6 +1103,11 @@ function extractBlockConfigFromContent(
       (fileContent && spreadBase
         ? extractTagsFromBlockMeta(fileContent, spreadBase.replace(/Block$/, ''))
         : null)
+    const url =
+      (fileContent ? extractUrlFromBlockMeta(fileContent, blockName) : null) ||
+      (fileContent && spreadBase
+        ? extractUrlFromBlockMeta(fileContent, spreadBase.replace(/Block$/, ''))
+        : null)
 
     return {
       type: blockType,
@@ -1116,6 +1126,7 @@ function extractBlockConfigFromContent(
       docsLink,
       ...(integrationType ? { integrationType } : {}),
       ...(tags ? { tags } : {}),
+      ...(url ? { url } : {}),
     }
   } catch (error) {
     console.error(`Error extracting block configuration for ${blockName}:`, error)
@@ -1253,6 +1264,23 @@ function extractArrayPropertyFromContent(content: string, propName: string): str
 }
 
 /**
+ * Locate and return the body (between the outermost braces) of a
+ * `<BlockName>BlockMeta` literal at file scope. Returns null when no matching
+ * meta export exists. Shared by the per-field meta extractors below so they
+ * scan only that literal and never pick up values from sibling declarations.
+ */
+function extractBlockMetaBody(fileContent: string, blockName: string): string | null {
+  const headerRegex = new RegExp(`export\\s+const\\s+${blockName}BlockMeta\\s*(?::[^=]+)?=\\s*\\{`)
+  const metaHeaderMatch = fileContent.match(headerRegex)
+  if (!metaHeaderMatch || metaHeaderMatch.index === undefined) return null
+  const openBracePos = fileContent.indexOf('{', metaHeaderMatch.index)
+  if (openBracePos === -1) return null
+  const closeBracePos = findMatchingClose(fileContent, openBracePos)
+  if (closeBracePos === -1) return null
+  return fileContent.substring(openBracePos + 1, closeBracePos)
+}
+
+/**
  * Extract `tags` from a `<BlockName>BlockMeta` literal in the source file.
  * Looks for `export const <BlockName>BlockMeta = { ... tags: [...] ... }`
  * at file scope and scans only the body of that literal. Returns null when
@@ -1263,15 +1291,21 @@ function extractArrayPropertyFromContent(content: string, propName: string): str
  * try this extractor first and fall back to the `BlockConfig` extractor.
  */
 function extractTagsFromBlockMeta(fileContent: string, blockName: string): string[] | null {
-  const headerRegex = new RegExp(`export\\s+const\\s+${blockName}BlockMeta\\s*(?::[^=]+)?=\\s*\\{`)
-  const metaHeaderMatch = fileContent.match(headerRegex)
-  if (!metaHeaderMatch || metaHeaderMatch.index === undefined) return null
-  const openBracePos = fileContent.indexOf('{', metaHeaderMatch.index)
-  if (openBracePos === -1) return null
-  const closeBracePos = findMatchingClose(fileContent, openBracePos)
-  if (closeBracePos === -1) return null
-  const metaBody = fileContent.substring(openBracePos + 1, closeBracePos)
+  const metaBody = extractBlockMetaBody(fileContent, blockName)
+  if (metaBody === null) return null
   return extractArrayPropertyFromContent(metaBody, 'tags')
+}
+
+/**
+ * Extract the external-service homepage `url` from a `<BlockName>BlockMeta`
+ * literal. Mirrors {@link extractTagsFromBlockMeta}: scans only the meta body,
+ * so a `url` on a nested template never leaks in. Returns null when the meta
+ * export or its `url` field is absent.
+ */
+function extractUrlFromBlockMeta(fileContent: string, blockName: string): string | null {
+  const metaBody = extractBlockMetaBody(fileContent, blockName)
+  if (metaBody === null) return null
+  return extractStringPropertyFromContent(metaBody, 'url', true)
 }
 
 function extractIconNameFromContent(content: string): string | null {
@@ -2750,6 +2784,7 @@ async function generateMarkdownForBlock(
     description,
     longDescription,
     bgColor,
+    url,
     outputs = {},
     tools = { access: [] },
   } = blockConfig
@@ -2921,9 +2956,9 @@ description: ${description}
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
 
-<BlockInfoCard 
+<BlockInfoCard
   type="${type}"
-  color="${bgColor || '#F5F5F5'}"
+  color="${bgColor || '#F5F5F5'}"${url ? `\n  name="${name}"\n  href="${url}"` : ''}
 />
 
 ${usageInstructions}

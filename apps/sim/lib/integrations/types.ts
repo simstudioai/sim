@@ -44,6 +44,12 @@ export interface Integration {
   bgColor: BlockConfig['bgColor']
   /** Tags sourced from the block's `*BlockMeta` export at generation time. */
   tags?: IntegrationTag[]
+  /**
+   * Canonical homepage of the external service, sourced from the block's
+   * `*BlockMeta.url`. Drives the outbound "Visit" link and the SoftwareApplication
+   * `sameAs` entity link. Absent for protocol/internal blocks without a vendor site.
+   */
+  url?: string
   /** URL slug derived from `name`. */
   slug: string
   /** Name of the React icon component (resolved client-side via `blockTypeToIconMap`). */

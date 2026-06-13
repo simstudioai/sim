@@ -303,6 +303,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
 
   const { name, description, longDescription, bgColor, docsUrl, operations, triggers, authType } =
     integration
+  const websiteUrl = integration.url
 
   const landingContent = integration.landingContent
 
@@ -346,6 +347,7 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
     ...(integration.tags?.length
       ? { keywords: integration.tags.map((tag) => tag.replace(/-/g, ' ')).join(', ') }
       : {}),
+    ...(websiteUrl ? { about: { '@type': 'Organization', name, url: websiteUrl } } : {}),
     dateModified: INTEGRATIONS_UPDATED_AT,
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   }
@@ -502,6 +504,42 @@ export default async function IntegrationPage({ params }: { params: Promise<{ sl
               />
             </svg>
           </a>
+          {websiteUrl && (
+            <a
+              href={websiteUrl}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='group/link inline-flex h-[32px] items-center gap-1.5 rounded-[5px] border border-[var(--landing-border-strong)] px-2.5 font-season text-[var(--landing-text)] text-sm transition-colors hover:bg-[var(--landing-bg-elevated)]'
+            >
+              Visit {name}
+              <svg
+                aria-hidden='true'
+                className='-rotate-45 size-3 shrink-0'
+                viewBox='0 0 10 10'
+                fill='none'
+              >
+                <line
+                  x1='0'
+                  y1='5'
+                  x2='9'
+                  y2='5'
+                  stroke='currentColor'
+                  strokeWidth='1.33'
+                  strokeLinecap='square'
+                  className='origin-left scale-x-0 transition-transform duration-200 ease-out [transform-box:fill-box] group-hover/link:scale-x-100'
+                />
+                <path
+                  d='M3.5 2L6.5 5L3.5 8'
+                  stroke='currentColor'
+                  strokeWidth='1.33'
+                  strokeLinecap='square'
+                  strokeLinejoin='miter'
+                  fill='none'
+                  className='transition-transform duration-200 ease-out group-hover/link:translate-x-[30%]'
+                />
+              </svg>
+            </a>
+          )}
         </div>
 
         <p className='mt-5 text-[var(--landing-text-secondary)] text-xs'>
