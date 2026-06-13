@@ -8,10 +8,10 @@ import {
   createScheduleContract,
   deleteScheduleContract,
   disableScheduleContract,
+  excludeOccurrenceContract,
   getScheduleContract,
   listWorkspaceSchedulesContract,
   reactivateScheduleContract,
-  type ScheduleLifecycle,
   type UpdateScheduleBody,
   updateScheduleContract,
   type WorkflowScheduleRow,
@@ -260,6 +260,43 @@ export function useDeleteSchedule() {
 }
 
 /**
+ * Mutation to delete a single occurrence of a recurring task (gcal "this
+ * event"). The whole series is deleted via {@link useDeleteSchedule} instead.
+ */
+export function useExcludeOccurrence() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      scheduleId,
+      occurrence,
+      workspaceId,
+    }: {
+      scheduleId: string
+      occurrence: string
+      workspaceId: string
+    }) => {
+      await requestJson(excludeOccurrenceContract, {
+        params: { id: scheduleId },
+        body: { action: 'exclude_occurrence', occurrence },
+      })
+
+      return { workspaceId }
+    },
+    onError: (error) => {
+      logger.error('Failed to delete occurrence', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
+      ])
+    },
+  })
+}
+
+/**
  * Mutation to update fields on a standalone job schedule
  */
 export function useUpdateSchedule() {
@@ -301,32 +338,7 @@ export function useCreateSchedule() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      timezone,
-      lifecycle,
-      maxRuns,
-      startDate,
-    }: CreateScheduleBody & {
-      timezone: string
-      lifecycle: ScheduleLifecycle
-    }) => {
-      return requestJson(createScheduleContract, {
-        body: {
-          workspaceId,
-          title,
-          prompt,
-          cronExpression,
-          timezone,
-          lifecycle,
-          maxRuns,
-          startDate,
-        },
-      })
-    },
+    mutationFn: async (body: CreateScheduleBody) => requestJson(createScheduleContract, { body }),
     onError: (error) => {
       logger.error('Failed to create schedule', { error })
     },

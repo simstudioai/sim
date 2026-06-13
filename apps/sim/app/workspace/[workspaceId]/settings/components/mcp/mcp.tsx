@@ -694,15 +694,14 @@ export function MCP({ initialServerId }: MCPProps) {
         }}
         srTitle='Delete MCP Server'
         title='Delete MCP Server'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {servers.find((s) => s.id === serverToDeleteId)?.name || 'this server'}
-            </span>
-            ? This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          {
+            text: servers.find((s) => s.id === serverToDeleteId)?.name || 'this server',
+            bold: true,
+          },
+          '? This action cannot be undone.',
+        ]}
         confirm={{ label: 'Delete', onClick: confirmDeleteServer }}
       />
     </>

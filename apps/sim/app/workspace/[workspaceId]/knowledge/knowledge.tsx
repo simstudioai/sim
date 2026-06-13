@@ -131,7 +131,7 @@ export function Knowledge() {
     }
   }, [permissionConfig.hideKnowledgeBaseTab, router, workspaceId])
 
-  const { knowledgeBases, isLoading, error } = useKnowledgeBasesList(workspaceId)
+  const { knowledgeBases, error } = useKnowledgeBasesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
@@ -567,10 +567,8 @@ export function Knowledge() {
         <Resource.Table
           columns={COLUMNS}
           rows={rows}
-          sort={sortConfig}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading}
         />
       </Resource>
 

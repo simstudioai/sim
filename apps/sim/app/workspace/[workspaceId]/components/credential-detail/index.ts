@@ -1,6 +1,5 @@
 export { AddPeopleModal } from './components/add-people-modal'
 export { CHIP_FIELD_INPUT, CHIP_FIELD_SHELL } from './components/chip-field'
-export { CopyableValueField } from './components/copyable-value-field'
 export { CredentialDetailHeading } from './components/credential-detail-heading'
 export { CredentialDetailLayout } from './components/credential-detail-layout'
 export { CredentialMembersSection } from './components/credential-members-section'

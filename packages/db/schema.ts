@@ -648,6 +648,12 @@ export const workflowSchedule = pgTable(
       onDelete: 'cascade',
     }),
     jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
+    /** `@`-mentioned resources / `/`-invoked skills captured with the prompt, resolved into the agent run at fire time. */
+    contexts: jsonb('contexts').$type<Array<Record<string, unknown>>>(),
+    /** ISO timestamps of recurring occurrences the user deleted individually (EXDATE); the executor skips them. */
+    excludedDates: jsonb('excluded_dates').$type<string[]>(),
+    /** Recurrence end boundary: the schedule completes once its next run would fall after this instant. */
+    endsAt: timestamp('ends_at'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

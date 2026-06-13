@@ -834,14 +834,13 @@ export function DeployModal({
         }}
         srTitle='Undeploy API'
         title='Undeploy API'
-        description={
-          <>
-            Are you sure you want to undeploy this workflow?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will remove the API endpoint and make it unavailable to external users.
-            </span>
-          </>
-        }
+        text={[
+          'Are you sure you want to undeploy this workflow? ',
+          {
+            text: 'This will remove the API endpoint and make it unavailable to external users.',
+            error: true,
+          },
+        ]}
         confirm={{
           label: 'Undeploy',
           onClick: handleUndeploy,
@@ -855,19 +854,13 @@ export function DeployModal({
         onOpenChange={setShowA2aDeleteConfirm}
         srTitle='Delete A2A Agent'
         title='Delete A2A Agent'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {existingA2aAgent?.name || 'this agent'}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently remove the agent configuration.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: existingA2aAgent?.name || 'this agent', bold: true },
+          '? ',
+          { text: 'This will permanently remove the agent configuration.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleA2aDelete,

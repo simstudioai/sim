@@ -67,7 +67,7 @@ export function Tables() {
 
   const userPermissions = useUserPermissionsContext()
 
-  const { data: tables = [], isLoading, error } = useTablesList(workspaceId)
+  const { data: tables = [], error } = useTablesList(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
 
   if (error) {
@@ -583,7 +583,6 @@ export function Tables() {
           rows={rows}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading}
         />
       </Resource>
 
@@ -653,16 +652,13 @@ export function Tables() {
         }}
         srTitle='Delete Table'
         title='Delete Table'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{activeTable?.name}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              All {activeTable?.rowCount} rows will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: activeTable?.name ?? 'this table', bold: true },
+          '? ',
+          { text: `All ${activeTable?.rowCount ?? 0} rows will be removed.`, error: true },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

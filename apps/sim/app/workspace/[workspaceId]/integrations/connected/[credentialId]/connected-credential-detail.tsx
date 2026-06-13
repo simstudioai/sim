@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import {
   Chip,
   ChipConfirmModal,
+  ChipCopyInput,
   ChipInput,
   ChipLink,
   ChipTextarea,
@@ -19,7 +20,6 @@ import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrati
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
   AddPeopleModal,
-  CopyableValueField,
   CredentialDetailHeading,
   CredentialDetailLayout,
   CredentialMembersSection,
@@ -259,11 +259,7 @@ export function ConnectedCredentialDetail({
         />
 
         <DetailSection title='Credential ID'>
-          <CopyableValueField
-            id='credential-id'
-            value={credential.id}
-            copyLabel='Copy credential ID'
-          />
+          <ChipCopyInput id='credential-id' value={credential.id} copyLabel='Copy credential ID' />
         </DetailSection>
 
         <DetailSection title='Display Name'>
@@ -299,13 +295,11 @@ export function ConnectedCredentialDetail({
         onOpenChange={setShowDeleteConfirmDialog}
         srTitle='Disconnect Integration'
         title='Disconnect Integration'
-        description={
-          <>
-            Are you sure you want to disconnect{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{credential.displayName}</span>
-            ? This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to disconnect ',
+          { text: credential.displayName, bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Disconnect',
           onClick: handleConfirmDelete,

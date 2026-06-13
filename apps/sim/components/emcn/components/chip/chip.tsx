@@ -14,6 +14,7 @@ import {
   chipContentLabelClass,
   chipFilledFillTokens,
   chipGeometryClass,
+  chipPrimaryFillTokens,
 } from '@/components/emcn/components/chip/chip-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
@@ -31,7 +32,9 @@ import { cn } from '@/lib/core/utils/cn'
  * `filled` (`--surface-5` light / `--surface-4` dark fill, `--surface-active` hover) — a borderless surface reserved for
  * chip FIELDS/TRIGGERS ({@link ChipInput}/{@link ChipDropdown}/{@link ChipSelect}/{@link ChipDatePicker}), **never `Chip`
  * itself**; those triggers add the `--border-1` outline themselves via `TRIGGER_BORDER_CLASS`;
- * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface).
+ * `primary` (inverse surface), `destructive` (error-token surface), `border-shadow` (raised card-like surface),
+ * `border` (the `border-shadow` shadow ring on a transparent surface — an outline drawn purely via box-shadow,
+ * no CSS border, no fill).
  * `active` renders the default/filled chip in its selected state — `--surface-active` at rest, one surface darker
  * (`--surface-6`) on hover. `fullWidth` swaps `inline-flex` for block-level `flex`. `flush` removes the default
  * `mx-0.5` cluster margin — use when a single chip sits in its own layout slot (grid/table cell).
@@ -43,12 +46,13 @@ const chipVariants = cva(
       variant: {
         default: 'hover-hover:bg-[var(--surface-active)]',
         filled: `${chipFilledFillTokens} hover-hover:bg-[var(--surface-active)]`,
-        primary:
-          'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
+        primary: `${chipPrimaryFillTokens} hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]`,
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
+        border:
+          'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-active)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]',
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
@@ -78,7 +82,7 @@ type ChipIcon = ComponentType<{ className?: string }>
  * for chip fields/triggers, never `Chip` itself. For a selected/toggle chip use
  * the `active` prop, not a variant.
  */
-type ChipVariant = 'primary' | 'destructive' | 'border-shadow'
+type ChipVariant = 'primary' | 'destructive' | 'border-shadow' | 'border'
 
 interface ChipBaseProps extends Omit<VariantProps<typeof chipVariants>, 'variant'> {
   variant?: ChipVariant

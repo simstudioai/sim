@@ -44,6 +44,7 @@ export function ScheduleListContextMenu({
         side='bottom'
         sideOffset={4}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onContextMenu={(e) => e.preventDefault()}
       >
         {onCreateSchedule && (
           <DropdownMenuItem disabled={disableCreate} onSelect={onCreateSchedule}>

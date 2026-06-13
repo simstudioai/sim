@@ -686,14 +686,11 @@ function WorkspaceHeaderImpl({
         onOpenChange={() => setIsLeaveModalOpen(false)}
         srTitle='Leave workspace'
         title='Leave workspace'
-        description={
-          <>
-            Are you sure you want to leave{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{leaveTarget?.name}</span>? You
-            will lose access to all workflows and data in this workspace. This action cannot be
-            undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to leave ',
+          { text: leaveTarget?.name ?? 'this workspace', bold: true },
+          '? You will lose access to all workflows and data in this workspace. This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Leave workspace',
           onClick: handleLeaveWorkspace,

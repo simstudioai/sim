@@ -415,20 +415,16 @@ export function ChatDeploy({
         onOpenChange={setShowDeleteConfirmation}
         srTitle='Delete Chat'
         title='Delete Chat'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {existingChat?.title || 'this chat'}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will remove the chat at "{getEmailDomain()}/chat/{existingChat?.identifier}" and
-              make it unavailable to all users.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: existingChat?.title || 'this chat', bold: true },
+          '? ',
+          {
+            text: `This will remove the chat at "${getEmailDomain()}/chat/${existingChat?.identifier ?? ''}" and make it unavailable to all users.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

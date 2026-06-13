@@ -89,6 +89,7 @@ function formatToolName(name: string): string {
 }
 
 function resolveAgentLabel(key: string): string {
+  if (key === 'mothership') return 'Sim'
   return SUBAGENT_LABELS[key] ?? formatToolName(key)
 }
 
@@ -401,7 +402,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
  * Groups content blocks into agent-scoped segments.
  * Dispatch tool_calls (name matches a subagent key, no calledBy) are absorbed
  * into the agent header. Inner tool_calls are nested underneath their agent.
- * Orphan tool_calls (no calledBy, not a dispatch) group under "Mothership".
+ * Orphan tool_calls (no calledBy, not a dispatch) group under "Sim".
  *
  * New backends stamp every subagent block with deterministic span identity; in
  * that case {@link parseBlocksWithSpanTree} builds a real nested tree. The

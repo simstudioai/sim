@@ -37,7 +37,8 @@ export type WindowWithSpeech = Window & {
 }
 
 export interface PlusMenuHandle {
-  open: (anchor?: { left: number; top: number }, options?: { mention?: boolean }) => void
+  /** Opens the menu anchored at a viewport position (caret or trigger rect). */
+  open: (anchor: { left: number; top: number }, options?: { mention?: boolean }) => void
   close: () => void
   moveActive: (delta: number) => void
   selectActive: () => boolean
@@ -46,23 +47,27 @@ export interface PlusMenuHandle {
 /**
  * Box and typography shared by the textarea and its mirror overlay — both must
  * produce identical line wrapping so the overlay text sits exactly over the
- * (transparent) textarea text.
+ * (transparent) textarea text. The scale is the canonical chip text-field
+ * scale ({@link ChipTextarea}: `text-sm`, default tracking), so the editor
+ * reads identically in the chat input and inside chip modals — one size,
+ * everywhere.
  */
 const FIELD_MIRROR_CLASSES = cn(
-  'm-0 box-border min-h-[24px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]'
+  'm-0 box-border min-h-[20px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
+  'px-1 py-1 font-body text-sm leading-[20px]'
 )
 
 /**
  * The textarea grows to its full content height (`h-auto`, no internal scroll);
  * the shared scroller clips and scrolls it. Its text is transparent so the
- * mirror overlay shows through; only the caret paints.
+ * mirror overlay shows through; only the caret paints. The placeholder uses
+ * the canonical `--text-muted`, matching every other chip text field.
  */
 export const TEXTAREA_BASE_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
   'block h-auto resize-none overflow-hidden',
   'text-transparent caret-[var(--text-primary)] outline-none',
-  'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
+  'placeholder:text-[var(--text-muted)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0'
 )
 
