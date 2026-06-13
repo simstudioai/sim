@@ -330,6 +330,7 @@ export const PineconeBlock: BlockConfig<PineconeResponse> = {
 
 export const PineconeBlockMeta = {
   tags: ['vector-search', 'knowledge-base'],
+  url: 'https://www.pinecone.io',
   templates: [
     {
       icon: PineconeIcon,

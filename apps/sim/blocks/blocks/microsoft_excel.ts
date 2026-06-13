@@ -676,6 +676,7 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 
 export const MicrosoftExcelBlockMeta = {
   tags: ['spreadsheet', 'microsoft-365'],
+  url: 'https://www.microsoft.com/microsoft-365/excel',
   templates: [
     {
       icon: MicrosoftExcelIcon,
@@ -780,4 +781,5 @@ export const MicrosoftExcelBlockMeta = {
 
 export const MicrosoftExcelV2BlockMeta = {
   tags: ['spreadsheet', 'microsoft-365'],
+  url: 'https://www.microsoft.com/microsoft-365/excel',
 } as const satisfies BlockMeta

@@ -355,6 +355,7 @@ Return ONLY the numeric timestamp - no explanations, no extra text.`,
 
 export const NewRelicBlockMeta = {
   tags: ['monitoring', 'error-tracking', 'incident-management'],
+  url: 'https://newrelic.com',
   templates: [
     {
       icon: NewRelicIcon,

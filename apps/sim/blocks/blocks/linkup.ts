@@ -157,6 +157,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const LinkupBlockMeta = {
   tags: ['web-scraping', 'enrichment'],
+  url: 'https://www.linkup.so',
   templates: [
     {
       icon: LinkupIcon,

@@ -2065,6 +2065,7 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
 
 export const GitHubBlockMeta = {
   tags: ['version-control', 'ci-cd'],
+  url: 'https://github.com',
   templates: [
     {
       icon: GithubIcon,
@@ -2191,4 +2192,5 @@ export const GitHubBlockMeta = {
 
 export const GitHubV2BlockMeta = {
   tags: ['version-control', 'ci-cd'],
+  url: 'https://github.com',
 } as const satisfies BlockMeta

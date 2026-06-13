@@ -434,6 +434,7 @@ export const AgiloftBlock: BlockConfig = {
 
 export const AgiloftBlockMeta = {
   tags: ['automation'],
+  url: 'https://www.agiloft.com',
   templates: [
     {
       icon: AgiloftIcon,

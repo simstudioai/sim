@@ -924,6 +924,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
 export const GongBlockMeta = {
   tags: ['meeting', 'sales-engagement', 'speech-to-text'],
+  url: 'https://www.gong.io',
   templates: [
     {
       icon: GongIcon,

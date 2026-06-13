@@ -386,6 +386,7 @@ export const TinybirdBlock: BlockConfig<TinybirdResponse> = {
 
 export const TinybirdBlockMeta = {
   tags: ['data-warehouse', 'data-analytics'],
+  url: 'https://www.tinybird.co',
   templates: [
     {
       icon: TinybirdIcon,

@@ -854,6 +854,7 @@ export const RailwayBlock: BlockConfig<RailwayResponse> = {
 
 export const RailwayBlockMeta = {
   tags: ['cloud', 'ci-cd'],
+  url: 'https://railway.com',
   templates: [
     {
       icon: RailwayIcon,

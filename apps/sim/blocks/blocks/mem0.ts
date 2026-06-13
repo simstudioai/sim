@@ -274,6 +274,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const Mem0BlockMeta = {
   tags: ['llm', 'knowledge-base', 'agentic'],
+  url: 'https://mem0.ai',
   templates: [
     {
       icon: Mem0Icon,

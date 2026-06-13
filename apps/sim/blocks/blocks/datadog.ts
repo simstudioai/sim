@@ -836,6 +836,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
 
 export const DatadogBlockMeta = {
   tags: ['monitoring', 'incident-management', 'error-tracking'],
+  url: 'https://www.datadoghq.com',
   templates: [
     {
       icon: DatadogIcon,

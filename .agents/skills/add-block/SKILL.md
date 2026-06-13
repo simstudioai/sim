@@ -640,6 +640,7 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 
 export const {Service}BlockMeta = {
   tags: ['messaging', 'automation'],   // Same tags as the block's tags field
+  url: 'https://{service}.com',         // Canonical homepage of the external service
   templates: [                          // Optional but strongly encouraged
     {
       icon: {Service}Icon,
@@ -666,6 +667,7 @@ export const {Service}BlockMeta = {
 
 - **Import `BlockMeta`** from `@/blocks/types` alongside `BlockConfig`
 - **`tags`** must match the `tags` array on the block config exactly
+- **`url`** is the canonical homepage of the external service the block integrates with (e.g. `'https://exa.ai'`, `'https://salesforce.com'`) — the catalog "link back to the tool". It is distinct from `BlockConfig.docsLink`, which points at Sim's own integration docs on `docs.sim.ai`. Use the service's real root domain over `https` (verify it actually resolves), no tracking params, no trailing slash. Omit `url` only for first-party/built-in blocks that have no external service (e.g. `agent`, `function`, `condition`, `api`, `response`)
 - **Templates are optional** but should be added for any integration that has a recognizable use case — aim for 2–4 templates per block
 - **Template `prompt`** should start with "Build a workflow that..." or "Create a workflow that..." and be concrete enough to generate a real workflow in Mothership
 - **Template `modules`** lists the Sim modules the template relies on: `'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'`
@@ -906,6 +908,7 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] Outputs match tool outputs
 - [ ] Block registered in `registry.ts` blocks object (alphabetically)
 - [ ] `{Service}BlockMeta` exported at bottom of block file with `tags` and `templates`
+- [ ] `url` set on `{Service}BlockMeta` to the external service's verified homepage (omit only for first-party blocks with no external service)
 - [ ] `skills` added to `{Service}BlockMeta`, each grounded in the block's `tools.access` and derived from a real online-sourced use case (not invented)
 - [ ] `BlockMeta` imported from `@/blocks/types` alongside `BlockConfig`
 - [ ] Block meta registered in `registry.ts` blocksMeta object (alphabetically)

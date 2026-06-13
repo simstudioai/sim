@@ -1259,6 +1259,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
 
 export const HubSpotBlockMeta = {
   tags: ['marketing', 'sales-engagement', 'customer-support'],
+  url: 'https://www.hubspot.com',
   templates: [
     {
       icon: HubspotIcon,

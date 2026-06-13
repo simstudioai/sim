@@ -799,6 +799,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
 
 export const DiscordBlockMeta = {
   tags: ['messaging', 'webhooks', 'automation'],
+  url: 'https://discord.com',
   templates: [
     {
       icon: DiscordIcon,

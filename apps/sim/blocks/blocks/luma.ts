@@ -547,6 +547,7 @@ Return ONLY the ISO 8601 timestamp - no explanations, no quotes, no extra text.`
 
 export const LumaBlockMeta = {
   tags: ['events', 'calendar', 'scheduling'],
+  url: 'https://luma.com',
   templates: [
     {
       icon: LumaIcon,

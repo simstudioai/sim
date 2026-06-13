@@ -668,6 +668,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const SalesforceBlockMeta = {
   tags: ['sales-engagement', 'customer-support'],
+  url: 'https://www.salesforce.com',
   templates: [
     {
       icon: SalesforceIcon,

@@ -703,6 +703,7 @@ Return ONLY valid JSON.`,
 
 export const Neo4jBlockMeta = {
   tags: ['data-warehouse', 'data-analytics'],
+  url: 'https://neo4j.com',
   templates: [
     {
       icon: Neo4jIcon,

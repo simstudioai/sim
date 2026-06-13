@@ -310,6 +310,7 @@ export const EvernoteBlock: BlockConfig = {
 
 export const EvernoteBlockMeta = {
   tags: ['note-taking', 'knowledge-base'],
+  url: 'https://evernote.com',
   templates: [
     {
       icon: EvernoteIcon,

@@ -467,6 +467,7 @@ export const ClickHouseBlock: BlockConfig<ClickHouseResponse> = {
 
 export const ClickHouseBlockMeta = {
   tags: ['data-warehouse', 'data-analytics'],
+  url: 'https://clickhouse.com',
   templates: [
     {
       icon: ClickHouseIcon,

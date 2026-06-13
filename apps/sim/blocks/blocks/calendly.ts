@@ -330,6 +330,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
 export const CalendlyBlockMeta = {
   tags: ['scheduling', 'calendar', 'meeting'],
+  url: 'https://calendly.com',
   templates: [
     {
       icon: CalendlyIcon,
