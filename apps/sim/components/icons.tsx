@@ -604,6 +604,25 @@ export function FirecrawlIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function CrwIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg' {...props}>
+      <path
+        d='M12 2 3 6v6c0 5.25 3.75 9.27 9 10 5.25-.73 9-4.75 9-10V6l-9-4z'
+        fill='#F97316'
+      />
+      <path
+        d='M9.5 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 3.2-2.1M12.5 8.7l2 1.15v2.3l-2 1.15-2-1.15v-2.3l2-1.15zM16.5 8.5a3.5 3.5 0 1 1 0 7'
+        fill='none'
+        stroke='#FFFFFF'
+        strokeWidth='1.4'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+    </svg>
+  )
+}
+
 export function JinaAIIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg

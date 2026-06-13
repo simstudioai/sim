@@ -13,6 +13,7 @@ export type BYOKProviderId =
   | 'ollama-cloud'
   | 'falai'
   | 'firecrawl'
+  | 'crw'
   | 'exa'
   | 'serper'
   | 'jina'

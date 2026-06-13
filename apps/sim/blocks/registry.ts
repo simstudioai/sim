@@ -41,6 +41,7 @@ import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/block
 import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
+import { CrwBlock, CrwBlockMeta } from '@/blocks/blocks/crw'
 import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cursor'
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
@@ -406,6 +407,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   zerobounce: ZeroBounceBlock,
   neverbounce: NeverBounceBlock,
   millionverifier: MillionVerifierBlock,
+  crw: CrwBlock,
   firecrawl: FirecrawlBlock,
   fireflies: FirefliesBlock,
   fireflies_v2: FirefliesV2Block,
@@ -669,6 +671,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   confluence: ConfluenceBlockMeta,
   convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
+  crw: CrwBlockMeta,
   cursor: CursorBlockMeta,
   dagster: DagsterBlockMeta,
   databricks: DatabricksBlockMeta,
