@@ -50,10 +50,10 @@ The Sim blog covers announcements, technical deep-dives, and guides for building
 ## Documentation
 
 - Getting Started: https://docs.sim.ai/getting-started
-- Blocks: https://docs.sim.ai/blocks
-- Tools & Integrations: https://docs.sim.ai/tools
-- Webhooks: https://docs.sim.ai/webhooks
-- MCP Protocol: https://docs.sim.ai/mcp
-- Self-Hosting: https://docs.sim.ai/self-hosting
+- Blocks: https://docs.sim.ai/workflows
+- Tools & Integrations: https://docs.sim.ai/integrations
+- Webhooks: https://docs.sim.ai/workflows/triggers/webhook
+- MCP Protocol: https://docs.sim.ai/agents/mcp
+- Self-Hosting: https://docs.sim.ai/platform/self-hosting
 - API Reference: https://docs.sim.ai/api-reference/getting-started
 - SDKs: https://docs.sim.ai/api-reference

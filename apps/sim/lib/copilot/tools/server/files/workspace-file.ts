@@ -8,19 +8,32 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
+import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
+import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
+import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
   getWorkspaceFileByName,
+  resolveWorkspaceFileReference,
   uploadWorkspaceFile,
+  type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
 } from '@/lib/workspace-files/orchestration'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
+import {
+  compileDoc,
+  DOCXJS_SOURCE_MIME,
+  DocCompileUserError,
+  getE2BDocFormat,
+  PPTXGENJS_SOURCE_MIME,
+} from './doc-compile'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
@@ -28,8 +41,9 @@ const logger = createLogger('WorkspaceFileServerTool')
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 const PDF_MIME = 'application/pdf'
-const PPTX_SOURCE_MIME = 'text/x-pptxgenjs'
-const DOCX_SOURCE_MIME = 'text/x-docxjs'
+// Single source of the JS source MIMEs is doc-compile.ts; reuse to avoid drift.
+const PPTX_SOURCE_MIME = PPTXGENJS_SOURCE_MIME
+const DOCX_SOURCE_MIME = DOCXJS_SOURCE_MIME
 const PDF_SOURCE_MIME = 'text/x-pdflibjs'
 
 type WorkspaceFileOperation = 'create' | 'append' | 'update' | 'delete' | 'rename' | 'patch'
@@ -43,6 +57,11 @@ type WorkspaceFileTarget =
   | {
       kind: 'file_id'
       fileId: string
+      fileName?: string
+    }
+  | {
+      kind: 'path'
+      path: string
       fileName?: string
     }
 
@@ -162,6 +181,74 @@ export function getDocumentFormatInfo(fileName: string): DocumentFormatInfo {
   return { isDoc: false }
 }
 
+export type CompileForWriteResult =
+  | { ok: true; sourceMime: string }
+  | { ok: false; message: string }
+
+/**
+ * Shared write-time doc handling for create + edit_content: validates and builds
+ * the document (E2B doc sandbox when enabled — Node pptx/docx, Python pdf/xlsx —
+ * else isolated-vm JS) and returns the source MIME to store, or a user-facing
+ * failure message. Non-doc files resolve to `fallbackMime`. Compilation happens
+ * here exactly once per write; the artifact is content-addressed so a read can
+ * later just load it.
+ */
+export async function compileDocForWrite(args: {
+  source: string
+  fileName: string
+  workspaceId: string
+  ownerKey: string
+  signal?: AbortSignal
+  fallbackMime: string
+}): Promise<CompileForWriteResult> {
+  const { source, fileName, workspaceId, ownerKey, signal, fallbackMime } = args
+  const docInfo = getDocumentFormatInfo(fileName)
+  const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileName) : null
+
+  if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
+    return {
+      ok: false,
+      message: isE2BDocEnabled
+        ? 'Excel (.xlsx) generation is currently behind a beta flag (MOTHERSHIP_BETA_FEATURES) and is not available.'
+        : 'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
+    }
+  }
+
+  if (e2bFmt) {
+    // compileDoc is load-or-build, so an identical re-write reuses the cached
+    // binary instead of re-running E2B.
+    try {
+      await compileDoc({ source, fileName, workspaceId })
+    } catch (err) {
+      if (err instanceof DocCompileUserError) {
+        return {
+          ok: false,
+          message: `${e2bFmt.formatName} generation failed: ${err.message}. Fix the code and retry.`,
+        }
+      }
+      return {
+        ok: false,
+        message: `${e2bFmt.formatName} generation failed due to a system error: ${toError(err).message}. Retry shortly.`,
+      }
+    }
+    return { ok: true, sourceMime: e2bFmt.sourceMime }
+  }
+
+  if (docInfo.isDoc) {
+    try {
+      await runSandboxTask(docInfo.taskId!, { code: source, workspaceId }, { ownerKey, signal })
+    } catch (err) {
+      return {
+        ok: false,
+        message: `${docInfo.formatName} generation failed: ${toError(err).message}. Fix the code and retry.`,
+      }
+    }
+    return { ok: true, sourceMime: docInfo.sourceMime! }
+  }
+
+  return { ok: true, sourceMime: fallbackMime }
+}
+
 export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, WorkspaceFileResult> = {
   name: WorkspaceFile.id,
   async execute(
@@ -194,6 +281,57 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           : params
     const { operation } = normalized
     const workspaceId = context.workspaceId
+
+    const resolveExistingTarget = async (
+      target: WorkspaceFileTarget | undefined,
+      operationName: string
+    ): Promise<{ fileRecord?: WorkspaceFileRecord; vfsPath?: string; error?: string }> => {
+      if (!target || (target.kind !== 'path' && target.kind !== 'file_id')) {
+        return { error: `${operationName} requires target.kind=path with target.path` }
+      }
+      let fileRecord: WorkspaceFileRecord | null = null
+      let vfsPath: string | undefined
+      if (target.kind === 'path') {
+        const alias = await resolveWorkflowAliasForWorkspace({
+          workspaceId: workspaceId!,
+          path: target.path,
+        })
+        if (!alias && isPlanAliasPath(target.path)) {
+          return { error: `Unsupported plan alias path or missing workflow: ${target.path}` }
+        }
+        if (alias) {
+          if (alias.kind === 'plans_dir') {
+            return { error: `Plan alias directory is not a file: ${target.path}` }
+          }
+          fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
+          if (!fileRecord && alias.kind === 'changelog') {
+            await ensureWorkflowAliasBacking({
+              workspaceId: workspaceId!,
+              userId: context.userId,
+              workflowId: alias.workflowId,
+              workflowName: alias.workflowName,
+            })
+            fileRecord = await resolveWorkspaceFileReference(workspaceId!, alias.backingPath)
+          }
+          vfsPath = alias.aliasPath
+        } else {
+          fileRecord = await resolveWorkspaceFileReference(workspaceId!, target.path)
+          vfsPath = target.path
+        }
+      } else {
+        fileRecord = await getWorkspaceFile(workspaceId!, target.fileId)
+      }
+      if (!fileRecord) {
+        const ref = target.kind === 'path' ? target.path : target.fileId
+        return { error: `File not found: ${ref}` }
+      }
+      if (target.fileName && target.fileName !== fileRecord.name) {
+        return {
+          error: `Target mismatch: "${target.fileName}" does not match resolved file "${fileRecord.name}"`,
+        }
+      }
+      return { fileRecord, vfsPath }
+    }
 
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
@@ -229,24 +367,18 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             return { success: false, message: `File "${target.fileName}" already exists` }
           }
 
-          const docInfo = getDocumentFormatInfo(fileName)
-          let contentType = inferContentType(fileName, explicitType)
-          if (docInfo.isDoc) {
-            try {
-              await runSandboxTask(
-                docInfo.taskId!,
-                { code: content, workspaceId },
-                { ownerKey: `user:${context.userId}`, signal: context.abortSignal }
-              )
-            } catch (err) {
-              const msg = toError(err).message
-              return {
-                success: false,
-                message: `${docInfo.formatName} generation failed: ${msg}. Fix the code and retry.`,
-              }
-            }
-            contentType = docInfo.sourceMime!
+          const compiled = await compileDocForWrite({
+            source: content,
+            fileName,
+            workspaceId,
+            ownerKey: `user:${context.userId}`,
+            signal: context.abortSignal,
+            fallbackMime: inferContentType(fileName, explicitType),
+          })
+          if (!compiled.ok) {
+            return { success: false, message: compiled.message }
           }
+          const contentType = compiled.sourceMime
 
           const fileBuffer = Buffer.from(content, 'utf-8')
           assertServerToolNotAborted(context)
@@ -258,7 +390,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             contentType,
             { folderId }
           )
-
           logger.info('Workspace file created via copilot', {
             fileId: result.id,
             name: fileName,
@@ -282,28 +413,17 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'append': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'append requires target.kind=file_id with target.fileId',
-            }
-          }
-
-          const existingFile = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!existingFile) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
-          if (target.fileName && target.fileName !== existingFile.name) {
-            return {
-              success: false,
-              message: `Target mismatch: fileId "${target.fileId}" is "${existingFile.name}", not "${target.fileName}"`,
-            }
-          }
+          const {
+            fileRecord: existingFile,
+            vfsPath,
+            error,
+          } = await resolveExistingTarget(target, 'append')
+          if (error || !existingFile) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(existingFile)
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, existingFile.id, {
             operation: 'append',
-            fileId: target.fileId,
+            fileId: existingFile.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -320,33 +440,18 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: append to "${existingFile.name}". Wait for this success result, then call edit_content in the next step with the content to write. Do not call edit_content in parallel.`
             ),
-            data: { id: existingFile.id, name: existingFile.name, operation: 'append' },
+            data: { id: existingFile.id, name: existingFile.name, vfsPath, operation: 'append' },
           }
         }
 
         case 'update': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'update requires target.kind=file_id with target.fileId',
-            }
-          }
+          const { fileRecord, vfsPath, error } = await resolveExistingTarget(target, 'update')
+          if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
-          if (target.fileName && target.fileName !== fileRecord.name) {
-            return {
-              success: false,
-              message: `Target mismatch: fileId "${target.fileId}" is "${fileRecord.name}", not "${target.fileName}"`,
-            }
-          }
-
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, fileRecord.id, {
             operation: 'update',
-            fileId: target.fileId,
+            fileId: fileRecord.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -362,7 +467,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: update "${fileRecord.name}". Wait for this success result, then call edit_content in the next step with the replacement content. Do not call edit_content in parallel.`
             ),
-            data: { id: target.fileId, name: fileRecord.name, operation: 'update' },
+            data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'update' },
           }
         }
 
@@ -450,20 +555,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
         case 'patch': {
           const target = normalized.target
-          if (!target || target.kind !== 'file_id') {
-            return {
-              success: false,
-              message: 'patch requires target.kind=file_id with target.fileId',
-            }
-          }
           if (!normalized.edit) {
             return { success: false, message: 'edit is required for patch operation' }
           }
 
-          const fileRecord = await getWorkspaceFile(workspaceId, target.fileId)
-          if (!fileRecord) {
-            return { success: false, message: `File with ID "${target.fileId}" not found` }
-          }
+          const { fileRecord, vfsPath, error } = await resolveExistingTarget(target, 'patch')
+          if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = await downloadWsFile(fileRecord)
           const existingContent = currentBuffer.toString('utf-8')
@@ -497,9 +594,9 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             }
           }
 
-          await storeFileIntent(workspaceId, target.fileId, {
+          await storeFileIntent(workspaceId, fileRecord.id, {
             operation: 'patch',
-            fileId: target.fileId,
+            fileId: fileRecord.id,
             workspaceId,
             userId: context.userId,
             chatId: context.chatId,
@@ -533,7 +630,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             message: withMessageId(
               `Intent set: patch "${fileRecord.name}" (${normalized.edit.strategy}). Wait for this success result, then call edit_content in the next step with the replacement/insert content. Do not call edit_content in parallel.`
             ),
-            data: { id: target.fileId, name: fileRecord.name, operation: 'patch' },
+            data: { id: fileRecord.id, name: fileRecord.name, vfsPath, operation: 'patch' },
           }
         }
 

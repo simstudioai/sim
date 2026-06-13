@@ -214,7 +214,7 @@ describe('useUpdateColumn optimistic update', () => {
     expect(getCache(tableKeys.detail(TABLE_ID))).toEqual(original)
   })
 
-  it('renames the corresponding row-data key when updates.name is set', async () => {
+  it('renames metadata-only: patches the column name + stamps id, leaves row data untouched', async () => {
     setCache(tableKeys.detail(TABLE_ID), {
       id: TABLE_ID,
       schema: { columns: [{ name: 'age', type: 'number' }] },
@@ -230,11 +230,18 @@ describe('useUpdateColumn optimistic update', () => {
     const hook = useUpdateColumn({ workspaceId: WORKSPACE_ID, tableId: TABLE_ID })
     await hook.onMutate?.({ columnName: 'age', updates: { name: 'years' } })
 
+    // Row data is id-keyed; a rename never moves it. The stored key (`age`)
+    // becomes the column's stamped id, so cells stay reachable via getColumnId.
     const rows = getCache<{ rows: Array<{ data: Record<string, unknown> }> }>(
       tableKeys.rowsRoot(TABLE_ID)
     )
-    expect(rows?.rows[0]?.data).toEqual({ years: 30 })
-    expect(rows?.rows[1]?.data).toEqual({ years: 40 })
+    expect(rows?.rows[0]?.data).toEqual({ age: 30 })
+    expect(rows?.rows[1]?.data).toEqual({ age: 40 })
+
+    const detail = getCache<{ schema: { columns: Array<{ id?: string; name: string }> } }>(
+      tableKeys.detail(TABLE_ID)
+    )
+    expect(detail?.schema.columns[0]).toMatchObject({ id: 'age', name: 'years' })
   })
 })
 
@@ -341,20 +348,20 @@ describe('tableRowsParamsKey', () => {
 describe('tableRowsInfiniteOptions', () => {
   const PAGE_SIZE = 1000
 
-  function makeOpts(pageSize = PAGE_SIZE) {
+  function makeOpts(pageSize = PAGE_SIZE, sort: unknown = null) {
     return tableRowsInfiniteOptions({
       workspaceId: WORKSPACE_ID,
       tableId: TABLE_ID,
       pageSize,
       filter: null,
-      sort: null,
+      sort: sort as never,
     }) as {
       queryKey: readonly unknown[]
       getNextPageParam: (
         lastPage: { rows: unknown[] },
         allPages: unknown[],
         lastPageParam: unknown
-      ) => number | undefined
+      ) => number | { orderKey: string; id: string } | undefined
     }
   }
 
@@ -384,6 +391,26 @@ describe('tableRowsInfiniteOptions', () => {
     expect(opts.getNextPageParam(fullPage, [], 0)).toBe(1000)
     expect(opts.getNextPageParam(fullPage, [], 1000)).toBe(2000)
     expect(opts.getNextPageParam(lastPartialPage, [], 2000)).toBeUndefined()
+  })
+
+  it('getNextPageParam returns a keyset cursor when rows carry orderKey and there is no sort', () => {
+    const opts = makeOpts()
+    const fullPage = {
+      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
+    }
+    expect(opts.getNextPageParam(fullPage, [], 0)).toEqual({
+      orderKey: `a${PAGE_SIZE - 1}`,
+      id: `r${PAGE_SIZE - 1}`,
+    })
+  })
+
+  it('getNextPageParam falls back to offset for sorted views even with orderKey present', () => {
+    const opts = makeOpts(PAGE_SIZE, { column: 'name', direction: 'asc' })
+    const fullPage = {
+      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
+    }
+    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(PAGE_SIZE)
+    expect(opts.getNextPageParam(fullPage, [], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
   })
 
   it('queryKey includes the result of tableRowsParamsKey', () => {

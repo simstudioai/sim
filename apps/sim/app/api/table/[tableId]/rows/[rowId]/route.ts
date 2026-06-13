@@ -13,9 +13,15 @@ import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/ser
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { RowData } from '@/lib/table'
+import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { rowWireTranslators } from '@/app/api/table/row-wire'
+import {
+  accessError,
+  checkAccess,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+} from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowAPI')
 
@@ -72,12 +78,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
 
     logger.info(`[${requestId}] Retrieved row ${rowId} from table ${tableId}`)
 
+    const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+
     return NextResponse.json({
       success: true,
       data: {
         row: {
           id: row.id,
-          data: row.data,
+          data: wire.dataOut(row.data as RowData),
           position: row.position,
           createdAt:
             row.createdAt instanceof Date ? row.createdAt.toISOString() : String(row.createdAt),
@@ -123,12 +131,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: validated.data as RowData,
+        data: wire.dataIn(validated.data as RowData),
         workspaceId: validated.workspaceId,
+        actorUserId: authResult.userId,
       },
       table,
       requestId
@@ -147,7 +157,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       data: {
         row: {
           id: updatedRow.id,
-          data: updatedRow.data,
+          data: wire.dataOut(updatedRow.data),
           position: updatedRow.position,
           createdAt:
             updatedRow.createdAt instanceof Date
@@ -162,21 +172,12 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       },
     })
   } catch (error) {
-    const errorMessage = toError(error).message
-
-    if (errorMessage === 'Row not found') {
-      return NextResponse.json({ error: errorMessage }, { status: 404 })
+    if (rootErrorMessage(error) === 'Row not found') {
+      return NextResponse.json({ error: 'Row not found' }, { status: 404 })
     }
 
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error updating row:`, error)
     return NextResponse.json({ error: 'Failed to update row' }, { status: 500 })

@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { invitation, member, subscription } from '@sim/db/schema'
+import { member, subscription } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq, gt, inArray, ne } from 'drizzle-orm'
-import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
+import { and, count, eq, inArray } from 'drizzle-orm'
+import { syncSubscriptionUsageLimits } from '@/lib/billing/organization'
 import { isTeam } from '@/lib/billing/plan-helpers'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
@@ -11,30 +11,53 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 
 const logger = createLogger('OrganizationSeats')
 
-export interface ReduceOrganizationSeatsResult {
-  reduced: boolean
+export interface ReconcileOrganizationSeatsResult {
+  changed: boolean
   previousSeats?: number
   seats?: number
   reason?: string
   outboxEventId?: string
 }
 
-interface ReduceOrganizationSeatsByOneParams {
+interface ReconcileOrganizationSeatsParams {
   organizationId: string
-  actorUserId: string
-  removedUserId: string
+  reason: string
 }
 
-export async function reduceOrganizationSeatsByOne({
+/**
+ * Reconcile a Team organization's seat count to its current member count and
+ * enqueue an outbox event to push the change to Stripe. This is the single
+ * seat-accounting path for both joins and removals: paid seats always equal
+ * the number of organization members.
+ *
+ * The DB write and the outbox enqueue commit atomically; the actual Stripe
+ * charge/credit (proration via `always_invoice`) happens asynchronously in the
+ * seat-sync handler. A failed charge surfaces through Stripe dunning and blocks
+ * the org via the existing billing-blocked system rather than under this lock.
+ * Concurrent joins/removals serialize on the subscription row's `FOR UPDATE`
+ * lock and each reconciles to the live member count, so the final seat count is
+ * always correct regardless of interleaving.
+ */
+export async function reconcileOrganizationSeats({
   organizationId,
-  actorUserId,
-  removedUserId,
-}: ReduceOrganizationSeatsByOneParams): Promise<ReduceOrganizationSeatsResult> {
+  reason,
+}: ReconcileOrganizationSeatsParams): Promise<ReconcileOrganizationSeatsResult> {
   if (!isBillingEnabled) {
-    return { reduced: false, reason: 'Billing is not enabled' }
+    return { changed: false, reason: 'Billing is not enabled' }
   }
 
-  return db.transaction(async (tx) => {
+  type ReconcileOutcome =
+    | { kind: 'skip'; reason: string }
+    | { kind: 'noop'; seats: number }
+    | {
+        kind: 'changed'
+        previousSeats: number
+        seats: number
+        outboxEventId: string
+        sync: { id: string; plan: string; status: string | null }
+      }
+
+  const outcome = await db.transaction<ReconcileOutcome>(async (tx) => {
     const [orgSubscription] = await tx
       .select()
       .from(subscription)
@@ -48,63 +71,30 @@ export async function reduceOrganizationSeatsByOne({
       .limit(1)
 
     if (!orgSubscription) {
-      return { reduced: false, reason: 'No active subscription found' }
+      return { kind: 'skip', reason: 'No active subscription found' }
     }
-
-    if (await isOrganizationBillingBlocked(organizationId)) {
-      return { reduced: false, reason: 'An active subscription is required' }
-    }
-
     if (!isTeam(orgSubscription.plan)) {
-      return { reduced: false, reason: 'Seat changes are only available for Team plans' }
+      return { kind: 'skip', reason: 'Seat changes are only available for Team plans' }
     }
-
     if (!orgSubscription.stripeSubscriptionId) {
-      return { reduced: false, reason: 'No Stripe subscription found for this organization' }
-    }
-
-    const currentSeats = orgSubscription.seats || 1
-    if (currentSeats <= 1) {
-      return {
-        reduced: false,
-        previousSeats: currentSeats,
-        seats: currentSeats,
-        reason: 'Minimum 1 seat required',
-      }
+      return { kind: 'skip', reason: 'No Stripe subscription found for this organization' }
     }
 
     const [memberCountRow] = await tx
-      .select({ count: count() })
+      .select({ value: count() })
       .from(member)
       .where(eq(member.organizationId, organizationId))
 
-    const [pendingCountRow] = await tx
-      .select({ count: count() })
-      .from(invitation)
-      .where(
-        and(
-          eq(invitation.organizationId, organizationId),
-          eq(invitation.status, 'pending'),
-          ne(invitation.membershipIntent, 'external'),
-          gt(invitation.expiresAt, new Date())
-        )
-      )
+    const targetSeats = Math.max(1, memberCountRow?.value ?? 1)
+    const currentSeats = orgSubscription.seats ?? 1
 
-    const occupiedSeats = (memberCountRow?.count ?? 0) + (pendingCountRow?.count ?? 0)
-    const nextSeats = currentSeats - 1
-
-    if (nextSeats < occupiedSeats) {
-      return {
-        reduced: false,
-        previousSeats: currentSeats,
-        seats: currentSeats,
-        reason: `Cannot reduce seats below current occupancy (${occupiedSeats}).`,
-      }
+    if (targetSeats === currentSeats) {
+      return { kind: 'noop', seats: currentSeats }
     }
 
     await tx
       .update(subscription)
-      .set({ seats: nextSeats })
+      .set({ seats: targetSeats })
       .where(eq(subscription.id, orgSubscription.id))
 
     const outboxEventId = await enqueueOutboxEvent(
@@ -112,19 +102,50 @@ export async function reduceOrganizationSeatsByOne({
       OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
       {
         subscriptionId: orgSubscription.id,
-        reason: 'member-removed-seat-reduction',
+        reason,
       }
     )
 
-    logger.info('Reduced organization seats after member removal', {
-      organizationId,
-      actorUserId,
-      removedUserId,
+    return {
+      kind: 'changed',
       previousSeats: currentSeats,
-      seats: nextSeats,
+      seats: targetSeats,
       outboxEventId,
-    })
-
-    return { reduced: true, previousSeats: currentSeats, seats: nextSeats, outboxEventId }
+      sync: {
+        id: orgSubscription.id,
+        plan: orgSubscription.plan,
+        status: orgSubscription.status,
+      },
+    }
   })
+
+  if (outcome.kind === 'skip') {
+    return { changed: false, reason: outcome.reason }
+  }
+  if (outcome.kind === 'noop') {
+    return { changed: false, previousSeats: outcome.seats, seats: outcome.seats }
+  }
+
+  await syncSubscriptionUsageLimits({
+    id: outcome.sync.id,
+    plan: outcome.sync.plan,
+    referenceId: organizationId,
+    status: outcome.sync.status,
+    seats: outcome.seats,
+  })
+
+  logger.info('Reconciled organization seats to member count', {
+    organizationId,
+    previousSeats: outcome.previousSeats,
+    seats: outcome.seats,
+    reason,
+    outboxEventId: outcome.outboxEventId,
+  })
+
+  return {
+    changed: true,
+    previousSeats: outcome.previousSeats,
+    seats: outcome.seats,
+    outboxEventId: outcome.outboxEventId,
+  }
 }

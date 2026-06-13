@@ -53,9 +53,7 @@ export const FilterPopover = memo(function FilterPopover({
           onClick={(e) => e.stopPropagation()}
           aria-label='Filters'
         >
-          <Filter
-            className={clsx('h-3 w-3', hasActiveFilters && 'text-[var(--brand-secondary)]')}
-          />
+          <Filter className={clsx('size-3', hasActiveFilters && 'text-[var(--brand-secondary)]')} />
         </Button>
       </PopoverTrigger>
       <PopoverContent

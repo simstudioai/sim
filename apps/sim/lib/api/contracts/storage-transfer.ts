@@ -460,6 +460,8 @@ export const fileServeParamsSchema = z.object({
 
 export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
+  /** Content version (the file record's `updatedAt`). Present => the URL is content-immutable and may be cached indefinitely by the browser. */
+  v: z.string().nullish(),
 })
 
 export const fileViewParamsSchema = z.object({

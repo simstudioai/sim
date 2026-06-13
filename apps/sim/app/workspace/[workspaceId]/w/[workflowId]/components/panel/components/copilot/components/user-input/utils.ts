@@ -7,6 +7,25 @@ import type { MentionDataReturn } from '@/app/workspace/[workspaceId]/w/[workflo
 import type { ChatContext } from '@/stores/panel'
 
 /**
+ * Wide fixed-advance glyph used as the stored trigger for skill chips so the
+ * centered icon fits its slot exactly like '@' does (a narrow '/' is too thin).
+ * The user still TYPES '/'; this replaces it on confirm. EM SPACE has a ~1em
+ * advance, closely matching the 12px chip icon.
+ */
+export const SKILL_CHIP_TRIGGER = '\u2003'
+
+/**
+ * Converts the stored EM SPACE skill trigger back to a literal '/' for any
+ * plain-text surface that leaves the editor — the submitted message and the
+ * clipboard — so skills read as `/skill-name` exactly as they did before the
+ * sentinel existed. Skills themselves travel via contexts, so this is purely
+ * cosmetic for the text.
+ */
+export function restoreSkillTriggerText(text: string): string {
+  return text.replaceAll(SKILL_CHIP_TRIGGER, '/')
+}
+
+/**
  * Escapes special regex characters in a string
  * @param value - String to escape
  * @returns Escaped string safe for use in RegExp
@@ -25,9 +44,21 @@ export function extractContextTokens(contexts: ChatContext[]): string[] {
   return contexts
     .filter((c) => c.kind !== 'current_workflow' && c.label)
     .map((c) => {
-      const prefix = c.kind === 'slash_command' ? '/' : '@'
+      const prefix =
+        c.kind === 'skill' ? SKILL_CHIP_TRIGGER : c.kind === 'slash_command' ? '/' : '@'
       return `${prefix}${c.label}`
     })
+}
+
+/**
+ * Inverse of {@link extractContextTokens}'s prefixing: strips a leading mention
+ * trigger (`@`, `/`, or the skill EM-SPACE sentinel) from a token, yielding the
+ * bare context label. Kept beside `extractContextTokens` so the set of trigger
+ * glyphs lives in exactly one place.
+ */
+export function stripMentionTrigger(token: string): string {
+  const first = token.charAt(0)
+  return first === '@' || first === '/' || first === SKILL_CHIP_TRIGGER ? token.slice(1) : token
 }
 
 /**
@@ -150,9 +181,10 @@ type WorkflowBlockContext = Extract<ChatContext, { kind: 'workflow_block' }>
 type KnowledgeContext = Extract<ChatContext, { kind: 'knowledge' }>
 type TableContext = Extract<ChatContext, { kind: 'table' }>
 type FileContext = Extract<ChatContext, { kind: 'file' }>
-type TemplatesContext = Extract<ChatContext, { kind: 'templates' }>
 type LogsContext = Extract<ChatContext, { kind: 'logs' }>
+type IntegrationContext = Extract<ChatContext, { kind: 'integration' }>
 type SlashCommandContext = Extract<ChatContext, { kind: 'slash_command' }>
+type SkillContext = Extract<ChatContext, { kind: 'skill' }>
 
 /**
  * Checks if two contexts of the same kind are equal by their ID fields.
@@ -194,19 +226,23 @@ export function areContextsEqual(c: ChatContext, context: ChatContext): boolean 
       const ctx = context as FileContext
       return c.fileId === ctx.fileId
     }
-    case 'templates': {
-      const ctx = context as TemplatesContext
-      return c.templateId === ctx.templateId
-    }
     case 'logs': {
       const ctx = context as LogsContext
       return c.executionId === ctx.executionId
+    }
+    case 'integration': {
+      const ctx = context as IntegrationContext
+      return c.blockType === ctx.blockType
     }
     case 'docs':
       return true // Only one docs context allowed
     case 'slash_command': {
       const ctx = context as SlashCommandContext
       return c.command === ctx.command
+    }
+    case 'skill': {
+      const ctx = context as SkillContext
+      return c.skillId === ctx.skillId
     }
     default:
       return false

@@ -1,1 +1,1 @@
-export { FileCards, FileDownload } from './file-download'
+export { FileCards } from './file-download'

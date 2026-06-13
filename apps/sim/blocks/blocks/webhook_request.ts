@@ -8,7 +8,7 @@ export const WebhookRequestBlock: BlockConfig<RequestResponse> = {
   description: 'Send a webhook request',
   longDescription:
     'Send an HTTP POST request to a webhook URL with automatic webhook headers. Optionally sign the payload with HMAC-SHA256 for secure webhook delivery.',
-  docsLink: 'https://docs.sim.ai/blocks/webhook',
+  docsLink: 'https://docs.sim.ai/workflows/blocks/webhook',
   category: 'blocks',
   bgColor: '#10B981',
   icon: WebhookIcon,

@@ -1,65 +1,95 @@
 ---
 title: Keyboard Shortcuts
-description: Master the workflow canvas with keyboard shortcuts and mouse controls
+description: Keyboard and mouse shortcuts for the workflow editor and for tables.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
-Speed up your workflow building with these keyboard shortcuts and mouse controls. All shortcuts work when the canvas is focused (not when typing in an input field).
+Sim has keyboard shortcuts for the workflow editor and for tables. Each set works when that surface is focused and you are not typing in a field.
 
 <Callout type="info">
-  **Mod** refers to `Cmd` on macOS and `Ctrl` on Windows/Linux.
+  **Mod** is `Cmd` on macOS and `Ctrl` on Windows and Linux.
 </Callout>
 
-## Canvas Controls
+## Workflow editor
 
-### Mouse Controls
+### Mouse
 
 | Action | Control |
 |--------|---------|
-| Pan/move canvas | Left-drag on empty space |
-| Pan/move canvas | Scroll or trackpad |
-| Select multiple blocks | Right-drag to draw selection box |
-| Drag block | Left-drag on block header |
+| Pan the canvas | Left-drag on empty space, or scroll / trackpad |
+| Select multiple blocks | Right-drag to draw a selection box |
+| Drag a block | Left-drag on the block header |
 | Add to selection | `Mod` + click on blocks |
 
-### Workflow Actions
+### Actions
 
 | Shortcut | Action |
 |----------|--------|
-| `Mod` + `Enter` | Run workflow (or cancel if running) |
+| `Mod` + `Enter` | Run the workflow (or cancel if running) |
 | `Mod` + `Z` | Undo |
 | `Mod` + `Shift` + `Z` | Redo |
-| `Mod` + `C` | Copy selected blocks |
-| `Mod` + `X` | Cut selected blocks |
-| `Mod` + `V` | Paste blocks |
+| `Mod` + `C` / `X` / `V` | Copy / cut / paste selected blocks |
 | `Delete` or `Backspace` | Delete selected blocks or edges |
-| `Shift` + `L` | Auto-layout canvas |
+| `Shift` + `L` | Auto-layout the canvas |
 | `Mod` + `Shift` + `F` | Fit to view |
-| `Mod` + `F` | Open workflow search and replace |
+| `Mod` + `F` | Search and replace in the workflow |
 | `Mod` + `Shift` + `Enter` | Accept Copilot changes |
+| `Mod` + `Alt` + `F` | Focus the Toolbar search |
 
-## Panel Navigation
+## Tables
 
-These shortcuts switch between panel tabs on the right side of the canvas.
+These work when a table is focused and no cell is being edited.
+
+### Navigation
 
 | Shortcut | Action |
 |----------|--------|
-| `Mod` + `Alt` + `F` | Focus Toolbar search |
+| Arrow keys | Move one cell |
+| `Mod` + Arrow keys | Jump to the edge of the table |
+| `Tab` / `Shift` + `Tab` | Move to the next / previous cell |
+| `Escape` | Clear the selection |
 
-## Global Navigation
+### Selection
+
+| Shortcut | Action |
+|----------|--------|
+| `Shift` + Arrow keys | Extend the selection by one cell |
+| `Mod` + `Shift` + Arrow keys | Extend the selection to the edge |
+| `Shift` + `Space` | Select the current row |
+| `Mod` + `Space` | Select the current column |
+
+### Editing
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` or `F2` | Start editing the selected cell |
+| Any character | Start editing with that character |
+| `Escape` | Cancel editing |
+| `Shift` + `Enter` | Insert a new row below |
+| `Space` | Expand row details |
+
+### Clipboard
+
+| Shortcut | Action |
+|----------|--------|
+| `Mod` + `C` / `X` / `V` | Copy / cut / paste cells |
+| `Delete` or `Backspace` | Clear the selected cells |
+
+### History
+
+| Shortcut | Action |
+|----------|--------|
+| `Mod` + `Z` | Undo |
+| `Mod` + `Shift` + `Z` or `Mod` + `Y` | Redo |
+
+## Global
 
 | Shortcut | Action |
 |----------|--------|
 | `Mod` + `K` | Open search |
-| `Mod` + `Shift` + `A` | Add new agent workflow |
-| `Mod` + `Y` | Go to templates |
+| `Mod` + `Shift` + `A` | Create a new agent |
+| `Mod` + `Shift` + `P` | Create a new workflow |
 | `Mod` + `L` | Go to logs |
-
-## Utility
-
-| Shortcut | Action |
-|----------|--------|
-| `Mod` + `D` | Clear terminal console |
+| `Mod` + `D` | Clear the terminal console |
 | `Mod` + `E` | Clear notifications |
-

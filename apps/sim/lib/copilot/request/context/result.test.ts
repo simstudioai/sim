@@ -16,6 +16,8 @@ function makeContext(): StreamingContext {
     runId: undefined,
     messageId: 'msg-1',
     accumulatedContent: '',
+    finalAssistantContent: '',
+    sawMainToolCall: false,
     contentBlocks: [],
     toolCalls: new Map(),
     pendingToolPromises: new Map(),

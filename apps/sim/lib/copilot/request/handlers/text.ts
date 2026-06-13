@@ -5,6 +5,7 @@ import {
   flushSubagentThinkingBlock,
   flushThinkingBlock,
   getScopedParentToolCallId,
+  getScopedSpanIdentity,
 } from './types'
 
 export function handleTextEvent(scope: ToolScope): StreamHandler {
@@ -21,6 +22,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
     if (scope === 'subagent') {
       const parentToolCallId = getScopedParentToolCallId(event, context)
       if (!parentToolCallId) return
+      const spanIdentity = getScopedSpanIdentity(event)
       if (event.payload.channel === MothershipStreamV1TextChannel.thinking) {
         if (
           context.currentSubagentThinkingBlock &&
@@ -33,6 +35,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
             type: 'subagent_thinking',
             content: '',
             parentToolCallId,
+            ...spanIdentity,
             timestamp: Date.now(),
           }
         }
@@ -47,7 +50,12 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       }
       context.subAgentContent[parentToolCallId] =
         (context.subAgentContent[parentToolCallId] || '') + chunk
-      addContentBlock(context, { type: 'subagent_text', content: chunk, parentToolCallId })
+      addContentBlock(context, {
+        type: 'subagent_text',
+        content: chunk,
+        parentToolCallId,
+        ...spanIdentity,
+      })
       return
     }
 
@@ -68,6 +76,7 @@ export function handleTextEvent(scope: ToolScope): StreamHandler {
       flushThinkingBlock(context)
     }
     context.accumulatedContent += chunk
+    context.finalAssistantContent += chunk
     addContentBlock(context, { type: 'text', content: chunk })
   }
 }

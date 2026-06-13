@@ -180,11 +180,11 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
           {/* Header */}
           <div className='flex flex-shrink-0 items-center justify-between px-2'>
             <div className='pointer-events-none flex gap-1.5'>
-              <div className='flex size-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
-                <MoreHorizontal className='size-[14px] text-[#e6e6e6]' />
+              <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+                <MoreHorizontal className='h-[14px] w-[14px] text-[#e6e6e6]' />
               </div>
-              <div className='flex size-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
-                <BubbleChatPreview className='size-[14px] text-[#e6e6e6]' />
+              <div className='flex h-[30px] w-[30px] items-center justify-center rounded-[5px] border border-[#3d3d3d] bg-[#363636]'>
+                <BubbleChatPreview className='h-[14px] w-[14px] text-[#e6e6e6]' />
               </div>
             </div>
             <AuthModal defaultView='signup' source='landing_preview'>
@@ -205,7 +205,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                   <span className='font-medium text-[#1b1b1b] text-[12px]'>Deploy</span>
                 </div>
                 <div className='flex h-[30px] items-center gap-2 rounded-[5px] bg-[#33C482] px-2.5 transition-colors hover:bg-[#2DAC72]'>
-                  <Play className='size-[11.5px] text-[#1b1b1b]' />
+                  <Play className='h-[11.5px] w-[11.5px] text-[#1b1b1b]' />
                   <span className='font-medium text-[#1b1b1b] text-[12px]'>Run</span>
                 </div>
               </button>
@@ -228,7 +228,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                   </div>
                   <div className='flex items-center gap-[5px] bg-white px-1.5 py-1 font-medium text-[#1C1C1C] text-[11px]'>
                     Get started
-                    <ChevronDown className='-rotate-90 size-[7px] text-[#1C1C1C]' />
+                    <ChevronDown className='-rotate-90 h-[7px] w-[7px] text-[#1C1C1C]' />
                   </div>
                 </div>,
                 document.body
@@ -290,7 +290,7 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                     </span>
                   </div>
                   <div className='px-2 pt-3 pb-2'>
-                    <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-1.5'>
+                    <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-1.5 py-1.5'>
                       <textarea
                         ref={textareaRef}
                         value={inputValue}
@@ -298,14 +298,14 @@ export const LandingPreviewPanel = memo(function LandingPreviewPanel({
                         onKeyDown={handleKeyDown}
                         placeholder='Build an AI agent...'
                         rows={2}
-                        className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 font-base text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
+                        className='mb-1.5 min-h-[48px] w-full cursor-text resize-none border-0 bg-transparent px-0.5 py-1 text-[#e6e6e6] text-sm leading-[1.25rem] placeholder-[#787878] caret-[#e6e6e6] outline-none'
                       />
                       <div className='flex items-center justify-end'>
                         <button
                           type='button'
                           onClick={handleSubmit}
                           disabled={isEmpty}
-                          className='flex size-[22px] items-center justify-center rounded-full border-0 p-0 transition-colors'
+                          className='flex h-[22px] w-[22px] items-center justify-center rounded-full border-0 p-0 transition-colors'
                           style={{
                             background: isEmpty ? '#808080' : '#e0e0e0',
                             cursor: isEmpty ? 'not-allowed' : 'pointer',
@@ -386,10 +386,10 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
       <div className='mx-[-1px] flex flex-shrink-0 items-center gap-2 border border-[#2c2c2c] bg-[#292929] px-3 py-1.5'>
         {BlockIcon && (
           <div
-            className='flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
+            className='flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            <BlockIcon className='size-[12px] text-white' />
+            <BlockIcon className='h-[12px] w-[12px] text-white' />
           </div>
         )}
         <span className='min-w-0 flex-1 truncate font-medium text-[#e6e6e6] text-sm'>
@@ -405,7 +405,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='flex items-center pl-0.5'>
               <span className='font-medium text-[#e6e6e6] text-small'>System Prompt</span>
             </div>
-            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-2'>
+            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
               <p className='min-h-[48px] whitespace-pre-wrap break-words font-medium font-sans text-[#e6e6e6] text-sm leading-[1.5]'>
                 {visibleText}
                 {isTyping && (
@@ -430,7 +430,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
                 <span className='font-medium text-[#e6e6e6] text-small'>Model</span>
               </div>
               <div className='flex h-[32px] items-center gap-2 rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2'>
-                {ModelIcon && <ModelIcon className='size-[14px] text-[#e6e6e6]' />}
+                {ModelIcon && <ModelIcon className='h-[14px] w-[14px] text-[#e6e6e6]' />}
                 <span className='flex-1 truncate font-medium text-[#e6e6e6] text-sm'>{model}</span>
                 <ChevronDown className='h-[7px] w-[9px] text-[#636363]' />
               </div>
@@ -453,10 +453,10 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
                     >
                       {ToolIcon && (
                         <div
-                          className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
+                          className='flex h-[16px] w-[16px] flex-shrink-0 items-center justify-center rounded-[4px]'
                           style={{ background: tool.bgColor }}
                         >
-                          <ToolIcon className='size-[10px] text-white' />
+                          <ToolIcon className='h-[10px] w-[10px] text-white' />
                         </div>
                       )}
                       <span className='font-normal text-[#e6e6e6] text-[12px]'>{tool.name}</span>
@@ -476,7 +476,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='relative h-[6px] rounded-full bg-[#3d3d3d]'>
               <div className='h-full w-[70%] rounded-full bg-[#e6e6e6]' />
               <div
-                className='-translate-y-1/2 absolute top-1/2 size-[14px] rounded-full border-[#e6e6e6] border-[2px] bg-[#292929]'
+                className='-translate-y-1/2 absolute top-1/2 h-[14px] w-[14px] rounded-full border-[#e6e6e6] border-[2px] bg-[#292929]'
                 style={{ left: 'calc(70% - 7px)' }}
               />
             </div>
@@ -487,7 +487,7 @@ function EditorTabContent({ editorPrompt, typedLength }: EditorTabContentProps) 
             <div className='flex items-center pl-0.5'>
               <span className='font-medium text-[#e6e6e6] text-small'>Response Format</span>
             </div>
-            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] p-2'>
+            <div className='rounded-[4px] border border-[#3d3d3d] bg-[#292929] px-2 py-2'>
               <span className='font-mono text-[#787878] text-[12px]'>plain text</span>
             </div>
           </div>

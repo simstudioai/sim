@@ -41,7 +41,7 @@ export const {ServiceName}Block: BlockConfig = {
   name: '{Service Name}',               // Human readable
   description: 'Brief description',     // One sentence
   longDescription: 'Detailed description for docs',
-  docsLink: 'https://docs.sim.ai/tools/{service}',
+  docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',                    // 'tools' | 'blocks' | 'triggers'
   integrationType: IntegrationType.X,   // Primary category (see IntegrationType enum)
   tags: ['oauth', 'api'],              // Cross-cutting tags (see IntegrationTag type)
@@ -627,18 +627,95 @@ export const ServiceV2Block: BlockConfig = {
 }
 ```
 
+## Block Metadata (BlockMeta)
+
+Every integration block **must** export a `{Service}BlockMeta` object at the bottom of the block file. This metadata drives the integration catalog, tag filters, and workflow template suggestions shown to users.
+
+### Structure
+
+```typescript
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
+
+// ... block definition above ...
+
+export const {Service}BlockMeta = {
+  tags: ['messaging', 'automation'],   // Same tags as the block's tags field
+  templates: [                          // Optional but strongly encouraged
+    {
+      icon: {Service}Icon,
+      title: '{Service} use-case title',
+      prompt: 'Build a workflow that ...',
+      modules: ['agent', 'workflows'],  // Modules the template uses
+      category: 'productivity',         // Template category
+      tags: ['automation'],             // Template-level tags
+      alsoIntegrations: ['slack'],      // Other blocks referenced in the prompt (optional)
+    },
+  ],
+  skills: [                             // Optional but strongly encouraged
+    {
+      name: 'summarize-thread',         // kebab-case, becomes the created skill's name
+      description: 'One line: what it does and when to use it.',
+      content:
+        '# Summarize Thread\n\n...\n\n## Steps\n1. ...\n\n## Output\n...',  // markdown
+    },
+  ],
+} as const satisfies BlockMeta
+```
+
+### Rules
+
+- **Import `BlockMeta`** from `@/blocks/types` alongside `BlockConfig`
+- **`tags`** must match the `tags` array on the block config exactly
+- **Templates are optional** but should be added for any integration that has a recognizable use case — aim for 2–4 templates per block
+- **Template `prompt`** should start with "Build a workflow that..." or "Create a workflow that..." and be concrete enough to generate a real workflow in Mothership
+- **Template `modules`** lists the Sim modules the template relies on: `'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'`
+- **Template `category`** is one of: `'popular' | 'sales' | 'support' | 'engineering' | 'marketing' | 'productivity' | 'operations'`
+- **`alsoIntegrations`** names other block types (e.g. `'slack'`, `'linear'`) referenced in the template prompt — helps the catalog surface this template when those blocks are selected
+- Place the export **after** the main `{Service}Block` export, at the very bottom of the file
+
+#### `skills` — curated, ready-to-add agent skills
+
+`skills` is an optional array of `SuggestedSkill` (`{ name, description, content }`) shown on the integration's detail page; users click **Add** to create the skill in their workspace. Aim for 3–5 skills for mainstream services, 2–3 for niche/low-level ones.
+
+- **`name`** — kebab-case, lowercase letters/numbers/hyphens, ≤ 64 chars, unique within the integration, verb-led (e.g. `summarize-thread`).
+- **`description`** — one line, ≤ 1024 chars: what it does and when to use it.
+- **`content`** — markdown instructions for the agent (literal `\n` for newlines): a `# Title`, then `## Steps` and an output/guidance section. Keep ~600–2000 chars.
+- **Ground every skill in operations the block actually exposes.** Cross-check each skill's steps against the block's `tools.access` list — never describe an action the integration cannot perform (e.g. "receive messages" when the block only sends).
+- **Skills MUST be derived from real, popular use cases found online — never invented.** Before adding a skill, web-search the service's documented use cases (vendor use-case/solutions pages, official docs describing the workflow, reputable "top automations for X" articles). If you cannot source a use case as something people genuinely do with the service, do not add it. Do not hallucinate skills.
+
+### Register in the blocksMeta object
+
+After adding `{Service}BlockMeta` to the block file, register it in `apps/sim/blocks/registry.ts`:
+
+```typescript
+// Add import (alongside the block import, alphabetically)
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
+
+// Add to blocksMeta object (alphabetically)
+export const blocksMeta = {
+  // ... existing entries ...
+  service: ServiceBlockMeta,
+}
+```
+
 ## Registering Blocks
 
 After creating the block, remind the user to:
-1. Import in `apps/sim/blocks/registry.ts`
+1. Import `{Service}Block` and `{Service}BlockMeta` in `apps/sim/blocks/registry.ts`
 2. Add to the `registry` object (alphabetically):
+3. Add to the `blocksMeta` object (alphabetically):
 
 ```typescript
-import { ServiceBlock } from '@/blocks/blocks/service'
+import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/service'
 
 export const registry: Record<string, BlockConfig> = {
   // ... existing blocks ...
   service: ServiceBlock,
+}
+
+export const blocksMeta = {
+  // ... existing entries ...
+  service: ServiceBlockMeta,
 }
 ```
 
@@ -655,7 +732,7 @@ export const ServiceBlock: BlockConfig = {
   name: 'Service',
   description: 'Integrate with Service API',
   longDescription: 'Full description for documentation...',
-  docsLink: 'https://docs.sim.ai/tools/service',
+  docsLink: 'https://docs.sim.ai/integrations/service',
   category: 'tools',
   integrationType: IntegrationType.DeveloperTools,
   tags: ['oauth', 'api'],
@@ -827,7 +904,11 @@ All tool IDs referenced in `tools.access` and returned by `tools.config.tool` MU
 - [ ] Tools.access lists all tool IDs (snake_case)
 - [ ] Tools.config.tool returns correct tool ID (snake_case)
 - [ ] Outputs match tool outputs
-- [ ] Block registered in registry.ts
+- [ ] Block registered in `registry.ts` blocks object (alphabetically)
+- [ ] `{Service}BlockMeta` exported at bottom of block file with `tags` and `templates`
+- [ ] `skills` added to `{Service}BlockMeta`, each grounded in the block's `tools.access` and derived from a real online-sourced use case (not invented)
+- [ ] `BlockMeta` imported from `@/blocks/types` alongside `BlockConfig`
+- [ ] Block meta registered in `registry.ts` blocksMeta object (alphabetically)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`

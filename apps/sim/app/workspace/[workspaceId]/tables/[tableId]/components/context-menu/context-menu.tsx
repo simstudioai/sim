@@ -73,20 +73,21 @@ export function ContextMenu({
   disableInsert = false,
   disableDelete = false,
 }: ContextMenuProps) {
-  const deleteLabel = selectedRowCount > 1 ? `Delete ${selectedRowCount} rows` : 'Delete row'
+  const count = selectedRowCount.toLocaleString()
+  const deleteLabel = selectedRowCount > 1 ? `Delete ${count} rows` : 'Delete row'
   const runLabel = workflowCellScoped
     ? selectedRowCount > 1
-      ? `Run cell on ${selectedRowCount} rows`
+      ? `Run cell on ${count} rows`
       : 'Run cell'
     : selectedRowCount > 1
-      ? `Run empty or failed cells on ${selectedRowCount} rows`
+      ? `Run empty or failed cells on ${count} rows`
       : 'Run empty or failed cells'
   const refreshLabel = workflowCellScoped
     ? selectedRowCount > 1
-      ? `Re-run cell on ${selectedRowCount} rows`
+      ? `Re-run cell on ${count} rows`
       : 'Re-run cell'
     : selectedRowCount > 1
-      ? `Re-run all cells on ${selectedRowCount} rows`
+      ? `Re-run all cells on ${count} rows`
       : 'Re-run all cells'
   const stopLabel =
     runningInSelectionCount === 1

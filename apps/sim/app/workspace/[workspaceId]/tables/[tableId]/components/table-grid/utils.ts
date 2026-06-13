@@ -6,17 +6,26 @@ import type {
   TableRow as TableRowType,
   WorkflowGroup,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { areGroupDepsSatisfied, areOutputsFilled } from '@/lib/table/deps'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import type { DisplayColumn } from './types'
 
-export type RowSelection = { kind: 'none' } | { kind: 'some'; ids: Set<string> } | { kind: 'all' }
+/**
+ * `all` means "every row matching the active filter" — including rows not yet loaded by the
+ * virtualized grid. `excluded` holds rows deselected after a select-all, so the pair maps directly
+ * onto the async delete job's `{ filter, excludeRowIds }`.
+ */
+export type RowSelection =
+  | { kind: 'none' }
+  | { kind: 'some'; ids: Set<string> }
+  | { kind: 'all'; excluded?: Set<string> }
 
 export const ROW_SELECTION_NONE: RowSelection = { kind: 'none' }
 export const ROW_SELECTION_ALL: RowSelection = { kind: 'all' }
 
 export function rowSelectionIncludes(sel: RowSelection, id: string): boolean {
-  if (sel.kind === 'all') return true
+  if (sel.kind === 'all') return !sel.excluded?.has(id)
   if (sel.kind === 'some') return sel.ids.has(id)
   return false
 }
@@ -28,14 +37,15 @@ export function rowSelectionIsEmpty(sel: RowSelection): boolean {
 }
 
 export function rowSelectionMaterialize(sel: RowSelection, rows: TableRowType[]): Set<string> {
-  if (sel.kind === 'all') return new Set(rows.map((r) => r.id))
+  if (sel.kind === 'all')
+    return new Set(rows.filter((r) => !sel.excluded?.has(r.id)).map((r) => r.id))
   if (sel.kind === 'some') return new Set(sel.ids)
   return new Set<string>()
 }
 
 export function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): boolean {
   if (rows.length === 0) return false
-  if (sel.kind === 'all') return true
+  if (sel.kind === 'all') return !rows.some((r) => sel.excluded?.has(r.id))
   if (sel.kind === 'none') return false
   if (sel.ids.size < rows.length) return false
   for (const r of rows) if (!sel.ids.has(r.id)) return false
@@ -46,14 +56,17 @@ export function rowSelectionCoversAll(sel: RowSelection, rows: TableRowType[]): 
 export function checkboxColLayout(
   maxRows: number,
   hasWorkflowCols: boolean
-): { colWidth: number; numDivWidth: number } {
+): { colWidth: number; numRegionWidth: number } {
   const digits = maxRows > 0 ? Math.floor(Math.log10(maxRows)) + 1 : 1
-  const numDivWidth = Math.max(20, digits * 8 + 4)
-  // When workflow columns are present a 20px run/stop button sits to the right of
-  // the number, separated by a 6px gap and a 4px right pad — 30px total. Reserving
-  // only the button width clipped the number on tables with many (wide) row indices.
-  const colWidth = Math.max(32, numDivWidth + 8) + (hasWorkflowCols ? 30 : 0)
-  return { colWidth, numDivWidth }
+  const numWidth = Math.max(20, digits * 8 + 4)
+  // Region the number/checkbox is centered within (digit width + 12px breathing
+  // room, min 32). The select-all header checkbox centers in the same region so it
+  // lines up with the per-row checkboxes.
+  const numRegionWidth = Math.max(32, numWidth + 12)
+  // Workflow tables add a 20px run/stop button (+6px gap, +4px pad) to the right of
+  // the region; the checkbox stays centered in the space that remains.
+  const colWidth = numRegionWidth + (hasWorkflowCols ? 30 : 0)
+  return { colWidth, numRegionWidth }
 }
 
 export interface CellCoord {
@@ -106,10 +119,10 @@ export function expandToDisplayColumns(
       const startIdx = out.length
       for (let k = 0; k < size; k++) {
         const child = columns[i + k]
-        const output = group?.outputs.find((o) => o.columnName === child.name)
+        const output = group?.outputs.find((o) => o.columnName === getColumnId(child))
         out.push({
           ...child,
-          key: child.name,
+          key: getColumnId(child),
           outputBlockId: output?.blockId,
           outputPath: output?.path,
           groupSize: size,
@@ -122,7 +135,7 @@ export function expandToDisplayColumns(
     } else {
       out.push({
         ...column,
-        key: column.name,
+        key: getColumnId(column),
         groupSize: 1,
         groupStartColIndex: out.length,
         headerLabel: column.name,

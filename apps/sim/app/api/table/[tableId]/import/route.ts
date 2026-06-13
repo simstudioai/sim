@@ -24,11 +24,12 @@ import {
   coerceRowsForTable,
   createCsvParser,
   dispatchAfterBatchInsert,
+  generateColumnId,
   importAppendRows,
   importReplaceRows,
   inferColumnType,
-  markTableImporting,
-  releaseImportClaim,
+  markTableJobRunning,
+  releaseJobClaim,
   sanitizeName,
   type TableDefinition,
   type TableSchema,
@@ -127,11 +128,11 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     if (table.archivedAt) {
       return NextResponse.json({ error: 'Cannot import into an archived table' }, { status: 400 })
     }
-    // Don't run a sync import on top of an in-flight background import — concurrent writers
+    // Don't run a sync import on top of an in-flight background job — concurrent writers
     // would insert at colliding row positions.
-    if (table.importStatus === 'importing') {
+    if (table.jobStatus === 'running') {
       return NextResponse.json(
-        { error: 'An import is already in progress for this table' },
+        { error: 'A job is already in progress for this table' },
         { status: 409 }
       )
     }
@@ -176,7 +177,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     let effectiveMapping = mapping ?? buildAutoMapping(headers, table.schema)
     let prospectiveTable: TableDefinition = table
-    const additions: { name: string; type: string }[] = []
+    const additions: { id?: string; name: string; type: string }[] = []
 
     if (createColumns && createColumns.length > 0) {
       const headerSet = new Set(headers)
@@ -204,8 +205,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         }
         usedNames.add(columnName.toLowerCase())
         const inferredType = inferColumnType(rows.map((r) => r[header]))
-        additions.push({ name: columnName, type: inferredType })
+        // Pre-assign the id so the prospective schema (used to coerce rows) and
+        // the persisted column (created in importAppendRows) share the same key.
+        const id = generateColumnId()
+        additions.push({ id, name: columnName, type: inferredType })
         newColumns.push({
+          id,
           name: columnName,
           type: inferredType as TableSchema['columns'][number]['type'],
           required: false,
@@ -248,12 +253,12 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
 
     // Atomically claim the table before writing. The pre-check above reads a checkAccess snapshot
     // taken before the parse/validation; a background import could claim the table in that window.
-    // markTableImporting is the single atomic gate (same one the async kickoff uses) — released in
+    // markTableJobRunning is the single atomic gate (same one the async kickoff uses) — released in
     // the finally so a sync import can't write concurrently with a background one (corrupts replace).
     const syncImportId = generateId()
-    if (!(await markTableImporting(tableId, syncImportId))) {
+    if (!(await markTableJobRunning(tableId, syncImportId, 'import'))) {
       return NextResponse.json(
-        { error: 'An import is already in progress for this table' },
+        { error: 'A job is already in progress for this table' },
         { status: 409 }
       )
     }
@@ -280,7 +285,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
         const inserted = insertedRows.length
         // Fire trigger + scheduler AFTER the tx commits — both read through the
         // global db connection and would otherwise see no rows.
-        dispatchAfterBatchInsert(finalTable, insertedRows, requestId)
+        dispatchAfterBatchInsert(finalTable, insertedRows, requestId, authResult.userId)
 
         logger.info(`[${requestId}] Append CSV imported`, {
           tableId: table.id,
@@ -394,6 +399,6 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   } finally {
     fileStream?.destroy()
     // Release before the response returns, so a client refetch never observes the transient claim.
-    if (claimedImportId) await releaseImportClaim(tableId, claimedImportId).catch(() => {})
+    if (claimedImportId) await releaseJobClaim(tableId, claimedImportId).catch(() => {})
   }
 })

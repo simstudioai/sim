@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type V1BatchInsertTableRowsBody,
@@ -18,9 +17,15 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Filter, RowData, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
+  buildIdByName,
+  buildNameById,
   deleteRowsByFilter,
   deleteRowsByIds,
+  filterNamesToIds,
   insertRow,
+  rowDataIdToName,
+  rowDataNameToId,
+  sortNamesToIds,
   updateRowsByFilter,
   validateBatchRows,
   validateRowData,
@@ -28,7 +33,7 @@ import {
 } from '@/lib/table'
 import { queryRows } from '@/lib/table/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -59,8 +64,13 @@ async function handleBatchInsert(
     return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
   }
 
+  // External callers key row data by column name; storage keys by id.
+  const idByName = buildIdByName(table.schema as TableSchema)
+  const nameById = buildNameById(table.schema as TableSchema)
+  const rows = (validated.rows as RowData[]).map((r) => rowDataNameToId(r, idByName))
+
   const validation = await validateBatchRows({
-    rows: validated.rows as RowData[],
+    rows,
     schema: table.schema as TableSchema,
     tableId,
   })
@@ -70,7 +80,7 @@ async function handleBatchInsert(
     const insertedRows = await batchInsertRows(
       {
         tableId,
-        rows: validated.rows as RowData[],
+        rows,
         workspaceId: validated.workspaceId,
         userId,
       },
@@ -83,7 +93,7 @@ async function handleBatchInsert(
       data: {
         rows: insertedRows.map((r) => ({
           id: r.id,
-          data: r.data,
+          data: rowDataIdToName(r.data, nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : r.updatedAt,
@@ -93,18 +103,8 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Insufficient capacity') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.match(/^Row \d+:/)
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
     return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
@@ -138,7 +138,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
 
     const { tableId } = parsed.data.params
     const validated = parsed.data.query
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'read')
@@ -150,11 +150,19 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
+    // Translate name-keyed filter/sort fields → column ids; translate rows back.
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const nameById = buildNameById(table.schema as TableSchema)
+    const filter = validated.filter
+      ? filterNamesToIds(validated.filter as Filter, idByName)
+      : undefined
+    const sort = validated.sort ? sortNamesToIds(validated.sort, idByName) : undefined
+
     const result = await queryRows(
       table,
       {
-        filter: validated.filter as Filter | undefined,
-        sort: validated.sort,
+        filter,
+        sort,
         limit: validated.limit,
         offset: validated.offset,
         includeTotal: validated.includeTotal,
@@ -168,7 +176,7 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
       data: {
         rows: result.rows.map((r) => ({
           id: r.id,
-          data: r.data,
+          data: rowDataIdToName(r.data, nameById),
           position: r.position,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : String(r.createdAt),
           updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : String(r.updatedAt),
@@ -210,14 +218,14 @@ export const POST = withRouteHandler(
       const { tableId } = parsed.data.params
       if ('rows' in parsed.data.body) {
         const batchValidated = parsed.data.body
-        const scopeError = checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
+        const scopeError = await checkWorkspaceScope(rateLimit, batchValidated.workspaceId)
         if (scopeError) return scopeError
         return handleBatchInsert(requestId, tableId, batchValidated, userId)
       }
 
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')
@@ -229,7 +237,9 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
       }
 
-      const rowData = validated.data as RowData
+      const idByName = buildIdByName(table.schema as TableSchema)
+      const nameById = buildNameById(table.schema as TableSchema)
+      const rowData = rowDataNameToId(validated.data as RowData, idByName)
 
       const validation = await validateRowData({
         rowData,
@@ -254,7 +264,7 @@ export const POST = withRouteHandler(
         data: {
           row: {
             id: row.id,
-            data: row.data,
+            data: rowDataIdToName(row.data, nameById),
             position: row.position,
             createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
             updatedAt: row.updatedAt instanceof Date ? row.updatedAt.toISOString() : row.updatedAt,
@@ -266,17 +276,8 @@ export const POST = withRouteHandler(
       const validationResponse = validationErrorResponseFromError(error)
       if (validationResponse) return validationResponse
 
-      const errorMessage = toError(error).message
-
-      if (
-        errorMessage.includes('row limit') ||
-        errorMessage.includes('Insufficient capacity') ||
-        errorMessage.includes('Schema validation') ||
-        errorMessage.includes('must be unique') ||
-        errorMessage.includes('Row size exceeds')
-      ) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
       return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
@@ -300,7 +301,7 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const { tableId } = parsed.data.params
     const validated = parsed.data.body
 
-    const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+    const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
     if (scopeError) return scopeError
 
     const accessResult = await checkAccess(tableId, userId, 'write')
@@ -312,7 +313,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const sizeValidation = validateRowSize(validated.data as RowData)
+    const idByName = buildIdByName(table.schema as TableSchema)
+    const patchData = rowDataNameToId(validated.data as RowData, idByName)
+
+    const sizeValidation = validateRowSize(patchData)
     if (!sizeValidation.valid) {
       return NextResponse.json(
         { error: 'Validation error', details: sizeValidation.errors },
@@ -323,9 +327,10 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
     const result = await updateRowsByFilter(
       table,
       {
-        filter: validated.filter as Filter,
-        data: validated.data as RowData,
+        filter: filterNamesToIds(validated.filter as Filter, idByName),
+        data: patchData,
         limit: validated.limit,
+        actorUserId: userId,
       },
       requestId
     )
@@ -356,18 +361,8 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Unique constraint violation') ||
-      errorMessage.includes('Cannot set unique column') ||
-      errorMessage.includes('Filter is required')
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error updating rows by filter:`, error)
     return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
@@ -391,7 +386,7 @@ export const DELETE = withRouteHandler(
       const { tableId } = parsed.data.params
       const validated = parsed.data.body
 
-      const scopeError = checkWorkspaceScope(rateLimit, validated.workspaceId)
+      const scopeError = await checkWorkspaceScope(rateLimit, validated.workspaceId)
       if (scopeError) return scopeError
 
       const accessResult = await checkAccess(tableId, userId, 'write')
@@ -424,10 +419,11 @@ export const DELETE = withRouteHandler(
         })
       }
 
+      const idByName = buildIdByName(table.schema as TableSchema)
       const result = await deleteRowsByFilter(
         table,
         {
-          filter: validated.filter as Filter,
+          filter: filterNamesToIds(validated.filter as Filter, idByName),
           limit: validated.limit,
         },
         requestId
@@ -452,11 +448,8 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const errorMessage = toError(error).message
-
-      if (errorMessage.includes('Filter is required')) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)
       return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })

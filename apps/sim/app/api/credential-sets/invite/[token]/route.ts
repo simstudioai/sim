@@ -194,17 +194,27 @@ export const POST = withRouteHandler(
               )
             )
         }
+      })
 
+      // Runs after the membership commits: the sync performs external HTTP
+      // (OAuth refresh, provider unsubscribe) and must not hold a pooled
+      // connection. A sync failure must not fail the committed mutation —
+      // it self-heals on the next membership change/deploy.
+      try {
         const syncResult = await syncAllWebhooksForCredentialSet(
           invitation.credentialSetId,
-          requestId,
-          tx
+          requestId
         )
         logger.info('Synced webhooks after member joined', {
           credentialSetId: invitation.credentialSetId,
           ...syncResult,
         })
-      })
+      } catch (syncError) {
+        logger.error('Webhook sync failed after invitation accept', {
+          credentialSetId: invitation.credentialSetId,
+          error: syncError,
+        })
+      }
 
       logger.info('Accepted credential set invitation', {
         invitationId: invitation.id,

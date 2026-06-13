@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { Button, Callout, Combobox, toast } from '@/components/emcn'
+import { Chip, ChipSelect, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { InfoNote } from '@/ee/components/info-note'
 import { SettingRow } from '@/ee/components/setting-row'
-import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 import {
   useOrganizationRetention,
   useUpdateOrganizationRetention,
@@ -55,17 +56,7 @@ function RetentionSelect({ value, onChange }: RetentionSelectProps) {
         { value, label: `${value} days (custom)` },
       ]
 
-  return (
-    <div className='w-[200px]'>
-      <Combobox
-        value={value}
-        onChange={onChange}
-        options={options}
-        dropdownWidth='trigger'
-        className='h-[36px] text-[13px]'
-      />
-    </div>
-  )
+  return <ChipSelect value={value} onChange={onChange} options={options} align='start' />
 }
 
 export function DataRetentionSettings() {
@@ -132,7 +123,7 @@ export function DataRetentionSettings() {
   }
 
   if (sessionPending || orgsLoading || (orgId && retentionLoading)) {
-    return <DataRetentionSkeleton />
+    return null
   }
 
   if (!orgId) {
@@ -168,39 +159,45 @@ export function DataRetentionSettings() {
   }
 
   return (
-    <div className='flex flex-col gap-8'>
-      <Callout>Applies organization-wide</Callout>
-      <section>
-        <div className='flex flex-col gap-5'>
-          <SettingRow
-            label='Log retention'
-            description='How long execution logs are kept before they are permanently deleted.'
+    <div className='flex h-full flex-col bg-[var(--bg)]'>
+      <div className='flex flex-shrink-0 items-center justify-between bg-[var(--bg)] px-[16px] pt-[8.5px] pb-[8.5px]'>
+        <div />
+        <div className='flex items-center'>
+          <Chip
+            variant='primary'
+            onClick={handleSave}
+            disabled={updateMutation.isPending || !hasChanges}
           >
-            <RetentionSelect value={logDays} onChange={setLogDays} />
-          </SettingRow>
-          <SettingRow
-            label='Soft deletion cleanup'
-            description='How long deleted resources remain recoverable before they are permanently removed.'
-          >
-            <RetentionSelect value={softDeleteDays} onChange={setSoftDeleteDays} />
-          </SettingRow>
-          <SettingRow
-            label='Task cleanup'
-            description='How long copilot chats, runs, and inbox tasks are kept before they are permanently deleted.'
-          >
-            <RetentionSelect value={taskCleanupDays} onChange={setTaskCleanupDays} />
-          </SettingRow>
+            {updateMutation.isPending ? 'Saving...' : 'Save'}
+          </Chip>
         </div>
-      </section>
-
-      <div className='flex items-center justify-end'>
-        <Button
-          variant='primary'
-          onClick={handleSave}
-          disabled={updateMutation.isPending || !hasChanges}
-        >
-          {updateMutation.isPending ? 'Saving...' : 'Save'}
-        </Button>
+      </div>
+      <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
+        <div className='mx-auto flex max-w-[48rem] flex-col gap-8 pt-6 pb-6'>
+          <InfoNote>Applies organization-wide</InfoNote>
+          <SettingsSection label='Data Retention'>
+            <div className='flex flex-col gap-5'>
+              <SettingRow
+                label='Log retention'
+                description='How long execution logs are kept before they are permanently deleted.'
+              >
+                <RetentionSelect value={logDays} onChange={setLogDays} />
+              </SettingRow>
+              <SettingRow
+                label='Soft deletion cleanup'
+                description='How long deleted resources remain recoverable before they are permanently removed.'
+              >
+                <RetentionSelect value={softDeleteDays} onChange={setSoftDeleteDays} />
+              </SettingRow>
+              <SettingRow
+                label='Task cleanup'
+                description='How long copilot chats, runs, and inbox tasks are kept before they are permanently deleted.'
+              >
+                <RetentionSelect value={taskCleanupDays} onChange={setTaskCleanupDays} />
+              </SettingRow>
+            </div>
+          </SettingsSection>
+        </div>
       </div>
     </div>
   )

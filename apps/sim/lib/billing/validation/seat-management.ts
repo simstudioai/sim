@@ -5,7 +5,9 @@ import { and, count, eq, gt, ne } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { getEffectiveSeats } from '@/lib/billing/subscriptions/utils'
+import { OUTBOX_EVENT_TYPES } from '@/lib/billing/webhooks/outbox-handlers'
 import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { hasInflightOutboxEvent } from '@/lib/core/outbox/service'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
 const logger = createLogger('SeatManagement')
@@ -324,8 +326,10 @@ export async function getOrganizationSeatAnalytics(organizationId: string) {
 }
 
 /**
- * Sync seat count from Stripe subscription quantity.
- * Used by webhook handlers to keep local DB in sync with Stripe.
+ * Sync seat count from Stripe subscription quantity. Used by webhook handlers
+ * to keep the local DB in sync with Stripe. No-ops while a DB→Stripe seat-sync
+ * is still in flight for the subscription, so a stale webhook never clobbers a
+ * DB seat change that hasn't been pushed yet (DB is the source of truth).
  */
 export async function syncSeatsFromStripeQuantity(
   subscriptionId: string,
@@ -340,6 +344,29 @@ export async function syncSeatsFromStripeQuantity(
       synced: false,
       previousSeats: effectiveCurrentSeats,
       newSeats: stripeQuantity,
+    }
+  }
+
+  // The DB is the source of truth for Team seats; we push the DB value to
+  // Stripe asynchronously via the seat-sync outbox. While that sync is still in
+  // flight the DB is intentionally ahead of Stripe, so skip this Stripe-to-DB
+  // sync — otherwise a stale customer.subscription.updated webhook could clobber
+  // the not-yet-pushed value (e.g. revert a just-removed member's seat).
+  const seatSyncInFlight = await hasInflightOutboxEvent(
+    OUTBOX_EVENT_TYPES.STRIPE_SYNC_SUBSCRIPTION_SEATS,
+    'subscriptionId',
+    subscriptionId
+  )
+  if (seatSyncInFlight) {
+    logger.info('Skipping Stripe seat sync; a seat-sync to Stripe is still in flight', {
+      subscriptionId,
+      stripeQuantity,
+      currentSeats: effectiveCurrentSeats,
+    })
+    return {
+      synced: false,
+      previousSeats: effectiveCurrentSeats,
+      newSeats: effectiveCurrentSeats,
     }
   }
 

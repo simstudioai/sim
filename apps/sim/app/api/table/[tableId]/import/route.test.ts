@@ -55,8 +55,8 @@ vi.mock('@/lib/table/service', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
   dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
-  markTableImporting: mockMarkTableImporting,
-  releaseImportClaim: mockReleaseImportClaim,
+  markTableJobRunning: mockMarkTableImporting,
+  releaseJobClaim: mockReleaseImportClaim,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'
@@ -184,7 +184,7 @@ describe('POST /api/table/[tableId]/import', () => {
   it('releases the import claim after a successful write', async () => {
     const response = await callPost(createFormData(createCsvFile('name,age\nAlice,30')))
     expect(response.status).toBe(200)
-    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d', 'import')
     expect(mockReleaseImportClaim).toHaveBeenCalledWith('tbl_1', 'deadbeefcafef00d')
   })
 
@@ -393,10 +393,14 @@ describe('POST /api/table/[tableId]/import', () => {
       )
       expect(response.status).toBe(200)
       expect(mockImportAppendRows).toHaveBeenCalledTimes(1)
-      expect(appendAdditions()).toEqual([{ name: 'email', type: 'string' }])
+      expect(appendAdditions()).toEqual([
+        expect.objectContaining({ name: 'email', type: 'string' }),
+      ])
+      // Existing columns have no id (legacy) → keyed by name; the new `email`
+      // column was assigned id `col_deadbeefcafef00d` (mocked generateId).
       expect(appendRows()).toEqual([
-        { name: 'Alice', age: 30, email: 'a@x.io' },
-        { name: 'Bob', age: 40, email: 'b@x.io' },
+        { name: 'Alice', age: 30, col_deadbeefcafef00d: 'a@x.io' },
+        { name: 'Bob', age: 40, col_deadbeefcafef00d: 'b@x.io' },
       ])
     })
 
@@ -408,7 +412,9 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(appendAdditions()).toEqual([{ name: 'score', type: 'number' }])
+      expect(appendAdditions()).toEqual([
+        expect.objectContaining({ name: 'score', type: 'number' }),
+      ])
     })
 
     it('dedupes when sanitized name collides with an existing column', async () => {
@@ -431,7 +437,9 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       expect(response.status).toBe(200)
-      expect(appendAdditions()).toEqual([{ name: 'Email_2', type: 'string' }])
+      expect(appendAdditions()).toEqual([
+        expect.objectContaining({ name: 'Email_2', type: 'string' }),
+      ])
     })
 
     it('returns 400 when createColumns references a header not in the CSV', async () => {
@@ -494,7 +502,9 @@ describe('POST /api/table/[tableId]/import', () => {
         })
       )
       // Route forwarded the column addition into the (now atomic) import op.
-      expect(appendAdditions()).toEqual([{ name: 'email', type: 'string' }])
+      expect(appendAdditions()).toEqual([
+        expect.objectContaining({ name: 'email', type: 'string' }),
+      ])
       expect(response.status).toBe(400)
       const data = await response.json()
       expect(data.success).toBeUndefined()

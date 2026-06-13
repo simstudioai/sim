@@ -461,7 +461,7 @@ async function removeMcpToolsIfStillUndeployed(
       .limit(1)
 
     if (!workflowRecord || workflowRecord.isDeployed) return []
-    return removeMcpToolsForWorkflow(workflowId, requestId, tx, false, true)
+    return removeMcpToolsForWorkflow(workflowId, requestId, tx, true)
   })
   notifyMcpToolServers(tools)
 }

@@ -6,14 +6,18 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getWorkspaceFile,
+  resolveWorkspaceFileReference,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { performRenameWorkspaceFile } from '@/lib/workspace-files/orchestration'
 import { validateFlatWorkspaceFileName } from './workspace-file'
 
 const logger = createLogger('RenameFileServerTool')
 
 interface RenameFileArgs {
-  fileId: string
+  path?: string
+  fileId?: string
   newName: string
   args?: Record<string, unknown>
 }
@@ -40,18 +44,23 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const nested = params.args
-    const fileId = params.fileId || (nested?.fileId as string) || ''
+    const path = params.path || (nested?.path as string) || ''
+    const legacyFileId = params.fileId || (nested?.fileId as string) || ''
     const newName = params.newName || (nested?.newName as string) || ''
 
-    if (!fileId) return { success: false, message: 'fileId is required' }
+    const targetRef = path || legacyFileId
+    if (!targetRef) return { success: false, message: 'path is required' }
 
     const nameError = validateFlatWorkspaceFileName(newName)
     if (nameError) return { success: false, message: nameError }
 
-    const existingFile = await getWorkspaceFile(workspaceId, fileId)
+    const existingFile = path
+      ? await resolveWorkspaceFileReference(workspaceId, path)
+      : await getWorkspaceFile(workspaceId, legacyFileId)
     if (!existingFile) {
-      return { success: false, message: `File with ID "${fileId}" not found` }
+      return { success: false, message: `File not found: ${targetRef}` }
     }
+    const fileId = existingFile.id
 
     assertServerToolNotAborted(context)
     const result = await performRenameWorkspaceFile({

@@ -18,14 +18,14 @@ import {
   Badge,
   Button,
   ChevronDown,
+  ChipInput,
   Code,
-  Copy as CopyIcon,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Input,
+  Duplicate,
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
@@ -45,6 +45,7 @@ import {
   parseTime,
 } from '@/app/workspace/[workspaceId]/logs/components/log-details/utils'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 
 const DEFAULT_TREE_PANE_WIDTH = 240
 const MIN_TREE_PANE_WIDTH = 200
@@ -344,7 +345,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
           >
             <ChevronDown
               className={cn(
-                'h-[10px] w-[10px] transition-transform duration-100',
+                'size-[10px] transition-transform duration-100',
                 !isExpanded && '-rotate-90'
               )}
             />
@@ -357,9 +358,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
             className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && (
-              <BlockIcon className={cn('h-[10px] w-[10px]', iconColorClass(bgColor))} />
-            )}
+            {BlockIcon && <BlockIcon className={cn('size-[10px]', iconColorClass(bgColor))} />}
           </div>
         )}
         <Tooltip.Root>
@@ -430,7 +429,7 @@ function DetailCodeSection({
   const [isOpen, setIsOpen] = useState(defaultOpen)
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const contentRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -461,9 +460,7 @@ function DetailCodeSection({
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(jsonString)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    copy(jsonString)
     setIsContextMenuOpen(false)
   }
 
@@ -499,7 +496,7 @@ function DetailCodeSection({
         </span>
         <ChevronDown
           className={cn(
-            'h-[8px] w-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+            'size-[8px] text-[var(--text-tertiary)] transition-colors transition-transform duration-100 group-hover:text-[var(--text-primary)]',
             !isOpen && '-rotate-90'
           )}
         />
@@ -563,13 +560,13 @@ function DetailCodeSection({
               className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-sm'
               onClick={(e) => e.stopPropagation()}
             >
-              <Input
+              <ChipInput
                 ref={searchInputRef}
                 type='text'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder='Search...'
-                className='mr-0.5 h-[23px] w-[94px] text-caption'
+                className='mr-0.5 w-[94px]'
               />
               <span
                 className={cn(
@@ -635,7 +632,7 @@ function DetailCodeSection({
                   onCloseAutoFocus={(e) => e.preventDefault()}
                 >
                   <DropdownMenuItem onSelect={handleCopy}>
-                    <CopyIcon />
+                    <Duplicate />
                     Copy
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -733,9 +730,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
             className='mt-[2px] flex size-[18px] flex-shrink-0 items-center justify-center rounded-sm'
             style={{ background: bgColor }}
           >
-            {BlockIcon && (
-              <BlockIcon className={cn('h-[12px] w-[12px]', iconColorClass(bgColor))} />
-            )}
+            {BlockIcon && <BlockIcon className={cn('size-[12px]', iconColorClass(bgColor))} />}
           </div>
         )}
         <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
@@ -823,6 +818,7 @@ const TraceDetailPane = memo(function TraceDetailPane({ span }: { span: TraceSpa
  */
 export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
   const treeRef = useRef<HTMLDivElement>(null)
+  const { copied: traceCopied, copy: copyTrace } = useCopyToClipboard()
   const [searchQuery, setSearchQuery] = useState('')
   const [treePaneWidth, setTreePaneWidth] = useState(DEFAULT_TREE_PANE_WIDTH)
   const treePaneWidthRef = useRef(DEFAULT_TREE_PANE_WIDTH)
@@ -1038,16 +1034,34 @@ export const TraceView = memo(function TraceView({ traceSpans, runCostDollars }:
           ) : null
         })()}
         <div className='ml-auto flex items-center gap-1'>
-          <div className='relative'>
-            <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-[7px] size-[11px] text-[var(--text-tertiary)]' />
-            <Input
-              type='text'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Filter spans'
-              className='h-[24px] w-[140px] pl-[22px] text-caption'
-            />
-          </div>
+          <ChipInput
+            icon={Search}
+            type='text'
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder='Filter spans'
+            className='w-[140px]'
+          />
+          <Tooltip.Root>
+            <Tooltip.Trigger asChild>
+              <Button
+                type='button'
+                variant='ghost'
+                className='!p-1'
+                onClick={() => copyTrace(JSON.stringify(traceSpans, null, 2))}
+                aria-label='Copy raw trace'
+              >
+                {traceCopied ? (
+                  <Check className='size-[12px] text-[var(--text-success)]' />
+                ) : (
+                  <Clipboard className='size-[12px]' />
+                )}
+              </Button>
+            </Tooltip.Trigger>
+            <Tooltip.Content side='top'>
+              {traceCopied ? 'Copied' : 'Copy raw trace'}
+            </Tooltip.Content>
+          </Tooltip.Root>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button

@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   extractTabularData,
+  normalizeOutputWorkspaceFileName,
   serializeOutputForFile,
   unwrapFunctionExecuteOutput,
 } from '@/lib/copilot/request/tools/files'
@@ -68,6 +69,21 @@ describe('serializeOutputForFile (json / txt / md)', () => {
     expect(serializeOutputForFile(output, 'md')).toBe('# Report\n\nHello')
     expect(serializeOutputForFile(output, 'txt')).toBe('# Report\n\nHello')
     expect(serializeOutputForFile(output, 'html')).toBe('# Report\n\nHello')
+  })
+})
+
+describe('normalizeOutputWorkspaceFileName', () => {
+  it('derives the leaf file name from workflow alias output paths', () => {
+    expect(normalizeOutputWorkspaceFileName('workflows/My%20Workflow/changelog.md')).toBe(
+      'changelog.md'
+    )
+    expect(
+      normalizeOutputWorkspaceFileName('workflows/My%20Workflow/.plans/phase%201/implementation.md')
+    ).toBe('implementation.md')
+  })
+
+  it('still handles normal workspace file output paths', () => {
+    expect(normalizeOutputWorkspaceFileName('files/Reports/output.csv')).toBe('output.csv')
   })
 })
 

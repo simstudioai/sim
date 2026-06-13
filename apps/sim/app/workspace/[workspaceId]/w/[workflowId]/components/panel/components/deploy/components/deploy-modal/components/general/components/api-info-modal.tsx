@@ -5,18 +5,17 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import {
   Badge,
-  Button,
   ButtonGroup,
   ButtonGroupItem,
+  ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
   Input,
   Label,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
 } from '@/components/emcn'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
@@ -205,121 +204,98 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
 
   return (
     <>
-      <Modal open={open} onOpenChange={(openState) => !openState && handleCloseAttempt()}>
-        <ModalContent size='md'>
-          <ModalHeader>
-            <span>Edit API Info</span>
-          </ModalHeader>
-          <ModalBody className='space-y-3'>
-            <ModalDescription className='sr-only'>
-              Edit the API description, access mode, and input parameters for this workflow
-              endpoint.
-            </ModalDescription>
-            <div>
-              <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                Description
-              </Label>
-              <Textarea
-                placeholder='Describe what this workflow API does...'
-                className='min-h-[80px] resize-none'
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
+      <ChipModal
+        open={open}
+        onOpenChange={(openState) => !openState && handleCloseAttempt()}
+        srTitle='Edit API Info'
+      >
+        <ChipModalHeader onClose={() => onOpenChange(false)}>Edit API Info</ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField
+            type='textarea'
+            title='Description'
+            value={description}
+            onChange={setDescription}
+            placeholder='Describe what this workflow API does...'
+            minHeight={80}
+          />
 
-            {!isPublicApiDisabled && (
-              <div>
-                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                  Access
-                </Label>
-                <ButtonGroup
-                  value={accessMode}
-                  onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
-                >
-                  <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
-                  <ButtonGroupItem value='public'>Public</ButtonGroupItem>
-                </ButtonGroup>
-                <p className='mt-1 text-[var(--text-secondary)] text-caption'>
-                  {accessMode === 'public'
-                    ? 'Anyone can call this API without authentication. You will be billed for all usage.'
-                    : 'Requires a valid API key to call this endpoint.'}
-                </p>
-              </div>
-            )}
+          {!isPublicApiDisabled && (
+            <ChipModalField type='custom' title='Access'>
+              <ButtonGroup
+                value={accessMode}
+                onValueChange={(val) => setAccessMode(val as 'api_key' | 'public')}
+              >
+                <ButtonGroupItem value='api_key'>API Key</ButtonGroupItem>
+                <ButtonGroupItem value='public'>Public</ButtonGroupItem>
+              </ButtonGroup>
+              <p className='mt-1 text-[var(--text-secondary)] text-caption'>
+                {accessMode === 'public'
+                  ? 'Anyone can call this API without authentication. You will be billed for all usage.'
+                  : 'Requires a valid API key to call this endpoint.'}
+              </p>
+            </ChipModalField>
+          )}
 
-            {inputFormat.length > 0 && (
-              <div>
-                <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
-                  Parameters ({inputFormat.length})
-                </Label>
-                <div className='flex flex-col gap-2'>
-                  {inputFormat.map((field) => (
-                    <div
-                      key={field.name}
-                      className='overflow-hidden rounded-sm border border-[var(--border-1)]'
-                    >
-                      <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
-                        <div className='flex min-w-0 flex-1 items-center gap-2'>
-                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-                            {field.name}
-                          </span>
-                          <Badge variant='type' size='sm'>
-                            {field.type || 'string'}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                        <div className='flex flex-col gap-1.5'>
-                          <Label className='text-small'>Description</Label>
-                          <Input
-                            value={paramDescriptions[field.name] || ''}
-                            onChange={(e) =>
-                              handleParamDescriptionChange(field.name, e.target.value)
-                            }
-                            placeholder={`Enter description for ${field.name}`}
-                          />
-                        </div>
+          {inputFormat.length > 0 && (
+            <ChipModalField type='custom' title={`Parameters (${inputFormat.length})`}>
+              <div className='flex flex-col gap-2'>
+                {inputFormat.map((field) => (
+                  <div
+                    key={field.name}
+                    className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                  >
+                    <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
+                      <div className='flex min-w-0 flex-1 items-center gap-2'>
+                        <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                          {field.name}
+                        </span>
+                        <Badge variant='type' size='sm'>
+                          {field.type || 'string'}
+                        </Badge>
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+                      <div className='flex flex-col gap-1.5'>
+                        <Label className='text-small'>Description</Label>
+                        <Input
+                          value={paramDescriptions[field.name] || ''}
+                          onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
+                          placeholder={`Enter description for ${field.name}`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </ModalBody>
-          <ModalFooter>
-            {saveError && (
-              <p className='mr-auto text-[var(--text-error)] text-caption'>{saveError}</p>
-            )}
-            <Button variant='default' onClick={handleCloseAttempt} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant='tertiary' onClick={handleSave} disabled={isSaving || !hasChanges}>
-              {isSaving ? 'Saving...' : 'Save'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            </ChipModalField>
+          )}
 
-      <Modal open={showUnsavedChangesAlert} onOpenChange={setShowUnsavedChangesAlert}>
-        <ModalContent size='sm'>
-          <ModalHeader>
-            <span>Unsaved Changes</span>
-          </ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)] text-sm'>
-              You have unsaved changes. Are you sure you want to discard them?
-            </ModalDescription>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={() => setShowUnsavedChangesAlert(false)}>
-              Keep Editing
-            </Button>
-            <Button variant='destructive' onClick={handleDiscardChanges}>
-              Discard Changes
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          <ChipModalError>{saveError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={handleCloseAttempt}
+          cancelDisabled={isSaving}
+          primaryAction={{
+            label: 'Save',
+            onClick: handleSave,
+            disabled: !hasChanges || isSaving,
+          }}
+        />
+      </ChipModal>
+
+      <ChipConfirmModal
+        open={showUnsavedChangesAlert}
+        onOpenChange={setShowUnsavedChangesAlert}
+        srTitle='Unsaved Changes'
+        title='Unsaved Changes'
+        description='You have unsaved changes. Are you sure you want to discard them?'
+        dismissLabel='Keep editing'
+        confirm={{
+          label: 'Discard Changes',
+          onClick: handleDiscardChanges,
+        }}
+      />
     </>
   )
 }

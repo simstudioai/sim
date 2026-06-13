@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -37,7 +38,8 @@ interface TriggerSaveResult {
 }
 
 export async function validateTriggerWebhookConfigForDeploy(
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  executor: DbOrTx = db
 ): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
 
@@ -74,7 +76,8 @@ export async function validateTriggerWebhookConfigForDeploy(
       const oauthProviderId = getProviderIdFromServiceId(provider)
       const hasCredential = await credentialSetHasProviderCredential(
         providerConfig.credentialSetId as string,
-        oauthProviderId
+        oauthProviderId,
+        executor
       )
       if (!hasCredential) {
         return {
@@ -93,9 +96,10 @@ export async function validateTriggerWebhookConfigForDeploy(
 
 async function credentialSetHasProviderCredential(
   credentialSetId: string,
-  providerId: string
+  providerId: string,
+  executor: DbOrTx
 ): Promise<boolean> {
-  const members = await db
+  const members = await executor
     .select({ userId: credentialSetMember.userId })
     .from(credentialSetMember)
     .where(
@@ -107,7 +111,7 @@ async function credentialSetHasProviderCredential(
 
   if (members.length === 0) return false
 
-  const [credential] = await db
+  const [credential] = await executor
     .select({ id: account.id })
     .from(account)
     .where(

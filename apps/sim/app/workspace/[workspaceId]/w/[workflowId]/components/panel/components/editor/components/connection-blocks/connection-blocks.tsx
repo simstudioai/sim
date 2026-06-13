@@ -14,6 +14,7 @@ import {
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { useBlockOutputFields } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-output-fields'
 import { getBlock } from '@/blocks/registry'
+import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { EMPTY_SUBBLOCK_VALUES, useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -168,7 +169,7 @@ function ConnectionItem({
         {hasFields && (
           <ChevronDown
             className={clsx(
-              'h-[8px] w-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
+              'size-[8px] flex-shrink-0 text-[var(--text-tertiary)] transition-transform duration-100 group-hover:text-[var(--text-primary)]',
               !isExpanded && '-rotate-90'
             )}
           />
@@ -279,7 +280,7 @@ export function ConnectionBlocks({ connections, currentBlockId }: ConnectionBloc
 
   const handleConnectionDragStart = useCallback(
     (e: React.DragEvent, connection: ConnectedBlock) => {
-      const normalizedBlockName = connection.name.replace(/\s+/g, '').toLowerCase()
+      const normalizedBlockName = normalizeName(connection.name)
 
       e.dataTransfer.setData(
         'application/json',

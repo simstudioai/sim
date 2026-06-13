@@ -19,8 +19,8 @@ import {
   getWorkflowSearchLabelHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import type { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface FilterRuleRowProps {
   blockId: string
@@ -38,7 +38,6 @@ interface FilterRuleRowProps {
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onToggleCollapse: (id: string) => void
   inputController: ReturnType<typeof useSubBlockInput>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function FilterRuleRow({
@@ -55,8 +54,8 @@ export function FilterRuleRow({
   onUpdate,
   onToggleCollapse,
   inputController,
-  activeSearchTarget,
 }: FilterRuleRowProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)

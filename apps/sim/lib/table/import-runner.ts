@@ -2,6 +2,8 @@ import { type Readable, Transform } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { truncate } from '@sim/utils/string'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
   buildAutoMapping,
   CSV_MAX_BATCH_SIZE,
@@ -15,18 +17,19 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
+import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
   addImportColumns,
   bulkInsertImportBatch,
   deleteAllTableRows,
   getTableById,
-  markImportFailed,
-  markImportReady,
+  markJobFailed,
+  markJobReady,
   nextImportStartOrderKey,
   nextImportStartPosition,
   setTableSchemaForImport,
-  updateImportProgress,
+  updateJobProgress,
 } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
@@ -127,7 +130,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
 
       if (mode === 'create') {
         const inferred = inferSchemaFromCsv(headers, sample)
-        schema = { columns: inferred.columns.map(normalizeColumn) }
+        // Stamp ids so the imported table is id-native (rows coerce + persist by
+        // the same ids).
+        schema = withGeneratedColumnIds({ columns: inferred.columns.map(normalizeColumn) })
         headerToColumn = inferred.headerToColumn
         await setTableSchemaForImport(tableId, schema)
         return
@@ -180,9 +185,9 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     const flush = async (rows: Record<string, unknown>[]) => {
       if (rows.length === 0 || !schema || !headerToColumn) return
       // Ownership gate before every insert: once this run loses the table (cancel/supersede),
-      // updateImportProgress returns false and we stop before writing into a table a newer import
+      // updateJobProgress returns false and we stop before writing into a table a newer import
       // may own. Runs per batch (not just at the emit cadence) so we stop within one batch.
-      const owns = await updateImportProgress(tableId, inserted, importId)
+      const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
       const result = await bulkInsertImportBatch(
@@ -209,10 +214,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
         const percent =
           totalBytes > 0 ? Math.min(99, Math.round((bytesRead / totalBytes) * 100)) : undefined
         void appendTableEvent({
-          kind: 'import',
+          kind: 'job',
+          type: 'import',
           tableId,
-          importId,
-          status: 'importing',
+          jobId: importId,
+          status: 'running',
           progress: inserted,
           percent,
         })
@@ -242,14 +248,28 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       if (sample.length === 0) {
         // No data rows — fail rather than report a successful empty import (matches the sync route).
         const message = 'CSV file has no data rows'
-        await markImportFailed(tableId, importId, message)
+        await markJobFailed(tableId, importId, message)
         void appendTableEvent({
-          kind: 'import',
+          kind: 'job',
+          type: 'import',
           tableId,
-          importId,
+          jobId: importId,
           status: 'failed',
           error: message,
         })
+        captureServerEvent(
+          userId,
+          'table_import_completed',
+          {
+            table_id: tableId,
+            workspace_id: workspaceId,
+            import_id: importId,
+            status: 'failed',
+            row_count: null,
+            error_message: truncate(message, 200),
+          },
+          { groups: { workspace: workspaceId } }
+        )
         logger.warn(`[${requestId}] Import has no data rows`, { tableId, fileName })
         return
       }
@@ -259,19 +279,32 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       await flush(batch)
     }
 
-    await updateImportProgress(tableId, inserted, importId)
+    await updateJobProgress(tableId, inserted, importId)
     // Only announce success if we actually won the transition — a cancel/supersede that landed
     // right at the end makes this a no-op, and we must not emit a false `ready`.
-    const becameReady = await markImportReady(tableId, importId)
+    const becameReady = await markJobReady(tableId, importId)
     if (becameReady) {
       void appendTableEvent({
-        kind: 'import',
+        kind: 'job',
+        type: 'import',
         tableId,
-        importId,
+        jobId: importId,
         status: 'ready',
         progress: inserted,
         percent: 100,
       })
+      captureServerEvent(
+        userId,
+        'table_import_completed',
+        {
+          table_id: tableId,
+          workspace_id: workspaceId,
+          import_id: importId,
+          status: 'completed',
+          row_count: inserted,
+        },
+        { groups: { workspace: workspaceId } }
+      )
       logger.info(`[${requestId}] Import complete`, { tableId, fileName, mode, rows: inserted })
     } else {
       logger.info(
@@ -293,8 +326,28 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const message = getErrorMessage(err, 'Import failed')
       logger.error(`[${requestId}] Import failed for table ${tableId}:`, err)
       // Scoped to importId — a no-op if a newer import has taken over.
-      await markImportFailed(tableId, importId, message).catch(() => {})
-      void appendTableEvent({ kind: 'import', tableId, importId, status: 'failed', error: message })
+      await markJobFailed(tableId, importId, message).catch(() => {})
+      void appendTableEvent({
+        kind: 'job',
+        type: 'import',
+        tableId,
+        jobId: importId,
+        status: 'failed',
+        error: message,
+      })
+      captureServerEvent(
+        userId,
+        'table_import_completed',
+        {
+          table_id: tableId,
+          workspace_id: workspaceId,
+          import_id: importId,
+          status: 'failed',
+          row_count: null,
+          error_message: truncate(message, 200),
+        },
+        { groups: { workspace: workspaceId } }
+      )
     }
   } finally {
     // Release the storage stream so its HTTP connection doesn't leak on failure.

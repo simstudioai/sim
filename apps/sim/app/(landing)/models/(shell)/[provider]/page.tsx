@@ -55,30 +55,18 @@ export async function generateMetadata({
       `${provider.name} AI models`,
       ...provider.models.slice(0, 6).map((model) => model.displayName),
     ],
+    // og:image/twitter:image come from the sibling opengraph-image.tsx —
+    // Next serves it at a hash-suffixed URL, so hardcoding it here 404s.
     openGraph: {
       title: `${provider.name} Models | Sim`,
       description: `Explore ${provider.modelCount} ${provider.name} models with pricing and capability details.`,
       url: `${baseUrl}${provider.href}`,
       type: 'website',
-      images: [
-        {
-          url: `${baseUrl}${provider.href}/opengraph-image`,
-          width: 1200,
-          height: 630,
-          alt: `${provider.name} Models on Sim`,
-        },
-      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${provider.name} Models | Sim`,
       description: providerFaqs[0]?.answer ?? provider.summary,
-      images: [
-        {
-          url: `${baseUrl}${provider.href}/opengraph-image`,
-          alt: `${provider.name} Models on Sim`,
-        },
-      ],
     },
     alternates: {
       canonical: `${baseUrl}${provider.href}`,

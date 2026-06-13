@@ -69,7 +69,7 @@ const STYLES = {
   row: 'group flex min-h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 hover-hover:bg-[var(--surface-active)]',
   chevron:
     'h-[7px] w-[9px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-  keyName: 'font-base text-sm text-[var(--text-primary)]',
+  keyName: 'text-sm text-[var(--text-primary)]',
   badge: 'rounded-sm px-1 py-[0px] text-xs',
   summary: 'text-sm text-[var(--text-secondary)]',
   indent: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',

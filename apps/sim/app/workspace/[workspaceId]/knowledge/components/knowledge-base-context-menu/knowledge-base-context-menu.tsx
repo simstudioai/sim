@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Copy, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
+import { Duplicate, Pencil, SquareArrowUpRight, TagIcon, Trash } from '@/components/emcn/icons'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean
@@ -92,7 +92,7 @@ export const KnowledgeBaseContextMenu = memo(function KnowledgeBaseContextMenu({
         )}
         {onCopyId && (
           <DropdownMenuItem onSelect={onCopyId}>
-            <Copy />
+            <Duplicate />
             Copy ID
           </DropdownMenuItem>
         )}

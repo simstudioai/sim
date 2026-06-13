@@ -25,7 +25,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Filter issues by specific project slug (e.g., "my-project")',
+      description:
+        'Filter issues by numeric project ID (e.g., "4501234"). This organization-scoped endpoint requires the numeric project ID, not the project slug.',
     },
     query: {
       type: 'string',
@@ -39,7 +40,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       required: false,
       visibility: 'user-only',
       description:
-        'Time period for stats (e.g., "24h", "7d", "30d"). Defaults to 24h if not specified.',
+        'Time window for the per-issue stats series (e.g., "24h", "14d"). Note: this controls the stats returned with each issue, not which issues are returned — use the query (e.g., "age:-7d", "lastSeen:-24h") to filter results.',
     },
     cursor: {
       type: 'string',
@@ -51,19 +52,20 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       type: 'number',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Number of issues to return per page (default: 25, max: 100)',
+      description: 'Number of issues to return per page (max: 100)',
     },
     status: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Filter by issue status: unresolved, resolved, ignored, or muted',
+      description:
+        'Filter by issue status: unresolved, resolved, or ignored. The legacy "ignored"/"muted" values map to Sentry\'s current "archived" search token.',
     },
     sort: {
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Sort order: date, new, freq, priority, or user (default: date)',
+      description: 'Sort order: date, new, trends, freq, or user (default: date)',
     },
   },
 
@@ -76,9 +78,13 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
         queryParams.push(`project=${encodeURIComponent(params.projectSlug)}`)
       }
 
-      if (params.query && params.query !== null && params.query !== '') {
-        queryParams.push(`query=${encodeURIComponent(params.query)}`)
+      let searchQuery = params.query && params.query !== null ? params.query.trim() : ''
+      if (params.status && params.status !== null && params.status !== '') {
+        const statusToken =
+          params.status === 'ignored' || params.status === 'muted' ? 'archived' : params.status
+        searchQuery = searchQuery ? `${searchQuery} is:${statusToken}` : `is:${statusToken}`
       }
+      queryParams.push(`query=${encodeURIComponent(searchQuery)}`)
 
       if (params.statsPeriod && params.statsPeriod !== null && params.statsPeriod !== '') {
         queryParams.push(`statsPeriod=${encodeURIComponent(params.statsPeriod)}`)
@@ -92,12 +98,9 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
         queryParams.push(`limit=${Number(params.limit)}`)
       }
 
-      if (params.status && params.status !== null && params.status !== '') {
-        queryParams.push(`query=${encodeURIComponent(`is:${params.status}`)}`)
-      }
-
       if (params.sort && params.sort !== null && params.sort !== '') {
-        queryParams.push(`sort=${encodeURIComponent(params.sort)}`)
+        const sortValue = params.sort === 'priority' ? 'trends' : params.sort
+        queryParams.push(`sort=${encodeURIComponent(sortValue)}`)
       }
 
       return queryParams.length > 0 ? `${baseUrl}?${queryParams.join('&')}` : baseUrl
@@ -112,14 +115,11 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    // Extract pagination info from Link header
     const linkHeader = response.headers.get('Link')
     let nextCursor: string | undefined
     let hasMore = false
 
     if (linkHeader) {
-      // Parse Link header for next cursor
-      // Format: <https://sentry.io/api/0/organizations/.../issues/?cursor=...>; rel="next"; results="true"
       const nextMatch = linkHeader.match(
         /<[^>]*cursor=([^&>]+)[^>]*>;\s*rel="next";\s*results="true"/
       )
@@ -129,10 +129,12 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
       }
     }
 
+    const issues = Array.isArray(data) ? data : []
+
     return {
       success: true,
       output: {
-        issues: data.map((issue: any) => ({
+        issues: issues.map((issue: any) => ({
           id: issue.id,
           shortId: issue.shortId,
           title: issue.title,
@@ -141,6 +143,8 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           logger: issue.logger ?? null,
           level: issue.level,
           status: issue.status,
+          substatus: issue.substatus ?? null,
+          priority: issue.priority ?? null,
           statusDetails: issue.statusDetails || {},
           isPublic: issue.isPublic,
           platform: issue.platform ?? null,
@@ -207,6 +211,17 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
           },
           level: { type: 'string', description: 'Severity level (error, warning, info, etc.)' },
           status: { type: 'string', description: 'Current issue status' },
+          substatus: {
+            type: 'string',
+            description:
+              'Issue substatus (e.g., ongoing, escalating, new, archived_until_escalating)',
+            optional: true,
+          },
+          priority: {
+            type: 'string',
+            description: 'Issue priority (high, medium, or low)',
+            optional: true,
+          },
           statusDetails: { type: 'object', description: 'Additional details about the status' },
           isPublic: { type: 'boolean', description: 'Whether the issue is publicly visible' },
           platform: {

@@ -1,3 +1,5 @@
+import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+
 /**
  * Strips HTML tags from content and decodes common HTML entities.
  */
@@ -88,7 +90,7 @@ export function parseMultiValue(value: unknown): string[] {
  * Returns null when the cap is exceeded.
  */
 export async function readBodyWithLimit(
-  response: Response,
+  response: Response | SecureFetchResponse,
   maxBytes: number
 ): Promise<Buffer | null> {
   if (!response.body) {

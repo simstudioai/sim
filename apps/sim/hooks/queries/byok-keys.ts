@@ -47,12 +47,12 @@ export function useUpsertBYOKKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, providerId, apiKey }: UpsertBYOKKeyParams) => {
+    mutationFn: async ({ workspaceId, ...body }: UpsertBYOKKeyParams) => {
       const data = await requestJson(upsertByokKeyContract, {
         params: { id: workspaceId },
-        body: { providerId, apiKey },
+        body,
       })
-      logger.info(`Saved BYOK key for ${providerId} in workspace ${workspaceId}`)
+      logger.info(`Saved BYOK key for ${body.providerId} in workspace ${workspaceId}`)
       return data
     },
     onSuccess: (_data, variables) => {
@@ -71,12 +71,12 @@ export function useDeleteBYOKKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, providerId }: DeleteBYOKKeyParams) => {
+    mutationFn: async ({ workspaceId, ...body }: DeleteBYOKKeyParams) => {
       const data = await requestJson(deleteByokKeyContract, {
         params: { id: workspaceId },
-        body: { providerId },
+        body,
       })
-      logger.info(`Deleted BYOK key for ${providerId} from workspace ${workspaceId}`)
+      logger.info(`Deleted BYOK key for ${body.providerId} from workspace ${workspaceId}`)
       return data
     },
     onSuccess: (_data, variables) => {

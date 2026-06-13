@@ -1,19 +1,18 @@
 'use client'
 
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
 import { AgentSkillsIcon } from '@/components/icons'
-import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { SkillModal } from '@/app/workspace/[workspaceId]/settings/components/skills/components/skill-modal'
+import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useSkills } from '@/hooks/queries/skills'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface StoredSkill {
   skillId: string
@@ -26,7 +25,6 @@ interface SkillInputProps {
   isPreview?: boolean
   previewValue?: unknown
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 export function SkillInput({
@@ -35,8 +33,8 @@ export function SkillInput({
   isPreview,
   previewValue,
   disabled,
-  activeSearchTarget,
 }: SkillInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
 
@@ -45,7 +43,6 @@ export function SkillInput({
   const [value, setValue] = useSubBlockValue<StoredSkill[]>(blockId, subBlockId)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingSkill, setEditingSkill] = useState<SkillDefinition | null>(null)
-  const openRef = useRef(false)
 
   const selectedSkills: StoredSkill[] = useMemo(() => {
     if (isPreview && previewValue) {
@@ -70,7 +67,6 @@ export function SkillInput({
             icon: Plus,
             onSelect: () => {
               setShowCreateModal(true)
-              openRef.current = false
             },
             disabled: isPreview,
           },
@@ -90,7 +86,6 @@ export function SkillInput({
             onSelect: () => {
               const newSkills: StoredSkill[] = [...selectedSkills, { skillId: s.id, name: s.name }]
               setValue(newSkills)
-              openRef.current = false
             },
           }
         }),
@@ -133,9 +128,6 @@ export function SkillInput({
           searchPlaceholder='Search skills...'
           maxHeight={240}
           emptyMessage='No skills found'
-          onOpenChange={(v) => {
-            openRef.current = v
-          }}
         />
 
         {selectedSkills.length > 0 &&
@@ -155,19 +147,11 @@ export function SkillInput({
                 className='group relative flex flex-col overflow-hidden rounded-sm border border-[var(--border-1)] transition-all duration-200 ease-in-out'
               >
                 <div
-                  role='group'
-                  tabIndex={fullSkill && !disabled && !isPreview ? 0 : undefined}
-                  aria-label={skillName}
                   className='flex cursor-pointer items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]'
                   onClick={() => {
                     if (fullSkill && !disabled && !isPreview) {
                       setEditingSkill(fullSkill)
                     }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget || !fullSkill || disabled || isPreview)
-                      return
-                    handleKeyboardActivation(event, () => setEditingSkill(fullSkill))
                   }}
                 >
                   <div className='flex min-w-0 flex-1 items-center gap-2'>

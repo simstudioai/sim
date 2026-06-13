@@ -213,7 +213,6 @@ export function SandboxCanvasProvider({
       name: 'Exercise',
       lastModified: new Date(),
       createdAt: new Date(),
-      color: '#3972F6',
       workspaceId: SANDBOX_WORKSPACE_ID,
       sortOrder: 0,
       isSandbox: true,

@@ -7,7 +7,12 @@ import type { COLUMN_TYPES } from './constants'
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
 
-/** Row data mapping column names to values. */
+/**
+ * Row data mapping **column id** → value at rest (in `user_table_rows.data`).
+ * The two name-translating boundaries (public v1 API, mothership tool) and CSV
+ * key by column name on the wire; everything else uses ids. Resolve a column's
+ * storage key with `getColumnId` from `./column-keys`.
+ */
 export type RowData = Record<string, JsonValue>
 
 export type SortDirection = 'asc' | 'desc'
@@ -22,13 +27,22 @@ export interface ColumnOption {
 }
 
 export interface ColumnDefinition {
+  /**
+   * Stable storage key for this column. Row data, metadata, workflow-group
+   * refs, and filter/sort all key on this id; `name` is a pure display label
+   * that can change freely (rename is metadata-only). Absent only on legacy
+   * columns before the backfill — `getColumnId` falls back to `name`, which is
+   * the key those rows were already written under. New columns get a generated
+   * `col_…` from `generateColumnId`.
+   */
+  id?: string
   name: string
   type: (typeof COLUMN_TYPES)[number]
   required?: boolean
   unique?: boolean
   /**
    * When set, this column is one of a workflow group's outputs. The value in
-   * `row.data[name]` is populated by the group's per-cell run.
+   * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
   workflowGroupId?: string
 }
@@ -41,16 +55,22 @@ export interface WorkflowGroupOutput {
   path: string
   /** Enrichment output id this column receives (enrichment groups only). */
   outputId?: string
-  /** Plain column in `schema.columns` that receives the produced value. */
+  /**
+   * Stable **column id** (`getColumnId`) of the plain column in
+   * `schema.columns` that receives the produced value. Despite the field name,
+   * this holds the column id, not its display name — so a column rename never
+   * touches this ref. Legacy values equal the column name (== id pre-backfill).
+   */
   columnName: string
 }
 
 export interface WorkflowGroupDependencies {
   /**
-   * Columns that must be non-empty before this group runs. Workflow output
-   * columns count too — once an upstream group fills its output column, any
-   * downstream group depending on that column becomes eligible. The user
-   * model is uniform: deps are columns, not group-completion edges.
+   * Stable **column ids** (`getColumnId`) that must be non-empty before this
+   * group runs. Workflow output columns count too — once an upstream group
+   * fills its output column, any downstream group depending on that column
+   * becomes eligible. The user model is uniform: deps are columns, not
+   * group-completion edges. Legacy values equal column names (== id pre-backfill).
    */
   columns?: string[]
 }
@@ -74,7 +94,11 @@ export type WorkflowGroupDeploymentMode = 'live' | 'deployed'
 export interface WorkflowGroupInputMapping {
   /** `inputFormat` field name on the workflow's Start block. */
   inputName: string
-  /** Table column whose per-row value feeds that input. */
+  /**
+   * Stable **column id** (`getColumnId`) whose per-row value feeds that input.
+   * Despite the field name, this holds the column id, not its display name.
+   * Legacy values equal the column name (== id pre-backfill).
+   */
   columnName: string
 }
 
@@ -159,14 +183,68 @@ export interface TableSchema {
  * is enforced at the trigger.dev queue layer, not via metadata.
  */
 export interface TableMetadata {
+  /** Pixel widths keyed by **column id** (`getColumnId`). */
   columnWidths?: Record<string, number>
+  /** Visible left-to-right order as **column ids** (`getColumnId`). */
   columnOrder?: string[]
-  /** Logical column names that are pinned to the left while scrolling horizontally. */
+  /** **Column ids** pinned to the left while scrolling horizontally. */
   pinnedColumns?: string[]
 }
 
-/** Async-import lifecycle state for a table. NULL/undefined = normal (no async import). */
-export type TableImportStatus = 'importing' | 'ready' | 'failed' | 'canceled'
+/** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
+export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
+
+/**
+ * Which kind of background job a `table_jobs` row tracks. `import`, `delete`, and `backfill`
+ * mutate row data and share the single-running-job gate; `export` is read-only and bypasses it
+ * (the partial-unique index excludes it), so an export can run alongside any other job.
+ */
+export type TableJobType = 'import' | 'delete' | 'export' | 'backfill'
+
+/**
+ * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
+ * `matches(filter) AND created_at <= cutoff AND id NOT IN excludeRowIds` — so the rows read-path
+ * can mask those rows out while the job runs, making mid-job reads (refresh, other clients)
+ * consistent with the eventual result.
+ */
+export interface TableDeleteJobPayload {
+  filter?: Filter
+  excludeRowIds?: string[]
+  /** ISO timestamp; rows created after it are spared. */
+  cutoff: string
+  /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+  doomedCount?: number
+}
+
+/**
+ * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
+ * on completion — the storage key of the generated file, served to the client via a presigned URL
+ * and deleted by the janitor when the terminal job is pruned.
+ */
+export interface TableExportJobPayload {
+  format: 'csv' | 'json'
+  resultKey?: string
+}
+
+/**
+ * Keyset cursor for paginating a table's default row order, `(order_key, id)`. The grid's
+ * infinite scroll threads this instead of an OFFSET — offset paging re-scans every prior row per
+ * page (O(N²) to drain a table); the cursor makes each page an index seek on
+ * `(table_id, order_key, id)`. Only valid for the default order: sorted views fall back to offset.
+ */
+export interface TableRowsCursor {
+  orderKey: string
+  id: string
+}
+
+/** Persisted scope of an output-column backfill job (`table_jobs.payload`). */
+export interface TableBackfillJobPayload {
+  groupId: string
+  outputs: WorkflowGroupOutput[]
+  /** Remaps overwrite existing cell values; added columns never clobber hand-edits. */
+  overwrite: boolean
+}
 
 export interface TableDefinition {
   id: string
@@ -181,12 +259,15 @@ export interface TableDefinition {
   archivedAt?: Date | string | null
   createdAt: Date | string
   updatedAt: Date | string
-  /** Async-import state (see `apps/sim/lib/table/import-runner.ts`). */
-  importStatus?: TableImportStatus | null
-  importId?: string | null
-  importError?: string | null
-  importRowsProcessed?: number
-  importStartedAt?: Date | string | null
+  /**
+   * Async background-job state, derived from the table's latest `table_jobs` row (running if any,
+   * else the most recent terminal). See `import-runner.ts` / `delete-runner.ts`.
+   */
+  jobStatus?: TableJobStatus | null
+  jobId?: string | null
+  jobType?: TableJobType | null
+  jobError?: string | null
+  jobRowsProcessed?: number
 }
 
 /** Minimal table info for UI components. */
@@ -290,6 +371,9 @@ export interface QueryOptions {
   sort?: Sort
   limit?: number
   offset?: number
+  /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
+   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+  after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
    * Pass `false` to skip the count query (grid UI doesn't need it); `totalCount`
@@ -329,10 +413,12 @@ export interface CreateTableData {
   maxTables?: number
   /** Number of empty rows to create with the table. Defaults to 0. */
   initialRowCount?: number
-  /** When set, the table is created in this async-import state (rows hidden until ready). */
-  importStatus?: TableImportStatus
-  /** Async-import id stamped on the table when `importStatus` is set. */
-  importId?: string
+  /** When set, the table is created with this job already running (rows hidden until ready). */
+  jobStatus?: TableJobStatus
+  /** Job kind, paired with `jobStatus` (create-mode import sets `'import'`). */
+  jobType?: TableJobType
+  /** Async job id stamped on the table when `jobStatus` is set. */
+  jobId?: string
 }
 
 export interface InsertRowData {
@@ -397,12 +483,21 @@ export interface UpdateRowData {
    * state. `updateRow` returns `null` when the guard rejects the write.
    */
   cancellationGuard?: { groupId: string; executionId: string }
+  /**
+   * The member who performed this write. Billed and usage-gated for any
+   * enrichment the write triggers (auto-fire or dependency-cascade re-run), so
+   * costs land on the editor's per-member meter rather than the workspace billed
+   * account. Omitted only for internal `executionsPatch`-only writes.
+   */
+  actorUserId?: string | null
 }
 
 export interface BulkUpdateData {
   filter: Filter
   data: RowData
   limit?: number
+  /** The member who performed this write — billed/gated for triggered enrichment. */
+  actorUserId?: string | null
 }
 
 export interface BatchUpdateByIdData {
@@ -413,6 +508,8 @@ export interface BatchUpdateByIdData {
     executionsPatch?: Record<string, RowExecutionMetadata | null>
   }>
   workspaceId: string
+  /** The member who performed this write — billed/gated for triggered enrichment. */
+  actorUserId?: string | null
 }
 
 export interface BulkDeleteData {
@@ -478,6 +575,8 @@ export interface AddWorkflowGroupData {
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
+  /** The member adding the group — billed/gated for the auto-run enrichment pass. */
+  actorUserId?: string | null
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
@@ -506,6 +605,8 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
+  /** The member updating the group — billed/gated for any triggered re-run. */
+  actorUserId?: string | null
 }
 
 export interface DeleteWorkflowGroupData {

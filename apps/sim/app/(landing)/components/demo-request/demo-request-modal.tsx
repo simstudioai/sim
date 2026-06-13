@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import {
-  Combobox,
-  Input,
+  ChipCombobox,
+  ChipInput,
+  ChipTextarea,
   Modal,
   ModalBody,
   ModalContent,
@@ -12,7 +13,6 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTrigger,
-  Textarea,
 } from '@/components/emcn'
 import { Check } from '@/components/emcn/icons'
 import { requestJson } from '@/lib/api/client/request'
@@ -55,8 +55,10 @@ const INITIAL_FORM_STATE: DemoRequestFormState = {
   details: '',
 }
 
-const LANDING_INPUT =
-  'h-[32px] rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 font-[430] font-season text-[13.5px] text-[var(--text-primary)] transition-colors placeholder:text-[var(--text-muted)] outline-none'
+const LANDING_INPUT_CONTAINER =
+  'rounded-[5px] border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 transition-colors'
+const LANDING_INPUT_INNER =
+  'font-[430] font-season text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none'
 
 async function submitDemoRequest(payload: DemoRequestPayload) {
   return requestJson(submitDemoRequestContract, { body: payload })
@@ -159,21 +161,23 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
               <div className='space-y-3'>
                 <div className='grid gap-3 sm:grid-cols-2'>
                   <LandingField htmlFor='firstName' label='First name' error={errors.firstName}>
-                    <Input
+                    <ChipInput
                       id='firstName'
                       value={form.firstName}
                       onChange={(event) => updateField('firstName', event.target.value)}
                       placeholder='First'
-                      className={LANDING_INPUT}
+                      className={LANDING_INPUT_CONTAINER}
+                      inputClassName={LANDING_INPUT_INNER}
                     />
                   </LandingField>
                   <LandingField htmlFor='lastName' label='Last name' error={errors.lastName}>
-                    <Input
+                    <ChipInput
                       id='lastName'
                       value={form.lastName}
                       onChange={(event) => updateField('lastName', event.target.value)}
                       placeholder='Last'
-                      className={LANDING_INPUT}
+                      className={LANDING_INPUT_CONTAINER}
+                      inputClassName={LANDING_INPUT_INNER}
                     />
                   </LandingField>
                 </div>
@@ -183,13 +187,14 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   label='Company email'
                   error={errors.companyEmail}
                 >
-                  <Input
+                  <ChipInput
                     id='companyEmail'
                     type='email'
                     value={form.companyEmail}
                     onChange={(event) => updateField('companyEmail', event.target.value)}
                     placeholder='Your work email'
-                    className={LANDING_INPUT}
+                    className={LANDING_INPUT_CONTAINER}
+                    inputClassName={LANDING_INPUT_INNER}
                   />
                 </LandingField>
 
@@ -199,18 +204,19 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                   optional
                   error={errors.phoneNumber}
                 >
-                  <Input
+                  <ChipInput
                     id='phoneNumber'
                     type='tel'
                     value={form.phoneNumber}
                     onChange={(event) => updateField('phoneNumber', event.target.value)}
                     placeholder='Your phone number'
-                    className={LANDING_INPUT}
+                    className={LANDING_INPUT_CONTAINER}
+                    inputClassName={LANDING_INPUT_INNER}
                   />
                 </LandingField>
 
                 <LandingField htmlFor='companySize' label='Company size' error={errors.companySize}>
-                  <Combobox
+                  <ChipCombobox
                     options={COMBOBOX_COMPANY_SIZES}
                     value={form.companySize}
                     selectedValue={form.companySize}
@@ -220,12 +226,12 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
                     placeholder='Select'
                     editable={false}
                     filterOptions={false}
-                    className='h-[32px] rounded-[5px] px-2.5 font-[430] font-season text-[13.5px]'
+                    className='rounded-[5px] px-2.5 font-[430] font-season'
                   />
                 </LandingField>
 
                 <LandingField htmlFor='details' label='Details' error={errors.details}>
-                  <Textarea
+                  <ChipTextarea
                     id='details'
                     value={form.details}
                     onChange={(event) => updateField('details', event.target.value)}

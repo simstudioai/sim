@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createEnvMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -34,9 +35,7 @@ vi.mock('@/lib/api-key/orchestration', () => ({
   performCreateWorkspaceApiKey: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: { INTERNAL_API_SECRET: 'secret' },
-}))
+vi.mock('@/lib/core/config/env', () => createEnvMock({ INTERNAL_API_SECRET: 'secret' }))
 
 vi.mock('@/lib/core/utils/request', () => ({
   generateRequestId: () => 'request-1',

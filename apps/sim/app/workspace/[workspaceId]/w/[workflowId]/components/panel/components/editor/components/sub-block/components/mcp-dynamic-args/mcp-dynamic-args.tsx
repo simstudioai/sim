@@ -8,9 +8,9 @@ import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/compone
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { resolvePreviewContextValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { formatParameterLabel } from '@/tools/params'
 
 const logger = createLogger('McpDynamicArgs')
@@ -22,7 +22,6 @@ interface McpDynamicArgsProps {
   isPreview?: boolean
   previewValue?: any
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -53,8 +52,8 @@ export function McpDynamicArgs({
   isPreview = false,
   previewValue,
   previewContextValues,
-  activeSearchTarget,
 }: McpDynamicArgsProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const { mcpTools, isLoading } = useMcpTools(workspaceId)
@@ -254,7 +253,6 @@ export function McpDynamicArgs({
             onChange={(newValue) => updateParameter(paramName, newValue)}
             isPreview={isPreview}
             disabled={disabled}
-            activeSearchTarget={activeSearchTarget}
             workflowSearchValuePath={[paramName]}
           />
         )
@@ -295,7 +293,6 @@ export function McpDynamicArgs({
             }}
             isPreview={isPreview}
             disabled={disabled}
-            activeSearchTarget={activeSearchTarget}
             workflowSearchValuePath={[paramName]}
           />
         )

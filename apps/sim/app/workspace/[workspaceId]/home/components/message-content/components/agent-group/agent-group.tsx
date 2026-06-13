@@ -7,9 +7,24 @@ import type { ToolCallData } from '../../../../types'
 import { getAgentIcon } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
 
+/**
+ * A subagent group nested inside another agent's output. Carries the same shape
+ * as a top-level group so {@link AgentGroup} can render it recursively, which is
+ * how deterministic parent/child nesting (e.g. Deploy inside Workflow) is drawn.
+ */
+export interface NestedAgentGroup {
+  id: string
+  agentName: string
+  agentLabel: string
+  items: AgentGroupItem[]
+  isDelegating: boolean
+  isOpen: boolean
+}
+
 export type AgentGroupItem =
   | { type: 'text'; content: string }
   | { type: 'tool'; data: ToolCallData }
+  | { type: 'agent_group'; group: NestedAgentGroup }
 
 interface AgentGroupProps {
   agentName: string
@@ -17,7 +32,6 @@ interface AgentGroupProps {
   items: AgentGroupItem[]
   isDelegating?: boolean
   isStreaming?: boolean
-  autoCollapse?: boolean
   defaultExpanded?: boolean
 }
 
@@ -27,7 +41,8 @@ function isToolDone(status: ToolCallData['status']): boolean {
     status === 'error' ||
     status === 'cancelled' ||
     status === 'skipped' ||
-    status === 'rejected'
+    status === 'rejected' ||
+    status === 'interrupted'
   )
 }
 
@@ -37,59 +52,43 @@ export function AgentGroup({
   items,
   isDelegating = false,
   isStreaming = false,
-  autoCollapse = false,
   defaultExpanded = false,
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
-  const isSubagent = agentName !== 'mothership'
   const toolItems = items.filter(
     (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
   )
   const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
+  // Only a live turn can be delegating. Once the turn is terminal (complete,
+  // errored, or stopped) no subagent should spin — even one aborted before its
+  // first tool call, where `allDone` is false because there are no tools yet.
+  const showDelegatingSpinner = isStreaming && isDelegating && !allDone
 
-  const [expanded, setExpanded] = useState(defaultExpanded || !allDone)
-  const didAutoCollapseRef = useRef(allDone)
-  const wasAutoExpandedRef = useRef(defaultExpanded)
-
-  useEffect(() => {
-    if (defaultExpanded) {
-      wasAutoExpandedRef.current = true
-      setExpanded(true)
-      return
-    }
-
-    if (wasAutoExpandedRef.current && allDone) {
-      wasAutoExpandedRef.current = false
-      setExpanded(false)
-    }
-  }, [defaultExpanded, allDone])
-
-  useEffect(() => {
-    if (!autoCollapse || didAutoCollapseRef.current) return
-    didAutoCollapseRef.current = true
-    setExpanded(false)
-  }, [autoCollapse])
+  // Expand only while the turn is live and the group is still open or working.
+  // Once the turn ends (isStreaming false) — or a subagent closes mid-turn — the
+  // group auto-collapses, so finished subagent blocks never stay expanded. A
+  // manual toggle pins the choice for the rest of the message.
+  const autoExpanded = isStreaming && (defaultExpanded || !allDone)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  const expanded = manualExpanded ?? autoExpanded
 
   return (
     <div className='flex flex-col gap-1.5'>
       {hasItems ? (
         <button
           type='button'
-          onClick={() => {
-            wasAutoExpandedRef.current = false
-            setExpanded((prev) => !prev)
-          }}
+          onClick={() => setManualExpanded(!expanded)}
           className='flex cursor-pointer items-center gap-2'
         >
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {isDelegating ? (
+            {showDelegatingSpinner ? (
               <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
             ) : (
               <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
           <ChevronDown
             className={cn(
               'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
@@ -100,20 +99,20 @@ export function AgentGroup({
       ) : (
         <div className='flex items-center gap-2'>
           <div className='flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {isDelegating ? (
+            {showDelegatingSpinner ? (
               <PillsRing className='size-[15px] text-[var(--text-icon)]' animate />
             ) : (
               <AgentIcon className='size-[16px] text-[var(--text-icon)]' />
             )}
           </div>
-          <span className='font-base text-[var(--text-body)] text-sm'>{agentLabel}</span>
+          <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
         </div>
       )}
       {hasItems && (
         <Expandable expanded={expanded}>
           <ExpandableContent>
             <BoundedViewport isStreaming={isStreaming}>
-              <div className={cn('flex flex-col gap-1.5 py-0.5', isSubagent && 'opacity-60')}>
+              <div className='flex flex-col gap-1.5 py-0.5'>
                 {items.map((item, idx) => {
                   if (item.type === 'tool') {
                     return (
@@ -126,10 +125,24 @@ export function AgentGroup({
                       />
                     )
                   }
+                  if (item.type === 'agent_group') {
+                    return (
+                      <div key={item.group.id} className='pl-6'>
+                        <AgentGroup
+                          agentName={item.group.agentName}
+                          agentLabel={item.group.agentLabel}
+                          items={item.group.items}
+                          isDelegating={item.group.isDelegating}
+                          isStreaming={isStreaming}
+                          defaultExpanded={item.group.isOpen}
+                        />
+                      </div>
+                    )
+                  }
                   return (
                     <span
                       key={`text-${idx}`}
-                      className='pl-6 font-base text-[13px] text-[var(--text-secondary)] leading-[18px]'
+                      className='pl-6 text-[13px] text-[var(--text-secondary)] leading-[18px] opacity-60'
                     >
                       {item.content.trim()}
                     </span>

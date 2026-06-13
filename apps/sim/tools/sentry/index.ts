@@ -1,5 +1,3 @@
-// Export all Sentry tool configurations
-
 export { getEventTool } from './events_get'
 export { listEventsTool } from './events_list'
 export { getIssueTool } from './issues_get'
@@ -12,5 +10,5 @@ export { updateProjectTool } from './projects_update'
 export { createReleaseTool } from './releases_create'
 export { createDeployTool } from './releases_deploy'
 export { listReleasesTool } from './releases_list'
-// Export all types
+export { listTeamsTool } from './teams_list'
 export type * from './types'

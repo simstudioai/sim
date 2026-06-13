@@ -291,12 +291,17 @@ import {
   salesforceWebhookTrigger,
 } from '@/triggers/salesforce'
 import {
+  sendblueMessageReceivedTrigger,
+  sendblueMessageStatusUpdatedTrigger,
+} from '@/triggers/sendblue'
+import {
   servicenowChangeRequestCreatedTrigger,
   servicenowChangeRequestUpdatedTrigger,
   servicenowIncidentCreatedTrigger,
   servicenowIncidentUpdatedTrigger,
   servicenowWebhookTrigger,
 } from '@/triggers/servicenow'
+import { simWorkspaceEventTrigger } from '@/triggers/sim'
 import { slackWebhookTrigger } from '@/triggers/slack'
 import { stripeWebhookTrigger } from '@/triggers/stripe'
 import { tableNewRowTrigger } from '@/triggers/table'
@@ -553,11 +558,14 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   salesforce_opportunity_stage_changed: salesforceOpportunityStageChangedTrigger,
   salesforce_case_status_changed: salesforceCaseStatusChangedTrigger,
   salesforce_webhook: salesforceWebhookTrigger,
+  sendblue_message_received: sendblueMessageReceivedTrigger,
+  sendblue_message_status_updated: sendblueMessageStatusUpdatedTrigger,
   servicenow_incident_created: servicenowIncidentCreatedTrigger,
   servicenow_incident_updated: servicenowIncidentUpdatedTrigger,
   servicenow_change_request_created: servicenowChangeRequestCreatedTrigger,
   servicenow_change_request_updated: servicenowChangeRequestUpdatedTrigger,
   servicenow_webhook: servicenowWebhookTrigger,
+  sim_workspace_event: simWorkspaceEventTrigger,
   stripe_webhook: stripeWebhookTrigger,
   table_new_row: tableNewRowTrigger,
   telegram_webhook: telegramWebhookTrigger,

@@ -37,9 +37,9 @@ export const vercelCreateWebhookTool: ToolConfig<
     },
     teamId: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Team ID to create the webhook for',
+      description: 'Team ID to scope the webhook to (optional; omit for personal account)',
     },
   },
 

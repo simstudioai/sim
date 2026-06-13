@@ -21,11 +21,11 @@ import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface DocumentTag {
   id: string
@@ -43,7 +43,6 @@ interface DocumentTagEntryProps {
   isPreview?: boolean
   previewValue?: any
   previewContextValues?: Record<string, unknown>
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -64,8 +63,8 @@ export function DocumentTagEntry({
   isPreview = false,
   previewValue,
   previewContextValues,
-  activeSearchTarget,
 }: DocumentTagEntryProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlock.id)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement>>({})

@@ -79,8 +79,8 @@ vi.mock('@/lib/copilot/chat/persisted-message', () => ({
   normalizeMessage: (m: unknown) => m,
 }))
 
-vi.mock('@/lib/copilot/tasks', () => ({
-  taskPubSub: { publishStatusChanged: vi.fn() },
+vi.mock('@/lib/copilot/chat-status', () => ({
+  chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 
 vi.mock('@/lib/posthog/server', () => ({

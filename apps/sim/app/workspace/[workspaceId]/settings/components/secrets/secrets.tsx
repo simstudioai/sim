@@ -1,4 +1,4 @@
-import { SecretsManager } from '@/app/workspace/[workspaceId]/settings/components/secrets/secrets-manager'
+import { SecretsManager } from '@/app/workspace/[workspaceId]/settings/components/secrets/components'
 
 export function Secrets() {
   return (

@@ -3,7 +3,7 @@
 import * as React from 'react'
 import * as CheckboxPrimitive from '@radix-ui/react-checkbox'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check } from 'lucide-react'
+import { Check, Minus } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
 /**
@@ -30,6 +30,7 @@ const checkboxVariants = cva(
     'focus-visible:outline-none',
     'data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50',
     'data-[state=checked]:border-[var(--text-primary)] data-[state=checked]:bg-[var(--text-primary)]',
+    'data-[state=indeterminate]:border-[var(--text-primary)] data-[state=indeterminate]:bg-[var(--text-primary)]',
   ].join(' '),
   {
     variants: {
@@ -92,7 +93,11 @@ const Checkbox = React.memo(
         {...props}
       >
         <CheckboxPrimitive.Indicator className='flex items-center justify-center text-[var(--surface-2)]'>
-          <Check className={cn(checkboxIconVariants({ size }))} />
+          {props.checked === 'indeterminate' ? (
+            <Minus className={cn(checkboxIconVariants({ size }))} />
+          ) : (
+            <Check className={cn(checkboxIconVariants({ size }))} />
+          )}
         </CheckboxPrimitive.Indicator>
       </CheckboxPrimitive.Root>
     )

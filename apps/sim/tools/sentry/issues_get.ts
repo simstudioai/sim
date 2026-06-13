@@ -54,6 +54,8 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
           logger: issue.logger ?? null,
           level: issue.level,
           status: issue.status,
+          substatus: issue.substatus ?? null,
+          priority: issue.priority ?? null,
           statusDetails: issue.statusDetails || {},
           isPublic: issue.isPublic,
           platform: issue.platform ?? null,
@@ -114,6 +116,17 @@ export const getIssueTool: ToolConfig<SentryGetIssueParams, SentryGetIssueRespon
         },
         level: { type: 'string', description: 'Severity level (error, warning, info, etc.)' },
         status: { type: 'string', description: 'Current issue status' },
+        substatus: {
+          type: 'string',
+          description:
+            'Issue substatus (e.g., ongoing, escalating, new, archived_until_escalating)',
+          optional: true,
+        },
+        priority: {
+          type: 'string',
+          description: 'Issue priority (high, medium, or low)',
+          optional: true,
+        },
         statusDetails: {
           type: 'object',
           description: 'Additional details about the status',

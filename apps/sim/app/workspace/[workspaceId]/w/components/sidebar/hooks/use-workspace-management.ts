@@ -133,7 +133,7 @@ export function useWorkspaceManagement({
   const updateWorkspace = useCallback(
     async (
       workspaceId: string,
-      updates: { name?: string; color?: string; logoUrl?: string | null }
+      updates: { name?: string; logoUrl?: string | null; color?: string }
     ): Promise<boolean> => {
       try {
         await updateWorkspaceMutation.mutateAsync({ workspaceId, ...updates })
@@ -183,15 +183,12 @@ export function useWorkspaceManagement({
   )
 
   const confirmDeleteWorkspace = useCallback(
-    async (workspaceToDelete: Workspace, templateAction?: 'keep' | 'delete') => {
+    async (workspaceToDelete: Workspace) => {
       try {
         logger.info('Deleting workspace:', workspaceToDelete.id)
 
-        const deleteTemplates = templateAction === 'delete'
-
         await deleteWorkspaceMutation.mutateAsync({
           workspaceId: workspaceToDelete.id,
-          deleteTemplates,
         })
 
         WorkspaceRecencyStorage.remove(workspaceToDelete.id)

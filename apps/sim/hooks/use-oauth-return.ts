@@ -11,7 +11,6 @@ import {
   type OAuthReturnContext,
   readOAuthReturnContext,
 } from '@/lib/credentials/client-state'
-import { useNotificationStore } from '@/stores/notifications/store'
 
 const OAUTH_CREDENTIAL_UPDATED_EVENT = 'oauth-credentials-updated'
 const SETTINGS_RETURN_URL_KEY = 'settings-return-url'
@@ -79,7 +78,7 @@ export function useOAuthReturnRouter() {
       consumeOAuthReturnContext()
       void (async () => {
         const message = await resolveOAuthMessage(ctx)
-        toast.success(message, { duration: 5000 })
+        toast.success(message)
         dispatchCredentialUpdate(ctx)
       })()
       return
@@ -112,8 +111,6 @@ export function useOAuthReturnRouter() {
  * Consumes the return context and shows a workflow-scoped notification.
  */
 export function useOAuthReturnForWorkflow(workflowId: string) {
-  const addNotification = useNotificationStore((state) => state.addNotification)
-
   useEffect(() => {
     const ctx = readOAuthReturnContext()
     if (!ctx || ctx.origin !== 'workflow') return
@@ -123,10 +120,10 @@ export function useOAuthReturnForWorkflow(workflowId: string) {
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
-      addNotification({ level: 'info', message, workflowId })
+      toast.success(message)
       dispatchCredentialUpdate(ctx)
     })()
-  }, [workflowId, addNotification])
+  }, [workflowId])
 }
 
 /**
@@ -143,7 +140,7 @@ export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
 
     void (async () => {
       const message = await resolveOAuthMessage(ctx)
-      toast.success(message, { duration: 5000 })
+      toast.success(message)
       dispatchCredentialUpdate(ctx)
     })()
   }, [knowledgeBaseId])

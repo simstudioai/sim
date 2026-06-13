@@ -4,191 +4,97 @@ import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Skeleton } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
-import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import { AdminSkeleton } from '@/app/workspace/[workspaceId]/settings/components/admin/admin-skeleton'
-import { ApiKeysSkeleton } from '@/app/workspace/[workspaceId]/settings/components/api-keys/api-key-skeleton'
-import { BYOKSkeleton } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-skeleton'
-import { CopilotSkeleton } from '@/app/workspace/[workspaceId]/settings/components/copilot/copilot-skeleton'
-import { CredentialSetsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets-skeleton'
-import { CustomToolsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tool-skeleton'
-import { GeneralSkeleton } from '@/app/workspace/[workspaceId]/settings/components/general/general-skeleton'
-import { InboxSkeleton } from '@/app/workspace/[workspaceId]/settings/components/inbox/inbox-skeleton'
-import { IntegrationsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/integrations/integrations-skeleton'
-import { McpSkeleton } from '@/app/workspace/[workspaceId]/settings/components/mcp/mcp-skeleton'
-import { RecentlyDeletedSkeleton } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted-skeleton'
-import { SecretsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/secrets/secrets-skeleton'
-import { SkillsSkeleton } from '@/app/workspace/[workspaceId]/settings/components/skills/skill-skeleton'
-import { WorkflowMcpServersSkeleton } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers-skeleton'
+import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
-  allNavigationItems,
   isBillingEnabled,
   isCredentialSetsEnabled,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { AuditLogsSkeleton } from '@/ee/audit-logs/components/audit-logs-skeleton'
-import { DataDrainsSkeleton } from '@/ee/data-drains/components/data-drains-skeleton'
-import { DataRetentionSkeleton } from '@/ee/data-retention/components/data-retention-skeleton'
 
-/**
- * Generic skeleton fallback for sections without a dedicated skeleton.
- */
-function SettingsSectionSkeleton() {
-  return (
-    <div className='flex flex-col gap-4'>
-      <Skeleton className='h-[20px] w-[200px] rounded-sm' />
-      <Skeleton className='h-[40px] w-full rounded-lg' />
-      <Skeleton className='h-[40px] w-full rounded-lg' />
-      <Skeleton className='h-[40px] w-full rounded-lg' />
-    </div>
+const Admin = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin)
+)
+const ApiKeys = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
+    (m) => m.ApiKeys
   )
-}
-
-const General = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/general/general').then(
-      (m) => m.General
-    ),
-  { loading: () => <GeneralSkeleton /> }
 )
-const Integrations = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/integrations/integrations').then(
-      (m) => m.Integrations
-    ),
-  { loading: () => <IntegrationsSkeleton /> }
+const BYOK = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK)
 )
-const Secrets = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then(
-      (m) => m.Secrets
-    ),
-  { loading: () => <SecretsSkeleton /> }
+const Copilot = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then((m) => m.Copilot)
 )
-// const TemplateProfile = dynamic(
-//   () =>
-//     import(
-//       '@/app/workspace/[workspaceId]/settings/components/template-profile/template-profile'
-//     ).then((m) => m.TemplateProfile),
-//   { loading: () => <SettingsSectionSkeleton /> }
-// )
-const CredentialSets = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets'
-    ).then((m) => m.CredentialSets),
-  { loading: () => <CredentialSetsSkeleton /> }
+const CredentialSets = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/credential-sets/credential-sets').then(
+    (m) => m.CredentialSets
+  )
 )
-const ApiKeys = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
-      (m) => m.ApiKeys
-    ),
-  { loading: () => <ApiKeysSkeleton /> }
+const Secrets = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
-const Subscription = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/subscription/subscription').then(
-      (m) => m.Subscription
-    ),
-  { loading: () => <SettingsSectionSkeleton /> }
+const CustomTools = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
+    (m) => m.CustomTools
+  )
 )
-const TeamManagement = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/team-management/team-management'
-    ).then((m) => m.TeamManagement),
-  { loading: () => <SettingsSectionSkeleton /> }
+const Inbox = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox)
 )
-const BYOK = dynamic(
-  () => import('@/app/workspace/[workspaceId]/settings/components/byok/byok').then((m) => m.BYOK),
-  { loading: () => <BYOKSkeleton /> }
+const MCP = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP)
 )
-const Copilot = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/copilot/copilot').then(
-      (m) => m.Copilot
-    ),
-  { loading: () => <CopilotSkeleton /> }
+const Mothership = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
+    (m) => m.Mothership
+  )
 )
-const MCP = dynamic(
-  () => import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp').then((m) => m.MCP),
-  { loading: () => <McpSkeleton /> }
+const RecentlyDeleted = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
+  ).then((m) => m.RecentlyDeleted)
 )
-const CustomTools = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
-      (m) => m.CustomTools
-    ),
-  { loading: () => <CustomToolsSkeleton /> }
+const Billing = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
 )
-const Skills = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/skills/skills').then((m) => m.Skills),
-  { loading: () => <SkillsSkeleton /> }
+const Teammates = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates').then(
+    (m) => m.Teammates
+  )
 )
-const WorkflowMcpServers = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
-    ).then((m) => m.WorkflowMcpServers),
-  { loading: () => <WorkflowMcpServersSkeleton /> }
+const TeamManagement = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management').then(
+    (m) => m.TeamManagement
+  )
 )
-const Inbox = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox').then((m) => m.Inbox),
-  { loading: () => <InboxSkeleton /> }
+const WorkflowMcpServers = dynamic(() =>
+  import(
+    '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
+  ).then((m) => m.WorkflowMcpServers)
 )
-const Admin = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then((m) => m.Admin),
-  { loading: () => <AdminSkeleton /> }
+const AccessControl = dynamic(() =>
+  import('@/ee/access-control/components/access-control').then((m) => m.AccessControl)
 )
-const Mothership = dynamic(
-  () =>
-    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
-      (m) => m.Mothership
-    ),
-  { loading: () => <SettingsSectionSkeleton /> }
+const AuditLogs = dynamic(() =>
+  import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs)
 )
-const RecentlyDeleted = dynamic(
-  () =>
-    import(
-      '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
-    ).then((m) => m.RecentlyDeleted),
-  { loading: () => <RecentlyDeletedSkeleton /> }
+const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO))
+const DataRetentionSettings = dynamic(() =>
+  import('@/ee/data-retention/components/data-retention-settings').then(
+    (m) => m.DataRetentionSettings
+  )
 )
-const AccessControl = dynamic(
-  () => import('@/ee/access-control/components/access-control').then((m) => m.AccessControl),
-  { loading: () => <SettingsSectionSkeleton /> }
-)
-const AuditLogs = dynamic(
-  () => import('@/ee/audit-logs/components/audit-logs').then((m) => m.AuditLogs),
-  { loading: () => <AuditLogsSkeleton /> }
-)
-const SSO = dynamic(() => import('@/ee/sso/components/sso-settings').then((m) => m.SSO), {
-  loading: () => <SettingsSectionSkeleton />,
-})
-const DataRetentionSettings = dynamic(
-  () =>
-    import('@/ee/data-retention/components/data-retention-settings').then(
-      (m) => m.DataRetentionSettings
-    ),
-  { loading: () => <DataRetentionSkeleton /> }
-)
-const DataDrainsSettings = dynamic(
-  () =>
-    import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings),
-  { loading: () => <DataDrainsSkeleton /> }
+const DataDrainsSettings = dynamic(() =>
+  import('@/ee/data-drains/components/data-drains-settings').then((m) => m.DataDrainsSettings)
 )
 const WhitelabelingSettings = dynamic(
   () =>
     import('@/ee/whitelabeling/components/whitelabeling-settings').then(
       (m) => m.WhitelabelingSettings
     ),
-  { loading: () => <SettingsSectionSkeleton />, ssr: false }
+  { ssr: false }
 )
 
 interface SettingsPageProps {
@@ -202,19 +108,19 @@ export function SettingsPage({ section }: SettingsPageProps) {
   const posthog = usePostHog()
 
   const isAdminRole = session?.user?.role === 'admin'
+  // The Subscription tab was replaced by Billing; redirect legacy links there.
+  const normalizedSection: SettingsSection =
+    (section as string) === 'subscription' ? 'billing' : section
   const effectiveSection =
-    !isBillingEnabled && (section === 'subscription' || section === 'organization')
+    !isBillingEnabled && (normalizedSection === 'billing' || normalizedSection === 'organization')
       ? 'general'
-      : section === 'credential-sets' && !isCredentialSetsEnabled
+      : normalizedSection === 'credential-sets' && !isCredentialSetsEnabled
         ? 'general'
-        : section === 'admin' && !sessionLoading && !isAdminRole
+        : normalizedSection === 'admin' && !sessionLoading && !isAdminRole
           ? 'general'
-          : section === 'mothership' && !sessionLoading && !isAdminRole
+          : normalizedSection === 'mothership' && !sessionLoading && !isAdminRole
             ? 'general'
-            : section
-
-  const label =
-    allNavigationItems.find((item) => item.id === effectiveSection)?.label ?? effectiveSection
+            : normalizedSection
 
   useEffect(() => {
     if (sessionLoading) return
@@ -222,22 +128,15 @@ export function SettingsPage({ section }: SettingsPageProps) {
   }, [effectiveSection, sessionLoading, posthog])
 
   return (
-    <div
-      className={cn(
-        (effectiveSection === 'access-control' || effectiveSection === 'recently-deleted') &&
-          'flex h-full flex-col'
-      )}
-    >
-      <h2 className='mb-7 font-medium text-[22px] text-[var(--text-primary)]'>{label}</h2>
+    <div className='flex h-full flex-col'>
       {effectiveSection === 'general' && <General />}
-      {effectiveSection === 'integrations' && <Integrations />}
       {effectiveSection === 'secrets' && <Secrets />}
-      {/* {effectiveSection === 'template-profile' && <TemplateProfile />} */}
       {effectiveSection === 'credential-sets' && <CredentialSets />}
       {effectiveSection === 'access-control' && <AccessControl />}
       {effectiveSection === 'audit-logs' && <AuditLogs />}
       {effectiveSection === 'apikeys' && <ApiKeys />}
-      {isBillingEnabled && effectiveSection === 'subscription' && <Subscription />}
+      {isBillingEnabled && effectiveSection === 'billing' && <Billing />}
+      {effectiveSection === 'teammates' && <Teammates />}
       {isBillingEnabled && effectiveSection === 'organization' && <TeamManagement />}
       {effectiveSection === 'sso' && <SSO />}
       {effectiveSection === 'data-retention' && <DataRetentionSettings />}
@@ -247,7 +146,6 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'copilot' && <Copilot />}
       {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
-      {effectiveSection === 'skills' && <Skills />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}

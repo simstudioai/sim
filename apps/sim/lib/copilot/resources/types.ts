@@ -7,6 +7,7 @@ export const MothershipResourceType = {
   filefolder: 'filefolder',
   task: 'task',
   log: 'log',
+  integration: 'integration',
   generic: 'generic',
 } as const
 export type MothershipResourceType =
@@ -16,6 +17,7 @@ export interface MothershipResource {
   type: MothershipResourceType
   id: string
   title: string
+  path?: string
 }
 
 export function isEphemeralResource(resource: MothershipResource): boolean {

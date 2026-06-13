@@ -15,30 +15,14 @@ import {
   Trash,
   XCircle,
 } from 'lucide-react'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Skeleton,
-  Tooltip,
-} from '@/components/emcn'
+import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import {
-  getCanonicalScopesForProvider,
-  getProviderIdFromServiceId,
-  type OAuthProvider,
-} from '@/lib/oauth'
+import { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib/oauth'
 import { getMissingRequiredScopes } from '@/lib/oauth/utils'
-import { OAuthModal } from '@/app/workspace/[workspaceId]/components/oauth-modal'
+import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
+import { getBlock } from '@/blocks'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry'
 import type { ConnectorData, SyncLogData } from '@/hooks/queries/kb/connectors'
 import {
@@ -187,6 +171,24 @@ export function ConnectorsSection({
     [knowledgeBaseId, updateConnector, addToSet, removeFromSet]
   )
 
+  const handleDeleteConnector = () => {
+    if (!deleteTarget) return
+    deleteConnector(
+      { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
+      {
+        onSuccess: () => {
+          setError(null)
+          closeDeleteModal()
+        },
+        onError: (err) => {
+          logger.error('Delete connector failed', { error: err.message })
+          setError(err.message)
+          closeDeleteModal()
+        },
+      }
+    )
+  }
+
   if (connectors.length === 0 && !canEdit && !isLoading) return null
 
   return (
@@ -194,22 +196,7 @@ export function ConnectorsSection({
       {error && <p className='mt-2 text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
 
       {isLoading ? (
-        <div className='mt-2 flex flex-col gap-1'>
-          {Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className='rounded-lg px-2 py-2'>
-              <div className='flex items-center gap-2.5'>
-                <Skeleton className='size-9 flex-shrink-0 rounded-lg' />
-                <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                  <div className='flex items-center gap-2'>
-                    <Skeleton className='h-[14px] w-[100px]' />
-                    <Skeleton className='h-[18px] w-[52px] rounded-full' />
-                  </div>
-                  <Skeleton className='h-[12px] w-[180px]' />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className='mt-2' />
       ) : connectors.length === 0 ? (
         <p className='mt-2 text-[var(--text-muted)] text-small'>
           No connected sources yet. Connect an external source to automatically sync documents.
@@ -244,59 +231,35 @@ export function ConnectorsSection({
         />
       )}
 
-      <Modal open={deleteTarget !== null} onOpenChange={closeDeleteModal}>
-        <ModalContent size='sm'>
-          <ModalHeader>Remove Connector</ModalHeader>
-          <ModalBody>
-            <ModalDescription className='text-[var(--text-secondary)] text-small'>
-              This will disconnect the source and stop future syncs. Documents already synced will
-              remain in the knowledge base unless you choose to delete them.
-            </ModalDescription>
-            <div className='mt-3 flex items-center gap-2'>
-              <Checkbox
-                id={deleteDocumentsId}
-                checked={deleteDocuments}
-                onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
-              />
-              <label
-                htmlFor={deleteDocumentsId}
-                className='cursor-pointer text-[var(--text-secondary)] text-small'
-              >
-                Also delete all synced documents
-              </label>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant='default' onClick={closeDeleteModal} disabled={isDeleting}>
-              Cancel
-            </Button>
-            <Button
-              variant='destructive'
-              disabled={isDeleting}
-              onClick={() => {
-                if (deleteTarget) {
-                  deleteConnector(
-                    { knowledgeBaseId, connectorId: deleteTarget, deleteDocuments },
-                    {
-                      onSuccess: () => {
-                        setError(null)
-                        closeDeleteModal()
-                      },
-                      onError: (err) => {
-                        logger.error('Delete connector failed', { error: err.message })
-                        setError(err.message)
-                        closeDeleteModal()
-                      },
-                    }
-                  )
-                }
-              }}
-            >
-              {isDeleting ? 'Removing...' : 'Remove'}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+      <ChipConfirmModal
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteModal()
+        }}
+        srTitle='Remove Connector'
+        title='Remove Connector'
+        description='This will disconnect the source and stop future syncs. Documents already synced will remain in the knowledge base unless you choose to delete them.'
+        confirm={{
+          label: 'Remove',
+          onClick: handleDeleteConnector,
+          pending: isDeleting,
+          pendingLabel: 'Removing...',
+        }}
+      >
+        <div className='flex items-center gap-2 px-2'>
+          <Checkbox
+            id={deleteDocumentsId}
+            checked={deleteDocuments}
+            onCheckedChange={(checked) => setDeleteDocuments(checked === true)}
+          />
+          <label
+            htmlFor={deleteDocumentsId}
+            className='cursor-pointer text-[var(--text-secondary)] text-small'
+          >
+            Also delete all synced documents
+          </label>
+        </div>
+      </ChipConfirmModal>
     </div>
   )
 }
@@ -333,6 +296,7 @@ function ConnectorCard({
 
   const connectorDef = CONNECTOR_REGISTRY[connector.connectorType]
   const Icon = connectorDef?.icon
+  const brandBg = getBlock(connector.connectorType)?.bgColor ?? null
   const statusConfig =
     STATUS_CONFIG[connector.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.active
 
@@ -371,8 +335,22 @@ function ConnectorCard({
     >
       <div className='flex items-center justify-between gap-2 px-2 py-2'>
         <div className='flex min-w-0 items-center gap-2.5'>
-          <div className='relative flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--surface-4)]'>
-            {Icon && <Icon className='size-5 text-[var(--text-icon)]' />}
+          <div className='relative size-9 flex-shrink-0'>
+            <div
+              className={cn(
+                'flex size-full items-center justify-center rounded-xl border',
+                brandBg
+                  ? 'border-[var(--border-1)]'
+                  : 'border-[var(--border-muted)] bg-[var(--surface-4)]'
+              )}
+              style={brandBg ? { background: brandBg } : undefined}
+            >
+              {Icon && (
+                <Icon
+                  className={cn('size-5', brandBg ? 'text-white' : 'text-[var(--text-icon)]')}
+                />
+              )}
+            </div>
             {connector.status === 'disabled' && (
               <AlertTriangle className='-right-0.5 -top-0.5 absolute size-3 text-[var(--caution)]' />
             )}
@@ -598,34 +576,39 @@ function ConnectorCard({
       )}
 
       {showOAuthModal && serviceId && providerId && !connector.credentialId && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='connect'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          origin='kb-connectors'
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
-          provider={providerId as OAuthProvider}
           serviceId={serviceId}
+          providerId={providerId}
+          requiredScopes={getCanonicalScopesForProvider(providerId)}
           workspaceId={workspaceId}
           knowledgeBaseId={knowledgeBaseId}
-          credentialCount={credentials?.length ?? 0}
         />
       )}
 
       {showOAuthModal && serviceId && providerId && connector.credentialId && (
-        <OAuthModal
+        <ConnectOAuthModal
           mode='reauthorize'
-          isOpen={showOAuthModal}
-          onClose={() => {
-            consumeOAuthReturnContext()
-            setShowOAuthModal(false)
+          open={showOAuthModal}
+          onOpenChange={(open) => {
+            if (!open) {
+              consumeOAuthReturnContext()
+              setShowOAuthModal(false)
+            }
           }}
-          provider={providerId as OAuthProvider}
           toolName={connectorDef?.name ?? connector.connectorType}
           requiredScopes={getCanonicalScopesForProvider(providerId)}
           newScopes={missingScopes}
           serviceId={serviceId}
+          providerId={providerId}
         />
       )}
     </div>

@@ -1,28 +1,27 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { RotateCcw, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import {
   Button,
   Checkbox,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipTextarea,
   type ComboboxOption,
-  Input,
-  Label,
   Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  Textarea,
 } from '@/components/emcn'
 import type { StrategyOptions } from '@/lib/chunkers/types'
 import { cn } from '@/lib/core/utils/cn'
@@ -32,10 +31,6 @@ import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hook
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('CreateBaseModal')
-
-interface FileWithPreview extends File {
-  preview: string
-}
 
 interface CreateBaseModalProps {
   open: boolean
@@ -131,15 +126,9 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   const createKnowledgeBaseMutation = useCreateKnowledgeBase(workspaceId)
   const deleteKnowledgeBaseMutation = useDeleteKnowledgeBase(workspaceId)
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus | null>(null)
-  const [files, setFiles] = useState<FileWithPreview[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragCounter, setDragCounter] = useState(0)
-  const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())
-
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const { uploadFiles, isUploading, uploadProgress, uploadError, clearError } = useKnowledgeUpload({
     workspaceId,
@@ -151,16 +140,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     }
     onOpenChange(open)
   }
-
-  useEffect(() => {
-    return () => {
-      files.forEach((file) => {
-        if (file.preview) {
-          URL.revokeObjectURL(file.preview)
-        }
-      })
-    }
-  }, [files])
 
   const {
     register,
@@ -194,9 +173,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
       setSubmitStatus(null)
       setFileError(null)
       setFiles([])
-      setIsDragging(false)
-      setDragCounter(0)
-      setRetryingIndexes(new Set())
       reset({
         name: '',
         description: '',
@@ -211,16 +187,16 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     }
   }, [open, reset])
 
-  const processFiles = async (fileList: FileList | File[]) => {
+  const processFiles = (selectedFiles: File[]) => {
     setFileError(null)
 
-    if (!fileList || fileList.length === 0) return
+    if (!selectedFiles || selectedFiles.length === 0) return
 
     try {
-      const newFiles: FileWithPreview[] = []
+      const newFiles: File[] = []
       let hasError = false
 
-      for (const file of Array.from(fileList)) {
+      for (const file of selectedFiles) {
         const validationError = validateKnowledgeBaseFile(file)
         if (validationError) {
           setFileError(validationError)
@@ -228,11 +204,7 @@ export const CreateBaseModal = memo(function CreateBaseModal({
           continue
         }
 
-        const fileWithPreview = Object.assign(file, {
-          preview: URL.createObjectURL(file),
-        }) as FileWithPreview
-
-        newFiles.push(fileWithPreview)
+        newFiles.push(file)
       }
 
       if (!hasError && newFiles.length > 0) {
@@ -241,65 +213,11 @@ export const CreateBaseModal = memo(function CreateBaseModal({
     } catch (error) {
       logger.error('Error processing files:', error)
       setFileError('An error occurred while processing files. Please try again.')
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
-      }
-    }
-  }
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      await processFiles(e.target.files)
-    }
-  }
-
-  const handleDragEnter = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev + 1
-      if (newCount === 1) {
-        setIsDragging(true)
-      }
-      return newCount
-    })
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragCounter((prev) => {
-      const newCount = prev - 1
-      if (newCount === 0) {
-        setIsDragging(false)
-      }
-      return newCount
-    })
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'copy'
-  }
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(false)
-    setDragCounter(0)
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processFiles(e.dataTransfer.files)
     }
   }
 
   const removeFile = (index: number) => {
-    setFiles((prev) => {
-      URL.revokeObjectURL(prev[index].preview)
-      return prev.filter((_, i) => i !== index)
-    })
+    setFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const isSubmitting =
@@ -358,7 +276,6 @@ export const CreateBaseModal = memo(function CreateBaseModal({
         }
       }
 
-      files.forEach((file) => URL.revokeObjectURL(file.preview))
       setFiles([])
 
       handleClose(false)
@@ -372,332 +289,242 @@ export const CreateBaseModal = memo(function CreateBaseModal({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='lg'>
-        <ModalHeader>Create Knowledge Base</ModalHeader>
-        <ModalDescription className='sr-only'>
-          Set up a new knowledge base with documents and chunking options
-        </ModalDescription>
+    <ChipModal open={open} onOpenChange={handleClose} srTitle='Create Knowledge Base' size='lg'>
+      <ChipModalHeader onClose={() => handleClose(false)}>Create Knowledge Base</ChipModalHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
-          <ModalBody>
-            <div ref={scrollContainerRef} className='min-h-0 flex-1 overflow-y-auto'>
-              <div className='space-y-3'>
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='kb-name'>Name</Label>
-                  <input
-                    type='text'
-                    name='fakeusernameremembered'
-                    autoComplete='username'
-                    style={{
-                      position: 'absolute',
-                      left: '-9999px',
-                      opacity: 0,
-                      pointerEvents: 'none',
-                    }}
-                    tabIndex={-1}
-                    readOnly
+      <form onSubmit={handleSubmit(onSubmit)} className='flex min-h-0 flex-1 flex-col'>
+        <button type='submit' hidden disabled={isSubmitting || !nameValue?.trim()} />
+        <ChipModalBody>
+          <input
+            type='text'
+            name='fakeusernameremembered'
+            autoComplete='username'
+            className='-left-[9999px] pointer-events-none absolute opacity-0'
+            tabIndex={-1}
+            readOnly
+          />
+
+          <ChipModalField type='custom' title='Name'>
+            <ChipInput
+              placeholder='Enter knowledge base name'
+              {...register('name')}
+              error={Boolean(errors.name)}
+              autoComplete='off'
+              autoCorrect='off'
+              autoCapitalize='off'
+              data-lpignore='true'
+              data-form-type='other'
+            />
+          </ChipModalField>
+
+          <ChipModalField type='custom' title='Description'>
+            <ChipTextarea
+              placeholder='Describe this knowledge base (optional)'
+              rows={4}
+              {...register('description')}
+              error={Boolean(errors.description)}
+            />
+          </ChipModalField>
+
+          <div className='flex gap-3'>
+            <ChipModalField type='custom' title='Min Chunk Size (characters)' className='flex-1'>
+              <ChipInput
+                type='number'
+                min={1}
+                max={2000}
+                step={1}
+                placeholder='100'
+                {...register('minChunkSize', { valueAsNumber: true })}
+                error={Boolean(errors.minChunkSize)}
+                autoComplete='off'
+                data-form-type='other'
+              />
+            </ChipModalField>
+
+            <ChipModalField type='custom' title='Max Chunk Size (tokens)' className='flex-1'>
+              <ChipInput
+                type='number'
+                min={100}
+                max={4000}
+                step={1}
+                placeholder='1024'
+                {...register('maxChunkSize', { valueAsNumber: true })}
+                error={Boolean(errors.maxChunkSize)}
+                autoComplete='off'
+                data-form-type='other'
+              />
+            </ChipModalField>
+          </div>
+
+          <ChipModalField
+            type='custom'
+            title='Overlap (tokens)'
+            hint='1 token ≈ 4 characters. Max chunk size and overlap are in tokens.'
+          >
+            <ChipInput
+              type='number'
+              min={0}
+              max={500}
+              step={1}
+              placeholder='200'
+              {...register('overlapSize', { valueAsNumber: true })}
+              error={Boolean(errors.overlapSize)}
+              autoComplete='off'
+              data-form-type='other'
+            />
+          </ChipModalField>
+
+          <ChipModalField
+            type='custom'
+            title='Chunking Strategy'
+            hint='Auto detects the best strategy based on file content type.'
+          >
+            <ChipCombobox
+              options={STRATEGY_COMBOBOX_OPTIONS}
+              value={strategyValue}
+              onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
+              dropdownWidth='trigger'
+              align='start'
+            />
+          </ChipModalField>
+
+          {strategyValue === 'regex' && (
+            <>
+              <ChipModalField
+                type='custom'
+                title='Regex Pattern'
+                error={errors.regexPattern?.message}
+                hint='Text will be split at each match of this regex pattern.'
+              >
+                <ChipInput
+                  placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
+                  {...register('regexPattern')}
+                  error={Boolean(errors.regexPattern)}
+                  autoComplete='off'
+                  data-form-type='other'
+                />
+              </ChipModalField>
+
+              <ChipModalField
+                type='custom'
+                title='Chunk Boundaries'
+                hint='Preserve boundaries exactly. Recommended when each match is a discrete record (e.g. one QA pair per chunk).'
+              >
+                <label
+                  htmlFor='regexStrictBoundaries'
+                  className='flex cursor-pointer items-center gap-2'
+                >
+                  <Checkbox
+                    id='regexStrictBoundaries'
+                    checked={regexStrictBoundariesValue}
+                    onCheckedChange={(checked) =>
+                      setValue('regexStrictBoundaries', checked === true)
+                    }
                   />
-                  <Input
-                    id='kb-name'
-                    placeholder='Enter knowledge base name'
-                    {...register('name')}
-                    className={cn(errors.name && 'border-[var(--text-error)]')}
-                    autoComplete='off'
-                    autoCorrect='off'
-                    autoCapitalize='off'
-                    data-lpignore='true'
-                    data-form-type='other'
-                  />
-                </div>
+                  <span className='text-[var(--text-primary)] text-sm'>
+                    Each match is its own chunk (don&apos;t merge)
+                  </span>
+                </label>
+              </ChipModalField>
+            </>
+          )}
 
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='description'>Description</Label>
-                  <Textarea
-                    id='description'
-                    placeholder='Describe this knowledge base (optional)'
-                    rows={4}
-                    {...register('description')}
-                    className={cn(errors.description && 'border-[var(--text-error)]')}
-                  />
-                </div>
+          {strategyValue === 'recursive' && (
+            <ChipModalField
+              type='custom'
+              title='Custom Separators (optional)'
+              hint='Comma-separated list of delimiters in priority order. Leave empty for default separators.'
+            >
+              <ChipInput
+                placeholder='e.g. \n\n, \n, . ,  '
+                {...register('customSeparators')}
+                autoComplete='off'
+                data-form-type='other'
+              />
+            </ChipModalField>
+          )}
 
-                <div className='grid grid-cols-2 gap-3'>
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='minChunkSize'>Min Chunk Size (characters)</Label>
-                    <Input
-                      id='minChunkSize'
-                      type='number'
-                      min={1}
-                      max={2000}
-                      step={1}
-                      placeholder='100'
-                      {...register('minChunkSize', { valueAsNumber: true })}
-                      className={cn(errors.minChunkSize && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                  </div>
+          <ChipModalField
+            type='file'
+            title='Upload Documents'
+            accept={ACCEPT_ATTRIBUTE}
+            multiple
+            onChange={processFiles}
+            description='PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB each)'
+            error={fileError}
+          />
 
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='maxChunkSize'>Max Chunk Size (tokens)</Label>
-                    <Input
-                      id='maxChunkSize'
-                      type='number'
-                      min={100}
-                      max={4000}
-                      step={1}
-                      placeholder='1024'
-                      {...register('maxChunkSize', { valueAsNumber: true })}
-                      className={cn(errors.maxChunkSize && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                  </div>
-                </div>
+          {files.length > 0 && (
+            <ChipModalField type='custom' title='Selected Files'>
+              <div className='space-y-2'>
+                {files.map((file, index) => {
+                  const fileStatus = uploadProgress.fileStatuses?.[index]
+                  const isFailed = fileStatus?.status === 'failed'
+                  const isProcessing = fileStatus?.status === 'uploading'
 
-                <div className='flex flex-col gap-2'>
-                  <Label htmlFor='overlapSize'>Overlap (tokens)</Label>
-                  <Input
-                    id='overlapSize'
-                    type='number'
-                    min={0}
-                    max={500}
-                    step={1}
-                    placeholder='200'
-                    {...register('overlapSize', { valueAsNumber: true })}
-                    className={cn(errors.overlapSize && 'border-[var(--text-error)]')}
-                    autoComplete='off'
-                    data-form-type='other'
-                  />
-                  <p className='text-[var(--text-muted)] text-xs'>
-                    1 token ≈ 4 characters. Max chunk size and overlap are in tokens.
-                  </p>
-                </div>
-
-                <div className='flex flex-col gap-2'>
-                  <Label>Chunking Strategy</Label>
-                  <Combobox
-                    options={STRATEGY_COMBOBOX_OPTIONS}
-                    value={strategyValue}
-                    onChange={(value) => setValue('strategy', value as FormValues['strategy'])}
-                    dropdownWidth='trigger'
-                    align='start'
-                  />
-                  <p className='text-[var(--text-muted)] text-xs'>
-                    Auto detects the best strategy based on file content type.
-                  </p>
-                </div>
-
-                {strategyValue === 'regex' && (
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='regexPattern'>Regex Pattern</Label>
-                    <Input
-                      id='regexPattern'
-                      placeholder='e.g. \\n\\n or (?<=\\})\\s*(?=\\{)'
-                      {...register('regexPattern')}
-                      className={cn(errors.regexPattern && 'border-[var(--text-error)]')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                    {errors.regexPattern && (
-                      <p className='text-[var(--text-error)] text-xs'>
-                        {errors.regexPattern.message}
-                      </p>
-                    )}
-                    <p className='text-[var(--text-muted)] text-xs'>
-                      Text will be split at each match of this regex pattern.
-                    </p>
-                    <label
-                      htmlFor='regexStrictBoundaries'
-                      className='mt-1 flex cursor-pointer items-start gap-2'
+                  return (
+                    <div
+                      key={`${file.name}-${file.size}`}
+                      className={cn(
+                        'flex items-center gap-2 rounded-sm border p-2',
+                        isFailed && 'border-[var(--text-error)]'
+                      )}
                     >
-                      <Checkbox
-                        id='regexStrictBoundaries'
-                        checked={regexStrictBoundariesValue}
-                        onCheckedChange={(checked) =>
-                          setValue('regexStrictBoundaries', checked === true)
-                        }
-                        className='mt-0.5'
-                      />
-                      <div className='flex flex-col gap-0.5'>
-                        <span className='text-[var(--text-primary)] text-sm'>
-                          Each match is its own chunk (don&apos;t merge)
-                        </span>
-                        <span className='text-[var(--text-muted)] text-xs'>
-                          Preserve boundaries exactly. Recommended when each match is a discrete
-                          record (e.g. one QA pair per chunk).
-                        </span>
-                      </div>
-                    </label>
-                  </div>
-                )}
-
-                {strategyValue === 'recursive' && (
-                  <div className='flex flex-col gap-2'>
-                    <Label htmlFor='customSeparators'>Custom Separators (optional)</Label>
-                    <Input
-                      id='customSeparators'
-                      placeholder='e.g. \n\n, \n, . ,  '
-                      {...register('customSeparators')}
-                      autoComplete='off'
-                      data-form-type='other'
-                    />
-                    <p className='text-[var(--text-muted)] text-xs'>
-                      Comma-separated list of delimiters in priority order. Leave empty for default
-                      separators.
-                    </p>
-                  </div>
-                )}
-
-                <div className='flex flex-col gap-2'>
-                  <Label>Upload Documents</Label>
-                  <Button
-                    type='button'
-                    variant='default'
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragEnter={handleDragEnter}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={cn(
-                      '!bg-[var(--surface-1)] hover-hover:!bg-[var(--surface-4)] w-full justify-center border border-[var(--border-1)] border-dashed py-2.5',
-                      isDragging && 'border-[var(--surface-7)]'
-                    )}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type='file'
-                      accept={ACCEPT_ATTRIBUTE}
-                      onChange={handleFileChange}
-                      className='hidden'
-                      multiple
-                    />
-                    <div className='flex flex-col gap-0.5 text-center'>
-                      <span className='text-[var(--text-primary)]'>
-                        {isDragging ? 'Drop files here' : 'Drop files here or click to browse'}
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 truncate text-caption',
+                          isFailed && 'text-[var(--text-error)]'
+                        )}
+                        title={file.name}
+                      >
+                        {file.name}
                       </span>
-                      <span className='text-[var(--text-tertiary)] text-xs'>
-                        PDF, DOC, DOCX, TXT, CSV, XLS, XLSX, MD, PPT, PPTX, HTML, JSONL (max 100MB
-                        each)
+                      <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
+                        {formatFileSize(file.size)}
                       </span>
-                    </div>
-                  </Button>
-                </div>
-
-                {files.length > 0 && (
-                  <div className='space-y-2'>
-                    <Label>Selected Files</Label>
-                    <div className='space-y-2'>
-                      {files.map((file, index) => {
-                        const fileStatus = uploadProgress.fileStatuses?.[index]
-                        const isFailed = fileStatus?.status === 'failed'
-                        const isRetrying = retryingIndexes.has(index)
-                        const isProcessing = fileStatus?.status === 'uploading' || isRetrying
-
-                        return (
-                          <div
-                            key={`${file.name}-${file.size}`}
-                            className={cn(
-                              'flex items-center gap-2 rounded-sm border p-2',
-                              isFailed && !isRetrying && 'border-[var(--text-error)]'
-                            )}
+                      <div className='flex flex-shrink-0 items-center gap-1'>
+                        {isProcessing ? (
+                          <Loader className='size-4 text-[var(--text-muted)]' animate />
+                        ) : (
+                          <Button
+                            type='button'
+                            variant='ghost'
+                            className='size-4 p-0'
+                            onClick={() => removeFile(index)}
+                            disabled={isUploading}
                           >
-                            <span
-                              className={cn(
-                                'min-w-0 flex-1 truncate text-caption',
-                                isFailed && !isRetrying && 'text-[var(--text-error)]'
-                              )}
-                              title={file.name}
-                            >
-                              {file.name}
-                            </span>
-                            <span className='flex-shrink-0 text-[var(--text-muted)] text-xs'>
-                              {formatFileSize(file.size)}
-                            </span>
-                            <div className='flex flex-shrink-0 items-center gap-1'>
-                              {isProcessing ? (
-                                <Loader className='size-4 text-[var(--text-muted)]' animate />
-                              ) : (
-                                <>
-                                  {isFailed && (
-                                    <Button
-                                      type='button'
-                                      variant='ghost'
-                                      className='size-4 p-0'
-                                      onClick={() => {
-                                        setRetryingIndexes((prev) => new Set(prev).add(index))
-                                        removeFile(index)
-                                      }}
-                                      disabled={isUploading}
-                                    >
-                                      <RotateCcw className='size-3' />
-                                    </Button>
-                                  )}
-                                  <Button
-                                    type='button'
-                                    variant='ghost'
-                                    className='size-4 p-0'
-                                    onClick={() => removeFile(index)}
-                                    disabled={isUploading}
-                                  >
-                                    <X className='size-3.5' />
-                                  </Button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
+                            <X className='size-3.5' />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {fileError && (
-                  <p className='text-[var(--text-error)] text-caption leading-tight'>{fileError}</p>
-                )}
+                  )
+                })}
               </div>
-            </div>
-          </ModalBody>
+            </ChipModalField>
+          )}
 
-          <ModalFooter>
-            <div className='flex w-full items-center justify-between gap-3'>
-              {submitStatus?.type === 'error' || uploadError ? (
-                <p className='min-w-0 flex-1 truncate text-[var(--text-error)] text-caption leading-tight'>
-                  {uploadError?.message || submitStatus?.message}
-                </p>
-              ) : (
-                <div />
-              )}
-              <div className='flex flex-shrink-0 gap-2'>
-                <Button
-                  variant='default'
-                  onClick={() => handleClose(false)}
-                  type='button'
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  variant='primary'
-                  type='submit'
-                  disabled={isSubmitting || !nameValue?.trim()}
-                >
-                  {isSubmitting
-                    ? isUploading
-                      ? uploadProgress.stage === 'uploading'
-                        ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
-                        : uploadProgress.stage === 'processing'
-                          ? 'Processing...'
-                          : 'Creating...'
-                      : 'Creating...'
-                    : 'Create'}
-                </Button>
-              </div>
-            </div>
-          </ModalFooter>
-        </form>
-      </ModalContent>
-    </Modal>
+          <ChipModalError>{uploadError?.message || submitStatus?.message}</ChipModalError>
+        </ChipModalBody>
+
+        <ChipModalFooter
+          onCancel={() => handleClose(false)}
+          cancelDisabled={isSubmitting}
+          primaryAction={{
+            label: isSubmitting
+              ? isUploading
+                ? uploadProgress.stage === 'uploading'
+                  ? `Uploading ${uploadProgress.filesCompleted}/${uploadProgress.totalFiles}...`
+                  : uploadProgress.stage === 'processing'
+                    ? 'Processing...'
+                    : 'Creating...'
+                : 'Creating...'
+              : 'Create',
+            onClick: handleSubmit(onSubmit),
+            disabled: isSubmitting || !nameValue?.trim(),
+          }}
+        />
+      </form>
+    </ChipModal>
   )
 })

@@ -1,5 +1,8 @@
-import type { LumaAddGuestsParams, LumaAddGuestsResponse } from '@/tools/luma/types'
-import { LUMA_GUEST_OUTPUT_PROPERTIES } from '@/tools/luma/types'
+import {
+  countGuests,
+  type LumaAddGuestsParams,
+  type LumaAddGuestsResponse,
+} from '@/tools/luma/types'
 import type { ToolConfig } from '@/tools/types'
 
 export const addGuestsTool: ToolConfig<LumaAddGuestsParams, LumaAddGuestsResponse> = {
@@ -53,46 +56,25 @@ export const addGuestsTool: ToolConfig<LumaAddGuestsParams, LumaAddGuestsRespons
     },
   },
 
-  transformResponse: async (response: Response) => {
-    const data = await response.json()
+  transformResponse: async (response: Response, params) => {
+    const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
       throw new Error(data.message || data.error || 'Failed to add guests')
     }
 
-    const guests = (data.entries ?? []).map((entry: Record<string, unknown>) => {
-      const guest = entry.guest as Record<string, unknown>
-      return {
-        id: (guest.id as string) ?? null,
-        email: (guest.user_email as string) ?? null,
-        name: (guest.user_name as string) ?? null,
-        firstName: (guest.user_first_name as string) ?? null,
-        lastName: (guest.user_last_name as string) ?? null,
-        approvalStatus: (guest.approval_status as string) ?? null,
-        registeredAt: (guest.registered_at as string) ?? null,
-        invitedAt: (guest.invited_at as string) ?? null,
-        joinedAt: (guest.joined_at as string) ?? null,
-        checkedInAt: (guest.checked_in_at as string) ?? null,
-        phoneNumber: (guest.phone_number as string) ?? null,
-      }
-    })
-
     return {
       success: true,
       output: {
-        guests,
+        added: countGuests(params?.guests ?? ''),
       },
     }
   },
 
   outputs: {
-    guests: {
-      type: 'array',
-      description: 'List of added guests with their assigned status and ticket info',
-      items: {
-        type: 'object',
-        properties: LUMA_GUEST_OUTPUT_PROPERTIES,
-      },
+    added: {
+      type: 'number',
+      description: 'Number of guests submitted to the event (added with Going/approved status)',
     },
   },
 }

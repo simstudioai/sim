@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useCreateWorkflow, useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -29,13 +28,11 @@ export function useWorkflowOperations({ workspaceId }: UseWorkflowOperationsProp
     clearDiff()
 
     const name = generateCreativeWorkflowName()
-    const color = getNextWorkflowColor()
     const id = generateId()
 
     createWorkflowMutation.mutate({
       workspaceId,
       name,
-      color,
       id,
     })
 

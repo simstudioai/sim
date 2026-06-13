@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ORCHESTRATION_TIMEOUT_MS } from '@/lib/copilot/constants'
 import {
-  type MothershipStreamV1EventType,
+  MothershipStreamV1EventType,
   MothershipStreamV1SpanLifecycleEvent,
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import { CopilotSseCloseReason } from '@/lib/copilot/generated/trace-attribute-values-v1'
@@ -315,6 +315,30 @@ export async function runStreamLoop(
           counters.eventsByType[streamEvent.type as MothershipStreamV1EventType] += 1
         }
 
+        // Surface the full error payload the moment it arrives on the wire. This
+        // is the single chokepoint every error event passes through (main AND
+        // subagent lanes), before subagent routing — which has no `error`
+        // handler — would otherwise swallow it. The client only renders
+        // `message`/`displayMessage`, so log `code`/`provider`/`data` (the raw
+        // upstream provider error) here to explain a client-side "Stream error".
+        if (streamEvent.type === MothershipStreamV1EventType.error) {
+          const errorPayload = streamEvent.payload
+          logger.error('Received error event from Go copilot stream', {
+            path: pathname,
+            lane: streamEvent.scope?.lane ?? 'main',
+            parentToolCallId: streamEvent.scope?.parentToolCallId,
+            agentId: streamEvent.scope?.agentId,
+            code: errorPayload.code,
+            provider: errorPayload.provider,
+            message: errorPayload.message,
+            error: errorPayload.error,
+            displayMessage: errorPayload.displayMessage,
+            data: errorPayload.data,
+            requestId: context.requestId,
+            messageId: context.messageId,
+          })
+        }
+
         if (shouldSkipToolCallEvent(streamEvent) || shouldSkipToolResultEvent(streamEvent)) {
           return
         }
@@ -351,6 +375,11 @@ export async function runStreamLoop(
         if (isSubagentSpanStreamEvent(streamEvent)) {
           const spanData = parseSubagentSpanData(streamEvent.payload.data)
           const toolCallId = streamEvent.scope?.parentToolCallId || spanData?.toolCallId
+          // Deterministic nesting identity. spanId / parentSpanId are the
+          // primary keys; the toolCallId-keyed stack below is the legacy
+          // fallback for streams that predate span identity.
+          const spanId = streamEvent.scope?.spanId
+          const parentSpanId = streamEvent.scope?.parentSpanId
           const subagentName = streamEvent.payload.agent
           const spanEvt = streamEvent.payload.event
           const isPendingPause = spanData?.pending === true
@@ -378,6 +407,8 @@ export async function runStreamLoop(
                   type: 'subagent',
                   content: subagentName,
                   parentToolCallId: toolCallId,
+                  ...(spanId ? { spanId } : {}),
+                  ...(parentSpanId ? { parentSpanId } : {}),
                   timestamp: Date.now(),
                 })
               }

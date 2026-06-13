@@ -67,7 +67,7 @@ export const {service}Connector: ConnectorConfig = {
 
   configFields: [
     // Rendered dynamically by the add-connector modal UI
-    // Supports 'short-input' and 'dropdown' types
+    // Supports 'short-input', 'dropdown', and 'selector' types — see ConfigField Types below
   ],
 
   listDocuments: async (accessToken, sourceConfig, cursor) => {
@@ -408,6 +408,16 @@ Each entry has:
 Users can opt out of specific tags in the modal. Disabled IDs are stored in `sourceConfig.disabledTagIds`.
 The assigned mapping (`semantic id → slot`) is stored in `sourceConfig.tagSlotMapping`.
 
+## `@/connectors/utils` Helpers
+
+Reuse these instead of inlining the same logic (the validator enforces them):
+
+- `htmlToPlainText(html)` — strip HTML to plain text before indexing `ExternalDocument.content`. Never index raw HTML.
+- `computeContentHash(content)` — stable content hash for change detection.
+- `parseTagDate(value)` — parse to a valid `Date` or `undefined` (guards Invalid Date). Use in `mapTags` for date fields.
+- `joinTagArray(value)` — validate an array and join to a comma-separated string, or `undefined`. Use in `mapTags` for array/label fields.
+- `parseMultiValue(value)` — normalize a value into a `string[]`.
+
 ## mapTags — Metadata to Semantic Keys
 
 Maps source metadata to semantic tag keys. Required if `tagDefinitions` is set.
@@ -416,13 +426,17 @@ using the `tagSlotMapping` stored on the connector.
 
 Return keys must match the `id` values declared in `tagDefinitions`.
 
+Use the `@/connectors/utils` helpers for the common transforms — don't hand-roll date/array validation:
+
 ```typescript
+import { joinTagArray, parseTagDate } from '@/connectors/utils'
+
 mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
   const result: Record<string, unknown> = {}
 
-  // Validate arrays before casting — metadata may be malformed
-  const labels = Array.isArray(metadata.labels) ? (metadata.labels as string[]) : []
-  if (labels.length > 0) result.labels = labels.join(', ')
+  // joinTagArray validates the array and joins to a comma-separated string (undefined if empty)
+  const labels = joinTagArray(metadata.labels)
+  if (labels) result.labels = labels
 
   // Validate numbers — guard against NaN
   if (metadata.version != null) {
@@ -430,11 +444,9 @@ mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     if (!Number.isNaN(num)) result.version = num
   }
 
-  // Validate dates — guard against Invalid Date
-  if (typeof metadata.lastModified === 'string') {
-    const date = new Date(metadata.lastModified)
-    if (!Number.isNaN(date.getTime())) result.lastModified = date
-  }
+  // parseTagDate returns a valid Date or undefined (guards against Invalid Date)
+  const lastModified = parseTagDate(metadata.lastModified)
+  if (lastModified) result.lastModified = lastModified
 
   return result
 }

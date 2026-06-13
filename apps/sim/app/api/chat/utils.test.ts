@@ -19,6 +19,7 @@ const {
   mockSetDeploymentAuthCookie,
   mockIsEmailAllowed,
   mockGetSession,
+  mockCheckRateLimitDirect,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
@@ -26,6 +27,13 @@ const {
   mockSetDeploymentAuthCookie: vi.fn(),
   mockIsEmailAllowed: vi.fn(),
   mockGetSession: vi.fn(),
+  mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
+}))
+
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mockCheckRateLimitDirect
+  },
 }))
 
 vi.mock('@/lib/auth', () => ({
@@ -149,6 +157,7 @@ describe('Chat API Utils', () => {
   describe('Chat auth validation', () => {
     beforeEach(() => {
       mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
+      mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
     })
 
     it('should allow access to public chats', async () => {
@@ -233,6 +242,32 @@ describe('Chat API Utils', () => {
 
       expect(result.authorized).toBe(false)
       expect(result.error).toBe('Invalid password')
+    })
+
+    it('should return 429 when the password attempt rate limit is exceeded', async () => {
+      mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 60_000 })
+
+      const deployment = {
+        id: 'chat-id',
+        authType: 'password',
+        password: 'encrypted-password',
+      }
+
+      const mockRequest = {
+        method: 'POST',
+        cookies: {
+          get: vi.fn().mockReturnValue(null),
+        },
+      } as any
+
+      const result = await validateChatAuth('request-id', deployment, mockRequest, {
+        password: 'any-guess',
+      })
+
+      expect(result.authorized).toBe(false)
+      expect(result.status).toBe(429)
+      expect(result.retryAfterMs).toBe(60_000)
+      expect(decryptSecret).not.toHaveBeenCalled()
     })
 
     it('should request email auth for email-protected chats', async () => {

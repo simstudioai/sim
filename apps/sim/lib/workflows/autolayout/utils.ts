@@ -20,6 +20,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isTriggerModeSubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -175,13 +176,13 @@ function getVisiblePreviewSubBlockCount(block: BlockState): number {
 
     if (effectiveTrigger) {
       const isValidTriggerSubblock = isPureTriggerBlock
-        ? subBlock.mode === 'trigger' || !subBlock.mode
-        : subBlock.mode === 'trigger'
+        ? isTriggerModeSubBlock(subBlock) || !subBlock.mode
+        : isTriggerModeSubBlock(subBlock)
 
       if (!isValidTriggerSubblock) {
         return false
       }
-    } else if (subBlock.mode === 'trigger') {
+    } else if (isTriggerModeSubBlock(subBlock)) {
       return false
     }
 

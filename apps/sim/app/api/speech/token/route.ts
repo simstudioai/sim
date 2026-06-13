@@ -1,13 +1,13 @@
 import { createHash } from 'node:crypto'
 import { db } from '@sim/db'
-import { chat } from '@sim/db/schema'
+import { chat, workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { speechTokenBodySchema } from '@/lib/api/contracts/media/speech'
 import { getSession } from '@/lib/auth'
-import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { env } from '@/lib/core/config/env'
 import { getCostMultiplier, isBillingEnabled } from '@/lib/core/config/feature-flags'
@@ -15,6 +15,8 @@ import { RateLimiter } from '@/lib/core/rate-limiter'
 import { validateAuthToken } from '@/lib/core/security/deployment'
 import { getClientIp } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
 const logger = createLogger('SpeechTokenAPI')
 
@@ -41,7 +43,7 @@ const rateLimiter = new RateLimiter()
 async function validateChatAuth(
   request: NextRequest,
   chatId: string
-): Promise<{ valid: boolean; ownerId?: string }> {
+): Promise<{ valid: boolean; ownerId?: string; workspaceId?: string | null }> {
   try {
     const chatResult = await db
       .select({
@@ -50,8 +52,10 @@ async function validateChatAuth(
         isActive: chat.isActive,
         authType: chat.authType,
         password: chat.password,
+        workspaceId: workflow.workspaceId,
       })
       .from(chat)
+      .leftJoin(workflow, eq(workflow.id, chat.workflowId))
       .where(eq(chat.id, chatId))
       .limit(1)
 
@@ -62,13 +66,13 @@ async function validateChatAuth(
     const chatData = chatResult[0]
 
     if (chatData.authType === 'public') {
-      return { valid: true, ownerId: chatData.userId }
+      return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
     }
 
     const cookieName = `chat_auth_${chatId}`
     const authCookie = request.cookies.get(cookieName)
     if (authCookie && validateAuthToken(authCookie.value, chatId, chatData.password)) {
-      return { valid: true, ownerId: chatData.userId }
+      return { valid: true, ownerId: chatData.userId, workspaceId: chatData.workspaceId }
     }
 
     return { valid: false }
@@ -86,19 +90,43 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body.success && typeof body.data.chatId === 'string' ? body.data.chatId : undefined
 
     let billingUserId: string | undefined
+    let workspaceId: string | undefined
 
     if (chatId) {
       const chatAuth = await validateChatAuth(request, chatId)
       if (!chatAuth.valid) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
-      billingUserId = chatAuth.ownerId
+      // A deployed chat is used by anonymous end-users, so the cost belongs to the
+      // workspace's billed account (the deployment's payer) — matching how the
+      // chat's workflow execution bills. Fall back to the chat owner only when no
+      // billed account resolves.
+      workspaceId = chatAuth.workspaceId ?? undefined
+      const billedAccountUserId = workspaceId
+        ? await getWorkspaceBilledAccountUserId(workspaceId)
+        : null
+      billingUserId = billedAccountUserId ?? chatAuth.ownerId
     } else {
       const session = await getSession()
       if (!session?.user?.id) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
       billingUserId = session.user.id
+      // Editor voice: only attribute to a workspace the caller actually belongs to,
+      // so a client-supplied id can't misattribute (or dodge) per-member usage.
+      const requestedWorkspaceId =
+        body.success && typeof body.data.workspaceId === 'string'
+          ? body.data.workspaceId
+          : undefined
+      if (requestedWorkspaceId) {
+        const permission = await verifyWorkspaceMembership(session.user.id, requestedWorkspaceId)
+        if (permission) workspaceId = requestedWorkspaceId
+      }
+      // Editor voice is always workspace-scoped; require an attributable workspace
+      // so per-member usage can't be skipped and the cost stamped workspace-less.
+      if (!workspaceId) {
+        return NextResponse.json({ error: 'Workspace context is required.' }, { status: 400 })
+      }
     }
 
     if (isBillingEnabled) {
@@ -121,12 +149,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (billingUserId) {
-      const usageCheck = await checkServerSideUsageLimits(billingUserId)
+      const usageCheck = await checkActorUsageLimits(billingUserId, workspaceId)
       if (usageCheck.isExceeded) {
         return NextResponse.json(
           {
             error:
               usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            scope: usageCheck.scope,
           },
           { status: 402 }
         )
@@ -162,6 +191,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
       await recordUsage({
         userId: billingUserId,
+        workspaceId,
         entries: [
           {
             category: 'fixed',

@@ -57,6 +57,14 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
         intendedNameservers: d.intendedNameservers ?? [],
         renew: d.renew ?? false,
         boughtAt: d.boughtAt ?? null,
+        transferredAt: d.transferredAt ?? null,
+        creator: d.creator
+          ? {
+              id: d.creator.id ?? null,
+              username: d.creator.username ?? null,
+              email: d.creator.email ?? null,
+            }
+          : null,
       }))
 
       return {
@@ -94,6 +102,21 @@ export const vercelListDomainsTool: ToolConfig<VercelListDomainsParams, VercelLi
             },
             renew: { type: 'boolean', description: 'Whether auto-renewal is enabled' },
             boughtAt: { type: 'number', description: 'Purchase timestamp' },
+            transferredAt: {
+              type: 'number',
+              description: 'Transfer completion timestamp',
+              optional: true,
+            },
+            creator: {
+              type: 'object',
+              description: 'Domain creator (id, username, email)',
+              optional: true,
+              properties: {
+                id: { type: 'string', description: 'Creator ID' },
+                username: { type: 'string', description: 'Creator username' },
+                email: { type: 'string', description: 'Creator email' },
+              },
+            },
           },
         },
       },

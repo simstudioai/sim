@@ -2,30 +2,23 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { ArrowLeftRight, ExternalLink, Info, RotateCcw } from 'lucide-react'
+import { ExternalLink, RotateCcw } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
-  Input,
-  Label,
-  Loader,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTabs,
-  ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
+import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
 import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
 import type {
@@ -44,7 +37,6 @@ import {
   useUpdateConnector,
 } from '@/hooks/queries/kb/connectors'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
-import type { SelectorKey } from '@/hooks/selectors/types'
 
 const logger = createLogger('EditConnectorModal')
 
@@ -277,68 +269,60 @@ export function EditConnectorModal({
   const Icon = connectorConfig?.icon
 
   return (
-    <Modal open={open} onOpenChange={(val) => !isSaving && onOpenChange(val)}>
-      <ModalContent size='md'>
-        <ModalHeader>
-          <div className='flex items-center gap-2'>
-            {Icon && <Icon className='size-5' />}
-            Edit {displayName}
-          </div>
-        </ModalHeader>
-        <ModalDescription className='sr-only'>
-          Configure settings and manage documents for this connector
-        </ModalDescription>
+    <ChipModal
+      open={open}
+      onOpenChange={(val) => !isSaving && onOpenChange(val)}
+      srTitle={`Edit ${displayName}`}
+      size='md'
+    >
+      <ChipModalHeader icon={Icon ?? null} onClose={() => onOpenChange(false)}>
+        Edit {displayName}
+      </ChipModalHeader>
 
-        <ModalTabs value={activeTab} onValueChange={setActiveTab}>
-          <ModalTabsList>
-            <ModalTabsTrigger value='settings'>Settings</ModalTabsTrigger>
-            <ModalTabsTrigger value='documents'>Documents</ModalTabsTrigger>
-          </ModalTabsList>
+      <ChipModalBody>
+        <ChipModalTabs
+          tabs={[
+            { value: 'settings', label: 'Settings' },
+            { value: 'documents', label: 'Documents' },
+          ]}
+          value={activeTab}
+          onChange={setActiveTab}
+          className='mx-2'
+        />
 
-          <ModalBody className='pb-3'>
-            <ModalTabsContent value='settings'>
-              <SettingsTab
-                connectorConfig={connectorConfig}
-                sourceConfig={sourceConfig}
-                credentialId={connector.credentialId}
-                canonicalGroups={canonicalGroups}
-                canonicalModes={canonicalModes}
-                onToggleCanonicalMode={toggleCanonicalMode}
-                onFieldChange={handleFieldChange}
-                isFieldVisible={isFieldVisible}
-                syncInterval={syncInterval}
-                setSyncInterval={setSyncInterval}
-                hasMaxAccess={hasMaxAccess}
-                isSaving={isSaving}
-                error={error}
-              />
-            </ModalTabsContent>
-
-            <ModalTabsContent value='documents'>
-              <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
-            </ModalTabsContent>
-          </ModalBody>
-        </ModalTabs>
-
-        {activeTab === 'settings' && (
-          <ModalFooter>
-            <Button variant='default' onClick={() => onOpenChange(false)} disabled={isSaving}>
-              Cancel
-            </Button>
-            <Button variant='primary' onClick={handleSave} disabled={!hasChanges || isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader className='mr-1.5 size-3.5' animate />
-                  Saving…
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
-          </ModalFooter>
+        {activeTab === 'settings' ? (
+          <SettingsTab
+            connectorConfig={connectorConfig}
+            sourceConfig={sourceConfig}
+            credentialId={connector.credentialId}
+            canonicalGroups={canonicalGroups}
+            canonicalModes={canonicalModes}
+            onToggleCanonicalMode={toggleCanonicalMode}
+            onFieldChange={handleFieldChange}
+            isFieldVisible={isFieldVisible}
+            syncInterval={syncInterval}
+            setSyncInterval={setSyncInterval}
+            hasMaxAccess={hasMaxAccess}
+            isSaving={isSaving}
+            error={error}
+          />
+        ) : (
+          <DocumentsTab knowledgeBaseId={knowledgeBaseId} connectorId={connector.id} />
         )}
-      </ModalContent>
-    </Modal>
+      </ChipModalBody>
+
+      {activeTab === 'settings' && (
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={isSaving}
+          primaryAction={{
+            label: isSaving ? 'Saving…' : 'Save',
+            onClick: handleSave,
+            disabled: !hasChanges || isSaving,
+          }}
+        />
+      )}
+    </ChipModal>
   )
 }
 
@@ -374,98 +358,22 @@ function SettingsTab({
   error,
 }: SettingsTabProps) {
   return (
-    <div className='flex flex-col gap-3'>
-      {connectorConfig?.configFields.map((field) => {
-        if (!isFieldVisible(field)) return null
+    <>
+      {connectorConfig && (
+        <ConnectorConfigFields
+          connectorConfig={connectorConfig}
+          sourceConfig={sourceConfig}
+          credentialId={credentialId}
+          canonicalGroups={canonicalGroups}
+          canonicalModes={canonicalModes}
+          isFieldVisible={isFieldVisible}
+          onFieldChange={onFieldChange}
+          onToggleCanonicalMode={onToggleCanonicalMode}
+          disabled={isSaving}
+        />
+      )}
 
-        const canonicalId = field.canonicalParamId
-        const hasCanonicalPair =
-          canonicalId && (canonicalGroups.get(canonicalId)?.length ?? 0) === 2
-
-        return (
-          <div key={field.id} className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-1'>
-                <Label>
-                  {field.title}
-                  {field.required && <span className='ml-0.5'>*</span>}
-                </Label>
-                {field.description && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        className='flex size-[14px] cursor-help items-center justify-center p-0 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-secondary)]'
-                        aria-label={`About ${field.title}`}
-                      >
-                        <Info className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{field.description}</Tooltip.Content>
-                  </Tooltip.Root>
-                )}
-              </div>
-              {hasCanonicalPair && canonicalId && (
-                <Tooltip.Root>
-                  <Tooltip.Trigger asChild>
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      className='flex size-[18px] items-center justify-center rounded-[3px] p-0 text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-3)] hover-hover:text-[var(--text-secondary)]'
-                      onClick={() => onToggleCanonicalMode(canonicalId)}
-                    >
-                      <ArrowLeftRight className='size-[12px]' />
-                    </Button>
-                  </Tooltip.Trigger>
-                  <Tooltip.Content side='top'>
-                    {field.mode === 'basic' ? 'Switch to manual input' : 'Switch to selector'}
-                  </Tooltip.Content>
-                </Tooltip.Root>
-              )}
-            </div>
-            {field.type === 'selector' && field.selectorKey ? (
-              <ConnectorSelectorField
-                field={field as ConnectorConfigField & { selectorKey: SelectorKey }}
-                value={sourceConfig[field.id] ?? (field.multi ? [] : '')}
-                onChange={(value: ConfigFieldValue) => onFieldChange(field.id, value)}
-                credentialId={credentialId}
-                sourceConfig={sourceConfig}
-                configFields={connectorConfig.configFields}
-                canonicalModes={canonicalModes}
-                disabled={isSaving}
-              />
-            ) : field.type === 'dropdown' && field.options ? (
-              <Combobox
-                options={field.options.map((opt) => ({
-                  label: opt.label,
-                  value: opt.id,
-                }))}
-                value={
-                  typeof sourceConfig[field.id] === 'string'
-                    ? (sourceConfig[field.id] as string) || undefined
-                    : undefined
-                }
-                onChange={(value) => onFieldChange(field.id, value)}
-                placeholder={field.placeholder || `Select ${field.title.toLowerCase()}`}
-              />
-            ) : (
-              <Input
-                value={
-                  Array.isArray(sourceConfig[field.id])
-                    ? (sourceConfig[field.id] as string[]).join(', ')
-                    : (sourceConfig[field.id] as string) || ''
-                }
-                onChange={(e) => onFieldChange(field.id, e.target.value)}
-                placeholder={field.placeholder}
-              />
-            )}
-          </div>
-        )
-      })}
-
-      <div className='flex flex-col gap-2'>
-        <Label>Sync Frequency</Label>
+      <ChipModalField type='custom' title='Sync Frequency'>
         <ButtonGroup
           value={String(syncInterval)}
           onValueChange={(val) => setSyncInterval(Number(val))}
@@ -481,10 +389,10 @@ function SettingsTab({
             </ButtonGroupItem>
           ))}
         </ButtonGroup>
-      </div>
+      </ChipModalField>
 
-      {error && <p className='text-[var(--text-error)] text-caption leading-tight'>{error}</p>}
-    </div>
+      <ChipModalError>{error}</ChipModalError>
+    </>
   )
 }
 
@@ -512,17 +420,17 @@ function DocumentsTab({ knowledgeBaseId, connectorId }: DocumentsTabProps) {
 
   if (isLoading) {
     return (
-      <div className='flex flex-col gap-2'>
+      <div className='flex flex-col gap-2 px-2'>
         <Skeleton className='h-7 w-[180px] rounded-md' />
-        <Skeleton className='h-9 w-full rounded-lg' />
-        <Skeleton className='h-9 w-full rounded-lg' />
-        <Skeleton className='h-9 w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
+        <Skeleton className='h-[30px] w-full rounded-lg' />
       </div>
     )
   }
 
   return (
-    <div className='flex flex-col gap-3'>
+    <div className='flex flex-col gap-3 px-2'>
       <ButtonGroup value={filter} onValueChange={(val) => setFilter(val as 'active' | 'excluded')}>
         <ButtonGroupItem value='active'>Active ({counts.active})</ButtonGroupItem>
         <ButtonGroupItem value='excluded'>Excluded ({counts.excluded})</ButtonGroupItem>

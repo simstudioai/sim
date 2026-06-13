@@ -5,22 +5,23 @@ import { useMemo, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon, X } from 'lucide-react'
+import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import {
   Button,
   ButtonGroup,
   ButtonGroupItem,
-  Combobox,
+  ChipCombobox,
+  ChipInput,
   type ComboboxOptionGroup,
+  DashedDividerLine,
   FieldDivider,
-  Input,
   Label,
   Loader,
   Switch,
   Tooltip,
   toast,
 } from '@/components/emcn'
-import { ArrowLeft, ChevronDown } from '@/components/emcn/icons'
+import { ArrowLeft, ChevronDown, X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -40,6 +41,7 @@ import type {
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   type FlattenOutputsBlockInput,
@@ -50,6 +52,10 @@ import {
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
+import {
+  FieldError,
+  RequiredLabel,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { getBlock } from '@/blocks'
 import {
@@ -112,13 +118,6 @@ interface WorkflowSidebarProps {
   onBack?: () => void
 }
 
-/** Dashed hairline flanking the "Show additional fields" disclosure — mirrors
- *  the workflow editor's advanced-mode divider. */
-const DASHED_DIVIDER_STYLE = {
-  backgroundImage:
-    'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-} as const
-
 const OUTPUT_VALUE_SEPARATOR = '::'
 
 const encodeOutputValue = (blockId: string, path: string) =>
@@ -165,19 +164,6 @@ function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefine
     default:
       return 'string'
   }
-}
-
-function RequiredLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
-  return (
-    <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
-      {children}
-      <span className='ml-0.5'>*</span>
-    </Label>
-  )
-}
-
-function FieldError({ message }: { message: string }) {
-  return <p className='pl-0.5 text-caption text-destructive'>{message}</p>
 }
 
 const TagIcon: React.FC<{
@@ -270,7 +256,7 @@ export function WorkflowSidebarBody({
   const existingGroup: WorkflowGroup | undefined = (() => {
     if (config.mode === 'edit-group') return workflowGroups.find((g) => g.id === config.groupId)
     if (config.mode === 'edit-output') {
-      const col = allColumns.find((c) => c.name === config.columnName)
+      const col = allColumns.find((c) => getColumnId(c) === config.columnName)
       return col?.workflowGroupId
         ? workflowGroups.find((g) => g.id === col.workflowGroupId)
         : undefined
@@ -279,7 +265,7 @@ export function WorkflowSidebarBody({
   })()
   const existingColumn =
     config.mode === 'edit-output'
-      ? (allColumns.find((c) => c.name === config.columnName) ?? null)
+      ? (allColumns.find((c) => getColumnId(c) === config.columnName) ?? null)
       : null
 
   // `manual` vs `enrichment`. For create it's carried on the config; for edit
@@ -297,7 +283,7 @@ export function WorkflowSidebarBody({
   //     existing column qualifies.
   const anchorIdx = (() => {
     if (config.mode === 'edit-output') {
-      const idx = allColumns.findIndex((c) => c.name === config.columnName)
+      const idx = allColumns.findIndex((c) => getColumnId(c) === config.columnName)
       return idx === -1 ? allColumns.length : idx
     }
     if (config.mode === 'edit-group' && existingGroup) {
@@ -322,8 +308,8 @@ export function WorkflowSidebarBody({
 
   // Every left-of-current column is a valid dep — workflow output columns
   // included. Exclude this group's own outputs (you can't depend on yourself).
-  const ownOutputNames = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
-  const depOptions = otherColumns.filter((c) => !ownOutputNames.has(c.name))
+  const ownOutputIds = new Set(existingGroup?.outputs.map((o) => o.columnName) ?? [])
+  const depOptions = otherColumns.filter((c) => !ownOutputIds.has(getColumnId(c)))
 
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>(
     () => existingGroup?.workflowId ?? (config.mode === 'create' ? (config.workflowId ?? '') : '')
@@ -402,7 +388,9 @@ export function WorkflowSidebarBody({
     return allColumns
       .filter(
         (c) =>
-          c.name !== anchor && !c.workflowGroupId && !startBlockInputs.existingNames.has(c.name)
+          getColumnId(c) !== anchor &&
+          !c.workflowGroupId &&
+          !startBlockInputs.existingNames.has(c.name)
       )
       .map((c) => c.name)
   }, [allColumns, anchorColumnName, startBlockInputs])
@@ -539,7 +527,7 @@ export function WorkflowSidebarBody({
     const encoded: string[] = []
     if (config.mode === 'edit-output' && existingColumn) {
       // Single-output sub-mode: only seed the picker with this column's mapping.
-      const own = existingGroup.outputs.find((o) => o.columnName === existingColumn.name)
+      const own = existingGroup.outputs.find((o) => o.columnName === getColumnId(existingColumn))
       if (own) {
         const match = blockOutputGroups.find(
           (g) => g.blockId === own.blockId && g.paths.includes(own.path)
@@ -562,13 +550,16 @@ export function WorkflowSidebarBody({
   // persisted mapping yet but matches a table column by name. Runs once; never
   // overrides a persisted or user-picked mapping.
   if (!inputMappingsHydrated && startBlockInputs.existing.length > 0) {
-    const columnNames = new Set(depOptions.map((c) => c.name))
+    // Map a Start input field to the column sharing its name, storing the
+    // column id (the value the dropdowns and persisted mappings key on).
+    const idByColumnName = new Map(depOptions.map((c) => [c.name, getColumnId(c)]))
     const next = { ...inputMappings }
     let changed = false
     for (const field of startBlockInputs.existing) {
       if (!field.name || next[field.name]) continue
-      if (columnNames.has(field.name)) {
-        next[field.name] = field.name
+      const colId = idByColumnName.get(field.name)
+      if (colId) {
+        next[field.name] = colId
         changed = true
       }
     }
@@ -797,7 +788,7 @@ export function WorkflowSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <div className='flex min-w-0 items-center gap-1.5'>
           {showBackButton && (
             <Button
@@ -829,7 +820,7 @@ export function WorkflowSidebarBody({
           <>
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel htmlFor='workflow-sidebar-column-name'>Column name</RequiredLabel>
-              <Input
+              <ChipInput
                 id='workflow-sidebar-column-name'
                 value={columnNameInput}
                 onChange={(e) => {
@@ -838,6 +829,7 @@ export function WorkflowSidebarBody({
                 }}
                 spellCheck={false}
                 autoComplete='off'
+                error={Boolean((showValidation && !columnNameInput.trim()) || nameError)}
                 aria-invalid={
                   (showValidation && !columnNameInput.trim()) || nameError ? true : undefined
                 }
@@ -938,7 +930,7 @@ export function WorkflowSidebarBody({
 
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel>Workflow</RequiredLabel>
-          <Combobox
+          <ChipCombobox
             options={workflows?.map((wf) => ({ label: wf.name, value: wf.id })) ?? []}
             value={selectedWorkflowId}
             onChange={(v) => setSelectedWorkflowId(v)}
@@ -948,7 +940,6 @@ export function WorkflowSidebarBody({
             maxHeight={260}
             searchable
             searchPlaceholder='Search workflows...'
-            error={showValidation && !selectedWorkflowId ? 'Select a workflow' : null}
           />
           {showValidation && !selectedWorkflowId && <FieldError message='Select a workflow' />}
         </div>
@@ -957,12 +948,11 @@ export function WorkflowSidebarBody({
 
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel>{isEditOutputMode ? 'Output' : 'Output columns'}</RequiredLabel>
-          <Combobox
+          <ChipCombobox
             multiSelect={!outputPickerSingleSelect}
             searchable
             searchPlaceholder='Search outputs…'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+            className='w-full'
             dropdownWidth='trigger'
             maxHeight={280}
             disabled={workflowState.isLoading || blockOutputGroups.length === 0}
@@ -1019,8 +1009,8 @@ export function WorkflowSidebarBody({
             )}
             {selectedWorkflowId && (
               <>
-                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-1'>
-                  <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
+                  <DashedDividerLine className='flex-1' />
                   <button
                     type='button'
                     onClick={() => setShowAdvanced((v) => !v)}
@@ -1034,7 +1024,7 @@ export function WorkflowSidebarBody({
                       )}
                     />
                   </button>
-                  <div className='h-[1.25px] flex-1' style={DASHED_DIVIDER_STYLE} />
+                  <DashedDividerLine className='flex-1' />
                 </div>
                 {showAdvanced && (
                   <>

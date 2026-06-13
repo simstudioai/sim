@@ -76,7 +76,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       id: workflow.id,
       name: workflow.name,
       description: workflow.description,
-      color: workflow.color,
       workspaceId: workflow.workspaceId,
       folderId: workflow.folderId,
       sortOrder: workflow.sortOrder,
@@ -149,7 +148,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       id: clientId,
       name: requestedName,
       description,
-      color,
       workspaceId,
       folderId,
       sortOrder: providedSortOrder,
@@ -183,7 +181,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       id: clientId,
       name: requestedName,
       description,
-      color,
       workspaceId,
       folderId,
       sortOrder: providedSortOrder,
@@ -193,7 +190,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     if (!result.success || !result.workflow) {
-      const status = result.errorCode === 'conflict' ? 409 : 500
+      const status =
+        result.errorCode === 'conflict' ? 409 : result.errorCode === 'validation' ? 400 : 500
       return NextResponse.json({ error: result.error }, { status })
     }
 
@@ -234,7 +232,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       id: createdWorkflow.id,
       name: createdWorkflow.name,
       description: createdWorkflow.description,
-      color: createdWorkflow.color,
       workspaceId: createdWorkflow.workspaceId,
       folderId: createdWorkflow.folderId,
       sortOrder: createdWorkflow.sortOrder,

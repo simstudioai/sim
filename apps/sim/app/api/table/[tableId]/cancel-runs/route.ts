@@ -6,7 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { cancelWorkflowGroupRuns } from '@/lib/table/workflow-columns'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 
 const logger = createLogger('TableCancelRunsAPI')
 
@@ -32,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     const parsed = await parseRequest(cancelTableRunsContract, request, { params })
     if (!parsed.success) return parsed.response
     const { tableId } = parsed.data.params
-    const { workspaceId, scope, rowId } = parsed.data.body
+    const { workspaceId, scope, rowId, filter, excludeRowIds } = parsed.data.body
 
     const result = await checkAccess(tableId, authResult.userId, 'write')
     if (!result.ok) return accessError(result, requestId, tableId)
@@ -42,7 +42,13 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
       return NextResponse.json({ error: 'Invalid workspace ID' }, { status: 400 })
     }
 
-    const cancelled = await cancelWorkflowGroupRuns(tableId, scope === 'row' ? rowId : undefined)
+    const filterError = tableFilterError(filter, table.schema.columns)
+    if (filterError) return filterError
+
+    const cancelled = await cancelWorkflowGroupRuns(tableId, scope === 'row' ? rowId : undefined, {
+      filter,
+      excludeRowIds,
+    })
     logger.info(
       `[${requestId}] cancel-runs: tableId=${tableId} scope=${scope}${
         rowId ? ` rowId=${rowId}` : ''

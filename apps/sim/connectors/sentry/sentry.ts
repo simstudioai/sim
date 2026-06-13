@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { SentryIcon } from '@/components/icons'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
 
@@ -373,7 +374,7 @@ async function fetchLatestEvent(
 ): Promise<SentryEvent | null> {
   const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(issueId)}/events/latest/`
 
-  const response = await fetchWithRetry(url, {
+  const response = await secureFetchWithRetry(url, {
     method: 'GET',
     headers: authHeaders(accessToken),
   })
@@ -507,7 +508,7 @@ export const sentryConnector: ConnectorConfig = {
       maxIssues,
     })
 
-    const response = await fetchWithRetry(url.toString(), {
+    const response = await secureFetchWithRetry(url.toString(), {
       method: 'GET',
       headers: authHeaders(accessToken),
     })
@@ -564,7 +565,7 @@ export const sentryConnector: ConnectorConfig = {
 
       const url = `${apiBase}/organizations/${encodeURIComponent(organization)}/issues/${encodeURIComponent(externalId)}/`
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -629,7 +630,7 @@ export const sentryConnector: ConnectorConfig = {
        * scope and the project-scoped path style, and gives a precise "not found"
        * message when the org or project slug is wrong.
        */
-      const projectResponse = await fetchWithRetry(
+      const projectResponse = await secureFetchWithRetry(
         `${apiBase}/projects/${encodeURIComponent(organization)}/${encodeURIComponent(project)}/`,
         {
           method: 'GET',
@@ -670,7 +671,7 @@ export const sentryConnector: ConnectorConfig = {
       issuesProbeUrl.searchParams.set('query', DEFAULT_QUERY)
       issuesProbeUrl.searchParams.set('limit', '1')
 
-      const issuesResponse = await fetchWithRetry(
+      const issuesResponse = await secureFetchWithRetry(
         issuesProbeUrl.toString(),
         {
           method: 'GET',

@@ -52,7 +52,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { hashApiKey } from '@/lib/api-key/crypto'
-import { authenticateApiKeyFromHeader } from '@/lib/api-key/service'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 
 function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -108,6 +108,18 @@ describe('authenticateApiKeyFromHeader', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
+  it('returns invalid when the key belongs to a banned user', async () => {
+    const record = personalKeyRecord({ userBanned: true })
+    dbChainMockFns.where.mockResolvedValueOnce([record])
+
+    const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
+      userId: 'user-1',
+    })
+
+    expect(result).toEqual({ success: false, error: 'Invalid API key' })
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
+  })
+
   it('returns invalid when the hash lookup finds no row', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([])
 
@@ -127,5 +139,35 @@ describe('authenticateApiKeyFromHeader', () => {
     const [filter] = dbChainMockFns.where.mock.calls[0]
     const expected = hashApiKey('sk-sim-plain-key')
     expect(JSON.stringify(filter)).toContain(expected)
+  })
+})
+
+describe('updateApiKeyLastUsed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('only writes when the stored lastUsed is missing or stale', async () => {
+    await updateApiKeyLastUsed('key-1')
+
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ lastUsed: expect.any(Date) })
+    const [condition] = dbChainMockFns.where.mock.calls[0]
+    expect(condition).toMatchObject({
+      type: 'and',
+      conditions: [
+        { type: 'eq', right: 'key-1' },
+        { type: 'or', conditions: [{ type: 'isNull' }, { type: 'lt' }] },
+      ],
+    })
+  })
+
+  it('swallows database errors instead of failing the request', async () => {
+    dbChainMockFns.update.mockImplementationOnce(() => {
+      throw new Error('connection lost')
+    })
+
+    await expect(updateApiKeyLastUsed('key-1')).resolves.toBeUndefined()
+    expect(serviceLogger.error).toHaveBeenCalled()
   })
 })

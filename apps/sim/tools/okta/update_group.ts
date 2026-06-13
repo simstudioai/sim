@@ -53,7 +53,7 @@ export const oktaUpdateGroupTool: ToolConfig<OktaUpdateGroupParams, OktaUpdateGr
   request: {
     url: (params) => {
       const domain = validateOktaDomain(params.domain)
-      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId)}`
+      return `https://${domain}/api/v1/groups/${encodeURIComponent(params.groupId.trim())}`
     },
     method: 'PUT',
     headers: (params) => ({
