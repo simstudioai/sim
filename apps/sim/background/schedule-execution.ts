@@ -1383,6 +1383,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
 
     const newFailedCount = (payload.failedCount || 0) + 1
     const shouldDisable = newFailedCount >= MAX_CONSECUTIVE_FAILURES
+    const newRunCount = (jobRecord.runCount || 0) + 1
 
     let nextRunAt: Date | null = null
     if (jobRecord.cronExpression) {
@@ -1395,16 +1396,22 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       })
     }
 
+    const maxRunsReached = Boolean(jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns)
+    // A one-time job, a maxRuns-capped job, or a recurring job out of remaining
+    // occurrences (past endsAt / all excluded) is finished even when this run
+    // failed — mirror the success path so it never re-fires past its bounds.
+    const isComplete = !jobRecord.cronExpression || maxRunsReached || !nextRunAt
+
     await applyScheduleUpdate(
       payload.scheduleId,
       {
         updatedAt: now,
-        nextRunAt,
+        nextRunAt: shouldDisable || !isComplete ? nextRunAt : null,
         failedCount: newFailedCount,
         lastFailedAt: now,
         lastQueuedAt: null,
-        runCount: (jobRecord.runCount || 0) + 1,
-        status: shouldDisable ? 'disabled' : 'active',
+        runCount: newRunCount,
+        status: shouldDisable ? 'disabled' : isComplete ? 'completed' : 'active',
       },
       requestId,
       `Error updating job ${payload.scheduleId} after failure`,

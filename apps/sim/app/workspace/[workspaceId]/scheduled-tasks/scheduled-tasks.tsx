@@ -137,8 +137,6 @@ export function ScheduledTasks() {
         onDeleteSeries={(task) => tasks.deleteTask(task.scheduleId)}
       />
 
-      {/* Modal content remounts on every open (the Radix portal unmounts closed
-          content), re-seeding from `slot`/`edit`. */}
       <TaskModal
         open={calendar.isCreateOpen}
         onOpenChange={(open) => {

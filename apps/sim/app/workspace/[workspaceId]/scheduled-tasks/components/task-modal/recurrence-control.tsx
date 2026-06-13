@@ -1,11 +1,12 @@
 'use client'
 
-import { useMemo } from 'react'
 import { format } from 'date-fns'
 import { ChipDatePicker, ChipDropdown, ChipInput, RefreshCw } from '@/components/emcn'
 import type { Recurrence } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 
 const WEEKDAY_PRESET = [1, 2, 3, 4, 5]
+/** Seed count when the user first chooses "ends after N runs". */
+const DEFAULT_END_AFTER_COUNT = 10
 
 /** The frequency presets the dropdown authors, keyed by a synthetic option value. */
 type FrequencyOption = 'once' | 'daily' | 'weekly' | 'weekdays' | 'monthly' | 'custom'
@@ -36,19 +37,16 @@ interface RecurrenceControlProps {
  * (never, on a date, or after N runs).
  */
 export function RecurrenceControl({ recurrence, onChange, launchDate }: RecurrenceControlProps) {
-  const launch = useMemo(() => new Date(`${launchDate}T00:00`), [launchDate])
+  const launch = new Date(`${launchDate}T00:00`)
 
-  const frequencyOptions = useMemo(
-    () => [
-      { value: 'once', label: 'Does not repeat' },
-      { value: 'daily', label: 'Daily' },
-      { value: 'weekly', label: `Weekly on ${format(launch, 'EEEE')}` },
-      { value: 'weekdays', label: 'Every weekday (Mon–Fri)' },
-      { value: 'monthly', label: `Monthly on day ${launch.getDate()}` },
-      ...(recurrence.frequency === 'custom' ? [{ value: 'custom', label: 'Custom' }] : []),
-    ],
-    [launch, recurrence.frequency]
-  )
+  const frequencyOptions = [
+    { value: 'once', label: 'Once' },
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: `Weekly on ${format(launch, 'EEE')}` },
+    { value: 'weekdays', label: 'Weekdays' },
+    { value: 'monthly', label: `Monthly on the ${format(launch, 'do')}` },
+    ...(recurrence.frequency === 'custom' ? [{ value: 'custom', label: 'Custom' }] : []),
+  ]
 
   const handleFrequencyChange = (value: string) => {
     const option = value as FrequencyOption
@@ -77,7 +75,10 @@ export function RecurrenceControl({ recurrence, onChange, launchDate }: Recurren
     if (value === 'never') onChange({ ...recurrence, end: { type: 'never' } })
     else if (value === 'on')
       onChange({ ...recurrence, end: { type: 'on', date: format(launch, 'yyyy-MM-dd') } })
-    else onChange({ ...recurrence, end: { type: 'after', count: 10 } })
+    else {
+      const count = recurrence.end.type === 'after' ? recurrence.end.count : DEFAULT_END_AFTER_COUNT
+      onChange({ ...recurrence, end: { type: 'after', count } })
+    }
   }
 
   return (
@@ -95,9 +96,9 @@ export function RecurrenceControl({ recurrence, onChange, launchDate }: Recurren
         <ChipDropdown
           value={recurrence.end.type}
           options={[
-            { value: 'never', label: 'Ends never' },
-            { value: 'on', label: 'Ends on date' },
-            { value: 'after', label: 'Ends after runs' },
+            { value: 'never', label: 'No end' },
+            { value: 'on', label: 'Ends on' },
+            { value: 'after', label: 'Ends after' },
           ]}
           onChange={handleEndChange}
           matchTriggerWidth={false}

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
@@ -81,9 +82,7 @@ export const mothershipExecuteBodySchema = z.object({
    * mirroring the interactive chat path. Used by scheduled tasks, whose
    * captured contexts must reach the run without a live client.
    */
-  contexts: z
-    .array(z.object({ kind: z.string().min(1), label: z.string() }).passthrough())
-    .optional(),
+  contexts: z.array(scheduleContextSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
   userMetadata: z

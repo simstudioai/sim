@@ -969,12 +969,12 @@ function ChipModalFooterShell({
       <ChipModalSeparator />
       <div
         className={cn(
-          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          'flex items-center gap-x-2 gap-y-1.5 bg-[var(--surface-3)] px-4 pt-2 pb-2',
           leftSlot ? 'justify-between' : 'justify-end'
         )}
       >
         {leftSlot ?? null}
-        <div className='flex gap-2'>{children}</div>
+        <div className='flex shrink-0 gap-2'>{children}</div>
       </div>
     </div>
   )
@@ -1029,7 +1029,7 @@ function ChipModalFooter({
     <ChipModalFooterShell
       leftSlot={
         secondaryActions && secondaryActions.length > 0 ? (
-          <div className='flex items-center gap-2'>
+          <div className='flex min-w-0 flex-wrap items-center gap-2'>
             {secondaryActions.map((action, index) => (
               <React.Fragment key={index}>{renderFooterSlotAction(action)}</React.Fragment>
             ))}

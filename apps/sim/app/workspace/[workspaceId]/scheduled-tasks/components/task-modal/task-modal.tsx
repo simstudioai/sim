@@ -137,11 +137,12 @@ function TaskModalContent({
   const isOneTime = recurrence.frequency === 'once'
   const isPastLaunch = isOneTime && isLaunchInPast(launchDate, launchTime)
 
+  const promptText = editor.value.trim()
+
   const handleSubmit = () => {
-    const prompt = editor.getPlainValue().trim()
-    if (!prompt || isPastLaunch) return
+    if (!promptText || isPastLaunch) return
     onSubmit({
-      prompt,
+      prompt: editor.getPlainValue().trim(),
       contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
       launchDate,
       launchTime,
@@ -187,7 +188,7 @@ function TaskModalContent({
         primaryAction={{
           label: edit ? 'Save' : 'Schedule',
           onClick: handleSubmit,
-          disabled: !editor.value.trim() || isPastLaunch,
+          disabled: !promptText || isPastLaunch,
           disabledTooltip: isPastLaunch ? PAST_LAUNCH_MESSAGE : undefined,
         }}
       />

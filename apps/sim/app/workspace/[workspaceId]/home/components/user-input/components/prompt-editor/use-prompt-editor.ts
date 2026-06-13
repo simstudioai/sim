@@ -151,6 +151,16 @@ export function usePromptEditor({
   const valueRef = useRef(value)
   valueRef.current = value
 
+  /**
+   * Commits a new text value, keeping {@link valueRef} in lockstep with state so
+   * synchronous readers (`getValue` / `getPlainValue`) never observe pre-edit
+   * text. Use this for setters handed to child hooks, which cannot touch the ref.
+   */
+  const commitValue = useCallback((next: string) => {
+    valueRef.current = next
+    setValueState(next)
+  }, [])
+
   const plusMenuRef = useRef<PlusMenuHandle>(null)
   const skillsMenuRef = useRef<SkillsMenuHandle>(null)
   const atInsertPosRef = useRef<number | null>(null)
@@ -178,7 +188,7 @@ export function usePromptEditor({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
     onContextSelect: addContextNotified,
-    onMessageChange: setValueState,
+    onMessageChange: commitValue,
   })
 
   const textareaRef = mentionMenu.textareaRef
@@ -187,7 +197,7 @@ export function usePromptEditor({
     message: value,
     selectedContexts: contextManagement.selectedContexts,
     mentionMenu,
-    setMessage: setValueState,
+    setMessage: commitValue,
   })
 
   const integrationAutoMention = useIntegrationAutoMention({
