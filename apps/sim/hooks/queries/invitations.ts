@@ -27,6 +27,7 @@ export interface WorkspaceInvitation {
   isPendingInvitation: boolean
   isExternal: boolean
   invitationId?: string
+  token: string
 }
 
 async function fetchPendingInvitations(
@@ -46,6 +47,7 @@ async function fetchPendingInvitations(
         isPendingInvitation: true,
         isExternal: inv.membershipIntent === 'external',
         invitationId: inv.id,
+        token: inv.token,
       })) || []
   )
 }
@@ -232,7 +234,10 @@ export function useLeaveWorkspace() {
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
       queryClient.invalidateQueries({
-        queryKey: workspaceKeys.all,
+        queryKey: workspaceKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.detail(variables.workspaceId),
       })
     },
   })

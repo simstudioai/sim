@@ -2,7 +2,14 @@
 
 import { ChevronUp } from 'lucide-react'
 import SimpleCodeEditor from 'react-simple-code-editor'
-import { Code as CodeEditor, Combobox, getCodeEditorProps, Input, Label } from '@/components/emcn'
+import {
+  Code as CodeEditor,
+  Combobox,
+  FieldDivider,
+  getCodeEditorProps,
+  Input,
+  Label,
+} from '@/components/emcn'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import {
   formatDisplayText,
@@ -10,7 +17,7 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import type { ConnectedBlock } from '../../hooks/use-block-connections'
 import { useSubflowEditor } from '../../hooks/use-subflow-editor'
@@ -39,7 +46,6 @@ interface SubflowEditorProps {
   toggleConnectionsCollapsed: () => void
   userCanEdit: boolean
   isConnectionsAtMinHeight: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -60,8 +66,8 @@ export function SubflowEditor({
   toggleConnectionsCollapsed,
   userCanEdit,
   isConnectionsAtMinHeight,
-  activeSearchTarget,
 }: SubflowEditorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const {
     subflowConfig,
     currentType,
@@ -137,15 +143,7 @@ export function SubflowEditor({
             />
           </div>
 
-          <div className='px-0.5 pt-4 pb-2.5'>
-            <div
-              className='h-[1.25px]'
-              style={{
-                backgroundImage:
-                  'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-              }}
-            />
-          </div>
+          <FieldDivider className='pb-2.5' />
 
           <div
             data-workflow-search-subblock-id={configSearchFieldId}
@@ -281,7 +279,7 @@ export function SubflowEditor({
           >
             <ChevronUp
               className={
-                'h-[14px] w-[14px] transition-transform' +
+                'size-[14px] transition-transform' +
                 (!isConnectionsAtMinHeight ? ' rotate-180' : '')
               }
             />

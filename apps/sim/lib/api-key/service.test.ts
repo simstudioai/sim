@@ -1,10 +1,9 @@
 /**
  * Tests for authenticateApiKeyFromHeader.
  *
- * The path was rewritten to look up rows by the SHA-256 hash of the incoming
- * API key. A fallback loop — full scan + decrypt — is preserved while the
- * `key_hash` backfill runs, and emits a warn log whenever it actually matches
- * a row so we can tell when it's safe to delete.
+ * Authentication looks up a single row by the SHA-256 hash of the incoming
+ * API key and applies the scope / expiry / permission gates. Any miss — no
+ * matching hash or a failed gate — returns an invalid result.
  *
  * @vitest-environment node
  */
@@ -36,14 +35,6 @@ vi.mock('@sim/logger', () => ({
   getRequestContext: vi.fn(() => undefined),
 }))
 
-const { mockAuthenticateApiKey } = vi.hoisted(() => ({
-  mockAuthenticateApiKey: vi.fn(),
-}))
-
-vi.mock('@/lib/api-key/auth', () => ({
-  authenticateApiKey: mockAuthenticateApiKey,
-}))
-
 const { mockGetWorkspaceBillingSettings } = vi.hoisted(() => ({
   mockGetWorkspaceBillingSettings: vi.fn(),
 }))
@@ -61,9 +52,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 import { hashApiKey } from '@/lib/api-key/crypto'
-import { authenticateApiKeyFromHeader } from '@/lib/api-key/service'
-
-const warnSpy = serviceLogger.warn
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 
 function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -71,7 +60,6 @@ function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
     userId: 'user-1',
     workspaceId: null as string | null,
     type: 'personal',
-    key: 'encrypted:stored:value',
     expiresAt: null as Date | null,
     ...overrides,
   }
@@ -80,7 +68,6 @@ function personalKeyRecord(overrides: Partial<Record<string, unknown>> = {}) {
 describe('authenticateApiKeyFromHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAuthenticateApiKey.mockReset()
     mockGetWorkspaceBillingSettings.mockReset()
     mockGetUserEntityPermissions.mockReset()
   })
@@ -91,7 +78,7 @@ describe('authenticateApiKeyFromHeader', () => {
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
   })
 
-  it('resolves on the fast path when the hash lookup finds a row', async () => {
+  it('resolves when the hash lookup finds a row', async () => {
     const record = personalKeyRecord()
     dbChainMockFns.where.mockResolvedValueOnce([record])
 
@@ -107,8 +94,6 @@ describe('authenticateApiKeyFromHeader', () => {
       workspaceId: undefined,
     })
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
-    expect(mockAuthenticateApiKey).not.toHaveBeenCalled()
-    expect(warnSpy).not.toHaveBeenCalled()
   })
 
   it('returns invalid when the hash lookup finds a row that fails scope checks', async () => {
@@ -121,63 +106,32 @@ describe('authenticateApiKeyFromHeader', () => {
 
     expect(result).toEqual({ success: false, error: 'Invalid API key' })
     expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
-    expect(mockAuthenticateApiKey).not.toHaveBeenCalled()
   })
 
-  it('falls back to the decrypt loop when no row matches the hash, and warns on success', async () => {
-    const record = personalKeyRecord()
-    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([record])
-    mockAuthenticateApiKey.mockResolvedValueOnce(true)
-
-    const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
-      userId: 'user-1',
-    })
-
-    expect(result).toEqual({
-      success: true,
-      userId: 'user-1',
-      keyId: 'key-1',
-      keyType: 'personal',
-      workspaceId: undefined,
-    })
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
-    expect(mockAuthenticateApiKey).toHaveBeenCalledWith(
-      'sk-sim-plain-key',
-      'encrypted:stored:value'
-    )
-    expect(warnSpy).toHaveBeenCalledWith('API key matched via fallback decrypt loop', {
-      keyId: 'key-1',
-    })
-  })
-
-  it('returns invalid when the hash lookup misses and the fallback scan also misses', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+  it('returns invalid when the key belongs to a banned user', async () => {
+    const record = personalKeyRecord({ userBanned: true })
+    dbChainMockFns.where.mockResolvedValueOnce([record])
 
     const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
       userId: 'user-1',
     })
 
     expect(result).toEqual({ success: false, error: 'Invalid API key' })
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
-    expect(mockAuthenticateApiKey).not.toHaveBeenCalled()
-    expect(warnSpy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
-  it('returns invalid when the hash lookup misses and every fallback candidate fails decrypt comparison', async () => {
-    const record = personalKeyRecord()
-    dbChainMockFns.where.mockResolvedValueOnce([]).mockResolvedValueOnce([record])
-    mockAuthenticateApiKey.mockResolvedValueOnce(false)
+  it('returns invalid when the hash lookup finds no row', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([])
 
     const result = await authenticateApiKeyFromHeader('sk-sim-plain-key', {
       userId: 'user-1',
     })
 
     expect(result).toEqual({ success: false, error: 'Invalid API key' })
-    expect(mockAuthenticateApiKey).toHaveBeenCalledTimes(1)
-    expect(warnSpy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
   })
 
-  it('queries by the sha256 hash of the incoming header on the fast path', async () => {
+  it('queries by the sha256 hash of the incoming header', async () => {
     dbChainMockFns.where.mockResolvedValueOnce([personalKeyRecord()])
 
     await authenticateApiKeyFromHeader('sk-sim-plain-key', { userId: 'user-1' })
@@ -185,5 +139,35 @@ describe('authenticateApiKeyFromHeader', () => {
     const [filter] = dbChainMockFns.where.mock.calls[0]
     const expected = hashApiKey('sk-sim-plain-key')
     expect(JSON.stringify(filter)).toContain(expected)
+  })
+})
+
+describe('updateApiKeyLastUsed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('only writes when the stored lastUsed is missing or stale', async () => {
+    await updateApiKeyLastUsed('key-1')
+
+    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ lastUsed: expect.any(Date) })
+    const [condition] = dbChainMockFns.where.mock.calls[0]
+    expect(condition).toMatchObject({
+      type: 'and',
+      conditions: [
+        { type: 'eq', right: 'key-1' },
+        { type: 'or', conditions: [{ type: 'isNull' }, { type: 'lt' }] },
+      ],
+    })
+  })
+
+  it('swallows database errors instead of failing the request', async () => {
+    dbChainMockFns.update.mockImplementationOnce(() => {
+      throw new Error('connection lost')
+    })
+
+    await expect(updateApiKeyLastUsed('key-1')).resolves.toBeUndefined()
+    expect(serviceLogger.error).toHaveBeenCalled()
   })
 })

@@ -6,9 +6,10 @@ import { generateId } from '@sim/utils/id'
 import clsx from 'clsx'
 import { ChevronRight, Folder, FolderOpen, MoreHorizontal } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
+import { chipVariants } from '@/components/emcn'
 import { Lock } from '@/components/emcn/icons'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
+import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -17,7 +18,7 @@ import {
   useFolderExpand,
   useItemDrag,
   useItemRename,
-  useSidebarDragContext,
+  useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import {
@@ -50,27 +51,11 @@ const logger = createLogger('FolderItem')
 
 interface FolderItemProps {
   folder: FolderTreeNode
-  level: number
-  dragDisabled?: boolean
-  hoverHandlers?: {
-    onDragEnter?: (e: React.DragEvent<HTMLElement>) => void
-    onDragLeave?: (e: React.DragEvent<HTMLElement>) => void
-  }
-  onFolderClick?: (folderId: string, shiftKey: boolean, metaKey: boolean) => void
-  onDragStart?: () => void
-  onDragEnd?: () => void
 }
 
-export function FolderItem({
-  folder,
-  level,
-  dragDisabled = false,
-  hoverHandlers,
-  onFolderClick,
-  onDragStart: onDragStartProp,
-  onDragEnd: onDragEndProp,
-}: FolderItemProps) {
-  const { isAnyDragActive } = useSidebarDragContext()
+export function FolderItem({ folder }: FolderItemProps) {
+  const { isAnyDragActive, dragDisabled, onFolderClick, onItemDragStart, onItemDragEnd } =
+    useSidebarListContext()
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
@@ -155,14 +140,12 @@ export function FolderItem({
   const handleCreateWorkflowInFolder = useCallback(() => {
     if (effectiveLocked) return
     const name = generateCreativeWorkflowName()
-    const color = getNextWorkflowColor()
     const id = generateId()
 
     createWorkflowMutation.mutate({
       workspaceId,
       folderId: folder.id,
       name,
-      color,
       id,
     })
 
@@ -177,7 +160,7 @@ export function FolderItem({
     try {
       const result = await createFolderMutation.mutateAsync({
         workspaceId,
-        name: 'New Folder',
+        name: 'New folder',
         parentId: folder.id,
         id: generateId(),
       })
@@ -237,9 +220,9 @@ export function FolderItem({
       e.dataTransfer.setDragImage(ghost, ghost.offsetWidth / 2, ghost.offsetHeight / 2)
       dragGhostRef.current = ghost
 
-      onDragStartProp?.()
+      onItemDragStart(folder.parentId)
     },
-    [folder.id, folder.name, workspaceId, onDragStartProp]
+    [folder.id, folder.name, folder.parentId, workspaceId, onItemDragStart]
   )
 
   const {
@@ -257,8 +240,8 @@ export function FolderItem({
       dragGhostRef.current = null
     }
     handleDragEndBase()
-    onDragEndProp?.()
-  }, [handleDragEndBase, onDragEndProp])
+    onItemDragEnd()
+  }, [handleDragEndBase, onItemDragEnd])
 
   const {
     isOpen: isContextMenuOpen,
@@ -365,7 +348,7 @@ export function FolderItem({
 
       const isModifierClick = e.shiftKey || e.metaKey || e.ctrlKey
 
-      if (isModifierClick && onFolderClick) {
+      if (isModifierClick) {
         e.preventDefault()
         onFolderClick(folder.id, e.shiftKey, e.metaKey || e.ctrlKey)
         return
@@ -489,13 +472,8 @@ export function FolderItem({
         data-item-id={folder.id}
         aria-expanded={isExpanded}
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
-        className={clsx(
-          'group mx-0.5 flex h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 text-sm',
-          !isSelected &&
-            !isContextMenuOpen &&
-            !isAnyDragActive &&
-            'hover-hover:bg-[var(--surface-hover)]',
-          (isSelected || isContextMenuOpen) && 'bg-[var(--surface-active)]',
+        className={cn(
+          chipVariants({ active: isSelected || isContextMenuOpen, fullWidth: true }),
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleFolderSelect}
@@ -504,11 +482,10 @@ export function FolderItem({
         draggable={!isEditing && !dragDisabled && !effectiveLocked}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        {...hoverHandlers}
       >
         <ChevronRight
           className={clsx(
-            'h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-100',
+            'size-[16px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-100',
             isExpanded && 'rotate-90'
           )}
           aria-hidden='true'
@@ -531,7 +508,7 @@ export function FolderItem({
             onChange={(e) => setEditValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleInputBlur}
-            className='min-w-0 flex-1 border-0 bg-transparent p-0 font-base text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
+            className='min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--text-body)] text-sm outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0'
             maxLength={50}
             disabled={isRenaming}
             onClick={(e) => {
@@ -547,7 +524,7 @@ export function FolderItem({
           <div className='flex min-w-0 flex-1 items-center gap-2'>
             <div className='flex min-w-0 flex-1 items-center gap-1'>
               <span
-                className='min-w-0 truncate font-base text-[var(--text-body)]'
+                className='min-w-0 truncate text-[var(--text-body)]'
                 onDoubleClick={handleDoubleClick}
               >
                 {folder.name}

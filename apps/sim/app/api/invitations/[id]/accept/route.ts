@@ -38,6 +38,7 @@ export const POST = withRouteHandler(
         'email-mismatch': 403,
         'already-in-organization': 409,
         'no-seats-available': 400,
+        'upgrade-required': 402,
         'server-error': 500,
       }
       const status = statusMap[result.kind] ?? 500

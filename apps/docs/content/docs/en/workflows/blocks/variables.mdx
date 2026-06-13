@@ -1,0 +1,61 @@
+---
+title: Variables
+description: The Variables block updates workflow variables during a run, read from any block by name.
+pageType: reference
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { BlockPreview, WorkflowPreview, VARIABLES_RETRY_WORKFLOW, VARIABLES_CONFIG_WORKFLOW } from '@/components/workflow-preview'
+import { FAQ } from '@/components/ui/faq'
+
+The **Variables block** updates workflow variables while a run is in progress. Variables are workflow-scoped state you create once in the workflow's Variables panel; this block changes their values as the run proceeds. Read a variable from any block with `<variable.name>`.
+
+<BlockPreview type="variables" />
+
+## Configuration
+
+### Variable Assignments
+
+A list of assignments, run in order. The right side is an expression that can reference earlier outputs and the variable's own current value:
+
+```
+customerEmail = <api.email>
+retryCount     = <variable.retryCount> + 1
+currentStatus  = "processing"
+```
+
+The variables must already exist in the workflow's **Variables** panel, where you set their initial values.
+
+## Outputs
+
+Variables are global rather than block outputs: read them anywhere with `<variable.name>`, like `<variable.retryCount>`. Each variable you assign is also exposed on this block as `<variables.name>` if you want to reference it from the block directly.
+
+## Examples
+
+### Count retries
+
+<WorkflowPreview workflow={VARIABLES_RETRY_WORKFLOW} />
+
+Each attempt bumps `retryCount`, and a Condition stops the loop after a few tries.
+
+### Hold config for the run
+
+<WorkflowPreview workflow={VARIABLES_CONFIG_WORKFLOW} />
+
+Profile fields are stored once, then read by later blocks with `<variable.userTier>` without fetching again.
+
+## Best Practices
+
+- **Initialize variables first.** Create them in the workflow's Variables panel before a Variables block sets them.
+- **Track state across steps.** Variables suit counters and status that several blocks read and update, including inside a [Loop](/workflows/blocks/loop).
+- **Name them clearly.** Names are case-sensitive, so `retryCount` and `RetryCount` are different variables.
+- **Assign from earlier outputs.** Set a variable from any block output, like `customerEmail = <api.email>`.
+
+<FAQ items={[
+  { question: "Do variables persist between workflow executions?", answer: "No. Variables are workflow-scoped and persist only for a single run. Each new run starts from the initial values defined in the workflow's Variables panel." },
+  { question: "Can multiple Variables blocks update the same variable?", answer: "Yes. All Variables blocks share one namespace, so a later block can overwrite a value set by an earlier one by using the same name." },
+  { question: "How do I reference a variable in other blocks?", answer: "Use <variable.name> in any input field, like <variable.retryCount> or <variable.customerEmail>." },
+  { question: "Are assigned variables available as block outputs?", answer: "Variables are primarily read globally with <variable.name>. Each assignment is also exposed on the Variables block itself as <variables.name>, so you can reference it from the block directly if you prefer." },
+  { question: "What naming convention should I use?", answer: "Descriptive names in camelCase or snake_case. Names are case-sensitive, so be consistent." },
+  { question: "Can I use block outputs to set a variable?", answer: "Yes. Reference any earlier output in an assignment, such as customerEmail = <api.email>, or increment a counter from its current value." },
+]} />

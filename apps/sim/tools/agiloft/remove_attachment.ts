@@ -2,7 +2,8 @@ import type {
   AgiloftRemoveAttachmentParams,
   AgiloftRemoveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import { buildRemoveAttachmentUrl, executeAgiloftRequest } from '@/tools/agiloft/utils'
+import { buildRemoveAttachmentUrl } from '@/tools/agiloft/utils'
+import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftRemoveAttachmentTool: ToolConfig<

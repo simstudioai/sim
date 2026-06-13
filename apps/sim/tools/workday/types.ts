@@ -8,15 +8,12 @@ interface WorkdayBaseParams {
 }
 
 interface WorkdayWorker {
-  id: string
-  descriptor: string
-  primaryWorkEmail?: string
-  primaryWorkPhone?: string
-  businessTitle?: string
-  supervisoryOrganization?: string
-  hireDate?: string
-  workerType?: string
-  isActive?: boolean
+  id: string | null
+  descriptor: string | null
+  personalData?: unknown
+  employmentData?: unknown
+  compensationData?: unknown
+  organizationData?: unknown
   [key: string]: unknown
 }
 

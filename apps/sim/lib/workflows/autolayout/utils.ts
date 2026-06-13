@@ -4,6 +4,7 @@ import {
   CONTAINER_PADDING,
   CONTAINER_PADDING_X,
   CONTAINER_PADDING_Y,
+  NOTE_BLOCK_TYPE,
   ROOT_PADDING_X,
   ROOT_PADDING_Y,
 } from '@/lib/workflows/autolayout/constants'
@@ -19,6 +20,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isTriggerModeSubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -174,13 +176,13 @@ function getVisiblePreviewSubBlockCount(block: BlockState): number {
 
     if (effectiveTrigger) {
       const isValidTriggerSubblock = isPureTriggerBlock
-        ? subBlock.mode === 'trigger' || !subBlock.mode
-        : subBlock.mode === 'trigger'
+        ? isTriggerModeSubBlock(subBlock) || !subBlock.mode
+        : isTriggerModeSubBlock(subBlock)
 
       if (!isValidTriggerSubblock) {
         return false
       }
-    } else if (subBlock.mode === 'trigger') {
+    } else if (isTriggerModeSubBlock(subBlock)) {
       return false
     }
 
@@ -311,6 +313,158 @@ export function boxesOverlap(box1: BoundingBox, box2: BoundingBox, margin = 0): 
     box1.y + box1.height + margin <= box2.y ||
     box2.y + box2.height + margin <= box1.y
   )
+}
+
+/**
+ * Resolves the on-canvas dimensions of a note block.
+ * Notes are fixed-width and use a deterministic height, but fall back to any
+ * stored measurement or data override when present.
+ */
+function getNoteDimensions(block: BlockState): { width: number; height: number } {
+  const width = Math.max(
+    resolveNumeric(block.data?.width, 0),
+    block.layout?.measuredWidth ?? 0,
+    BLOCK_DIMENSIONS.FIXED_WIDTH
+  )
+
+  const defaultHeight =
+    BLOCK_DIMENSIONS.HEADER_HEIGHT +
+    BLOCK_DIMENSIONS.NOTE_CONTENT_PADDING +
+    BLOCK_DIMENSIONS.NOTE_BASE_CONTENT_HEIGHT
+
+  const height = Math.max(
+    resolveNumeric(block.data?.height, 0),
+    block.layout?.measuredHeight ?? 0,
+    block.height ?? 0,
+    defaultHeight
+  )
+
+  return { width, height }
+}
+
+/**
+ * Checks if a block has a valid, finite position.
+ * Returns false for missing, undefined, NaN, or Infinity coordinates.
+ */
+export function hasFinitePosition(block: BlockState): boolean {
+  return Number.isFinite(block.position?.x) && Number.isFinite(block.position?.y)
+}
+
+/**
+ * Determines whether a note and a block overlapped at their pre-layout
+ * positions. Used by targeted layout to distinguish overlaps introduced by the
+ * current pass from arrangements that already existed.
+ */
+function noteOverlappedBlockBefore(
+  previousBlocks: Record<string, BlockState>,
+  noteId: string,
+  blockId: string
+): boolean {
+  const previousNote = previousBlocks[noteId]
+  const previousBlock = previousBlocks[blockId]
+  if (!previousNote || !previousBlock) return false
+
+  // A block without a finite prior position was not yet placed on the canvas,
+  // so it could not have overlapped anything before this pass.
+  if (!hasFinitePosition(previousNote) || !hasFinitePosition(previousBlock)) return false
+
+  // Derive dimensions from the prior blocks so a resize between passes does not
+  // pair new dimensions with the old position.
+  const noteBox = createBoundingBox(previousNote.position, getNoteDimensions(previousNote))
+  const blockBox = createBoundingBox(previousBlock.position, getBlockMetrics(previousBlock))
+  return boxesOverlap(blockBox, noteBox)
+}
+
+export interface ResolveNoteOverlapsOptions {
+  /**
+   * Pre-layout block snapshot. When provided, only notes whose overlap with a
+   * block was *introduced* by the current pass are relocated (i.e. they overlap
+   * now but did not at these positions). Targeted layout passes this so that
+   * pre-existing note arrangements are preserved. When omitted (full
+   * auto-layout), any note overlapping a block is relocated.
+   */
+  previousBlocks?: Record<string, BlockState>
+}
+
+/**
+ * Relocates note blocks that overlap the laid-out workflow blocks.
+ *
+ * Notes are excluded from the topological layout because they are free-form
+ * annotations, but repositioned workflow blocks can land on top of them. This
+ * pass keeps notes that already sit in clear space and stacks any relocated
+ * notes in a column beneath their parent group's blocks, preserving the notes'
+ * relative reading order. Notes are grouped by parent so notes inside a
+ * container are resolved against that container's children only.
+ *
+ * Placement is always computed against the full set of blocks and notes in the
+ * group, so a relocated note never collides with anything regardless of which
+ * overlaps triggered the relocation.
+ */
+export function resolveNoteOverlaps(
+  blocks: Record<string, BlockState>,
+  verticalSpacing: number,
+  options: ResolveNoteOverlapsOptions = {}
+): void {
+  const { previousBlocks } = options
+  const { root, children } = getBlocksByParent(blocks)
+  const groups: string[][] = [root, ...Array.from(children.values())]
+
+  for (const groupIds of groups) {
+    const obstacles: Array<{ id: string; box: BoundingBox }> = []
+    const noteIds: string[] = []
+    let maxBottom = Number.NEGATIVE_INFINITY
+    let minX = Number.POSITIVE_INFINITY
+
+    for (const id of groupIds) {
+      const block = blocks[id]
+      // Skip non-finite positions so corrupted coordinates never propagate into
+      // minX / maxBottom (and therefore into relocated note positions).
+      if (!block || !hasFinitePosition(block)) continue
+
+      if (block.type === NOTE_BLOCK_TYPE) {
+        noteIds.push(id)
+        const { height } = getNoteDimensions(block)
+        maxBottom = Math.max(maxBottom, block.position.y + height)
+        continue
+      }
+
+      if (shouldSkipAutoLayout(block)) continue
+
+      const box = createBoundingBox(block.position, getBlockMetrics(block))
+      obstacles.push({ id, box })
+      maxBottom = Math.max(maxBottom, box.y + box.height)
+      minX = Math.min(minX, box.x)
+    }
+
+    if (noteIds.length === 0 || obstacles.length === 0) continue
+
+    noteIds.sort((a, b) => {
+      const posA = blocks[a].position
+      const posB = blocks[b].position
+      return posA.y - posB.y || posA.x - posB.x
+    })
+
+    let stackY = maxBottom + verticalSpacing
+
+    for (const id of noteIds) {
+      const note = blocks[id]
+      const dimensions = getNoteDimensions(note)
+      const noteBox = createBoundingBox(note.position, dimensions)
+
+      const needsRelocation = obstacles.some(({ id: blockId, box }) => {
+        if (!boxesOverlap(box, noteBox)) return false
+        if (previousBlocks) {
+          return !noteOverlappedBlockBefore(previousBlocks, id, blockId)
+        }
+        return true
+      })
+
+      if (!needsRelocation) continue
+
+      note.position = { x: minX, y: stackY }
+      stackY += dimensions.height + verticalSpacing
+    }
+  }
 }
 
 /**

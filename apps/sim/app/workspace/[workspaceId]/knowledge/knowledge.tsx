@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams, useRouter } from 'next/navigation'
-import type { ComboboxOption } from '@/components/emcn'
-import { Combobox, Tooltip } from '@/components/emcn'
+import type { ChipDropdownOption } from '@/components/emcn'
+import { Button, ChipDropdown, Plus, Tooltip } from '@/components/emcn'
 import { Database } from '@/components/emcn/icons'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import type {
-  CreateAction,
   FilterTag,
+  ResourceAction,
   ResourceCell,
   ResourceColumn,
   ResourceRow,
@@ -56,7 +56,21 @@ const COLUMNS: ResourceColumn[] = [
   { id: 'updated', header: 'Last Updated' },
 ]
 
-const DATABASE_ICON = <Database className='size-[14px]' />
+const KNOWLEDGE_BASE_ICON = <Database className='size-[14px]' />
+
+const CONNECTOR_FILTER_OPTIONS: ChipDropdownOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'connected', label: 'With connectors' },
+  { value: 'unconnected', label: 'Without connectors' },
+]
+
+const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'has-docs', label: 'Has documents' },
+  { value: 'empty', label: 'Empty' },
+]
+
+const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
@@ -285,7 +299,7 @@ export function Knowledge() {
           id: kb.id,
           cells: {
             name: {
-              icon: DATABASE_ICON,
+              icon: KNOWLEDGE_BASE_ICON,
               label: kb.name,
             },
             documents: {
@@ -372,12 +386,16 @@ export function Knowledge() {
 
   const canEdit = userPermissions.canEdit === true
 
-  const createAction: CreateAction = useMemo(
-    () => ({
-      label: 'New base',
-      onClick: handleOpenCreateModal,
-      disabled: !canEdit,
-    }),
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      {
+        text: 'New base',
+        icon: Plus,
+        onSelect: handleOpenCreateModal,
+        disabled: !canEdit,
+        variant: 'primary',
+      },
+    ],
     [handleOpenCreateModal, canEdit]
   )
 
@@ -409,28 +427,7 @@ export function Knowledge() {
     [activeSort]
   )
 
-  const connectorDisplayLabel = useMemo(() => {
-    if (connectorFilter.length === 0) return 'All'
-    if (connectorFilter.length === 1)
-      return connectorFilter[0] === 'connected' ? 'With connectors' : 'Without connectors'
-    return `${connectorFilter.length} selected`
-  }, [connectorFilter])
-
-  const contentDisplayLabel = useMemo(() => {
-    if (contentFilter.length === 0) return 'All'
-    if (contentFilter.length === 1)
-      return contentFilter[0] === 'has-docs' ? 'Has documents' : 'Empty'
-    return `${contentFilter.length} selected`
-  }, [contentFilter])
-
-  const ownerDisplayLabel = useMemo(() => {
-    if (ownerFilter.length === 0) return 'All'
-    if (ownerFilter.length === 1)
-      return members?.find((m) => m.userId === ownerFilter[0])?.name ?? '1 member'
-    return `${ownerFilter.length} members`
-  }, [ownerFilter, members])
-
-  const memberOptions: ComboboxOption[] = useMemo(
+  const memberOptions: ChipDropdownOption[] = useMemo(
     () =>
       (members ?? []).map((m) => ({
         value: m.userId,
@@ -451,95 +448,84 @@ export function Knowledge() {
     [members]
   )
 
-  const hasActiveFilters =
-    connectorFilter.length > 0 || contentFilter.length > 0 || ownerFilter.length > 0
-
   const filterContent = useMemo(
     () => (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Connectors</span>
-          <Combobox
-            options={[
-              { value: 'connected', label: 'With connectors' },
-              { value: 'unconnected', label: 'Without connectors' },
-            ]}
-            multiSelect
-            multiSelectValues={connectorFilter}
-            onMultiSelectChange={setConnectorFilter}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{connectorDisplayLabel}</span>
-            }
-            showAllOption
-            allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+      <div className='flex w-[260px] flex-col gap-3 p-3'>
+        <div className='flex flex-col gap-2'>
+          <div className='flex h-5 items-center justify-between'>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Connectors</span>
+            {connectorFilter.length > 0 && (
+              <Button
+                variant='ghost'
+                onClick={() => setConnectorFilter([])}
+                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          <ChipDropdown
+            options={CONNECTOR_FILTER_OPTIONS}
+            value={connectorFilter[0] ?? 'all'}
+            onChange={(value) => setConnectorFilter(value === 'all' ? [] : [value])}
+            align='start'
+            fullWidth
+            flush
           />
         </div>
-        <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Content</span>
-          <Combobox
-            options={[
-              { value: 'has-docs', label: 'Has documents' },
-              { value: 'empty', label: 'Empty' },
-            ]}
-            multiSelect
-            multiSelectValues={contentFilter}
-            onMultiSelectChange={setContentFilter}
-            overlayContent={
-              <span className='truncate text-[var(--text-primary)]'>{contentDisplayLabel}</span>
-            }
-            showAllOption
-            allOptionLabel='All'
-            size='sm'
-            className='h-[32px] w-full rounded-md'
+        <div className='flex flex-col gap-2'>
+          <div className='flex h-5 items-center justify-between'>
+            <span className={FILTER_SECTION_LABEL_CLASS}>Content</span>
+            {contentFilter.length > 0 && (
+              <Button
+                variant='ghost'
+                onClick={() => setContentFilter([])}
+                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+          <ChipDropdown
+            options={CONTENT_FILTER_OPTIONS}
+            value={contentFilter[0] ?? 'all'}
+            onChange={(value) => setContentFilter(value === 'all' ? [] : [value])}
+            align='start'
+            fullWidth
+            flush
           />
         </div>
         {memberOptions.length > 0 && (
-          <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
-            <Combobox
+          <div className='flex flex-col gap-2'>
+            <div className='flex h-5 items-center justify-between'>
+              <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
+              {ownerFilter.length > 0 && (
+                <Button
+                  variant='ghost'
+                  onClick={() => setOwnerFilter([])}
+                  className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+            <ChipDropdown
+              multiple
               options={memberOptions}
-              multiSelect
-              multiSelectValues={ownerFilter}
-              onMultiSelectChange={setOwnerFilter}
-              overlayContent={
-                <span className='truncate text-[var(--text-primary)]'>{ownerDisplayLabel}</span>
-              }
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              allLabel='All'
               searchable
               searchPlaceholder='Search members...'
-              showAllOption
-              allOptionLabel='All'
-              size='sm'
-              className='h-[32px] w-full rounded-md'
+              align='start'
+              fullWidth
+              flush
             />
           </div>
         )}
-        {hasActiveFilters && (
-          <button
-            type='button'
-            onClick={() => {
-              setConnectorFilter([])
-              setContentFilter([])
-              setOwnerFilter([])
-            }}
-            className='flex h-[32px] w-full items-center justify-center rounded-md text-[var(--text-secondary)] text-caption transition-colors hover-hover:bg-[var(--surface-active)]'
-          >
-            Clear all filters
-          </button>
-        )}
       </div>
     ),
-    [
-      connectorFilter,
-      contentFilter,
-      ownerFilter,
-      memberOptions,
-      connectorDisplayLabel,
-      contentDisplayLabel,
-      ownerDisplayLabel,
-      hasActiveFilters,
-    ]
+    [connectorFilter, contentFilter, ownerFilter, memberOptions]
   )
 
   const filterTags: FilterTag[] = useMemo(() => {
@@ -570,21 +556,23 @@ export function Knowledge() {
 
   return (
     <>
-      <Resource
-        icon={Database}
-        title='Knowledge Base'
-        create={createAction}
-        search={searchConfig}
-        sort={sortConfig}
-        filter={filterContent}
-        filterTags={filterTags}
-        columns={COLUMNS}
-        rows={rows}
-        onRowClick={handleRowClick}
-        onRowContextMenu={handleRowContextMenu}
-        isLoading={isLoading}
-        onContextMenu={handleContentContextMenu}
-      />
+      <Resource onContextMenu={handleContentContextMenu}>
+        <Resource.Header icon={Database} title='Knowledge Base' actions={headerActions} />
+        <Resource.Options
+          search={searchConfig}
+          sort={sortConfig}
+          filterTags={filterTags}
+          filter={{ content: filterContent }}
+        />
+        <Resource.Table
+          columns={COLUMNS}
+          rows={rows}
+          sort={sortConfig}
+          onRowClick={handleRowClick}
+          onRowContextMenu={handleRowContextMenu}
+          isLoading={isLoading}
+        />
+      </Resource>
 
       <KnowledgeListContextMenu
         isOpen={isListContextMenuOpen}

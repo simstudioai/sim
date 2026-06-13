@@ -7,14 +7,9 @@ import {
   AvatarImage,
   Badge,
   Banner,
-  Button,
-  Input,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
+  ChipConfirmModal,
+  ChipInput,
+  Search,
   Skeleton,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
@@ -87,142 +82,135 @@ export function TransferOwnershipDialog({
   }
 
   return (
-    <Modal open={open} onOpenChange={handleClose}>
-      <ModalContent size='md'>
-        <ModalHeader>Leave organization</ModalHeader>
-        <ModalBody>
-          <ModalDescription className='sr-only'>
-            Transfer ownership to another member before leaving the organization.
-          </ModalDescription>
-          {isLoadingMembers ? (
-            <div className='space-y-3'>
-              <Skeleton className='h-4 w-3/4' />
-              <Skeleton className='h-4 w-1/2' />
-              <div className='space-y-2 pt-2'>
-                <Skeleton className='h-10 w-full' />
-                <Skeleton className='h-10 w-full' />
-                <Skeleton className='h-10 w-full' />
-              </div>
+    <ChipConfirmModal
+      open={open}
+      onOpenChange={handleClose}
+      srTitle='Leave organization'
+      title='Leave organization'
+      confirm={{
+        label: 'Transfer & leave',
+        onClick: handleConfirm,
+        pending: isSubmitting,
+        pendingLabel: 'Transferring...',
+        disabled: !selectedUserId || !hasCandidates || isLoadingMembers,
+      }}
+    >
+      <div className='flex flex-col gap-4'>
+        {isLoadingMembers ? (
+          <div className='space-y-3'>
+            <Skeleton className='h-4 w-3/4' />
+            <Skeleton className='h-4 w-1/2' />
+            <div className='space-y-2 pt-2'>
+              <Skeleton className='h-10 w-full' />
+              <Skeleton className='h-10 w-full' />
+              <Skeleton className='h-10 w-full' />
             </div>
-          ) : !hasCandidates ? (
-            <p className='text-[var(--text-secondary)]'>
-              You're the only member of this organization. Invite another admin before leaving.
+          </div>
+        ) : !hasCandidates ? (
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            You're the only member of this organization. Invite another admin before leaving.
+          </p>
+        ) : (
+          <div className='space-y-3'>
+            <p className='px-2 text-[var(--text-secondary)] text-sm'>
+              As the owner, you need to hand off the organization before you can leave. Pick a
+              member to become the new owner. They'll inherit billing access, seat management, and
+              all owner-only permissions. You'll lose access to every shared workspace in this
+              organization.
             </p>
-          ) : (
-            <div className='space-y-3'>
-              <p className='text-[var(--text-secondary)]'>
-                As the owner, you need to hand off the organization before you can leave. Pick a
-                member to become the new owner. They'll inherit billing access, seat management, and
-                all owner-only permissions. You'll lose access to every shared workspace in this
-                organization.
-              </p>
 
-              {hasPaidSubscription && (
-                <Banner
-                  variant='default'
-                  className='rounded-md px-3 py-2'
-                  textClassName='text-[var(--text-primary)]'
-                  actionLabel={isOpeningBillingPortal ? 'Opening...' : 'Open Stripe billing portal'}
-                  actionDisabled={isOpeningBillingPortal}
-                  onAction={onOpenBillingPortal}
-                  text={
-                    <>
-                      <span className='block font-medium'>
-                        Your payment method stays on this organization
-                      </span>
-                      <span className='block text-[var(--text-secondary)]'>
-                        Future charges will keep hitting the card you added. Open the Stripe billing
-                        portal to remove it before you leave.
-                      </span>
-                    </>
-                  }
-                />
-              )}
-
-              {portalError && (
-                <p className='text-[var(--text-error)] text-small leading-tight'>{portalError}</p>
-              )}
-
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder='Search members...'
+            {hasPaidSubscription && (
+              <Banner
+                variant='default'
+                className='rounded-md px-3 py-2'
+                textClassName='text-[var(--text-primary)]'
+                actionLabel={isOpeningBillingPortal ? 'Opening...' : 'Open Stripe billing portal'}
+                actionDisabled={isOpeningBillingPortal}
+                onAction={onOpenBillingPortal}
+                text={
+                  <>
+                    <span className='block font-medium'>
+                      Your payment method stays on this organization
+                    </span>
+                    <span className='block text-[var(--text-secondary)]'>
+                      Future charges will keep hitting the card you added. Open the Stripe billing
+                      portal to remove it before you leave.
+                    </span>
+                  </>
+                }
               />
+            )}
 
-              <div className='max-h-[280px] overflow-y-auto rounded-md border border-[var(--border-1)]'>
-                {candidates.length === 0 ? (
-                  <div className='px-3 py-4 text-center text-[var(--text-muted)] text-small'>
-                    No members match "{search}"
-                  </div>
-                ) : (
-                  <ul className='divide-y divide-[var(--border-1)]'>
-                    {candidates.map((m) => {
-                      const isSelected = selectedUserId === m.userId
-                      return (
-                        <li key={m.userId}>
-                          <button
-                            type='button'
-                            onClick={() => setSelectedUserId(m.userId)}
-                            className={cn(
-                              'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
-                              isSelected
-                                ? 'bg-[var(--surface-active)]'
-                                : 'hover-hover:bg-[var(--surface-hover)]'
-                            )}
-                          >
-                            <Avatar className='size-8 shrink-0'>
-                              {m.image && <AvatarImage src={m.image} alt={m.name} />}
-                              <AvatarFallback
-                                style={{ background: getUserColor(m.userId || m.email) }}
-                                className='border-0 text-white'
-                              >
-                                {m.name.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className='min-w-0 flex-1'>
-                              <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-[var(--text-primary)] text-small'>
-                                  {m.name}
-                                </span>
-                                {m.role === 'admin' && (
-                                  <Badge variant='gray-secondary' size='sm'>
-                                    Admin
-                                  </Badge>
-                                )}
-                              </div>
-                              <div className='truncate text-[var(--text-muted)] text-caption'>
-                                {m.email}
-                              </div>
+            {portalError && <p className='px-2 text-[var(--text-error)] text-sm'>{portalError}</p>}
+
+            <ChipInput
+              icon={Search}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder='Search members...'
+            />
+
+            <div className='max-h-[280px] overflow-y-auto rounded-md border border-[var(--border-1)]'>
+              {candidates.length === 0 ? (
+                <div className='px-3 py-4 text-center text-[var(--text-muted)] text-small'>
+                  No members match "{search}"
+                </div>
+              ) : (
+                <ul className='divide-y divide-[var(--border-1)]'>
+                  {candidates.map((m) => {
+                    const isSelected = selectedUserId === m.userId
+                    return (
+                      <li key={m.userId}>
+                        <button
+                          type='button'
+                          onClick={() => setSelectedUserId(m.userId)}
+                          className={cn(
+                            'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
+                            isSelected
+                              ? 'bg-[var(--surface-active)]'
+                              : 'hover-hover:bg-[var(--surface-hover)]'
+                          )}
+                        >
+                          <Avatar className='size-8 shrink-0'>
+                            {m.image && <AvatarImage src={m.image} alt={m.name} />}
+                            <AvatarFallback
+                              style={{ background: getUserColor(m.userId || m.email) }}
+                              className='border-0 text-white'
+                            >
+                              {m.name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className='min-w-0 flex-1'>
+                            <div className='flex items-center gap-2'>
+                              <span className='truncate font-medium text-[var(--text-primary)] text-small'>
+                                {m.name}
+                              </span>
+                              {m.role === 'admin' && (
+                                <Badge variant='gray-secondary' size='sm'>
+                                  Admin
+                                </Badge>
+                              )}
                             </div>
-                          </button>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </div>
+                            <div className='truncate text-[var(--text-muted)] text-caption'>
+                              {m.email}
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
-          )}
+          </div>
+        )}
 
-          {error && (
-            <p className='mt-3 text-[var(--text-error)] text-small leading-tight'>
-              {error instanceof Error && error.message ? error.message : String(error)}
-            </p>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant='default' onClick={() => handleClose(false)} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            variant='destructive'
-            onClick={handleConfirm}
-            disabled={!selectedUserId || isSubmitting || !hasCandidates || isLoadingMembers}
-          >
-            {isSubmitting ? 'Transferring...' : 'Transfer & leave'}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
+        {error && (
+          <p className='px-2 text-[var(--text-error)] text-sm'>
+            {error instanceof Error && error.message ? error.message : String(error)}
+          </p>
+        )}
+      </div>
+    </ChipConfirmModal>
   )
 }

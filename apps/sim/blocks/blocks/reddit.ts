@@ -1,6 +1,6 @@
 import { RedditIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { RedditResponse } from '@/tools/reddit/types'
 
@@ -11,11 +11,11 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
   authMode: AuthMode.OAuth,
   longDescription:
     'Integrate Reddit into workflows. Read posts, comments, and search content. Submit posts, vote, reply, edit, manage messages, and access user and subreddit info.',
-  docsLink: 'https://docs.sim.ai/tools/reddit',
+  docsLink: 'https://docs.sim.ai/integrations/reddit',
   category: 'tools',
   integrationType: IntegrationType.Communication,
-  tags: ['content-management', 'web-scraping'],
   bgColor: '#FF5700',
+  iconColor: '#FF5700',
   icon: RedditIcon,
   subBlocks: [
     {
@@ -40,11 +40,30 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Send Message', id: 'send_message' },
         { label: 'Get Messages', id: 'get_messages' },
         { label: 'Get Subreddit Info', id: 'get_subreddit_info' },
+        { label: 'Get Subreddit Rules', id: 'get_subreddit_rules' },
+        { label: 'Get User Posts', id: 'get_user_posts' },
+        { label: 'Get User Comments', id: 'get_user_comments' },
+        { label: 'Get Saved Items', id: 'get_saved' },
+        { label: 'Get Info by ID', id: 'get_info' },
+        { label: 'Search Subreddits', id: 'search_subreddits' },
+        { label: 'List My Subreddits', id: 'list_my_subreddits' },
+        { label: 'Report', id: 'report' },
+        { label: 'Hide', id: 'hide' },
+        { label: 'Unhide', id: 'unhide' },
+        { label: 'Mark NSFW', id: 'marknsfw' },
+        { label: 'Unmark NSFW', id: 'unmarknsfw' },
+        { label: 'Mark Messages Read', id: 'mark_read' },
+        { label: 'Mark All Messages Read', id: 'mark_all_read' },
+        { label: 'Approve (Mod)', id: 'mod_approve' },
+        { label: 'Remove (Mod)', id: 'mod_remove' },
+        { label: 'Distinguish (Mod)', id: 'mod_distinguish' },
+        { label: 'Lock (Mod)', id: 'lock' },
+        { label: 'Unlock (Mod)', id: 'unlock' },
+        { label: 'Sticky (Mod)', id: 'mod_sticky' },
       ],
       value: () => 'get_posts',
     },
 
-    // Reddit OAuth Authentication
     {
       id: 'credential',
       title: 'Reddit Account',
@@ -66,7 +85,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       required: true,
     },
 
-    // ── Get Posts ──────────────────────────────────────────────────────
     {
       id: 'subreddit',
       title: 'Subreddit',
@@ -74,7 +92,14 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Enter subreddit name (without r/)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_comments', 'get_controversial', 'search', 'get_subreddit_info'],
+        value: [
+          'get_posts',
+          'get_comments',
+          'get_controversial',
+          'search',
+          'get_subreddit_info',
+          'get_subreddit_rules',
+        ],
       },
       required: true,
     },
@@ -90,6 +115,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Controversial', id: 'controversial' },
       ],
       condition: { field: 'operation', value: 'get_posts' },
+      value: () => 'hot',
       required: true,
     },
     {
@@ -124,7 +150,17 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Fullname for forward pagination (e.g., t3_xxxxx)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_controversial', 'search', 'get_messages'],
+        value: [
+          'get_posts',
+          'get_controversial',
+          'search',
+          'get_messages',
+          'get_user_posts',
+          'get_user_comments',
+          'get_saved',
+          'search_subreddits',
+          'list_my_subreddits',
+        ],
       },
       mode: 'advanced',
     },
@@ -135,12 +171,21 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       placeholder: 'Fullname for backward pagination (e.g., t3_xxxxx)',
       condition: {
         field: 'operation',
-        value: ['get_posts', 'get_controversial', 'search', 'get_messages'],
+        value: [
+          'get_posts',
+          'get_controversial',
+          'search',
+          'get_messages',
+          'get_user_posts',
+          'get_user_comments',
+          'get_saved',
+          'search_subreddits',
+          'list_my_subreddits',
+        ],
       },
       mode: 'advanced',
     },
 
-    // ── Get Comments ──────────────────────────────────────────────────
     {
       id: 'postId',
       title: 'Post ID',
@@ -163,6 +208,7 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
         { label: 'Q&A', id: 'qa' },
       ],
       condition: { field: 'operation', value: 'get_comments' },
+      value: () => 'confidence',
     },
     {
       id: 'commentLimit',
@@ -188,7 +234,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       mode: 'advanced',
     },
 
-    // ── Get Controversial ─────────────────────────────────────────────
     {
       id: 'controversialTime',
       title: 'Time Filter',
@@ -211,7 +256,6 @@ export const RedditBlock: BlockConfig<RedditResponse> = {
       condition: { field: 'operation', value: 'get_controversial' },
     },
 
-    // ── Search ────────────────────────────────────────────────────────
     {
       id: 'searchQuery',
       title: 'Search Query',
@@ -252,6 +296,7 @@ Return ONLY the search query - no explanations, no extra text.`,
         { label: 'Comments', id: 'comments' },
       ],
       condition: { field: 'operation', value: 'search' },
+      value: () => 'relevance',
     },
     {
       id: 'searchTime',
@@ -274,7 +319,6 @@ Return ONLY the search query - no explanations, no extra text.`,
       placeholder: '10',
       condition: { field: 'operation', value: 'search' },
     },
-    // ── Submit Post ───────────────────────────────────────────────────
     {
       id: 'submitSubreddit',
       title: 'Subreddit',
@@ -396,7 +440,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       value: () => 'true',
     },
 
-    // ── Vote ──────────────────────────────────────────────────────────
     {
       id: 'voteId',
       title: 'Post/Comment ID',
@@ -419,7 +462,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       required: true,
     },
 
-    // ── Save / Unsave ─────────────────────────────────────────────────
     {
       id: 'saveId',
       title: 'Post/Comment ID',
@@ -437,7 +479,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       mode: 'advanced',
     },
 
-    // ── Reply ─────────────────────────────────────────────────────────
     {
       id: 'replyParentId',
       title: 'Parent Post/Comment ID',
@@ -471,7 +512,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       },
     },
 
-    // ── Edit ──────────────────────────────────────────────────────────
     {
       id: 'editThingId',
       title: 'Post/Comment ID',
@@ -489,7 +529,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       required: true,
     },
 
-    // ── Delete ────────────────────────────────────────────────────────
     {
       id: 'deleteId',
       title: 'Post/Comment ID',
@@ -499,7 +538,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       required: true,
     },
 
-    // ── Subscribe ─────────────────────────────────────────────────────
     {
       id: 'subscribeSubreddit',
       title: 'Subreddit',
@@ -521,7 +559,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       required: true,
     },
 
-    // ── Get User Profile ──────────────────────────────────────────────
     {
       id: 'username',
       title: 'Username',
@@ -531,7 +568,6 @@ Return ONLY the markdown content - no meta-commentary.`,
       required: true,
     },
 
-    // ── Send Message ──────────────────────────────────────────────────
     {
       id: 'messageTo',
       title: 'Recipient',
@@ -573,7 +609,6 @@ Return ONLY the message content - no meta-commentary.`,
       mode: 'advanced',
     },
 
-    // ── Get Messages ──────────────────────────────────────────────────
     {
       id: 'messageWhere',
       title: 'Message Folder',
@@ -608,6 +643,234 @@ Return ONLY the message content - no meta-commentary.`,
       condition: { field: 'operation', value: 'get_messages' },
       mode: 'advanced',
     },
+
+    {
+      id: 'userListUsername',
+      title: 'Username',
+      type: 'short-input',
+      placeholder: 'Reddit username (use your own for Saved Items)',
+      condition: {
+        field: 'operation',
+        value: ['get_user_posts', 'get_user_comments', 'get_saved'],
+      },
+      required: true,
+    },
+    {
+      id: 'userListSort',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'New', id: 'new' },
+        { label: 'Hot', id: 'hot' },
+        { label: 'Top', id: 'top' },
+        { label: 'Controversial', id: 'controversial' },
+      ],
+      condition: { field: 'operation', value: ['get_user_posts', 'get_user_comments'] },
+      value: () => 'new',
+    },
+    {
+      id: 'userListTime',
+      title: 'Time Filter',
+      type: 'dropdown',
+      options: [
+        { label: 'Hour', id: 'hour' },
+        { label: 'Day', id: 'day' },
+        { label: 'Week', id: 'week' },
+        { label: 'Month', id: 'month' },
+        { label: 'Year', id: 'year' },
+        { label: 'All Time', id: 'all' },
+      ],
+      condition: {
+        field: 'operation',
+        value: ['get_user_posts', 'get_user_comments'],
+        and: { field: 'userListSort', value: ['top', 'controversial'] },
+      },
+      mode: 'advanced',
+    },
+    {
+      id: 'userListLimit',
+      title: 'Max Items',
+      type: 'short-input',
+      placeholder: '25',
+      condition: {
+        field: 'operation',
+        value: ['get_user_posts', 'get_user_comments', 'get_saved'],
+      },
+    },
+
+    {
+      id: 'infoIds',
+      title: 'Thing Fullnames',
+      type: 'short-input',
+      placeholder: 'Comma-separated fullnames (e.g., t3_abc123,t1_xyz789,t5_2qh33)',
+      condition: { field: 'operation', value: 'get_info' },
+      required: true,
+    },
+
+    {
+      id: 'searchSubredditsQuery',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'Search subreddits by name and description',
+      condition: { field: 'operation', value: 'search_subreddits' },
+      required: true,
+    },
+    {
+      id: 'searchSubredditsSort',
+      title: 'Sort By',
+      type: 'dropdown',
+      options: [
+        { label: 'Relevance', id: 'relevance' },
+        { label: 'Activity', id: 'activity' },
+      ],
+      condition: { field: 'operation', value: 'search_subreddits' },
+      value: () => 'relevance',
+    },
+    {
+      id: 'searchSubredditsLimit',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'search_subreddits' },
+    },
+
+    {
+      id: 'listMineLimit',
+      title: 'Max Subreddits',
+      type: 'short-input',
+      placeholder: '25',
+      condition: { field: 'operation', value: 'list_my_subreddits' },
+    },
+
+    {
+      id: 'reportThingId',
+      title: 'Post/Comment ID',
+      type: 'short-input',
+      placeholder: 'Thing fullname to report (e.g., t3_xxxxx or t1_xxxxx)',
+      condition: { field: 'operation', value: 'report' },
+      required: true,
+    },
+    {
+      id: 'reportReason',
+      title: 'Reason',
+      type: 'short-input',
+      placeholder: 'Rule the content violates (max 100 characters)',
+      condition: { field: 'operation', value: 'report' },
+      mode: 'advanced',
+    },
+    {
+      id: 'reportOtherReason',
+      title: 'Custom Reason',
+      type: 'short-input',
+      placeholder: 'Free-form custom reason (max 100 characters)',
+      condition: { field: 'operation', value: 'report' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'hideId',
+      title: 'Post ID(s)',
+      type: 'short-input',
+      placeholder: 'Comma-separated post fullnames (e.g., t3_abc123,t3_def456)',
+      condition: { field: 'operation', value: ['hide', 'unhide'] },
+      required: true,
+    },
+
+    {
+      id: 'nsfwId',
+      title: 'Post ID',
+      type: 'short-input',
+      placeholder: 'Post fullname (e.g., t3_xxxxx)',
+      condition: { field: 'operation', value: ['marknsfw', 'unmarknsfw'] },
+      required: true,
+    },
+
+    {
+      id: 'markReadId',
+      title: 'Message ID(s)',
+      type: 'short-input',
+      placeholder: 'Comma-separated message fullnames (e.g., t4_abc123,t4_def456)',
+      condition: { field: 'operation', value: 'mark_read' },
+      required: true,
+    },
+
+    {
+      id: 'modThingId',
+      title: 'Post/Comment ID',
+      type: 'short-input',
+      placeholder: 'Thing fullname (e.g., t3_xxxxx for post, t1_xxxxx for comment)',
+      condition: {
+        field: 'operation',
+        value: ['mod_approve', 'mod_remove', 'mod_distinguish', 'lock', 'unlock'],
+      },
+      required: true,
+    },
+    {
+      id: 'removeSpam',
+      title: 'Mark as Spam',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'mod_remove' },
+      value: () => 'false',
+      mode: 'advanced',
+    },
+    {
+      id: 'distinguishHow',
+      title: 'Distinguish Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Moderator', id: 'yes' },
+        { label: 'Remove Distinction', id: 'no' },
+        { label: 'Admin', id: 'admin' },
+        { label: 'Special', id: 'special' },
+      ],
+      condition: { field: 'operation', value: 'mod_distinguish' },
+      value: () => 'yes',
+      required: true,
+    },
+    {
+      id: 'distinguishSticky',
+      title: 'Sticky Comment',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      condition: { field: 'operation', value: 'mod_distinguish' },
+      mode: 'advanced',
+    },
+
+    {
+      id: 'stickyId',
+      title: 'Post ID',
+      type: 'short-input',
+      placeholder: 'Post fullname (e.g., t3_xxxxx)',
+      condition: { field: 'operation', value: 'mod_sticky' },
+      required: true,
+    },
+    {
+      id: 'stickyState',
+      title: 'Action',
+      type: 'dropdown',
+      options: [
+        { label: 'Sticky', id: 'true' },
+        { label: 'Unsticky', id: 'false' },
+      ],
+      condition: { field: 'operation', value: 'mod_sticky' },
+      value: () => 'true',
+      required: true,
+    },
+    {
+      id: 'stickyNum',
+      title: 'Sticky Slot',
+      type: 'short-input',
+      placeholder: 'Slot 1-4 (1 is top). Only applies when stickying',
+      condition: { field: 'operation', value: 'mod_sticky' },
+      mode: 'advanced',
+    },
   ],
   tools: {
     access: [
@@ -628,6 +891,26 @@ Return ONLY the message content - no meta-commentary.`,
       'reddit_send_message',
       'reddit_get_messages',
       'reddit_get_subreddit_info',
+      'reddit_get_subreddit_rules',
+      'reddit_get_user_posts',
+      'reddit_get_user_comments',
+      'reddit_get_saved',
+      'reddit_get_info',
+      'reddit_search_subreddits',
+      'reddit_list_my_subreddits',
+      'reddit_report',
+      'reddit_hide',
+      'reddit_unhide',
+      'reddit_marknsfw',
+      'reddit_unmarknsfw',
+      'reddit_mark_read',
+      'reddit_mark_all_read',
+      'reddit_mod_approve',
+      'reddit_mod_remove',
+      'reddit_mod_distinguish',
+      'reddit_lock',
+      'reddit_unlock',
+      'reddit_mod_sticky',
     ],
     config: {
       tool: (inputs) => {
@@ -650,6 +933,26 @@ Return ONLY the message content - no meta-commentary.`,
           send_message: 'reddit_send_message',
           get_messages: 'reddit_get_messages',
           get_subreddit_info: 'reddit_get_subreddit_info',
+          get_subreddit_rules: 'reddit_get_subreddit_rules',
+          get_user_posts: 'reddit_get_user_posts',
+          get_user_comments: 'reddit_get_user_comments',
+          get_saved: 'reddit_get_saved',
+          get_info: 'reddit_get_info',
+          search_subreddits: 'reddit_search_subreddits',
+          list_my_subreddits: 'reddit_list_my_subreddits',
+          report: 'reddit_report',
+          hide: 'reddit_hide',
+          unhide: 'reddit_unhide',
+          marknsfw: 'reddit_marknsfw',
+          unmarknsfw: 'reddit_unmarknsfw',
+          mark_read: 'reddit_mark_read',
+          mark_all_read: 'reddit_mark_all_read',
+          mod_approve: 'reddit_mod_approve',
+          mod_remove: 'reddit_mod_remove',
+          mod_distinguish: 'reddit_mod_distinguish',
+          lock: 'reddit_lock',
+          unlock: 'reddit_unlock',
+          mod_sticky: 'reddit_mod_sticky',
         }
         return toolMap[operation] || 'reddit_get_posts'
       },
@@ -817,6 +1120,137 @@ Return ONLY the message content - no meta-commentary.`,
           }
         }
 
+        if (operation === 'get_subreddit_rules') {
+          return {
+            subreddit: inputs.subreddit,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'get_user_posts' || operation === 'get_user_comments') {
+          return {
+            username: inputs.userListUsername,
+            sort: inputs.userListSort,
+            time:
+              inputs.userListSort === 'top' || inputs.userListSort === 'controversial'
+                ? inputs.userListTime
+                : undefined,
+            limit: inputs.userListLimit ? Number.parseInt(inputs.userListLimit) : undefined,
+            after: inputs.after || undefined,
+            before: inputs.before || undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'get_saved') {
+          return {
+            username: inputs.userListUsername,
+            limit: inputs.userListLimit ? Number.parseInt(inputs.userListLimit) : undefined,
+            after: inputs.after || undefined,
+            before: inputs.before || undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'get_info') {
+          return {
+            id: inputs.infoIds,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'search_subreddits') {
+          return {
+            q: inputs.searchSubredditsQuery,
+            sort: inputs.searchSubredditsSort,
+            limit: inputs.searchSubredditsLimit
+              ? Number.parseInt(inputs.searchSubredditsLimit)
+              : undefined,
+            after: inputs.after || undefined,
+            before: inputs.before || undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'list_my_subreddits') {
+          return {
+            limit: inputs.listMineLimit ? Number.parseInt(inputs.listMineLimit) : undefined,
+            after: inputs.after || undefined,
+            before: inputs.before || undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'report') {
+          return {
+            thing_id: inputs.reportThingId,
+            reason: inputs.reportReason || undefined,
+            other_reason: inputs.reportOtherReason || undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'hide' || operation === 'unhide') {
+          return {
+            id: inputs.hideId,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'marknsfw' || operation === 'unmarknsfw') {
+          return {
+            id: inputs.nsfwId,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'mark_read') {
+          return {
+            id: inputs.markReadId,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'mark_all_read') {
+          return { oauthCredential }
+        }
+
+        if (operation === 'mod_approve' || operation === 'lock' || operation === 'unlock') {
+          return {
+            id: inputs.modThingId,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'mod_remove') {
+          return {
+            id: inputs.modThingId,
+            spam: inputs.removeSpam === 'true',
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'mod_distinguish') {
+          return {
+            id: inputs.modThingId,
+            how: inputs.distinguishHow,
+            sticky:
+              inputs.distinguishSticky !== undefined
+                ? inputs.distinguishSticky === 'true'
+                : undefined,
+            oauthCredential,
+          }
+        }
+
+        if (operation === 'mod_sticky') {
+          return {
+            id: inputs.stickyId,
+            state: inputs.stickyState === 'true',
+            num: inputs.stickyNum ? Number.parseInt(inputs.stickyNum) : undefined,
+            oauthCredential,
+          }
+        }
+
         return {
           subreddit: inputs.subreddit,
           sort: inputs.sort,
@@ -878,20 +1312,60 @@ Return ONLY the message content - no meta-commentary.`,
     messageWhere: { type: 'string', description: 'Message folder' },
     messageLimit: { type: 'number', description: 'Maximum messages' },
     messageMark: { type: 'boolean', description: 'Mark messages as read' },
+    userListUsername: { type: 'string', description: 'Reddit username for user listings' },
+    userListSort: { type: 'string', description: 'Sort order for user listings' },
+    userListTime: { type: 'string', description: 'Time filter for user listings' },
+    userListLimit: { type: 'number', description: 'Maximum items in user listings' },
+    infoIds: { type: 'string', description: 'Comma-separated thing fullnames to look up' },
+    searchSubredditsQuery: { type: 'string', description: 'Subreddit search query' },
+    searchSubredditsSort: { type: 'string', description: 'Subreddit search sort order' },
+    searchSubredditsLimit: { type: 'number', description: 'Maximum subreddit search results' },
+    listMineLimit: { type: 'number', description: 'Maximum subscribed subreddits' },
+    reportThingId: { type: 'string', description: 'Post or comment ID to report' },
+    reportReason: { type: 'string', description: 'Reason for reporting' },
+    reportOtherReason: { type: 'string', description: 'Custom reason for reporting' },
+    hideId: { type: 'string', description: 'Post ID(s) to hide/unhide' },
+    nsfwId: { type: 'string', description: 'Post ID to mark/unmark NSFW' },
+    markReadId: { type: 'string', description: 'Message ID(s) to mark as read' },
+    modThingId: { type: 'string', description: 'Post or comment ID for moderation action' },
+    removeSpam: { type: 'boolean', description: 'Mark removed item as spam' },
+    distinguishHow: { type: 'string', description: 'Distinguish type' },
+    distinguishSticky: { type: 'boolean', description: 'Sticky distinguished comment' },
+    stickyId: { type: 'string', description: 'Post ID to sticky/unsticky' },
+    stickyState: { type: 'boolean', description: 'Sticky (true) or unsticky (false)' },
+    stickyNum: { type: 'number', description: 'Sticky slot (1-4)' },
   },
   outputs: {
     subreddit: { type: 'string', description: 'Subreddit name' },
-    posts: { type: 'json', description: 'Posts data' },
-    post: { type: 'json', description: 'Single post data' },
-    comments: { type: 'json', description: 'Comments data' },
+    posts: {
+      type: 'json',
+      description:
+        '[{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit}]',
+    },
+    post: {
+      type: 'json',
+      description: 'Single post (id, name, title, author, selftext, score, created_utc, permalink)',
+    },
+    comments: {
+      type: 'json',
+      description:
+        '[{id, name, author, body, score, created_utc, permalink, replies}] with nested replies',
+    },
     success: { type: 'boolean', description: 'Operation success status' },
     message: { type: 'string', description: 'Result message' },
-    data: { type: 'json', description: 'Response data' },
+    data: {
+      type: 'json',
+      description: 'Write-operation result (id, name, url, permalink, body — varies by operation)',
+    },
     after: { type: 'string', description: 'Pagination cursor (next page)' },
     before: { type: 'string', description: 'Pagination cursor (previous page)' },
     id: { type: 'string', description: 'Entity ID' },
     name: { type: 'string', description: 'Entity fullname' },
-    messages: { type: 'json', description: 'Messages data' },
+    messages: {
+      type: 'json',
+      description:
+        '[{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished}]',
+    },
     display_name: { type: 'string', description: 'Subreddit display name' },
     subscribers: { type: 'number', description: 'Subscriber count' },
     description: { type: 'string', description: 'Description text' },
@@ -899,5 +1373,141 @@ Return ONLY the message content - no meta-commentary.`,
     comment_karma: { type: 'number', description: 'Comment karma' },
     total_karma: { type: 'number', description: 'Total karma' },
     icon_img: { type: 'string', description: 'Icon image URL' },
+    subreddit_type: { type: 'string', description: 'Subreddit type (public, private, restricted)' },
+    subreddits: {
+      type: 'json',
+      description:
+        '[{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img}]',
+    },
+    rules: {
+      type: 'json',
+      description:
+        '[{short_name, description, description_html, violation_reason, kind, created_utc, priority}]',
+    },
+    site_rules: { type: 'json', description: 'Reddit site-wide rules (string[])' },
   },
 }
+
+export const RedditBlockMeta = {
+  tags: ['content-management', 'web-scraping'],
+  templates: [
+    {
+      icon: RedditIcon,
+      title: 'Social mention tracker',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit and X for mentions of my brand and competitors, scores each mention by sentiment and reach, logs them to a table, and sends a daily Slack digest of notable mentions.',
+      modules: ['tables', 'scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring', 'analysis'],
+      alsoIntegrations: ['x', 'slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit subreddit monitor',
+      prompt:
+        'Build a scheduled workflow that uses Reddit to watch target subreddits for posts matching brand or product keywords, scores each for relevance and sentiment, and posts notable hits to Slack with the original link.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit user-question knowledge mining',
+      prompt:
+        'Create a workflow that pulls top questions from Reddit industry subreddits weekly, classifies by theme, and writes a content-opportunity table the marketing team can prioritize.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit AMA preparer',
+      prompt:
+        'Build a workflow that aggregates top Reddit AMA-style questions for a topic, clusters them, drafts polished answers using a knowledge base, and posts a Q&A document for review.',
+      modules: ['knowledge-base', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit competitor watch',
+      prompt:
+        'Create a scheduled workflow that monitors Reddit threads mentioning competitors weekly, summarizes sentiment and pain points, and writes a competitive intelligence note to a tracking table.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'research'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit crisis-signal alerter',
+      prompt:
+        'Build a scheduled workflow that polls Reddit for sudden bursts of negative posts about the brand, classifies severity, and pages the PR team via Slack and PagerDuty when a real crisis emerges.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+      alsoIntegrations: ['slack', 'pagerduty'],
+    },
+    {
+      icon: RedditIcon,
+      title: 'Reddit content-idea collector',
+      prompt:
+        'Create a scheduled workflow that polls marketing-relevant Reddit subreddits, captures upvoted long-form posts, summarizes each, and adds them to a content-ideas table with effort and impact scores.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'content'],
+    },
+  ],
+  skills: [
+    {
+      name: 'monitor-subreddit-mentions',
+      description:
+        'Search a subreddit for brand or keyword mentions and summarize what people say.',
+      content:
+        '# Monitor Subreddit Mentions\n\nTrack what people say about a topic on Reddit.\n\n## Steps\n1. Run search with the brand or keyword query, scoped to the relevant subreddit when appropriate.\n2. For high-signal threads, run get_comments to pull the discussion.\n3. Summarize sentiment, recurring themes, and notable complaints or praise.\n4. Route urgent or negative threads to the right channel.\n\n## Output\nReturn a digest of top mentions with links, sentiment, and key takeaways.',
+    },
+    {
+      name: 'surface-trending-posts',
+      description:
+        'Pull top and controversial posts from a subreddit for a content or research brief.',
+      content:
+        '# Surface Trending Posts\n\nFind what is rising and contentious in a community.\n\n## Steps\n1. Run get_posts for the subreddit using a hot or top sort to capture momentum.\n2. Run get_controversial to surface divisive discussions.\n3. Read get_comments on the standouts for context.\n4. Cluster the posts into themes.\n\n## Output\nReturn a ranked brief of trending and controversial posts with titles, links, and a one-line takeaway each.',
+    },
+    {
+      name: 'reply-to-mention',
+      description: 'Draft and post a helpful, on-brand reply to a Reddit post or comment.',
+      content:
+        '# Reply To Mention\n\nRespond to a relevant Reddit thread.\n\n## Steps\n1. Read the target post or comment with get_posts or get_comments for full context.\n2. Draft a concise, non-promotional reply that adds genuine value.\n3. Run reply to post it on the chosen thread.\n4. Optionally save the thread for later follow-up.\n\n## Output\nReturn the posted reply text and a link to the comment. Respect subreddit rules and avoid spammy self-promotion.',
+    },
+    {
+      name: 'submit-announcement-post',
+      description: 'Submit a new post to a target subreddit for an announcement or launch.',
+      content:
+        '# Submit Announcement Post\n\nShare an announcement on Reddit.\n\n## Steps\n1. Run get_subreddit_rules to confirm the target subreddit allows the post type and self-promotion.\n2. Run submit_post with a clear title and body tailored to the community.\n3. Capture the returned post id and link.\n4. Monitor early get_comments and respond to questions.\n\n## Output\nReturn the new post link and an initial engagement check.',
+    },
+    {
+      name: 'research-a-redditor',
+      description: 'Profile a Reddit user from their public posts, comments, and karma.',
+      content:
+        '# Research A Redditor\n\nBuild a picture of a Reddit user for vetting or community research.\n\n## Steps\n1. Run get_user to pull profile, karma, and account age.\n2. Run get_user_posts and get_user_comments to sample their recent activity.\n3. Identify the subreddits, topics, and tone they engage with most.\n4. Flag anything notable (expertise, affiliations, red flags).\n\n## Output\nReturn a short profile: account summary, top communities, themes, and a sample of representative posts/comments with links.',
+    },
+    {
+      name: 'discover-communities',
+      description: 'Find the most relevant subreddits for a topic before posting or monitoring.',
+      content:
+        '# Discover Communities\n\nLocate the right subreddits for a topic or campaign.\n\n## Steps\n1. Run search_subreddits with the topic keywords to find candidate communities.\n2. Run get_subreddit_info on the strongest matches to compare size and activity.\n3. Run get_subreddit_rules to check posting and self-promotion rules.\n4. Optionally run list_my_subreddits to see which you already follow.\n\n## Output\nReturn a ranked shortlist of subreddits with subscriber counts, activity, fit, and key rules.',
+    },
+    {
+      name: 'manage-saved-research',
+      description: 'Curate a research reading list from saved Reddit posts and comments.',
+      content:
+        '# Manage Saved Research\n\nTurn saved Reddit items into an organized research list.\n\n## Steps\n1. Run get_saved to pull your saved posts and comments.\n2. Run get_info to re-hydrate any specific fullnames you are tracking.\n3. Summarize and cluster the items by theme.\n4. Use save / unsave to keep the list current.\n\n## Output\nReturn a themed reading list with titles, links, and one-line summaries.',
+    },
+    {
+      name: 'triage-mod-queue',
+      description: 'Moderate a subreddit: review reported content and act on it against the rules.',
+      content:
+        '# Triage Mod Queue\n\nReview and action content in a subreddit you moderate.\n\n## Steps\n1. Run get_posts / get_comments to pull the content under review.\n2. Run get_subreddit_rules and evaluate each item against them.\n3. Take action: mod_approve to keep, mod_remove (optionally as spam) to remove, lock to stop replies, mod_distinguish or mod_sticky to highlight official posts.\n4. Log each decision and the rule it maps to.\n\n## Output\nReturn a decision list: item link, action taken, and the rule or reason. Only act on subreddits you moderate.',
+    },
+  ],
+} as const satisfies BlockMeta

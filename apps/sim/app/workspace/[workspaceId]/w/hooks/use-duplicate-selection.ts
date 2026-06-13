@@ -3,7 +3,6 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import { getChildFolders, getFolderById } from '@/lib/folders/tree'
-import { getNextWorkflowColor } from '@/lib/workflows/colors'
 import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -111,7 +110,6 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
             sourceId: workflowId,
             name: `${workflow.name} (Copy)`,
             description: workflow.description,
-            color: getNextWorkflowColor(),
             folderId: workflow.folderId,
             newId: generateId(),
           })

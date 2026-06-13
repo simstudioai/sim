@@ -56,3 +56,15 @@ export const POLLING_PROVIDERS = new Set([
 export function isPollingWebhookProvider(provider: string): boolean {
   return POLLING_PROVIDERS.has(provider)
 }
+
+/**
+ * Providers whose triggers fire internally (table row events, Sim workspace
+ * events) rather than via external HTTP webhooks. Their webhook rows still
+ * register a path, so the public trigger route must reject deliveries to
+ * them — otherwise anyone with the block ID could forge events.
+ */
+export const INTERNAL_TRIGGER_PROVIDERS = new Set(['sim', 'table'])
+
+export function isInternalTriggerProvider(provider: string | null): boolean {
+  return provider !== null && INTERNAL_TRIGGER_PROVIDERS.has(provider)
+}

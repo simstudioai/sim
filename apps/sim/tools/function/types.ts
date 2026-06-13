@@ -13,11 +13,27 @@ export interface CodeExecutionInput {
    */
   timeout?: number
   memoryLimit?: number
+  title?: string
   outputPath?: string
   outputFormat?: 'json' | 'csv' | 'txt' | 'md' | 'html'
   outputTable?: string
   outputSandboxPath?: string
   outputMimeType?: string
+  overwriteFileId?: string
+  inputs?: {
+    files?: Array<{ path: string; sandboxPath?: string }>
+    directories?: Array<{ path: string; sandboxPath?: string }>
+    tables?: Array<{ path?: string; tableId?: string; sandboxPath?: string }>
+  }
+  outputs?: {
+    files?: Array<{
+      path: string
+      mode: 'create' | 'overwrite'
+      sandboxPath?: string
+      format?: 'json' | 'csv' | 'txt' | 'md' | 'html'
+      mimeType?: string
+    }>
+  }
   envVars?: Record<string, string>
   workflowVariables?: Record<string, unknown>
   blockData?: Record<string, unknown>
@@ -37,7 +53,7 @@ export interface CodeExecutionInput {
     copilotToolExecution?: boolean
   }
   isCustomTool?: boolean
-  _sandboxFiles?: Array<{ path: string; content: string }>
+  _sandboxFiles?: Array<{ path: string; content: string; encoding?: 'base64' }>
 }
 
 export interface CodeExecutionOutput extends ToolResponse {

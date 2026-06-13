@@ -1,5 +1,5 @@
 import { DubIcon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { DubResponse } from '@/tools/dub/types'
 
@@ -10,10 +10,9 @@ export const DubBlock: BlockConfig<DubResponse> = {
   authMode: AuthMode.ApiKey,
   longDescription:
     'Create, manage, and track short links with Dub. Supports custom domains, UTM parameters, link analytics, and more.',
-  docsLink: 'https://docs.sim.ai/tools/dub',
+  docsLink: 'https://docs.sim.ai/integrations/dub',
   category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['link-management', 'marketing', 'data-analytics'],
+  integrationType: IntegrationType.DevOps,
   bgColor: '#181C1E',
   icon: DubIcon,
   subBlocks: [
@@ -28,7 +27,13 @@ export const DubBlock: BlockConfig<DubResponse> = {
         { label: 'Update Link', id: 'update_link' },
         { label: 'Delete Link', id: 'delete_link' },
         { label: 'List Links', id: 'list_links' },
+        { label: 'Count Links', id: 'get_links_count' },
+        { label: 'Bulk Create Links', id: 'bulk_create_links' },
+        { label: 'Bulk Update Links', id: 'bulk_update_links' },
+        { label: 'Bulk Delete Links', id: 'bulk_delete_links' },
         { label: 'Get Analytics', id: 'get_analytics' },
+        { label: 'List Events', id: 'get_events' },
+        { label: 'Get QR Code', id: 'get_qr_code' },
       ],
       value: () => 'create_link',
     },
@@ -160,6 +165,30 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'linkRewrite',
+      title: 'Link Cloaking',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'linkArchived',
+      title: 'Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: ['create_link', 'upsert_link', 'update_link'] },
+      mode: 'advanced',
+    },
+    {
       id: 'linkId',
       title: 'Link ID',
       type: 'short-input',
@@ -230,32 +259,6 @@ export const DubBlock: BlockConfig<DubResponse> = {
         { label: 'Yes', id: 'true' },
       ],
       value: () => 'false',
-      condition: { field: 'operation', value: 'list_links' },
-      mode: 'advanced',
-    },
-    {
-      id: 'sortBy',
-      title: 'Sort By',
-      type: 'dropdown',
-      options: [
-        { label: 'Created At', id: 'createdAt' },
-        { label: 'Clicks', id: 'clicks' },
-        { label: 'Sale Amount', id: 'saleAmount' },
-        { label: 'Last Clicked', id: 'lastClicked' },
-      ],
-      value: () => 'createdAt',
-      condition: { field: 'operation', value: 'list_links' },
-      mode: 'advanced',
-    },
-    {
-      id: 'sortOrder',
-      title: 'Sort Order',
-      type: 'dropdown',
-      options: [
-        { label: 'Descending', id: 'desc' },
-        { label: 'Ascending', id: 'asc' },
-      ],
-      value: () => 'desc',
       condition: { field: 'operation', value: 'list_links' },
       mode: 'advanced',
     },
@@ -394,6 +397,316 @@ export const DubBlock: BlockConfig<DubResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'countSearch',
+      title: 'Search',
+      type: 'short-input',
+      placeholder: 'Search links by slug or destination URL',
+      condition: { field: 'operation', value: 'get_links_count' },
+    },
+    {
+      id: 'countDomain',
+      title: 'Filter by Domain',
+      type: 'short-input',
+      placeholder: 'dub.sh',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countTagIds',
+      title: 'Filter by Tag IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated tag IDs',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countTagNames',
+      title: 'Filter by Tag Names',
+      type: 'short-input',
+      placeholder: 'Comma-separated tag names',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countFolderId',
+      title: 'Filter by Folder ID',
+      type: 'short-input',
+      placeholder: 'Folder ID',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countShowArchived',
+      title: 'Show Archived',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'countGroupBy',
+      title: 'Group By',
+      type: 'dropdown',
+      options: [
+        { label: 'None (total)', id: '' },
+        { label: 'Domain', id: 'domain' },
+        { label: 'Tag', id: 'tagId' },
+        { label: 'User', id: 'userId' },
+        { label: 'Folder', id: 'folderId' },
+      ],
+      value: () => '',
+      condition: { field: 'operation', value: 'get_links_count' },
+      mode: 'advanced',
+    },
+    {
+      id: 'bulkLinks',
+      title: 'Links',
+      type: 'code',
+      language: 'json',
+      placeholder: '[\n  { "url": "https://example.com", "key": "my-link" }\n]',
+      condition: { field: 'operation', value: 'bulk_create_links' },
+      required: { field: 'operation', value: 'bulk_create_links' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON array of Dub link objects based on the user's description. Each object must include a "url" and may include "key", "domain", "tagIds" (array), and UTM fields. Return ONLY the JSON array - no explanations, no extra text.`,
+        placeholder: 'Describe the links to create (e.g., "links for these 5 product pages")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'bulkUpdateLinkIds',
+      title: 'Link IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated link IDs (required unless External IDs is set)',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+    },
+    {
+      id: 'bulkUpdateExternalIds',
+      title: 'External IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated external IDs (used if no link IDs)',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+      mode: 'advanced',
+    },
+    {
+      id: 'bulkUpdateData',
+      title: 'Update Data',
+      type: 'code',
+      language: 'json',
+      placeholder: '{\n  "archived": true,\n  "tagIds": ["tag_123"]\n}',
+      condition: { field: 'operation', value: 'bulk_update_links' },
+      required: { field: 'operation', value: 'bulk_update_links' },
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate a JSON object of Dub link fields to update based on the user's description (e.g. archived, tagIds, expiresAt, comments, UTM fields). Return ONLY the JSON object - no explanations, no extra text.`,
+        placeholder: 'Describe the changes to apply (e.g., "archive them and add the Q3 tag")...',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'bulkDeleteLinkIds',
+      title: 'Link IDs',
+      type: 'short-input',
+      placeholder: 'Comma-separated link IDs (max 100)',
+      condition: { field: 'operation', value: 'bulk_delete_links' },
+      required: { field: 'operation', value: 'bulk_delete_links' },
+    },
+    {
+      id: 'eventsEvent',
+      title: 'Event Type',
+      type: 'dropdown',
+      options: [
+        { label: 'Clicks', id: 'clicks' },
+        { label: 'Leads', id: 'leads' },
+        { label: 'Sales', id: 'sales' },
+      ],
+      value: () => 'clicks',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsLinkId',
+      title: 'Link ID',
+      type: 'short-input',
+      placeholder: 'Filter events by link ID',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsExternalId',
+      title: 'External ID',
+      type: 'short-input',
+      placeholder: 'Filter by external ID (prefix with ext_)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsDomain',
+      title: 'Domain',
+      type: 'short-input',
+      placeholder: 'Filter by domain',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsInterval',
+      title: 'Interval',
+      type: 'dropdown',
+      options: [
+        { label: '24 Hours', id: '24h' },
+        { label: '7 Days', id: '7d' },
+        { label: '30 Days', id: '30d' },
+        { label: '90 Days', id: '90d' },
+        { label: '1 Year', id: '1y' },
+        { label: 'Month to Date', id: 'mtd' },
+        { label: 'Quarter to Date', id: 'qtd' },
+        { label: 'Year to Date', id: 'ytd' },
+        { label: 'All Time', id: 'all' },
+      ],
+      value: () => '24h',
+      condition: { field: 'operation', value: 'get_events' },
+    },
+    {
+      id: 'eventsStart',
+      title: 'Start Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 date (overrides interval)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description. Return ONLY the timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the start date (e.g., "7 days ago", "start of month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'eventsEnd',
+      title: 'End Date',
+      type: 'short-input',
+      placeholder: 'ISO 8601 date (defaults to now)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp based on the user's description. Return ONLY the timestamp string - no explanations, no extra text.`,
+        placeholder: 'Describe the end date (e.g., "today", "end of last month")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'eventsCountry',
+      title: 'Country',
+      type: 'short-input',
+      placeholder: 'ISO 3166-1 alpha-2 code (e.g., US)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsTimezone',
+      title: 'Timezone',
+      type: 'short-input',
+      placeholder: 'IANA timezone (e.g., America/New_York)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsSortOrder',
+      title: 'Sort Order',
+      type: 'dropdown',
+      options: [
+        { label: 'Descending', id: 'desc' },
+        { label: 'Ascending', id: 'asc' },
+      ],
+      value: () => 'desc',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: '1',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'eventsLimit',
+      title: 'Limit',
+      type: 'short-input',
+      placeholder: '100 (max: 1000)',
+      condition: { field: 'operation', value: 'get_events' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrUrl',
+      title: 'Short Link URL',
+      type: 'short-input',
+      placeholder: 'https://dub.sh/my-link',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      required: { field: 'operation', value: 'get_qr_code' },
+    },
+    {
+      id: 'qrSize',
+      title: 'Size (px)',
+      type: 'short-input',
+      placeholder: '600',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrLevel',
+      title: 'Error Correction',
+      type: 'dropdown',
+      options: [
+        { label: 'Low (L)', id: 'L' },
+        { label: 'Medium (M)', id: 'M' },
+        { label: 'Quartile (Q)', id: 'Q' },
+        { label: 'High (H)', id: 'H' },
+      ],
+      value: () => 'L',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrFgColor',
+      title: 'Foreground Color',
+      type: 'short-input',
+      placeholder: '#000000',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrBgColor',
+      title: 'Background Color',
+      type: 'short-input',
+      placeholder: '#FFFFFF',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrHideLogo',
+      title: 'Hide Logo',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
+      id: 'qrMargin',
+      title: 'Margin',
+      type: 'short-input',
+      placeholder: '2',
+      condition: { field: 'operation', value: 'get_qr_code' },
+      mode: 'advanced',
+    },
+    {
       id: 'apiKey',
       title: 'API Key',
       type: 'short-input',
@@ -410,12 +723,26 @@ export const DubBlock: BlockConfig<DubResponse> = {
       'dub_update_link',
       'dub_delete_link',
       'dub_list_links',
+      'dub_get_links_count',
+      'dub_bulk_create_links',
+      'dub_bulk_update_links',
+      'dub_bulk_delete_links',
       'dub_get_analytics',
+      'dub_get_events',
+      'dub_get_qr_code',
     ],
     config: {
       tool: (params) => `dub_${params.operation}`,
       params: (params) => {
         const result: Record<string, unknown> = {}
+        if (
+          params.operation === 'create_link' ||
+          params.operation === 'upsert_link' ||
+          params.operation === 'update_link'
+        ) {
+          if (params.linkRewrite === 'true') result.rewrite = true
+          if (params.linkArchived === 'true') result.archived = true
+        }
         if (params.operation === 'get_link') {
           if (params.getLinkExternalId) result.externalId = params.getLinkExternalId
           if (params.getLinkDomain) result.domain = params.getLinkDomain
@@ -443,6 +770,49 @@ export const DubBlock: BlockConfig<DubResponse> = {
           if (params.analyticsCountry) result.country = params.analyticsCountry
           if (params.analyticsTimezone) result.timezone = params.analyticsTimezone
         }
+        if (params.operation === 'get_links_count') {
+          if (params.countSearch) result.search = params.countSearch
+          if (params.countDomain) result.domain = params.countDomain
+          if (params.countTagIds) result.tagIds = params.countTagIds
+          if (params.countTagNames) result.tagNames = params.countTagNames
+          if (params.countFolderId) result.folderId = params.countFolderId
+          if (params.countShowArchived === 'true') result.showArchived = true
+          if (params.countGroupBy) result.groupBy = params.countGroupBy
+        }
+        if (params.operation === 'bulk_create_links') {
+          if (params.bulkLinks) result.links = params.bulkLinks
+        }
+        if (params.operation === 'bulk_update_links') {
+          if (params.bulkUpdateLinkIds) result.linkIds = params.bulkUpdateLinkIds
+          if (params.bulkUpdateExternalIds) result.externalIds = params.bulkUpdateExternalIds
+          if (params.bulkUpdateData) result.data = params.bulkUpdateData
+        }
+        if (params.operation === 'bulk_delete_links') {
+          if (params.bulkDeleteLinkIds) result.linkIds = params.bulkDeleteLinkIds
+        }
+        if (params.operation === 'get_events') {
+          if (params.eventsEvent) result.event = params.eventsEvent
+          if (params.eventsLinkId) result.linkId = params.eventsLinkId
+          if (params.eventsExternalId) result.externalId = params.eventsExternalId
+          if (params.eventsDomain) result.domain = params.eventsDomain
+          if (params.eventsInterval) result.interval = params.eventsInterval
+          if (params.eventsStart) result.start = params.eventsStart
+          if (params.eventsEnd) result.end = params.eventsEnd
+          if (params.eventsCountry) result.country = params.eventsCountry
+          if (params.eventsTimezone) result.timezone = params.eventsTimezone
+          if (params.eventsSortOrder) result.sortOrder = params.eventsSortOrder
+          if (params.eventsPage) result.page = Number(params.eventsPage)
+          if (params.eventsLimit) result.limit = Number(params.eventsLimit)
+        }
+        if (params.operation === 'get_qr_code') {
+          if (params.qrUrl) result.url = params.qrUrl
+          if (params.qrSize) result.size = Number(params.qrSize)
+          if (params.qrLevel) result.level = params.qrLevel
+          if (params.qrFgColor) result.fgColor = params.qrFgColor
+          if (params.qrBgColor) result.bgColor = params.qrBgColor
+          if (params.qrHideLogo === 'true') result.hideLogo = true
+          if (params.qrMargin) result.margin = Number(params.qrMargin)
+        }
         return result
       },
     },
@@ -455,6 +825,9 @@ export const DubBlock: BlockConfig<DubResponse> = {
     domain: { type: 'string', description: 'Custom domain for the short link' },
     key: { type: 'string', description: 'Custom slug for the short link' },
     search: { type: 'string', description: 'Search query for listing links' },
+    links: { type: 'json', description: 'JSON array of link objects for bulk create' },
+    data: { type: 'json', description: 'JSON object of fields to apply for bulk update' },
+    linkIds: { type: 'string', description: 'Comma-separated link IDs for bulk operations' },
   },
   outputs: {
     id: { type: 'string', description: 'Link ID' },
@@ -484,10 +857,136 @@ export const DubBlock: BlockConfig<DubResponse> = {
       type: 'json',
       description: 'Array of links (id, domain, key, url, shortLink, clicks, tags, createdAt)',
     },
-    count: { type: 'number', description: 'Number of links returned (list operation)' },
+    count: { type: 'number', description: 'Number of items returned (list/count/events/bulk)' },
     data: {
       type: 'json',
       description: 'Grouped analytics data (timeseries, countries, devices, etc.)',
     },
+    groups: {
+      type: 'json',
+      description: 'Per-group link counts when Count Links uses groupBy ([{ field, count }])',
+    },
+    events: {
+      type: 'json',
+      description: 'Array of events (event, timestamp, click, link, customer/sale data)',
+    },
+    created: {
+      type: 'json',
+      description: 'Bulk create: array of successfully created link objects',
+    },
+    errors: {
+      type: 'json',
+      description: 'Bulk create: array of per-link errors ({ link, error, code })',
+    },
+    updated: {
+      type: 'json',
+      description: 'Bulk update: array of updated link objects',
+    },
+    deletedCount: { type: 'number', description: 'Bulk delete: number of links deleted' },
+    file: { type: 'file', description: 'QR code image (PNG) stored in execution files' },
+    content: { type: 'string', description: 'QR code as base64-encoded PNG data' },
   },
 }
+
+export const DubBlockMeta = {
+  tags: ['link-management', 'marketing', 'data-analytics'],
+  templates: [
+    {
+      icon: DubIcon,
+      title: 'Dub short link factory',
+      prompt:
+        'Build a workflow that takes a destination URL and campaign metadata, creates a tracked short link in Dub with UTM parameters and a custom slug, stores the link in a table, and returns it to the caller for use in outreach and marketing.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Campaign link batcher',
+      prompt:
+        'Create a workflow that reads a table of campaign destinations, upserts a Dub short link for each row with consistent UTM tags, writes the resulting short URL back into the table, and posts a Slack confirmation summarizing how many links were created or refreshed.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'automation'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Dub analytics digest',
+      prompt:
+        'Build a scheduled weekly workflow that pulls Dub link analytics — clicks, leads, sales, and top referrers — for active campaigns, writes a narrative summary highlighting winners and decliners, and delivers the digest to Slack with deep links into the Dub dashboard.',
+      modules: ['scheduled', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'reporting', 'analysis'],
+      alsoIntegrations: ['slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Short link hygiene auditor',
+      prompt:
+        'Create a scheduled monthly workflow that lists all Dub links, checks each destination for 4xx and 5xx responses, flags broken links in a table, and emails the marketing team a remediation list so dead campaign links never go live.',
+      modules: ['scheduled', 'tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'monitoring'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Outbound link personalizer',
+      prompt:
+        'Build a workflow that reads a leads table, generates a per-lead Dub short link with the lead identifier in UTM and metadata, attaches the personalized link to the outreach email body, and tracks delivery in the table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'sales',
+      tags: ['sales', 'marketing', 'automation'],
+      alsoIntegrations: ['gmail'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Release announcement linker',
+      prompt:
+        'Create a workflow triggered by a GitHub release that creates a Dub short link for the release notes URL, posts the short link to the marketing Slack channel, and stores the mapping of release tag to short link in a tracking table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'devops', 'automation'],
+      alsoIntegrations: ['github', 'slack'],
+    },
+    {
+      icon: DubIcon,
+      title: 'Top-converting links report',
+      prompt:
+        'Build a scheduled monthly workflow that pulls Dub analytics grouped by link, ranks top performers by leads and sales, identifies underperformers, writes a narrative report file with recommendations, and shares it with marketing leadership.',
+      modules: ['scheduled', 'agent', 'files', 'workflows'],
+      category: 'marketing',
+      tags: ['marketing', 'analysis', 'reporting'],
+    },
+  ],
+  skills: [
+    {
+      name: 'create-tracked-short-link',
+      description:
+        'Create a Dub short link for a destination URL with UTM parameters and an optional custom slug.',
+      content:
+        '# Create Tracked Short Link\n\nTurn a long destination URL into a branded, trackable Dub short link.\n\n## Steps\n1. Take the destination URL and any campaign metadata (source, medium, campaign name).\n2. Call Create Link with the URL. Set the UTM source, medium, and campaign fields so clicks attribute correctly, and set a custom slug when a memorable link is wanted.\n3. Add a custom domain, title, or tag IDs if the request specifies them.\n\n## Output\nReturn the full short link URL, its slug, the destination, and the QR code URL. Confirm which UTM parameters were applied.',
+    },
+    {
+      name: 'report-link-analytics',
+      description:
+        'Pull Dub click, lead, and sales analytics for a link or campaign over a time window.',
+      content:
+        '# Report Link Analytics\n\nSummarize how a Dub short link or campaign is performing.\n\n## Steps\n1. Choose the Get Analytics operation. Set the event type (clicks, leads, sales, or composite) the request cares about.\n2. Scope to a specific link via link ID or external ID, or to a domain for a whole campaign. Set the interval (e.g., 7d, 30d) or explicit start and end dates.\n3. Set group-by to break results down by country, device, referrer, or top links when a breakdown is asked for; otherwise use count for totals.\n\n## Output\nReport the headline metrics (clicks, leads, sales, revenue) and, when grouped, the top segments. Call out notable winners and decliners versus the prior period when comparison data is available.',
+    },
+    {
+      name: 'batch-create-campaign-links',
+      description:
+        'Upsert a Dub short link for each row in a list of destinations with consistent UTM tagging.',
+      content:
+        '# Batch Create Campaign Links\n\nGenerate consistent tracked links for many destinations at once.\n\n## Steps\n1. For each destination URL in the list, build the UTM parameters and slug from the row data so tagging is uniform across the batch.\n2. Use Upsert Link (keyed on external ID or slug) so re-runs refresh rather than duplicate existing links.\n3. Collect the resulting short link for each row.\n\n## Output\nReturn a table mapping each destination to its short link and external ID. Report how many links were created versus refreshed, and flag any rows that failed.',
+    },
+    {
+      name: 'audit-existing-links',
+      description:
+        'List Dub links and check each destination for broken or stale URLs to flag for cleanup.',
+      content:
+        '# Audit Existing Links\n\nReview existing Dub links to catch broken or outdated destinations.\n\n## Steps\n1. Call List Links, optionally filtered by domain or tag IDs, paginating until all links are retrieved.\n2. For each link, inspect the destination URL and check it for 4xx or 5xx responses or obviously stale targets.\n3. Note links with low or zero clicks over a long period as candidates for archiving.\n\n## Output\nReturn a remediation list: short link, destination, detected issue (broken, redirecting, stale), and a suggested action. Sort broken links first.',
+    },
+  ],
+} as const satisfies BlockMeta

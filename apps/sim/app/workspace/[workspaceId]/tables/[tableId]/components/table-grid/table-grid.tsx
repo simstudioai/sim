@@ -6,12 +6,13 @@ import { createLogger } from '@sim/logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { Skeleton, toast, useToast } from '@/components/emcn'
+import { toast, useToast } from '@/components/emcn'
 import { Loader, TableX } from '@/components/emcn/icons'
-import type { RunLimit, RunMode } from '@/lib/api/contracts/tables'
+import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
-import type { ColumnDefinition, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
+import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -21,6 +22,7 @@ import {
   useCreateTableRow,
   useDeleteColumn,
   useDeleteWorkflowGroup,
+  useFindTableRows,
   useTableRunState,
   useUpdateColumn,
   useUpdateTableMetadata,
@@ -42,15 +44,11 @@ import { ContextMenu } from '../context-menu'
 import { NewColumnDropdown } from '../new-column-dropdown'
 import type { WorkflowConfig } from '../workflow-sidebar'
 import { ExpandedCellPopover } from './cells'
-import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH, SELECTION_TINT_BG } from './constants'
+import { ADD_COL_WIDTH, COL_WIDTH, SELECTION_TINT_BG } from './constants'
 import { DataRow } from './data-row'
 import { ColumnHeaderMenu, WorkflowGroupMetaCell } from './headers'
-import {
-  AddRowButton,
-  SelectAllCheckbox,
-  TableBodySkeleton,
-  TableColGroup,
-} from './table-primitives'
+import { TableFind } from './table-find'
+import { AddRowButton, SelectAllCheckbox, TableColGroup } from './table-primitives'
 import type { DisplayColumn } from './types'
 import {
   buildHeaderGroups,
@@ -74,14 +72,11 @@ import {
 const logger = createLogger('TableView')
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
+const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
-const SKELETON_COL_COUNT = 4
 const ROW_HEIGHT_ESTIMATE = 35
-
-const CELL_HEADER =
-  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
 
 /**
  * Snapshot of grid selection state the wrapper needs to render `<TableActionBar>`.
@@ -102,8 +97,19 @@ export interface SelectionSnapshot {
   /** Whether the table has any workflow-output columns (drives the Run/Stop visibility). */
   hasWorkflowColumns: boolean
   /** Cells the Play / Refresh / Stop buttons act on. Null when the selection
-   *  contains no workflow output cells. */
-  selectedRunScope: { groupIds: string[]; rowIds: string[]; allRows: boolean } | null
+   *  contains no workflow output cells. `rowCount` is the true selected-row total for the
+   *  action-bar label — equal to `rowIds.length` except under select-all, where `rowIds` holds
+   *  only the loaded (virtualized) window but `rowCount` is the table's full row count. */
+  selectedRunScope: {
+    groupIds: string[]
+    rowIds: string[]
+    allRows: boolean
+    rowCount: number
+    /** Active filter when `allRows` is set — lets a filtered "select all" run only matching rows. */
+    filter?: Filter
+    /** Deselected rows when `allRows` is set — runs/stops skip them. */
+    excludeRowIds?: string[]
+  } | null
   /** Drives Play (`hasIncompleteOrFailed`) / Refresh (`hasCompleted`) /
    *  Stop (`hasInFlight`) visibility on the action bar. */
   selectionStats: ExecStatusMix
@@ -151,16 +157,38 @@ interface TableGridProps {
   onOpenRowModal: (row: TableRowType) => void
   /** Open the row-delete modal for `snapshots`. Wrapper renders the modal. */
   onRequestDeleteRows: (snapshots: DeletedRowSnapshot[]) => void
+  /**
+   * Request a background "select all" delete: the active filter (held by the wrapper) plus the
+   * deselected `excludeRowIds`. The wrapper confirms and kicks off the async delete job.
+   */
+  onRequestDeleteAllByFilter: (params: { excludeRowIds: string[]; estimatedCount: number }) => void
   /** Open the delete-columns confirmation modal for `names`. Wrapper renders the modal. */
   onRequestDeleteColumns: (names: string[]) => void
-  /** Fire run for a single column (meta-cell Run menu). */
-  onRunColumn: (groupId: string, runMode: RunMode, rowIds?: string[], limit?: RunLimit) => void
+  /** Fire run for a single column (meta-cell Run menu). `filter` (mutually
+   *  exclusive with `rowIds`) scopes a select-all run to the active filter. */
+  onRunColumn: (
+    groupId: string,
+    runMode: RunMode,
+    rowIds?: string[],
+    limit?: RunLimit,
+    filter?: Filter,
+    excludeRowIds?: string[]
+  ) => void
   /** Fire every runnable column on a single row (per-row gutter Play). */
   onRunRow: (rowId: string) => void
-  /** Fan out a run across every workflow group on `rowIds`. Used by context menu. */
-  onRunRows: (rowIds: string[], runMode: RunMode) => void
+  /** Fan out a run across every workflow group on `rowIds` — or, with `rowIds`
+   *  undefined, across the whole table / the active filter. Used by context menu. */
+  onRunRows: (
+    rowIds: string[] | undefined,
+    runMode: RunMode,
+    filter?: Filter,
+    excludeRowIds?: string[]
+  ) => void
   /** Stop running workflows on `rowIds`. Per-row gutter Stop also funnels through here. */
   onStopRows: (rowIds: string[]) => void
+  /** Select-all Stop: table-wide, or scoped to the active filter when one is set.
+   *  `excludeRowIds` (deselected rows) keep running. */
+  onStopAllRows: (filter?: Filter, excludeRowIds?: string[]) => void
   /** Single-row stop for the per-row gutter button. */
   onStopRow: (rowId: string) => void
   /**
@@ -182,6 +210,12 @@ interface TableGridProps {
    * mutation succeeds.
    */
   afterDeleteRowsSinkRef: React.MutableRefObject<((snapshots: DeletedRowSnapshot[]) => void) | null>
+  /**
+   * Ref the grid populates with its post-select-all-delete cleanup (clear selection). The wrapper
+   * invokes it after the async delete job is kicked off. No undo — the deleted set isn't
+   * materialized client-side.
+   */
+  afterDeleteAllSinkRef: React.MutableRefObject<(() => void) | null>
   /**
    * Ref the grid populates with its full delete-columns cascade (per-column
    * mutation, undo push, columnOrder + columnWidths cleanup). The wrapper's
@@ -251,16 +285,19 @@ export function TableGrid({
   onOpenExecutionDetails,
   onOpenRowModal,
   onRequestDeleteRows,
+  onRequestDeleteAllByFilter,
   onRequestDeleteColumns,
   onRunColumn,
   onRunRow,
   onRunRows,
   onStopRows,
+  onStopAllRows,
   onStopRow,
   onSelectionChange,
   queryOptions,
   columnRenameSinkRef,
   afterDeleteRowsSinkRef,
+  afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
 }: TableGridProps) {
@@ -281,6 +318,18 @@ export function TableGrid({
   const [selectionFocus, setSelectionFocus] = useState<CellCoord | null>(null)
   const [rowSelection, setRowSelection] = useState<RowSelection>(ROW_SELECTION_NONE)
   const [isColumnSelection, setIsColumnSelection] = useState(false)
+  // Find (Cmd/Ctrl+F): `findQuery` is the live input, `submittedQuery` is the
+  // last Enter/search-triggered term the query hook runs on.
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [submittedQuery, setSubmittedQuery] = useState('')
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0)
+  const [isJumping, setIsJumping] = useState(false)
+  // Bumped on every navigation so the reveal effect re-runs even when the target
+  // row was already loaded (so `rows` identity didn't change).
+  const [pendingMatchTick, setPendingMatchTick] = useState(0)
+  const findInputRef = useRef<HTMLInputElement>(null)
+  const pendingMatchRef = useRef<TableFindMatch | null>(null)
   const lastCheckboxRowRef = useRef<string | null>(null)
   const isColumnSelectionRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
@@ -309,11 +358,22 @@ export function TableGrid({
   const tbodyRef = useRef<HTMLTableSectionElement>(null)
   const isDraggingRef = useRef(false)
   const suppressFocusScrollRef = useRef(false)
+  /**
+   * Row-gutter drag-to-select. `isRowDraggingRef` is the active flag (kept
+   * separate from the cell-drag `isDraggingRef` so the two don't cross-fire),
+   * `rowDragAnchorRef` is the row index the drag started on, and
+   * `rowDragBaseRef` is the materialized selection captured before the drag so
+   * the swept range is unioned onto whatever was already selected.
+   */
+  const isRowDraggingRef = useRef(false)
+  const rowDragAnchorRef = useRef<number | null>(null)
+  const rowDragBaseRef = useRef<Set<string> | null>(null)
 
   const {
     tableData,
     isLoadingTable,
     rows,
+    rowTotal,
     isLoadingRows,
     fetchNextPage,
     hasNextPage,
@@ -339,8 +399,10 @@ export function TableGrid({
   const totalRunning = Object.values(runningByRowId).reduce((sum, n) => sum + n, 0)
   const hasActiveDispatch = (activeDispatches?.length ?? 0) > 0
 
-  const tableRowCountRef = useRef(tableData?.rowCount ?? 0)
-  tableRowCountRef.current = tableData?.rowCount ?? 0
+  // True "select all" total: the filter-scoped COUNT(*) when a filter is active, else the whole
+  // table. Drives the delete-confirm count and the action-bar cell count.
+  const selectAllTotalRef = useRef(0)
+  selectAllTotalRef.current = rowTotal ?? tableData?.rowCount ?? 0
 
   const fetchNextPageRef = useRef(fetchNextPage)
   fetchNextPageRef.current = fetchNextPage
@@ -449,38 +511,12 @@ export function TableGrid({
     setColumnOrder(order)
   }
 
-  // Width keys are either the logical name or `${name}::${path}` for fanned-out
-  // workflow columns; rename must rewrite every key whose prefix matches.
-  function handleColumnRename(oldName: string, newName: string) {
-    let updatedWidths = columnWidthsRef.current
-    let widthsChanged = false
-    const nextWidths: Record<string, number> = {}
-    for (const [key, width] of Object.entries(updatedWidths)) {
-      if (key === oldName) {
-        nextWidths[newName] = width
-        widthsChanged = true
-      } else if (key.startsWith(`${oldName}::`)) {
-        nextWidths[`${newName}${key.slice(oldName.length)}`] = width
-        widthsChanged = true
-      } else {
-        nextWidths[key] = width
-      }
-    }
-    if (widthsChanged) {
-      updatedWidths = nextWidths
-      setColumnWidths(updatedWidths)
-    }
-    const updatedOrder = columnOrderRef.current?.map((n) => (n === oldName ? newName : n))
-    if (updatedOrder) setColumnOrder(updatedOrder)
-    const updatedPinned = pinnedColumnsRef.current.map((n) => (n === oldName ? newName : n))
-    const pinnedChanged = updatedPinned.some((n, i) => n !== pinnedColumnsRef.current[i])
-    if (pinnedChanged) setPinnedColumns(updatedPinned)
-    updateMetadataRef.current({
-      columnWidths: updatedWidths,
-      ...(updatedOrder ? { columnOrder: updatedOrder } : {}),
-      ...(pinnedChanged ? { pinnedColumns: updatedPinned } : {}),
-    })
-  }
+  // Column width/order/pin state is keyed by stable column id, so a rename
+  // changes no keys — it's a no-op here. The new display name flows in from the
+  // schema query cache (the rename mutation patches it optimistically and
+  // invalidates), and headers re-render from `column.name`. Kept as a stable
+  // sink for the undo system and config sidebars.
+  function handleColumnRename(_oldName: string, _newName: string) {}
   // Populate the wrapper's sink so its sidebars can fire renames back into
   // the grid. Reads through refs, so identity stability isn't required.
   columnRenameSinkRef.current = handleColumnRename
@@ -502,16 +538,14 @@ export function TableGrid({
     return pinnedColumnsRef.current
   }
 
-  const handlePinToggle = useCallback((columnName: string) => {
-    const col = columnsRef.current.find((c) => c.name === columnName)
+  const handlePinToggle = useCallback((columnId: string) => {
+    const col = columnsRef.current.find((c) => getColumnId(c) === columnId)
     const siblings: string[] = col?.workflowGroupId
-      ? columnsRef.current
-          .filter((c) => c.workflowGroupId === col.workflowGroupId)
-          .map((c) => c.name)
-      : [columnName]
+      ? columnsRef.current.filter((c) => c.workflowGroupId === col.workflowGroupId).map(getColumnId)
+      : [columnId]
 
     const current = pinnedColumnsRef.current
-    const newPinned = current.includes(columnName)
+    const newPinned = current.includes(columnId)
       ? current.filter((n) => !siblings.includes(n))
       : [...current, ...siblings.filter((n) => !current.includes(n))]
     setPinnedColumns(newPinned)
@@ -522,7 +556,7 @@ export function TableGrid({
     // entry). On unpin we must re-sort so the unpinned column doesn't stay
     // sandwiched between still-pinned siblings, which would render the sticky
     // zone with a gap.
-    const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
+    const currentOrder = columnOrderRef.current ?? schemaColumnsRef.current.map(getColumnId)
     const pinnedSet = new Set(newPinned)
     const newOrder = [
       ...currentOrder.filter((n) => pinnedSet.has(n)),
@@ -562,13 +596,13 @@ export function TableGrid({
     if (!columnOrder || columnOrder.length === 0) {
       ordered = columns
     } else {
-      const colMap = new Map(columns.map((c) => [c.name, c]))
+      const colMap = new Map(columns.map((c) => [getColumnId(c), c]))
       ordered = []
-      for (const name of columnOrder) {
-        const col = colMap.get(name)
+      for (const id of columnOrder) {
+        const col = colMap.get(id)
         if (col) {
           ordered.push(col)
-          colMap.delete(name)
+          colMap.delete(id)
         }
       }
       for (const col of colMap.values()) {
@@ -584,7 +618,7 @@ export function TableGrid({
   )
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
-  const { colWidth: checkboxColWidth, numDivWidth } = checkboxColLayout(
+  const { colWidth: checkboxColWidth, numRegionWidth } = checkboxColLayout(
     tableData?.maxRows ?? 0,
     hasWorkflowColumns
   )
@@ -596,7 +630,7 @@ export function TableGrid({
   // Used as the sole dep that ties pinnedOffsets to column-width changes so
   // that unpinned resizes don't recreate the Map and re-render all DataRows.
   const pinnedWidthsKey = displayColumns
-    .filter((c) => pinnedColumnSet.has(c.name))
+    .filter((c) => pinnedColumnSet.has(c.key))
     .map((c) => columnWidths[c.key] ?? COL_WIDTH)
     .join(',')
 
@@ -606,7 +640,7 @@ export function TableGrid({
     let left = checkboxColWidth
     const widths = columnWidthsRef.current
     for (const col of displayColumns) {
-      if (pinnedColumnSet.has(col.name)) {
+      if (pinnedColumnSet.has(col.key)) {
         offsets.set(col.key, left)
         left += widths[col.key] ?? COL_WIDTH
       }
@@ -617,7 +651,7 @@ export function TableGrid({
   const lastPinnedColKey = useMemo<string | null>(() => {
     let last: string | null = null
     for (const col of displayColumns) {
-      if (pinnedColumnSet.has(col.name)) last = col.key
+      if (pinnedColumnSet.has(col.key)) last = col.key
     }
     return last
   }, [displayColumns, pinnedColumnSet])
@@ -643,13 +677,13 @@ export function TableGrid({
     [selectionAnchor, selectionFocus]
   )
 
-  const displayColCount = isLoadingTable ? SKELETON_COL_COUNT : displayColumns.length
   const tableWidth = useMemo(() => {
-    const colsWidth = isLoadingTable
-      ? displayColCount * COL_WIDTH
-      : displayColumns.reduce((sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH), 0)
+    const colsWidth = displayColumns.reduce(
+      (sum, col) => sum + (columnWidths[col.key] ?? COL_WIDTH),
+      0
+    )
     return checkboxColWidth + colsWidth + ADD_COL_WIDTH
-  }, [isLoadingTable, displayColCount, displayColumns, columnWidths, checkboxColWidth])
+  }, [displayColumns, columnWidths, checkboxColWidth])
 
   const resizeIndicatorLeft = useMemo(() => {
     if (!resizingColumn) return 0
@@ -669,8 +703,8 @@ export function TableGrid({
     // share the same `name`. Compute the group's left edge and total width by
     // accumulating across siblings.
     const cols = displayColumns
-    const dragGroup = cols.findIndex((c) => c.name === dragColumnName)
-    const targetGroupStart = cols.findIndex((c) => c.name === dropTargetColumnName)
+    const dragGroup = cols.findIndex((c) => c.key === dragColumnName)
+    const targetGroupStart = cols.findIndex((c) => c.key === dropTargetColumnName)
     if (dragGroup === -1 || targetGroupStart === -1) return null
 
     const dragGroupSize = cols[dragGroup].groupSize
@@ -713,8 +747,18 @@ export function TableGrid({
     [rowSelection, rows]
   )
 
-  const isAllRowsSelectedRef = useRef(isAllRowsSelected)
-  isAllRowsSelectedRef.current = isAllRowsSelected
+  // Header select-all: filled check when all rows are selected, filled minus when
+  // some are, empty when none. Any non-empty selection turns it into a "clear" affordance.
+  // An empty grid renders unchecked regardless — a selection over zero rows is vacuous
+  // (e.g. the optimistic strip right after a select-all delete kicks off).
+  const selectAllState: boolean | 'indeterminate' =
+    rows.length === 0
+      ? false
+      : isAllRowsSelected
+        ? true
+        : rowSelectionIsEmpty(rowSelection)
+          ? false
+          : 'indeterminate'
 
   const columnsRef = useRef(displayColumns)
   const schemaColumnsRef = useRef(columns)
@@ -742,11 +786,116 @@ export function TableGrid({
     ? (rowsRef.current[selectionFocus.rowIndex]?.id ?? null)
     : null
 
+  const { data: findData, isFetching: isFindFetching } = useFindTableRows({
+    workspaceId,
+    tableId,
+    q: submittedQuery,
+    filter: queryOptions.filter,
+    sort: queryOptions.sort,
+  })
+
+  /**
+   * Server matches, narrowed to columns present in the current view and ordered
+   * by (row ordinal, display-column index) so next/prev steps left→right,
+   * top→bottom. Matches on stale/hidden columns are dropped — we can't navigate
+   * to a cell that isn't rendered.
+   */
+  const findMatches = useMemo<readonly TableFindMatch[]>(() => {
+    const raw = findData?.matches
+    if (!raw || raw.length === 0) return EMPTY_FIND_MATCHES
+    // `m.column` is the stable column id (the JSONB storage key); index display
+    // columns by their id so id-native tables resolve and stale/hidden columns drop.
+    const colIndexByKey = new Map(displayColumns.map((c, i) => [c.key, i]))
+    return raw
+      .filter((m) => colIndexByKey.has(m.column))
+      .sort(
+        (a, b) =>
+          a.ordinal - b.ordinal ||
+          (colIndexByKey.get(a.column) ?? 0) - (colIndexByKey.get(b.column) ?? 0)
+      )
+  }, [findData, displayColumns])
+
+  const findMatchesRef = useRef(findMatches)
+  findMatchesRef.current = findMatches
+  const currentMatchIndexRef = useRef(currentMatchIndex)
+  currentMatchIndexRef.current = currentMatchIndex
+  const findOpenRef = useRef(findOpen)
+  findOpenRef.current = findOpen
+
+  /** Loads the row containing match `index` (wrapping), then queues the cell reveal. */
+  const goToMatch = useCallback(async (index: number) => {
+    const matches = findMatchesRef.current
+    if (matches.length === 0) return
+    const wrapped = ((index % matches.length) + matches.length) % matches.length
+    const match = matches[wrapped]
+    setCurrentMatchIndex(wrapped)
+    setIsJumping(true)
+    try {
+      await ensureRowsLoadedUpToRef.current(match.ordinal + 1)
+    } finally {
+      setIsJumping(false)
+    }
+    // Defer the anchor set to the reveal effect: it must run after the freshly
+    // loaded rows have committed, else scrollToIndex clamps to the stale count.
+    pendingMatchRef.current = match
+    setPendingMatchTick((t) => t + 1)
+  }, [])
+
+  /**
+   * Reveal the pending match's cell once its row is in the loaded window. Keyed
+   * on `rows` (new pages) and `pendingMatchTick` (so it fires even when the row
+   * was already loaded). Sets the cell anchor → the existing scroll effect
+   * brings it into view and draws the highlight.
+   */
+  useEffect(() => {
+    const match = pendingMatchRef.current
+    if (!match) return
+    const rowIndex = rows.findIndex((r) => r.id === match.rowId)
+    if (rowIndex === -1) return
+    const colIndex = displayColumns.findIndex((c) => c.key === match.column)
+    pendingMatchRef.current = null
+    if (colIndex === -1) return
+    setEditingCell(null)
+    setIsColumnSelection(false)
+    setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
+    setSelectionFocus(null)
+    setSelectionAnchor({ rowIndex, colIndex })
+  }, [rows, displayColumns, pendingMatchTick])
+
+  /** New result set (new submitted term) → reset to and reveal the first match. */
+  useEffect(() => {
+    setCurrentMatchIndex(0)
+    if (findMatches.length > 0) goToMatch(0)
+  }, [findMatches, goToMatch])
+
+  const handleFindSubmit = useCallback(() => {
+    setSubmittedQuery(findQuery.trim())
+  }, [findQuery])
+
+  const handleFindNext = useCallback(() => {
+    goToMatch(currentMatchIndexRef.current + 1)
+  }, [goToMatch])
+
+  const handleFindPrev = useCallback(() => {
+    goToMatch(currentMatchIndexRef.current - 1)
+  }, [goToMatch])
+
+  const handleFindClose = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery('')
+    setSubmittedQuery('')
+    pendingMatchRef.current = null
+    scrollRef.current?.focus({ preventScroll: true })
+  }, [])
+
   const columnRename = useInlineRename({
+    // `columnName` is the column id; record the prior display name + id so undo
+    // restores the label (not the id) and targets the right column.
     onSave: (columnName, newName) => {
-      pushUndoRef.current({ type: 'rename-column', oldName: columnName, newName })
+      const oldName = columnsRef.current.find((c) => c.key === columnName)?.name ?? columnName
+      pushUndoRef.current({ type: 'rename-column', oldName, newName, columnId: columnName })
       handleColumnRename(columnName, newName)
-      updateColumnMutation.mutate({ columnName, updates: { name: newName } })
+      return updateColumnMutation.mutateAsync({ columnName, updates: { name: newName } })
     },
   })
 
@@ -767,7 +916,7 @@ export function TableGrid({
 
   function handleContextMenuEditCell() {
     if (contextMenu.row && contextMenu.columnName) {
-      const column = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+      const column = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
       if (column?.type === 'boolean') {
         toggleBooleanCell(
           contextMenu.row.id,
@@ -794,19 +943,14 @@ export function TableGrid({
 
     const contextRowInRows = currentRows.some((r) => r.id === contextRow.id)
 
-    // Select-all delete covers every row matching the active filter, which may
-    // not all be loaded — drain pages first so the (chunked) delete spans the
-    // full set rather than only the loaded window.
+    // Select-all delete covers every row matching the active filter — including rows not loaded by
+    // the virtualized grid. Send the filter + exclusion set to a background job instead of draining
+    // and materializing every id; the wrapper confirms and kicks it off.
     if (rowSel.kind === 'all' && contextRowInRows) {
       closeContextMenu()
-      void (async () => {
-        const allRows = await ensureAllRowsLoadedRef.current()
-        const snapshots = collectRowSnapshots(allRows)
-        if (snapshots.length > 0) onRequestDeleteRows(snapshots)
-      })().catch((error) => {
-        logger.error('Failed to load rows for delete', { error })
-        toast.error('Failed to delete rows — please try again')
-      })
+      const excludeRowIds = rowSel.excluded ? [...rowSel.excluded] : []
+      const estimatedCount = Math.max(0, selectAllTotalRef.current - excludeRowIds.length)
+      onRequestDeleteAllByFilter({ excludeRowIds, estimatedCount })
       return
     }
 
@@ -837,9 +981,12 @@ export function TableGrid({
 
   function handleInsertRow(offset: 0 | 1) {
     if (!contextMenu.row) return
+    const anchorId = contextMenu.row.id
+    // Fractional ordering: express intent by neighbor id, not integer position.
+    const intent = offset === 0 ? { beforeRowId: anchorId } : { afterRowId: anchorId }
     const position = contextMenu.row.position + offset
     createRef.current(
-      { data: {}, position },
+      { data: {}, ...intent },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
@@ -863,7 +1010,7 @@ export function TableGrid({
   // cascade re-runs dependents on its own) instead of every group on the row.
   let contextMenuGroupId: string | null = null
   if (contextMenu.row && contextMenu.columnName) {
-    const _col = columnsRef.current.find((c) => c.name === contextMenu.columnName)
+    const _col = columnsRef.current.find((c) => getColumnId(c) === contextMenu.columnName)
     const _gid = _col?.workflowGroupId
     if (_col && _gid) {
       const _exec = contextMenu.row.executions?.[_gid]
@@ -904,7 +1051,7 @@ export function TableGrid({
     const sourceArrayIndex = rowsRef.current.findIndex((r) => r.id === contextRow.id)
     closeContextMenu()
     createRef.current(
-      { data: rowData, position },
+      { data: rowData, afterRowId: contextRow.id },
       {
         onSuccess: (response: Record<string, unknown>) => {
           const newRowId = extractCreatedRowId(response)
@@ -972,7 +1119,7 @@ export function TableGrid({
         const colIndex = Number.parseInt(td.getAttribute('data-col') || '-1', 10)
         if (rowIndex >= 0 && colIndex >= 0) {
           columnName =
-            colIndex < columnsRef.current.length ? columnsRef.current[colIndex].name : null
+            colIndex < columnsRef.current.length ? columnsRef.current[colIndex].key : null
 
           const sel = computeNormalizedSelection(
             selectionAnchorRef.current,
@@ -1036,6 +1183,15 @@ export function TableGrid({
         : -1
 
     setRowSelection((prev) => {
+      // Deselecting a single row out of a select-all keeps the "all matching the filter" semantics
+      // by tracking an exclusion set — collapsing to the loaded ids would silently drop every
+      // unloaded matching row from the selection (and from a subsequent delete).
+      if (prev.kind === 'all' && lastIdx === -1) {
+        const excluded = new Set(prev.excluded ?? [])
+        if (excluded.has(targetId)) excluded.delete(targetId)
+        else excluded.add(targetId)
+        return { kind: 'all', excluded: excluded.size === 0 ? undefined : excluded }
+      }
       const next = rowSelectionMaterialize(prev, currentRows)
       if (lastIdx !== -1) {
         const from = Math.min(lastIdx, rowIndex)
@@ -1055,6 +1211,44 @@ export function TableGrid({
     scrollRef.current?.focus({ preventScroll: true })
   }, [])
 
+  /** Selects every row between the drag anchor and `rowIndex`, unioned onto the base. */
+  const extendRowDragTo = useCallback((rowIndex: number) => {
+    const anchor = rowDragAnchorRef.current
+    if (anchor === null) return
+    const currentRows = rowsRef.current
+    const next = new Set(rowDragBaseRef.current ?? [])
+    const from = Math.min(anchor, rowIndex)
+    const to = Math.max(anchor, rowIndex)
+    for (let i = from; i <= to; i++) {
+      const r = currentRows[i]
+      if (r) next.add(r.id)
+    }
+    setRowSelection(next.size === 0 ? ROW_SELECTION_NONE : { kind: 'some', ids: next })
+  }, [])
+
+  const handleRowMouseDown = useCallback(
+    (rowIndex: number, shiftKey: boolean) => {
+      // Capture the selection before the click mutates it so a drag unions the
+      // swept range onto the prior selection rather than the toggled result.
+      rowDragBaseRef.current = rowSelectionMaterialize(rowSelectionRef.current, rowsRef.current)
+      handleRowToggle(rowIndex, shiftKey)
+      // Shift-click extends from the last checkbox row — leave ranging to that
+      // path and don't begin a drag.
+      if (shiftKey) return
+      isRowDraggingRef.current = true
+      rowDragAnchorRef.current = rowIndex
+    },
+    [handleRowToggle]
+  )
+
+  const handleRowMouseEnter = useCallback(
+    (rowIndex: number) => {
+      if (!isRowDraggingRef.current || rowDragAnchorRef.current === null) return
+      extendRowDragTo(rowIndex)
+    },
+    [extendRowDragTo]
+  )
+
   const handleClearSelection = useCallback(() => {
     setSelectionAnchor(null)
     setSelectionFocus(null)
@@ -1070,7 +1264,13 @@ export function TableGrid({
     handleClearSelection()
   }
 
-  // Populate the wrapper's table-rename undo sink. The wrapper's <ResourceHeader>
+  // Select-all delete runs as a background job (no client-side snapshots), so the only cleanup is
+  // clearing the now-stale selection once the wrapper has kicked it off.
+  afterDeleteAllSinkRef.current = () => {
+    handleClearSelection()
+  }
+
+  // Populate the wrapper's table-rename undo sink. The wrapper's <Resource.Header>
   // breadcrumb rename calls back here so the rename is part of the grid's undo
   // stack (Cmd-Z restores the previous name).
   pushTableRenameUndoSinkRef.current = (previousName: string, newName: string) => {
@@ -1129,7 +1329,8 @@ export function TableGrid({
   }, [])
 
   const handleSelectAllToggle = useCallback(() => {
-    if (isAllRowsSelectedRef.current) {
+    // Any existing selection (partial or full) clears; an empty selection selects all.
+    if (!rowSelectionIsEmpty(rowSelectionRef.current)) {
       handleClearSelection()
     } else {
       handleSelectAllRows()
@@ -1172,7 +1373,7 @@ export function TableGrid({
 
       measure.className = 'text-small'
       for (const row of currentRows) {
-        const val = row.data[column.name]
+        const val = row.data[column.key]
         if (val == null) continue
         let text: string
         if (column.type === 'json') {
@@ -1215,14 +1416,14 @@ export function TableGrid({
   const handleColumnDragOver = useCallback((columnName: string, side: 'left' | 'right') => {
     const dragged = dragColumnNameRef.current
     const cols = schemaColumnsRef.current
-    const targetCol = cols.find((c) => c.name === columnName)
+    const targetCol = cols.find((c) => getColumnId(c) === columnName)
     const targetGid = targetCol?.workflowGroupId
 
     // Suppress drop targeting while hovering siblings of the dragged column's
     // own group: reordering inside a group is meaningless (the group renders
     // as a unit) and the chasing indicator just flickers.
     if (dragged) {
-      const draggedGid = cols.find((c) => c.name === dragged)?.workflowGroupId
+      const draggedGid = cols.find((c) => getColumnId(c) === dragged)?.workflowGroupId
       if (draggedGid && draggedGid === targetGid) {
         if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
         return
@@ -1269,9 +1470,9 @@ export function TableGrid({
       // missing — append any unknown schema names so the dragged column is
       // always indexable. The next reorder write persists the reconciled
       // list, healing the table going forward.
-      const persisted = columnOrderRef.current ?? schemaCols.map((c) => c.name)
+      const persisted = columnOrderRef.current ?? schemaCols.map(getColumnId)
       const known = new Set(persisted)
-      const missing = schemaCols.map((c) => c.name).filter((n) => !known.has(n))
+      const missing = schemaCols.map(getColumnId).filter((n) => !known.has(n))
       const currentOrder = missing.length > 0 ? [...persisted, ...missing] : persisted
 
       // Group-aware reorder: a workflow group's outputs must stay contiguous in
@@ -1279,7 +1480,7 @@ export function TableGrid({
       // save). So we treat the entire group as the unit being moved when the
       // dragged column belongs to one, and snap the drop position to the
       // outside edge of any group the target belongs to.
-      const colByName = new Map(schemaCols.map((c) => [c.name, c]))
+      const colByName = new Map(schemaCols.map((c) => [getColumnId(c), c]))
       const draggedGid = colByName.get(dragged)?.workflowGroupId
 
       const orderIndex = new Map<string, number>()
@@ -1407,7 +1608,7 @@ export function TableGrid({
     const cursorX = e.clientX - scrollRect.left + scrollEl.scrollLeft
 
     const cols = columnsRef.current
-    const draggedGid = cols.find((c) => c.name === dragColumnNameRef.current)?.workflowGroupId
+    const draggedGid = cols.find((c) => c.key === dragColumnNameRef.current)?.workflowGroupId
     let left = checkboxColWidth
     let i = 0
     while (i < cols.length) {
@@ -1428,14 +1629,14 @@ export function TableGrid({
         }
         const pinned = pinnedColumnsRef.current
         const draggedName = dragColumnNameRef.current
-        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.name)) {
+        if (draggedName && pinned.includes(draggedName) !== pinned.includes(col.key)) {
           if (dropTargetColumnNameRef.current !== null) setDropTargetColumnName(null)
           return
         }
         const midX = left + groupWidth / 2
         const side = cursorX < midX ? 'left' : 'right'
-        if (col.name !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
-          setDropTargetColumnName(col.name)
+        if (col.key !== dropTargetColumnNameRef.current || side !== dropSideRef.current) {
+          setDropTargetColumnName(col.key)
           setDropSide(side)
         }
         return
@@ -1527,6 +1728,9 @@ export function TableGrid({
   useEffect(() => {
     const handleMouseUp = () => {
       isDraggingRef.current = false
+      isRowDraggingRef.current = false
+      rowDragAnchorRef.current = null
+      rowDragBaseRef.current = null
     }
     document.addEventListener('mouseup', handleMouseUp)
     return () => document.removeEventListener('mouseup', handleMouseUp)
@@ -1558,6 +1762,15 @@ export function TableGrid({
       if (pointerX === null || pointerY === null) return
       const target = document.elementFromPoint(pointerX, pointerY)
       if (!target) return
+      if (isRowDraggingRef.current) {
+        // The gutter cell carries no coords; read the row index off any data
+        // cell in the same `<tr>` and extend the swept row range.
+        const cell = (target as HTMLElement).closest('tr')?.querySelector('td[data-row]')
+        const rowIndex = Number.parseInt(cell?.getAttribute('data-row') ?? '', 10)
+        if (Number.isNaN(rowIndex)) return
+        extendRowDragTo(rowIndex)
+        return
+      }
       const td = (target as HTMLElement).closest('td[data-row][data-col]') as HTMLElement | null
       if (!td) return
       const rowIndex = Number.parseInt(td.getAttribute('data-row') ?? '', 10)
@@ -1569,7 +1782,7 @@ export function TableGrid({
     const tick = () => {
       rafId = null
       const el = scrollRef.current
-      if (!isDraggingRef.current || !el || pointerY === null) return
+      if ((!isDraggingRef.current && !isRowDraggingRef.current) || !el || pointerY === null) return
       const rect = el.getBoundingClientRect()
       const distFromTop = pointerY - rect.top
       const distFromBottom = rect.bottom - pointerY
@@ -1589,7 +1802,7 @@ export function TableGrid({
     }
 
     const handleMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current) return
+      if (!isDraggingRef.current && !isRowDraggingRef.current) return
       pointerX = e.clientX
       pointerY = e.clientY
       if (rafId === null) rafId = requestAnimationFrame(tick)
@@ -1611,7 +1824,7 @@ export function TableGrid({
       document.removeEventListener('mouseup', handleStop)
       handleStop()
     }
-  }, [])
+  }, [extendRowDragTo])
 
   useEffect(() => {
     // Skip during transient empty-rows state (initial load of a new sort/filter
@@ -1678,7 +1891,7 @@ export function TableGrid({
       } else if (rect.bottom > view.bottom) {
         scrollEl.scrollTop += rect.bottom - view.bottom
       }
-      const targetColName = columnsRef.current[colIndex]?.name
+      const targetColName = columnsRef.current[colIndex]?.key
       const targetIsPinned = targetColName ? pinnedColumnSet.has(targetColName) : false
       if (!targetIsPinned) {
         if (rect.left < view.left + pinnedStickyLeftEdge) {
@@ -1718,7 +1931,7 @@ export function TableGrid({
 
   const handleCellClick = useCallback(
     (rowId: string, columnName: string, options?: { toggleBoolean?: boolean }) => {
-      const column = columnsRef.current.find((c) => c.name === columnName)
+      const column = columnsRef.current.find((c) => c.key === columnName)
       if (column?.type === 'boolean') {
         if (!options?.toggleBoolean || !canEditRef.current) return
         const row = rowsRef.current.find((r) => r.id === rowId)
@@ -1818,6 +2031,13 @@ export function TableGrid({
 
       if (e.key === 'Escape') {
         e.preventDefault()
+        if (findOpenRef.current) {
+          setFindOpen(false)
+          setFindQuery('')
+          setSubmittedQuery('')
+          pendingMatchRef.current = null
+          return
+        }
         if (dragColumnNameRef.current) {
           dragColumnNameRef.current = null
           dropTargetColumnNameRef.current = null
@@ -1881,8 +2101,8 @@ export function TableGrid({
             const updates: Record<string, unknown> = {}
             const previousData: Record<string, unknown> = {}
             for (const col of currentCols) {
-              previousData[col.name] = row.data[col.name] ?? null
-              updates[col.name] = null
+              previousData[col.key] = row.data[col.key] ?? null
+              updates[col.key] = null
             }
             undoCells.push({ rowId: row.id, data: previousData })
             batchUpdates.push({ rowId: row.id, data: updates })
@@ -1938,10 +2158,10 @@ export function TableGrid({
         if (!row) return
 
         if (col.type === 'boolean') {
-          toggleBooleanCellRef.current(row.id, col.name, row.data[col.name])
+          toggleBooleanCellRef.current(row.id, col.key, row.data[col.key])
           return
         }
-        setEditingCell({ rowId: row.id, columnName: col.name })
+        setEditingCell({ rowId: row.id, columnName: col.key })
         setInitialCharacter(null)
         return
       }
@@ -2075,7 +2295,7 @@ export function TableGrid({
           const newData: Record<string, unknown> = {}
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             if (c < cols.length) {
-              const colName = cols[c].name
+              const colName = cols[c].key
               oldData[colName] = row.data[colName] ?? null
               newData[colName] = sourceRow.data[colName] ?? null
             }
@@ -2108,7 +2328,7 @@ export function TableGrid({
               const updates: Record<string, unknown> = {}
               const previousData: Record<string, unknown> = {}
               for (let c = sel.startCol; c <= sel.endCol; c++) {
-                const colName = cols[c]?.name
+                const colName = cols[c]?.key
                 if (!colName) continue
                 previousData[colName] = row.data[colName] ?? null
                 updates[colName] = null
@@ -2134,7 +2354,7 @@ export function TableGrid({
           const previousData: Record<string, unknown> = {}
           for (let c = sel.startCol; c <= sel.endCol; c++) {
             if (c < cols.length) {
-              const colName = cols[c].name
+              const colName = cols[c].key
               previousData[colName] = row.data[colName] ?? null
               updates[colName] = null
             }
@@ -2165,7 +2385,7 @@ export function TableGrid({
 
         const row = currentRows[anchor.rowIndex]
         if (!row) return
-        setEditingCell({ rowId: row.id, columnName: col.name })
+        setEditingCell({ rowId: row.id, columnName: col.key })
         setInitialCharacter(e.key)
         return
       }
@@ -2305,9 +2525,9 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.name])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
           verb: 'Copied',
-          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
         })
         return
       }
@@ -2323,7 +2543,7 @@ export function TableGrid({
       if (isColumnSelectionRef.current) {
         const colNames: string[] = []
         for (let c = sel.startCol; c <= sel.endCol; c++) {
-          const name = cols[c]?.name
+          const name = cols[c]?.key
           if (name) colNames.push(name)
         }
         writeSelectionToClipboard({
@@ -2331,7 +2551,7 @@ export function TableGrid({
           selectRow: () => true,
           buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Copied',
-          estimatedCount: tableRowCountRef.current,
+          estimatedCount: selectAllTotalRef.current,
         })
         return
       }
@@ -2342,7 +2562,7 @@ export function TableGrid({
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c >= cols.length) break
           const row = currentRows[r]
-          cells.push(row ? cellToText(row.data[cols[c].name]) : '')
+          cells.push(row ? cellToText(row.data[cols[c].key]) : '')
         }
         lines.push(cells.join('\t'))
       }
@@ -2367,13 +2587,13 @@ export function TableGrid({
               ? () => ensureRowsLoadedUpToRef.current(TABLE_LIMITS.MAX_COPY_ROWS)
               : async () => ({ rows: rowsRef.current, hasMore: false }),
           selectRow: (row) => rowSelectionIncludes(rowSel, row.id),
-          buildCells: (row) => cols.map((col) => cellToText(row.data[col.name])),
+          buildCells: (row) => cols.map((col) => cellToText(row.data[col.key])),
           verb: 'Cut',
-          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : tableRowCountRef.current,
+          estimatedCount: rowSel.kind === 'some' ? rowSel.ids.size : selectAllTotalRef.current,
           afterCopy: (copied) =>
             clearCutRows(
               copied,
-              cols.map((c) => c.name)
+              cols.map((c) => c.key)
             ),
         })
         return
@@ -2390,7 +2610,7 @@ export function TableGrid({
       if (isColumnSelectionRef.current) {
         const colNames: string[] = []
         for (let c = sel.startCol; c <= sel.endCol; c++) {
-          const name = cols[c]?.name
+          const name = cols[c]?.key
           if (name) colNames.push(name)
         }
         writeSelectionToClipboard({
@@ -2398,7 +2618,7 @@ export function TableGrid({
           selectRow: () => true,
           buildCells: (row) => colNames.map((name) => cellToText(row.data[name])),
           verb: 'Cut',
-          estimatedCount: tableRowCountRef.current,
+          estimatedCount: selectAllTotalRef.current,
           afterCopy: (copied) => clearCutRows(copied, colNames),
         })
         return
@@ -2415,7 +2635,7 @@ export function TableGrid({
         const previousData: Record<string, unknown> = {}
         for (let c = sel.startCol; c <= sel.endCol; c++) {
           if (c < cols.length) {
-            const colName = cols[c].name
+            const colName = cols[c].key
             cells.push(cellToText(row.data[colName]))
             previousData[colName] = row.data[colName] ?? null
             updates[colName] = null
@@ -2473,7 +2693,7 @@ export function TableGrid({
           const targetCol = currentAnchor.colIndex + c
           if (targetCol >= currentCols.length) break
           try {
-            rowData[currentCols[targetCol].name] = cleanCellValue(
+            rowData[currentCols[targetCol].key] = cleanCellValue(
               pasteRows[r][c],
               currentCols[targetCol]
             )
@@ -2571,17 +2791,31 @@ export function TableGrid({
       const currentCols = columnsRef.current
       if (rws.length > 0 && currentCols.length > 0) {
         e.preventDefault()
-        suppressFocusScrollRef.current = true
-        setEditingCell(null)
-        setRowSelection((prev) => (prev.kind === 'none' ? prev : ROW_SELECTION_NONE))
-        lastCheckboxRowRef.current = null
-        setSelectionAnchor({ rowIndex: 0, colIndex: 0 })
-        setSelectionFocus({ rowIndex: rws.length - 1, colIndex: currentCols.length - 1 })
-        setIsColumnSelection(false)
+        // Cmd/Ctrl+A toggles the whole-table row selection (same as the gutter checkbox), so it
+        // reflects the true row count and feeds the filter-based delete — not a loaded-window cell
+        // rectangle. Pressing again clears.
+        handleSelectAllToggle()
       }
     }
     document.addEventListener('keydown', handleSelectAll)
     return () => document.removeEventListener('keydown', handleSelectAll)
+  }, [embedded, handleSelectAllToggle])
+
+  /** Override the browser's Cmd/Ctrl+F with the in-table find while mounted. */
+  useEffect(() => {
+    if (embedded) return
+    const handleFindShortcut = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 'f') return
+      if (!containerRef.current) return
+      e.preventDefault()
+      setFindOpen(true)
+      requestAnimationFrame(() => {
+        findInputRef.current?.focus()
+        findInputRef.current?.select()
+      })
+    }
+    document.addEventListener('keydown', handleFindShortcut)
+    return () => document.removeEventListener('keydown', handleFindShortcut)
   }, [embedded])
 
   const navigateAfterSave = useCallback((reason: SaveReason) => {
@@ -2648,7 +2882,7 @@ export function TableGrid({
 
   const insertColumnInOrder = useCallback(
     (anchorColumn: string, newColumn: string, side: 'left' | 'right') => {
-      const order = columnOrderRef.current ?? schemaColumnsRef.current.map((c) => c.name)
+      const order = columnOrderRef.current ?? schemaColumnsRef.current.map(getColumnId)
       const newOrder = [...order]
       let anchorIdx = newOrder.indexOf(anchorColumn)
       if (anchorIdx === -1) {
@@ -2667,16 +2901,22 @@ export function TableGrid({
   )
 
   const handleInsertColumnLeft = useCallback(
-    (columnName: string) => {
-      const index = schemaColumnsRef.current.findIndex((c) => c.name === columnName)
+    (columnId: string) => {
+      const index = schemaColumnsRef.current.findIndex((c) => getColumnId(c) === columnId)
       if (index === -1) return
       const name = generateColumnName()
       addColumnMutation.mutate(
         { name, type: 'string', position: index },
         {
-          onSuccess: () => {
-            pushUndoRef.current({ type: 'create-column', columnName: name, position: index })
-            insertColumnInOrder(columnName, name, 'left')
+          onSuccess: (result) => {
+            const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+            pushUndoRef.current({
+              type: 'create-column',
+              columnName: name,
+              columnId: newId,
+              position: index,
+            })
+            insertColumnInOrder(columnId, newId, 'left')
           },
         }
       )
@@ -2685,17 +2925,23 @@ export function TableGrid({
   )
 
   const handleInsertColumnRight = useCallback(
-    (columnName: string) => {
-      const index = schemaColumnsRef.current.findIndex((c) => c.name === columnName)
+    (columnId: string) => {
+      const index = schemaColumnsRef.current.findIndex((c) => getColumnId(c) === columnId)
       if (index === -1) return
       const name = generateColumnName()
       const position = index + 1
       addColumnMutation.mutate(
         { name, type: 'string', position },
         {
-          onSuccess: () => {
-            pushUndoRef.current({ type: 'create-column', columnName: name, position })
-            insertColumnInOrder(columnName, name, 'right')
+          onSuccess: (result) => {
+            const newId = result.data.columns.find((c) => c.name === name)?.id ?? name
+            pushUndoRef.current({
+              type: 'create-column',
+              columnName: name,
+              columnId: newId,
+              position,
+            })
+            insertColumnInOrder(columnId, newId, 'right')
           },
         }
       )
@@ -2718,7 +2964,7 @@ export function TableGrid({
 
   const handleConfigureColumn = useCallback(
     (columnName: string) => {
-      const column = columnsRef.current.find((c) => c.name === columnName)
+      const column = columnsRef.current.find((c) => c.key === columnName)
       const group = column?.workflowGroupId
         ? workflowGroupById.get(column.workflowGroupId)
         : undefined
@@ -2763,11 +3009,11 @@ export function TableGrid({
     if (isColumnSelectionRef.current && selectionAnchorRef.current) {
       const sel = computeNormalizedSelection(selectionAnchorRef.current, selectionFocusRef.current)
       if (sel && sel.startCol !== sel.endCol) {
-        const clickedIdx = cols.findIndex((c) => c.name === columnName)
+        const clickedIdx = cols.findIndex((c) => c.key === columnName)
         if (clickedIdx >= sel.startCol && clickedIdx <= sel.endCol) {
           const names: string[] = []
           for (let c = sel.startCol; c <= sel.endCol; c++) {
-            if (c < cols.length) names.push(cols[c].name)
+            if (c < cols.length) names.push(cols[c].key)
           }
           if (names.length > 0) return names
         }
@@ -2789,7 +3035,7 @@ export function TableGrid({
     const groups = workflowGroupsRef.current
     const removalsByGroup = new Map<string, Set<string>>()
     for (const name of names) {
-      const def = schemaCols.find((c) => c.name === name)
+      const def = schemaCols.find((c) => getColumnId(c) === name)
       if (!def?.workflowGroupId) return false
       const set = removalsByGroup.get(def.workflowGroupId) ?? new Set<string>()
       set.add(name)
@@ -2837,7 +3083,7 @@ export function TableGrid({
       { position: number; def: (typeof cols)[number] | undefined }
     >()
     for (const name of columnsToDelete) {
-      const def = cols.find((c) => c.name === name)
+      const def = cols.find((c) => getColumnId(c) === name)
       originalPositions.set(name, { position: def ? cols.indexOf(def) : cols.length, def })
     }
     const deletedOriginalPositions: number[] = []
@@ -2860,7 +3106,9 @@ export function TableGrid({
         deletedOriginalPositions.push(entry.position)
         pushUndoRef.current({
           type: 'delete-column',
-          columnName: columnToDelete,
+          // `columnToDelete` is the stable id; record the display name for re-create.
+          columnName: entry.def?.name ?? columnToDelete,
+          columnId: columnToDelete,
           columnType: entry.def?.type ?? 'string',
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,
@@ -2971,7 +3219,26 @@ export function TableGrid({
     return [contextMenu.row.id]
   }, [contextMenu.isOpen, contextMenu.row, rowSelection, normalizedSelection, rows])
 
-  const selectedRowCount = contextMenuRowIds.length || 1
+  /**
+   * Select-all detection for the context-menu bulk actions: delete, run,
+   * refresh, and stop all act on EVERY row in the (filtered) selection — not
+   * just the loaded page `contextMenuRowIds` reflects — via the filter-scoped
+   * delete job / dispatch / cancel paths.
+   */
+  const contextMenuIsSelectAll = Boolean(
+    contextMenu.isOpen &&
+      contextMenu.row &&
+      rowSelection.kind === 'all' &&
+      rowSelectionIncludes(rowSelection, contextMenu.row.id)
+  )
+
+  const selectedRowCount = contextMenuIsSelectAll
+    ? Math.max(
+        1,
+        selectAllTotalRef.current -
+          (rowSelection.kind === 'all' ? (rowSelection.excluded?.size ?? 0) : 0)
+      )
+    : contextMenuRowIds.length || 1
 
   const pendingUpdate = updateRowMutation.isPending ? updateRowMutation.variables : null
 
@@ -3001,18 +3268,37 @@ export function TableGrid({
   // opened on a workflow-output cell, scope to just that cell's group — the
   // server cascade re-runs dependent groups whose deps it fills. Right-clicking
   // a plain cell has no group, so fall back to every group on the row(s).
-  const handleRunWorkflowsOnSelection = () => {
-    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'incomplete', contextMenuRowIds)
-    else onRunRows(contextMenuRowIds, 'incomplete')
+  /** Select-all runs dispatch by filter scope (whole table when unfiltered),
+   *  mirroring the action bar's Play/Refresh; deselected rows are excluded. */
+  const runSelection = (runMode: RunMode) => {
+    if (contextMenuIsSelectAll) {
+      const filter = queryOptions.filter ?? undefined
+      const excluded =
+        rowSelection.kind === 'all' && rowSelection.excluded
+          ? [...rowSelection.excluded]
+          : undefined
+      if (contextMenuGroupId)
+        onRunColumn(contextMenuGroupId, runMode, undefined, undefined, filter, excluded)
+      else onRunRows(undefined, runMode, filter, excluded)
+    } else if (contextMenuGroupId) {
+      onRunColumn(contextMenuGroupId, runMode, contextMenuRowIds)
+    } else {
+      onRunRows(contextMenuRowIds, runMode)
+    }
     closeContextMenu()
   }
-  const handleRefreshWorkflowsOnSelection = () => {
-    if (contextMenuGroupId) onRunColumn(contextMenuGroupId, 'all', contextMenuRowIds)
-    else onRunRows(contextMenuRowIds, 'all')
-    closeContextMenu()
-  }
+  const handleRunWorkflowsOnSelection = () => runSelection('incomplete')
+  const handleRefreshWorkflowsOnSelection = () => runSelection('all')
   const handleStopWorkflowsOnSelection = () => {
-    onStopRows(contextMenuRowIds)
+    if (contextMenuIsSelectAll) {
+      const excluded =
+        rowSelection.kind === 'all' && rowSelection.excluded
+          ? [...rowSelection.excluded]
+          : undefined
+      onStopAllRows(queryOptions.filter ?? undefined, excluded)
+    } else {
+      onStopRows(contextMenuRowIds)
+    }
     closeContextMenu()
   }
 
@@ -3127,11 +3413,22 @@ export function TableGrid({
     if (tableWorkflowGroupIds.length === 0) return null
     if (!rowSelectionIsEmpty(rowSelection)) {
       if (rowSelection.kind === 'all') {
-        return { groupIds: tableWorkflowGroupIds, rowIds: rows.map((r) => r.id), allRows: true }
+        // `rowIds` is the loaded window (virtualized); the label total comes from the filter-scoped
+        // row count minus any deselected rows. `filter` lets the run target the matching rows
+        // server-side (the dispatcher walks them) rather than the loaded window.
+        const excluded = rowSelection.excluded?.size ?? 0
+        return {
+          groupIds: tableWorkflowGroupIds,
+          rowIds: rows.map((r) => r.id),
+          allRows: true,
+          rowCount: Math.max(0, selectAllTotalRef.current - excluded),
+          filter: queryOptions.filter ?? undefined,
+          excludeRowIds: rowSelection.excluded ? [...rowSelection.excluded] : undefined,
+        }
       }
       const rowIds = rows.filter((r) => rowSelectionIncludes(rowSelection, r.id)).map((r) => r.id)
       if (rowIds.length === 0) return null
-      return { groupIds: tableWorkflowGroupIds, rowIds, allRows: false }
+      return { groupIds: tableWorkflowGroupIds, rowIds, allRows: false, rowCount: rowIds.length }
     }
     const sel = normalizedSelection
     if (!sel) return null
@@ -3149,7 +3446,7 @@ export function TableGrid({
       if (row) rowIds.push(row.id)
     }
     if (rowIds.length === 0) return null
-    return { groupIds: [...groupIdsInRect], rowIds, allRows: false }
+    return { groupIds: [...groupIdsInRect], rowIds, allRows: false, rowCount: rowIds.length }
   }, [rowSelection, normalizedSelection, rows, displayColumns, tableWorkflowGroupIds])
 
   const selectionStats = useMemo<SelectionSnapshot['selectionStats']>(() => {
@@ -3246,6 +3543,22 @@ export function TableGrid({
   return (
     <div ref={containerRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative flex min-h-0 flex-1'>
+        {findOpen && (
+          <TableFind
+            query={findQuery}
+            onQueryChange={setFindQuery}
+            onSubmit={handleFindSubmit}
+            onNext={handleFindNext}
+            onPrev={handleFindPrev}
+            onClose={handleFindClose}
+            count={findMatches.length}
+            currentIndex={currentMatchIndex}
+            truncated={findData?.truncated ?? false}
+            isLoading={isFindFetching || isJumping}
+            isDirty={findQuery.trim() !== submittedQuery}
+            inputRef={findInputRef}
+          />
+        )}
         <div
           ref={scrollRef}
           tabIndex={-1}
@@ -3268,45 +3581,13 @@ export function TableGrid({
               className='table-fixed border-separate border-spacing-0 text-small'
               style={{ width: `${tableWidth}px` }}
             >
-              {isLoadingTable ? (
-                <colgroup>
-                  <col style={{ width: checkboxColWidth }} />
-                  {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                    <col key={i} style={{ width: COL_WIDTH }} />
-                  ))}
-                  <col style={{ width: ADD_COL_WIDTH }} />
-                </colgroup>
-              ) : (
-                <TableColGroup
-                  columns={displayColumns}
-                  columnWidths={columnWidths}
-                  checkboxColWidth={checkboxColWidth}
-                />
-              )}
+              <TableColGroup
+                columns={displayColumns}
+                columnWidths={columnWidths}
+                checkboxColWidth={checkboxColWidth}
+              />
               <thead ref={theadRef} className='sticky top-0 z-10'>
-                {isLoadingTable ? (
-                  <tr>
-                    <th className={CELL_HEADER_CHECKBOX}>
-                      <div className='flex items-center justify-center'>
-                        <Skeleton className='size-[14px] rounded-xs' />
-                      </div>
-                    </th>
-                    {Array.from({ length: SKELETON_COL_COUNT }).map((_, i) => (
-                      <th key={i} className={CELL_HEADER}>
-                        <div className='flex h-[20px] min-w-0 items-center gap-1.5'>
-                          <Skeleton className='size-[14px] shrink-0 rounded-xs' />
-                          <Skeleton className='h-[14px]' style={{ width: `${56 + i * 16}px` }} />
-                        </div>
-                      </th>
-                    ))}
-                    <th className={CELL_HEADER}>
-                      <div className='flex h-[20px] items-center gap-2'>
-                        <Skeleton className='size-[14px] shrink-0 rounded-xs' />
-                        <Skeleton className='h-[14px] w-[72px]' />
-                      </div>
-                    </th>
-                  </tr>
-                ) : (
+                {isLoadingTable ? null : (
                   <>
                     {hasWorkflowGroup && (
                       <tr>
@@ -3369,7 +3650,7 @@ export function TableGrid({
                                 onDragLeave={
                                   userPermissions.canEdit ? handleColumnDragLeave : undefined
                                 }
-                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.name) : false}
+                                isPinned={firstCol ? pinnedColumnSet.has(firstCol.key) : false}
                                 onPinToggle={userPermissions.canEdit ? handlePinToggle : undefined}
                                 stickyLeft={stickyLeft}
                                 isLastPinned={lastCol?.key === lastPinnedColKey}
@@ -3400,11 +3681,12 @@ export function TableGrid({
                     )}
                     <tr>
                       <SelectAllCheckbox
-                        checked={isAllRowsSelected}
+                        checked={selectAllState}
                         onCheckedChange={handleSelectAllToggle}
+                        numRegionWidth={numRegionWidth}
                       />
                       {displayColumns.map((column, idx) => {
-                        const colIsPinned = pinnedColumnSet.has(column.name)
+                        const colIsPinned = pinnedColumnSet.has(column.key)
                         const colStickyLeft = pinnedOffsets.get(column.key)
                         return (
                           <ColumnHeaderMenu
@@ -3412,7 +3694,7 @@ export function TableGrid({
                             column={column}
                             colIndex={idx}
                             readOnly={!userPermissions.canEdit}
-                            isRenaming={columnRename.editingId === column.name}
+                            isRenaming={columnRename.editingId === column.key}
                             isColumnSelected={
                               isColumnSelection &&
                               normalizedSelection !== null &&
@@ -3420,7 +3702,7 @@ export function TableGrid({
                               idx <= normalizedSelection.endCol
                             }
                             renameValue={
-                              columnRename.editingId === column.name ? columnRename.editValue : ''
+                              columnRename.editingId === column.key ? columnRename.editValue : ''
                             }
                             onRenameValueChange={columnRename.setEditValue}
                             onRenameSubmit={columnRename.submitRename}
@@ -3439,7 +3721,7 @@ export function TableGrid({
                             onDragLeave={handleColumnDragLeave}
                             workflows={workflows}
                             workflowGroups={tableWorkflowGroups}
-                            sourceInfo={columnSourceInfo.get(column.name)}
+                            sourceInfo={columnSourceInfo.get(column.key)}
                             onOpenConfig={handleConfigureColumn}
                             onViewWorkflow={handleViewWorkflow}
                             isPinned={colIsPinned}
@@ -3463,101 +3745,101 @@ export function TableGrid({
                 )}
               </thead>
               <tbody ref={tbodyRef}>
-                {isLoadingTable || isLoadingRows ? (
-                  <TableBodySkeleton colCount={displayColCount} />
-                ) : (
-                  (() => {
-                    const virtualItems = rowVirtualizer.getVirtualItems()
-                    // `item.start`/`item.end` include `scrollMargin` (the sticky-header
-                    // offset) but `getTotalSize()` already nets it out, so both spacer
-                    // heights are computed relative to `scrollMargin`.
-                    const scrollMargin = rowVirtualizer.options.scrollMargin
-                    const paddingTop =
-                      virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
-                    const paddingBottom =
-                      virtualItems.length > 0
-                        ? rowVirtualizer.getTotalSize() -
-                          (virtualItems[virtualItems.length - 1].end - scrollMargin)
-                        : 0
-                    return (
-                      <>
-                        {paddingTop > 0 && (
-                          <tr aria-hidden>
-                            <td
-                              colSpan={displayColumns.length + 1}
-                              style={{ height: paddingTop }}
-                            />
-                          </tr>
-                        )}
-                        {virtualItems.map((virtualRow) => {
-                          const index = virtualRow.index
-                          const row = rows[index]
-                          if (!row) return null
-                          return (
-                            <DataRow
-                              key={row.id}
-                              row={row}
-                              columns={displayColumns}
-                              workspaceId={workspaceId}
-                              rowIndex={index}
-                              isFirstRow={index === 0}
-                              editingColumnName={
-                                editingCell?.rowId === row.id ? editingCell.columnName : null
-                              }
-                              initialCharacter={
-                                editingCell?.rowId === row.id ? initialCharacter : null
-                              }
-                              pendingCellValue={
-                                pendingUpdate && pendingUpdate.rowId === row.id
-                                  ? pendingUpdate.data
-                                  : null
-                              }
-                              normalizedSelection={normalizedSelection}
-                              onClick={handleCellClick}
-                              onDoubleClick={handleCellDoubleClick}
-                              onSave={handleInlineSave}
-                              onCancel={handleInlineCancel}
-                              onContextMenu={handleRowContextMenu}
-                              onCellMouseDown={handleCellMouseDown}
-                              onCellMouseEnter={handleCellMouseEnter}
-                              isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
-                              onRowToggle={handleRowToggle}
-                              runningCount={runningByRowId[row.id] ?? 0}
-                              hasWorkflowColumns={hasWorkflowColumns}
-                              numDivWidth={numDivWidth}
-                              onStopRow={onStopRow}
-                              onRunRow={onRunRow}
-                              workflowGroups={tableWorkflowGroups}
-                              activeDispatches={activeDispatches}
-                              pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
-                              lastPinnedColKey={lastPinnedColKey}
-                            />
-                          )
-                        })}
-                        {paddingBottom > 0 && (
-                          <tr aria-hidden>
-                            <td
-                              colSpan={displayColumns.length + 1}
-                              style={{ height: paddingBottom }}
-                            />
-                          </tr>
-                        )}
-                        {isFetchingNextPage && (
-                          <tr>
-                            <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
-                              <div className='flex items-center justify-center'>
-                                <Loader
-                                  animate
-                                  className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })()
-                )}
+                {isLoadingTable || isLoadingRows
+                  ? null
+                  : (() => {
+                      const virtualItems = rowVirtualizer.getVirtualItems()
+                      // `item.start`/`item.end` include `scrollMargin` (the sticky-header
+                      // offset) but `getTotalSize()` already nets it out, so both spacer
+                      // heights are computed relative to `scrollMargin`.
+                      const scrollMargin = rowVirtualizer.options.scrollMargin
+                      const paddingTop =
+                        virtualItems.length > 0 ? virtualItems[0].start - scrollMargin : 0
+                      const paddingBottom =
+                        virtualItems.length > 0
+                          ? rowVirtualizer.getTotalSize() -
+                            (virtualItems[virtualItems.length - 1].end - scrollMargin)
+                          : 0
+                      return (
+                        <>
+                          {paddingTop > 0 && (
+                            <tr aria-hidden>
+                              <td
+                                colSpan={displayColumns.length + 1}
+                                style={{ height: paddingTop }}
+                              />
+                            </tr>
+                          )}
+                          {virtualItems.map((virtualRow) => {
+                            const index = virtualRow.index
+                            const row = rows[index]
+                            if (!row) return null
+                            return (
+                              <DataRow
+                                key={row.id}
+                                row={row}
+                                columns={displayColumns}
+                                workspaceId={workspaceId}
+                                rowIndex={index}
+                                isFirstRow={index === 0}
+                                editingColumnName={
+                                  editingCell?.rowId === row.id ? editingCell.columnName : null
+                                }
+                                initialCharacter={
+                                  editingCell?.rowId === row.id ? initialCharacter : null
+                                }
+                                pendingCellValue={
+                                  pendingUpdate && pendingUpdate.rowId === row.id
+                                    ? pendingUpdate.data
+                                    : null
+                                }
+                                normalizedSelection={normalizedSelection}
+                                onClick={handleCellClick}
+                                onDoubleClick={handleCellDoubleClick}
+                                onSave={handleInlineSave}
+                                onCancel={handleInlineCancel}
+                                onContextMenu={handleRowContextMenu}
+                                onCellMouseDown={handleCellMouseDown}
+                                onCellMouseEnter={handleCellMouseEnter}
+                                isRowChecked={rowSelectionIncludes(rowSelection, row.id)}
+                                onRowToggle={handleRowToggle}
+                                onRowMouseDown={handleRowMouseDown}
+                                onRowMouseEnter={handleRowMouseEnter}
+                                runningCount={runningByRowId[row.id] ?? 0}
+                                hasWorkflowColumns={hasWorkflowColumns}
+                                numRegionWidth={numRegionWidth}
+                                onStopRow={onStopRow}
+                                onRunRow={onRunRow}
+                                workflowGroups={tableWorkflowGroups}
+                                activeDispatches={activeDispatches}
+                                pinnedOffsets={pinnedOffsets.size > 0 ? pinnedOffsets : undefined}
+                                lastPinnedColKey={lastPinnedColKey}
+                              />
+                            )
+                          })}
+                          {paddingBottom > 0 && (
+                            <tr aria-hidden>
+                              <td
+                                colSpan={displayColumns.length + 1}
+                                style={{ height: paddingBottom }}
+                              />
+                            </tr>
+                          )}
+                          {isFetchingNextPage && (
+                            <tr>
+                              <td colSpan={displayColumns.length + 1} className='h-[35px] p-0'>
+                                <div className='flex items-center justify-center'>
+                                  <Loader
+                                    animate
+                                    className='size-[14px] shrink-0 text-[var(--text-tertiary)]'
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </>
+                      )
+                    })()}
               </tbody>
             </table>
             {resizingColumn && (

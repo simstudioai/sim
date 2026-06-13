@@ -5,7 +5,7 @@ export const ttsStreamBodySchema = z
   .object({
     text: z.string().min(1),
     voiceId: z.string().min(1),
-    modelId: z.string().optional().default('eleven_turbo_v2_5'),
+    modelId: z.string().optional().default('eleven_flash_v2_5'),
     chatId: z.string().min(1),
   })
   .passthrough()

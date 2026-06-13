@@ -2,10 +2,13 @@ import {
   Agent,
   Auth,
   CreateWorkflow,
-  Debug,
   Deploy,
   EditWorkflow,
+  Ffmpeg,
   FunctionExecute,
+  GenerateAudio,
+  GenerateImage,
+  GenerateVideo,
   GetPageContents,
   Glob,
   Grep,
@@ -14,6 +17,7 @@ import {
   KnowledgeBase,
   ManageMcpTool,
   ManageSkill,
+  Media,
   OpenResource,
   Read as ReadTool,
   Research,
@@ -63,6 +67,7 @@ export const ToolCallStatus = {
   cancelled: 'cancelled',
   skipped: 'skipped',
   rejected: 'rejected',
+  interrupted: 'interrupted',
 } as const
 export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus]
 
@@ -134,6 +139,15 @@ export interface ContentBlock {
   timestamp?: number
   endedAt?: number
   parentToolCallId?: string
+  /**
+   * Deterministic agent-run identity. `spanId` is the stable per-invocation id
+   * of the subagent that produced this block; `parentSpanId` links it to the
+   * run that invoked it (empty/"main" for top-level). These are the primary
+   * nesting keys used to build the agent tree; `parentToolCallId` is retained
+   * for tool linkage and legacy back-compat.
+   */
+  spanId?: string
+  parentSpanId?: string
 }
 
 export interface ChatMessageAttachment {
@@ -153,6 +167,8 @@ export interface ChatMessageContext {
   fileId?: string
   folderId?: string
   chatId?: string
+  blockType?: string
+  skillId?: string
 }
 
 export interface ChatMessage {
@@ -179,6 +195,7 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   agent: 'Tools Agent',
   job: 'Job Agent',
   file: 'File Agent',
+  media: 'Media Agent',
 } as const
 
 interface ToolTitleMetadata {
@@ -207,7 +224,6 @@ export const TOOL_UI_METADATA: Record<string, ToolTitleMetadata> = {
   [CreateWorkflow.id]: { title: 'Creating workflow' },
   [EditWorkflow.id]: { title: 'Editing workflow' },
   [Workflow.id]: { title: 'Workflow Agent' },
-  [Debug.id]: { title: 'Debug Agent' },
   [RUN_SUBAGENT_ID]: { title: 'Run Agent' },
   [Deploy.id]: { title: 'Deploy Agent' },
   [Auth.id]: { title: 'Auth Agent' },
@@ -219,5 +235,10 @@ export const TOOL_UI_METADATA: Record<string, ToolTitleMetadata> = {
   custom_tool: { title: 'Creating tool' },
   [Research.id]: { title: 'Research Agent' },
   [OpenResource.id]: { title: 'Opening resource' },
+  [Media.id]: { title: 'Media Agent' },
+  [GenerateImage.id]: { title: 'Generating image' },
+  [GenerateVideo.id]: { title: 'Generating video' },
+  [GenerateAudio.id]: { title: 'Generating audio' },
+  [Ffmpeg.id]: { title: 'Processing media' },
   context_compaction: { title: 'Compacted context' },
 }

@@ -67,6 +67,11 @@ export const vercelListAliasesTool: ToolConfig<VercelListAliasesParams, VercelLi
         projectId: a.projectId ?? null,
         createdAt: a.createdAt ?? null,
         updatedAt: a.updatedAt ?? null,
+        deployment: a.deployment
+          ? { id: a.deployment.id ?? null, url: a.deployment.url ?? null }
+          : null,
+        redirect: a.redirect ?? null,
+        redirectStatusCode: a.redirectStatusCode ?? null,
       }))
 
       return {
@@ -92,6 +97,25 @@ export const vercelListAliasesTool: ToolConfig<VercelListAliasesParams, VercelLi
             projectId: { type: 'string', description: 'Associated project ID' },
             createdAt: { type: 'number', description: 'Creation timestamp in milliseconds' },
             updatedAt: { type: 'number', description: 'Last update timestamp in milliseconds' },
+            deployment: {
+              type: 'object',
+              description: 'Associated deployment (id, url)',
+              optional: true,
+              properties: {
+                id: { type: 'string', description: 'Deployment ID' },
+                url: { type: 'string', description: 'Deployment URL' },
+              },
+            },
+            redirect: {
+              type: 'string',
+              description: 'Target domain for redirect aliases',
+              optional: true,
+            },
+            redirectStatusCode: {
+              type: 'number',
+              description: 'HTTP status code for redirect (301, 302, 307, or 308)',
+              optional: true,
+            },
           },
         },
       },

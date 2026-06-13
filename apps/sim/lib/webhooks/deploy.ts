@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import type { DbOrTx } from '@/lib/db/types'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -37,7 +38,8 @@ interface TriggerSaveResult {
 }
 
 export async function validateTriggerWebhookConfigForDeploy(
-  blocks: Record<string, BlockState>
+  blocks: Record<string, BlockState>,
+  executor: DbOrTx = db
 ): Promise<TriggerSaveResult> {
   const triggerBlocks = Object.values(blocks || {}).filter((b) => b && b.enabled !== false)
 
@@ -74,7 +76,8 @@ export async function validateTriggerWebhookConfigForDeploy(
       const oauthProviderId = getProviderIdFromServiceId(provider)
       const hasCredential = await credentialSetHasProviderCredential(
         providerConfig.credentialSetId as string,
-        oauthProviderId
+        oauthProviderId,
+        executor
       )
       if (!hasCredential) {
         return {
@@ -93,9 +96,10 @@ export async function validateTriggerWebhookConfigForDeploy(
 
 async function credentialSetHasProviderCredential(
   credentialSetId: string,
-  providerId: string
+  providerId: string,
+  executor: DbOrTx
 ): Promise<boolean> {
-  const members = await db
+  const members = await executor
     .select({ userId: credentialSetMember.userId })
     .from(credentialSetMember)
     .where(
@@ -107,7 +111,7 @@ async function credentialSetHasProviderCredential(
 
   if (members.length === 0) return false
 
-  const [credential] = await db
+  const [credential] = await executor
     .select({ id: account.id })
     .from(account)
     .where(
@@ -928,6 +932,10 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
  * Removes external subscriptions and deletes webhook records from the database.
  *
  * @param skipExternalCleanup - If true, skip external subscription cleanup (already done elsewhere)
+ * @param shouldDeleteWebhook - Best-effort early-exit probe. Its implementations
+ *   query the global pool, so it MUST only be awaited while no transaction is open.
+ *   See {@link deleteWebhookRecordAfterCleanup} for the in-transaction recheck that
+ *   makes this probe non-authoritative.
  */
 export async function cleanupWebhooksForWorkflow(
   workflowId: string,
@@ -1032,6 +1040,16 @@ export async function cleanupWebhooksForWorkflow(
   )
 }
 
+/**
+ * Deletes a webhook record unless the deployment became active again.
+ *
+ * `shouldDeleteWebhook` is awaited BEFORE the transaction opens — its
+ * implementations query the global pool, so running it inside the
+ * transaction would nest a second pooled checkout under the held
+ * connection. The transaction does not need it: the `FOR UPDATE` select
+ * on the deployment version row is the authoritative recheck, and it
+ * aborts the delete if the version was reactivated.
+ */
 async function deleteWebhookRecordAfterCleanup(params: {
   workflowId: string
   deploymentVersionId?: string | null

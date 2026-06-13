@@ -1183,11 +1183,20 @@ cronjobs:
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1
 
-    inactivityAlertPoll:
+    reconcileBillingSeats:
       enabled: true
-      name: inactivity-alert-poll
+      name: reconcile-billing-seats
+      schedule: "0 * * * *"
+      path: "/api/cron/reconcile-billing-seats"
+      concurrencyPolicy: Forbid
+      successfulJobsHistoryLimit: 3
+      failedJobsHistoryLimit: 1
+
+    workspaceEventsPoll:
+      enabled: true
+      name: workspace-events-poll
       schedule: "*/15 * * * *"
-      path: "/api/notifications/poll"
+      path: "/api/workspace-events/poll"
       concurrencyPolicy: Forbid
       successfulJobsHistoryLimit: 3
       failedJobsHistoryLimit: 1

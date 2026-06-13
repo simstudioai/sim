@@ -1,0 +1,128 @@
+import type {
+  PersonaListInquiriesParams,
+  PersonaListInquiriesResponse,
+} from '@/tools/persona/types'
+import {
+  asResourceList,
+  buildPersonaHeaders,
+  getNextCursor,
+  INQUIRY_OUTPUT_PROPERTIES,
+  mapInquiry,
+  PERSONA_API_BASE,
+  parsePersonaResponse,
+} from '@/tools/persona/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const personaListInquiriesTool: ToolConfig<
+  PersonaListInquiriesParams,
+  PersonaListInquiriesResponse
+> = {
+  id: 'persona_list_inquiries',
+  name: 'Persona List Inquiries',
+  description:
+    'List identity verification inquiries, optionally filtered by status, account ID, reference ID, or creation date range. Results are cursor-paginated.',
+  version: '1.0.0',
+
+  params: {
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Persona API key',
+    },
+    status: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Filter by inquiry status (created, pending, completed, failed, expired, needs_review, approved, declined)',
+    },
+    accountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by account ID (starts with act_); comma-separate multiple IDs',
+    },
+    referenceId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter by reference ID',
+    },
+    createdAtStart: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter to inquiries created at or after this ISO 8601 timestamp',
+    },
+    createdAtEnd: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filter to inquiries created at or before this ISO 8601 timestamp',
+    },
+    pageSize: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Number of inquiries to return per page (1-100, default 10)',
+    },
+    pageAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Pagination cursor: return inquiries after this inquiry ID',
+    },
+  },
+
+  request: {
+    url: (params) => {
+      const searchParams = new URLSearchParams()
+      if (params.status?.trim()) searchParams.set('filter[status]', params.status.trim())
+      if (params.accountId?.trim()) searchParams.set('filter[account-id]', params.accountId.trim())
+      if (params.referenceId?.trim()) {
+        searchParams.set('filter[reference-id]', params.referenceId.trim())
+      }
+      if (params.createdAtStart?.trim()) {
+        searchParams.set('filter[created-at-start]', params.createdAtStart.trim())
+      }
+      if (params.createdAtEnd?.trim()) {
+        searchParams.set('filter[created-at-end]', params.createdAtEnd.trim())
+      }
+      if (params.pageSize) searchParams.set('page[size]', String(params.pageSize))
+      if (params.pageAfter?.trim()) searchParams.set('page[after]', params.pageAfter.trim())
+      const query = searchParams.toString()
+      return `${PERSONA_API_BASE}/inquiries${query ? `?${query}` : ''}`
+    },
+    method: 'GET',
+    headers: (params) => buildPersonaHeaders(params.apiKey),
+  },
+
+  transformResponse: async (response) => {
+    const data = await parsePersonaResponse(response)
+    const inquiries = asResourceList(data.data)
+    return {
+      success: true,
+      output: {
+        inquiries: inquiries.map(mapInquiry),
+        nextCursor: getNextCursor(data.links),
+      },
+    }
+  },
+
+  outputs: {
+    inquiries: {
+      type: 'array',
+      description: 'Inquiries matching the filters',
+      items: {
+        type: 'object',
+        properties: INQUIRY_OUTPUT_PROPERTIES,
+      },
+    },
+    nextCursor: {
+      type: 'string',
+      description: 'Cursor for the next page (pass as pageAfter), or null on the last page',
+      optional: true,
+    },
+  },
+}

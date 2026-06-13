@@ -3,20 +3,22 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Badge } from '@/components/emcn'
-import { Combobox, type ComboboxOption } from '@/components/emcn/components'
+import { ChipTag, Combobox, type ComboboxOption } from '@/components/emcn'
 import { buildCanonicalIndex, resolveDependencyValue } from '@/lib/workflows/subblocks/visibility'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getDependsOnFields } from '@/blocks/utils'
 import { ResponseBlockHandler } from '@/executor/handlers/response/response-handler'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+/** Selected-value badges shown before folding the rest into a "+N" badge. */
+const MAX_VISIBLE_MULTI_SELECT_BADGES = 2
 
 /**
  * Dropdown option type - can be a simple string or an object with label, id, and optional icon.
@@ -67,7 +69,6 @@ interface DropdownProps {
   dependsOn?: SubBlockConfig['dependsOn']
   /** Enable search input in dropdown */
   searchable?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 /**
@@ -94,8 +95,8 @@ export const Dropdown = memo(function Dropdown({
   fetchOptionById,
   dependsOn,
   searchable = false,
-  activeSearchTarget,
 }: DropdownProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<string | string[]>(blockId, subBlockId) as [
     string | string[] | null | undefined,
     (value: string | string[]) => void,
@@ -457,14 +458,19 @@ export const Dropdown = memo(function Dropdown({
   ])
 
   /**
-   * Custom overlay content for multi-select mode showing badges
+   * Custom overlay content for multi-select mode. Shows at most two badges
+   * and folds the rest into a "+N" badge, matching the summary notation used
+   * for collapsed subblock rows.
    */
   const multiSelectOverlay = useMemo(() => {
     if (!multiSelect || !multiValues || multiValues.length === 0) return undefined
 
+    const visibleValues = multiValues.slice(0, MAX_VISIBLE_MULTI_SELECT_BADGES)
+    const overflowCount = multiValues.length - visibleValues.length
+
     return (
       <div className='flex items-center gap-1 overflow-hidden whitespace-nowrap'>
-        {multiValues.map((selectedValue: string, index) => {
+        {visibleValues.map((selectedValue: string, index) => {
           const label = (optionMap.get(selectedValue) || selectedValue).toLowerCase()
           const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
             activeSearchTarget,
@@ -474,14 +480,18 @@ export const Dropdown = memo(function Dropdown({
             label,
           })
           return (
-            <Badge
-              key={selectedValue}
-              className='shrink-0 rounded-lg py-1 text-caption leading-none'
-            >
-              {formatDisplayText(label, { workflowSearchHighlight })}
-            </Badge>
+            <ChipTag key={selectedValue} variant='mono' className='min-w-0 shrink'>
+              <span className='truncate'>
+                {formatDisplayText(label, { workflowSearchHighlight })}
+              </span>
+            </ChipTag>
           )
         })}
+        {overflowCount > 0 && (
+          <ChipTag variant='mono' className='shrink-0'>
+            +{overflowCount}
+          </ChipTag>
+        )}
       </div>
     )
   }, [activeSearchTarget, blockId, multiSelect, multiValues, optionMap, subBlockId])

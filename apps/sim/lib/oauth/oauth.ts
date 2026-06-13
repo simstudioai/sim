@@ -515,12 +515,18 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'read:me',
           'offline_access',
           'read:issue.vote:jira',
+          'read:user:jira',
           'delete:issue:jira',
           'delete:comment:jira',
           'delete:attachment:jira',
           'delete:issue-worklog:jira',
           'delete:issue-link:jira',
-          // Jira Service Management scopes
+          // Jira Service Management scopes. The classic scopes are required: Atlassian
+          // enforces an endpoint's granular scope set as all-of, and several JSM request
+          // endpoints include scopes outside this list in their granular sets.
+          'read:servicedesk-request',
+          'write:servicedesk-request',
+          'manage:servicedesk-customer',
           'read:servicedesk:jira-service-management',
           'read:requesttype:jira-service-management',
           'read:request:jira-service-management',
@@ -541,9 +547,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'write:request.participant:jira-service-management',
           'read:request.approval:jira-service-management',
           'write:request.approval:jira-service-management',
-          'read:form:jira-service-management',
-          'write:form:jira-service-management',
-          'delete:form:jira-service-management',
         ],
       },
     },
@@ -702,6 +705,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
           'groups:write',
           'chat:write',
           'chat:write.public',
+          'assistant:write',
           'im:write',
           'im:read',
           'users:read',
@@ -1492,6 +1496,15 @@ function extractErrorCode(value: unknown): string | undefined {
   return undefined
 }
 
+/**
+ * Hard deadline on the token-endpoint exchange. This function does not coalesce
+ * on its own; its sole production caller (`performCoalescedRefresh` in the OAuth
+ * utils) shares one in-flight refresh across concurrent callers for a credential.
+ * Without this bound a hung endpoint would wedge every joiner on that key until
+ * the undici socket defaults (~5 min) gave up.
+ */
+const TOKEN_REFRESH_TIMEOUT_MS = 15_000
+
 export async function refreshOAuthToken(
   providerId: string,
   refreshToken: string
@@ -1507,6 +1520,7 @@ export async function refreshOAuthToken(
       method: 'POST',
       headers,
       body: useJsonBody ? JSON.stringify(bodyParams) : new URLSearchParams(bodyParams).toString(),
+      signal: AbortSignal.timeout(TOKEN_REFRESH_TIMEOUT_MS),
     })
 
     if (!response.ok) {

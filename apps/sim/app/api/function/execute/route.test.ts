@@ -12,10 +12,22 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteInE2B, mockExecuteInIsolatedVM, mockUploadFile } = vi.hoisted(() => ({
+const {
+  mockExecuteInE2B,
+  mockExecuteInIsolatedVM,
+  mockGetWorkspaceFile,
+  mockUpdateWorkspaceFileContent,
+  mockUploadFile,
+  mockValidateWorkspaceFileWriteTarget,
+  mockWriteWorkspaceFileByPath,
+} = vi.hoisted(() => ({
   mockExecuteInE2B: vi.fn(),
   mockExecuteInIsolatedVM: vi.fn(),
+  mockGetWorkspaceFile: vi.fn(),
+  mockUpdateWorkspaceFileContent: vi.fn(),
   mockUploadFile: vi.fn(),
+  mockValidateWorkspaceFileWriteTarget: vi.fn(),
+  mockWriteWorkspaceFileByPath: vi.fn(),
 }))
 
 vi.mock('@/lib/execution/isolated-vm', () => ({
@@ -37,9 +49,40 @@ vi.mock('@/lib/copilot/request/tools/files', () => ({
   },
   normalizeOutputWorkspaceFileName: vi.fn((p: string) => p.replace(/^files\//, '')),
   resolveOutputFormat: vi.fn(() => 'json'),
+  getOutputFileDeclarations: vi.fn((params: Record<string, any>) => {
+    if (Array.isArray(params.outputs?.files)) {
+      return params.outputs.files.map((file: Record<string, any>) => ({
+        path: file.path,
+        mode: file.mode === 'overwrite' ? 'overwrite' : 'create',
+        sandboxPath: file.sandboxPath,
+        mimeType: file.mimeType,
+        format: file.format,
+      }))
+    }
+    return params.outputPath
+      ? [
+          {
+            path: params.overwriteFileId || params.outputPath,
+            mode: params.overwriteFileId ? 'overwrite' : 'create',
+            sandboxPath: params.outputSandboxPath,
+            mimeType: params.outputMimeType,
+            format: params.outputFormat,
+            formatPath: params.outputPath,
+            overwriteFileId: params.overwriteFileId,
+          },
+        ]
+      : []
+  }),
+}))
+
+vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
+  validateWorkspaceFileWriteTarget: mockValidateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  getWorkspaceFile: mockGetWorkspaceFile,
+  updateWorkspaceFileContent: mockUpdateWorkspaceFileContent,
   uploadWorkspaceFile: vi.fn(),
 }))
 
@@ -79,6 +122,35 @@ describe('Function Execute API Route', () => {
       stdout: 'e2b output',
       sandboxId: 'test-sandbox-id',
     })
+    mockGetWorkspaceFile.mockResolvedValue({
+      id: 'wf_existing',
+      name: 'existing.png',
+      size: 10,
+      type: 'image/png',
+      url: '/api/files/view/existing',
+      key: 'workspace/existing.png',
+    })
+    mockUpdateWorkspaceFileContent.mockResolvedValue({
+      id: 'wf_existing',
+      name: 'existing.png',
+      size: 20,
+      type: 'image/png',
+      url: '/api/files/view/existing',
+      key: 'workspace/existing.png',
+    })
+    mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
+      mode: target.mode,
+      vfsPath: target.path,
+    }))
+    mockWriteWorkspaceFileByPath.mockImplementation(async ({ target, buffer }) => ({
+      id: `wf_${String(target.path).split('/').pop()?.replace(/\W+/g, '_') || 'file'}`,
+      name: String(target.path).split('/').pop() || 'file',
+      vfsPath: target.path,
+      downloadUrl: `/api/files/view/${encodeURIComponent(target.path)}`,
+      mode: target.mode,
+      size: buffer.length,
+      contentType: target.mimeType || 'application/octet-stream',
+    }))
   })
 
   describe('Security Tests', () => {
@@ -266,6 +338,196 @@ describe('Function Execute API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(isLargeValueRef(data.output.result.text)).toBe(true)
+    })
+
+    it('exports multiple declared sandbox output files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/chart.png': 'iVBORw0KGgo=',
+          '/home/user/summary.json': '{"ok":true}',
+        },
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/reports/chart.png',
+              mode: 'create',
+              sandboxPath: '/home/user/chart.png',
+              mimeType: 'image/png',
+            },
+            {
+              path: 'files/reports/summary.json',
+              mode: 'overwrite',
+              sandboxPath: '/home/user/summary.json',
+              mimeType: 'application/json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockExecuteInE2B).toHaveBeenCalledWith(
+        expect.objectContaining({
+          outputSandboxPaths: ['/home/user/chart.png', '/home/user/summary.json'],
+        })
+      )
+      expect(mockValidateWorkspaceFileWriteTarget).toHaveBeenCalledTimes(2)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(2)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          target: expect.objectContaining({ path: 'files/reports/chart.png', mode: 'create' }),
+        })
+      )
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          target: expect.objectContaining({
+            path: 'files/reports/summary.json',
+            mode: 'overwrite',
+          }),
+        })
+      )
+      expect(data.output.result.files).toHaveLength(2)
+      expect(data.resources).toEqual([
+        expect.objectContaining({ path: 'files/reports/chart.png' }),
+        expect.objectContaining({ path: 'files/reports/summary.json' }),
+      ])
+    })
+
+    it('prevalidates all sandbox output destinations before writing any files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/first.json': '{"first":true}',
+          '/home/user/second.json': '{"second":true}',
+        },
+      })
+      mockValidateWorkspaceFileWriteTarget
+        .mockResolvedValueOnce({ mode: 'create', vfsPath: 'files/first.json' })
+        .mockRejectedValueOnce(new Error('Directory not yet created: files/missing'))
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/first.json',
+              mode: 'create',
+              sandboxPath: '/home/user/first.json',
+            },
+            {
+              path: 'files/missing/second.json',
+              mode: 'create',
+              sandboxPath: '/home/user/second.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Directory not yet created')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('rejects duplicate sandbox output destinations before writing files', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {
+          '/home/user/first.json': '{"first":true}',
+          '/home/user/second.json': '{"second":true}',
+        },
+      })
+      mockValidateWorkspaceFileWriteTarget.mockResolvedValue({
+        mode: 'create',
+        vfsPath: 'files/dupe.json',
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/dupe.json',
+              mode: 'create',
+              sandboxPath: '/home/user/first.json',
+            },
+            {
+              path: 'files/dupe.json',
+              mode: 'create',
+              sandboxPath: '/home/user/second.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Duplicate sandbox output destination')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
+    })
+
+    it('returns a targeted error when a declared sandbox output is missing', async () => {
+      featureFlagsMock.isE2bEnabled = true
+      mockExecuteInE2B.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: {},
+      })
+
+      const req = createMockRequest('POST', {
+        code: 'print("done")',
+        language: 'python',
+        workspaceId: 'workspace-1',
+        outputs: {
+          files: [
+            {
+              path: 'files/missing.json',
+              mode: 'create',
+              sandboxPath: '/home/user/missing.json',
+            },
+          ],
+        },
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(500)
+      expect(data.success).toBe(false)
+      expect(data.error).toContain('Sandbox file "/home/user/missing.json" was not found')
+      expect(mockWriteWorkspaceFileByPath).not.toHaveBeenCalled()
     })
 
     it('should return computed result for multi-line code', async () => {

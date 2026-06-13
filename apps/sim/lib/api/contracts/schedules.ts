@@ -72,12 +72,11 @@ export type WorkflowScheduleRow = z.output<typeof workflowScheduleRowSchema>
 
 /**
  * Workspace-scope listing extends the row with synthesized join fields.
- * Workflow-backed rows carry the workflow name/color from `workflow` (NOT NULL
- * columns); job-backed rows synthesize `null` server-side.
+ * Workflow-backed rows carry the workflow name from `workflow` (NOT NULL
+ * column); job-backed rows synthesize `null` server-side.
  */
 export const workspaceScheduleRowSchema = workflowScheduleRowSchema.extend({
   workflowName: z.string().nullable(),
-  workflowColor: z.string().nullable(),
 })
 
 export type WorkspaceScheduleRow = z.output<typeof workspaceScheduleRowSchema>

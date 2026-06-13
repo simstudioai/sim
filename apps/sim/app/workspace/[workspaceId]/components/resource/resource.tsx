@@ -10,14 +10,22 @@ import {
   useState,
 } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { ArrowDown, ArrowUp, Button, Checkbox, Loader, Plus, Skeleton } from '@/components/emcn'
+import {
+  ArrowDown,
+  ArrowUp,
+  Button,
+  Checkbox,
+  cellIconNodeClass,
+  chipContentGap,
+  chipContentLabelClass,
+  Loader,
+} from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import type { BreadcrumbItem, CreateAction, HeaderAction } from './components/resource-header'
+import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 import { ResourceHeader } from './components/resource-header'
-import type { FilterTag, SearchConfig, SortConfig } from './components/resource-options-bar'
-import { ResourceOptionsBar } from './components/resource-options-bar'
-
-const CREATE_ROW_PLUS_ICON = <Plus className='size-[14px] text-[var(--text-subtle)]' />
+import type { SortConfig } from './components/resource-options'
+import { ResourceOptions } from './components/resource-options'
 
 export interface ResourceColumn {
   id: string
@@ -25,10 +33,30 @@ export interface ResourceColumn {
   widthMultiplier?: number
 }
 
+export interface ResourceCellEditing {
+  value: string
+  onChange: (value: string) => void
+  onSubmit: () => void
+  onCancel: () => void
+  /**
+   * Disables the rename field while the save is in flight, mirroring the
+   * sidebar's `disabled={isRenaming}`. Threaded from `useInlineRename`'s
+   * `isSaving`. Optional so existing consumers keep working unchanged.
+   */
+  disabled?: boolean
+}
+
 export interface ResourceCell {
   icon?: ReactNode
   label?: string | null
   content?: ReactNode
+  /**
+   * When set, the cell renders an inline rename field inside the canonical cell
+   * chrome (icon + {@link InlineRenameInput}). Consumers pass structured handlers
+   * instead of hand-rolling a `content` node, so every rename cell matches the
+   * resting cell exactly (same gap, weight, icon size).
+   */
+  editing?: ResourceCellEditing
 }
 
 export interface ResourceRow {
@@ -64,110 +92,36 @@ export interface PaginationConfig {
   onPageChange: (page: number) => void
 }
 
+export const EMPTY_CELL_PLACEHOLDER = '—'
+
 interface ResourceProps {
-  icon: React.ElementType
-  title: string
-  breadcrumbs?: BreadcrumbItem[]
-  create?: CreateAction
-  search?: SearchConfig
-  defaultSort?: string
-  sort?: SortConfig
-  headerActions?: HeaderAction[]
-  leadingActions?: ReactNode
-  columns: ResourceColumn[]
-  rows: ResourceRow[]
-  selectedRowId?: string | null
-  selectable?: SelectableConfig
-  rowDragDrop?: RowDragDropConfig
-  onRowClick?: (rowId: string) => void
-  onRowHover?: (rowId: string) => void
-  onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
-  isLoading?: boolean
+  children: ReactNode
   onContextMenu?: (e: React.MouseEvent) => void
-  filter?: ReactNode
-  filterTags?: FilterTag[]
-  extras?: ReactNode
-  pagination?: PaginationConfig
-  emptyMessage?: string
-  overlay?: ReactNode
 }
 
-export const EMPTY_CELL_PLACEHOLDER = '—'
-const SKELETON_ROW_COUNT = 5
-
 /**
- * Shared page shell for resource list pages (tables, files, knowledge, schedules, logs).
- * Renders the header, toolbar with search, and a data table from column/row definitions.
+ * Compound page shell for resource pages (tables, files, knowledge, schedules,
+ * logs, and the detail editors). Consumers import only `Resource` and fill the
+ * defined slots as children:
+ *
+ * - `Resource.Header` — required, the top bar (title/breadcrumbs + action chips)
+ * - `Resource.Options` — required, the search/filter/sort toolbar
+ * - `Resource.Table` — optional; swap for any custom body (dashboard, grid, …)
+ *
+ * The shell owns the fixed column layout; the children own their own chrome.
  */
-export const Resource = memo(function Resource({
-  icon,
-  title,
-  breadcrumbs,
-  create,
-  search,
-  defaultSort,
-  sort: sortOverride,
-  headerActions,
-  leadingActions,
-  columns,
-  rows,
-  selectedRowId,
-  selectable,
-  rowDragDrop,
-  onRowClick,
-  onRowHover,
-  onRowContextMenu,
-  isLoading,
-  onContextMenu,
-  filter,
-  filterTags,
-  extras,
-  pagination,
-  emptyMessage,
-  overlay,
-}: ResourceProps) {
+function ResourceRoot({ children, onContextMenu }: ResourceProps) {
   return (
     <div
       className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'
       onContextMenu={onContextMenu}
     >
-      <ResourceHeader
-        icon={icon}
-        title={title}
-        breadcrumbs={breadcrumbs}
-        create={create}
-        actions={headerActions}
-        leadingActions={leadingActions}
-      />
-      <ResourceOptionsBar
-        search={search}
-        sort={sortOverride ?? undefined}
-        filter={filter}
-        filterTags={filterTags}
-        extras={extras}
-      />
-      <ResourceTable
-        columns={columns}
-        rows={rows}
-        defaultSort={defaultSort}
-        sort={sortOverride}
-        selectedRowId={selectedRowId}
-        selectable={selectable}
-        rowDragDrop={rowDragDrop}
-        onRowClick={onRowClick}
-        onRowHover={onRowHover}
-        onRowContextMenu={onRowContextMenu}
-        isLoading={isLoading}
-        create={create}
-        pagination={pagination}
-        emptyMessage={emptyMessage}
-        overlay={overlay}
-      />
+      {children}
     </div>
   )
-})
+}
 
-export interface ResourceTableProps {
+interface ResourceTableProps {
   columns: ResourceColumn[]
   rows: ResourceRow[]
   defaultSort?: string
@@ -179,7 +133,6 @@ export interface ResourceTableProps {
   onRowHover?: (rowId: string) => void
   onRowContextMenu?: (e: React.MouseEvent, rowId: string) => void
   isLoading?: boolean
-  create?: CreateAction
   onLoadMore?: () => void
   hasMore?: boolean
   isLoadingMore?: boolean
@@ -189,10 +142,10 @@ export interface ResourceTableProps {
 }
 
 /**
- * Data table body extracted from Resource for independent composition.
- * Use directly when rendering a table without the Resource header/toolbar.
+ * Data table body, module-private and exposed only as `Resource.Table` — the
+ * compound member is the sole way consumers render it.
  */
-export const ResourceTable = memo(function ResourceTable({
+const ResourceTable = memo(function ResourceTable({
   columns,
   rows,
   defaultSort,
@@ -204,7 +157,6 @@ export const ResourceTable = memo(function ResourceTable({
   onRowHover,
   onRowContextMenu,
   isLoading,
-  create,
   onLoadMore,
   hasMore,
   isLoadingMore,
@@ -282,7 +234,6 @@ export const ResourceTable = memo(function ResourceTable({
   }, [onLoadMore, hasMore])
 
   const hasCheckbox = selectable != null
-  const totalColSpan = columns.length + (hasCheckbox ? 1 : 0)
 
   const handleSelectAll = useCallback(
     (checked: boolean | 'indeterminate') => {
@@ -291,17 +242,12 @@ export const ResourceTable = memo(function ResourceTable({
     [selectable]
   )
 
-  if (isLoading) {
-    return (
-      <DataTableSkeleton
-        columns={columns}
-        rowCount={SKELETON_ROW_COUNT}
-        hasCheckbox={hasCheckbox}
-      />
-    )
-  }
-
-  if (rows.length === 0 && emptyMessage) {
+  /**
+   * While loading, the table chrome (column headers) renders with an empty body
+   * and the rows "just load in" — never a skeleton, and never a false
+   * empty-state (the empty message is gated on `!isLoading`).
+   */
+  if (!isLoading && rows.length === 0 && emptyMessage) {
     return (
       <div className='flex min-h-0 flex-1 items-center justify-center'>
         <span className='text-[var(--text-secondary)] text-small'>{emptyMessage}</span>
@@ -332,7 +278,7 @@ export const ResourceTable = memo(function ResourceTable({
                   return (
                     <th
                       key={col.id}
-                      className='h-10 px-6 py-1.5 text-left align-middle font-base text-[var(--text-muted)] text-caption'
+                      className='h-10 px-6 py-1.5 text-left align-middle font-normal text-[var(--text-muted)] text-small'
                     >
                       {col.header}
                     </th>
@@ -342,9 +288,9 @@ export const ResourceTable = memo(function ResourceTable({
                 const SortIcon = internalSort.direction === 'asc' ? ArrowUp : ArrowDown
                 return (
                   <th key={col.id} className='h-10 px-4 py-1.5 text-left align-middle'>
-                    <Button
-                      variant='subtle'
-                      className='px-2 py-1 font-base text-[var(--text-muted)] hover-hover:text-[var(--text-muted)]'
+                    <button
+                      type='button'
+                      className='inline-flex items-center gap-1 rounded-lg px-2 py-1 font-normal text-[var(--text-muted)] text-small transition-colors hover-hover:bg-[var(--surface-active)]'
                       onClick={() =>
                         handleSort(
                           col.id,
@@ -353,10 +299,8 @@ export const ResourceTable = memo(function ResourceTable({
                       }
                     >
                       {col.header}
-                      {isActive && (
-                        <SortIcon className='ml-1 size-[12px] text-[var(--text-icon)]' />
-                      )}
-                    </Button>
+                      {isActive && <SortIcon className='size-[12px] text-[var(--text-icon)]' />}
+                    </button>
                   </th>
                 )
               })}
@@ -378,7 +322,6 @@ export const ResourceTable = memo(function ResourceTable({
                 hasCheckbox={hasCheckbox}
               />
             ))}
-            {create && <CreateRow create={create} totalColSpan={totalColSpan} />}
           </tbody>
         </table>
         {hasMore && (
@@ -462,23 +405,33 @@ const Pagination = memo(function Pagination({
 })
 
 interface CellContentProps {
+  /** Pre-rendered icon node (svg/img/span avatar); auto-sized to the chip icon size. */
   icon?: ReactNode
   label: string
   content?: ReactNode
-  primary?: boolean
+  editing?: ResourceCellEditing
 }
 
-const CellContent = memo(function CellContent({ icon, label, content, primary }: CellContentProps) {
+const CellContent = memo(function CellContent({ icon, label, content, editing }: CellContentProps) {
+  if (editing) {
+    return (
+      <span className={cn('flex min-w-0 items-center', chipContentGap)}>
+        {icon && <span className={cellIconNodeClass}>{icon}</span>}
+        <InlineRenameInput
+          value={editing.value}
+          onChange={editing.onChange}
+          onSubmit={editing.onSubmit}
+          onCancel={editing.onCancel}
+          disabled={editing.disabled}
+        />
+      </span>
+    )
+  }
   if (content) return <>{content}</>
   return (
-    <span
-      className={cn(
-        'flex min-w-0 items-center gap-3 font-medium text-sm',
-        primary ? 'text-[var(--text-body)]' : 'text-[var(--text-secondary)]'
-      )}
-    >
-      {icon && <span className='flex-shrink-0 text-[var(--text-icon)]'>{icon}</span>}
-      <span className='truncate'>{label}</span>
+    <span className={cn('flex min-w-0 items-center', chipContentGap)}>
+      {icon && <span className={cellIconNodeClass}>{icon}</span>}
+      <FloatingOverflowText label={label} className={cn('block', chipContentLabelClass)} />
     </span>
   )
 })
@@ -615,7 +568,7 @@ const DataRow = memo(function DataRow({
           />
         </td>
       )}
-      {columns.map((col, colIdx) => {
+      {columns.map((col) => {
         const cell = row.cells[col.id]
         return (
           <td key={col.id} className='px-6 py-2.5 align-middle'>
@@ -623,35 +576,11 @@ const DataRow = memo(function DataRow({
               icon={cell?.icon}
               label={cell?.label || EMPTY_CELL_PLACEHOLDER}
               content={cell?.content}
-              primary={colIdx === 0}
+              editing={cell?.editing}
             />
           </td>
         )
       })}
-    </tr>
-  )
-})
-
-interface CreateRowProps {
-  create: CreateAction
-  totalColSpan: number
-}
-
-const CreateRow = memo(function CreateRow({ create, totalColSpan }: CreateRowProps) {
-  return (
-    <tr
-      className={cn(
-        'transition-colors',
-        create.disabled ? 'cursor-not-allowed' : 'cursor-pointer hover-hover:bg-[var(--surface-3)]'
-      )}
-      onClick={create.disabled ? undefined : create.onClick}
-    >
-      <td colSpan={totalColSpan} className='px-6 py-2.5 align-middle'>
-        <span className='flex items-center gap-3 font-medium text-[var(--text-secondary)] text-sm'>
-          {CREATE_ROW_PLUS_ICON}
-          {create.label}
-        </span>
-      </td>
     </tr>
   )
 })
@@ -681,60 +610,13 @@ const ResourceColGroup = memo(function ResourceColGroup({
   )
 })
 
-interface DataTableSkeletonProps {
-  columns: ResourceColumn[]
-  rowCount: number
-  hasCheckbox?: boolean
-}
-
-const DataTableSkeleton = memo(function DataTableSkeleton({
-  columns,
-  rowCount,
-  hasCheckbox,
-}: DataTableSkeletonProps) {
-  return (
-    <div className='min-h-0 flex-1 overflow-auto'>
-      <table className='w-full table-fixed text-small'>
-        <ResourceColGroup columns={columns} hasCheckbox={hasCheckbox} />
-        <thead className='sticky top-0 z-10 bg-[var(--bg)] shadow-[inset_0_-1px_0_var(--border)]'>
-          <tr>
-            {hasCheckbox && (
-              <th className='h-10 w-[52px] py-2.5 pr-0 pl-5 text-left align-middle'>
-                <Skeleton className='size-[14px] rounded-xs' />
-              </th>
-            )}
-            {columns.map((col) => (
-              <th
-                key={col.id}
-                className='h-10 px-6 py-2.5 text-left align-middle font-base text-[var(--text-muted)]'
-              >
-                <div className='flex min-h-[20px] items-center'>
-                  <Skeleton className='h-[12px] w-[56px]' />
-                </div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {Array.from({ length: rowCount }, (_, i) => (
-            <tr key={i}>
-              {hasCheckbox && (
-                <td className='w-[52px] py-2.5 pr-0 pl-5 align-middle'>
-                  <Skeleton className='size-[14px] rounded-xs' />
-                </td>
-              )}
-              {columns.map((col, colIdx) => (
-                <td key={col.id} className='px-6 py-2.5 align-middle'>
-                  <span className='flex min-h-[21px] items-center gap-3'>
-                    {colIdx === 0 && <Skeleton className='size-[14px] rounded-xs' />}
-                    <Skeleton className='h-[14px] w-[128px]' />
-                  </span>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  )
+/**
+ * The single public entry point. `Resource` is the layout shell; its compound
+ * members are the only building blocks consumers compose. Import `Resource` and
+ * nothing else from this module.
+ */
+export const Resource = Object.assign(ResourceRoot, {
+  Header: ResourceHeader,
+  Options: ResourceOptions,
+  Table: ResourceTable,
 })

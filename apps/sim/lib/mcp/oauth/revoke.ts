@@ -1,4 +1,5 @@
 import { discoverOAuthServerInfo } from '@modelcontextprotocol/sdk/client/auth.js'
+import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js'
 import { db } from '@sim/db'
 import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -6,6 +7,7 @@ import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { loadOauthRow } from '@/lib/mcp/oauth/storage'
+import { createSsrfGuardedMcpFetch } from '@/lib/mcp/pinned-fetch'
 
 const logger = createLogger('McpOauthRevoke')
 const REVOKE_TIMEOUT_MS = 5000
@@ -30,7 +32,10 @@ export async function revokeMcpOauthTokens(mcpServerId: string): Promise<void> {
       .limit(1)
     if (!server?.url) return
 
-    const info = await discoverOAuthServerInfo(server.url).catch(() => undefined)
+    const ssrfGuardedFetch = createSsrfGuardedMcpFetch()
+    const info = await discoverOAuthServerInfo(server.url, { fetchFn: ssrfGuardedFetch }).catch(
+      () => undefined
+    )
     const metadata = info?.authorizationServerMetadata as
       | (Record<string, unknown> & { revocation_endpoint?: string })
       | undefined
@@ -60,7 +65,7 @@ export async function revokeMcpOauthTokens(mcpServerId: string): Promise<void> {
     }
 
     for (const { token, hint } of tokensToRevoke) {
-      await postRevoke(revocationEndpoint, token, hint, clientId, clientSecret)
+      await postRevoke(revocationEndpoint, token, hint, clientId, clientSecret, ssrfGuardedFetch)
     }
   } catch (error) {
     logger.warn(`Token revocation failed for server ${mcpServerId}`, {
@@ -74,7 +79,8 @@ async function postRevoke(
   token: string,
   hint: 'refresh_token' | 'access_token',
   clientId: string,
-  clientSecret: string | undefined
+  clientSecret: string | undefined,
+  fetchFn: FetchLike
 ): Promise<void> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REVOKE_TIMEOUT_MS)
@@ -89,7 +95,7 @@ async function postRevoke(
     } else {
       params.set('client_id', clientId)
     }
-    const res = await fetch(endpoint, {
+    const res = await fetchFn(endpoint, {
       method: 'POST',
       headers,
       body: params.toString(),

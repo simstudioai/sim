@@ -133,7 +133,6 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
       .select({
         schedule: workflowSchedule,
         workflowName: workflow.name,
-        workflowColor: workflow.color,
       })
       .from(workflowSchedule)
       .innerJoin(workflow, eq(workflow.id, workflowSchedule.workflowId))
@@ -176,12 +175,10 @@ async function handleWorkspaceSchedules(requestId: string, userId: string, works
     ...workflowRows.map((r) => ({
       ...r.schedule,
       workflowName: r.workflowName,
-      workflowColor: r.workflowColor,
     })),
     ...jobRows.map((r) => ({
       ...r.schedule,
       workflowName: null,
-      workflowColor: null,
     })),
   ]
 

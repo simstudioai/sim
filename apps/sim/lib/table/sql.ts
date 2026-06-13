@@ -7,6 +7,7 @@
 
 import type { SQL } from 'drizzle-orm'
 import { sql } from 'drizzle-orm'
+import { getColumnId } from './column-keys'
 import { NAME_PATTERN } from './constants'
 import type { ColumnDefinition, ConditionOperators, Filter, JsonValue, Sort } from './types'
 
@@ -41,8 +42,13 @@ function jsonbCastForType(type: ColumnType | undefined): 'numeric' | 'timestampt
   }
 }
 
+/**
+ * Maps a column's **stable id** (the JSONB storage key, via `getColumnId`) to
+ * its type. Filter/sort objects arrive keyed by column id, so the lookups in the
+ * clause builders use ids — not display names.
+ */
 function buildColumnTypeMap(columns: ColumnDefinition[]): ColumnTypeMap {
-  return new Map(columns.map((col) => [col.name, col.type]))
+  return new Map(columns.map((col) => [getColumnId(col), col.type]))
 }
 
 /**
@@ -479,7 +485,7 @@ function buildComparisonClause(
 }
 
 /** Escapes LIKE/ILIKE wildcard characters so they match literally */
-function escapeLikePattern(value: string): string {
+export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, '\\$&')
 }
 

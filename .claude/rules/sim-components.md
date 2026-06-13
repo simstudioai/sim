@@ -5,44 +5,10 @@ paths:
 
 # Component Patterns
 
-## Structure Order
+Component authoring rules — structure order (refs → external hooks → store hooks → custom hooks → state → useMemo → useCallback → useEffect → return), required props interface, and extraction thresholds (50+ lines / 2+ files vs keep inline < 10 lines) — live in CLAUDE.md > Components.
 
-```typescript
-'use client' // Only if using hooks
+`.tsx`-specific deltas not covered there:
 
-// Imports (external → internal)
-// Constants at module level
-const CONFIG = { SPACING: 8 } as const
-
-// Props interface
-interface ComponentProps {
-  requiredProp: string
-  optionalProp?: boolean
-}
-
-export function Component({ requiredProp, optionalProp = false }: ComponentProps) {
-  // a. Refs
-  // b. External hooks (useParams, useRouter)
-  // c. Store hooks
-  // d. Custom hooks
-  // e. Local state
-  // f. useMemo
-  // g. useCallback
-  // h. useEffect
-  // i. Return JSX
-}
-```
-
-## Rules
-
-1. `'use client'` only when using React hooks
-2. Always define props interface
-3. Extract constants with `as const`
-4. Semantic HTML (`aside`, `nav`, `article`)
-5. Optional chain callbacks: `onAction?.(id)`
-
-## Component Extraction
-
-**Extract when:** 50+ lines, used in 2+ files, or has own state/logic
-
-**Keep inline when:** < 10 lines, single use, purely presentational
+- `'use client'` only when using React hooks or browser-only APIs.
+- Prefer semantic HTML (`aside`, `nav`, `article`).
+- Optional-chain callbacks: `onAction?.(id)`.

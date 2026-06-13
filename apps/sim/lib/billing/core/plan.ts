@@ -8,6 +8,7 @@ import {
   checkTeamPlan,
   ENTITLED_SUBSCRIPTION_STATUSES,
 } from '@/lib/billing/subscriptions/utils'
+import type { DbClient } from '@/lib/db/types'
 
 const logger = createLogger('PlanLookup')
 
@@ -15,6 +16,8 @@ export type HighestPrioritySubscription = Awaited<ReturnType<typeof getHighestPr
 
 interface GetHighestPrioritySubscriptionOptions {
   onError?: 'return-null' | 'throw'
+  /** Read-routing client (primary or replica); defaults to the primary. */
+  executor?: DbClient
 }
 
 function pickHighestPrioritySubscription<TSubscription>(
@@ -33,9 +36,9 @@ export async function getHighestPriorityPersonalSubscription(
   userId: string,
   options: GetHighestPrioritySubscriptionOptions = {}
 ) {
-  const { onError = 'return-null' } = options
+  const { onError = 'return-null', executor = db } = options
   try {
-    const personalSubs = await db
+    const personalSubs = await executor
       .select()
       .from(subscription)
       .where(
@@ -77,9 +80,9 @@ export async function getHighestPrioritySubscription(
   userId: string,
   options: GetHighestPrioritySubscriptionOptions = {}
 ) {
-  const { onError = 'return-null' } = options
+  const { onError = 'return-null', executor = db } = options
   try {
-    const personalSubs = await db
+    const personalSubs = await executor
       .select()
       .from(subscription)
       .where(
@@ -89,7 +92,7 @@ export async function getHighestPrioritySubscription(
         )
       )
 
-    const memberships = await db
+    const memberships = await executor
       .select({ organizationId: member.organizationId })
       .from(member)
       .where(eq(member.userId, userId))
@@ -99,7 +102,7 @@ export async function getHighestPrioritySubscription(
     let orgSubs: typeof personalSubs = []
     if (orgIds.length > 0) {
       // Verify orgs exist to filter out orphaned subscriptions
-      const existingOrgs = await db
+      const existingOrgs = await executor
         .select({ id: organization.id })
         .from(organization)
         .where(inArray(organization.id, orgIds))
@@ -107,7 +110,7 @@ export async function getHighestPrioritySubscription(
       const validOrgIds = existingOrgs.map((o) => o.id)
 
       if (validOrgIds.length > 0) {
-        orgSubs = await db
+        orgSubs = await executor
           .select()
           .from(subscription)
           .where(

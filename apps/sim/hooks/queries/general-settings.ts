@@ -177,7 +177,7 @@ export function useUpdateGeneralSetting() {
       logger.error('Failed to update setting:', err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: generalSettingsKeys.settings() })
+      return queryClient.invalidateQueries({ queryKey: generalSettingsKeys.settings() })
     },
   })
 }

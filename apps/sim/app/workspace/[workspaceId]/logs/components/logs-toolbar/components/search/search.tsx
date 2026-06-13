@@ -176,7 +176,7 @@ export function AutocompleteSearch({
                   className={cn(
                     'h-6 shrink-0 cursor-pointer whitespace-nowrap rounded-md px-2 text-xs',
                     highlightedBadgeIndex === index &&
-                      'ring-1 ring-[var(--border-focus)] ring-offset-1 ring-offset-[var(--surface-3)] dark:ring-offset-[var(--surface-5)]'
+                      'ring-1 ring-[var(--text-subtle)] ring-offset-1 ring-offset-[var(--surface-3)] dark:ring-offset-[var(--surface-5)]'
                   )}
                   onClick={() => removeBadge(index)}
                   onKeyDown={(e) => {
@@ -265,7 +265,7 @@ export function AutocompleteSearch({
                       variant='ghost'
                       data-index={0}
                       className={cn(
-                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--text-subtle)]',
                         'hover-hover:bg-[var(--surface-5)]',
                         highlightedIndex === 0 && 'bg-[var(--surface-5)]'
                       )}
@@ -296,7 +296,7 @@ export function AutocompleteSearch({
                             variant='ghost'
                             data-index={index}
                             className={cn(
-                              'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                              'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--text-subtle)]',
                               'hover-hover:bg-[var(--surface-5)]',
                               isHighlighted && 'bg-[var(--surface-5)]'
                             )}
@@ -340,7 +340,7 @@ export function AutocompleteSearch({
                       variant='ghost'
                       data-index={index}
                       className={cn(
-                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--border-focus)]',
+                        'w-full justify-start rounded-md px-3 py-2 text-left transition-colors focus-visible:ring-1 focus-visible:ring-[var(--text-subtle)]',
                         'hover-hover:bg-[var(--surface-5)]',
                         index === highlightedIndex && 'bg-[var(--surface-5)]'
                       )}

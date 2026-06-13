@@ -1,8 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GitLabIcon } from '@/components/icons'
+import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
 import { isSameOrigin } from '@/lib/core/utils/validation'
-import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
+import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -461,8 +463,8 @@ async function fetchProject(
   encodedProject: string,
   accessToken: string,
   retryOptions?: typeof VALIDATE_RETRY_OPTIONS
-): Promise<Response> {
-  return fetchWithRetry(
+): Promise<SecureFetchResponse> {
+  return secureFetchWithRetry(
     `${apiBase}/projects/${encodedProject}`,
     { method: 'GET', headers: authHeaders(accessToken) },
     retryOptions
@@ -470,15 +472,18 @@ async function fetchProject(
 }
 
 /**
- * Encodes the listing cursor. The cursor packs the resource phase (wiki ➜ issues)
- * and the issues page number so a single sync walks wikis first, then paginates
- * issues via the X-Next-Page header.
+ * Encodes the listing cursor. The cursor packs the resource phase (repo ➜ wiki ➜
+ * issues) and a per-phase continuation token so a single sync walks the phases in
+ * order. The repository-tree and issues phases both use GitLab keyset pagination
+ * and store the full `rel="next"` URL from the Link header to fetch verbatim.
  */
 interface CursorState {
   phase: SyncPhase
   issuePage: number
   /** Full `rel="next"` URL for the repository-tree keyset page to fetch next. */
   fileNextUrl?: string
+  /** Full `rel="next"` URL for the issues keyset page to fetch next. */
+  issueNextUrl?: string
 }
 
 function encodeCursor(state: CursorState): string {
@@ -492,6 +497,7 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
       phase: SyncPhase
       issuePage: number
       fileNextUrl: string
+      issueNextUrl: string
     }>
     const phase: SyncPhase =
       parsed.phase === 'repo' || parsed.phase === 'issues' || parsed.phase === 'wiki'
@@ -501,6 +507,7 @@ function decodeCursor(cursor: string | undefined, initialPhase: SyncPhase): Curs
       phase,
       issuePage: Number(parsed.issuePage) > 0 ? Number(parsed.issuePage) : 1,
       fileNextUrl: typeof parsed.fileNextUrl === 'string' ? parsed.fileNextUrl : undefined,
+      issueNextUrl: typeof parsed.issueNextUrl === 'string' ? parsed.issueNextUrl : undefined,
     }
   } catch {
     return { phase: initialPhase, issuePage: 1 }
@@ -755,7 +762,7 @@ export const gitlabConnector: ConnectorConfig = {
         continued: Boolean(state.fileNextUrl),
       })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -811,7 +818,7 @@ export const gitlabConnector: ConnectorConfig = {
       const url = `${apiBase}/projects/${encodedProject}/wikis?with_content=1`
       logger.info('Listing GitLab wiki pages', { host, project: encodedProject })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -859,9 +866,9 @@ export const gitlabConnector: ConnectorConfig = {
     if (state.phase === 'issues') {
       const params = new URLSearchParams({
         per_page: String(PAGE_SIZE),
-        page: String(state.issuePage),
         order_by: 'updated_at',
         sort: 'desc',
+        pagination: 'keyset',
       })
       if (lastSyncAt) params.set('updated_after', lastSyncAt.toISOString())
       const issueState =
@@ -874,15 +881,19 @@ export const gitlabConnector: ConnectorConfig = {
         typeof sourceConfig.issueMilestone === 'string' ? sourceConfig.issueMilestone.trim() : ''
       if (issueMilestone) params.set('milestone', issueMilestone)
 
-      const url = `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
+      if (state.issueNextUrl && !isSameOrigin(state.issueNextUrl, apiBase)) {
+        throw new Error('GitLab pagination cursor points to an unexpected host')
+      }
+      const url =
+        state.issueNextUrl ?? `${apiBase}/projects/${encodedProject}/issues?${params.toString()}`
       logger.info('Listing GitLab issues', {
         host,
         project: encodedProject,
-        page: state.issuePage,
+        continued: Boolean(state.issueNextUrl),
         incremental: Boolean(lastSyncAt),
       })
 
-      const response = await fetchWithRetry(url, {
+      const response = await secureFetchWithRetry(url, {
         method: 'GET',
         headers: authHeaders(accessToken),
       })
@@ -909,18 +920,18 @@ export const gitlabConnector: ConnectorConfig = {
         maxItems,
         syncContext
       )
+      if (hitLimit) return { documents: capped, hasMore: false }
 
-      const nextPageHeader = response.headers.get('x-next-page')?.trim()
-      const nextPage = nextPageHeader ? Number(nextPageHeader) : 0
-      const hasMorePages = !hitLimit && Number.isFinite(nextPage) && nextPage > 0
-
-      return {
-        documents: capped,
-        nextCursor: hasMorePages
-          ? encodeCursor({ phase: 'issues', issuePage: nextPage })
-          : undefined,
-        hasMore: hasMorePages,
+      const nextLink = parseNextLink(response.headers.get('link'))
+      if (nextLink) {
+        return {
+          documents: capped,
+          nextCursor: encodeCursor({ phase: 'issues', issuePage: 1, issueNextUrl: nextLink }),
+          hasMore: true,
+        }
       }
+
+      return { documents: capped, hasMore: false }
     }
 
     return { documents: [], hasMore: false }
@@ -945,7 +956,7 @@ export const gitlabConnector: ConnectorConfig = {
         if (!slug) return null
 
         const url = `${apiBase}/projects/${encodedProject}/wikis/${encodeURIComponent(slug)}?render_html=false`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -966,7 +977,7 @@ export const gitlabConnector: ConnectorConfig = {
         if (!iidStr || Number.isNaN(iid)) return null
 
         const url = `${apiBase}/projects/${encodedProject}/issues/${iid}`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -993,7 +1004,7 @@ export const gitlabConnector: ConnectorConfig = {
           accessToken
         )
         const url = `${apiBase}/projects/${encodedProject}/repository/files/${encodeURIComponent(path)}?ref=${encodeURIComponent(ref)}`
-        const response = await fetchWithRetry(url, {
+        const response = await secureFetchWithRetry(url, {
           method: 'GET',
           headers: authHeaders(accessToken),
         })
@@ -1069,7 +1080,7 @@ export const gitlabConnector: ConnectorConfig = {
 
       const userRef = typeof sourceConfig.ref === 'string' ? sourceConfig.ref.trim() : ''
       if (userRef && activePhases(choice).includes('repo')) {
-        const refResponse = await fetchWithRetry(
+        const refResponse = await secureFetchWithRetry(
           `${apiBase}/projects/${encodedProject}/repository/commits/${encodeURIComponent(userRef)}`,
           { method: 'GET', headers: authHeaders(accessToken) },
           VALIDATE_RETRY_OPTIONS

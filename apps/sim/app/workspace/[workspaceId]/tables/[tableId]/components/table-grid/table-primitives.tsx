@@ -1,17 +1,10 @@
 'use client'
 
 import React from 'react'
-import { Button, Checkbox, Skeleton } from '@/components/emcn'
+import { Button, Checkbox } from '@/components/emcn'
 import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
-import {
-  ADD_COL_WIDTH,
-  CELL,
-  CELL_CHECKBOX,
-  CELL_HEADER_CHECKBOX,
-  COL_WIDTH,
-  SKELETON_ROW_COUNT,
-} from './constants'
+import { ADD_COL_WIDTH, CELL_HEADER_CHECKBOX, COL_WIDTH } from './constants'
 import type { DisplayColumn } from './types'
 
 export const TableColGroup = React.memo(function TableColGroup({
@@ -34,50 +27,20 @@ export const TableColGroup = React.memo(function TableColGroup({
   )
 })
 
-export const TableBodySkeleton = React.memo(function TableBodySkeleton({
-  colCount,
-}: {
-  colCount: number
-}) {
-  return (
-    <>
-      {Array.from({ length: SKELETON_ROW_COUNT }).map((_, rowIndex) => (
-        <tr key={rowIndex}>
-          <td className={cn(CELL_CHECKBOX, 'text-center')}>
-            <div className='flex min-h-[20px] items-center justify-center'>
-              <span className='text-[var(--text-tertiary)] text-xs tabular-nums'>
-                {rowIndex + 1}
-              </span>
-            </div>
-          </td>
-          {Array.from({ length: colCount }).map((_, colIndex) => {
-            const width = 72 + ((rowIndex + colIndex) % 4) * 24
-            return (
-              <td key={colIndex} className={CELL}>
-                <div className='flex min-h-[20px] items-center'>
-                  <Skeleton className='h-[16px]' style={{ width: `${width}px` }} />
-                </div>
-              </td>
-            )
-          })}
-        </tr>
-      ))}
-    </>
-  )
-})
-
 export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
   checked,
   onCheckedChange,
+  numRegionWidth,
 }: {
-  checked: boolean
+  checked: boolean | 'indeterminate'
   onCheckedChange: () => void
+  numRegionWidth: number
 }) {
   return (
     <th
       className={cn(CELL_HEADER_CHECKBOX, 'cursor-pointer')}
       role='checkbox'
-      aria-checked={checked}
+      aria-checked={checked === 'indeterminate' ? 'mixed' : checked}
       tabIndex={0}
       onMouseDown={(e) => {
         if (e.button !== 0) return
@@ -89,7 +52,7 @@ export const SelectAllCheckbox = React.memo(function SelectAllCheckbox({
         onCheckedChange()
       }}
     >
-      <div className='flex items-center justify-center'>
+      <div className='flex items-center justify-center' style={{ width: numRegionWidth }}>
         <Checkbox size='sm' checked={checked} className='pointer-events-none' />
       </div>
     </th>

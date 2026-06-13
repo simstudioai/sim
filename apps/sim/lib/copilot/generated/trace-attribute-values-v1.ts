@@ -27,7 +27,6 @@ export type AbortRedisResultKey = keyof typeof AbortRedisResult
 export type AbortRedisResultValue = (typeof AbortRedisResult)[AbortRedisResultKey]
 
 export const AuthKeyMatch = {
-  Enterprise: 'enterprise',
   None: 'none',
   User: 'user',
 } as const
@@ -73,6 +72,7 @@ export type BillingRouteOutcomeValue = (typeof BillingRouteOutcome)[BillingRoute
 export const CopilotAbortOutcome = {
   BadRequest: 'bad_request',
   FallbackPersistFailed: 'fallback_persist_failed',
+  ForceReleased: 'force_released',
   MissingMessageId: 'missing_message_id',
   MissingStreamId: 'missing_stream_id',
   NoChatId: 'no_chat_id',

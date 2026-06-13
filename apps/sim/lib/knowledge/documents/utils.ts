@@ -5,7 +5,7 @@ import { randomFloat } from '@sim/utils/random'
 
 const logger = createLogger('RetryUtils')
 
-interface HTTPError extends Error {
+export interface HTTPError extends Error {
   status?: number
   statusText?: string
   retryAfterMs?: number

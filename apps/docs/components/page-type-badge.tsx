@@ -1,19 +1,27 @@
 import type { DocsPageType } from '@/lib/source'
 import { cn } from '@/lib/utils'
 
+/**
+ * Status-color mapping mirrored from the emcn `Badge` variants
+ * (`apps/sim/components/emcn/components/badge/badge.tsx`) — `green`, `blue`,
+ * `purple`, and `amber` over the shared `--badge-*` tokens.
+ */
 const CONFIG = {
-  tutorial: { label: 'Tutorial', className: 'text-[#33c482] border-[#33c482]/30 bg-[#33c482]/10' },
+  tutorial: {
+    label: 'Tutorial',
+    className: 'bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]',
+  },
   guide: {
     label: 'Guide',
-    className: 'text-blue-600 border-blue-500/30 bg-blue-500/10 dark:text-blue-400',
+    className: 'bg-[var(--badge-blue-bg)] text-[var(--badge-blue-text)]',
   },
   reference: {
     label: 'Reference',
-    className: 'text-violet-600 border-violet-500/30 bg-violet-500/10 dark:text-violet-400',
+    className: 'bg-[var(--badge-purple-bg)] text-[var(--badge-purple-text)]',
   },
   concept: {
     label: 'Concept',
-    className: 'text-amber-600 border-amber-500/30 bg-amber-500/10 dark:text-amber-400',
+    className: 'bg-[var(--badge-amber-bg)] text-[var(--badge-amber-text)]',
   },
 } as const satisfies Record<DocsPageType, { label: string; className: string }>
 
@@ -25,6 +33,7 @@ interface PageTypeBadgeProps {
 /**
  * Small label that tells the reader which Diátaxis mode a page is — learning,
  * task, lookup, or understanding. Rendered only when a page declares `type`.
+ * Chrome matches the emcn `Badge` status variants (md size).
  */
 export function PageTypeBadge({ type, className }: PageTypeBadgeProps) {
   const config = CONFIG[type]
@@ -33,7 +42,7 @@ export function PageTypeBadge({ type, className }: PageTypeBadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2 py-0.5 font-medium text-[11px] uppercase tracking-[0.04em]',
+        'inline-flex items-center gap-1.5 rounded-md px-[9px] py-0.5 font-medium font-season text-[12px] transition-colors',
         config.className,
         className
       )}

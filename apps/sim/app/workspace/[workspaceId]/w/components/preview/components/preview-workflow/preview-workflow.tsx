@@ -234,10 +234,12 @@ export function PreviewWorkflow({
   const workspaceId = propWorkspaceId ?? params.workspaceId
   const {
     data: workflowMap = {},
-    isLoading: isWorkflowMapLoading,
+    isSuccess: isWorkflowMapLoaded,
     isPlaceholderData: isWorkflowMapPlaceholderData,
   } = useWorkflowMap(workspaceId)
-  const workflowLabelsReady = !isWorkflowMapLoading && !isWorkflowMapPlaceholderData
+  // Ready only on a successful, non-placeholder load — an errored or stale
+  // placeholder map must not mislabel valid workflows as deleted.
+  const workflowLabelsReady = isWorkflowMapLoaded && !isWorkflowMapPlaceholderData
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeTypes = previewNodeTypes
   const isValidWorkflowState = workflowState?.blocks && workflowState.edges

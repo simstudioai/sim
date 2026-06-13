@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { and, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
@@ -6,6 +6,7 @@ import {
   encodeTimeCursor,
   timeCursorOrderBy,
   timeCursorPredicate,
+  timeCursorStabilityBound,
 } from '@/lib/data-drains/sources/cursor'
 import { getOrganizationWorkspaceIds } from '@/lib/data-drains/sources/helpers'
 import type { Cursor, DrainSource, SourcePageInput } from '@/lib/data-drains/types'
@@ -35,10 +36,10 @@ async function* pages(input: SourcePageInput): AsyncIterable<AuditLogRow[]> {
   while (!input.signal.aborted) {
     const cursorClause = timeCursorPredicate(auditLog.createdAt, auditLog.id, cursor)
 
-    const rows = await db
+    const rows = await dbReplica
       .select()
       .from(auditLog)
-      .where(and(scopeClause, cursorClause))
+      .where(and(scopeClause, timeCursorStabilityBound(auditLog.createdAt), cursorClause))
       .orderBy(...timeCursorOrderBy(auditLog.createdAt, auditLog.id))
       .limit(input.chunkSize)
 

@@ -60,7 +60,6 @@ const createFileReadTool = (config: {
   },
 
   outputs: {
-    file: { type: 'file', description: 'Workspace file object' },
     files: { type: 'file[]', description: 'Workspace file objects' },
   },
 })
@@ -116,3 +115,60 @@ export const fileReadTool = createFileReadTool({
   name: 'File Read',
   description: 'Read workspace file objects from selected files or canonical workspace file IDs.',
 })
+
+interface FileGetContentParams {
+  fileId?: string | string[]
+  fileInput?: unknown
+  workspaceId?: string
+  _context?: WorkflowToolExecutionContext
+}
+
+export const fileGetContentTool: ToolConfig<FileGetContentParams, ToolResponse> = {
+  id: 'file_get_content',
+  name: 'File Get Content',
+  description:
+    'Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.',
+  version: '1.0.0',
+
+  params: {
+    fileId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Canonical workspace file ID, or an array of canonical workspace file IDs.',
+    },
+    fileInput: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Selected workspace file object, or an array of file objects.',
+    },
+  },
+
+  request: {
+    url: '/api/tools/file/manage',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      operation: 'content',
+      fileId: params.fileId,
+      fileInput: params.fileInput,
+      workspaceId: params.workspaceId || params._context?.workspaceId,
+    }),
+  },
+
+  transformResponse: async (response) => {
+    const data = await response.json()
+    if (!response.ok || !data.success) {
+      return { success: false, output: {}, error: data.error || 'Failed to read file content' }
+    }
+    return { success: true, output: data.data }
+  },
+
+  outputs: {
+    contents: {
+      type: 'array',
+      description: 'Array of file text contents, one entry per file in input order',
+    },
+  },
+}

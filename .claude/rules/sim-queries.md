@@ -37,12 +37,18 @@ Never use inline query keys — always use the factory.
 - Every `queryFn` must destructure and forward `signal` for request cancellation
 - Every query must have an explicit `staleTime`
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
+- Same-origin JSON calls must go through `requestJson(contract, ...)` from `@/lib/api/client/request` against the contract in `@/lib/api/contracts/**`
 
 ```typescript
-async function fetchEntities(workspaceId: string, signal?: AbortSignal) {
-  const response = await fetch(`/api/entities?workspaceId=${workspaceId}`, { signal })
-  if (!response.ok) throw new Error('Failed to fetch entities')
-  return response.json()
+import { requestJson } from '@/lib/api/client/request'
+import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'
+
+async function fetchEntities(workspaceId: string, signal?: AbortSignal): Promise<EntityList> {
+  const data = await requestJson(listEntitiesContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return data.entities
 }
 
 export function useEntityList(workspaceId?: string, options?: { enabled?: boolean }) {
@@ -60,12 +66,14 @@ export function useEntityList(workspaceId?: string, options?: { enabled?: boolea
 
 - Use targeted invalidation (`entityKeys.lists()`) not broad (`entityKeys.all`) when possible
 - Invalidation must cover all affected query key prefixes (lists, details, related views)
+- Use `onSuccess` invalidation for plain mutations; use `onSettled` for optimistic mutations so the cache is reconciled on both success and error (see Optimistic Updates below)
+- `mutationFn` calls go through `requestJson(contract, { body, signal })` from `@/lib/api/client/request` — same boundary rule as queries
 
 ```typescript
 export function useCreateEntity() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (variables) => { /* fetch POST */ },
+    mutationFn: (body: CreateEntityBody) => requestJson(createEntityContract, { body }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: entityKeys.lists() })
     },
@@ -118,9 +126,18 @@ const handler = useCallback(() => {
 }, [data])
 ```
 
+## Boundary Types
+
+- Hooks import named type aliases from `@/lib/api/contracts/**` (e.g., `import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/entities'`). Never write `z.input<...>` / `z.output<...>` in hooks, and never `import { z } from 'zod'` in client code.
+- Raw `fetch` is allowed only for documented exceptions — multipart uploads, binary downloads, streaming responses, signed-URL flows, OAuth redirects, external origins. Each such raw `fetch(` inside `apps/sim/hooks/queries/**` or `apps/sim/hooks/selectors/**` — and any same-origin `/api/...` fetch elsewhere under `apps/sim/**` outside an API route handler — must be preceded by a `// boundary-raw-fetch: <reason>` annotation (reason non-empty; up to three preceding comment lines tolerated). Enforced by `scripts/check-api-validation-contracts.ts` (`bun run check:api-validation` / `:strict`).
+
 ## Naming
 
 - **Keys**: `entityKeys`
 - **Query hooks**: `useEntity`, `useEntityList`
 - **Mutation hooks**: `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`
 - **Fetch functions**: `fetchEntity`, `fetchEntities` (private)
+
+## Enforcement
+
+`scripts/check-react-query-patterns.ts` (`bun run check:react-query`, run in CI) statically enforces these conventions: every `useQuery`/`useInfiniteQuery`/`useSuspenseQuery` declares an explicit `staleTime`, inline `queryFn`s destructure `signal`, `queryKey`s reference a colocated factory rather than an inline literal, and every `*Keys` factory in `hooks/queries/**` exposes an `all` root key. `hooks/queries/**` is a zero-tolerance zone; the rest of `apps/sim/**` is ratcheted against `scripts/check-react-query-patterns.baseline.json`. For a genuine exception, put `// rq-lint-allow: <reason>` on the line directly above the flagged construct.

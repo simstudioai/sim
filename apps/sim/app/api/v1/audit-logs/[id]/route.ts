@@ -4,24 +4,26 @@
  * Get a single audit log entry by ID, scoped to the authenticated user's organization.
  * Requires enterprise subscription and org admin/owner role.
  *
- * Scope includes logs from current org members AND logs within org workspaces
- * (including those from departed members or system actions with null actorId).
+ * Scope is the organization boundary: logs within org-attached workspaces and
+ * org-level events (including those from departed members or system actions
+ * with null actorId).
  *
  * Response: { data: AuditLogEntry, limits: UserLimits }
  */
 
 import { db } from '@sim/db'
-import { auditLog, workspace } from '@sim/db/schema'
+import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1GetAuditLogContract } from '@/lib/api/contracts/v1/audit-logs'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { validateEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 import { formatAuditLogEntry } from '@/app/api/v1/audit-logs/format'
+import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 import { createApiResponse, getUserLimits } from '@/app/api/v1/logs/meta'
 import { checkRateLimit, createRateLimitResponse } from '@/app/api/v1/middleware'
 
@@ -53,25 +55,20 @@ export const GET = withRouteHandler(
         return authResult.response
       }
 
-      const { orgMemberIds } = authResult.context
+      const { organizationId, orgMemberIds } = authResult.context
 
-      const orgWorkspaceIds = db
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(inArray(workspace.ownerId, orgMemberIds))
+      const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)
+      const scopeCondition = buildOrgScopeCondition({
+        organizationId,
+        orgWorkspaceIds,
+        orgMemberIds,
+        includeDeparted: true,
+      })
 
       const [log] = await db
         .select()
         .from(auditLog)
-        .where(
-          and(
-            eq(auditLog.id, id),
-            or(
-              inArray(auditLog.actorId, orgMemberIds),
-              inArray(auditLog.workspaceId, orgWorkspaceIds)
-            )
-          )
-        )
+        .where(and(eq(auditLog.id, id), scopeCondition))
         .limit(1)
 
       if (!log) {

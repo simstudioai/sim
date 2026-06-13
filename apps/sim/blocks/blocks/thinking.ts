@@ -8,8 +8,8 @@ export const ThinkingBlock: BlockConfig<ThinkingToolResponse> = {
   description: 'Forces model to outline its thought process.',
   longDescription:
     'Adds a step where the model explicitly outlines its thought process before proceeding. This can improve reasoning quality by encouraging step-by-step analysis.',
-  docsLink: 'https://docs.sim.ai/tools/thinking',
-  category: 'tools',
+  docsLink: 'https://docs.sim.ai/integrations/thinking',
+  category: 'blocks',
   bgColor: '#181C1E',
   icon: BrainIcon,
   hideFromToolbar: true,

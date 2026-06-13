@@ -1,8 +1,10 @@
-import { validateExternalUrl } from '@/lib/core/security/input-validation'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
-// Using ToolResponse for intermediate state since this tool fetches existing data first
 export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolResponse> = {
   id: 'grafana_update_dashboard',
   name: 'Grafana Update Dashboard',
@@ -87,7 +89,6 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
   },
 
   request: {
-    // First, GET the existing dashboard
     url: (params) =>
       `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid}`,
     method: 'GET',
@@ -104,7 +105,6 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
   },
 
   transformResponse: async (response: Response) => {
-    // Store the existing dashboard data for postProcess to use
     const data = await response.json()
     return {
       success: true,
@@ -116,7 +116,6 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
   },
 
   postProcess: async (result, params) => {
-    // Merge user changes with existing dashboard and POST the complete object
     const existingDashboard = result.output._existingDashboard
     const existingMeta = result.output._existingMeta
 
@@ -128,12 +127,10 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       }
     }
 
-    // Build the updated dashboard by merging existing data with new params
     const updatedDashboard: Record<string, any> = {
       ...existingDashboard,
     }
 
-    // Apply user's changes
     if (params.title) updatedDashboard.title = params.title
     if (params.timezone) updatedDashboard.timezone = params.timezone
     if (params.refresh) updatedDashboard.refresh = params.refresh
@@ -148,23 +145,18 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
     if (params.panels) {
       try {
         updatedDashboard.panels = JSON.parse(params.panels)
-      } catch {
-        // Keep existing panels if parse fails
-      }
+      } catch {}
     }
 
-    // Increment version for update
     if (existingDashboard.version) {
       updatedDashboard.version = existingDashboard.version
     }
 
-    // Build the request body
     const body: Record<string, any> = {
       dashboard: updatedDashboard,
       overwrite: params.overwrite === true,
     }
 
-    // Use existing folder if not specified
     if (params.folderUid) {
       body.folderUid = params.folderUid
     } else if (existingMeta?.folderUid) {
@@ -175,7 +167,6 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       body.message = params.message
     }
 
-    // Make the POST request with the complete merged object
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${params.apiKey}`,
@@ -184,8 +175,9 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       headers['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const urlValidation = validateExternalUrl(params.baseUrl, 'baseUrl')
-    if (!urlValidation.isValid) {
+    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`
+    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
+    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return {
         success: false,
         output: {},
@@ -193,7 +185,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
       }
     }
 
-    const updateResponse = await fetch(`${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`, {
+    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),

@@ -78,7 +78,7 @@ describe('workspace lifecycle', () => {
     expect(mockArchiveWorkflowsForWorkspace).toHaveBeenCalledWith('workspace-1', {
       requestId: 'req-1',
     })
-    expect(tx.update).toHaveBeenCalledTimes(11)
+    expect(tx.update).toHaveBeenCalledTimes(10)
     expect(tx.delete).toHaveBeenCalledTimes(1)
   })
 

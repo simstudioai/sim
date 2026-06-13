@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/components/emcn'
 import { runPreDeployChecks } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-predeploy-checks'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
-import { useNotificationStore } from '@/stores/notifications'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { mergeSubblockState } from '@/stores/workflows/utils'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
@@ -27,7 +27,6 @@ interface UseDeploymentProps {
 export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDeploymentProps) {
   const { mutateAsync, isPending: isDeploying } = useDeployWorkflow()
   const [isFinalizingDeploy, setIsFinalizingDeploy] = useState(false)
-  const addNotification = useNotificationStore((state) => state.addNotification)
 
   const handleDeployClick = useCallback(async () => {
     if (!workflowId) return { success: false, shouldOpenModal: false }
@@ -37,11 +36,7 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
     }
 
     if (!tryAcquireDeployAction(workflowId)) {
-      addNotification({
-        level: 'info',
-        message: 'Deployment is already in progress.',
-        workflowId,
-      })
+      toast({ message: 'Deployment is already in progress.' })
       return { success: false, shouldOpenModal: false }
     }
 
@@ -52,11 +47,11 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
         return { success: false, shouldOpenModal: false }
       }
       if (!isReady) {
-        addNotification({
-          level: deployReadiness.status === 'error' ? 'error' : 'info',
-          message: deployReadiness.tooltip,
-          workflowId,
-        })
+        if (deployReadiness.status === 'error') {
+          toast.error(deployReadiness.tooltip)
+        } else {
+          toast({ message: deployReadiness.tooltip })
+        }
         return { success: false, shouldOpenModal: false }
       }
 
@@ -70,11 +65,7 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
         workflowId,
       })
       if (!checkResult.passed) {
-        addNotification({
-          level: 'error',
-          message: checkResult.error || 'Pre-deploy validation failed',
-          workflowId,
-        })
+        toast.error(checkResult.error || 'Pre-deploy validation failed')
         return { success: false, shouldOpenModal: false }
       }
 
@@ -85,11 +76,7 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
           return { success: false, shouldOpenModal: false }
         }
         const errorMessage = toError(error).message || 'Failed to deploy workflow'
-        addNotification({
-          level: 'error',
-          message: errorMessage,
-          workflowId,
-        })
+        toast.error(errorMessage)
         return { success: false, shouldOpenModal: false }
       }
 
@@ -98,11 +85,9 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
         if (!syncedActiveWorkflow) {
           if (useWorkflowRegistry.getState().activeWorkflowId === workflowId) {
             logger.warn('Workflow deployed, but local draft sync was deferred', { workflowId })
-            addNotification({
-              level: 'info',
+            toast({
               message:
                 'Deployment succeeded, but local sync is still catching up. Refresh if the status looks stale.',
-              workflowId,
             })
           }
           return { success: true, shouldOpenModal: false }
@@ -115,11 +100,9 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
           workflowId,
           error: toError(error).message,
         })
-        addNotification({
-          level: 'info',
+        toast({
           message:
             'Deployment succeeded, but local sync failed. Refresh if the status looks stale.',
-          workflowId,
         })
       }
 
@@ -128,7 +111,7 @@ export function useDeployment({ workflowId, isDeployed, deployReadiness }: UseDe
       releaseDeployAction(workflowId)
       setIsFinalizingDeploy(false)
     }
-  }, [workflowId, isDeployed, deployReadiness, addNotification, mutateAsync])
+  }, [workflowId, isDeployed, deployReadiness, mutateAsync])
 
   return {
     isDeploying: isDeploying || isFinalizingDeploy,

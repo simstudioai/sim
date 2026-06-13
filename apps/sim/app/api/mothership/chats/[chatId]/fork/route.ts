@@ -4,10 +4,11 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-tasks'
+import { forkMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { loadCopilotChatMessages } from '@/lib/copilot/chat/lifecycle'
 import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import { fetchGo } from '@/lib/copilot/request/go/fetch'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -19,7 +20,6 @@ import {
 } from '@/lib/copilot/request/http'
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -88,7 +88,7 @@ export const POST = withRouteHandler(
         : []
 
       const newId = generateId()
-      const baseTitle = (parent.title ?? 'New task').replace(/^Fork \| /, '')
+      const baseTitle = (parent.title ?? 'New chat').replace(/^Fork \| /, '')
       const title = `Fork | ${baseTitle}`
       const now = new Date()
 
@@ -154,7 +154,7 @@ export const POST = withRouteHandler(
       }
 
       if (newChat.workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId: newChat.workspaceId,
           chatId: newId,
           type: 'created',

@@ -13,7 +13,6 @@ import { and, eq, isNull, min } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import { deduplicateWorkflowName } from '@/lib/workflows/utils'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import type { Variable } from '@/stores/variables/types'
 import type { LoopConfig, ParallelConfig } from '@/stores/workflows/workflow/types'
 import { SYSTEM_SUBBLOCK_IDS, TRIGGER_RUNTIME_SUBBLOCK_IDS } from '@/triggers/constants'
@@ -25,11 +24,17 @@ interface DuplicateWorkflowOptions {
   userId: string
   name: string
   description?: string
-  color?: string
   workspaceId?: string
   folderId?: string | null
   requestId?: string
   newWorkflowId?: string
+  /**
+   * Run inside the caller's transaction. Callers that pass `tx` must have
+   * already authorized the user on the source workflow's workspace: the
+   * authorization helpers query through the global pool, so running them here
+   * would require a second pooled connection while the caller's transaction
+   * holds the first.
+   */
   tx?: DbOrTx
   workflowIdMap?: Map<string, string>
 }
@@ -38,7 +43,6 @@ interface DuplicateWorkflowResult {
   id: string
   name: string
   description: string | null
-  color: string
   workspaceId: string
   folderId: string | null
   sortOrder: number
@@ -272,7 +276,6 @@ export async function duplicateWorkflow(
     userId,
     name,
     description,
-    color,
     workspaceId,
     folderId,
     requestId = 'unknown',
@@ -283,6 +286,41 @@ export async function duplicateWorkflow(
 
   const newWorkflowId = clientNewWorkflowId || workflowIdMap?.get(sourceWorkflowId) || generateId()
   const now = new Date()
+
+  // Authorization runs before the transaction opens so its global-pool
+  // queries never execute while a pooled connection is held. Callers that
+  // pass `tx` authorize the workspace themselves (see DuplicateWorkflowOptions).
+  if (!providedTx) {
+    const sourceAuthorization = await authorizeWorkflowByWorkspacePermission({
+      workflowId: sourceWorkflowId,
+      userId,
+      action: 'read',
+    })
+    if (!sourceAuthorization.allowed || !sourceAuthorization.workflow) {
+      throw new Error('Source workflow not found or access denied')
+    }
+
+    const sourceWorkspaceId = sourceAuthorization.workflow.workspaceId
+    if (!sourceWorkspaceId) {
+      throw new Error(
+        'This workflow is not attached to a workspace. Personal workflows are deprecated and cannot be duplicated.'
+      )
+    }
+
+    const targetWorkspaceId = workspaceId || sourceWorkspaceId
+    if (targetWorkspaceId !== sourceWorkspaceId) {
+      throw new Error('Cross-workspace workflow duplication is not supported')
+    }
+
+    // The target workspace equals the source workspace, so the permission
+    // resolved by the authorization above is the target permission.
+    if (
+      sourceAuthorization.workspacePermission !== 'admin' &&
+      sourceAuthorization.workspacePermission !== 'write'
+    ) {
+      throw new Error('Write or admin access required for target workspace')
+    }
+  }
 
   const duplicateWithinTransaction = async (tx: DbOrTx) => {
     // First verify the source workflow exists
@@ -303,28 +341,11 @@ export async function duplicateWorkflow(
       )
     }
 
-    const sourceAuthorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId: sourceWorkflowId,
-      userId,
-      action: 'read',
-    })
-    if (!sourceAuthorization.allowed) {
-      throw new Error('Source workflow not found or access denied')
-    }
-
     const targetWorkspaceId = workspaceId || source.workspaceId
     if (targetWorkspaceId !== source.workspaceId) {
       throw new Error('Cross-workspace workflow duplication is not supported')
     }
 
-    const targetWorkspacePermission = await getUserEntityPermissions(
-      userId,
-      'workspace',
-      targetWorkspaceId
-    )
-    if (targetWorkspacePermission !== 'admin' && targetWorkspacePermission !== 'write') {
-      throw new Error('Write or admin access required for target workspace')
-    }
     const targetFolderId = folderId !== undefined ? folderId : source.folderId
     await assertTargetFolderMutable(tx, targetFolderId, targetWorkspaceId)
 
@@ -357,7 +378,12 @@ export async function duplicateWorkflow(
     // Mapping from old variable IDs to new variable IDs (populated during variable duplication)
     const varIdMapping = new Map<string, string>()
 
-    const deduplicatedName = await deduplicateWorkflowName(name, targetWorkspaceId, targetFolderId)
+    const deduplicatedName = await deduplicateWorkflowName(
+      name,
+      targetWorkspaceId,
+      targetFolderId,
+      tx
+    )
 
     await tx.insert(workflow).values({
       id: newWorkflowId,
@@ -367,7 +393,6 @@ export async function duplicateWorkflow(
       sortOrder,
       name: deduplicatedName,
       description: description || source.description,
-      color: color || source.color,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,
@@ -649,7 +674,6 @@ export async function duplicateWorkflow(
       id: newWorkflowId,
       name: deduplicatedName,
       description: description || source.description,
-      color: color || source.color,
       workspaceId: finalWorkspaceId,
       folderId: targetFolderId,
       sortOrder,

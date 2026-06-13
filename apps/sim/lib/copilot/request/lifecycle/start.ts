@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { createRunSegment } from '@/lib/copilot/async-runs/repository'
+import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1SessionKind,
@@ -38,9 +39,8 @@ import {
   unregisterActiveStream,
 } from '@/lib/copilot/request/session'
 import { SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/session/sse'
-import { reportTrace, TraceCollector } from '@/lib/copilot/request/trace'
+import { TraceCollector } from '@/lib/copilot/request/trace'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
-import { taskPubSub } from '@/lib/copilot/tasks'
 import { env } from '@/lib/core/config/env'
 
 export { SSE_RESPONSE_HEADERS }
@@ -339,27 +339,6 @@ export function createSSEStream(params: StreamingOrchestrationParams): ReadableS
             await scheduleFilePreviewSessionCleanup(streamId)
             await cleanupAbortMarker(streamId)
 
-            const trace = collector.build({
-              outcome,
-              simRequestId: requestId,
-              streamId,
-              chatId,
-              runId,
-              executionId,
-              // Pass the raw user prompt through so the Go-side trace
-              // ingest can stamp it onto the `request_traces.message`
-              // column at insert time. Avoids relying on the late
-              // `UpdateAnalytics` UPDATE (which silently misses many
-              // rows).
-              userMessage: message,
-              usage: lifecycleResult?.usage,
-              cost: lifecycleResult?.cost,
-            })
-            reportTrace(trace, otelContext).catch((err) => {
-              logger.warn(`[${requestId}] Failed to report trace`, {
-                error: getErrorMessage(err),
-              })
-            })
             rootOutcome = outcome
             if (lifecycleResult?.usage) {
               activeOtelRoot.span.setAttributes({
@@ -466,6 +445,7 @@ function fireTitleGeneration(params: {
     model: titleModel,
     provider: titleProvider,
     userId,
+    workspaceId,
     otelContext,
   })
     .then(async (title) => {
@@ -476,7 +456,7 @@ function fireTitleGeneration(params: {
         payload: { kind: MothershipStreamV1SessionKind.title, title },
       })
       if (workspaceId) {
-        taskPubSub?.publishStatusChanged({
+        chatPubSub?.publishStatusChanged({
           workspaceId,
           chatId,
           type: 'renamed',
@@ -497,9 +477,10 @@ export async function requestChatTitle(params: {
   model: string
   provider?: string
   userId?: string
+  workspaceId?: string
   otelContext?: Context
 }): Promise<string | null> {
-  const { message, model, provider, userId, otelContext } = params
+  const { message, model, provider, userId, workspaceId, otelContext } = params
   if (!message || !model) return null
 
   const headers: Record<string, string> = {
@@ -520,6 +501,8 @@ export async function requestChatTitle(params: {
         message,
         model,
         ...(provider ? { provider } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(userId ? { userId } : {}),
       }),
       otelContext,
       spanName: 'sim → go /api/generate-chat-title',

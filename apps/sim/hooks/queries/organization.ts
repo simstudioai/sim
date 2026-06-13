@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
-import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
+import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   cancelInvitationContract,
   resendInvitationContract,
@@ -16,10 +16,14 @@ import {
 } from '@/lib/api/contracts/invitations'
 import {
   createOrganizationContract,
+  getMyMemberCreditsContract,
+  getOrganizationMemberUsageLimitContract,
   getOrganizationRosterContract,
   inviteOrganizationMembersContract,
   listOrganizationMembersContract,
+  type MyMemberCreditsData,
   type OrganizationMembersResponse,
+  type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
   type RosterMember,
   type RosterPendingInvitation,
@@ -28,8 +32,8 @@ import {
   transferOwnershipContract,
   updateOrganizationContract,
   updateOrganizationMemberRoleContract,
+  updateOrganizationMemberUsageLimitContract,
   updateOrganizationUsageLimitContract,
-  updateSeatsContract,
 } from '@/lib/api/contracts/organization'
 import {
   getOrganizationBillingContract,
@@ -102,7 +106,11 @@ export const organizationKeys = {
   billing: (id: string) => [...organizationKeys.detail(id), 'billing'] as const,
   members: (id: string) => [...organizationKeys.detail(id), 'members'] as const,
   memberUsage: (id: string) => [...organizationKeys.detail(id), 'member-usage'] as const,
+  memberUsageLimit: (id: string, userId: string) =>
+    [...organizationKeys.detail(id), 'member-usage-limit', userId] as const,
   roster: (id: string) => [...organizationKeys.detail(id), 'roster'] as const,
+  myMemberCredits: (workspaceId: string) =>
+    [...organizationKeys.all, 'my-member-credits', workspaceId] as const,
 }
 
 export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
@@ -416,7 +424,7 @@ export function useInviteMember() {
       })
 
       if (result.success === false) {
-        throw new Error(result.error || result.message || 'Failed to invite member')
+        throw new Error(result.error || result.message || 'Failed to invite teammate')
       }
 
       return result
@@ -437,19 +445,15 @@ export function useInviteMember() {
 interface RemoveMemberParams {
   memberId: string
   orgId: string
-  shouldReduceSeats?: ContractQueryInput<
-    typeof removeOrganizationMemberContract
-  >['shouldReduceSeats']
 }
 
 export function useRemoveMember() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ memberId, orgId, shouldReduceSeats }: RemoveMemberParams) => {
+    mutationFn: async ({ memberId, orgId }: RemoveMemberParams) => {
       return requestJson(removeOrganizationMemberContract, {
         params: { id: orgId, memberId },
-        query: { shouldReduceSeats },
       })
     },
     onSettled: (_data, _error, variables) => {
@@ -487,6 +491,81 @@ export function useUpdateOrganizationMemberRole() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
     },
+  })
+}
+
+async function fetchOrganizationMemberUsageLimit(
+  orgId: string,
+  userId: string,
+  signal?: AbortSignal
+): Promise<OrganizationMemberUsageLimitData> {
+  const response = await requestJson(getOrganizationMemberUsageLimitContract, {
+    params: { id: orgId, memberId: userId },
+    signal,
+  })
+  return response.data
+}
+
+/**
+ * Hook to fetch a single member's per-org credit usage + cap (values in credits).
+ * Lazily enabled so it only fires while the Manage Credits modal is open.
+ */
+export function useOrganizationMemberUsageLimit(orgId?: string, userId?: string, enabled = true) {
+  return useQuery({
+    queryKey: organizationKeys.memberUsageLimit(orgId ?? '', userId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchOrganizationMemberUsageLimit(orgId as string, userId as string, signal),
+    enabled: Boolean(orgId) && Boolean(userId) && enabled,
+    staleTime: 30 * 1000,
+  })
+}
+
+interface UpdateMemberUsageLimitParams {
+  orgId: string
+  userId: string
+  creditLimit: ContractBodyInput<typeof updateOrganizationMemberUsageLimitContract>['creditLimit']
+}
+
+export function useUpdateOrganizationMemberUsageLimit() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ orgId, userId, creditLimit }: UpdateMemberUsageLimitParams) => {
+      return requestJson(updateOrganizationMemberUsageLimitContract, {
+        params: { id: orgId, memberId: userId },
+        body: { creditLimit },
+      })
+    },
+    onSettled: (_data, _error, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: organizationKeys.memberUsageLimit(variables.orgId, variables.userId),
+      })
+    },
+  })
+}
+
+async function fetchMyMemberCredits(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<MyMemberCreditsData> {
+  const response = await requestJson(getMyMemberCreditsContract, {
+    query: { workspaceId },
+    signal,
+  })
+  return response.data
+}
+
+/**
+ * The caller's OWN per-member credit usage + cap for a workspace's organization.
+ * `creditLimit` is null when no per-member cap applies (non-hosted, non-org
+ * workspace, or no cap set) — callers then fall back to the plan-level view.
+ */
+export function useMyMemberCredits(workspaceId?: string) {
+  return useQuery({
+    queryKey: organizationKeys.myMemberCredits(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchMyMemberCredits(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 30 * 1000,
   })
 }
 
@@ -585,33 +664,6 @@ export function useResendInvitation() {
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
-    },
-  })
-}
-
-/**
- * Update seats mutation (handles both add and reduce)
- */
-type UpdateSeatsParams = {
-  orgId: string
-} & ContractBodyInput<typeof updateSeatsContract>
-
-export function useUpdateSeats() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ seats, orgId }: UpdateSeatsParams) => {
-      return requestJson(updateSeatsContract, {
-        params: { id: orgId },
-        body: { seats },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.subscription(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.billing(variables.orgId) })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
 }

@@ -1,17 +1,16 @@
 import { useMemo, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
-import { Button, Input, Textarea, Tooltip } from '@/components/emcn'
+import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
 import { Trash } from '@/components/emcn/icons/trash'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 
 interface EvalMetric {
   id: string
@@ -29,7 +28,6 @@ interface EvalInputProps {
   isPreview?: boolean
   previewValue?: EvalMetric[] | null
   disabled?: boolean
-  activeSearchTarget?: ActiveSearchTarget | null
 }
 
 // Default values
@@ -46,8 +44,8 @@ export function EvalInput({
   isPreview = false,
   previewValue,
   disabled = false,
-  activeSearchTarget,
 }: EvalInputProps) {
+  const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const descriptionInputRefs = useRef<Record<string, HTMLTextAreaElement>>({})
@@ -79,7 +77,7 @@ export function EvalInput({
       valuePath: [metricIndex, ...metricPath],
     })
 
-  const renderFieldLabel = (label: string) => <Label className='text-small'>{label}</Label>
+  const renderFieldLabel = (label: string) => <Label>{label}</Label>
 
   const addMetric = () => {
     if (isPreview || disabled) return

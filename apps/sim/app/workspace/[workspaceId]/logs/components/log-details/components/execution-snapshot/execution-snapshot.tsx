@@ -1,15 +1,15 @@
 'use client'
 
 import type React from 'react'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
-  Copy,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Duplicate,
   Loader,
   Modal,
   ModalBody,
@@ -65,7 +65,6 @@ export function ExecutionSnapshot({
 
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
-  const menuRef = useRef<HTMLDivElement>(null)
 
   function closeMenu() {
     setIsMenuOpen(false)
@@ -194,7 +193,7 @@ export function ExecutionSnapshot({
               onCloseAutoFocus={(e) => e.preventDefault()}
             >
               <DropdownMenuItem onSelect={handleCopyExecutionId}>
-                <Copy />
+                <Duplicate />
                 Copy Run ID
               </DropdownMenuItem>
             </DropdownMenuContent>

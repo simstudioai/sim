@@ -7,7 +7,7 @@ import { sttToolContract } from '@/lib/api/contracts/tools/media/stt'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { extractAudioFromVideo, isVideoFile } from '@/lib/audio/extractor'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
+import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
@@ -25,7 +25,12 @@ const logger = createLogger('SttProxyAPI')
 const ELEVENLABS_STT_MODEL = 'scribe_v2'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes for large files
+/**
+ * Mirrors the maximum plan execution timeout (enterprise async, 90 minutes) used by
+ * `getMaxExecutionTimeout()` for the transcript polling loop below. Next.js requires a
+ * static literal for `maxDuration`, so this value must be kept in sync with that source.
+ */
+export const maxDuration = 5400
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateId()
@@ -629,7 +634,7 @@ async function transcribeWithAssemblyAI(
   let transcript: any
   let attempts = 0
   const pollIntervalMs = 5000
-  const maxAttempts = Math.ceil(DEFAULT_EXECUTION_TIMEOUT_MS / pollIntervalMs)
+  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
 
   while (attempts < maxAttempts) {
     const statusResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${id}`, {

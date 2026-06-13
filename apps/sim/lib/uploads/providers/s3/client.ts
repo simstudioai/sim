@@ -1,3 +1,4 @@
+import type { Readable } from 'node:stream'
 import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
@@ -13,7 +14,7 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { env } from '@/lib/core/config/env'
+import { getAwsCredentialsFromEnv } from '@/lib/core/config/aws'
 import {
   assertKnownSizeWithinLimit,
   readNodeStreamToBufferWithLimit,
@@ -56,13 +57,7 @@ export function getS3Client(): S3Client {
     region,
     endpoint: S3_CONFIG.endpoint,
     forcePathStyle: S3_CONFIG.forcePathStyle,
-    credentials:
-      env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-        ? {
-            accessKeyId: env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-          }
-        : undefined,
+    credentials: getAwsCredentialsFromEnv(),
   })
 
   return _s3Client
@@ -221,6 +216,24 @@ export async function downloadFromS3(
     maxBytes: maxBytes ?? Number.MAX_SAFE_INTEGER,
     label: 'storage download',
   })
+}
+
+/**
+ * Stream an object out of S3 without buffering it. The caller MUST fully consume or
+ * `destroy()` the returned stream. Used by the large-CSV import worker so a 1M-row file is
+ * never resident in memory.
+ */
+export async function downloadFromS3Stream(
+  key: string,
+  customConfig?: S3Config
+): Promise<Readable> {
+  const config = customConfig || { bucket: S3_CONFIG.bucket, region: S3_CONFIG.region }
+  const command = new GetObjectCommand({ Bucket: config.bucket, Key: key })
+  const response = await getS3Client().send(command)
+  if (!response.Body) {
+    throw new Error(`S3 object has no body: ${key}`)
+  }
+  return response.Body as Readable
 }
 
 /**

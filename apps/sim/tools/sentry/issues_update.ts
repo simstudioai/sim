@@ -38,7 +38,8 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'User ID or email to assign the issue to. Use empty string to unassign.',
+      description:
+        'Actor to assign the issue to, in the form "user:<id>" or "team:<id>" (a bare username or email is also accepted). Use an empty string to unassign.',
     },
     isBookmarked: {
       type: 'boolean',
@@ -110,6 +111,8 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
           logger: issue.logger ?? null,
           level: issue.level,
           status: issue.status,
+          substatus: issue.substatus ?? null,
+          priority: issue.priority ?? null,
           statusDetails: issue.statusDetails || {},
           isPublic: issue.isPublic,
           platform: issue.platform ?? null,
@@ -158,6 +161,16 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
         shortId: { type: 'string', description: 'Short issue identifier' },
         title: { type: 'string', description: 'Issue title' },
         status: { type: 'string', description: 'Updated issue status' },
+        substatus: {
+          type: 'string',
+          description: 'Issue substatus after the update',
+          optional: true,
+        },
+        priority: {
+          type: 'string',
+          description: 'Issue priority (high, medium, or low)',
+          optional: true,
+        },
         assignedTo: {
           type: 'object',
           description: 'User assigned to the issue (if any)',

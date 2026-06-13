@@ -487,6 +487,49 @@ describe('Webhook Trigger API Route', () => {
     expect(text).toMatch(/not found/i)
   })
 
+  describe('Internal trigger providers', () => {
+    it.each(['sim', 'table'])(
+      'rejects HTTP deliveries to %s trigger paths with 404',
+      async (provider) => {
+        testData.webhooks.push({
+          id: `${provider}-webhook-id`,
+          provider,
+          path: 'internal-path',
+          isActive: true,
+          providerConfig: { eventType: 'execution_error' },
+          workflowId: 'test-workflow-id',
+        })
+
+        const req = createMockRequest('POST', { event: 'execution_error', forged: true })
+        const params = Promise.resolve({ path: 'internal-path' })
+
+        const response = await POST(req as any, { params })
+
+        expect(response.status).toBe(404)
+        expect(queueWebhookExecutionMock).not.toHaveBeenCalled()
+      }
+    )
+
+    it('does not affect normal provider paths', async () => {
+      testData.webhooks.push({
+        id: 'generic-webhook-id',
+        provider: 'generic',
+        path: 'normal-path',
+        isActive: true,
+        providerConfig: { requireAuth: false },
+        workflowId: 'test-workflow-id',
+      })
+
+      const req = createMockRequest('POST', { event: 'test' })
+      const params = Promise.resolve({ path: 'normal-path' })
+
+      const response = await POST(req as any, { params })
+
+      expect(response.status).toBe(200)
+      expect(queueWebhookExecutionMock).toHaveBeenCalledOnce()
+    })
+  })
+
   describe('Generic Webhook Authentication', () => {
     it('passes correlation-bearing request context into webhook queueing', async () => {
       testData.webhooks.push({

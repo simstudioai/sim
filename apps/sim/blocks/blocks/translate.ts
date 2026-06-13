@@ -15,10 +15,9 @@ export const TranslateBlock: BlockConfig = {
   description: 'Translate text to any language',
   authMode: AuthMode.ApiKey,
   longDescription: 'Integrate Translate into the workflow. Can translate text to any language.',
-  docsLink: 'https://docs.sim.ai/tools/translate',
-  category: 'tools',
+  docsLink: 'https://docs.sim.ai/integrations/translate',
+  category: 'blocks',
   integrationType: IntegrationType.AI,
-  tags: ['document-processing', 'llm'],
   bgColor: '#FF4B4B',
   icon: TranslateIcon,
   subBlocks: [

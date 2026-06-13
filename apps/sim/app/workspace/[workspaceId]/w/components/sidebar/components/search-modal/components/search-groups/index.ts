@@ -1,0 +1,16 @@
+export {
+  BlocksGroup,
+  ChatsGroup,
+  ConnectedAccountsGroup,
+  DocsGroup,
+  FilesGroup,
+  IntegrationsGroup,
+  KnowledgeBasesGroup,
+  PagesGroup,
+  TablesGroup,
+  ToolOpsGroup,
+  ToolsGroup,
+  TriggersGroup,
+  WorkflowsGroup,
+  WorkspacesGroup,
+} from './search-groups'

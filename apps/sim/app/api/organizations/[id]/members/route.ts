@@ -243,7 +243,7 @@ export const POST = withRouteHandler(
       if (!seatValidation.canInvite) {
         return NextResponse.json(
           {
-            error: `Cannot invite member. Using ${seatValidation.currentSeats} of ${seatValidation.maxSeats} seats.`,
+            error: `Cannot invite teammate. Using ${seatValidation.currentSeats} of ${seatValidation.maxSeats} seats.`,
             details: seatValidation,
           },
           { status: 400 }

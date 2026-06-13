@@ -1,0 +1,301 @@
+---
+title: Daytona
+description: Run code and commands in secure cloud sandboxes
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="daytona"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Daytona](https://www.daytona.io/) is secure, elastic infrastructure for running AI-generated code. Daytona provides isolated sandboxes that spin up in milliseconds, giving your agents a safe place to execute shell commands, run code, work with files, and clone repositories — without ever touching your own machines.
+
+**Why Daytona?**
+- **Built for AI-generated code:** Sandboxes are fully isolated runtimes, so untrusted or generated code can run safely with no risk to your infrastructure.
+- **Fast, elastic sandboxes:** Create a sandbox in under a couple hundred milliseconds, use it for one task or keep it alive across a whole session, and let auto-stop and auto-delete intervals clean up after you.
+- **Complete toolbox:** Execute shell commands, run Python, JavaScript, or TypeScript with a built-in code interpreter, transfer files in and out, and clone Git repositories — all through one API.
+- **Programmatic lifecycle control:** Create, list, start, stop, and delete sandboxes on demand, with snapshots, regions, resource sizing, environment variables, and labels.
+
+**Using Daytona in Sim**
+
+Sim's Daytona integration connects your workflows to Daytona with an API key. Twelve operations cover the full sandbox lifecycle and toolbox: create, list, get, start, stop, and delete sandboxes; run code and execute commands inside them; upload, download, and list files; and clone Git repositories.
+
+**Key benefits of using Daytona in Sim:**
+- **Safe code interpreter for agents:** Let an agent write Python, JavaScript, or TypeScript and execute it in an isolated sandbox, then use the output downstream in your workflow.
+- **Real file handling:** Upload workflow files directly into a sandbox, process them with code or commands, and download the results as files other blocks can consume.
+- **Repository automation:** Clone a repository into a sandbox, run installs, builds, or tests, and report the results — perfect for CI-style checks and repo health monitoring.
+- **Cost-aware lifecycle:** Create sandboxes on demand, stop or delete them when work finishes, and use auto-stop intervals so idle sandboxes never run up your bill.
+
+Whether you're building an AI code interpreter, validating generated code before it ships, analyzing data files in a clean environment, or automating repository checks, Daytona in Sim gives your agents real compute with strong isolation. Configure your API key, pick an operation, and start running code.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Daytona into your workflow to run AI-generated code in secure, isolated sandboxes. Create and manage sandboxes, execute shell commands, run Python, JavaScript, or TypeScript code, transfer files, and clone Git repositories.
+
+
+
+## Actions
+
+### `daytona_create_sandbox`
+
+Create a new Daytona sandbox for running AI-generated code in isolation
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `snapshot` | string | No | ID or name of the snapshot to create the sandbox from \(uses default if empty\) |
+| `name` | string | No | Name for the sandbox \(defaults to the sandbox ID\) |
+| `target` | string | No | Region where the sandbox will be created \(e.g., us, eu\) |
+| `user` | string | No | User associated with the sandbox |
+| `env` | json | No | Environment variables to set in the sandbox as key-value pairs |
+| `labels` | json | No | Labels to attach to the sandbox as key-value pairs |
+| `cpu` | number | No | CPU cores to allocate to the sandbox |
+| `memory` | number | No | Memory to allocate to the sandbox in GB |
+| `disk` | number | No | Disk space to allocate to the sandbox in GB |
+| `autoStopInterval` | number | No | Auto-stop interval in minutes \(0 disables auto-stop\) |
+| `autoArchiveInterval` | number | No | Auto-archive interval in minutes \(0 uses the maximum interval\) |
+| `autoDeleteInterval` | number | No | Auto-delete interval in minutes \(negative disables, 0 deletes immediately on stop\) |
+| `public` | boolean | No | Whether the sandbox HTTP preview is publicly accessible |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandbox` | json | The created sandbox |
+
+### `daytona_list_sandboxes`
+
+List Daytona sandboxes in the organization
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `limit` | number | No | Maximum number of sandboxes to return \(1-200\) |
+| `name` | string | No | Filter sandboxes by name prefix \(case-insensitive\) |
+| `labels` | json | No | Filter sandboxes by labels as key-value pairs |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandboxes` | array | Sandboxes in the organization |
+| `nextCursor` | string | Cursor for the next page of results |
+
+### `daytona_get_sandbox`
+
+Get details of a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID or name of the sandbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandbox` | json | The sandbox details |
+
+### `daytona_start_sandbox`
+
+Start a stopped Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID or name of the sandbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandbox` | json | The started sandbox |
+
+### `daytona_stop_sandbox`
+
+Stop a running Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID or name of the sandbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandbox` | json | The stopped sandbox |
+
+### `daytona_delete_sandbox`
+
+Delete a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID or name of the sandbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `sandbox` | json | The deleted sandbox |
+
+### `daytona_execute_command`
+
+Execute a shell command inside a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to execute the command in |
+| `command` | string | Yes | Shell command to execute |
+| `cwd` | string | No | Working directory for the command \(defaults to the sandbox working directory\) |
+| `env` | json | No | Environment variables to set for the command as key-value pairs |
+| `timeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exitCode` | number | Exit code of the command \(-1 if missing from the response\) |
+| `result` | string | Combined stdout/stderr output of the command |
+
+### `daytona_run_code`
+
+Run Python, JavaScript, or TypeScript code inside a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to run the code in |
+| `code` | string | Yes | Code to run |
+| `language` | string | Yes | Language of the code: python, javascript, or typescript |
+| `env` | json | No | Environment variables to set for the run as key-value pairs |
+| `timeout` | number | No | Timeout in seconds \(defaults to 10 seconds\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `exitCode` | number | Exit code of the code run \(-1 if missing from the response\) |
+| `result` | string | Combined stdout/stderr output of the code run |
+| `artifacts` | json | Artifacts produced by the run \(e.g., matplotlib charts\) |
+
+### `daytona_upload_file`
+
+Upload a file to a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to upload the file to |
+| `destinationPath` | string | Yes | Destination path in the sandbox \(a trailing slash uploads into that directory using the file name\) |
+| `file` | file | No | The file to upload |
+| `fileContent` | string | No | Legacy: base64 encoded file content |
+| `fileName` | string | No | Optional file name override |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `uploadedPath` | string | Path of the uploaded file in the sandbox |
+| `name` | string | Name of the uploaded file |
+| `size` | number | Size of the uploaded file in bytes |
+
+### `daytona_download_file`
+
+Download a file from a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to download the file from |
+| `filePath` | string | Yes | Path of the file in the sandbox |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `file` | file | Downloaded file stored in execution files |
+| `name` | string | Name of the downloaded file |
+| `mimeType` | string | MIME type of the downloaded file |
+| `size` | number | Size of the downloaded file in bytes |
+
+### `daytona_list_files`
+
+List files in a directory of a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to list files in |
+| `path` | string | No | Directory path to list \(defaults to the sandbox working directory\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | array | Files and directories at the given path |
+|   ↳ `name` | string | File or directory name |
+|   ↳ `isDir` | boolean | Whether the entry is a directory |
+|   ↳ `size` | number | Size in bytes |
+|   ↳ `mode` | string | File mode string |
+|   ↳ `permissions` | string | Permission string |
+|   ↳ `owner` | string | Owning user |
+|   ↳ `group` | string | Owning group |
+|   ↳ `modifiedAt` | string | Last modification timestamp |
+
+### `daytona_git_clone`
+
+Clone a Git repository into a Daytona sandbox
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Daytona API key |
+| `sandboxId` | string | Yes | ID of the sandbox to clone the repository into |
+| `url` | string | Yes | URL of the Git repository to clone |
+| `path` | string | Yes | Path in the sandbox to clone the repository into |
+| `branch` | string | No | Branch to clone \(defaults to the default branch\) |
+| `commitId` | string | No | Specific commit to check out after cloning |
+| `username` | string | No | Username for authenticating to private repositories |
+| `password` | string | No | Password or personal access token for private repositories |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `repoUrl` | string | URL of the cloned repository |
+| `clonePath` | string | Path the repository was cloned into |
+
+

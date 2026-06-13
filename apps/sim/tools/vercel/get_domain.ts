@@ -61,6 +61,16 @@ export const vercelGetDomainTool: ToolConfig<VercelGetDomainParams, VercelGetDom
         renew: d.renew ?? false,
         boughtAt: d.boughtAt ?? null,
         transferredAt: d.transferredAt ?? null,
+        creator: d.creator
+          ? {
+              id: d.creator.id ?? null,
+              username: d.creator.username ?? null,
+              email: d.creator.email ?? null,
+            }
+          : null,
+        userId: d.userId ?? null,
+        teamId: d.teamId ?? null,
+        transferStartedAt: d.transferStartedAt ?? null,
       },
     }
   },
@@ -90,5 +100,18 @@ export const vercelGetDomainTool: ToolConfig<VercelGetDomainParams, VercelGetDom
     renew: { type: 'boolean', description: 'Whether auto-renewal is enabled' },
     boughtAt: { type: 'number', description: 'Purchase timestamp' },
     transferredAt: { type: 'number', description: 'Transfer completion timestamp' },
+    creator: {
+      type: 'object',
+      description: 'Domain creator (id, username, email)',
+      optional: true,
+      properties: {
+        id: { type: 'string', description: 'Creator ID' },
+        username: { type: 'string', description: 'Creator username' },
+        email: { type: 'string', description: 'Creator email' },
+      },
+    },
+    userId: { type: 'string', description: 'Owner user ID', optional: true },
+    teamId: { type: 'string', description: 'Owner team ID', optional: true },
+    transferStartedAt: { type: 'number', description: 'Transfer start timestamp', optional: true },
   },
 }

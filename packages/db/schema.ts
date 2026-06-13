@@ -161,7 +161,6 @@ export const workflow = pgTable(
     sortOrder: integer('sort_order').notNull().default(0),
     name: text('name').notNull(),
     description: text('description'),
-    color: text('color').notNull().default('#3972F6'),
     lastSynced: timestamp('last_synced').notNull(),
     createdAt: timestamp('created_at').notNull(),
     updatedAt: timestamp('updated_at').notNull(),
@@ -555,12 +554,13 @@ export const workspaceBYOKKeys = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     providerId: text('provider_id').notNull(),
     encryptedApiKey: text('encrypted_api_key').notNull(),
+    name: text('name'),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    workspaceProviderUnique: uniqueIndex('workspace_byok_provider_unique').on(
+    workspaceProviderIdx: index('workspace_byok_workspace_provider_idx').on(
       table.workspaceId,
       table.providerId
     ),
@@ -768,91 +768,27 @@ export const webhook = pgTable(
   }
 )
 
-export const notificationTypeEnum = pgEnum('notification_type', ['webhook', 'email', 'slack'])
-
-export const notificationDeliveryStatusEnum = pgEnum('notification_delivery_status', [
-  'pending',
-  'in_progress',
-  'success',
-  'failed',
-])
-
-export const workspaceNotificationSubscription = pgTable(
-  'workspace_notification_subscription',
+/**
+ * Cooldown state for Sim workspace-event trigger subscriptions.
+ *
+ * Keyed by (workflowId, blockId, scopeKey) rather than the webhook row because
+ * webhook rows are recreated per deployment version — state stored there would
+ * reset on every redeploy. `scopeKey` is '' for subscription-level cooldowns
+ * and the source workflow ID for per-source-workflow rules (no_activity).
+ */
+export const simTriggerState = pgTable(
+  'sim_trigger_state',
   {
-    id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
-      .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
-    notificationType: notificationTypeEnum('notification_type').notNull(),
-    workflowIds: text('workflow_ids').array().notNull().default(sql`'{}'::text[]`),
-    allWorkflows: boolean('all_workflows').notNull().default(false),
-    levelFilter: text('level_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['info', 'error']::text[]`),
-    triggerFilter: text('trigger_filter')
-      .array()
-      .notNull()
-      .default(sql`ARRAY['api', 'webhook', 'schedule', 'manual', 'chat']::text[]`),
-    includeFinalOutput: boolean('include_final_output').notNull().default(false),
-    includeTraceSpans: boolean('include_trace_spans').notNull().default(false),
-    includeRateLimits: boolean('include_rate_limits').notNull().default(false),
-    includeUsageData: boolean('include_usage_data').notNull().default(false),
-
-    // Channel-specific configuration
-    webhookConfig: jsonb('webhook_config'),
-    emailRecipients: text('email_recipients').array(),
-    slackConfig: jsonb('slack_config'),
-
-    // Alert rule configuration (if null, sends on every execution)
-    alertConfig: jsonb('alert_config'),
-    lastAlertAt: timestamp('last_alert_at'),
-
-    active: boolean('active').notNull().default(true),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    workspaceIdIdx: index('workspace_notification_workspace_id_idx').on(table.workspaceId),
-    activeIdx: index('workspace_notification_active_idx').on(table.active),
-    typeIdx: index('workspace_notification_type_idx').on(table.notificationType),
-  })
-)
-
-export const workspaceNotificationDelivery = pgTable(
-  'workspace_notification_delivery',
-  {
-    id: text('id').primaryKey(),
-    subscriptionId: text('subscription_id')
-      .notNull()
-      .references(() => workspaceNotificationSubscription.id, { onDelete: 'cascade' }),
     workflowId: text('workflow_id')
       .notNull()
       .references(() => workflow.id, { onDelete: 'cascade' }),
-    executionId: text('execution_id').notNull(),
-    status: notificationDeliveryStatusEnum('status').notNull().default('pending'),
-    attempts: integer('attempts').notNull().default(0),
-    lastAttemptAt: timestamp('last_attempt_at'),
-    nextAttemptAt: timestamp('next_attempt_at'),
-    responseStatus: integer('response_status'),
-    responseBody: text('response_body'),
-    errorMessage: text('error_message'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
+    blockId: text('block_id').notNull(),
+    scopeKey: text('scope_key').notNull().default(''),
+    lastFiredAt: timestamp('last_fired_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
-    subscriptionIdIdx: index('workspace_notification_delivery_subscription_id_idx').on(
-      table.subscriptionId
-    ),
-    executionIdIdx: index('workspace_notification_delivery_execution_id_idx').on(table.executionId),
-    statusIdx: index('workspace_notification_delivery_status_idx').on(table.status),
-    nextAttemptIdx: index('workspace_notification_delivery_next_attempt_idx').on(
-      table.nextAttemptAt
-    ),
+    pk: primaryKey({ columns: [table.workflowId, table.blockId, table.scopeKey] }),
   })
 )
 
@@ -1117,49 +1053,6 @@ export const chat = pgTable(
   }
 )
 
-export const form = pgTable(
-  'form',
-  {
-    id: text('id').primaryKey(),
-    workflowId: text('workflow_id')
-      .notNull()
-      .references(() => workflow.id, { onDelete: 'cascade' }),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    identifier: text('identifier').notNull(),
-    title: text('title').notNull(),
-    description: text('description'),
-    isActive: boolean('is_active').notNull().default(true),
-
-    // UI/UX Customizations
-    // { primaryColor, welcomeMessage, thankYouTitle, thankYouMessage, logoUrl }
-    customizations: json('customizations').default('{}'),
-
-    // Authentication options (following chat pattern)
-    authType: text('auth_type').notNull().default('public'), // 'public', 'password', 'email'
-    password: text('password'), // Stored encrypted, populated when authType is 'password'
-    allowedEmails: json('allowed_emails').default('[]'), // Array of allowed emails or domains
-
-    // Branding
-    showBranding: boolean('show_branding').notNull().default(true),
-
-    archivedAt: timestamp('archived_at'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    identifierIdx: uniqueIndex('form_identifier_idx')
-      .on(table.identifier)
-      .where(sql`${table.archivedAt} IS NULL`),
-    workflowIdIdx: index('form_workflow_id_idx').on(table.workflowId),
-    userIdIdx: index('form_user_id_idx').on(table.userId),
-    archivedAtPartialIdx: index('form_archived_at_partial_idx')
-      .on(table.archivedAt)
-      .where(sql`${table.archivedAt} IS NOT NULL`),
-  })
-)
-
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -1220,6 +1113,43 @@ export const member = pgTable(
   (table) => ({
     userIdUnique: uniqueIndex('member_user_id_unique').on(table.userId), // Users can only belong to one org
     organizationIdIdx: index('member_organization_id_idx').on(table.organizationId),
+  })
+)
+
+/**
+ * Per-member usage limit (in dollars) scoped to a single organization.
+ *
+ * Keyed by `(organizationId, userId)` so it covers both organization members
+ * (rows in `member`) and external members (users with workspace permissions in
+ * org-owned workspaces but no `member` row). Independent of
+ * `user_stats.current_usage_limit`, which is the user's personal subscription
+ * cap and is nulled for org-scoped members. An absent row means "no per-member
+ * cap" (only the pooled org limit applies). Enforced for usage in org-owned
+ * workspaces; hosted-only.
+ */
+export const organizationMemberUsageLimit = pgTable(
+  'organization_member_usage_limit',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    usageLimit: decimal('usage_limit').notNull(),
+    /** Admin who set the cap (audit only). Soft FK: nulled if that user is
+     *  deleted so the member's limit row survives — never cascade-deleted. */
+    setBy: text('set_by').references(() => user.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    orgUserUnique: uniqueIndex('org_member_usage_limit_org_user_unique').on(
+      table.organizationId,
+      table.userId
+    ),
+    organizationIdIdx: index('org_member_usage_limit_organization_id_idx').on(table.organizationId),
   })
 )
 
@@ -1662,6 +1592,11 @@ export const document = pgTable(
     contentHash: text('content_hash'),
     sourceUrl: text('source_url'),
 
+    /** User who uploaded the document, for usage attribution. Null for
+     *  connector/cron-synced docs (and pre-migration rows) → indexing billing
+     *  falls back to the workspace billed account. */
+    uploadedBy: text('uploaded_by').references(() => user.id, { onDelete: 'set null' }),
+
     // Timestamps
     uploadedAt: timestamp('uploaded_at').notNull().defaultNow(),
   },
@@ -1944,7 +1879,6 @@ export const copilotChats = pgTable(
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     type: chatTypeEnum('type').notNull().default('copilot'),
     title: text('title'),
-    messages: jsonb('messages').notNull().default('[]'),
     model: text('model').notNull().default('claude-3-7-sonnet-latest'),
     conversationId: text('conversation_id'),
     previewYaml: text('preview_yaml'),
@@ -2209,107 +2143,6 @@ export const copilotAsyncToolCalls = pgTable(
     runStatusIdx: index('copilot_async_tool_calls_run_status_idx').on(table.runId, table.status),
     toolCallUnique: uniqueIndex('copilot_async_tool_calls_tool_call_id_unique').on(
       table.toolCallId
-    ),
-  })
-)
-
-export const templateStatusEnum = pgEnum('template_status', ['pending', 'approved', 'rejected'])
-export const templateCreatorTypeEnum = pgEnum('template_creator_type', ['user', 'organization'])
-
-export const templateCreators = pgTable(
-  'template_creators',
-  {
-    id: text('id').primaryKey(),
-    referenceType: templateCreatorTypeEnum('reference_type').notNull(),
-    referenceId: text('reference_id').notNull(),
-    name: text('name').notNull(),
-    profileImageUrl: text('profile_image_url'),
-    details: jsonb('details'),
-    verified: boolean('verified').notNull().default(false),
-    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    referenceUniqueIdx: uniqueIndex('template_creators_reference_idx').on(
-      table.referenceType,
-      table.referenceId
-    ),
-    referenceIdIdx: index('template_creators_reference_id_idx').on(table.referenceId),
-    createdByIdx: index('template_creators_created_by_idx').on(table.createdBy),
-  })
-)
-
-export const templates = pgTable(
-  'templates',
-  {
-    id: text('id').primaryKey(),
-    workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'set null' }),
-    name: text('name').notNull(),
-    details: jsonb('details'),
-    creatorId: text('creator_id').references(() => templateCreators.id, { onDelete: 'set null' }),
-    views: integer('views').notNull().default(0),
-    stars: integer('stars').notNull().default(0),
-    status: templateStatusEnum('status').notNull().default('pending'),
-    tags: text('tags').array().notNull().default(sql`'{}'::text[]`), // Array of tags
-    requiredCredentials: jsonb('required_credentials').notNull().default('[]'), // Array of credential requirements
-    state: jsonb('state').notNull(), // Store the workflow state directly
-    ogImageUrl: text('og_image_url'), // Pre-generated OpenGraph image URL
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-    updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Primary access patterns
-    statusIdx: index('templates_status_idx').on(table.status),
-    creatorIdIdx: index('templates_creator_id_idx').on(table.creatorId),
-
-    // Sorting indexes for popular/trending templates
-    viewsIdx: index('templates_views_idx').on(table.views),
-    starsIdx: index('templates_stars_idx').on(table.stars),
-
-    // Composite indexes for common queries
-    statusViewsIdx: index('templates_status_views_idx').on(table.status, table.views),
-    statusStarsIdx: index('templates_status_stars_idx').on(table.status, table.stars),
-
-    // Temporal indexes
-    createdAtIdx: index('templates_created_at_idx').on(table.createdAt),
-    updatedAtIdx: index('templates_updated_at_idx').on(table.updatedAt),
-  })
-)
-
-export const templateStars = pgTable(
-  'template_stars',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
-    templateId: text('template_id')
-      .notNull()
-      .references(() => templates.id, { onDelete: 'cascade' }),
-    starredAt: timestamp('starred_at').notNull().defaultNow(),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
-  },
-  (table) => ({
-    // Primary access patterns
-    userIdIdx: index('template_stars_user_id_idx').on(table.userId),
-    templateIdIdx: index('template_stars_template_id_idx').on(table.templateId),
-
-    // Composite indexes for common queries
-    userTemplateIdx: index('template_stars_user_template_idx').on(table.userId, table.templateId),
-    templateUserIdx: index('template_stars_template_user_idx').on(table.templateId, table.userId),
-
-    // Temporal indexes for analytics
-    starredAtIdx: index('template_stars_starred_at_idx').on(table.starredAt),
-    templateStarredAtIdx: index('template_stars_template_starred_at_idx').on(
-      table.templateId,
-      table.starredAt
-    ),
-
-    // Uniqueness constraint - prevent duplicate stars
-    uniqueUserTemplateConstraint: uniqueIndex('template_stars_user_template_unique').on(
-      table.userId,
-      table.templateId
     ),
   })
 )
@@ -3304,18 +3137,96 @@ export const userTableRows = pgTable(
       .references(() => workspace.id, { onDelete: 'cascade' }),
     data: jsonb('data').notNull(),
     position: integer('position').notNull().default(0),
+    /**
+     * Fractional order key (base-62 string). Authoritative row order when the
+     * `TABLES_FRACTIONAL_ORDERING` flag is on; nullable during the backfill
+     * window. Ordered with `id` as a deterministic tiebreaker.
+     *
+     * Stored with `COLLATE "C"` (migration 0228) so Postgres compares it bytewise,
+     * matching the fractional-indexing library's ASCII ordering. drizzle can't
+     * express column collation, so the collation lives only in the migration.
+     */
+    orderKey: text('order_key'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (table) => ({
     tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
-    dataGinIdx: index('user_table_rows_data_gin_idx').using('gin', table.data),
+    /**
+     * Tenant-scoped containment index (requires the `btree_gin` extension,
+     * created in migration 0232). A plain GIN on `data` matches `@>` candidates
+     * across every tenant sharing this relation — a hot value in someone else's
+     * table inflates everyone's scans (measured 1.07M candidates fetched for a
+     * 33k-row match). Leading with `table_id` intersects inside the index, and
+     * `jsonb_path_ops` indexes only containment paths: rare-equality probe
+     * 326ms → 17ms, and the index is smaller than the one it replaces.
+     */
+    dataGinIdx: index('user_table_rows_tenant_data_gin_idx').using(
+      'gin',
+      table.tableId,
+      sql`${table.data} jsonb_path_ops`
+    ),
     workspaceTableIdx: index('user_table_rows_workspace_table_idx').on(
       table.workspaceId,
       table.tableId
     ),
     tablePositionIdx: index('user_table_rows_table_position_idx').on(table.tableId, table.position),
+    tableOrderKeyIdx: index('user_table_rows_table_order_key_idx').on(
+      table.tableId,
+      table.orderKey,
+      table.id
+    ),
+    /**
+     * Keyset pagination by id within one table (the delete-job worker's page walk). Without it
+     * the planner scans the global pkey in id order, filtering out every other table's rows —
+     * O(all rows) per page.
+     */
+    tableIdIdIdx: index('user_table_rows_table_id_id_idx').on(table.tableId, table.id),
+  })
+)
+
+/**
+ * Background data-mutation jobs on a user table (CSV import, bulk filtered delete). One row per
+ * job. A detached worker streams progress into `rows_processed` and flips `status` to a terminal
+ * state; cancel flips `status` to `'canceled'` and the worker bails at its next ownership check.
+ *
+ * The partial-unique index on `table_id WHERE status = 'running'` is the concurrency gate: at most
+ * one running job per table, so a second import, or an import + delete, can't write into the same
+ * table at once. Distinct from `table_run_dispatches` — that fans workflow runs across rows via
+ * trigger.dev; this mutates row data directly.
+ */
+export const tableJobs = pgTable(
+  'table_jobs',
+  {
+    id: text('id').primaryKey(),
+    tableId: text('table_id')
+      .notNull()
+      .references(() => userTableDefinitions.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    /** `'import'` | `'delete'`. */
+    type: text('type').notNull(),
+    /** `'running'` → `'ready'` | `'failed'` | `'canceled'`. */
+    status: text('status').notNull().default('running'),
+    /** Type-specific descriptor (e.g. delete filter/exclusions). Nullable; reserved for future
+     *  resumability — today's workers carry their payload in-process via `runDetached`. */
+    payload: jsonb('payload'),
+    rowsProcessed: integer('rows_processed').notNull().default(0),
+    error: text('error'),
+    startedAt: timestamp('started_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    completedAt: timestamp('completed_at'),
+  },
+  (table) => ({
+    /** One running write-job (import/delete/backfill) per table. Exports are read-only and
+     *  excluded, so they can run alongside any other job. */
+    oneActivePerTable: uniqueIndex('table_jobs_one_active_per_table')
+      .on(table.tableId)
+      .where(sql`${table.status} = 'running' AND ${table.type} <> 'export'`),
+    watchdogIdx: index('table_jobs_watchdog_idx').on(table.status, table.updatedAt),
+    tableStartedIdx: index('table_jobs_table_started_idx').on(table.tableId, table.startedAt),
   })
 )
 
@@ -3403,6 +3314,12 @@ export const tableRunDispatches = pgTable(
      *  CSV import, addWorkflowGroup) set this to false so the dispatch
      *  honors the autoRun toggle. */
     isManualRun: boolean('is_manual_run').notNull().default(true),
+    /** User who triggered the run, for per-member usage attribution. Null for
+     *  auto-fire (row insert/update, CSV import) with no human initiator —
+     *  those fall back to the workspace billed account. */
+    triggeredByUserId: text('triggered_by_user_id').references(() => user.id, {
+      onDelete: 'set null',
+    }),
     requestedAt: timestamp('requested_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
     cancelledAt: timestamp('cancelled_at'),

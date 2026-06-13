@@ -91,12 +91,7 @@ export function QueuedMessages({
                 </div>
 
                 <div className='min-w-0 flex-1 overflow-hidden'>
-                  <UserMessageContent
-                    content={msg.content}
-                    contexts={msg.contexts}
-                    plainMentions
-                    compact
-                  />
+                  <UserMessageContent content={msg.content} contexts={msg.contexts} compact />
                 </div>
 
                 {msg.fileAttachments && msg.fileAttachments.length > 0 && (

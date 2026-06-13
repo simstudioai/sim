@@ -23,6 +23,7 @@ import {
   deleteTagDefinitionContract,
   getKnowledgeBaseContract,
   getKnowledgeDocumentContract,
+  getTagUsageContract,
   type KnowledgeBaseData,
   type KnowledgeChunksResponse,
   type KnowledgeDocumentsResponse,
@@ -38,6 +39,7 @@ import {
   type SaveDocumentTagDefinitionsResult,
   saveDocumentTagDefinitionsContract,
   type TagDefinitionData,
+  type TagUsageData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
@@ -56,6 +58,7 @@ export type {
   KnowledgeChunksResponse,
   KnowledgeDocumentsResponse,
   TagDefinitionData,
+  TagUsageData,
 }
 
 export const knowledgeKeys = {
@@ -63,10 +66,13 @@ export const knowledgeKeys = {
   lists: () => [...knowledgeKeys.all, 'list'] as const,
   list: (workspaceId?: string, scope: KnowledgeQueryScope = 'active') =>
     [...knowledgeKeys.lists(), workspaceId ?? 'all', scope] as const,
+  details: () => [...knowledgeKeys.all, 'detail'] as const,
   detail: (knowledgeBaseId?: string) =>
-    [...knowledgeKeys.all, 'detail', knowledgeBaseId ?? ''] as const,
+    [...knowledgeKeys.details(), knowledgeBaseId ?? ''] as const,
   tagDefinitions: (knowledgeBaseId: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'tagDefinitions'] as const,
+  tagUsage: (knowledgeBaseId: string) =>
+    [...knowledgeKeys.detail(knowledgeBaseId), 'tagUsage'] as const,
   documents: (knowledgeBaseId: string, paramsKey: string) =>
     [...knowledgeKeys.detail(knowledgeBaseId), 'documents', paramsKey] as const,
   document: (knowledgeBaseId: string, documentId: string) =>
@@ -75,6 +81,8 @@ export const knowledgeKeys = {
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'tagDefinitions'] as const,
   chunks: (knowledgeBaseId: string, documentId: string, paramsKey: string) =>
     [...knowledgeKeys.document(knowledgeBaseId, documentId), 'chunks', paramsKey] as const,
+  chunkSearch: (knowledgeBaseId: string, documentId: string, searchKey: string) =>
+    [...knowledgeKeys.document(knowledgeBaseId, documentId), 'search', searchKey] as const,
 }
 
 export async function fetchKnowledgeBases(
@@ -358,11 +366,7 @@ export function useDocumentChunkSearchQuery(
 ) {
   const searchKey = serializeSearchParams(params)
   return useQuery({
-    queryKey: [
-      ...knowledgeKeys.document(params.knowledgeBaseId, params.documentId),
-      'search',
-      searchKey,
-    ],
+    queryKey: knowledgeKeys.chunkSearch(params.knowledgeBaseId, params.documentId, searchKey),
     queryFn: ({ signal }) => fetchAllDocumentChunks(params, signal),
     enabled:
       (options?.enabled ?? true) &&
@@ -783,6 +787,27 @@ export function useTagDefinitionsQuery(knowledgeBaseId?: string | null) {
   })
 }
 
+async function fetchTagUsage(
+  knowledgeBaseId: string,
+  signal?: AbortSignal
+): Promise<TagUsageData[]> {
+  const result = await requestJson(getTagUsageContract, {
+    params: { id: knowledgeBaseId },
+    signal,
+  })
+
+  return result.data
+}
+
+export function useTagUsageQuery(knowledgeBaseId?: string | null, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: knowledgeKeys.tagUsage(knowledgeBaseId ?? ''),
+    queryFn: ({ signal }) => fetchTagUsage(knowledgeBaseId as string, signal),
+    enabled: Boolean(knowledgeBaseId) && (options?.enabled ?? true),
+    staleTime: 60 * 1000,
+  })
+}
+
 interface CreateTagDefinitionParams {
   knowledgeBaseId: string
   displayName: string
@@ -843,6 +868,9 @@ export function useCreateTagDefinition() {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
       })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.tagUsage(knowledgeBaseId),
+      })
     },
   })
 }
@@ -869,6 +897,9 @@ export function useDeleteTagDefinition() {
     onSettled: (_data, _error, { knowledgeBaseId }) => {
       queryClient.invalidateQueries({
         queryKey: knowledgeKeys.tagDefinitions(knowledgeBaseId),
+      })
+      queryClient.invalidateQueries({
+        queryKey: knowledgeKeys.tagUsage(knowledgeBaseId),
       })
     },
   })

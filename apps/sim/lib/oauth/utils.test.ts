@@ -8,6 +8,7 @@ import {
   getScopesForService,
   getServiceByProviderAndId,
   getServiceConfigByProviderId,
+  getServiceConfigByServiceId,
   parseProvider,
 } from './utils'
 
@@ -262,6 +263,36 @@ describe('getServiceConfigByProviderId', () => {
 
   it.concurrent('should handle empty string', () => {
     const service = getServiceConfigByProviderId('')
+
+    expect(service).toBeNull()
+  })
+})
+
+describe('getServiceConfigByServiceId', () => {
+  it.concurrent('should return service config for a service key', () => {
+    const service = getServiceConfigByServiceId('gmail')
+
+    expect(service).toBeDefined()
+    expect(service?.providerId).toBe('google-email')
+    expect(service?.name).toBe('Gmail')
+  })
+
+  it.concurrent('should resolve the shared Jira service used by Jira Service Management', () => {
+    const service = getServiceConfigByServiceId('jira')
+
+    expect(service).toBeDefined()
+    expect(service?.providerId).toBe('jira')
+    expect(service?.name).toBe('Jira')
+  })
+
+  it.concurrent('should not match on providerId values that are not service keys', () => {
+    const service = getServiceConfigByServiceId('google-email')
+
+    expect(service).toBeNull()
+  })
+
+  it.concurrent('should return null for unknown service id', () => {
+    const service = getServiceConfigByServiceId('invalid-service')
 
     expect(service).toBeNull()
   })

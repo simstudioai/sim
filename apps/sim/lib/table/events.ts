@@ -114,6 +114,23 @@ export type TableEvent =
       limit?: { type: 'rows'; max: number }
     }
   | {
+      /** Async background-job progress. Import and delete workers emit `running`
+       *  ticks as batches commit, then a terminal `ready`/`failed`/`canceled`.
+       *  `type` discriminates the work. The client reveals hidden import rows on
+       *  `ready`, and on a delete `failed`/`canceled` restores optimistically
+       *  hidden rows. See `import-runner.ts` / `delete-runner.ts`. */
+      kind: 'job'
+      tableId: string
+      jobId: string
+      type: 'import' | 'delete' | 'export' | 'backfill'
+      status: 'running' | 'ready' | 'failed' | 'canceled'
+      /** Rows processed so far (running) or in total (ready). */
+      progress?: number
+      /** Byte-based completion percent (0–100) — exact and monotonic, for the determinate bar. */
+      percent?: number
+      error?: string
+    }
+  | {
       /** A dispatch was stopped because the billed account is over its usage
        *  limit. The client surfaces an upgrade prompt and redirects to billing.
        *  The dispatch is halted via `markDispatchComplete` and the blocked

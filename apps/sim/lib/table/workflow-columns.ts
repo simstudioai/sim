@@ -6,15 +6,20 @@
  */
 
 import { db } from '@sim/db'
-import { pausedExecutions, tableRowExecutions, type userTableRows } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  tableRowExecutions,
+  userTableRows as userTableRowsTable,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, notInArray, sql } from 'drizzle-orm'
 import type { EnqueueOptions } from '@/lib/core/async-jobs/types'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { buildCancelledExecution } from '@/lib/table/cell-write'
 import type {
+  Filter,
   RowData,
   RowExecutionMetadata,
   RowExecutions,
@@ -26,8 +31,11 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
+import { getColumnId } from './column-keys'
+import { USER_TABLE_ROWS_SQL_NAME } from './constants'
 import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
 import type { DispatchLimit, DispatchMode } from './dispatcher'
+import { buildFilterClause } from './sql'
 
 export {
   getUnmetGroupDeps,
@@ -305,7 +313,7 @@ export async function cancelCellRunsByTags(tags: string[]): Promise<void> {
 }
 
 export function toTableRow(
-  r: typeof userTableRows.$inferSelect,
+  r: typeof userTableRowsTable.$inferSelect,
   executions: RowExecutions = {}
 ): TableRow {
   return {
@@ -333,6 +341,10 @@ export interface WorkflowGroupCellPayload {
    *  on a hard stop (e.g. usage limit). Absent for cascade/auto-fire payloads
    *  that aren't driven by a dispatch. */
   dispatchId?: string
+  /** User who triggered the run, for per-member usage attribution. Absent for
+   *  auto-fire (row writes, CSV import) → billing falls back to the workspace
+   *  billed account. */
+  triggeredByUserId?: string
 }
 
 /** Per-table concurrency cap. Mirrors trigger.dev's `concurrencyLimit: 20`. */
@@ -345,12 +357,15 @@ export const TABLE_CONCURRENCY_LIMIT = 20
  * whether the trigger.dev cancel reaches the worker before its terminal
  * write. Pass `groupIds` to restrict the cancel to a subset of groups on
  * the row (used by `updateRow` to cancel only the downstream groups whose
- * deps just changed).
+ * deps just changed). Pass `filter` (table-wide form only) to cancel just
+ * the cells on rows matching it — a filtered "select all" must not stop
+ * work on rows outside its scope, so like the per-row form it leaves
+ * active dispatches running (their in-flight checks skip cancelled cells).
  */
 export async function cancelWorkflowGroupRuns(
   tableId: string,
   rowId?: string,
-  options?: { groupIds?: string[] }
+  options?: { groupIds?: string[]; filter?: Filter; excludeRowIds?: string[] }
 ): Promise<number> {
   const { getTableById, updateRow } = await import('@/lib/table/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
@@ -365,8 +380,11 @@ export async function cancelWorkflowGroupRuns(
   // Per-row cancel leaves the dispatcher alone — other rows in the same
   // dispatch keep running. Table-wide cancel must stop it, else the cursor
   // marches on and re-enqueues fresh cells past what we just cancelled.
+  // Filter-scoped cancel stops only dispatches with that exact filter scope
+  // (its own run); whole-table or differently-scoped dispatches keep running —
+  // their cells cancelled below are skipped via `cancelledAt > requestedAt`.
   if (!rowId) {
-    await markActiveDispatchesCancelled(tableId)
+    await markActiveDispatchesCancelled(tableId, options?.filter, options?.excludeRowIds)
   }
 
   const allGroups = table.schema.workflowGroups ?? []
@@ -417,6 +435,30 @@ export async function cancelWorkflowGroupRuns(
   ]
   if (rowId) {
     inFlightFilters.push(eq(tableRowExecutions.rowId, rowId))
+  } else if (options?.excludeRowIds?.length) {
+    // Select-all minus deselections: the deselected rows' cells keep running.
+    inFlightFilters.push(notInArray(tableRowExecutions.rowId, options.excludeRowIds))
+  }
+  if (!rowId && options?.filter) {
+    // Filter-scoped cancel: only cells on rows matching the filter. Semi-join
+    // against the tenant's rows — the in-flight sidecar set is small, so the
+    // jsonb predicate is evaluated on few rows.
+    const filterClause = buildFilterClause(
+      options.filter,
+      USER_TABLE_ROWS_SQL_NAME,
+      table.schema.columns
+    )
+    if (filterClause) {
+      inFlightFilters.push(
+        inArray(
+          tableRowExecutions.rowId,
+          db
+            .select({ id: userTableRowsTable.id })
+            .from(userTableRowsTable)
+            .where(and(eq(userTableRowsTable.tableId, tableId), filterClause))
+        )
+      )
+    }
   }
   const inFlightRows = await db
     .select()
@@ -582,6 +624,12 @@ export async function runWorkflowColumn(opts: {
   requestId: string
   groupIds?: string[]
   rowIds?: string[]
+  /** "Select all under a filter" — run every row matching this filter (mutually exclusive with
+   *  `rowIds`). Threaded into the dispatch scope so the dispatcher walks only matching rows. */
+  filter?: Filter
+  /** Select-all scope only: deselected rows — the dispatcher walk, eager clear, and pre-run
+   *  cancel all skip them. */
+  excludeRowIds?: string[]
   /** Optional cap on work before the dispatch completes (e.g. run only the
    *  first N eligible rows). Null/omitted = process every row in scope. */
   limit?: DispatchLimit | null
@@ -589,8 +637,23 @@ export async function runWorkflowColumn(opts: {
    *  cells as terminal — appropriate for auto-fire after row writes or
    *  schema changes. Defaults to true (user-initiated "Run column"). */
   isManualRun?: boolean
+  /** User who triggered the run, for usage attribution. Omitted by auto-fire
+   *  callers (row writes, CSV import) → falls back to the workspace billed
+   *  account at billing time. */
+  triggeredByUserId?: string | null
 }): Promise<{ dispatchId: string | null }> {
-  const { tableId, workspaceId, mode, requestId, groupIds, rowIds, limit } = opts
+  const {
+    tableId,
+    workspaceId,
+    mode,
+    requestId,
+    groupIds,
+    rowIds,
+    filter,
+    excludeRowIds,
+    limit,
+    triggeredByUserId,
+  } = opts
   const isManualRun = opts.isManualRun ?? true
   // Empty `rowIds` array means "scope explicitly empty" — auto-fire callers
   // (CSV import on zero matches, etc.) end up here. Skip the dispatch entirely
@@ -632,7 +695,13 @@ export async function runWorkflowColumn(opts: {
   const cancelPriorRuns = isManualRun && (mode === 'all' || mode === 'incomplete')
   if (cancelPriorRuns) {
     if (!rowIds || rowIds.length === 0) {
-      await cancelWorkflowGroupRuns(tableId, undefined, { groupIds: targetGroupIds })
+      // Filtered runs cancel only their own scope — a table-wide cancel here
+      // would stop unrelated work on rows outside the filter (or on deselected rows).
+      await cancelWorkflowGroupRuns(tableId, undefined, {
+        groupIds: targetGroupIds,
+        filter,
+        excludeRowIds,
+      })
     } else {
       // Per-row cancel — sequential so we don't fan out N parallel
       // markActiveDispatchesCancelled calls (it's a no-op when rowId is set,
@@ -650,11 +719,15 @@ export async function runWorkflowColumn(opts: {
   // rows in scope would blank far more than we re-run. `mode: 'all'` re-runs
   // completed cells without the clear anyway — the clear is only for instant
   // feedback, which the capped rows still get via the dispatcher's pre-stamp.
-  if (!limit) {
+  // Skip the eager clear for a filtered run: `bulkClearWorkflowGroupCells` keys by `rowIds`, and a
+  // filtered scope has none — clearing table-wide would blank rows that don't match the filter. The
+  // dispatcher's per-row pre-stamp still provides instant Pending feedback as it walks.
+  if (!limit && !filter) {
     await bulkClearWorkflowGroupCells({
       tableId,
       groups: targetGroups.map((g) => ({ id: g.id, outputs: g.outputs })),
       rowIds,
+      excludeRowIds,
       mode,
     })
   }
@@ -671,9 +744,14 @@ export async function runWorkflowColumn(opts: {
     scope: {
       groupIds: targetGroupIds,
       ...(rowIds && rowIds.length > 0 ? { rowIds } : {}),
+      ...(filter ? { filter } : {}),
+      ...(excludeRowIds && excludeRowIds.length > 0 && !(rowIds && rowIds.length > 0)
+        ? { excludeRowIds }
+        : {}),
     },
     limit,
     isManualRun,
+    triggeredByUserId,
   })
 
   logger.info(
@@ -742,18 +820,19 @@ export function stripGroupDeps(group: WorkflowGroup, removed: ReadonlySet<string
  */
 export function validateSchema(schema: TableSchema, columnOrder: string[] | undefined): string[] {
   const errors: string[] = []
-  const columnsByName = new Map(schema.columns.map((c) => [c.name, c]))
+  // Group refs and columnOrder hold stable column ids (not display names).
+  const columnsById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
   const groups = schema.workflowGroups ?? []
   const groupsById = new Map(groups.map((g) => [g.id, g]))
 
   // Reference integrity for group outputs.
-  const claimedColumns = new Map<string, string>() // columnName → groupId
+  const claimedColumns = new Map<string, string>() // columnId → groupId
   for (const group of groups) {
     if (group.outputs.length === 0) {
       errors.push(`Workflow group "${group.name ?? group.id}" has no outputs.`)
     }
     for (const out of group.outputs) {
-      const col = columnsByName.get(out.columnName)
+      const col = columnsById.get(out.columnName)
       if (!col) {
         errors.push(
           `Workflow group "${group.name ?? group.id}" references missing column "${out.columnName}".`
@@ -785,7 +864,7 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
       )
       continue
     }
-    if (claimedColumns.get(col.name) !== col.workflowGroupId) {
+    if (claimedColumns.get(getColumnId(col)) !== col.workflowGroupId) {
       errors.push(
         `Column "${col.name}" has workflowGroupId "${col.workflowGroupId}" but isn't in that group's outputs.`
       )
@@ -804,7 +883,7 @@ export function validateSchema(schema: TableSchema, columnOrder: string[] | unde
   for (const group of groups) {
     const ownOutputs = new Set(group.outputs.map((o) => o.columnName))
     for (const depCol of group.dependencies?.columns ?? []) {
-      const col = columnsByName.get(depCol)
+      const col = columnsById.get(depCol)
       if (!col) {
         errors.push(`Group "${group.name ?? group.id}" depends on missing column "${depCol}".`)
         continue

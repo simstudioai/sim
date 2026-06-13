@@ -62,10 +62,9 @@ export const A2ABlock: BlockConfig<A2AResponse> = {
     'Use the A2A (Agent-to-Agent) protocol to interact with external AI agents. ' +
     'Send messages, query task status, cancel tasks, or discover agent capabilities. ' +
     'Compatible with any A2A-compliant agent including LangGraph, Google ADK, and other Sim workflows.',
-  docsLink: 'https://docs.sim.ai/blocks/a2a',
-  category: 'tools',
-  integrationType: IntegrationType.DeveloperTools,
-  tags: ['agentic', 'automation'],
+  docsLink: 'https://docs.sim.ai/workflows/blocks/a2a',
+  category: 'blocks',
+  integrationType: IntegrationType.DevOps,
   bgColor: '#4151B5',
   icon: A2AIcon,
   subBlocks: [

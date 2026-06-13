@@ -12,8 +12,12 @@ import {
 
 const logger = createLogger('UploadsSetup')
 
-const PROJECT_ROOT = path.resolve(process.cwd())
-export const UPLOAD_DIR_SERVER = join(PROJECT_ROOT, 'uploads')
+// turbopackIgnore: an unscoped process.cwd() makes node-file-tracing sweep the whole
+// project (including next.config.ts) into every route graph that reaches this module.
+// Two routes doing so emit the swept config into same-named server chunks — when their
+// contents diverge, the build dies with "Two or more assets … same output path".
+const PROJECT_ROOT = path.resolve(/*turbopackIgnore: true*/ process.cwd())
+export const UPLOAD_DIR_SERVER = join(/*turbopackIgnore: true*/ PROJECT_ROOT, 'uploads')
 
 /**
  * Server-only function to ensure uploads directory exists

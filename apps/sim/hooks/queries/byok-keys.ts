@@ -16,7 +16,8 @@ export type { BYOKKey, BYOKKeysResponse }
 
 export const byokKeysKeys = {
   all: ['byok-keys'] as const,
-  workspace: (workspaceId: string) => [...byokKeysKeys.all, 'workspace', workspaceId] as const,
+  lists: () => [...byokKeysKeys.all, 'list'] as const,
+  list: (workspaceId?: string) => [...byokKeysKeys.lists(), workspaceId ?? ''] as const,
 }
 
 async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise<BYOKKeysResponse> {
@@ -31,7 +32,7 @@ async function fetchBYOKKeys(workspaceId: string, signal?: AbortSignal): Promise
 
 export function useBYOKKeys(workspaceId: string) {
   return useQuery({
-    queryKey: byokKeysKeys.workspace(workspaceId),
+    queryKey: byokKeysKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchBYOKKeys(workspaceId, signal),
     enabled: !!workspaceId,
     staleTime: 60 * 1000,
@@ -47,19 +48,18 @@ export function useUpsertBYOKKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, providerId, apiKey }: UpsertBYOKKeyParams) => {
+    mutationFn: async ({ workspaceId, ...body }: UpsertBYOKKeyParams) => {
       const data = await requestJson(upsertByokKeyContract, {
         params: { id: workspaceId },
-        body: { providerId, apiKey },
+        body,
       })
-      logger.info(`Saved BYOK key for ${providerId} in workspace ${workspaceId}`)
+      logger.info(`Saved BYOK key for ${body.providerId} in workspace ${workspaceId}`)
       return data
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({
-        queryKey: byokKeysKeys.workspace(variables.workspaceId),
-      })
-    },
+        queryKey: byokKeysKeys.list(variables.workspaceId),
+      }),
   })
 }
 
@@ -71,18 +71,17 @@ export function useDeleteBYOKKey() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, providerId }: DeleteBYOKKeyParams) => {
+    mutationFn: async ({ workspaceId, ...body }: DeleteBYOKKeyParams) => {
       const data = await requestJson(deleteByokKeyContract, {
         params: { id: workspaceId },
-        body: { providerId },
+        body,
       })
-      logger.info(`Deleted BYOK key for ${providerId} from workspace ${workspaceId}`)
+      logger.info(`Deleted BYOK key for ${body.providerId} from workspace ${workspaceId}`)
       return data
     },
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) =>
       queryClient.invalidateQueries({
-        queryKey: byokKeysKeys.workspace(variables.workspaceId),
-      })
-    },
+        queryKey: byokKeysKeys.list(variables.workspaceId),
+      }),
   })
 }

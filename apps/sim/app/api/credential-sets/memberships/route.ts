@@ -74,7 +74,6 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
   try {
     const requestId = generateId().slice(0, 8)
 
-    // Use transaction to ensure revocation + webhook sync are atomic
     await db.transaction(async (tx) => {
       // Find and verify membership
       const [membership] = await tx
@@ -104,15 +103,26 @@ export const DELETE = withRouteHandler(async (req: NextRequest) => {
           updatedAt: new Date(),
         })
         .where(eq(credentialSetMember.id, membership.id))
+    })
 
-      // Sync webhooks to remove this user's credential webhooks
-      const syncResult = await syncAllWebhooksForCredentialSet(credentialSetId, requestId, tx)
+    // Runs after the revocation commits: the sync performs external HTTP
+    // (OAuth refresh, provider unsubscribe) and must not hold a pooled
+    // connection. A sync failure must not fail the committed mutation —
+    // it self-heals on the next membership change/deploy.
+    try {
+      const syncResult = await syncAllWebhooksForCredentialSet(credentialSetId, requestId)
       logger.info('Synced webhooks after member left', {
         credentialSetId,
         userId: session.user.id,
         ...syncResult,
       })
-    })
+    } catch (syncError) {
+      logger.error('Webhook sync failed after member left', {
+        credentialSetId,
+        userId: session.user.id,
+        error: syncError,
+      })
+    }
 
     logger.info('User left credential set', {
       credentialSetId,

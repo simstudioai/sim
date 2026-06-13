@@ -31,7 +31,13 @@
  */
 
 import { db } from '@sim/db'
-import { permissions, user, workspaceEnvironment } from '@sim/db/schema'
+import {
+  permissionGroupMember,
+  permissions,
+  user,
+  workspace,
+  workspaceEnvironment,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq } from 'drizzle-orm'
@@ -41,12 +47,20 @@ import {
   adminV1ListWorkspaceMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
+import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import {
+  reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
+  transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx,
+  WorkspaceBillingAccountRemovalError,
+} from '@/lib/workspaces/utils'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
+  badRequestResponse,
   internalErrorResponse,
   listResponse,
   notFoundResponse,
@@ -143,6 +157,16 @@ export const POST = withRouteHandler(
         return notFoundResponse('Workspace')
       }
 
+      const [workspaceBilling] = await db
+        .select({ billedAccountUserId: workspace.billedAccountUserId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+
+      if (workspaceBilling?.billedAccountUserId === userId && permissionLevel !== 'admin') {
+        return badRequestResponse('Workspace billing account must retain admin permissions')
+      }
+
       const [userData] = await db
         .select({ id: user.id, name: user.name, email: user.email, image: user.image })
         .from(user)
@@ -224,7 +248,12 @@ export const POST = withRouteHandler(
         updatedAt: now,
       })
 
-      await applyWorkspaceAutoAddGroup(db, workspaceId, userId)
+      await applyWorkspaceAutoAddGroup(
+        db,
+        workspaceId,
+        userId,
+        await isWorkspaceOnEnterprisePlan(workspaceId)
+      )
 
       logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
         permissions: permissionLevel,
@@ -282,6 +311,18 @@ export const DELETE = withRouteHandler(
         return notFoundResponse('Workspace')
       }
 
+      const [workspaceBilling] = await db
+        .select({ billedAccountUserId: workspace.billedAccountUserId })
+        .from(workspace)
+        .where(eq(workspace.id, workspaceId))
+        .limit(1)
+
+      if (workspaceBilling?.billedAccountUserId === userId) {
+        return badRequestResponse(
+          'Cannot remove the workspace billing account. Please reassign billing first.'
+        )
+      }
+
       const [existingPermission] = await db
         .select({ id: permissions.id })
         .from(permissions)
@@ -298,12 +339,44 @@ export const DELETE = withRouteHandler(
         return notFoundResponse('Workspace member')
       }
 
-      await db.delete(permissions).where(eq(permissions.id, existingPermission.id))
+      await db.transaction(async (tx) => {
+        await transferWorkspaceOwnershipToBilledAccountForMemberRemovalTx({
+          tx,
+          workspaceId,
+          departingUserId: userId,
+        })
+
+        const workflowOwnershipReassignment =
+          await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
+            tx,
+            workspaceIds: [workspaceId],
+            departingUserId: userId,
+          })
+        if (workflowOwnershipReassignment.unresolved.length > 0) {
+          throw new WorkspaceBillingAccountRemovalError()
+        }
+
+        await tx.delete(permissions).where(eq(permissions.id, existingPermission.id))
+
+        await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
+
+        await tx
+          .delete(permissionGroupMember)
+          .where(
+            and(
+              eq(permissionGroupMember.userId, userId),
+              eq(permissionGroupMember.workspaceId, workspaceId)
+            )
+          )
+      })
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)
 
       return singleResponse({ removed: true, userId, workspaceId })
     } catch (error) {
+      if (error instanceof WorkspaceBillingAccountRemovalError) {
+        return badRequestResponse(error.message)
+      }
       logger.error('Admin API: Failed to remove workspace member', {
         error,
         workspaceId,

@@ -2,14 +2,14 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
-import { Skeleton } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 import { resolveFileCategory } from './file-category'
 import type { StreamingMode } from './text-editor-state'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 export type { StreamingMode } from './text-editor-state'
 
@@ -18,7 +18,13 @@ import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
 import { resolvePreviewType } from './preview-panel'
-import { PDF_PAGE_SKELETON, PreviewError, resolvePreviewError } from './preview-shared'
+import {
+  PREVIEW_LOADING_OVERLAY,
+  PreviewError,
+  PreviewErrorBoundary,
+  PreviewLoadingFrame,
+  resolvePreviewError,
+} from './preview-shared'
 import { TextEditor } from './text-editor'
 import { XlsxPreview } from './xlsx-preview'
 
@@ -43,6 +49,7 @@ interface FileViewerProps {
   workspaceId: string
   canEdit: boolean
   previewMode?: PreviewMode
+  autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -57,6 +64,7 @@ export function FileViewer({
   workspaceId,
   canEdit,
   previewMode,
+  autoFocus,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -74,6 +82,7 @@ export function FileViewer({
         workspaceId={workspaceId}
         canEdit={canEdit}
         previewMode={previewMode ?? 'editor'}
+        autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
@@ -86,14 +95,7 @@ export function FileViewer({
   }
 
   if (category === 'iframe-previewable') {
-    return (
-      <IframePreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <IframePreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'image-previewable') {
@@ -101,45 +103,23 @@ export function FileViewer({
   }
 
   if (category === 'audio-previewable') {
-    return <AudioPreview key={file.id} file={file} workspaceId={workspaceId} />
+    return <MediaPreview key={file.id} file={file} workspaceId={workspaceId} kind='audio' />
   }
 
   if (category === 'video-previewable') {
-    return <VideoPreview key={file.id} file={file} workspaceId={workspaceId} />
+    return <MediaPreview key={file.id} file={file} workspaceId={workspaceId} kind='video' />
   }
 
   if (category === 'docx-previewable') {
-    return (
-      <DocxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <DocxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'pptx-previewable') {
-    return (
-      <PptxPreview
-        key={file.id}
-        file={file}
-        workspaceId={workspaceId}
-        streamingContent={streamingContent}
-      />
-    )
+    return <PptxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   if (category === 'xlsx-previewable') {
-    return (
-      <XlsxPreview
-        file={file}
-        workspaceId={workspaceId}
-        canEdit={canEdit}
-        onSaveStatusChange={onSaveStatusChange}
-        saveRef={saveRef}
-      />
-    )
+    return <XlsxPreview key={file.id} file={file} workspaceId={workspaceId} />
   }
 
   return <UnsupportedPreview file={file} />
@@ -148,91 +128,29 @@ export function FileViewer({
 const IframePreview = memo(function IframePreview({
   file,
   workspaceId,
-  streamingContent,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
-  streamingContent?: string
 }) {
-  const [streamingBuffer, setStreamingBuffer] = useState<ArrayBuffer | null>(null)
-  const streamingBufferRef = useRef<ArrayBuffer | null>(null)
-  const streamingBufferSeqRef = useRef(0)
-  const [streamingBufferSeq, setStreamingBufferSeq] = useState(0)
-  const [rendering, setRendering] = useState(false)
+  const preview = useDocPreviewBinary(workspaceId, file)
 
-  useEffect(() => {
-    if (streamingContent === undefined) return
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    const debounceTimer = setTimeout(async () => {
-      if (cancelled) return
-
-      try {
-        setRendering(true)
-
-        // boundary-raw-fetch: route returns binary PDF (read via response.arrayBuffer()), not JSON
-        const response = await fetch(`/api/workspaces/${workspaceId}/pdf/preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: streamingContent }),
-          signal: controller.signal,
-        })
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({ error: 'Preview failed' }))
-          throw new Error(err.error || 'Preview failed')
-        }
-
-        const buf = await response.arrayBuffer()
-        if (cancelled) return
-
-        streamingBufferRef.current = buf
-        streamingBufferSeqRef.current += 1
-        setStreamingBuffer(buf)
-        setStreamingBufferSeq(streamingBufferSeqRef.current)
-      } catch (err) {
-        if (!cancelled && !(err instanceof DOMException && err.name === 'AbortError')) {
-          const msg = toError(err).message || 'Failed to render PDF'
-          logger.info('Transient PDF streaming preview error (suppressed)', { error: msg })
-        }
-      } finally {
-        if (!cancelled) setRendering(false)
-      }
-    }, 500)
-
-    return () => {
-      cancelled = true
-      clearTimeout(debounceTimer)
-      controller.abort()
-    }
-  }, [streamingContent, workspaceId])
-
-  const staticSource = useMemo<PdfDocumentSource>(
-    () => ({
-      kind: 'url',
-      url: `/api/files/serve/${encodeURIComponent(file.key)}?context=workspace`,
-    }),
-    [file.key]
+  const bufferSource = useMemo<PdfDocumentSource | null>(
+    () => (preview.data ? { kind: 'buffer', buffer: preview.data } : null),
+    [preview.data]
   )
 
-  const streamingSource = useMemo<PdfDocumentSource | null>(
-    () => (streamingBuffer ? { kind: 'buffer', buffer: streamingBuffer } : null),
-    [streamingBuffer]
-  )
+  const error = resolvePreviewError(preview.error, null)
+  if (error) return <PreviewError label='PDF' error={error} />
 
-  if (streamingContent !== undefined) {
-    if (
-      !streamingSource ||
-      streamingSource.kind !== 'buffer' ||
-      streamingSource.buffer.byteLength === 0
-    ) {
-      return <div className='relative flex flex-1 overflow-hidden'>{PDF_PAGE_SKELETON}</div>
-    }
-    return <PdfViewerCore key={streamingBufferSeq} source={streamingSource} filename={file.name} />
+  if (!bufferSource) {
+    return <div className='relative flex flex-1 overflow-hidden'>{PREVIEW_LOADING_OVERLAY}</div>
   }
 
-  return <PdfViewerCore source={staticSource} filename={file.name} />
+  return (
+    <PreviewErrorBoundary key={`${file.id}:${preview.dataUpdatedAt}`} label='PDF'>
+      <PdfViewerCore source={bufferSource} filename={file.name} />
+    </PreviewErrorBoundary>
+  )
 })
 
 function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
@@ -259,12 +177,21 @@ function useBlobUrl(workspaceId: string, fileId: string, fileKey: string) {
   return { fileData, isLoading, error, blobUrl, replaceBlobUrl }
 }
 
-const AudioPreview = memo(function AudioPreview({
+const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
+
+/**
+ * Shared blob-backed preview for audio and video files — the fetch, blob-URL
+ * lifecycle, and error/loading handling are identical; only the rendered
+ * player differs.
+ */
+const MediaPreview = memo(function MediaPreview({
   file,
   workspaceId,
+  kind,
 }: {
   file: WorkspaceFileRecord
   workspaceId: string
+  kind: 'audio' | 'video'
 }) {
   const {
     fileData,
@@ -276,63 +203,29 @@ const AudioPreview = memo(function AudioPreview({
 
   useEffect(() => {
     if (!fileData) return
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'audio/mpeg' })))
-  }, [file.type, fileData, replaceBlobUrl])
+    replaceBlobUrl(
+      URL.createObjectURL(new Blob([fileData], { type: file.type || MEDIA_FALLBACK_MIME[kind] }))
+    )
+  }, [file.type, fileData, kind, replaceBlobUrl])
 
   const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
-  if (error) return <PreviewError label='audio' error={error} />
+  if (error) return <PreviewError label={kind} error={error} />
 
   if (isLoading && !blobUrl) {
-    return (
-      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
-        <Skeleton className='size-[40px] rounded-full' />
-        <Skeleton className='h-[14px] w-[160px]' />
-        <Skeleton className='h-[40px] w-full max-w-[480px] rounded-lg' />
-      </div>
-    )
+    return <PreviewLoadingFrame className='h-full' tone='surface' />
   }
 
-  return (
-    <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
-      <div className='flex flex-col items-center gap-2 text-center'>
-        <div className='text-[32px]'>🎵</div>
-        <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
-      </div>
-      {blobUrl && (
-        // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
-        <audio src={blobUrl} controls className='w-full max-w-[480px]' />
-      )}
-    </div>
-  )
-})
-
-const VideoPreview = memo(function VideoPreview({
-  file,
-  workspaceId,
-}: {
-  file: WorkspaceFileRecord
-  workspaceId: string
-}) {
-  const {
-    fileData,
-    isLoading,
-    error: fetchError,
-    blobUrl,
-    replaceBlobUrl,
-  } = useBlobUrl(workspaceId, file.id, file.key)
-
-  useEffect(() => {
-    if (!fileData) return
-    replaceBlobUrl(URL.createObjectURL(new Blob([fileData], { type: file.type || 'video/mp4' })))
-  }, [file.type, fileData, replaceBlobUrl])
-
-  const error = blobUrl !== null ? null : resolvePreviewError(fetchError, null)
-  if (error) return <PreviewError label='video' error={error} />
-
-  if (isLoading && !blobUrl) {
+  if (kind === 'audio') {
     return (
-      <div className='flex h-full items-center justify-center bg-[var(--surface-1)] p-8'>
-        <Skeleton className='w-full max-w-[720px]' style={{ aspectRatio: '16 / 9' }} />
+      <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
+        <div className='flex flex-col items-center gap-2 text-center'>
+          <Music className='size-[32px] text-[var(--text-muted)]' strokeWidth={1.5} />
+          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+        </div>
+        {blobUrl && (
+          // biome-ignore lint/a11y/useMediaCaption: audio from workspace files
+          <audio src={blobUrl} controls className='w-full max-w-[480px]' />
+        )}
       </div>
     )
   }

@@ -7,9 +7,9 @@ import type { SVGProps } from 'react'
 export function Folder(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      width='15'
+      width='14.5'
       height='13'
-      viewBox='0 0 15 13'
+      viewBox='0 0 14.5 13'
       fill='none'
       xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'

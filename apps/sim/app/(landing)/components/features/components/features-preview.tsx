@@ -5,7 +5,7 @@ import { AnimatePresence, domAnimation, LazyMotion, m, useInView } from 'framer-
 import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { ChevronDown } from '@/components/emcn'
-import { Database, File, Library, Table } from '@/components/emcn/icons'
+import { Database, File, Library, Table, Workflow } from '@/components/emcn/icons'
 import {
   AnthropicIcon,
   GeminiIcon,
@@ -18,7 +18,6 @@ import {
   xAIIcon,
 } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
-import { workflowBorderColor } from '@/lib/workspaces/colors'
 
 interface FeaturesPreviewProps {
   activeTab: number
@@ -75,47 +74,46 @@ interface CardDef {
   col: number
   variant: CardVariant
   label: string
-  color?: string
 }
 
 const MOTHERSHIP_CARDS: CardDef[] = [
   { row: 0, col: 0, variant: 'prompt', label: 'prompt.md' },
   { row: 1, col: 0, variant: 'table', label: 'Leads' },
-  { row: 0, col: 1, variant: 'workflow', label: 'Email Bot', color: '#7C3AED' },
+  { row: 0, col: 1, variant: 'workflow', label: 'Email Bot' },
   { row: 1, col: 1, variant: 'file', label: 'handbook.md' },
   { row: 2, col: 0, variant: 'logs', label: 'Run Logs' },
   { row: 0, col: 2, variant: 'file', label: 'notes.md' },
-  { row: 2, col: 1, variant: 'workflow', label: 'Onboarding', color: '#2563EB' },
+  { row: 2, col: 1, variant: 'workflow', label: 'Onboarding' },
   { row: 1, col: 2, variant: 'table', label: 'Contacts' },
   { row: 2, col: 2, variant: 'file', label: 'report.pdf' },
   { row: 3, col: 0, variant: 'table', label: 'Tickets' },
   { row: 0, col: 3, variant: 'file', label: 'wiki.md' },
   { row: 3, col: 1, variant: 'logs', label: 'Audit Trail' },
-  { row: 1, col: 3, variant: 'workflow', label: 'Support', color: '#059669' },
+  { row: 1, col: 3, variant: 'workflow', label: 'Support' },
   { row: 2, col: 3, variant: 'file', label: 'data.csv' },
   { row: 3, col: 2, variant: 'table', label: 'Users' },
   { row: 3, col: 3, variant: 'file', label: 'policies.pdf' },
-  { row: 0, col: 4, variant: 'workflow', label: 'Pipeline', color: '#DC2626' },
+  { row: 0, col: 4, variant: 'workflow', label: 'Pipeline' },
   { row: 1, col: 4, variant: 'logs', label: 'API Logs' },
   { row: 2, col: 4, variant: 'table', label: 'Orders' },
   { row: 3, col: 4, variant: 'file', label: 'config.json' },
   { row: 0, col: 5, variant: 'logs', label: 'Deploys' },
   { row: 1, col: 5, variant: 'table', label: 'Campaigns' },
-  { row: 2, col: 5, variant: 'workflow', label: 'Intake', color: '#D97706' },
+  { row: 2, col: 5, variant: 'workflow', label: 'Intake' },
   { row: 3, col: 5, variant: 'file', label: 'research.pdf' },
   { row: 4, col: 0, variant: 'file', label: 'readme.md' },
   { row: 4, col: 1, variant: 'table', label: 'Revenue' },
-  { row: 4, col: 2, variant: 'workflow', label: 'Sync', color: '#0891B2' },
+  { row: 4, col: 2, variant: 'workflow', label: 'Sync' },
   { row: 4, col: 3, variant: 'logs', label: 'Errors' },
   { row: 4, col: 4, variant: 'table', label: 'Inventory' },
   { row: 4, col: 5, variant: 'file', label: 'schema.json' },
   { row: 0, col: 6, variant: 'table', label: 'Analytics' },
-  { row: 1, col: 6, variant: 'workflow', label: 'Digest', color: '#6366F1' },
+  { row: 1, col: 6, variant: 'workflow', label: 'Digest' },
   { row: 0, col: 7, variant: 'file', label: 'brief.md' },
   { row: 2, col: 6, variant: 'file', label: 'playbook.md' },
   { row: 1, col: 7, variant: 'logs', label: 'Webhooks' },
   { row: 3, col: 6, variant: 'file', label: 'export.csv' },
-  { row: 2, col: 7, variant: 'workflow', label: 'Alerts', color: '#E11D48' },
+  { row: 2, col: 7, variant: 'workflow', label: 'Alerts' },
   { row: 4, col: 6, variant: 'logs', label: 'Metrics' },
   { row: 3, col: 7, variant: 'table', label: 'Feedback' },
   { row: 4, col: 7, variant: 'file', label: 'runbook.md' },
@@ -273,7 +271,7 @@ function WorkspacePreview({ activeTab, isActive }: { activeTab: number; isActive
                 height: CARD_SIZE,
               }}
             >
-              <MiniCard variant={card.variant} label={card.label} color={card.color} />
+              <MiniCard variant={card.variant} label={card.label} />
             </m.div>
           ))}
         </div>
@@ -334,43 +332,27 @@ function MockUserInput({ text }: { text: string }) {
 
 // ─── Mini Card Components ─────────────────────────────────────────
 
-function MiniCard({
-  variant,
-  label,
-  color,
-}: {
-  variant: CardVariant
-  label: string
-  color?: string
-}) {
+function MiniCard({ variant, label }: { variant: CardVariant; label: string }) {
   return (
     <div className='flex h-full w-full flex-col overflow-hidden rounded-[2px] border border-[#E5E5E5] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]'>
-      <MiniCardHeader variant={variant} label={label} color={color} />
+      <MiniCardHeader variant={variant} label={label} />
       <div className='flex-1 overflow-hidden'>
-        <MiniCardBody variant={variant} color={color} />
+        <MiniCardBody variant={variant} />
       </div>
     </div>
   )
 }
 
-function MiniCardHeader({
-  variant,
-  label,
-  color,
-}: {
-  variant: CardVariant
-  label: string
-  color?: string
-}) {
+function MiniCardHeader({ variant, label }: { variant: CardVariant; label: string }) {
   return (
     <div className='flex items-center gap-1 border-[#F0F0F0] border-b px-2 py-1.5'>
-      <MiniCardIcon variant={variant} color={color} />
+      <MiniCardIcon variant={variant} />
       <span className='truncate font-medium text-[#888] text-[7px] leading-none'>{label}</span>
     </div>
   )
 }
 
-function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string }) {
+function MiniCardIcon({ variant }: { variant: CardVariant }) {
   const cls = 'h-[7px] w-[7px] flex-shrink-0 text-[#BBB]'
 
   switch (variant) {
@@ -379,25 +361,14 @@ function MiniCardIcon({ variant, color }: { variant: CardVariant; color?: string
       return <File className={cls} />
     case 'table':
       return <Table className={cls} />
-    case 'workflow': {
-      const c = color ?? '#7C3AED'
-      return (
-        <div
-          className='size-[7px] flex-shrink-0 rounded-[1.5px] border'
-          style={{
-            backgroundColor: c,
-            borderColor: workflowBorderColor(c),
-            backgroundClip: 'padding-box',
-          }}
-        />
-      )
-    }
+    case 'workflow':
+      return <Workflow className={cls} />
     case 'logs':
       return <Library className={cls} />
   }
 }
 
-function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string }) {
+function MiniCardBody({ variant }: { variant: CardVariant }) {
   switch (variant) {
     case 'prompt':
       return <PromptCardBody />
@@ -406,7 +377,7 @@ function MiniCardBody({ variant, color }: { variant: CardVariant; color?: string
     case 'table':
       return <TableCardBody />
     case 'workflow':
-      return <WorkflowCardBody color={color ?? '#7C3AED'} />
+      return <WorkflowCardBody />
     case 'logs':
       return <LogsCardBody />
   }
@@ -464,31 +435,16 @@ function TableCardBody() {
   )
 }
 
-function WorkflowCardBody({ color }: { color: string }) {
+function WorkflowCardBody() {
   return (
     <div className='relative h-full w-full'>
       <div className='absolute top-2.5 left-[10px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[16px] left-[24px] h-[1px] w-[16px] bg-[#D8D8D8]' />
-      <div
-        className='absolute top-2.5 left-[40px] size-[14px] rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-        }}
-      />
+      <div className='absolute top-2.5 left-[40px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-6 left-[46px] h-[12px] w-[1px] bg-[#D8D8D8]' />
       <div className='absolute top-[36px] left-[40px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8]' />
       <div className='absolute top-[42px] left-[54px] h-[1px] w-[14px] bg-[#D8D8D8]' />
-      <div
-        className='absolute top-[36px] left-[68px] size-[14px] rounded-[3px] border-[2px]'
-        style={{
-          backgroundColor: color,
-          borderColor: workflowBorderColor(color),
-          backgroundClip: 'padding-box',
-          opacity: 0.5,
-        }}
-      />
+      <div className='absolute top-[36px] left-[68px] size-[14px] rounded-[3px] border border-[#E0E0E0] bg-[#F8F8F8] opacity-50' />
     </div>
   )
 }
@@ -636,16 +592,6 @@ function MockFullFiles() {
   )
 }
 
-const MOCK_LOG_COLORS = [
-  '#7C3AED',
-  '#2563EB',
-  '#059669',
-  '#DC2626',
-  '#D97706',
-  '#7C3AED',
-  '#0891B2',
-]
-
 const MOCK_LOG_DATA = [
   ['Email Bot', 'Mar 17, 2:14 PM', 'success', '$0.003', 'API', '1.2s'],
   ['Lead Scorer', 'Mar 17, 2:10 PM', 'success', '$0.008', 'Schedule', '3.4s'],
@@ -762,7 +708,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
               <tr>
                 {['Workflow', 'Date', 'Status', 'Cost', 'Trigger', 'Duration'].map((col) => (
                   <th key={col} className='h-10 px-6 py-2.5 text-left align-middle'>
-                    <span className='font-base text-[#999] text-[13px]'>{col}</span>
+                    <span className='text-[#999] text-[13px]'>{col}</span>
                   </th>
                 ))}
               </tr>
@@ -785,14 +731,7 @@ function MockFullLogs({ revealedRows }: { revealedRows: number }) {
                   >
                     <td className='px-6 py-2.5 align-middle'>
                       <span className='flex items-center gap-3 font-medium text-[#1C1C1C] text-[14px]'>
-                        <div
-                          className='size-[10px] shrink-0 rounded-[3px] border-[1.5px]'
-                          style={{
-                            backgroundColor: MOCK_LOG_COLORS[i],
-                            borderColor: `${MOCK_LOG_COLORS[i]}60`,
-                            backgroundClip: 'padding-box',
-                          }}
-                        />
+                        <Workflow className='size-[14px] shrink-0 text-[#999]' />
                         <span className='truncate'>{row[0]}</span>
                       </span>
                     </td>
@@ -854,7 +793,6 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
   const detail = MOCK_LOG_DETAILS[selectedRow]
   const statusStyle = LOG_STATUS_STYLES[row[2]] ?? LOG_STATUS_STYLES.success
   const [date, time] = row[1].split(', ')
-  const color = MOCK_LOG_COLORS[selectedRow]
   const maxMs = MOCK_LOG_DETAIL_MAX_MS[selectedRow]
   const isPrevDisabled = selectedRow === 0
   const isNextDisabled = selectedRow === MOCK_LOG_DATA.length - 1
@@ -901,14 +839,7 @@ function MockLogDetailsSidebar({ selectedRow, onPrev, onNext }: MockLogDetailsSi
           <div className='flex min-w-0 flex-1 flex-col gap-2'>
             <span className='font-medium text-[#999] text-[12px]'>Workflow</span>
             <div className='flex items-center gap-2'>
-              <div
-                className='size-[10px] shrink-0 rounded-[3px] border-[1.5px]'
-                style={{
-                  backgroundColor: color,
-                  borderColor: workflowBorderColor(color),
-                  backgroundClip: 'padding-box',
-                }}
-              />
+              <Workflow className='size-[14px] shrink-0 text-[#999]' />
               <span className='truncate font-medium text-[#666] text-[13px]'>{row[0]}</span>
             </div>
           </div>

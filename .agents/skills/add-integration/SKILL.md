@@ -128,7 +128,7 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 ### Block Structure
 ```typescript
 import { {Service}Icon } from '@/components/icons'
-import type { BlockConfig } from '@/blocks/types'
+import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode } from '@/blocks/types'
 import { getScopesForService } from '@/lib/oauth/utils'
 
@@ -137,7 +137,7 @@ export const {Service}Block: BlockConfig = {
   name: '{Service}',
   description: '...',
   longDescription: '...',
-  docsLink: 'https://docs.sim.ai/tools/{service}',
+  docsLink: 'https://docs.sim.ai/integrations/{service}',
   category: 'tools',
   bgColor: '#HEXCOLOR',
   icon: {Service}Icon,
@@ -177,7 +177,31 @@ export const {Service}Block: BlockConfig = {
 
   outputs: { /* ... */ },
 }
+
+export const {Service}BlockMeta = {
+  tags: ['tag1', 'tag2'],  // IntegrationTag values matching the service's capabilities
+  templates: [
+    {
+      icon: {Service}Icon,
+      title: '{Service} use-case title',
+      prompt: 'Build a workflow that ...',
+      modules: ['agent', 'workflows'],
+      category: 'productivity',
+      tags: ['automation'],
+      alsoIntegrations: ['slack'],  // Optional: other blocks referenced in the prompt
+    },
+  ],
+} as const satisfies BlockMeta
 ```
+
+### BlockMeta rules
+
+- **Tags**: Use `IntegrationTag` values from `@/blocks/types`. Do NOT add a `tags` field to the `BlockConfig` object — tags belong only in `BlockMeta`.
+- **`integrationType`**: Must be a valid `IntegrationType` enum value (AI, Analytics, Commerce, Communication, Databases, DevOps, Documents, Email, HR, Marketing, Observability, Productivity, Sales, Search, Security, Support). Never invent a value that doesn't exist in the enum.
+- **Templates**: Aim for 2–4 templates per integration. Prompts should be concrete enough to generate a real workflow in Mothership. Start with "Build a workflow that..." or "Create a workflow that...".
+- **`alsoIntegrations`**: List other block type IDs referenced in the template prompt (e.g. `'slack'`, `'linear'`).
+- Place `{Service}BlockMeta` at the very bottom of the file, after the main block export.
+- Register it in both the import and the `blocksMeta` object in `registry.ts`.
 
 ### Key SubBlock Patterns
 
@@ -359,13 +383,19 @@ export const tools: Record<string, ToolConfig> = {
 ### Block Registry (`apps/sim/blocks/registry.ts`)
 
 ```typescript
-// Add import (alphabetically)
-import { {Service}Block } from '@/blocks/blocks/{service}'
+// Add import (alphabetically) — include BlockMeta
+import { {Service}Block, {Service}BlockMeta } from '@/blocks/blocks/{service}'
 
-// Add to registry (alphabetically)
+// Add to blocks registry (alphabetically)
 export const registry: Record<string, BlockConfig> = {
   // ... existing blocks ...
   {service}: {Service}Block,
+}
+
+// Add to blocksMeta registry (alphabetically)
+export const blocksMeta = {
+  // ... existing entries ...
+  {service}: {Service}BlockMeta,
 }
 ```
 
@@ -395,7 +425,7 @@ Run the documentation generator:
 bun run scripts/generate-docs.ts
 ```
 
-This creates `apps/docs/content/docs/en/tools/{service}.mdx`
+This creates `apps/docs/content/docs/en/integrations/{service}.mdx` — one page per service carrying the block's Actions and, if it has one, its Triggers section. Never hand-edit generated pages; the only editable region is the `{/* MANUAL-CONTENT */}` block (see `scripts/README.md`).
 
 ## V2 Integration Pattern
 
@@ -433,7 +463,12 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Configured tools.access with all tool IDs
 - [ ] Configured tools.config.tool selector
 - [ ] Defined outputs matching tool outputs
-- [ ] Registered block in `blocks/registry.ts`
+- [ ] `integrationType` uses a valid `IntegrationType` enum value (no invented values)
+- [ ] No `tags` field on the `BlockConfig` object (tags live only in `BlockMeta`)
+- [ ] `{Service}BlockMeta` exported at bottom of file with `tags` and `templates`
+- [ ] `BlockMeta` type imported from `@/blocks/types` alongside `BlockConfig`
+- [ ] Block registered in `blocks/registry.ts` blocks object (alphabetically)
+- [ ] Block meta registered in `blocks/registry.ts` blocksMeta object (alphabetically)
 - [ ] If triggers: set `triggers.enabled` and `triggers.available`
 - [ ] If triggers: spread trigger subBlocks with `getTrigger()`
 

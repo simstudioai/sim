@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
@@ -48,7 +48,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const commonFilters = buildFilterConditions(params, { useSimpleLevelFilter: true })
       const whereCondition = commonFilters ? and(workspaceFilter, commonFilters) : workspaceFilter
 
-      const boundsQuery = await db
+      const boundsQuery = await dbReplica
         .select({
           minTime: sql<string>`MIN(${workflowExecutionLogs.startedAt})`,
           maxTime: sql<string>`MAX(${workflowExecutionLogs.startedAt})`,
@@ -83,7 +83,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const segmentMs = Math.max(60000, Math.floor(totalMs / params.segmentCount))
       const startTimeIso = startTime.toISOString()
 
-      const statsQuery = await db
+      const statsQuery = await dbReplica
         .select({
           workflowId: sql<string>`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,
           workflowName: sql<string>`COALESCE(${workflow.name}, 'Deleted Workflow')`,

@@ -1,10 +1,10 @@
+import { filterUndefined } from '@sim/utils/object'
 import type {
   RailwayCreatedResource,
   RailwayCreateEnvironmentParams,
   RailwayCreateEnvironmentResponse,
 } from '@/tools/railway/types'
 import {
-  compactVariables,
   optionalString,
   parseRailwayGraphqlResponse,
   RAILWAY_GRAPHQL_URL,
@@ -36,7 +36,8 @@ export const railwayCreateEnvironmentTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Railway token type: account, workspace, project, or oauth',
+      description:
+        'Railway token type. Use "account" for account, workspace, or OAuth tokens, or "project" for project tokens.',
     },
     projectId: {
       type: 'string',
@@ -90,7 +91,7 @@ export const railwayCreateEnvironmentTool: ToolConfig<
         }
       `,
       variables: {
-        input: compactVariables({
+        input: filterUndefined({
           projectId: params.projectId.trim(),
           name: params.name.trim(),
           sourceEnvironmentId: optionalString(params.sourceEnvironmentId),

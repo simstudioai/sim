@@ -8,6 +8,8 @@ export interface DeletedRowSnapshot {
   rowId: string
   data: Record<string, unknown>
   position: number
+  /** Fractional order key, when present — restore re-inserts at this exact key. */
+  orderKey?: string
 }
 
 export type TableUndoAction =
@@ -27,16 +29,30 @@ export type TableUndoAction =
         newData: Record<string, unknown>
       }>
     }
-  | { type: 'create-row'; rowId: string; position: number; data?: Record<string, unknown> }
+  | {
+      type: 'create-row'
+      rowId: string
+      position: number
+      orderKey?: string
+      data?: Record<string, unknown>
+    }
   | {
       type: 'create-rows'
-      rows: Array<{ rowId: string; position: number; data: Record<string, unknown> }>
+      rows: Array<{
+        rowId: string
+        position: number
+        orderKey?: string
+        data: Record<string, unknown>
+      }>
     }
   | { type: 'delete-rows'; rows: DeletedRowSnapshot[] }
-  | { type: 'create-column'; columnName: string; position: number }
+  // `columnName` is the display name (for re-create); `columnId` is the stable
+  // storage key used for the delete/update lookup and id-keyed metadata cleanup.
+  | { type: 'create-column'; columnName: string; columnId?: string; position: number }
   | {
       type: 'delete-column'
       columnName: string
+      columnId?: string
       columnType: ColumnDefinition['type']
       columnPosition: number
       columnUnique: boolean
@@ -46,7 +62,8 @@ export type TableUndoAction =
       previousWidth: number | null
       previousPinnedColumns: string[] | null
     }
-  | { type: 'rename-column'; oldName: string; newName: string }
+  // `oldName`/`newName` are display names; `columnId` is the stable lookup key.
+  | { type: 'rename-column'; oldName: string; newName: string; columnId?: string }
   | {
       type: 'update-column-type'
       columnName: string

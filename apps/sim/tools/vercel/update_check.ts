@@ -127,6 +127,7 @@ export const vercelUpdateCheckTool: ToolConfig<VercelUpdateCheckParams, VercelCh
         updatedAt: data.updatedAt,
         startedAt: data.startedAt ?? null,
         completedAt: data.completedAt ?? null,
+        output: data.output ?? null,
       },
     }
   },
@@ -153,6 +154,12 @@ export const vercelUpdateCheckTool: ToolConfig<VercelUpdateCheckParams, VercelCh
     completedAt: {
       type: 'number',
       description: 'Completion timestamp in milliseconds',
+      optional: true,
+    },
+    output: {
+      type: 'json',
+      description:
+        'Check result output including metrics (FCP, LCP, CLS, TBT, virtualExperienceScore)',
       optional: true,
     },
   },

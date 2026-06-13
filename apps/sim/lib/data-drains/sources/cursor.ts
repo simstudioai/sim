@@ -54,3 +54,14 @@ export function timeCursorPredicate(
 export function timeCursorOrderBy(timestampCol: PgColumn, idCol: PgColumn): [SQL, SQL] {
   return [sql`date_trunc('milliseconds', ${timestampCol}) asc`, sql`${idCol} asc`]
 }
+
+/**
+ * Excludes rows newer than a short stability window. Timestamp cursors assume
+ * rows become visible in timestamp order, but out-of-order commits and replica
+ * lag can surface an earlier-stamped row after the cursor has advanced past it
+ * — permanently skipping it. Leaving the freshest rows for the next run bounds
+ * both.
+ */
+export function timeCursorStabilityBound(timestampCol: PgColumn): SQL {
+  return sql`${timestampCol} <= now() - interval '5 minutes'`
+}

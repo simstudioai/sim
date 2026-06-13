@@ -20,6 +20,8 @@ interface SentryIssue {
   logger: string | null
   level: string
   status: string
+  substatus: string | null
+  priority: string | null
   statusDetails: Record<string, any>
   isPublic: boolean
   platform: string
@@ -112,7 +114,7 @@ interface SentryProject {
   isMember: boolean
   features: string[]
   firstEvent: string | null
-  firstTransactionEvent: boolean
+  firstTransactionEvent: boolean | null
   access: string[]
   hasAccess: boolean
   hasMinifiedStackTrace: boolean
@@ -197,6 +199,43 @@ export interface SentryUpdateProjectResponse extends ToolResponse {
 }
 
 /**
+ * Sentry team representation
+ */
+interface SentryTeam {
+  id: string
+  slug: string
+  name: string
+  dateCreated: string
+  isMember: boolean
+  teamRole: string | null
+  hasAccess: boolean
+  isPending: boolean
+  memberCount: number
+  projects: Array<{
+    id: string
+    slug: string
+    name: string
+    platform: string | null
+  }>
+}
+
+export interface SentryListTeamsParams extends SentryBaseParams {
+  query?: string
+  cursor?: string
+  limit?: number
+}
+
+export interface SentryListTeamsResponse extends ToolResponse {
+  output: {
+    teams: SentryTeam[]
+    metadata: {
+      nextCursor?: string
+      hasMore: boolean
+    }
+  }
+}
+
+/**
  * Sentry event representation
  */
 interface SentryEvent {
@@ -240,6 +279,8 @@ interface SentryEvent {
   }>
   dist: string | null
   fingerprints: string[]
+  size: number | null
+  release: Record<string, any> | null
   sdk: {
     name: string
     version: string
@@ -388,6 +429,7 @@ export interface SentryCreateDeployResponse extends ToolResponse {
  * Union response type for all Sentry operations
  */
 export type SentryResponse =
+  | SentryListTeamsResponse
   | SentryListIssuesResponse
   | SentryGetIssueResponse
   | SentryUpdateIssueResponse

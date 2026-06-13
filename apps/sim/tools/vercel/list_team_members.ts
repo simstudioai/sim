@@ -88,6 +88,8 @@ export const vercelListTeamMembersTool: ToolConfig<
       role: m.role ?? null,
       confirmed: m.confirmed ?? false,
       createdAt: m.createdAt ?? null,
+      accessRequestedAt: m.accessRequestedAt ?? null,
+      isEnterpriseManaged: m.isEnterpriseManaged ?? null,
       joinedFrom: m.joinedFrom
         ? {
             origin: m.joinedFrom.origin ?? null,
@@ -104,6 +106,8 @@ export const vercelListTeamMembersTool: ToolConfig<
           ? {
               hasNext: data.pagination.hasNext ?? false,
               count: data.pagination.count ?? 0,
+              next: data.pagination.next ?? null,
+              prev: data.pagination.prev ?? null,
             }
           : null,
       },
@@ -125,6 +129,16 @@ export const vercelListTeamMembersTool: ToolConfig<
           role: { type: 'string', description: 'Member role' },
           confirmed: { type: 'boolean', description: 'Whether membership is confirmed' },
           createdAt: { type: 'number', description: 'Join timestamp in milliseconds' },
+          accessRequestedAt: {
+            type: 'number',
+            description: 'When access was requested in milliseconds',
+            optional: true,
+          },
+          isEnterpriseManaged: {
+            type: 'boolean',
+            description: 'Whether the member is enterprise managed',
+            optional: true,
+          },
           joinedFrom: {
             type: 'object',
             description: 'Origin of how the member joined',
@@ -145,6 +159,16 @@ export const vercelListTeamMembersTool: ToolConfig<
       properties: {
         hasNext: { type: 'boolean', description: 'Whether there are more pages' },
         count: { type: 'number', description: 'Items in current page' },
+        next: {
+          type: 'number',
+          description: 'Timestamp to request the next page',
+          optional: true,
+        },
+        prev: {
+          type: 'number',
+          description: 'Timestamp to request the previous page',
+          optional: true,
+        },
       },
     },
   },

@@ -1,13 +1,24 @@
 'use client'
 
-import type React from 'react'
 import { useState } from 'react'
 import { toError } from '@sim/utils/errors'
-import { X } from 'lucide-react'
-import { Button, Combobox, FieldDivider, Input, Label, Switch, toast } from '@/components/emcn'
+import {
+  Button,
+  ChipCombobox,
+  ChipInput,
+  FieldDivider,
+  Label,
+  Switch,
+  toast,
+} from '@/components/emcn'
+import { X } from '@/components/emcn/icons'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition } from '@/lib/table'
+import {
+  FieldError,
+  RequiredLabel,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
@@ -116,7 +127,9 @@ function ColumnConfigBody({
         return
       }
 
-      const renamed = trimmedName !== config.columnName
+      // `config.columnName` is the column id; compare against the current display
+      // name to detect an actual rename.
+      const renamed = trimmedName !== (existingColumn?.name ?? config.columnName)
       const typeChanged = !!existingColumn && existingColumn.type !== typeInput
       const uniqueChanged = !!existingColumn && !!existingColumn.unique !== uniqueInput
 
@@ -151,7 +164,7 @@ function ColumnConfigBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Configure column</h2>
         <Button
           variant='ghost'
@@ -167,7 +180,7 @@ function ColumnConfigBody({
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
         <div className='flex flex-col gap-[9.5px]'>
           <RequiredLabel htmlFor='column-sidebar-name'>Column name</RequiredLabel>
-          <Input
+          <ChipInput
             id='column-sidebar-name'
             value={nameInput}
             onChange={(e) => {
@@ -176,6 +189,7 @@ function ColumnConfigBody({
             }}
             spellCheck={false}
             autoComplete='off'
+            error={Boolean((showValidation && !trimmedName) || nameError)}
             aria-invalid={(showValidation && !trimmedName) || nameError ? true : undefined}
           />
           {showValidation && !trimmedName && <FieldError message='Column name is required' />}
@@ -187,7 +201,7 @@ function ColumnConfigBody({
             <FieldDivider />
             <div className='flex flex-col gap-[9.5px]'>
               <RequiredLabel>Type</RequiredLabel>
-              <Combobox
+              <ChipCombobox
                 options={PLAIN_COLUMN_TYPE_OPTIONS.map((o) => ({
                   label: o.label,
                   value: o.type,
@@ -225,17 +239,4 @@ function ColumnConfigBody({
       </div>
     </div>
   )
-}
-
-function RequiredLabel({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
-  return (
-    <Label htmlFor={htmlFor} className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>
-      {children}
-      <span className='ml-0.5'>*</span>
-    </Label>
-  )
-}
-
-function FieldError({ message }: { message: string }) {
-  return <p className='pl-0.5 text-caption text-destructive'>{message}</p>
 }
