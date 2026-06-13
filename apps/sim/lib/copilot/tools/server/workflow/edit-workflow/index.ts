@@ -10,8 +10,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { env } from '@/lib/core/config/env'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import {
   applyTargetedLayout,
   getTargetedLayoutImpact,
@@ -21,6 +19,7 @@ import {
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
 } from '@/lib/workflows/autolayout/constants'
+import { notifyWorkflowUpdated } from '@/lib/workflows/notify-socket'
 import { extractAndPersistCustomTools } from '@/lib/workflows/persistence/custom-tools-persistence'
 import {
   loadWorkflowFromNormalizedTables,
@@ -345,16 +344,7 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     logger.info('Workflow state persisted to database', { workflowId })
 
-    fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId }),
-    }).catch((error) => {
-      logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
-    })
+    notifyWorkflowUpdated(workflowId)
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 

@@ -7,15 +7,14 @@ import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblock
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { env } from '@/lib/core/config/env'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import {
   getExecutionInputForWorkflow,
   getExecutionStateForWorkflow,
   getLatestExecutionStateWithExecutionId,
 } from '@/lib/workflows/executor/execution-state'
+import { notifyWorkflowUpdated } from '@/lib/workflows/notify-socket'
 import {
   performCreateFolder,
   performCreateWorkflow,
@@ -285,19 +284,6 @@ function findDescendants(containerId: string, blocksById: Record<string, BlockSt
   }
 
   return descendants
-}
-
-function notifyWorkflowUpdated(workflowId: string): void {
-  fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': env.INTERNAL_API_SECRET,
-    },
-    body: JSON.stringify({ workflowId }),
-  }).catch((error) => {
-    logger.warn('Failed to notify socket server of workflow update', { workflowId, error })
-  })
 }
 
 import type {

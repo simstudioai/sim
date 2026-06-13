@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { chat, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
+import { chat, workflowMcpServer, workflowMcpTool, workflow as workflowTable } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -11,13 +11,20 @@ import {
 } from '@/lib/mcp/orchestration'
 import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
 import { generateParameterSchema, sanitizeToolName } from '@/lib/mcp/workflow-tool-schema'
+import { notifyWorkflowUpdated } from '@/lib/workflows/notify-socket'
 import {
   performChatDeploy,
   performChatUndeploy,
   performFullDeploy,
   performFullUndeploy,
 } from '@/lib/workflows/orchestration'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
+import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 
@@ -487,6 +494,75 @@ export async function executeDeployChat(
   }
 }
 
+/**
+ * Persists per-parameter descriptions onto the workflow's draft start block input
+ * format — the single source of truth the deployed tool schema is regenerated from.
+ * Writing them here (rather than only onto the tool) keeps them durable: a later
+ * redeploy regenerates the tool schema from these fields instead of wiping them.
+ * Matches fields by name, preserves every other field property, and no-ops when
+ * nothing changes. Mirrors the load → mutate → save → notify pattern used by the
+ * copilot workflow mutation handlers.
+ */
+async function persistParameterDescriptionsToStartBlock(
+  workflowId: string,
+  descriptions: Record<string, string>
+): Promise<void> {
+  if (Object.keys(descriptions).length === 0) return
+
+  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+  if (!normalized?.blocks) return
+
+  const blocks = normalized.blocks as Record<string, BlockState>
+  const startBlockId = Object.keys(blocks).find((id) => isInputDefinitionTrigger(blocks[id]?.type))
+  if (!startBlockId) return
+
+  const startBlock = blocks[startBlockId]
+  const inputFormatSubBlock = startBlock.subBlocks?.inputFormat
+  const rawFields = inputFormatSubBlock?.value
+  if (!Array.isArray(rawFields) || rawFields.length === 0) return
+
+  let changed = false
+  const nextFields = rawFields.map((field) => {
+    if (!field || typeof field !== 'object') return field
+    const name = (field as { name?: string }).name
+    if (!name || !(name in descriptions)) return field
+    const nextDescription = descriptions[name]
+    if ((field as { description?: string }).description === nextDescription) return field
+    changed = true
+    return { ...field, description: nextDescription }
+  })
+  if (!changed) return
+
+  const nextState: WorkflowState = {
+    blocks: {
+      ...blocks,
+      [startBlockId]: {
+        ...startBlock,
+        subBlocks: {
+          ...startBlock.subBlocks,
+          inputFormat: { ...inputFormatSubBlock, value: nextFields },
+        },
+      },
+    },
+    edges: normalized.edges || [],
+    loops: normalized.loops || {},
+    parallels: normalized.parallels || {},
+    lastSaved: Date.now(),
+  }
+
+  const saveResult = await saveWorkflowToNormalizedTables(workflowId, nextState)
+  if (!saveResult.success) {
+    throw new Error(saveResult.error || 'Failed to persist parameter descriptions')
+  }
+
+  await db
+    .update(workflowTable)
+    .set({ lastSynced: new Date(), updatedAt: new Date() })
+    .where(eq(workflowTable.id, workflowId))
+
+  notifyWorkflowUpdated(workflowId)
+}
+
 export async function executeDeployMcp(
   params: DeployMcpParams,
   context: ExecutionContext
@@ -607,10 +683,13 @@ export async function executeDeployMcp(
       workflowRecord.description ||
       `Execute ${workflowRecord.name} workflow`
     /**
-     * Build the parameter schema exactly as the deploy modal does: overlay the
-     * caller-supplied per-parameter descriptions onto the workflow's deployed
-     * input format, then generate the schema. Names/types/required come from the
-     * workflow's input trigger — this tool only sets descriptions.
+     * Descriptions are workflow-input data: persist them onto the draft start block
+     * so they live with the workflow and survive future redeploys (single source of
+     * truth, matching the deploy modal). Then build the tool schema from the deployed
+     * input format overlaid with the same descriptions so the tool is correct
+     * immediately — the deploy modal relies on a redeploy for this, but this tool
+     * doesn't redeploy, so it sets the schema directly. Both paths converge: the next
+     * redeploy regenerates the schema from these now-persisted start-block fields.
      */
     const inputFormat = await getDeployedWorkflowInputFormat(workflowId)
     const parameterDescriptions = Object.fromEntries(
@@ -618,6 +697,7 @@ export async function executeDeployMcp(
         .filter((entry) => entry && typeof entry.name === 'string' && entry.name.trim() !== '')
         .map((entry) => [entry.name, entry.description ?? ''])
     )
+    await persistParameterDescriptionsToStartBlock(workflowId, parameterDescriptions)
     const parameterSchema = generateParameterSchema(inputFormat, parameterDescriptions)
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
