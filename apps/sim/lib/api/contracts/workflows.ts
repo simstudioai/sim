@@ -885,3 +885,28 @@ export const resumeWorkflowExecutionContextContract = defineRouteContract({
     schema: resumeWorkflowExecutionContextResponseSchema,
   },
 })
+
+/**
+ * Detail for a single pause context. The `pausePoint`/`queue`/`activeResumeEntry`
+ * shapes are modeled loosely (the pause point's `response.data` is block- and
+ * user-defined) — consistent with how the parent execution detail contract
+ * (`pausedWorkflowExecutionDetailSchema`) keeps its pause points as records.
+ */
+const pauseContextDetailResponseSchema = z
+  .object({
+    execution: pausedWorkflowExecutionSummarySchema,
+    pausePoint: z.record(z.string(), z.unknown()),
+    queue: z.array(z.record(z.string(), z.unknown())),
+    activeResumeEntry: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .passthrough()
+
+export const getPauseContextDetailContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/resume/[workflowId]/[executionId]/[contextId]',
+  params: resumeExecutionContextParamsSchema,
+  response: {
+    mode: 'json',
+    schema: pauseContextDetailResponseSchema,
+  },
+})

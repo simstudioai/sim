@@ -62,13 +62,13 @@ export function useGenerateCopilotKey() {
     mutationFn: async ({ name }: GenerateKeyParams): Promise<GenerateCopilotApiKeyResult> => {
       return requestJson(generateCopilotApiKeyContract, { body: { name } })
     },
-    onSuccess: () => {
+    onError: (error) => {
+      logger.error('Failed to generate Copilot API key:', error)
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: copilotKeysKeys.keys(),
       })
-    },
-    onError: (error) => {
-      logger.error('Failed to generate Copilot API key:', error)
     },
   })
 }
