@@ -1214,7 +1214,11 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      // Metadata (e.g. column widths) lives on the detail, not in rows. `rowsRoot`
+      // is nested under `detail` (`[...detail(tableId), 'rows']`), so a prefix
+      // invalidation would cascade into the rows queries and trigger a needless
+      // full-rows refetch on every column-width drag. Scope to the detail exactly.
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }
