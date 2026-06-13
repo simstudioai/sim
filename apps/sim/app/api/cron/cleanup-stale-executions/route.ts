@@ -113,7 +113,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    // Mark stale table jobs (import or delete) as failed. Jobs run detached on the web container
+    // Mark stale table jobs (import, export, or delete) as failed. Jobs run detached on the web container
     // and are lost if the pod is killed mid-run. `updated_at` is bumped by progress updates, so a
     // `running` job with no recent update has stalled (not merely slow). Committed work is left in
     // place (no rollback); the user retries. Also prune long-settled terminal jobs so the table

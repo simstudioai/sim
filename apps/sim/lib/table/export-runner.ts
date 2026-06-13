@@ -93,6 +93,9 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
     }
     if (format === 'json') chunks.push(']')
 
+    const ownsFinalize = await updateJobProgress(tableId, exported, jobId)
+    if (!ownsFinalize) throw new JobSupersededError()
+
     const fileName = `${sanitizeExportFilename(table.name)}.${format}`
     const key = `workspace/${workspaceId}/exports/${tableId}/${jobId}/${fileName}`
     // `preserveKey` keeps the custom key verbatim (without it the provider rewrites the key to a
