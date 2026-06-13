@@ -355,6 +355,7 @@ Return ONLY the resource specifier string - no explanations, no extra text.`,
 
 export const LaunchDarklyBlockMeta = {
   tags: ['feature-flags', 'ci-cd'],
+  url: 'https://launchdarkly.com',
   templates: [
     {
       icon: LaunchDarklyIcon,

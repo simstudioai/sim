@@ -1227,6 +1227,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
 
 export const IncidentioBlockMeta = {
   tags: ['incident-management', 'monitoring'],
+  url: 'https://incident.io',
   templates: [
     {
       icon: IncidentioIcon,

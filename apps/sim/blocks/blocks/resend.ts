@@ -325,6 +325,7 @@ Return ONLY the email body - no explanations, no extra text.`,
 
 export const ResendBlockMeta = {
   tags: ['email-marketing', 'messaging'],
+  url: 'https://resend.com',
   templates: [
     {
       icon: ResendIcon,

@@ -429,6 +429,7 @@ export const TelegramBlock: BlockConfig<TelegramResponse> = {
 
 export const TelegramBlockMeta = {
   tags: ['messaging', 'webhooks', 'automation'],
+  url: 'https://telegram.org',
   templates: [
     {
       icon: TelegramIcon,

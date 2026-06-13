@@ -687,6 +687,7 @@ Return ONLY the HTML content.`,
 
 export const SendGridBlockMeta = {
   tags: ['email-marketing', 'messaging'],
+  url: 'https://www.twilio.com/en-us/sendgrid',
   templates: [
     {
       icon: SendgridIcon,

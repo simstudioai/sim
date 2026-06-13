@@ -250,6 +250,7 @@ export const STSBlock: BlockConfig<STSBaseResponse> = {
 
 export const STSBlockMeta = {
   tags: ['cloud', 'identity'],
+  url: 'https://aws.amazon.com/iam',
   templates: [
     {
       icon: STSIcon,

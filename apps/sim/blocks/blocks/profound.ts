@@ -406,6 +406,7 @@ export const ProfoundBlock: BlockConfig = {
 
 export const ProfoundBlockMeta = {
   tags: ['seo', 'data-analytics'],
+  url: 'https://www.tryprofound.com',
   templates: [
     {
       icon: ProfoundIcon,

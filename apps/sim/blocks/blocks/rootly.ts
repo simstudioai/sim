@@ -2418,6 +2418,7 @@ export const RootlyBlock: BlockConfig<RootlyResponse> = {
 
 export const RootlyBlockMeta = {
   tags: ['incident-management', 'monitoring'],
+  url: 'https://rootly.com',
   templates: [
     {
       icon: RootlyIcon,

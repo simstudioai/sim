@@ -71,6 +71,7 @@ Plain Text: Best for populating a table in free-form style.
 
 export const ClayBlockMeta = {
   tags: ['enrichment', 'sales-engagement', 'data-analytics'],
+  url: 'https://www.clay.com',
   templates: [
     {
       icon: ClayIcon,

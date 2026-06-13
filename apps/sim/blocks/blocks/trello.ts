@@ -528,6 +528,7 @@ Return ONLY the date/timestamp string - no explanations, no extra text.`,
 
 export const TrelloBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://trello.com',
   templates: [
     {
       icon: TrelloIcon,

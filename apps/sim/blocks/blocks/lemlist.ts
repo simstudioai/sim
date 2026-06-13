@@ -238,6 +238,7 @@ export const LemlistBlock: BlockConfig<LemlistResponse> = {
 
 export const LemlistBlockMeta = {
   tags: ['sales-engagement', 'email-marketing', 'automation'],
+  url: 'https://www.lemlist.com',
   templates: [
     {
       icon: LemlistIcon,

@@ -3498,6 +3498,7 @@ export const GoogleSlidesV2Block: BlockConfig<GoogleSlidesResponse> = {
 
 export const GoogleSlidesBlockMeta = {
   tags: ['google-workspace', 'document-processing', 'content-management'],
+  url: 'https://workspace.google.com/products/slides',
   templates: [
     {
       icon: GoogleSlidesIcon,
@@ -3601,4 +3602,5 @@ export const GoogleSlidesBlockMeta = {
 
 export const GoogleSlidesV2BlockMeta = {
   tags: ['google-workspace', 'document-processing', 'content-management'],
+  url: 'https://workspace.google.com/products/slides',
 } as const satisfies BlockMeta

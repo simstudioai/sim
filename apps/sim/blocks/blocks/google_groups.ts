@@ -458,6 +458,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
 
 export const GoogleGroupsBlockMeta = {
   tags: ['google-workspace', 'messaging', 'identity'],
+  url: 'https://groups.google.com',
   templates: [
     {
       icon: GoogleGroupsIcon,

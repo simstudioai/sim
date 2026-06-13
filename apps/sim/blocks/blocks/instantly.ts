@@ -1255,6 +1255,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 export const InstantlyBlockMeta = {
   tags: ['sales-engagement', 'email-marketing', 'automation'],
+  url: 'https://instantly.ai',
   templates: [
     {
       icon: InstantlyIcon,

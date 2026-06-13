@@ -459,6 +459,7 @@ export const OutlookBlock: BlockConfig<OutlookResponse> = {
 
 export const OutlookBlockMeta = {
   tags: ['microsoft-365', 'messaging', 'automation'],
+  url: 'https://www.microsoft.com/en-us/microsoft-365/outlook/email-and-calendar-software-microsoft-outlook',
   templates: [
     {
       icon: OutlookIcon,

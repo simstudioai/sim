@@ -474,6 +474,7 @@ Return ONLY the numeric timestamp in milliseconds - no explanations, no extra te
 
 export const DatabricksBlockMeta = {
   tags: ['data-warehouse', 'data-analytics', 'cloud'],
+  url: 'https://www.databricks.com',
   templates: [
     {
       icon: DatabricksIcon,

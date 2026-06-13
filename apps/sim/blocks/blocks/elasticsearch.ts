@@ -537,6 +537,7 @@ Return ONLY valid JSON - no explanations, no markdown code blocks.`,
 
 export const ElasticsearchBlockMeta = {
   tags: ['vector-search', 'data-analytics'],
+  url: 'https://www.elastic.co/elasticsearch',
   templates: [
     {
       icon: ElasticsearchIcon,

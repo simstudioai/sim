@@ -433,7 +433,8 @@ export const AgiloftBlock: BlockConfig = {
 }
 
 export const AgiloftBlockMeta = {
-  tags: ['automation'],
+  tags: ['automation', 'e-signatures'],
+  url: 'https://www.agiloft.com',
   templates: [
     {
       icon: AgiloftIcon,
