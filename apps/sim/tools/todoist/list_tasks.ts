@@ -42,12 +42,17 @@ export const todoistListTasksTool: ToolConfig<TodoistListTasksParams, TodoistLis
       if (params.projectId) {
         url.searchParams.append('project_id', params.projectId)
       }
-      if (params.filter) {
-        url.searchParams.append('filter', params.filter)
-      }
+
+      let filterQuery = params.filter || ''
       if (params.label) {
-        url.searchParams.append('label', params.label)
+        const labelFilter = `@${params.label}`
+        filterQuery = filterQuery ? `(${filterQuery}) & ${labelFilter}` : labelFilter
       }
+
+      if (filterQuery) {
+        url.searchParams.append('filter', filterQuery)
+      }
+
       return url.toString()
     },
     method: 'GET',
