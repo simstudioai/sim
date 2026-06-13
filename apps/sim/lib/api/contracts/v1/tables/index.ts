@@ -9,7 +9,7 @@ import {
   rowDataSchema,
   tableIdParamsSchema,
   tableRowParamsSchema,
-  tableRowsQuerySchema,
+  tableRowsQueryBaseSchema,
   updateRowsByFilterBodySchema,
   updateTableColumnBodySchema,
   updateTableRowBodySchema,
@@ -44,7 +44,7 @@ const optionalJsonObjectQuerySchema = <T>(label: string) =>
       return z.NEVER
     })
 
-export const v1TableRowsQuerySchema = tableRowsQuerySchema.extend({
+export const v1TableRowsQuerySchema = tableRowsQueryBaseSchema.omit({ after: true }).extend({
   filter: optionalJsonObjectQuerySchema<Filter>('filter'),
   sort: optionalJsonObjectQuerySchema<Sort>('sort'),
 })

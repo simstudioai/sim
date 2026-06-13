@@ -4,11 +4,12 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { importIntoTableAsyncContract } from '@/lib/api/contracts/tables'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { runTableImport } from '@/lib/table/import-runner'
-import { markTableImporting } from '@/lib/table/service'
+import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportIntoAsync')
@@ -56,31 +57,48 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
   }
   const delimiter = ext === 'tsv' ? '\t' : ','
 
-  // Atomically claim the table — the single concurrency gate. If another import already holds it,
-  // this returns false (no overlapping workers writing colliding row positions).
+  // Atomically claim the table's job slot — the single concurrency gate. If another job (import
+  // or delete) already holds it, this returns false (no overlapping workers).
   const importId = generateId()
-  const claimed = await markTableImporting(tableId, importId)
+  const claimed = await markTableJobRunning(tableId, importId, 'import')
   if (!claimed) {
     return NextResponse.json(
-      { error: 'An import is already in progress for this table' },
+      { error: 'A job is already in progress for this table' },
       { status: 409 }
     )
   }
 
-  runDetached('table-import', () =>
-    runTableImport({
-      importId,
-      tableId,
-      workspaceId,
-      userId,
-      fileKey,
-      fileName,
-      delimiter,
-      mode,
-      mapping,
-      createColumns,
-    })
-  )
+  const importPayload: TableImportPayload = {
+    importId,
+    tableId,
+    workspaceId,
+    userId,
+    fileKey,
+    fileName,
+    delimiter,
+    mode,
+    mapping,
+    createColumns,
+  }
+  if (isTriggerDevEnabled) {
+    // Trigger.dev runs the import outside the web container, so it survives app deploys.
+    try {
+      const [{ tableImportTask }, { tasks }] = await Promise.all([
+        import('@/background/table-import'),
+        import('@trigger.dev/sdk'),
+      ])
+      await tasks.trigger<typeof tableImportTask>('table-import', importPayload, {
+        tags: [`tableId:${tableId}`, `jobId:${importId}`],
+      })
+    } catch (error) {
+      // A failed dispatch must not leave a ghost `running` job holding the
+      // table's one-write-job slot until the stale-job janitor fires.
+      await releaseJobClaim(tableId, importId).catch(() => {})
+      throw error
+    }
+  } else {
+    runDetached('table-import', () => runTableImport(importPayload))
+  }
 
   logger.info(`[${requestId}] Async CSV import into existing table started`, {
     tableId,

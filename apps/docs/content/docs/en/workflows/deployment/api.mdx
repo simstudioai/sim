@@ -56,6 +56,28 @@ Every time you deploy or update, a new version is recorded in the Versions table
 
 **Promote to live** is useful for rolling back — if a new deployment has an issue, promote the previous version to restore the last known-good state instantly.
 
+## Managing Deployments via the API
+
+Everything above can also be done programmatically. The v1 API exposes deploy, undeploy, and rollback endpoints — useful for CI/CD pipelines that ship a workflow after tests pass, or for reverting to the last known-good version from an incident script. All three require an API key with admin permission on the workflow's workspace.
+
+```bash
+# Deploy the current draft as a new version (body is optional)
+curl -X POST https://sim.ai/api/v1/workflows/{workflow-id}/deploy \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $SIM_API_KEY" \
+  -d '{ "name": "Release 4", "description": "Fixes the agent prompt" }'
+
+# Undeploy — take the workflow offline
+curl -X DELETE https://sim.ai/api/v1/workflows/{workflow-id}/deploy \
+  -H "x-api-key: $SIM_API_KEY"
+
+# Roll back to the previous version (or pass { "version": N } for a specific one)
+curl -X POST https://sim.ai/api/v1/workflows/{workflow-id}/rollback \
+  -H "x-api-key: $SIM_API_KEY"
+```
+
+Rollback re-activates an existing deployment version — the same operation as **Promote to live** — and leaves your canvas draft untouched. See the API reference for full request and response details: [Deploy Workflow](/api-reference/workflows/deployWorkflow), [Undeploy Workflow](/api-reference/workflows/undeployWorkflow), and [Rollback Workflow](/api-reference/workflows/rollbackWorkflow).
+
 ## Making API Calls
 
 Switch to the **API** tab in the Deploy modal to see ready-to-use code for all three execution modes:
@@ -226,8 +248,8 @@ Workflow execution responses are capped by platform request and response limits.
   "id": "lv_abc123DEF456",
   "kind": "array",
   "size": 12582912,
-  "key": "execution/workspace-id/workflow-id/exec_xyz/large-value-lv_abc123DEF456.json",
-  "executionId": "exec_xyz",
+  "key": "execution/workspace-id/workflow-id/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74/large-value-lv_abc123DEF456.json",
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
   "preview": { "length": 25000 }
 }
 ```
@@ -254,7 +276,7 @@ curl -X POST https://sim.ai/api/workflows/{workflow-id}/execute \
   "success": true,
   "async": true,
   "jobId": "run_abc123",
-  "executionId": "exec_xyz",
+  "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
   "message": "Workflow execution queued",
   "statusUrl": "https://sim.ai/api/jobs/run_abc123"
 }

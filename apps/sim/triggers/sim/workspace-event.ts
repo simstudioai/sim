@@ -26,6 +26,7 @@ export const simWorkspaceEventTrigger: TriggerConfig = {
         { id: 'execution_error', label: 'Execution Error', group: 'Events' },
         { id: 'execution_success', label: 'Execution Success', group: 'Events' },
         { id: 'workflow_deployed', label: 'Workflow Deployed', group: 'Events' },
+        { id: 'workflow_undeployed', label: 'Workflow Undeployed', group: 'Events' },
         { id: 'consecutive_failures', label: 'Consecutive Failures', group: 'Alert Conditions' },
         { id: 'failure_rate', label: 'Failure Rate', group: 'Alert Conditions' },
         { id: 'latency_threshold', label: 'Latency Threshold', group: 'Alert Conditions' },

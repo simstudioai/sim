@@ -348,20 +348,20 @@ describe('tableRowsParamsKey', () => {
 describe('tableRowsInfiniteOptions', () => {
   const PAGE_SIZE = 1000
 
-  function makeOpts(pageSize = PAGE_SIZE) {
+  function makeOpts(pageSize = PAGE_SIZE, sort: unknown = null) {
     return tableRowsInfiniteOptions({
       workspaceId: WORKSPACE_ID,
       tableId: TABLE_ID,
       pageSize,
       filter: null,
-      sort: null,
+      sort: sort as never,
     }) as {
       queryKey: readonly unknown[]
       getNextPageParam: (
         lastPage: { rows: unknown[] },
         allPages: unknown[],
         lastPageParam: unknown
-      ) => number | undefined
+      ) => number | { orderKey: string; id: string } | undefined
     }
   }
 
@@ -391,6 +391,26 @@ describe('tableRowsInfiniteOptions', () => {
     expect(opts.getNextPageParam(fullPage, [], 0)).toBe(1000)
     expect(opts.getNextPageParam(fullPage, [], 1000)).toBe(2000)
     expect(opts.getNextPageParam(lastPartialPage, [], 2000)).toBeUndefined()
+  })
+
+  it('getNextPageParam returns a keyset cursor when rows carry orderKey and there is no sort', () => {
+    const opts = makeOpts()
+    const fullPage = {
+      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
+    }
+    expect(opts.getNextPageParam(fullPage, [], 0)).toEqual({
+      orderKey: `a${PAGE_SIZE - 1}`,
+      id: `r${PAGE_SIZE - 1}`,
+    })
+  })
+
+  it('getNextPageParam falls back to offset for sorted views even with orderKey present', () => {
+    const opts = makeOpts(PAGE_SIZE, { column: 'name', direction: 'asc' })
+    const fullPage = {
+      rows: Array.from({ length: PAGE_SIZE }, (_, i) => ({ id: `r${i}`, orderKey: `a${i}` })),
+    }
+    expect(opts.getNextPageParam(fullPage, [], 0)).toBe(PAGE_SIZE)
+    expect(opts.getNextPageParam(fullPage, [], PAGE_SIZE)).toBe(PAGE_SIZE * 2)
   })
 
   it('queryKey includes the result of tableRowsParamsKey', () => {

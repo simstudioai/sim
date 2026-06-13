@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Input } from '@/components/emcn'
+import { Button, ChipInput } from '@/components/emcn'
 import { Search, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
@@ -72,16 +72,17 @@ function EnrichmentsSidebarBody({
   if (editGroup && !editEnrichment) {
     return (
       <div className='flex h-full flex-col'>
-        <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+        <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
           <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichment</h2>
-          <button
-            type='button'
+          <Button
+            variant='ghost'
+            size='sm'
             onClick={onClose}
-            className='flex size-7 flex-none items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]'
+            className='!p-1 size-7 flex-none'
             aria-label='Close'
           >
             <X className='size-[14px]' />
-          </button>
+          </Button>
         </div>
         <div className='flex flex-1 items-center justify-center px-6 text-center'>
           <p className='text-[var(--text-tertiary)] text-small'>
@@ -117,30 +118,28 @@ function EnrichmentsSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <h2 className='font-medium text-[var(--text-primary)] text-small'>Enrichments</h2>
-        <button
-          type='button'
+        <Button
+          variant='ghost'
+          size='sm'
           onClick={onClose}
-          className='flex size-7 flex-none items-center justify-center rounded-md text-[var(--text-muted)] transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]'
+          className='!p-1 size-7 flex-none'
           aria-label='Close'
         >
           <X className='size-[14px]' />
-        </button>
+        </Button>
       </div>
 
       <div className='px-2 pt-3'>
-        <div className='relative'>
-          <Search className='-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 size-[14px] text-[var(--text-muted)]' />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder='Search'
-            spellCheck={false}
-            autoComplete='off'
-            className='pl-7'
-          />
-        </div>
+        <ChipInput
+          icon={Search}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder='Search'
+          spellCheck={false}
+          autoComplete='off'
+        />
       </div>
 
       <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 [overflow-anchor:none]'>

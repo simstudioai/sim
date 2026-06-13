@@ -82,7 +82,6 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
 
 /**
  * Checks if a model supports adaptive thinking (thinking.type: "adaptive").
- * Fable 5 supports ONLY adaptive thinking (always on; type: "disabled" is rejected).
  * Opus 4.8 and Opus 4.7 support ONLY adaptive thinking (no extended thinking / budget_tokens).
  * Opus 4.6 and Sonnet 4.6 support both extended and adaptive thinking — use adaptive.
  * Opus 4.5 supports effort but NOT adaptive thinking — it uses budget_tokens with type: "enabled".
@@ -90,7 +89,6 @@ const THINKING_BUDGET_TOKENS: Record<string, number> = {
 function supportsAdaptiveThinking(modelId: string): boolean {
   const normalizedModel = modelId.toLowerCase()
   return (
-    normalizedModel.includes('fable-5') ||
     normalizedModel.includes('opus-4-8') ||
     normalizedModel.includes('opus-4.8') ||
     normalizedModel.includes('opus-4-7') ||
@@ -105,7 +103,7 @@ function supportsAdaptiveThinking(modelId: string): boolean {
 /**
  * Builds the thinking configuration for the Anthropic API based on model capabilities and level.
  *
- * - Fable 5, Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
+ * - Opus 4.8, Opus 4.7: Uses adaptive thinking only (no extended thinking support)
  * - Opus 4.6, Sonnet 4.6: Uses adaptive thinking with effort parameter
  * - Other models: Uses budget_tokens-based extended thinking
  *

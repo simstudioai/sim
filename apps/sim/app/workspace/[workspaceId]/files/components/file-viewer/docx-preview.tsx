@@ -16,11 +16,14 @@ const DOCX_ZOOM_MIN = 25
 const DOCX_ZOOM_MAX = 400
 const DOCX_ZOOM_STEP = 20
 const DOCX_ZOOM_WHEEL_SENSITIVITY = 0.005
+const DOCX_RESIZE_DEBOUNCE_MS = 150
 
 /**
  * Fit the rendered docx pages to the host container width using a CSS scale.
  * The library renders `<section class="docx">` at the document's natural page
- * width (in cm), which overflows narrow panels.
+ * width (in cm), which overflows narrow panels. 100% zoom means fit-to-width —
+ * pages upscale past their natural print size in wide panels (CSS zoom of HTML
+ * stays crisp), matching the PDF preview's semantics.
  */
 function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercent: number) {
   const wrapper = host.querySelector<HTMLElement>('.docx-wrapper')
@@ -48,7 +51,7 @@ function fitDocxToContainer(host: HTMLElement, viewport: HTMLElement, zoomPercen
     Number.parseFloat(wrapperStyle.paddingLeft) + Number.parseFloat(wrapperStyle.paddingRight)
   const naturalWrapperWidth = naturalPageWidth + horizontalPadding
   const available = viewport.clientWidth
-  const fitScale = Math.min(1, available / naturalWrapperWidth)
+  const fitScale = available / naturalWrapperWidth
   const scale = fitScale * (zoomPercent / 100)
   const scaledWrapperWidth = naturalWrapperWidth * scale
 
@@ -95,12 +98,25 @@ export const DocxPreview = memo(function DocxPreview({
     fitDocxToContainer(container, scrollContainer, zoomPercentRef.current)
   }, [])
 
+  /**
+   * Resize refits are debounced: each one re-queries the rendered pages and
+   * recomputes the fit scale, so per-tick refits during a panel-divider drag
+   * would thrash layout continuously (the initial fit is applied directly by
+   * the render path, not this observer). Mirrors the PDF preview's debounce.
+   */
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current
     if (!scrollContainer) return
-    const observer = new ResizeObserver(() => applyPostRenderStyling())
+    let debounce: ReturnType<typeof setTimeout> | undefined
+    const observer = new ResizeObserver(() => {
+      clearTimeout(debounce)
+      debounce = setTimeout(() => applyPostRenderStyling(), DOCX_RESIZE_DEBOUNCE_MS)
+    })
     observer.observe(scrollContainer)
-    return () => observer.disconnect()
+    return () => {
+      clearTimeout(debounce)
+      observer.disconnect()
+    }
   }, [applyPostRenderStyling])
 
   const applyZoomAt = useCallback(

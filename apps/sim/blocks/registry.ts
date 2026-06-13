@@ -46,6 +46,7 @@ import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
 import { DatadogBlock, DatadogBlockMeta } from '@/blocks/blocks/datadog'
 import { DaytonaBlock, DaytonaBlockMeta } from '@/blocks/blocks/daytona'
+import { DeploymentsBlock } from '@/blocks/blocks/deployments'
 import { DevinBlock, DevinBlockMeta } from '@/blocks/blocks/devin'
 import { DiscordBlock, DiscordBlockMeta } from '@/blocks/blocks/discord'
 import { DocuSignBlock, DocuSignBlockMeta } from '@/blocks/blocks/docusign'
@@ -290,6 +291,7 @@ import { TwilioSMSBlock, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice'
 import { TypeformBlock, TypeformBlockMeta } from '@/blocks/blocks/typeform'
 import { UpstashBlock, UpstashBlockMeta } from '@/blocks/blocks/upstash'
+import { VantaBlock, VantaBlockMeta } from '@/blocks/blocks/vanta'
 import { VariablesBlock } from '@/blocks/blocks/variables'
 import { VercelBlock, VercelBlockMeta } from '@/blocks/blocks/vercel'
 import {
@@ -375,6 +377,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   databricks: DatabricksBlock,
   datadog: DatadogBlock,
   daytona: DaytonaBlock,
+  deployments: DeploymentsBlock,
   devin: DevinBlock,
   discord: DiscordBlock,
   docusign: DocuSignBlock,
@@ -590,6 +593,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
   upstash: UpstashBlock,
+  vanta: VantaBlock,
   variables: VariablesBlock,
   vercel: VercelBlock,
   video_generator: VideoGeneratorBlock,
@@ -836,6 +840,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   twilio_voice: TwilioVoiceBlockMeta,
   typeform: TypeformBlockMeta,
   upstash: UpstashBlockMeta,
+  vanta: VantaBlockMeta,
   vercel: VercelBlockMeta,
   wealthbox: WealthboxBlockMeta,
   webflow: WebflowBlockMeta,

@@ -58,6 +58,11 @@ export interface Integration {
   triggerCount: number
   /** Authentication mode inferred from `BlockConfig.subBlocks`. */
   authType: AuthType
+  /**
+   * OAuth service id from the block's `oauth-input` subBlock (a service key in
+   * `OAUTH_PROVIDERS`). Present exactly when `authType` is `'oauth'`.
+   */
+  oauthServiceId?: string
   /** Hand-authored landing content baked in at generation time (see `landing-content.ts`). */
   landingContent?: IntegrationLandingContent
 }

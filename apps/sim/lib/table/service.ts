@@ -8,14 +8,9 @@
  */
 
 import { db } from '@sim/db'
-import {
-  tableRowExecutions,
-  userTableDefinitions,
-  userTableRows,
-  workflowExecutionLogs,
-} from '@sim/db/schema'
+import { tableJobs, tableRowExecutions, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   and,
@@ -28,16 +23,16 @@ import {
   inArray,
   isNull,
   lt,
+  lte,
   ne,
+  notInArray,
   or,
   type SQL,
   sql,
 } from 'drizzle-orm'
 import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
-import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import {
   columnMatchesRef,
   generateColumnId,
@@ -49,6 +44,7 @@ import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } fr
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
 import { keyBetween, nKeysBetween } from './order-key'
+import { type DbExecutor, type DbTransaction, withSeqscanOff } from './planner'
 import { buildFilterClause, buildSortClause, escapeLikePattern } from './sql'
 import { fireTableTrigger } from './trigger'
 import type {
@@ -76,6 +72,9 @@ import type {
   RowExecutions,
   Sort,
   TableDefinition,
+  TableDeleteJobPayload,
+  TableExportJobPayload,
+  TableJobType,
   TableMetadata,
   TableRow,
   TableSchema,
@@ -115,8 +114,6 @@ export class TableConflictError extends Error {
 }
 
 export type TableScope = 'active' | 'archived' | 'all'
-
-type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 /**
  * Sets per-transaction Postgres timeouts via `SET LOCAL`.
@@ -253,6 +250,99 @@ function applyColumnOrderToSchema(
   return { ...schema, columns: ordered }
 }
 
+/** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
+interface DerivedJobFields {
+  jobStatus: TableDefinition['jobStatus']
+  jobId: string | null
+  jobType: TableDefinition['jobType']
+  jobError: string | null
+  jobRowsProcessed: number
+  /**
+   * Rows a running delete job still has to remove (its doomed estimate minus
+   * deletions so far). Internal to count adjustment — callers subtract it from
+   * the raw `row_count` so list/detail counts match the read path's delete
+   * mask (a mid-delete refresh must not resurrect the count). Not on the wire.
+   */
+  pendingDeleteRemaining: number
+}
+
+const EMPTY_JOB_FIELDS: DerivedJobFields = {
+  jobStatus: null,
+  jobId: null,
+  jobType: null,
+  jobError: null,
+  jobRowsProcessed: 0,
+  pendingDeleteRemaining: 0,
+}
+
+function mapJobRow(
+  row:
+    | {
+        id: string
+        type: string
+        status: string
+        rowsProcessed: number
+        error: string | null
+        payload: unknown
+      }
+    | undefined
+): DerivedJobFields {
+  if (!row) return EMPTY_JOB_FIELDS
+  const doomedCount =
+    row.type === 'delete' && row.status === 'running'
+      ? ((row.payload as TableDeleteJobPayload | null)?.doomedCount ?? 0)
+      : 0
+  return {
+    jobStatus: row.status as TableDefinition['jobStatus'],
+    jobId: row.id,
+    jobType: row.type as TableDefinition['jobType'],
+    jobError: row.error,
+    jobRowsProcessed: row.rowsProcessed,
+    pendingDeleteRemaining: Math.max(0, doomedCount - row.rowsProcessed),
+  }
+}
+
+const JOB_PROJECTION = {
+  id: tableJobs.id,
+  type: tableJobs.type,
+  status: tableJobs.status,
+  rowsProcessed: tableJobs.rowsProcessed,
+  error: tableJobs.error,
+  payload: tableJobs.payload,
+} as const
+
+/**
+ * The latest job for one table (the running one if present, else the most recent terminal).
+ * Exports are excluded: they're read-only, run concurrently with other jobs, and have their own
+ * client surface — surfacing one here would clobber the import/delete/backfill status the tray
+ * and SSE consumer derive from these fields.
+ */
+async function latestJobForTable(
+  tableId: string,
+  executor: DbOrTx = db
+): Promise<DerivedJobFields> {
+  const [row] = await executor
+    .select(JOB_PROJECTION)
+    .from(tableJobs)
+    .where(and(eq(tableJobs.tableId, tableId), ne(tableJobs.type, 'export')))
+    .orderBy(desc(tableJobs.startedAt))
+    .limit(1)
+  return mapJobRow(row)
+}
+
+/** Latest non-export job per table for a batch of ids, via `DISTINCT ON (table_id)`. */
+async function latestJobsForTables(tableIds: string[]): Promise<Map<string, DerivedJobFields>> {
+  const map = new Map<string, DerivedJobFields>()
+  if (tableIds.length === 0) return map
+  const rows = await db
+    .selectDistinctOn([tableJobs.tableId], { tableId: tableJobs.tableId, ...JOB_PROJECTION })
+    .from(tableJobs)
+    .where(and(inArray(tableJobs.tableId, tableIds), ne(tableJobs.type, 'export')))
+    .orderBy(tableJobs.tableId, desc(tableJobs.startedAt))
+  for (const row of rows) map.set(row.tableId, mapJobRow(row))
+  return map
+}
+
 export async function getTableById(
   tableId: string,
   options?: { includeArchived?: boolean; tx?: DbOrTx }
@@ -273,11 +363,6 @@ export async function getTableById(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
-      importStatus: userTableDefinitions.importStatus,
-      importId: userTableDefinitions.importId,
-      importError: userTableDefinitions.importError,
-      importRowsProcessed: userTableDefinitions.importRowsProcessed,
-      importStartedAt: userTableDefinitions.importStartedAt,
     })
     .from(userTableDefinitions)
     .where(
@@ -291,24 +376,21 @@ export async function getTableById(
 
   const table = results[0]
   const metadata = (table.metadata as TableMetadata) ?? null
+  const { pendingDeleteRemaining, ...jobFields } = await latestJobForTable(tableId, executor)
   return {
     id: table.id,
     name: table.name,
     description: table.description,
     schema: applyColumnOrderToSchema(table.schema as TableSchema, metadata),
     metadata,
-    rowCount: table.rowCount,
+    rowCount: Math.max(0, table.rowCount - pendingDeleteRemaining),
     maxRows: table.maxRows,
     workspaceId: table.workspaceId,
     createdBy: table.createdBy,
     archivedAt: table.archivedAt,
     createdAt: table.createdAt,
     updatedAt: table.updatedAt,
-    importStatus: table.importStatus as TableDefinition['importStatus'],
-    importId: table.importId,
-    importError: table.importError,
-    importRowsProcessed: table.importRowsProcessed,
-    importStartedAt: table.importStartedAt,
+    ...jobFields,
   }
 }
 
@@ -350,11 +432,6 @@ export async function listTables(
       createdAt: userTableDefinitions.createdAt,
       updatedAt: userTableDefinitions.updatedAt,
       rowCount: userTableDefinitions.rowCount,
-      importStatus: userTableDefinitions.importStatus,
-      importId: userTableDefinitions.importId,
-      importError: userTableDefinitions.importError,
-      importRowsProcessed: userTableDefinitions.importRowsProcessed,
-      importStartedAt: userTableDefinitions.importStartedAt,
     })
     .from(userTableDefinitions)
     .where(
@@ -372,26 +449,25 @@ export async function listTables(
     )
     .orderBy(userTableDefinitions.createdAt)
 
+  const jobsByTable = await latestJobsForTables(tables.map((t) => t.id))
+
   return tables.map((t) => {
     const metadata = (t.metadata as TableMetadata) ?? null
+    const { pendingDeleteRemaining, ...jobFields } = jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS
     return {
       id: t.id,
       name: t.name,
       description: t.description,
       schema: applyColumnOrderToSchema(t.schema as TableSchema, metadata),
       metadata,
-      rowCount: t.rowCount,
+      rowCount: Math.max(0, t.rowCount - pendingDeleteRemaining),
       maxRows: t.maxRows,
       workspaceId: t.workspaceId,
       createdBy: t.createdBy,
       archivedAt: t.archivedAt,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
-      importStatus: t.importStatus as TableDefinition['importStatus'],
-      importId: t.importId,
-      importError: t.importError,
-      importRowsProcessed: t.importRowsProcessed,
-      importStartedAt: t.importStartedAt,
+      ...jobFields,
     }
   })
 }
@@ -441,10 +517,13 @@ export async function createTable(
     archivedAt: null,
     createdAt: now,
     updatedAt: now,
-    importStatus: data.importStatus ?? null,
-    importId: data.importId ?? null,
-    importStartedAt: data.importStatus ? now : null,
   }
+
+  // Create-mode CSV import is born with a running job so its rows stay hidden until ready.
+  const initialJob =
+    data.jobStatus === 'running' && data.jobId
+      ? { id: data.jobId, type: data.jobType ?? 'import', startedAt: now }
+      : null
 
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
@@ -484,6 +563,18 @@ export async function createTable(
       }
 
       await trx.insert(userTableDefinitions).values(newTable)
+
+      if (initialJob) {
+        await trx.insert(tableJobs).values({
+          id: initialJob.id,
+          tableId,
+          workspaceId: data.workspaceId,
+          type: initialJob.type,
+          status: 'running',
+          startedAt: initialJob.startedAt,
+          updatedAt: initialJob.startedAt,
+        })
+      }
 
       const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
@@ -526,10 +617,11 @@ export async function createTable(
     archivedAt: newTable.archivedAt,
     createdAt: newTable.createdAt,
     updatedAt: newTable.updatedAt,
-    importStatus: newTable.importStatus as TableDefinition['importStatus'],
-    importId: newTable.importId,
-    importRowsProcessed: 0,
-    importStartedAt: newTable.importStartedAt,
+    jobStatus: initialJob ? 'running' : null,
+    jobId: initialJob?.id ?? null,
+    jobType: initialJob?.type ?? null,
+    jobError: null,
+    jobRowsProcessed: 0,
   }
 }
 
@@ -1518,6 +1610,81 @@ async function deleteOrderedRowsByIds(params: {
 }
 
 /**
+ * Selects one page of row ids to delete for the async delete-job worker: base scope plus a
+ * `created_at <= cutoff` floor (so rows inserted after the job started are never selected) and
+ * the caller's optional filter clause. Keyset paginated on `id` via `afterId` so excluded rows
+ * (which are skipped, not deleted) still advance the cursor — no OFFSET, no risk of looping on a
+ * fully-excluded page.
+ */
+export async function selectRowIdPage(params: {
+  tableId: string
+  workspaceId: string
+  cutoff: Date
+  filterClause?: SQL
+  afterId?: string
+  limit: number
+}): Promise<string[]> {
+  const { tableId, workspaceId, cutoff, filterClause, afterId, limit } = params
+  const selectPage = (executor: DbExecutor) =>
+    executor
+      .select({ id: userTableRows.id })
+      .from(userTableRows)
+      .where(
+        and(
+          eq(userTableRows.tableId, tableId),
+          eq(userTableRows.workspaceId, workspaceId),
+          lte(userTableRows.createdAt, cutoff),
+          afterId ? gt(userTableRows.id, afterId) : undefined,
+          filterClause
+        )
+      )
+      .orderBy(asc(userTableRows.id))
+      .limit(limit)
+  // A jsonb filter is unestimatable, so the planner would seq-scan the whole shared relation
+  // per page (12.6s measured) — keep it on the tenant's (table_id, id) index.
+  const rows = filterClause
+    ? await withSeqscanOff(async (trx) => selectPage(trx))
+    : await selectPage(db)
+  return rows.map((r) => r.id)
+}
+
+/**
+ * Deletes one page of rows for the async delete-job worker, committing each `DELETE_BATCH_SIZE`
+ * chunk in its own short transaction. One statement per transaction bounds how long the
+ * statement-level row_count trigger's lock on the definition row is held (a page-wide transaction
+ * held it for the entire page, starving concurrent inserts and overrunning `statement_timeout`),
+ * and a mid-page failure loses at most one uncommitted batch — the keyset walker (or a task
+ * retry) re-walks whatever remains. Skips legacy position compaction: under fractional ordering
+ * it's unnecessary, and in the legacy path `position` gaps are harmless — rows still order by
+ * position. Returns the count deleted.
+ */
+export async function deletePageByIds(
+  tableId: string,
+  workspaceId: string,
+  rowIds: string[]
+): Promise<number> {
+  let deleted = 0
+  for (let i = 0; i < rowIds.length; i += TABLE_LIMITS.DELETE_BATCH_SIZE) {
+    const batch = rowIds.slice(i, i + TABLE_LIMITS.DELETE_BATCH_SIZE)
+    const rows = await db.transaction(async (trx) => {
+      await setTableTxTimeouts(trx, { statementMs: 60_000 })
+      return trx
+        .delete(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, tableId),
+            eq(userTableRows.workspaceId, workspaceId),
+            inArray(userTableRows.id, batch)
+          )
+        )
+        .returning({ id: userTableRows.id })
+    })
+    deleted += rows.length
+  }
+  return deleted
+}
+
+/**
  * Inserts a single row into a table.
  *
  * @param data - Row insertion data
@@ -1853,131 +2020,265 @@ export async function setTableSchemaForImport(tableId: string, schema: TableSche
 }
 
 /**
- * Atomically claims a table for an async import. The `import_status != 'importing'` guard makes
- * this the single concurrency gate: of two racing kickoffs only one row-update matches, so only
- * one wins (no TOCTOU between a separate status check and this write). Returns whether it claimed
- * the table — the caller returns 409 when it didn't.
+ * Atomically claims a table's single background-job slot by inserting a `running` row into
+ * `table_jobs`. The partial-unique index on `table_id WHERE status = 'running'` is the
+ * concurrency gate: a second insert while a job runs hits `ON CONFLICT DO NOTHING` and returns no
+ * row, so import and delete (and two imports) are mutually exclusive for free. Returns whether it
+ * claimed the slot; the caller returns 409 when it didn't.
  */
-export async function markTableImporting(tableId: string, importId: string): Promise<boolean> {
-  const updated = await db
-    .update(userTableDefinitions)
-    .set({
-      importStatus: 'importing',
-      importId,
-      importError: null,
-      importRowsProcessed: 0,
-      importStartedAt: new Date(),
-      updatedAt: new Date(),
+export async function markTableJobRunning(
+  tableId: string,
+  jobId: string,
+  type: TableJobType,
+  /** Type-specific scope persisted to `table_jobs.payload` (e.g. {@link TableDeleteJobPayload})
+   *  so read paths can mask the job's effect while it runs. */
+  payload?: unknown
+): Promise<boolean> {
+  // workspace_id is immutable; the atomic gate is the INSERT's conflict, not this read.
+  const [def] = await db
+    .select({ workspaceId: userTableDefinitions.workspaceId })
+    .from(userTableDefinitions)
+    .where(eq(userTableDefinitions.id, tableId))
+    .limit(1)
+  if (!def) return false
+  const inserted = await db
+    .insert(tableJobs)
+    .values({
+      id: jobId,
+      tableId,
+      workspaceId: def.workspaceId,
+      type,
+      status: 'running',
+      payload: payload ?? null,
     })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        or(
-          isNull(userTableDefinitions.importStatus),
-          ne(userTableDefinitions.importStatus, 'importing')
-        )
-      )
-    )
-    .returning({ id: userTableDefinitions.id })
-  return updated.length > 0
+    .onConflictDoNothing()
+    .returning({ id: tableJobs.id })
+  return inserted.length > 0
 }
 
 /**
- * Releases a claim taken by {@link markTableImporting} for a synchronous import — clears the
- * import state back to idle. Scoped to `importId` so it only clears its own claim, never a newer
- * run that may have taken over. A sync route claims, writes, then releases here in a `finally`.
+ * Releases a claim taken by {@link markTableJobRunning} for a synchronous job — deletes the
+ * transient claim row. Scoped to `jobId` + still-running so it only clears its own claim, never a
+ * newer run. A sync route claims, writes, then releases here in a `finally`.
  */
-export async function releaseImportClaim(tableId: string, importId: string): Promise<void> {
+export async function releaseJobClaim(tableId: string, jobId: string): Promise<void> {
   await db
-    .update(userTableDefinitions)
-    .set({ importStatus: null, importId: null, importStartedAt: null, updatedAt: new Date() })
+    .delete(tableJobs)
     .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        eq(userTableDefinitions.importId, importId),
-        eq(userTableDefinitions.importStatus, 'importing')
-      )
+      and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId), eq(tableJobs.status, 'running'))
     )
 }
 
 /**
- * Records import progress (rows processed so far). Also bumps `updatedAt` so the
- * stale-import janitor (`cleanup-stale-executions`) sees a live heartbeat and doesn't mark a
- * still-running import as failed.
+ * Records job progress (rows processed so far) and bumps `updated_at` so the stale-job janitor
+ * (`cleanup-stale-executions`) sees a live heartbeat.
  *
- * Scoped to `importId` AND `import_status = 'importing'`: a stale/superseded worker no longer
- * matches (its write is a no-op), and once the import is terminal (e.g. canceled) the match fails
- * too — so this returning `false` is also the worker's signal to stop. Returns whether this worker
- * still owns an in-flight import.
+ * Scoped to `jobId` AND `status = 'running'`: a stale/superseded worker no longer matches (its
+ * write is a no-op), and once the job is terminal (e.g. canceled) the match fails too — so this
+ * returning `false` is the worker's signal to stop. Returns whether this worker still owns an
+ * in-flight job.
  */
-export async function updateImportProgress(
+export async function updateJobProgress(
   tableId: string,
   rowsProcessed: number,
-  importId: string
+  jobId: string
 ): Promise<boolean> {
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importRowsProcessed: rowsProcessed, updatedAt: new Date() })
-    .where(
-      and(
-        eq(userTableDefinitions.id, tableId),
-        eq(userTableDefinitions.importId, importId),
-        eq(userTableDefinitions.importStatus, 'importing')
-      )
-    )
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ rowsProcessed, updatedAt: new Date() })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
-/** Shared WHERE for terminal transitions: this import run, and still in-flight (write-once). */
-function ownsActiveImport(tableId: string, importId: string) {
+/**
+ * Reads the persisted progress of an in-flight job this worker still owns (`null` when the job
+ * was canceled/superseded). A retried run seeds its counter from this so progress stays
+ * cumulative — earlier attempts' batches are already committed, and restarting from zero would
+ * clobber `rows_processed` (and every count derived from it) with the retry's smaller number.
+ */
+export async function getJobProgress(tableId: string, jobId: string): Promise<number | null> {
+  const [job] = await db
+    .select({ rowsProcessed: tableJobs.rowsProcessed })
+    .from(tableJobs)
+    .where(ownsActiveJob(tableId, jobId))
+    .limit(1)
+  return job ? job.rowsProcessed : null
+}
+
+/**
+ * One keyset page of rows for the export worker, ordered by `(position, id)`. Keyset (not
+ * OFFSET) keeps each page O(page) — offset paging re-scans every prior row per page, which is
+ * O(N²) across a large export. `(position, id)` is total (position exists on every row; id breaks
+ * ties) and served by the `(table_id, position)` index; under fractional ordering a manually
+ * reordered table may export in near-grid rather than exact grid order — the right trade for a
+ * bulk dump. The delete-job visibility mask applies, like every user-facing read.
+ */
+export async function selectExportRowPage(
+  table: TableDefinition,
+  after: { position: number; id: string } | null,
+  limit: number
+): Promise<Array<{ id: string; data: RowData; position: number }>> {
+  const deleteMask = await pendingDeleteMask(table)
+  const rows = await db
+    .select({ id: userTableRows.id, data: userTableRows.data, position: userTableRows.position })
+    .from(userTableRows)
+    .where(
+      and(
+        eq(userTableRows.tableId, table.id),
+        eq(userTableRows.workspaceId, table.workspaceId),
+        deleteMask,
+        after
+          ? sql`(${userTableRows.position}, ${userTableRows.id}) > (${after.position}, ${after.id})`
+          : undefined
+      )
+    )
+    .orderBy(asc(userTableRows.position), asc(userTableRows.id))
+    .limit(limit)
+  return rows as Array<{ id: string; data: RowData; position: number }>
+}
+
+/** How long a terminal export stays listable (and re-downloadable from the tray). */
+const EXPORT_JOB_VISIBILITY_MS = 10 * 60 * 1000
+
+export interface WorkspaceExportJob {
+  jobId: string
+  tableId: string
+  tableName: string
+  status: string
+  rowsProcessed: number
+  format: 'csv' | 'json'
+  hasResult: boolean
+  error: string | null
+}
+
+/**
+ * Export jobs the tray surfaces for a workspace: everything running, plus terminals from the last
+ * {@link EXPORT_JOB_VISIBILITY_MS} so a just-finished export stays re-downloadable. Exports live
+ * outside the table-level job derivation (which excludes them), so this is their read path.
+ */
+export async function listWorkspaceExportJobs(workspaceId: string): Promise<WorkspaceExportJob[]> {
+  const visibilityCutoff = new Date(Date.now() - EXPORT_JOB_VISIBILITY_MS)
+  const rows = await db
+    .select({
+      jobId: tableJobs.id,
+      tableId: tableJobs.tableId,
+      tableName: userTableDefinitions.name,
+      status: tableJobs.status,
+      rowsProcessed: tableJobs.rowsProcessed,
+      payload: tableJobs.payload,
+      error: tableJobs.error,
+    })
+    .from(tableJobs)
+    .innerJoin(userTableDefinitions, eq(userTableDefinitions.id, tableJobs.tableId))
+    .where(
+      and(
+        eq(tableJobs.workspaceId, workspaceId),
+        eq(tableJobs.type, 'export'),
+        or(eq(tableJobs.status, 'running'), gt(tableJobs.updatedAt, visibilityCutoff))
+      )
+    )
+    .orderBy(desc(tableJobs.startedAt))
+  return rows.map((r) => {
+    const payload = r.payload as TableExportJobPayload | null
+    return {
+      jobId: r.jobId,
+      tableId: r.tableId,
+      tableName: r.tableName,
+      status: r.status,
+      rowsProcessed: r.rowsProcessed,
+      format: payload?.format ?? 'csv',
+      hasResult: Boolean(payload?.resultKey),
+      error: r.error,
+    }
+  })
+}
+
+/** Reads one job row (type/status/payload) scoped to its table. Null when absent. */
+export async function getTableJob(
+  tableId: string,
+  jobId: string
+): Promise<{ id: string; type: string; status: string; payload: unknown } | null> {
+  const [job] = await db
+    .select({
+      id: tableJobs.id,
+      type: tableJobs.type,
+      status: tableJobs.status,
+      payload: tableJobs.payload,
+    })
+    .from(tableJobs)
+    .where(and(eq(tableJobs.id, jobId), eq(tableJobs.tableId, tableId)))
+    .limit(1)
+  return job ?? null
+}
+
+/**
+ * Stamps an export job's generated-file storage key onto its payload (`{ resultKey }` merge).
+ * Scoped to the still-running job so a superseded attempt can't clobber a newer run's result.
+ * The download route reads it; the janitor deletes the file when the terminal job is pruned.
+ */
+export async function setJobResultKey(
+  tableId: string,
+  jobId: string,
+  resultKey: string
+): Promise<void> {
+  await db
+    .update(tableJobs)
+    .set({
+      payload: sql`coalesce(${tableJobs.payload}, '{}'::jsonb) || jsonb_build_object('resultKey', ${resultKey}::text)`,
+      updatedAt: new Date(),
+    })
+    .where(ownsActiveJob(tableId, jobId))
+}
+
+/** Shared WHERE for terminal transitions: this job run, and still in-flight (write-once). */
+function ownsActiveJob(tableId: string, jobId: string) {
   return and(
-    eq(userTableDefinitions.id, tableId),
-    eq(userTableDefinitions.importId, importId),
-    eq(userTableDefinitions.importStatus, 'importing')
+    eq(tableJobs.id, jobId),
+    eq(tableJobs.tableId, tableId),
+    eq(tableJobs.status, 'running')
   )
 }
 
 /**
- * Marks an import complete; rows become visible. No-op unless it's still this in-flight run.
- * Returns whether it transitioned, so the worker only emits the `ready` event when it actually
- * won (and not after a cancel / supersede).
+ * Marks a job complete. No-op unless it's still this in-flight run. Returns whether it
+ * transitioned, so the worker only emits the `ready` event when it actually won (and not after a
+ * cancel / supersede).
  */
-export async function markImportReady(tableId: string, importId: string): Promise<boolean> {
+export async function markJobReady(tableId: string, jobId: string): Promise<boolean> {
+  const now = new Date()
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'ready', importError: null, updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ status: 'ready', error: null, completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
 /**
- * Marks an import failed, leaving any already-committed rows in place. No-op unless it's still
- * this in-flight run (so a stale worker can't clobber a newer import or a cancel).
+ * Marks a job failed, leaving any already-committed work in place. No-op unless it's still this
+ * in-flight run (so a stale worker can't clobber a newer job or a cancel).
  */
-export async function markImportFailed(
-  tableId: string,
-  importId: string,
-  error: string
-): Promise<void> {
+export async function markJobFailed(tableId: string, jobId: string, error: string): Promise<void> {
+  const now = new Date()
   await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'failed', importError: error.slice(0, 2000), updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
+    .update(tableJobs)
+    .set({ status: 'failed', error: error.slice(0, 2000), completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
 }
 
 /**
- * Marks an in-flight import canceled (user-initiated). No-op unless it's still importing. The
- * worker's next ownership check then returns `false` and it stops; committed rows are left in
- * place (no rollback). Returns whether a running import was actually canceled.
+ * Marks an in-flight job canceled (user-initiated). No-op unless it's still running. The
+ * worker's next ownership check then returns `false` and it stops; committed work is left in
+ * place (no rollback). Returns whether a running job was actually canceled.
  */
-export async function markImportCanceled(tableId: string, importId: string): Promise<boolean> {
+export async function markJobCanceled(tableId: string, jobId: string): Promise<boolean> {
+  const now = new Date()
   const updated = await db
-    .update(userTableDefinitions)
-    .set({ importStatus: 'canceled', updatedAt: new Date() })
-    .where(ownsActiveImport(tableId, importId))
-    .returning({ id: userTableDefinitions.id })
+    .update(tableJobs)
+    .set({ status: 'canceled', completedAt: now, updatedAt: now })
+    .where(ownsActiveJob(tableId, jobId))
+    .returning({ id: tableJobs.id })
   return updated.length > 0
 }
 
@@ -2259,6 +2560,10 @@ export async function upsertRow(
   // trigger (migration 0198). The update path doesn't change row_count, so no check needed.
   const result = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
+    // The conflict lookups below match on `data->>key` — unestimatable, and an
+    // insert-path upsert (no existing match) can't exit early, so the planner
+    // would seq-scan the whole shared relation. See withSeqscanOff.
+    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
 
     // Find existing row by single conflict target column
     const [existingRow] = await trx
@@ -2448,10 +2753,15 @@ const FIND_MATCH_LIMIT = 1000
  * reveal it). `filter`/`sort` mirror the active list view via
  * {@link buildRowOrderBySql}, keeping ordinals aligned.
  *
- * Cost: sequential scan bounded by the `table_id` btree prefix — `ILIKE` over
- * `jsonb_each_text` cannot use the JSONB GIN index. Acceptable for tables
- * ≪1M rows; a `pg_trgm` GIN index on a text projection is the future
- * accelerator if needed.
+ * Cost: one pass over the table's rows — `ILIKE` over `jsonb_each_text` cannot
+ * use the JSONB GIN index, and the ordinal's `row_number()` needs every row
+ * counted regardless. The planner can't estimate the lateral ILIKE (jsonb is
+ * opaque to it), so left alone it seq-scans the entire shared relation and
+ * disk-sorts the window input (measured 75s on a 1M-row table in a 12M-row
+ * relation). `SET LOCAL` planner flags keep it tenant-bounded; on the default
+ * order they additionally force the streaming `(table_id, order_key, id)` index
+ * walk where `row_number()` needs no sort at all (measured 2s). A `pg_trgm` GIN
+ * index on a text projection is the future accelerator if needed.
  */
 export async function findRowMatches(
   table: TableDefinition,
@@ -2464,9 +2774,13 @@ export async function findRowMatches(
   const columnIds = columns.map(getColumnId)
   if (columnIds.length === 0) return { matches: [], truncated: false }
 
+  // Same visibility rule as queryRows: don't surface rows a running delete job will remove.
+  const deleteMask = await pendingDeleteMask(table)
+
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
-    eq(userTableRows.workspaceId, table.workspaceId)
+    eq(userTableRows.workspaceId, table.workspaceId),
+    deleteMask
   )
   let whereClause: SQL | undefined = baseConditions
   if (options.filter && Object.keys(options.filter).length > 0) {
@@ -2477,24 +2791,39 @@ export async function findRowMatches(
   const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
   const pattern = `%${escapeLikePattern(options.q)}%`
 
-  const result = await db.execute<{
-    ordinal: string | number
-    id: string
-    column_name: string
-  }>(sql`
-    WITH ordered AS (
-      SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
-      FROM ${userTableRows}
-      WHERE ${whereClause}
-    )
-    SELECT o.ordinal, o.id, kv.key AS column_name
-    FROM ordered o
-    CROSS JOIN LATERAL jsonb_each_text(o.data) kv
-    WHERE kv.value ILIKE ${pattern}
-      AND ${inArray(sql`kv.key`, columnIds)}
-    ORDER BY o.ordinal
-    LIMIT ${FIND_MATCH_LIMIT + 1}
-  `)
+  const result = await db.transaction(async (trx) => {
+    // Planner flags, not correctness: `enable_* = off` only penalizes a plan shape, so a
+    // genuinely required sort still runs. Seqscan off keeps the scan inside the tenant's rows
+    // (the lateral ILIKE is unestimatable, so the planner otherwise walks the whole shared
+    // relation). On the default order, the remaining flags steer to the already-sorted
+    // `(table_id, order_key, id)` index walk so the window function streams without a 100MB+
+    // disk sort; a custom sort has no index to stream from, so those flags would only distort
+    // that plan.
+    await trx.execute(sql`SET LOCAL enable_seqscan = off`)
+    if (!options.sort) {
+      await trx.execute(sql`SET LOCAL enable_bitmapscan = off`)
+      await trx.execute(sql`SET LOCAL enable_sort = off`)
+      await trx.execute(sql`SET LOCAL max_parallel_workers_per_gather = 0`)
+    }
+    return trx.execute<{
+      ordinal: string | number
+      id: string
+      column_name: string
+    }>(sql`
+      WITH ordered AS (
+        SELECT id, data, row_number() OVER (ORDER BY ${orderBySql}) - 1 AS ordinal
+        FROM ${userTableRows}
+        WHERE ${whereClause}
+      )
+      SELECT o.ordinal, o.id, kv.key AS column_name
+      FROM ordered o
+      CROSS JOIN LATERAL jsonb_each_text(o.data) kv
+      WHERE kv.value ILIKE ${pattern}
+        AND ${inArray(sql`kv.key`, columnIds)}
+      ORDER BY o.ordinal
+      LIMIT ${FIND_MATCH_LIMIT + 1}
+    `)
+  })
 
   const all = Array.from(result)
   const truncated = all.length > FIND_MATCH_LIMIT
@@ -2528,6 +2857,66 @@ export async function findRowMatches(
  * @param requestId - Request ID for logging
  * @returns Query result with rows and pagination info
  */
+/**
+ * Visibility mask for a running delete job: returns a clause keeping only rows the job will NOT
+ * delete, or `undefined` when no delete job is running. The job's persisted scope
+ * ({@link TableDeleteJobPayload}) defines the doomed set — `matches(filter) AND created_at <=
+ * cutoff AND id NOT IN excludeRowIds` — exactly what the worker's `selectRowIdPage` selects, so
+ * mid-job reads (refresh, other clients, exports) are consistent with the eventual result. The
+ * mask lifts automatically when the job leaves `running` (done, failed, or canceled).
+ *
+ * `(doomed) IS NOT TRUE` rather than `NOT (doomed)`: JSONB predicates evaluate to NULL on missing
+ * cells, and those rows are NOT selected for deletion (NULL ≠ TRUE) — they must stay visible.
+ */
+async function pendingDeleteMask(table: TableDefinition): Promise<SQL | undefined> {
+  const [job] = await db
+    .select({ payload: tableJobs.payload })
+    .from(tableJobs)
+    .where(
+      and(
+        eq(tableJobs.tableId, table.id),
+        eq(tableJobs.status, 'running'),
+        eq(tableJobs.type, 'delete')
+      )
+    )
+    .limit(1)
+  if (!job?.payload) return undefined
+  const scope = job.payload as TableDeleteJobPayload
+
+  const doomedParts: SQL[] = []
+  if (scope.filter && Object.keys(scope.filter).length > 0) {
+    try {
+      const clause = buildFilterClause(scope.filter, USER_TABLE_ROWS_SQL_NAME, table.schema.columns)
+      if (clause) doomedParts.push(clause)
+    } catch (error) {
+      // Schema drifted mid-job (column renamed/deleted). Showing doomed rows briefly beats
+      // failing every read; the worker resolves the same way on its next page.
+      logger.warn(`Skipping delete-job mask for table ${table.id}: stale filter`, {
+        error: toError(error).message,
+      })
+      return undefined
+    }
+  }
+  if (scope.cutoff) doomedParts.push(lte(userTableRows.createdAt, new Date(scope.cutoff)))
+  if (scope.excludeRowIds && scope.excludeRowIds.length > 0) {
+    doomedParts.push(notInArray(userTableRows.id, scope.excludeRowIds))
+  }
+  if (doomedParts.length === 0) return undefined
+  return sql`(${and(...doomedParts)}) IS NOT TRUE`
+}
+
+/**
+ * `COUNT(*)` for a filtered view, kept inside the tenant's rows: measured
+ * 12.7s → 1.0s counting a rare ILIKE filter on a 1M-row table inside a 12M-row
+ * relation (see {@link withSeqscanOff} for why the planner gets this wrong).
+ */
+async function countRowsTenantBounded(whereClause: SQL | undefined): Promise<number> {
+  return withSeqscanOff(async (trx) => {
+    const [result] = await trx.select({ count: count() }).from(userTableRows).where(whereClause)
+    return Number(result.count)
+  })
+}
+
 export async function queryRows(
   table: TableDefinition,
   options: QueryOptions,
@@ -2538,6 +2927,7 @@ export async function queryRows(
     sort,
     limit = TABLE_LIMITS.DEFAULT_QUERY_LIMIT,
     offset = 0,
+    after,
     includeTotal = true,
     withExecutions = true,
   } = options
@@ -2545,9 +2935,14 @@ export async function queryRows(
   const tableName = USER_TABLE_ROWS_SQL_NAME
   const columns = table.schema.columns
 
+  // Hide rows a running delete job is about to remove — both the page and the count below share
+  // this clause, so totals stay consistent with the visible rows.
+  const deleteMask = await pendingDeleteMask(table)
+
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
-    eq(userTableRows.workspaceId, table.workspaceId)
+    eq(userTableRows.workspaceId, table.workspaceId),
+    deleteMask
   )
 
   let whereClause = baseConditions
@@ -2558,24 +2953,48 @@ export async function queryRows(
     }
   }
 
-  const query = db
-    .select()
-    .from(userTableRows)
-    .where(whereClause ?? baseConditions)
-    .orderBy(buildRowOrderBySql(sort, tableName, columns))
+  // Keyset page: seek past the cursor on the default `(order_key, id)` order instead of paying
+  // OFFSET's scan-and-discard of every prior row (O(N²) across a deep scroll / full drain). Only
+  // valid without a custom sort — the contract rejects `after` + `sort` together. The count below
+  // deliberately excludes the cursor: totals cover the whole view, not the remaining pages.
+  const pageWhere =
+    after && !sort
+      ? and(
+          whereClause,
+          sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
+        )
+      : whereClause
+
+  const buildPageQuery = (executor: DbExecutor) => {
+    const query = executor
+      .select()
+      .from(userTableRows)
+      .where(pageWhere ?? baseConditions)
+      .orderBy(buildRowOrderBySql(sort, tableName, columns))
+    return after ? query.limit(limit) : query.limit(limit).offset(offset)
+  }
 
   // Count and page fetch are independent reads — run them concurrently so the
-  // `includeTotal` hot path doesn't pay two serial round-trips.
-  const rowsPromise = query.limit(limit).offset(offset)
+  // `includeTotal` hot path doesn't pay two serial round-trips. Filtered counts
+  // go through the tenant-bounded variant (see countRowsTenantBounded); the
+  // unfiltered count already plans an index-only scan on the table_id prefix.
+  // Custom column sorts order by `data->>'col'` — unestimatable, so left alone
+  // the planner seq-scans and sorts the whole shared relation on every page
+  // (9.7s measured on a 1M-row table; 0.76s tenant-bounded). Default-order
+  // pages already stream the `(table_id, order_key, id)` index.
+  const hasFilter = Boolean(filter && Object.keys(filter).length > 0)
+  const rowsPromise = sort ? withSeqscanOff(async (trx) => buildPageQuery(trx)) : buildPageQuery(db)
   const countPromise = includeTotal
-    ? db
-        .select({ count: count() })
-        .from(userTableRows)
-        .where(whereClause ?? baseConditions)
+    ? hasFilter
+      ? countRowsTenantBounded(whereClause)
+      : db
+          .select({ count: count() })
+          .from(userTableRows)
+          .where(whereClause ?? baseConditions)
+          .then((r) => Number(r[0].count))
     : null
 
-  const [rows, countResult] = await Promise.all([rowsPromise, countPromise])
-  const totalCount = countResult ? Number(countResult[0].count) : null
+  const [rows, totalCount] = await Promise.all([rowsPromise, countPromise])
 
   const executionsByRow = withExecutions
     ? await loadExecutionsByRow(
@@ -3113,16 +3532,18 @@ export async function updateRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
-  let query = db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(and(baseConditions, filterClause))
-
-  if (data.limit) {
-    query = query.limit(data.limit) as typeof query
-  }
-
-  const matchingRows = await query
+  // Tenant-bounded: the jsonb filter is unestimatable and otherwise sends the planner to a
+  // whole-shared-relation seq scan (14.4s measured on a 1M-row table).
+  const matchingRows = await withSeqscanOff(async (trx) => {
+    let query = trx
+      .select({ id: userTableRows.id, data: userTableRows.data })
+      .from(userTableRows)
+      .where(and(baseConditions, filterClause))
+    if (data.limit) {
+      query = query.limit(data.limit) as typeof query
+    }
+    return query
+  })
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
@@ -3454,16 +3875,17 @@ export async function deleteRowsByFilter(
     eq(userTableRows.workspaceId, table.workspaceId)
   )
 
-  let query = db
-    .select({ id: userTableRows.id, position: userTableRows.position })
-    .from(userTableRows)
-    .where(and(baseConditions, filterClause))
-
-  if (data.limit) {
-    query = query.limit(data.limit) as typeof query
-  }
-
-  const matchingRows = await query
+  // Tenant-bounded for the same reason as updateRowsByFilter — see withSeqscanOff.
+  const matchingRows = await withSeqscanOff(async (trx) => {
+    let query = trx
+      .select({ id: userTableRows.id, position: userTableRows.position })
+      .from(userTableRows)
+      .where(and(baseConditions, filterClause))
+    if (data.limit) {
+      query = query.limit(data.limit) as typeof query
+    }
+    return query
+  })
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
@@ -4417,12 +4839,14 @@ export async function updateWorkflowGroup(
   //   - remapped outputs (existing column re-pointed): overwrite, since the
   //     new mapping is the source of truth and the user expects the cell to
   //     refresh to the new output's value.
-  // Awaited so the response only returns once row data is consistent. A
-  // failed backfill is logged but doesn't fail the request — the schema
-  // change has already committed.
+  // Small tables backfill inline-awaited (response returns with consistent
+  // data); large ones run as a background job. A failed backfill is logged
+  // but doesn't fail the request — the schema change has already committed.
+  // Lazy import: backfill-runner closes a cycle back to this module.
+  const { maybeBackfillGroupOutputs } = await import('./backfill-runner')
   if (added.length > 0) {
     try {
-      await backfillGroupOutputsFromLogs({
+      await maybeBackfillGroupOutputs({
         table: updatedTable,
         groupId: data.groupId,
         outputs: added,
@@ -4440,7 +4864,7 @@ export async function updateWorkflowGroup(
   if (remappedColumnIds.size > 0) {
     const remappedOutputs = newOutputs.filter((o) => remappedColumnIds.has(o.columnName))
     try {
-      await backfillGroupOutputsFromLogs({
+      await maybeBackfillGroupOutputs({
         table: updatedTable,
         groupId: data.groupId,
         outputs: remappedOutputs,
@@ -4698,8 +5122,11 @@ export async function addWorkflowGroupOutput(
   // Cheap compared to re-running the workflow on every row, which is what
   // an earlier version of this code did — that mistakenly fanned out N
   // workflow-group-cell jobs and burned compute the user didn't ask for.
+  // Small tables backfill inline; large ones run as a background job.
+  // Lazy import: backfill-runner closes a cycle back to this module.
   try {
-    await backfillGroupOutputsFromLogs({
+    const { maybeBackfillGroupOutputs } = await import('./backfill-runner')
+    await maybeBackfillGroupOutputs({
       table: updatedTable,
       groupId: data.groupId,
       outputs: [newOutput],
@@ -4848,152 +5275,6 @@ export async function deleteWorkflowGroup(
       updatedAt: now,
     }
   })
-}
-
-/** Minimal shape of a trace span we care about for backfill. */
-interface BackfillTraceSpan {
-  blockId?: string
-  output?: Record<string, unknown>
-  children?: BackfillTraceSpan[]
-}
-
-/** DFS the trace tree for the first span matching `blockId`. */
-function findSpanByBlockId(
-  spans: BackfillTraceSpan[] | undefined,
-  blockId: string
-): BackfillTraceSpan | undefined {
-  if (!spans) return undefined
-  for (const span of spans) {
-    if (span.blockId === blockId) return span
-    const child = findSpanByBlockId(span.children, blockId)
-    if (child) return child
-  }
-  return undefined
-}
-
-/**
- * Walks completed group executions and pulls each target output's value out of
- * the workflow's saved trace spans, writing it back into row data. Used in two
- * spots:
- *
- *   - **added** outputs (new columns added to an existing group): `overwrite`
- *     is false, so rows with a hand-edited value already in the column are
- *     left alone.
- *   - **remapped** outputs (existing column re-pointed at a different
- *     `(blockId, path)`): `overwrite` is true — the new mapping is the source
- *     of truth, and the user expects the column to refresh to the new
- *     output's value rather than retain the stale old one.
- */
-async function backfillGroupOutputsFromLogs(opts: {
-  table: TableDefinition
-  groupId: string
-  outputs: WorkflowGroupOutput[]
-  overwrite: boolean
-  requestId: string
-  actorUserId?: string | null
-}): Promise<void> {
-  const { table, groupId, outputs, overwrite, requestId, actorUserId } = opts
-  if (outputs.length === 0) return
-
-  const { pluckByPath } = await import('./pluck')
-
-  // Find rows whose group execution completed and grab their executionId
-  // directly from the sidecar — hits the (table_id, group_id) index, no
-  // table scan over rowdata.
-  const completedExecs = await db
-    .select({
-      rowId: tableRowExecutions.rowId,
-      executionId: tableRowExecutions.executionId,
-    })
-    .from(tableRowExecutions)
-    .where(
-      and(
-        eq(tableRowExecutions.tableId, table.id),
-        eq(tableRowExecutions.groupId, groupId),
-        eq(tableRowExecutions.status, 'completed')
-      )
-    )
-
-  const executionIdsByRow = new Map<string, string>()
-  for (const e of completedExecs) {
-    if (!e.executionId) continue
-    executionIdsByRow.set(e.rowId, e.executionId)
-  }
-  if (executionIdsByRow.size === 0) return
-
-  const rowRecords = await db
-    .select({ id: userTableRows.id, data: userTableRows.data })
-    .from(userTableRows)
-    .where(
-      and(
-        eq(userTableRows.tableId, table.id),
-        inArray(userTableRows.id, Array.from(executionIdsByRow.keys()))
-      )
-    )
-
-  const executionIds = Array.from(new Set(executionIdsByRow.values()))
-  const logs = await db
-    .select({
-      executionId: workflowExecutionLogs.executionId,
-      workflowId: workflowExecutionLogs.workflowId,
-      workspaceId: workflowExecutionLogs.workspaceId,
-      executionData: workflowExecutionLogs.executionData,
-    })
-    .from(workflowExecutionLogs)
-    .where(inArray(workflowExecutionLogs.executionId, executionIds))
-
-  const logByExecutionId = new Map<string, { traceSpans?: BackfillTraceSpan[] }>()
-  // Heavy execution data may live in object storage; resolve pointers (bounded
-  // concurrency) so trace spans are available for table-column enrichment.
-  await mapWithConcurrency(logs, MATERIALIZE_CONCURRENCY, async (log) => {
-    const executionData = await materializeExecutionData(
-      log.executionData as Record<string, unknown> | null,
-      { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
-    )
-    logByExecutionId.set(
-      log.executionId,
-      (executionData as { traceSpans?: BackfillTraceSpan[] }) ?? {}
-    )
-  })
-
-  const updates: Array<{ rowId: string; data: RowData }> = []
-  for (const r of rowRecords) {
-    const execId = executionIdsByRow.get(r.id)
-    if (!execId) continue
-    const log = logByExecutionId.get(execId)
-    if (!log) continue
-
-    const dataPatch: RowData = {}
-    let mutated = false
-    for (const out of outputs) {
-      if (!overwrite && (r.data as RowData)[out.columnName] !== undefined) continue
-      const span = findSpanByBlockId(log.traceSpans, out.blockId)
-      if (!span?.output) continue
-      const picked = pluckByPath(span.output, out.path)
-      if (picked === undefined) continue
-      dataPatch[out.columnName] = picked as RowData[string]
-      mutated = true
-    }
-    if (!mutated) continue
-    updates.push({ rowId: r.id, data: dataPatch })
-  }
-
-  if (updates.length === 0) return
-
-  await batchUpdateRows(
-    {
-      tableId: table.id,
-      updates,
-      workspaceId: table.workspaceId,
-      actorUserId,
-    },
-    table,
-    requestId
-  )
-
-  logger.info(
-    `[${requestId}] Backfilled ${updates.length} row(s) for group "${groupId}" in table ${table.id} (${overwrite ? 'remapped' : 'added'})`
-  )
 }
 
 /**

@@ -41,7 +41,7 @@ export const GET = withRouteHandler(
         isActive: v.isActive,
         createdAt: v.createdAt.toISOString(),
         createdBy: v.createdBy,
-        deployedByName: v.deployedByName ?? (v.createdBy === 'admin-api' ? 'Admin' : null),
+        deployedByName: v.deployedByName,
       }))
 
       logger.info(`Admin API: Listed ${versions.length} versions for workflow ${workflowId}`)

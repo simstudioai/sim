@@ -27,7 +27,7 @@ import {
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
-  cancelTableImport,
+  cancelTableJob,
   downloadTableExport,
   useCreateTable,
   useDeleteTable,
@@ -94,8 +94,8 @@ export function Tables() {
   } | null>(null)
   const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
   const [ownerFilter, setOwnerFilter] = useState<string[]>([])
-  const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
+  const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
 
   const {
@@ -448,7 +448,7 @@ export function Tables() {
               useImportTrayStore.getState().consumeCanceled(pendingId)
             ) {
               useImportTrayStore.getState().cancel(result.tableId)
-              void cancelTableImport(workspaceId, result.tableId, result.importId).catch(() => {})
+              void cancelTableJob(workspaceId, result.tableId, result.importId).catch(() => {})
             }
           } catch {
             // The hook's onError surfaces the toast; just clear the tray indicator here.
@@ -458,7 +458,6 @@ export function Tables() {
 
         if (syncFiles.length === 0) return
 
-        setUploading(true)
         setUploadProgress({ completed: 0, total: syncFiles.length })
         const failed: string[] = []
 
@@ -492,7 +491,6 @@ export function Tables() {
         logger.error('Error uploading CSV:', err)
         toast.error('Failed to import CSV')
       } finally {
-        setUploading(false)
         setUploadProgress({ completed: 0, total: 0 })
         if (csvInputRef.current) {
           csvInputRef.current.value = ''
@@ -508,18 +506,18 @@ export function Tables() {
     closeListContextMenu()
   }, [closeListContextMenu])
 
-  const uploadButtonLabel =
-    uploading && uploadProgress.total > 0
-      ? `${uploadProgress.completed}/${uploadProgress.total}`
-      : uploading
-        ? 'Uploading...'
-        : 'Import CSV'
+  const uploadButtonLabel = uploading
+    ? `${uploadProgress.completed}/${uploadProgress.total}`
+    : 'Import CSV'
 
+  // `mutateAsync` is stable in TanStack Query v5 — extract it so the callback
+  // can list it as a dep instead of the unstable mutation object.
+  const createTableAsync = createTable.mutateAsync
   const handleCreateTable = useCallback(async () => {
     const existingNames = tables.map((t) => t.name)
     const name = generateUniqueTableName(existingNames)
     try {
-      const result = await createTable.mutateAsync({
+      const result = await createTableAsync({
         name,
         schema: {
           columns: [{ name: 'name', type: 'string' }],
@@ -533,7 +531,7 @@ export function Tables() {
     } catch (err) {
       logger.error('Failed to create table:', err)
     }
-  }, [tables, createTable, router, workspaceId])
+  }, [tables, router, workspaceId, createTableAsync])
 
   const headerActions: ResourceAction[] = useMemo(
     () => [
@@ -560,6 +558,11 @@ export function Tables() {
     ]
   )
 
+  // Stable identities so the memoized Resource.Header / Resource.Options can
+  // actually bail — inline object/element props would defeat their memo.
+  const headerAside = useMemo(() => <ImportProgressMenu workspaceId={workspaceId} />, [workspaceId])
+  const filterConfig = useMemo(() => ({ content: filterContent }), [filterContent])
+
   return (
     <>
       <Resource onContextMenu={handleContentContextMenu}>
@@ -567,13 +570,13 @@ export function Tables() {
           icon={TableIcon}
           title='Tables'
           actions={headerActions}
-          aside={<ImportProgressMenu workspaceId={workspaceId} />}
+          aside={headerAside}
         />
         <Resource.Options
           search={searchConfig}
           sort={sortConfig}
           filterTags={filterTags}
-          filter={{ content: filterContent }}
+          filter={filterConfig}
         />
         <Resource.Table
           columns={COLUMNS}

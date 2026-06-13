@@ -1,13 +1,7 @@
 import { db } from '@sim/db'
-import {
-  chat,
-  workflow,
-  workflowDeploymentVersion,
-  workflowMcpServer,
-  workflowMcpTool,
-} from '@sim/db/schema'
+import { chat, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import {
   performCreateWorkflowMcpServer,
@@ -16,7 +10,10 @@ import {
 } from '@/lib/mcp/orchestration'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
 import { performActivateVersion, performRevertToVersion } from '@/lib/workflows/orchestration'
-import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
+import {
+  listWorkflowVersions,
+  updateDeploymentVersionMetadata,
+} from '@/lib/workflows/persistence/utils'
 import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
@@ -357,19 +354,7 @@ export async function executeGetDeploymentLog(
     }
     await ensureWorkflowAccess(workflowId, context.userId)
 
-    const rows = await db
-      .select({
-        id: workflowDeploymentVersion.id,
-        version: workflowDeploymentVersion.version,
-        name: workflowDeploymentVersion.name,
-        description: workflowDeploymentVersion.description,
-        isActive: workflowDeploymentVersion.isActive,
-        createdAt: workflowDeploymentVersion.createdAt,
-        createdBy: workflowDeploymentVersion.createdBy,
-      })
-      .from(workflowDeploymentVersion)
-      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-      .orderBy(desc(workflowDeploymentVersion.version))
+    const { versions: rows } = await listWorkflowVersions(workflowId)
 
     const versions = rows.map((r) => ({
       id: r.id,

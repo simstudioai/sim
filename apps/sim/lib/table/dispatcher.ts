@@ -3,12 +3,27 @@ import { tableRowExecutions, tableRunDispatches, userTableRows } from '@sim/db/s
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, gt, inArray, isNotNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs/config'
 import { writeWorkflowGroupState } from '@/lib/table/cell-write'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { isExecCancelledAfter } from '@/lib/table/deps'
 import { appendTableEvent } from '@/lib/table/events'
-import type { RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
+import { type DbExecutor, withSeqscanOff } from '@/lib/table/planner'
+import { buildFilterClause } from '@/lib/table/sql'
+import type { Filter, RowExecutionMetadata, RowExecutions, TableRow } from '@/lib/table/types'
 import {
   buildEnqueueItems,
   buildPendingRuns,
@@ -32,6 +47,11 @@ export type DispatchMode = 'all' | 'incomplete' | 'new'
 export interface DispatchScope {
   groupIds: string[]
   rowIds?: string[]
+  /** "Select all matching a filter" — run every row matching this filter (mutually exclusive with
+   *  `rowIds`). Lets the action-bar Play/Refresh target a filtered view without materializing ids. */
+  filter?: Filter
+  /** Select-all scope only: deselected rows the walk skips (mirrors the delete job's exclusion set). */
+  excludeRowIds?: string[]
 }
 
 /**
@@ -76,9 +96,11 @@ export async function bulkClearWorkflowGroupCells(input: {
   tableId: string
   groups: Array<{ id: string; outputs: Array<{ columnName: string }> }>
   rowIds?: string[]
+  /** Select-all scope: deselected rows whose outputs must NOT be wiped. */
+  excludeRowIds?: string[]
   mode: DispatchMode
 }): Promise<void> {
-  const { tableId, groups, rowIds, mode } = input
+  const { tableId, groups, rowIds, excludeRowIds, mode } = input
   if (groups.length === 0) return
   // `'new'` mode targets only rows with no prior attempt — nothing to clear.
   // Pre-existing outputs on any other row must not be wiped by an auto-fire.
@@ -86,6 +108,7 @@ export async function bulkClearWorkflowGroupCells(input: {
 
   const groupIds = groups.map((g) => g.id)
   const rowScope = rowIds && rowIds.length > 0 ? rowIds : null
+  const excluded = !rowScope && excludeRowIds && excludeRowIds.length > 0 ? excludeRowIds : null
 
   if (mode === 'all') {
     // Run-all re-runs every targeted group: wipe all their output columns +
@@ -98,6 +121,7 @@ export async function bulkClearWorkflowGroupCells(input: {
     for (const col of outputCols) dataExpr = sql`(${dataExpr}) - ${col}::text`
     const filters: SQL[] = [eq(userTableRows.tableId, tableId)]
     if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
+    if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
     await db.transaction(async (trx) => {
       await trx
@@ -109,6 +133,7 @@ export async function bulkClearWorkflowGroupCells(input: {
         inArray(tableRowExecutions.groupId, groupIds),
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
       await trx.delete(tableRowExecutions).where(and(...execFilters))
     })
     return
@@ -131,6 +156,7 @@ export async function bulkClearWorkflowGroupCells(input: {
       )`
       const filters: SQL[] = [eq(userTableRows.tableId, tableId), reRunnable]
       if (rowScope) filters.push(inArray(userTableRows.id, rowScope))
+      if (excluded) filters.push(notInArray(userTableRows.id, excluded))
 
       let dataExpr: SQL = sql`coalesce(${userTableRows.data}, '{}'::jsonb)`
       for (const out of group.outputs) dataExpr = sql`(${dataExpr}) - ${out.columnName}::text`
@@ -145,6 +171,7 @@ export async function bulkClearWorkflowGroupCells(input: {
         sql`${tableRowExecutions.status} IN ('error', 'cancelled')`,
       ]
       if (rowScope) execFilters.push(inArray(tableRowExecutions.rowId, rowScope))
+      if (excluded) execFilters.push(notInArray(tableRowExecutions.rowId, excluded))
       await trx.delete(tableRowExecutions).where(and(...execFilters))
     }
   })
@@ -394,8 +421,24 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     eq(userTableRows.tableId, dispatch.tableId),
     gt(userTableRows.position, dispatch.cursor),
   ]
+  let hasJsonbFilter = false
   if (dispatch.scope.rowIds && dispatch.scope.rowIds.length > 0) {
     filters.push(inArray(userTableRows.id, dispatch.scope.rowIds))
+  } else if (dispatch.scope.filter) {
+    // "Select all under a filter": walk only the matching rows. Same cursor/window mechanism —
+    // non-matching rows are simply never selected, like mode eligibility.
+    const filterClause = buildFilterClause(
+      dispatch.scope.filter,
+      USER_TABLE_ROWS_SQL_NAME,
+      table.schema.columns
+    )
+    if (filterClause) {
+      filters.push(filterClause)
+      hasJsonbFilter = true
+    }
+  }
+  if (!dispatch.scope.rowIds?.length && dispatch.scope.excludeRowIds?.length) {
+    filters.push(notInArray(userTableRows.id, dispatch.scope.excludeRowIds))
   }
   // `'new'` mode targets only rows whose targeted groups haven't been
   // attempted. Exclude a row only when EVERY targeted group already has a
@@ -417,12 +460,18 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
     )
   }
 
-  const chunk = await db
-    .select()
-    .from(userTableRows)
-    .where(and(...filters))
-    .orderBy(asc(userTableRows.position))
-    .limit(WINDOW_SIZE)
+  const windowQuery = (executor: DbExecutor) =>
+    executor
+      .select()
+      .from(userTableRows)
+      .where(and(...filters))
+      .orderBy(asc(userTableRows.position))
+      .limit(WINDOW_SIZE)
+  // Filtered scopes carry a jsonb predicate the planner can't estimate — left alone it
+  // seq-scans the whole shared relation per window; keep it on the tenant's position index.
+  const chunk = hasJsonbFilter
+    ? await withSeqscanOff(async (trx) => windowQuery(trx))
+    : await windowQuery(db)
 
   if (chunk.length === 0) {
     await markDispatchComplete(dispatchId)
@@ -699,15 +748,35 @@ export async function markDispatchCancelled(dispatchId: string): Promise<void> {
  *  UPDATE so the dispatcher's next iteration observes the cancel. Returns the
  *  dispatches that were cancelled so the caller can emit per-dispatch SSE
  *  events — without those the client's overlay would hang on "queued" until
- *  the next refresh. */
-export async function markActiveDispatchesCancelled(tableId: string): Promise<DispatchRow[]> {
+ *  the next refresh. Pass `scopeFilter` to cancel only dispatches whose scope
+ *  is that exact filter (a filtered "select all" Stop must not halt
+ *  whole-table or differently-filtered runs). Pass `spareExcludedRowIds`
+ *  (select-all-minus-deselections Stop) to spare row-scoped dispatches whose
+ *  rows are ALL deselected — that work wasn't in the stopped selection. */
+export async function markActiveDispatchesCancelled(
+  tableId: string,
+  scopeFilter?: Filter,
+  spareExcludedRowIds?: string[]
+): Promise<DispatchRow[]> {
   const cancelled = await db
     .update(tableRunDispatches)
     .set({ status: 'cancelled', cancelledAt: new Date() })
     .where(
       and(
         eq(tableRunDispatches.tableId, tableId),
-        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES])
+        inArray(tableRunDispatches.status, [...ACTIVE_DISPATCH_STATUSES]),
+        scopeFilter
+          ? sql`${tableRunDispatches.scope}->'filter' = ${JSON.stringify(scopeFilter)}::jsonb`
+          : undefined,
+        // coalesce(false): table-wide dispatches have no scope.rowIds (NULL <@ x
+        // is NULL) and must still cancel.
+        spareExcludedRowIds && spareExcludedRowIds.length > 0
+          ? sql`NOT coalesce(
+              ${tableRunDispatches.scope}->'rowIds' <@ ${JSON.stringify(spareExcludedRowIds)}::jsonb
+                AND jsonb_array_length(${tableRunDispatches.scope}->'rowIds') > 0,
+              false
+            )`
+          : undefined
       )
     )
     .returning()
