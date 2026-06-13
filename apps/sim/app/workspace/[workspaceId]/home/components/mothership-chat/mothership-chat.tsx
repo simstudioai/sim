@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
@@ -62,15 +62,15 @@ interface MothershipChatProps {
 }
 
 /**
- * Estimated row heights seed the virtualizer before each row is measured. They
- * only affect the scrollbar thumb on not-yet-rendered rows, so an approximate
- * value is fine — every visible row is measured precisely via `measureElement`.
- * Tuned to the blended average of short user rows and taller assistant rows so
- * the scrollbar barely drifts as off-screen rows resolve.
+ * Per-role row-height estimates seed the virtualizer before each row is measured.
+ * They only size the scrollbar for not-yet-rendered rows — every visible row is
+ * measured precisely via `measureElement` — so approximate values suffice. Split
+ * by role because user bubbles are short and assistant turns are tall; a single
+ * blended number would over/under-shoot both and drift the scrollbar more.
  */
-const ESTIMATED_ROW_HEIGHT = {
-  'mothership-view': 200,
-  'copilot-view': 130,
+const ROW_HEIGHT_ESTIMATE = {
+  'mothership-view': { user: 64, assistant: 280 },
+  'copilot-view': { user: 48, assistant: 180 },
 } as const
 
 /**
@@ -78,6 +78,14 @@ const ESTIMATED_ROW_HEIGHT = {
  * and the streaming tail stay painted without a blank flash before measurement.
  */
 const OVERSCAN = 6
+
+/**
+ * Initial-scroll sentinel. Distinct from every real `chatId` value — including
+ * `undefined` (a not-yet-persisted chat) — so the first scroll-to-bottom fires
+ * even before a chat has an id, instead of treating `undefined` as "already
+ * scrolled this chat".
+ */
+const UNSCROLLED = Symbol('unscrolled')
 
 const LAYOUT_STYLES = {
   'mothership-view': {
@@ -266,15 +274,38 @@ export function MothershipChat({
     return out
   }, [messages])
 
+  /**
+   * Always keep the last row in the rendered window. It is the live/streaming
+   * row; unmounting it (by scrolling far enough up that it leaves the overscan
+   * window) and remounting it mid-stream would reset its smooth-text reveal
+   * state and re-fire the fade-in animation — a visible flash. Pinning it costs
+   * one extra always-mounted row.
+   */
+  const lastIndex = messages.length - 1
+  const rangeExtractor = useCallback(
+    (range: Range) => {
+      const indexes = defaultRangeExtractor(range)
+      if (lastIndex >= 0 && !indexes.includes(lastIndex)) {
+        indexes.push(lastIndex)
+      }
+      return indexes
+    },
+    [lastIndex]
+  )
+
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => ESTIMATED_ROW_HEIGHT[layout],
+    estimateSize: (index) => {
+      const estimate = ROW_HEIGHT_ESTIMATE[layout]
+      return messages[index]?.role === 'user' ? estimate.user : estimate.assistant
+    },
     overscan: OVERSCAN,
     getItemKey: (index) => rowKeyByIndex[index] ?? index,
+    rangeExtractor,
   })
 
-  const scrolledChatRef = useRef<string | undefined>(undefined)
+  const scrolledChatRef = useRef<string | undefined | typeof UNSCROLLED>(UNSCROLLED)
   const userInputRef = useRef<UserInputHandle>(null)
   const messageQueueRef = useRef(messageQueue)
   useEffect(() => {
@@ -311,7 +342,9 @@ export function MothershipChat({
 
   /**
    * Land at the most recent message once per chat — on open and when switching
-   * chats (keyed on `chatId`, so it re-fires even between chats of equal length).
+   * chats. The ref tracks which `chatId` we last scrolled for (seeded with
+   * {@link UNSCROLLED} so a pending, id-less chat still scrolls on first mount),
+   * so it re-fires on every chat change, including between chats of equal length.
    * Runs before paint so a long transcript never flashes at the top. Subsequent
    * growth within the same chat is handled by {@link useAutoScroll}'s streaming
    * sticky-scroll, not here.
@@ -319,8 +352,8 @@ export function MothershipChat({
   useLayoutEffect(() => {
     if (!hasMessages || initialScrollBlocked || scrolledChatRef.current === chatId) return
     scrolledChatRef.current = chatId
-    virtualizer.scrollToIndex(messages.length - 1, { align: 'end' })
-  }, [chatId, hasMessages, initialScrollBlocked, messages.length, virtualizer])
+    virtualizer.scrollToIndex(lastIndex, { align: 'end' })
+  }, [chatId, hasMessages, initialScrollBlocked, lastIndex, virtualizer])
 
   const virtualItems = virtualizer.getVirtualItems()
 
@@ -341,13 +374,13 @@ export function MothershipChat({
               {virtualItems.map((virtualItem) => {
                 const index = virtualItem.index
                 const msg = messages[index]
-                const isLast = index === messages.length - 1
+                const isLast = index === lastIndex
                 return (
                   <div
                     key={virtualItem.key}
                     data-index={index}
                     ref={virtualizer.measureElement}
-                    className={cn('absolute top-0 left-0 w-full', styles.rowGap)}
+                    className='absolute top-0 left-0 w-full'
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
                     {msg.role === 'user' ? (
@@ -355,7 +388,7 @@ export function MothershipChat({
                         content={msg.content}
                         contexts={msg.contexts}
                         attachments={msg.attachments}
-                        rowClassName={styles.userRow}
+                        rowClassName={cn(styles.userRow, styles.rowGap)}
                         bubbleClassName={styles.userBubble}
                         attachmentWidthClassName={styles.attachmentWidth}
                       />
@@ -364,7 +397,7 @@ export function MothershipChat({
                         message={msg}
                         isStreaming={isStreamActive && isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}
-                        rowClassName={styles.assistantRow}
+                        rowClassName={cn(styles.assistantRow, styles.rowGap)}
                         onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                       />
                     )}
