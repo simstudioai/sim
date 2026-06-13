@@ -344,14 +344,20 @@ export function MothershipChat({
    * Land at the most recent message once per chat — on open and when switching
    * chats. The ref tracks which `chatId` we last scrolled for (seeded with
    * {@link UNSCROLLED} so a pending, id-less chat still scrolls on first mount),
-   * so it re-fires on every chat change, including between chats of equal length.
-   * Runs before paint so a long transcript never flashes at the top. Subsequent
+   * so it re-fires on a genuine chat switch, including between chats of equal
+   * length. A pending chat persisting its id (`undefined` → string) is the SAME
+   * conversation, so adopt the id without re-scrolling — otherwise the viewport
+   * would snap back to the bottom after the user scrolled up mid-stream. Runs
+   * before paint so a long transcript never flashes at the top. Subsequent
    * growth within the same chat is handled by {@link useAutoScroll}'s streaming
    * sticky-scroll, not here.
    */
   useLayoutEffect(() => {
-    if (!hasMessages || initialScrollBlocked || scrolledChatRef.current === chatId) return
+    const scrolledFor = scrolledChatRef.current
+    if (!hasMessages || initialScrollBlocked || scrolledFor === chatId) return
+    const isPendingPersist = scrolledFor === undefined && chatId !== undefined
     scrolledChatRef.current = chatId
+    if (isPendingPersist) return
     virtualizer.scrollToIndex(lastIndex, { align: 'end' })
   }, [chatId, hasMessages, initialScrollBlocked, lastIndex, virtualizer])
 
