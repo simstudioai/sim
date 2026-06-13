@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { format } from 'date-fns'
+import { format, isSameDay } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
   Calendar,
@@ -32,6 +32,30 @@ const PAST_LAUNCH_MESSAGE = "You can't schedule a one-time task in the past"
 /** Whether a one-time launch datetime has already passed, at minute granularity. */
 function isLaunchInPast(launchDate: string, launchTime: string): boolean {
   return new Date(`${launchDate}T${launchTime}`) < new Date()
+}
+
+/** The next top of the hour from `from` (rolling to the next day at 23:xx). */
+function nextHour(from: Date): Date {
+  const next = new Date(from)
+  next.setMinutes(0, 0, 0)
+  next.setHours(next.getHours() + 1)
+  return next
+}
+
+/**
+ * Seeds the launch date/time for a create. A clicked time slot uses it
+ * verbatim; otherwise the default lands on a valid future instant — the next
+ * top of the hour when the target day is today, else 9am — so the modal never
+ * opens with the primary action disabled by a past default.
+ */
+function defaultLaunch(slot: CalendarSlot | null | undefined): { date: string; time: string } {
+  if (slot?.time) return { date: format(slot.date, 'yyyy-MM-dd'), time: slot.time }
+  const now = new Date()
+  const day = slot?.date ?? now
+  const base = isSameDay(day, now)
+    ? nextHour(now)
+    : new Date(`${format(day, 'yyyy-MM-dd')}T${DEFAULT_TIME}`)
+  return { date: format(base, 'yyyy-MM-dd'), time: format(base, 'HH:mm') }
 }
 
 /** The data a task create or edit captures. */
@@ -125,10 +149,9 @@ function TaskModalContent({
     // Runs once per open; content remounts each time the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [launchDate, setLaunchDate] = useState(
-    () => edit?.launchDate ?? format(slot?.date ?? new Date(), 'yyyy-MM-dd')
-  )
-  const [launchTime, setLaunchTime] = useState(() => edit?.launchTime ?? slot?.time ?? DEFAULT_TIME)
+  const seed = edit ? { date: edit.launchDate, time: edit.launchTime } : defaultLaunch(slot)
+  const [launchDate, setLaunchDate] = useState(seed.date)
+  const [launchTime, setLaunchTime] = useState(seed.time)
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => edit?.recurrence ?? DEFAULT_RECURRENCE
   )
