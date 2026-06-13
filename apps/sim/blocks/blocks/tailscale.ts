@@ -340,7 +340,7 @@ export const TailscaleBlock: BlockConfig = {
 }
 
 export const TailscaleBlockMeta = {
-  tags: ['monitoring', 'identity'],
+  tags: ['monitoring'],
   url: 'https://tailscale.com',
   templates: [
     {
