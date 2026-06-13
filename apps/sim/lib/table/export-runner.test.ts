@@ -104,6 +104,17 @@ describe('runTableExport', () => {
     expect(mockMarkJobFailed).not.toHaveBeenCalled()
   })
 
+  it('stops before the upload when ownership is lost at the finalize gate', async () => {
+    mockUpdateJobProgress.mockResolvedValueOnce(true).mockResolvedValue(false)
+
+    await runTableExport(payload)
+
+    expect(mockSelectExportRowPage).toHaveBeenCalledTimes(1)
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+  })
+
   it('cleans up an orphaned upload when the job was canceled at the wire', async () => {
     mockMarkJobReady.mockResolvedValue(false)
 
