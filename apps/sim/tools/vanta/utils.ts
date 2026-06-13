@@ -154,6 +154,13 @@ const vantaTokenExchanges = new Map<string, Promise<string>>()
 const VANTA_TOKEN_EXPIRY_BUFFER_MS = 10 * 60 * 1000
 
 /**
+ * Hard deadline on the token-endpoint exchange. The exchange promise is
+ * shared across concurrent callers, so a hung endpoint without this bound
+ * would wedge every joiner until the undici socket defaults (~5 min) gave up.
+ */
+const VANTA_TOKEN_EXCHANGE_TIMEOUT_MS = 15_000
+
+/**
  * Derives the cache key for a credential set. The client secret is included
  * only as a SHA-256 digest so plaintext secrets never persist in the
  * long-lived cache maps.
@@ -183,6 +190,7 @@ async function exchangeVantaToken(params: VantaTokenParams, cacheKey: string): P
       grant_type: 'client_credentials',
     }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(VANTA_TOKEN_EXCHANGE_TIMEOUT_MS),
   })
 
   const data: unknown = await response.json().catch(() => null)
