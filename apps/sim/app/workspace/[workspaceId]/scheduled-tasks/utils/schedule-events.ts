@@ -5,10 +5,10 @@ import { expandOccurrences } from '@/app/workspace/[workspaceId]/scheduled-tasks
 import type { ChatContext } from '@/stores/panel'
 
 /**
- * Lifecycle of a scheduled task occurrence: `pending` has not run yet, `running`
- * is executing now, and `error`/`completed` are terminal outcomes of a past run.
+ * Lifecycle of a scheduled task occurrence: `pending` has not run yet, and
+ * `error`/`completed` are terminal outcomes of a past run.
  */
-export type ScheduledTaskStatus = 'pending' | 'running' | 'error' | 'completed'
+export type ScheduledTaskStatus = 'pending' | 'error' | 'completed'
 
 /**
  * One occurrence of a scheduled task as the calendar renders it. A recurring

@@ -16,13 +16,12 @@ import type {
 
 /**
  * Plaintext copy per task state: the status label and the verb that titles the
- * run-time field — the tense carries the state ("Started" is in flight, "Ran"
- * is done). No icons, no status colors, by design. Total over the status union
- * for type safety, though `pending` tasks open the edit `TaskModal` instead.
+ * run-time field — the tense carries the state ("Ran" is done, "Failed" errored).
+ * No icons, no status colors, by design. Total over the status union for type
+ * safety, though `pending` tasks open the edit `TaskModal` instead.
  */
 const STATUS_COPY: Record<ScheduledTaskStatus, { label: string; timeTitle: string }> = {
   pending: { label: 'Pending', timeTitle: 'Runs' },
-  running: { label: 'Running', timeTitle: 'Started' },
   error: { label: 'Error', timeTitle: 'Failed' },
   completed: { label: 'Completed', timeTitle: 'Ran' },
 }

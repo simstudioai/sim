@@ -1,5 +1,5 @@
 import { Cron } from 'croner'
-import { format } from 'date-fns'
+import { endOfDay, format } from 'date-fns'
 
 /**
  * Recurrence cadence the modal exposes. `once` is a one-time launch; `custom`
@@ -35,11 +35,6 @@ const MAX_OCCURRENCES_PER_VIEW = 500
 /** Combines a `yyyy-MM-dd` date and `HH:mm` time into a local `Date`. */
 function localDateTime(date: string, time: string): Date {
   return new Date(`${date}T${time}`)
-}
-
-/** The launch instant as an ISO 8601 string, for one-time scheduling. */
-export function launchInstantIso(date: string, time: string): string {
-  return localDateTime(date, time).toISOString()
 }
 
 /**
@@ -92,7 +87,7 @@ export function recurrenceToScheduleFields(
   if (!cronExpression) {
     return {
       cronExpression: null,
-      time: launchInstantIso(launchDate, launchTime),
+      time: localDateTime(launchDate, launchTime).toISOString(),
       lifecycle: 'persistent',
     }
   }
@@ -101,7 +96,8 @@ export function recurrenceToScheduleFields(
   return {
     cronExpression,
     maxRuns: end.type === 'after' ? end.count : undefined,
-    endsAt: end.type === 'on' ? new Date(`${end.date}T23:59:59`).toISOString() : undefined,
+    endsAt:
+      end.type === 'on' ? endOfDay(localDateTime(end.date, '00:00')).toISOString() : undefined,
     lifecycle: end.type === 'after' ? 'until_complete' : 'persistent',
   }
 }

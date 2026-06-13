@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { format, isSameDay } from 'date-fns'
+import { addHours, format, isSameDay, startOfHour } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
   Calendar,
@@ -34,14 +34,6 @@ function isLaunchInPast(launchDate: string, launchTime: string): boolean {
   return new Date(`${launchDate}T${launchTime}`) < new Date()
 }
 
-/** The next top of the hour from `from` (rolling to the next day at 23:xx). */
-function nextHour(from: Date): Date {
-  const next = new Date(from)
-  next.setMinutes(0, 0, 0)
-  next.setHours(next.getHours() + 1)
-  return next
-}
-
 /**
  * Seeds the launch date/time for a create. A clicked time slot uses it
  * verbatim; otherwise the default lands on a valid future instant — the next
@@ -53,7 +45,7 @@ function defaultLaunch(slot: CalendarSlot | null | undefined): { date: string; t
   const now = new Date()
   const day = slot?.date ?? now
   const base = isSameDay(day, now)
-    ? nextHour(now)
+    ? addHours(startOfHour(now), 1)
     : new Date(`${format(day, 'yyyy-MM-dd')}T${DEFAULT_TIME}`)
   return { date: format(base, 'yyyy-MM-dd'), time: format(base, 'HH:mm') }
 }

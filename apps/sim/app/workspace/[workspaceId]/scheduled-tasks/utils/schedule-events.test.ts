@@ -68,7 +68,7 @@ describe('taskToCalendarEvent', () => {
   })
 
   it('derives the same event shape for every status', () => {
-    const statuses = ['pending', 'running', 'error', 'completed'] as const
+    const statuses = ['pending', 'error', 'completed'] as const
     const titles = statuses.map((status) => taskToCalendarEvent(makeTask({ status })).title)
     expect(new Set(titles).size).toBe(1)
   })

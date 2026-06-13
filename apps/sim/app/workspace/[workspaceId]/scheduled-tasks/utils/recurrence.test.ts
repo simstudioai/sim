@@ -1,3 +1,4 @@
+import { endOfDay } from 'date-fns'
 import { describe, expect, it } from 'vitest'
 import {
   cronToRecurrence,
@@ -81,7 +82,7 @@ describe('recurrenceToScheduleFields', () => {
       '2026-06-15',
       '09:00'
     )
-    expect(fields.endsAt).toBe(new Date('2026-07-01T23:59:59').toISOString())
+    expect(fields.endsAt).toBe(endOfDay(new Date('2026-07-01T00:00')).toISOString())
     expect(fields.maxRuns).toBeUndefined()
     expect(fields.lifecycle).toBe('persistent')
   })
