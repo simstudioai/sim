@@ -190,8 +190,7 @@ export function Files() {
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const { data: files = EMPTY_WORKSPACE_FILES, isLoading, error } = useWorkspaceFiles(workspaceId)
-  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS, isLoading: foldersLoading } =
-    useWorkspaceFileFolders(workspaceId)
+  const { data: folders = EMPTY_WORKSPACE_FILE_FOLDERS } = useWorkspaceFileFolders(workspaceId)
   const { data: members } = useWorkspaceMembersQuery(workspaceId)
   const uploadFile = useUploadWorkspaceFile()
   const deleteFile = useDeleteWorkspaceFile()
@@ -437,14 +436,6 @@ export function Files() {
         owner: ownerCell(folder.userId, members),
         updated: timeCell(folder.updatedAt),
       },
-      sortValues: {
-        name: folder.name,
-        size: folderSizeMap.get(folder.id) ?? -1,
-        type: 'Folder',
-        created: new Date(folder.createdAt).getTime(),
-        updated: new Date(folder.updatedAt).getTime(),
-        owner: members?.find((m) => m.userId === folder.userId)?.name ?? '',
-      },
     }))
 
     const fileRows = filteredFiles.map((file) => {
@@ -466,14 +457,6 @@ export function Files() {
           created: timeCell(file.uploadedAt),
           owner: ownerCell(file.uploadedBy, members),
           updated: timeCell(file.updatedAt),
-        },
-        sortValues: {
-          name: file.name,
-          size: file.size,
-          type: formatFileType(file.type, file.name),
-          created: new Date(file.uploadedAt).getTime(),
-          updated: new Date(file.updatedAt).getTime(),
-          owner: members?.find((m) => m.userId === file.uploadedBy)?.name ?? '',
         },
       }
       return row
@@ -1687,12 +1670,6 @@ export function Files() {
   const hasActiveFilters =
     typeFilter.length > 0 || sizeFilter.length > 0 || uploadedByFilter.length > 0
 
-  const emptyMessage = debouncedSearchTerm
-    ? `No files match "${debouncedSearchTerm}"`
-    : hasActiveFilters
-      ? 'No files match the active filters'
-      : undefined
-
   const filterContent = useMemo(() => {
     const typeDisplayLabel =
       typeFilter.length === 0
@@ -1844,19 +1821,19 @@ export function Files() {
 
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
-      <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+      <Resource>
         <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
-      </div>
+      </Resource>
     )
   }
 
   if (selectedFile) {
     return (
       <>
-        <div className='flex h-full flex-1 flex-col overflow-hidden bg-[var(--bg)]'>
+        <Resource>
           <Resource.Header
             icon={FilesIcon}
             breadcrumbs={fileDetailBreadcrumbs}
@@ -1879,11 +1856,11 @@ export function Files() {
             onOpenChange={setShowUnsavedChangesAlert}
             srTitle='Unsaved Changes'
             title='Unsaved Changes'
-            description='You have unsaved changes. Are you sure you want to discard them?'
+            text='You have unsaved changes. Are you sure you want to discard them?'
             dismissLabel='Keep editing'
             confirm={{ label: 'Discard Changes', onClick: handleDiscardChanges }}
           />
-        </div>
+        </Resource>
 
         <DeleteConfirmModal
           open={showDeleteConfirm}
@@ -1922,13 +1899,10 @@ export function Files() {
         <Resource.Table
           columns={COLUMNS}
           rows={rows}
-          sort={sortConfig}
           selectable={selectableConfig}
           rowDragDrop={rowDragDropConfig}
           onRowClick={handleRowClick}
           onRowContextMenu={handleRowContextMenu}
-          isLoading={isLoading || foldersLoading}
-          emptyMessage={emptyMessage}
           overlay={
             <>
               <FilesActionBar

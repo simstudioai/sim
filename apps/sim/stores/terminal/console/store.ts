@@ -286,7 +286,7 @@ const notifyBlockError = ({
     toast.error(displayName, {
       description: errorMessage,
       action: {
-        label: 'Fix in Copilot',
+        label: 'Fix in Chat',
         onClick: () => sendMothershipMessage(copilotMessage),
       },
     })

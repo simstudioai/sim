@@ -471,7 +471,7 @@ export function AccessControl() {
       },
       {
         id: 'hide-copilot',
-        label: 'Copilot',
+        label: 'Chat',
         category: 'Workflow Panel',
         configKey: 'hideCopilot' as const,
       },
@@ -1411,11 +1411,13 @@ export function AccessControl() {
           </ChipModalBody>
           <ChipModalFooter
             onCancel={() => setShowUnsavedChanges(false)}
-            secondaryAction={{
-              label: 'Discard Changes',
-              onClick: handleDiscardConfig,
-              variant: 'destructive',
-            }}
+            secondaryActions={[
+              {
+                label: 'Discard Changes',
+                onClick: handleDiscardConfig,
+                variant: 'destructive',
+              },
+            ]}
             primaryAction={{
               label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
               onClick: handleSaveConfigFromUnsaved,
@@ -1557,16 +1559,13 @@ export function AccessControl() {
         onOpenChange={() => setDeletingGroup(null)}
         srTitle='Delete Permission Group'
         title='Delete Permission Group'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              All members will be removed from this group.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: deletingGroup?.name ?? 'this group', bold: true },
+          '? ',
+          { text: 'All members will be removed from this group.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: confirmDelete,

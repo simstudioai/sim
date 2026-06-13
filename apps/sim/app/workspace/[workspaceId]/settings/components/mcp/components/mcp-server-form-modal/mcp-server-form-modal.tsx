@@ -806,7 +806,7 @@ export function McpServerFormModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
-        secondaryAction={secondaryAction}
+        secondaryActions={secondaryAction ? [secondaryAction] : undefined}
         primaryAction={primaryAction}
       />
     </ChipModal>

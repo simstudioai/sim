@@ -32,19 +32,29 @@ export interface ChipTextareaProps
   error?: boolean
   /** Allows vertical user resizing. Off by default. */
   resizable?: boolean
+  /**
+   * Renders the textarea as a view-only record: read-only at full opacity with
+   * the default cursor instead of the text I-beam. The multi-line counterpart
+   * of `ChipCopyInput` — reach for it over `disabled`, which greys the control
+   * out.
+   * @default false
+   */
+  viewOnly?: boolean
 }
 
 /** Forwards its ref to the underlying `<textarea>`, exactly like a native textarea. */
 export const ChipTextarea = React.forwardRef<HTMLTextAreaElement, ChipTextareaProps>(
-  ({ className, error, resizable = false, ...props }, ref) => (
+  ({ className, error, resizable = false, viewOnly = false, readOnly, ...props }, ref) => (
     <textarea
       ref={ref}
+      readOnly={viewOnly || readOnly}
       className={cn(
         'w-full px-2 py-1.5 disabled:cursor-not-allowed disabled:opacity-50',
         chipFieldSurfaceClass,
         chipFieldTextClass,
         error ? 'border-[var(--text-error)]' : undefined,
         resizable ? 'resize-y' : 'resize-none',
+        viewOnly && 'cursor-default',
         className
       )}
       {...props}

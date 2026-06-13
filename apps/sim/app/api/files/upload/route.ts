@@ -251,7 +251,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       // Handle mothership context (chat-scoped uploads to workspace S3)
       if (context === 'mothership') {
         if (!workspaceId) {
-          throw new InvalidRequestError('Mothership context requires workspaceId parameter')
+          throw new InvalidRequestError('Chat context requires workspaceId parameter')
         }
 
         logger.info(`Uploading mothership file: ${originalName}`)

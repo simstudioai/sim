@@ -7348,8 +7348,8 @@
     },
     {
       "type": "incidentio",
-      "slug": "incidentio",
-      "name": "incidentio",
+      "slug": "incident-io",
+      "name": "incident.io",
       "description": "Manage incidents with incident.io",
       "longDescription": "Integrate incident.io into the workflow. Manage incidents, actions, follow-ups, workflows, schedules, escalations, custom fields, and more.",
       "bgColor": "#FFFFFF",

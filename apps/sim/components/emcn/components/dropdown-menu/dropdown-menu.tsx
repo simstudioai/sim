@@ -24,6 +24,7 @@ import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { Check, ChevronRight, Circle, Search } from 'lucide-react'
 import { chipFieldSurfaceClass } from '@/components/emcn/components/chip/chip-chrome'
+import { InsideModalContext } from '@/components/emcn/components/modal/modal'
 import { cn } from '@/lib/core/utils/cn'
 
 const ANIMATION_CLASSES =
@@ -32,7 +33,22 @@ const ANIMATION_CLASSES =
 const CONTENT_BASE_CLASSES =
   'z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
 
-const DropdownMenu = DropdownMenuPrimitive.Root
+/**
+ * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
+ * modal regardless of the `modal` prop: a non-modal menu portals outside the
+ * dialog's `react-remove-scroll` subtree, so its content cannot be
+ * wheel-scrolled, and it cannot coordinate focus with the dialog's trap. A
+ * modal menu mounts its own scroll lock and focus scope, which layer correctly
+ * over the dialog's. Outside dialogs the prop passes through untouched, so
+ * page-level menus keep their consumer-chosen (or Radix-default) modality.
+ */
+function DropdownMenu({
+  modal,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+  const insideModal = React.useContext(InsideModalContext)
+  return <DropdownMenuPrimitive.Root modal={insideModal ? true : modal} {...props} />
+}
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger
 

@@ -7,6 +7,14 @@ export const chipFilledFillTokens = 'bg-[var(--surface-5)] dark:bg-[var(--surfac
  * `ChipDatePicker`) opt into the border via `TRIGGER_BORDER_CLASS`.
  */
 export const chipFilledSurfaceTokens = `border border-[var(--border-1)] ${chipFilledFillTokens}`
+/**
+ * The primary (inverse) chip fill at rest — dark fill, inverse text, mirrored in
+ * dark mode. `chipVariants`' `primary` variant composes this with its hover
+ * states; static chip-aligned highlights (e.g. calendar day-number pills) use it
+ * directly. Like every token in this module, never re-derive the literal.
+ */
+export const chipPrimaryFillTokens =
+  'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
 /** Filled surface shared by the chip text fields ({@link ChipInput}, {@link ChipTextarea}) — aligned with `Chip` / `ChipDropdown`. */
 export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} transition-colors`
 /** Typography shared by the chip text fields — normal weight, `--text-body`, muted placeholder, no focus outline. */
