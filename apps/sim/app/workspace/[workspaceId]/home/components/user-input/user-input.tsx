@@ -3,6 +3,7 @@
 import type React from 'react'
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -145,7 +146,7 @@ export interface UserInputHandle {
   populatePrompt: (text: string) => void
 }
 
-export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
+const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
     defaultValue = '',
     draftScopeKey,
@@ -1445,3 +1446,10 @@ export const UserInput = forwardRef<UserInputHandle, UserInputProps>(function Us
     </div>
   )
 })
+
+/**
+ * Memoized so streaming ticks in the parent transcript — which re-render
+ * {@link MothershipChat} on every chunk — do not re-render the entire input
+ * toolbar. Relies on callers passing stable callbacks (see `MothershipChat`).
+ */
+export const UserInput = memo(UserInputImpl)
