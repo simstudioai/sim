@@ -140,13 +140,15 @@ function TaskModalContent({
 }: Omit<TaskModalProps, 'open'>) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const editor = usePromptEditor({ workspaceId, initialValue: edit?.prompt })
-
-  // Re-register the stored mentions once on open so saving an edit preserves
-  // them — the editor seeds from `initialValue` text only, not its contexts.
   const setContexts = editor.setContexts
+
+  /**
+   * Re-registers an edited task's stored `@`-mentions once on open: the editor
+   * seeds from `initialValue` text only, never its contexts. Runs once per open
+   * since the dialog's content remounts each time it opens.
+   */
   useEffect(() => {
     if (edit?.contexts && edit.contexts.length > 0) setContexts(edit.contexts)
-    // Runs once per open; content remounts each time the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const seed = edit ? { date: edit.launchDate, time: edit.launchTime } : defaultLaunch(slot)

@@ -427,7 +427,6 @@ export async function performExcludeOccurrence(
       updatedAt: new Date(),
     }
 
-    // Advancing past the just-removed run only matters when it was the one queued next.
     if (job.nextRunAt && job.nextRunAt.getTime() === occurrence.getTime()) {
       const nextRunAt = computeNextRunAt({
         cronExpression: job.cronExpression,

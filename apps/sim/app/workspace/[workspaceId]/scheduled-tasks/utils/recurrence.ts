@@ -170,6 +170,10 @@ export function cronToRecurrence(params: {
  * Materializes a recurring schedule's run instants inside `[rangeStart, rangeEnd]`
  * that are still upcoming (after `from`), skipping individually deleted
  * occurrences and stopping at the recurrence end. Pure given its inputs.
+ *
+ * The lower bound is inclusive: croner's `nextRun(date)` returns the first
+ * occurrence strictly after `date`, so the search starts one millisecond before
+ * the bound to admit an occurrence landing exactly on it.
  */
 export function expandOccurrences(params: {
   cronExpression: string
@@ -195,8 +199,6 @@ export function expandOccurrences(params: {
   const lowerBound = rangeStart.getTime() > from.getTime() ? rangeStart : from
 
   const occurrences: Date[] = []
-  // nextRun(date) returns the first occurrence strictly after `date`; subtract a
-  // millisecond so an occurrence landing exactly on the lower bound is included.
   let cursor = new Date(lowerBound.getTime() - 1)
   for (let i = 0; i < MAX_OCCURRENCES_PER_VIEW; i++) {
     const next = cron.nextRun(cursor)

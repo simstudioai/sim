@@ -154,8 +154,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           workspaceId,
           effectiveChatId
         ).catch((error) => {
-          // Degrade to a context-less run rather than failing the whole execution,
-          // but surface the failure so a broken mention is diagnosable.
           reqLogger.warn('Failed to resolve agent contexts for execution', {
             error: toError(error).message,
           })

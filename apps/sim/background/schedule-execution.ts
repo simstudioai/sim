@@ -1352,8 +1352,6 @@ export async function executeJobInline(payload: JobExecutionPayload) {
         })
       }
 
-      // A recurring job with no remaining occurrence (past its end date or out of
-      // non-excluded runs) is finished, just like a one-time or maxRuns-capped job.
       const isComplete = isOneTime || maxRunsReached || !nextRunAt
 
       await applyScheduleUpdate(
@@ -1397,9 +1395,6 @@ export async function executeJobInline(payload: JobExecutionPayload) {
     }
 
     const maxRunsReached = Boolean(jobRecord.maxRuns && newRunCount >= jobRecord.maxRuns)
-    // A one-time job, a maxRuns-capped job, or a recurring job out of remaining
-    // occurrences (past endsAt / all excluded) is finished even when this run
-    // failed — mirror the success path so it never re-fires past its bounds.
     const isComplete = !jobRecord.cronExpression || maxRunsReached || !nextRunAt
 
     await applyScheduleUpdate(
