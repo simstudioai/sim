@@ -3,14 +3,14 @@ import { COURSES } from '@/lib/academy/content'
 import { getAllPostMeta } from '@/lib/blog/registry'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { INTEGRATIONS, INTEGRATIONS_UPDATED_AT } from '@/lib/integrations'
-import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(landing)/models/utils'
+import { ALL_CATALOG_MODELS, MODEL_PROVIDERS_WITH_CATALOGS } from '@/app/(home)/models/utils'
 
 /**
  * Generate the public sitemap by composing static landing pages with the
  * dynamic catalogs (blog posts, authors, integrations, model providers,
  * individual models, and academy courses). Per-integration entries are
  * emitted under `/integrations/{slug}` to match the landing route at
- * `app/(landing)/integrations/(shell)/[slug]`; slugs are guaranteed unique
+ * `app/(home)/integrations/(shell)/[slug]`; slugs are guaranteed unique
  * by the catalog generator in `scripts/generate-docs.ts`.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

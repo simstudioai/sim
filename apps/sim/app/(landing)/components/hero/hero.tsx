@@ -1,126 +1,130 @@
-'use client'
+import { ChipLink } from '@/components/emcn'
+import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
+import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
 
-import dynamic from 'next/dynamic'
-import { cn } from '@/lib/core/utils/cn'
-import { trackLandingCta } from '@/app/(landing)/landing-analytics'
-
-const AuthModal = dynamic(
-  () => import('@/app/(landing)/components/auth-modal/auth-modal').then((m) => m.AuthModal),
-  { loading: () => null }
-)
-
-const DemoRequestModal = dynamic(
-  () =>
-    import('@/app/(landing)/components/demo-request/demo-request-modal').then(
-      (m) => m.DemoRequestModal
-    ),
-  { loading: () => null }
-)
-
-const LandingPreview = dynamic(
-  () =>
-    import('@/app/(landing)/components/landing-preview/landing-preview').then(
-      (mod) => mod.LandingPreview
-    ),
-  {
-    ssr: false,
-    loading: () => <div className='aspect-[1116/615] w-full rounded bg-[var(--landing-bg)]' />,
-  }
-)
-
-const CTA_BASE =
-  'inline-flex items-center h-[32px] rounded-[5px] border px-2.5 font-[430] font-season text-sm'
-
-export default function Hero() {
+/**
+ * Landing hero — the only `<h1>` on the page.
+ *
+ * The section is the relative positioning context for two absolute panels that
+ * split the viewport down the middle — a visual panel on the right, a
+ * customer-logo block on the left — over a left-aligned text column.
+ *
+ * Text column (top → bottom, left-aligned): 112px top padding, headline,
+ * description, then the sign-up row. Horizontal padding (`px-16`) matches the
+ * navbar so the hero text starts on the same vertical line as the wordmark;
+ * blocks are stacked a uniform 22px apart (`gap-[22px]`).
+ *
+ * The sign-up row places the email-capture bar and a "Sign up" button side by
+ * side, `gap-2` apart, matched to the same 44px visual height. The bar is a
+ * no-background input
+ * shell — `rounded-lg` (the chip roundedness) and `border-[var(--border-1)]`
+ * (the `UserInput` border) — wrapping a transparent 16px `<input>` and the
+ * "Book a demo" action `gap-2` apart; its `pl-3` text gutter and tighter
+ * `pr-[5px]` tuck that button evenly into the right corner.
+ *
+ * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
+ * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`)
+ * and horizontal padding in `em` so it stays proportional to the text —
+ * `px-[0.571em]`, the chip's 8/14 ratio (≈9px at 16px). "Book a demo" sits
+ * inside the bar and scales its height too (`h-[2.143em]`); the standalone
+ * "Sign up" is the default chip with a `border border-[var(--border-1)]` (the
+ * bar's border) at `h-[44px]` — both borders sit inside their border-box
+ * height, so the two edges line up exactly.
+ *
+ * The headline is split across two lines with a hard break; the reading-order
+ * text content is unaffected.
+ *
+ * The section is sized to exactly one fold — `min-h-[calc(100vh-62px)]`, the
+ * viewport minus the 62px navbar (its `py-4` + `h-[30px]` chips) — so the two
+ * absolute panels can anchor to its top and bottom and stay on-screen.
+ *
+ * The right-hand visual panel holds the {@link HeroVisual} — a looping,
+ * `aria-hidden` product demo (home → typed prompt → GitHub→Agent→Jira workflow
+ * with data flowing) and the page's only client island. It is absolutely
+ * positioned against the section: its left edge sits at the screen center
+ * (`left-1/2`), its right edge at the hero's right padding (`right-16`), and it
+ * is inset a uniform 32px from the section's top and bottom (`top-8 bottom-8`,
+ * the section box top being the navbar's bottom edge) — equal breathing room
+ * above and below, never overflowing the fold. Chrome is `rounded-lg` (chip
+ * roundedness) + `--surface-2` fill + a 1px `border-[var(--border-1)]` (the same
+ * field border as the email-capture bar), sitting inside the border-box so the
+ * inset positions are unaffected; `overflow-hidden` clips the future video to
+ * the radius.
+ *
+ * The {@link HeroLogos} grid sits in a bottom-anchored panel that mirrors the
+ * visual panel on the left half (`left-16` → `right-1/2`, same `top-8 bottom-8`
+ * frame). `flex flex-col justify-end` pins the grid to the bottom, then `pb-20`
+ * lifts it 80px above the panel's bottom edge — the same 80px that separates the
+ * top of the visual panel (`top-8`, y=32) from the hero text (`pt-[112px]`,
+ * y=112). That leaves the logos resting 112px above the section bottom, mirroring
+ * the hero text's 112px from the top. The frame overlays the text column, so it
+ * is `pointer-events-none` — clicks fall through to the email bar and CTAs.
+ *
+ * Carries the sr-only ~50-word product summary for AI citation (CLAUDE.md → GEO).
+ */
+export function Hero() {
   return (
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      itemScope
-      itemType='https://schema.org/WebApplication'
-      className='relative flex flex-col items-center overflow-hidden bg-[var(--landing-bg)] pt-[60px] lg:pt-[100px]'
+      className='relative flex min-h-[calc(100vh-62px)] flex-col items-start gap-[22px] px-16 pt-[112px] text-left'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
-        1,000+ integrations and every major LLM, including OpenAI, Anthropic Claude, Google Gemini,
-        Mistral, and xAI Grok, to create agents that automate real work. Build agents visually with
-        the workflow builder, conversationally through Mothership, or programmatically with the API.
-        Trusted by over 100,000 builders at startups and Fortune 500 companies. SOC2 compliant.
+        1,000+ integrations and every major LLM to create agents that automate real work — visually,
+        conversationally, or with code. Trusted by over 100,000 builders, SOC2 compliant, and
+        production-ready for teams of every size.
       </p>
 
-      <div className='relative z-10 flex flex-col items-center gap-3'>
-        <h1
-          id='hero-heading'
-          itemProp='name'
-          className='text-balance font-[430] font-season text-[36px] text-white leading-[100%] tracking-[-0.02em] sm:text-[48px] lg:text-[72px]'
-        >
-          Build AI Agents
-        </h1>
-        <p
-          itemProp='description'
-          className='whitespace-nowrap text-center font-[430] font-season text-[4.4vw] text-[color-mix(in_srgb,var(--landing-text-subtle)_60%,transparent)] leading-[125%] tracking-[0.02em] sm:whitespace-normal sm:text-lg lg:text-xl'
-        >
-          Sim is the AI Workspace for Agent Builders
-        </p>
+      <h1
+        id='hero-heading'
+        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] '
+      >
+        Your workflow agent for
+        <br />
+        solving automations.
+      </h1>
 
-        <div className='mt-3 flex items-center gap-2'>
-          <DemoRequestModal theme='light'>
-            <button
-              type='button'
-              className={cn(
-                CTA_BASE,
-                'border-[var(--landing-border-strong)] bg-transparent text-[var(--landing-text)] transition-colors hover:bg-[var(--landing-bg-elevated)]'
-              )}
-              aria-label='Get a demo'
-              onClick={() =>
-                trackLandingCta({ label: 'Get a demo', section: 'hero', destination: 'demo_modal' })
-              }
-            >
-              Get a demo
-            </button>
-          </DemoRequestModal>
-          <AuthModal defaultView='signup' source='hero'>
-            <button
-              type='button'
-              className={cn(
-                CTA_BASE,
-                'gap-2 border-white bg-white text-black transition-colors hover:border-[#E0E0E0] hover:bg-[#E0E0E0]'
-              )}
-              aria-label='Get started with Sim'
-              onClick={() =>
-                trackLandingCta({
-                  label: 'Get started',
-                  section: 'hero',
-                  destination: 'auth_modal',
-                })
-              }
-            >
-              Get started
-            </button>
-          </AuthModal>
+      <p className='text-[20px] text-[var(--text-body)] leading-[1.5]'>
+        Sim is the collaborative workspace to build, deploy, <br /> and manage AI agents and
+        workflows.
+      </p>
+
+      <div className='flex items-center gap-2'>
+        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[5px] pl-3'>
+          <input
+            type='email'
+            aria-label='Email address'
+            placeholder='Email address'
+            className='h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)]'
+          />
+          <ChipLink
+            variant='primary'
+            href='/contact'
+            flush
+            className='h-[2.143em] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          >
+            Book a demo
+          </ChipLink>
         </div>
+        <ChipLink
+          href='/signup'
+          flush
+          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+        >
+          Sign up
+        </ChipLink>
       </div>
 
-      <div className='relative z-10 mx-auto mt-6 w-[92vw] px-[1.6vw] lg:mt-[3.2vw] lg:w-full lg:px-16'>
-        <div
-          aria-hidden='true'
-          className='absolute top-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute top-0 right-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute bottom-0 left-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div
-          aria-hidden='true'
-          className='absolute right-0 bottom-0 z-20 hidden h-px w-[calc(4rem+4px)] bg-[var(--landing-bg-elevated)] lg:block'
-        />
-        <div className='relative z-10 overflow-hidden rounded border border-[var(--landing-bg-elevated)]'>
-          <LandingPreview />
-        </div>
+      <div
+        aria-hidden='true'
+        className='absolute top-8 right-16 bottom-8 left-1/2 overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'
+      >
+        <HeroVisual />
+      </div>
+
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-16 flex flex-col justify-end pb-20'>
+        <HeroLogos />
       </div>
     </section>
   )

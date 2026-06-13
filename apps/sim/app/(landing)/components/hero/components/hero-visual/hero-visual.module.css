@@ -1,0 +1,152 @@
+/**
+ * Hero-visual intrinsic animations — the motion Tailwind's config doesn't
+ * cover. Stage cross-fades live in hero-visual.tsx (Tailwind opacity
+ * transitions); this module owns the workflow's block rise + edge draw-on, the
+ * cursor click ripple, and the knowledge-base modal's entrance, file drop, and
+ * embedding-map build. All motion is opacity/transform/stroke only.
+ *
+ * Per-element timing is passed in via CSS custom properties so the data layer
+ * stays the single source of truth: --rise-delay, --draw-delay, --drop-delay,
+ * --pop-delay.
+ */
+
+.block {
+  opacity: 0;
+  animation: blockRise 500ms cubic-bezier(0.16, 1, 0.3, 1) var(--rise-delay, 0ms) forwards;
+}
+
+@keyframes blockRise {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.edgePath {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: edgeDraw 450ms ease-out var(--draw-delay, 0ms) forwards;
+}
+
+@keyframes edgeDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.clickRing {
+  animation: clickRing 360ms ease-out forwards;
+}
+
+@keyframes clickRing {
+  from {
+    opacity: 0.55;
+    transform: scale(0.3);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.modal {
+  animation: modalIn 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.fileRow {
+  opacity: 0;
+  animation: fileDrop 480ms cubic-bezier(0.16, 1, 0.3, 1) var(--drop-delay, 0ms) forwards;
+}
+
+@keyframes fileDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-44px) scale(0.96);
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.embedNode,
+.embedHub {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.embedNode {
+  animation: nodePop 440ms cubic-bezier(0.16, 1, 0.3, 1) var(--pop-delay, 0ms) forwards;
+}
+
+.embedHub {
+  animation:
+    nodePop 440ms cubic-bezier(0.16, 1, 0.3, 1) var(--pop-delay, 0ms) forwards,
+    graphPulse 2600ms ease-in-out calc(var(--pop-delay, 0ms) + 800ms) infinite;
+}
+
+@keyframes nodePop {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes graphPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.22);
+  }
+}
+
+.embedLink {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: edgeDraw 520ms ease-out var(--pop-delay, 0ms) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block,
+  .fileRow,
+  .embedNode,
+  .embedHub {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+  .edgePath,
+  .embedLink {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .clickRing,
+  .modal {
+    animation: none;
+  }
+}

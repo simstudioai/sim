@@ -1,6 +1,7 @@
 ---
 paths:
   - "apps/sim/app/(landing)/**/*.tsx"
+  - "apps/sim/app/(home)/**/*.tsx"
 ---
 
 # Landing Page — SEO / GEO

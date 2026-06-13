@@ -10,6 +10,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import {
+  chipBorderShadowRing,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
@@ -47,8 +48,7 @@ const chipVariants = cva(
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] hover-hover:text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
-        'border-shadow':
-          'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
+        'border-shadow': `bg-[var(--surface-2)] ${chipBorderShadowRing} hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-4)]`,
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },

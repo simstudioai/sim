@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select'
 import { requestJson } from '@/lib/api/client/request'
 import { resumeWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
-import Navbar from '@/app/(landing)/components/navbar/navbar'
+import Navbar from '@/app/(home)/components/navbar/navbar'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import type { ResumeStatus } from '@/executor/types'
 

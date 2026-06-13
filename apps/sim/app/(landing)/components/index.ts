@@ -1,25 +1,6 @@
-import Collaboration from '@/app/(landing)/components/collaboration/collaboration'
-import ExternalRedirect from '@/app/(landing)/components/external-redirect'
-import Features from '@/app/(landing)/components/features/features'
-import Footer from '@/app/(landing)/components/footer/footer'
-import Hero from '@/app/(landing)/components/hero/hero'
-import LegalLayout from '@/app/(landing)/components/legal-layout'
-import Navbar from '@/app/(landing)/components/navbar/navbar'
-import Pricing from '@/app/(landing)/components/pricing/pricing'
-import StructuredData from '@/app/(landing)/components/structured-data'
-import Templates from '@/app/(landing)/components/templates/templates'
-import Testimonials from '@/app/(landing)/components/testimonials/testimonials'
-
-export {
-  Collaboration,
-  ExternalRedirect,
-  Features,
-  Footer,
-  Hero,
-  LegalLayout,
-  Navbar,
-  Pricing,
-  StructuredData,
-  Templates,
-  Testimonials,
-}
+export { Features } from '@/app/(landing)/components/features/features'
+export { Footer } from '@/app/(landing)/components/footer/footer'
+export { Hero } from '@/app/(landing)/components/hero/hero'
+export { Lifecycle } from '@/app/(landing)/components/lifecycle/lifecycle'
+export { Navbar } from '@/app/(landing)/components/navbar/navbar'
+export { Testimonials } from '@/app/(landing)/components/testimonials/testimonials'

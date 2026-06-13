@@ -8,6 +8,7 @@ export { Chip, ChipLink, chipVariants } from './chip/chip'
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,

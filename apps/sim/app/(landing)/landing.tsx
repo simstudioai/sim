@@ -1,72 +1,46 @@
-import { getNavBlogPosts } from '@/lib/blog/registry'
-import { martianMono } from '@/app/_styles/fonts/martian-mono/martian-mono'
-import { season } from '@/app/_styles/fonts/season/season'
-import {
-  Collaboration,
-  Features,
-  Footer,
-  Hero,
-  Navbar,
-  Pricing,
-  StructuredData,
-  Templates,
-  Testimonials,
-} from '@/app/(landing)/components'
-import { LandingAnalytics } from '@/app/(landing)/landing-analytics'
+import { getGitHubStars } from '@/lib/github/stars'
+import { Features, Footer, Hero, Lifecycle, Navbar } from '@/app/(landing)/components'
 
 /**
- * Landing page root component.
+ * Landing page root — owns section order and server-side context.
  *
- * ## SEO Architecture
- * - Single `<h1>` inside Hero (only one per page).
- * - Heading hierarchy: H1 (Hero) -> H2 (each section) -> H3 (sub-items).
- * - Semantic landmarks: `<header>`, `<main>`, `<footer>`.
- * - Every `<section>` has an `id` for anchor linking and `aria-labelledby` for accessibility.
- * - `StructuredData` emits JSON-LD before any visible content.
+ * Section components are stubs until each is defined; read
+ * `app/(landing)/CLAUDE.md` before implementing any of them.
  *
- * ## GEO Architecture
- * - Above-fold content (Navbar, Hero) is statically rendered (Server Components where possible)
- *   for immediate availability to AI crawlers.
- * - Section `id` attributes serve as fragment anchors for precise AI citations.
- * - Content ordering prioritizes answer-first patterns: definition (Hero) ->
- *   examples (Templates) -> capabilities (Features) -> social proof (Collaboration) ->
- *   pricing (Pricing) -> testimonials (Testimonials).
+ * - Statically rendered (`revalidate` in `page.tsx`); all server-side
+ *   context (GitHub stars) is fetched here at build/revalidate time and
+ *   passed down as props — no client fetching for above-fold content.
+ * - The `light` wrapper pins every `var(--*)` design token to its
+ *   light-mode value regardless of the visitor's theme preference; the
+ *   landing page is always light.
+ * - This wrapper is also the page's scroll port (`h-screen` +
+ *   `overflow-y-auto` + `overscroll-y-none`): the document body no longer
+ *   overflows, so the viewport can't rubber-band, and the container's own
+ *   overscroll bounce is disabled. Without this the sticky navbar gets
+ *   dragged past the top/bottom edges on overscroll.
+ * - Each section component owns its landmark: Navbar renders `<header>`,
+ *   Footer renders `<footer>`, sections render `<section id aria-labelledby>`.
+ * - `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
+ *   inter-section rhythm — sections carry no vertical margin/padding of their
+ *   own, so one knob keeps every section break uniform across the page.
  */
 export default async function Landing() {
-  const blogPosts = await getNavBlogPosts()
+  const stars = await getGitHubStars()
 
   return (
-    <div
-      className={`${season.variable} ${martianMono.variable} min-h-screen bg-[var(--landing-bg)]`}
-    >
+    <div className='light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
       <a
         href='#main-content'
-        className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:font-medium focus:text-black focus:text-sm'
+        className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[var(--z-toast)] focus:rounded-md focus:bg-[var(--surface-2)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:text-sm'
       >
         Skip to main content
       </a>
-      <LandingAnalytics />
-      <StructuredData />
-      <header>
-        <Navbar blogPosts={blogPosts} />
-      </header>
-      <main id='main-content'>
-        <article itemScope itemType='https://schema.org/WebPage'>
-          <meta
-            itemProp='name'
-            content='Sim — The AI Workspace | Build, Deploy & Manage AI Agents'
-          />
-          <meta
-            itemProp='description'
-            content='Sim is the open-source AI workspace where teams build, deploy, and manage AI agents.'
-          />
-          <Hero />
-          <Templates />
-          <Features />
-          <Collaboration />
-          <Pricing />
-          <Testimonials />
-        </article>
+      <Navbar stars={stars} />
+      <main id='main-content' className='flex flex-col gap-[120px]'>
+        <Hero />
+        <Lifecycle />
+        <Features />
+        {/* <Testimonials /> */}
       </main>
       <Footer />
     </div>
