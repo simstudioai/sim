@@ -331,6 +331,7 @@ export const CloudFormationBlock: BlockConfig<
 
 export const CloudFormationBlockMeta = {
   tags: ['cloud'],
+  url: 'https://aws.amazon.com/cloudformation',
   templates: [
     {
       icon: CloudFormationIcon,

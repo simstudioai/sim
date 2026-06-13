@@ -649,6 +649,7 @@ Return ONLY the JSON array.`,
 
 export const AlgoliaBlockMeta = {
   tags: ['vector-search', 'knowledge-base'],
+  url: 'https://www.algolia.com',
   templates: [
     {
       icon: AlgoliaIcon,

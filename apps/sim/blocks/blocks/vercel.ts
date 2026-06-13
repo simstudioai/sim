@@ -1194,6 +1194,7 @@ export const VercelBlock: BlockConfig = {
 
 export const VercelBlockMeta = {
   tags: ['cloud', 'ci-cd'],
+  url: 'https://vercel.com',
   templates: [
     {
       icon: VercelIcon,

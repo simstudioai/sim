@@ -370,6 +370,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
 
 export const TavilyBlockMeta = {
   tags: ['web-scraping', 'enrichment'],
+  url: 'https://tavily.com',
   templates: [
     {
       icon: TavilyIcon,

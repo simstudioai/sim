@@ -218,6 +218,7 @@ export const GoogleTranslateBlock: BlockConfig = {
 
 export const GoogleTranslateBlockMeta = {
   tags: ['google-workspace', 'content-management', 'automation'],
+  url: 'https://cloud.google.com/translate',
   templates: [
     {
       icon: GoogleTranslateIcon,

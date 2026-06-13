@@ -404,6 +404,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const DropboxBlockMeta = {
   tags: ['cloud', 'document-processing'],
+  url: 'https://www.dropbox.com',
   templates: [
     {
       icon: DropboxIcon,

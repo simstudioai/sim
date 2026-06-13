@@ -918,6 +918,7 @@ Return ONLY the folder title - no explanations, no quotes, no extra text.`,
 
 export const GrafanaBlockMeta = {
   tags: ['monitoring', 'data-analytics'],
+  url: 'https://grafana.com',
   templates: [
     {
       icon: GrafanaIcon,

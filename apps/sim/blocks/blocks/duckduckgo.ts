@@ -71,6 +71,7 @@ export const DuckDuckGoBlock: BlockConfig<DuckDuckGoResponse> = {
 
 export const DuckDuckGoBlockMeta = {
   tags: ['web-scraping'],
+  url: 'https://duckduckgo.com',
   templates: [
     {
       icon: DuckDuckGoIcon,

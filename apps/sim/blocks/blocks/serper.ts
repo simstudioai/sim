@@ -100,6 +100,7 @@ export const SerperBlock: BlockConfig<SearchResponse> = {
 
 export const SerperBlockMeta = {
   tags: ['web-scraping', 'seo'],
+  url: 'https://serper.dev',
   templates: [
     {
       icon: SerperIcon,

@@ -199,6 +199,7 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
 
 export const ConvexBlockMeta = {
   tags: ['cloud'],
+  url: 'https://www.convex.dev',
   templates: [
     {
       icon: ConvexIcon,

@@ -699,6 +699,7 @@ Return ONLY the search query - no explanations.`,
 
 export const ZendeskBlockMeta = {
   tags: ['customer-support', 'ticketing'],
+  url: 'https://www.zendesk.com',
   templates: [
     {
       icon: ZendeskIcon,
