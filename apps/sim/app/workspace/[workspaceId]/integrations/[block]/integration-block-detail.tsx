@@ -66,8 +66,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
       (c) =>
         (c.type === 'oauth' || c.type === 'service_account') &&
         c.providerId &&
-        getServiceConfigByProviderId(c.providerId)?.name.toLowerCase() ===
-          oauthService.serviceName.toLowerCase()
+        getServiceConfigByProviderId(c.providerId)?.providerId === oauthService.providerId
     )
   }, [credentials, oauthService])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)

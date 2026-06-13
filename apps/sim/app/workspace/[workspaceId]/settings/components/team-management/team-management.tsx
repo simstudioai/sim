@@ -98,10 +98,29 @@ export function TeamManagement() {
       }
     : null
 
-  const existingEmails = useMemo(() => {
-    const memberEmails = (roster?.members ?? []).map((member) => member.email)
-    const pendingEmails = (roster?.pendingInvitations ?? []).map((invitation) => invitation.email)
-    return [...memberEmails, ...pendingEmails]
+  const externalEmails = useMemo(
+    () =>
+      (roster?.members ?? [])
+        .filter((member) => member.role === 'external')
+        .map((member) => member.email),
+    [roster]
+  )
+
+  /**
+   * Pending invitations for emails that already belong to a member are
+   * excluded: members can always be re-invited to additional workspaces (the
+   * server dedupes per workspace), so only non-member pending emails are
+   * blocked in the invite modal.
+   */
+  const pendingEmails = useMemo(() => {
+    const memberEmailSet = new Set(
+      (roster?.members ?? [])
+        .filter((member) => member.role !== 'external')
+        .map((member) => member.email.toLowerCase())
+    )
+    return (roster?.pendingInvitations ?? [])
+      .map((invitation) => invitation.email)
+      .filter((email) => !memberEmailSet.has(email.toLowerCase()))
   }, [roster])
 
   useEffect(() => {
@@ -344,7 +363,8 @@ export function TeamManagement() {
         onOpenChange={setInviteModalOpen}
         organizationId={displayOrganization.id}
         workspaces={roster?.workspaces ?? []}
-        existingEmails={existingEmails}
+        externalEmails={externalEmails}
+        pendingEmails={pendingEmails}
       />
 
       <TransferOwnershipDialog

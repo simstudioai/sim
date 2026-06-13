@@ -114,15 +114,17 @@ export type TableEvent =
       limit?: { type: 'rows'; max: number }
     }
   | {
-      /** Async large-import progress. The background import worker emits
-       *  `importing` ticks as batches commit, then a terminal `ready`/`failed`.
-       *  The client reveals the (hidden) rows on `ready` and shows a failure
-       *  badge on `failed`. See `apps/sim/lib/table/import-runner.ts`. */
-      kind: 'import'
+      /** Async background-job progress. Import and delete workers emit `running`
+       *  ticks as batches commit, then a terminal `ready`/`failed`/`canceled`.
+       *  `type` discriminates the work. The client reveals hidden import rows on
+       *  `ready`, and on a delete `failed`/`canceled` restores optimistically
+       *  hidden rows. See `import-runner.ts` / `delete-runner.ts`. */
+      kind: 'job'
       tableId: string
-      importId: string
-      status: 'importing' | 'ready' | 'failed' | 'canceled'
-      /** Rows committed so far (importing) or in total (ready). */
+      jobId: string
+      type: 'import' | 'delete' | 'export' | 'backfill'
+      status: 'running' | 'ready' | 'failed' | 'canceled'
+      /** Rows processed so far (running) or in total (ready). */
       progress?: number
       /** Byte-based completion percent (0–100) — exact and monotonic, for the determinate bar. */
       percent?: number

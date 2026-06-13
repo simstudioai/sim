@@ -1,5 +1,5 @@
 import { asyncJobs, db } from '@sim/db'
-import { userTableDefinitions, workflowExecutionLogs } from '@sim/db/schema'
+import { tableJobs, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, lt, sql } from 'drizzle-orm'
@@ -8,12 +8,15 @@ import { verifyCronAuth } from '@/lib/auth/internal'
 import { JOB_RETENTION_HOURS, JOB_STATUS } from '@/lib/core/async-jobs'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deleteFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('CleanupStaleExecutions')
 
 const STALE_THRESHOLD_MS = getMaxExecutionTimeout() + 5 * 60 * 1000
 const STALE_THRESHOLD_MINUTES = Math.ceil(STALE_THRESHOLD_MS / 60000)
 const MAX_INT32 = 2_147_483_647
+/** Terminal table-jobs older than this are pruned; only the latest job per table is ever read. */
+const TABLE_JOB_RETENTION_HOURS = 24
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
   try {
@@ -110,33 +113,56 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    // Mark stale table imports as failed. Imports run detached on the web container and
-    // are lost if the pod is killed mid-load. `updatedAt` is bumped by progress updates, so
-    // an `importing` table with no recent update has stalled (not merely slow). Rows are
-    // left in place (no rollback); the user re-imports.
-    let staleImportsMarkedFailed = 0
+    // Mark stale table jobs (import, export, or delete) as failed. Jobs run detached on the web container
+    // and are lost if the pod is killed mid-run. `updated_at` is bumped by progress updates, so a
+    // `running` job with no recent update has stalled (not merely slow). Committed work is left in
+    // place (no rollback); the user retries. Also prune long-settled terminal jobs so the table
+    // doesn't grow unbounded (the latest job per table is what list/detail reads surface).
+    let staleTableJobsMarkedFailed = 0
     try {
-      const staleImports = await db
-        .update(userTableDefinitions)
+      const now = new Date()
+      const staleJobs = await db
+        .update(tableJobs)
         .set({
-          importStatus: 'failed',
-          importError: `Import terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
-          updatedAt: new Date(),
+          status: 'failed',
+          error: `Job terminated: no progress for more than ${STALE_THRESHOLD_MINUTES} minutes (worker timeout or crash)`,
+          completedAt: now,
+          updatedAt: now,
         })
+        .where(and(eq(tableJobs.status, 'running'), lt(tableJobs.updatedAt, staleThreshold)))
+        .returning({ id: tableJobs.id })
+
+      staleTableJobsMarkedFailed = staleJobs.length
+      if (staleTableJobsMarkedFailed > 0) {
+        logger.info(`Marked ${staleTableJobsMarkedFailed} stale table jobs as failed`)
+      }
+
+      const terminalRetention = new Date(Date.now() - TABLE_JOB_RETENTION_HOURS * 60 * 60 * 1000)
+      const pruned = await db
+        .delete(tableJobs)
         .where(
           and(
-            eq(userTableDefinitions.importStatus, 'importing'),
-            lt(userTableDefinitions.updatedAt, staleThreshold)
+            inArray(tableJobs.status, ['ready', 'failed', 'canceled']),
+            lt(tableJobs.updatedAt, terminalRetention)
           )
         )
-        .returning({ id: userTableDefinitions.id })
+        .returning({ type: tableJobs.type, payload: tableJobs.payload })
 
-      staleImportsMarkedFailed = staleImports.length
-      if (staleImportsMarkedFailed > 0) {
-        logger.info(`Marked ${staleImportsMarkedFailed} stale table imports as failed`)
+      // Pruned export jobs carry the generated file's storage key — delete the file with the job
+      // so the exports prefix doesn't accumulate. Best-effort: a miss just orphans one object.
+      for (const job of pruned) {
+        if (job.type !== 'export') continue
+        const resultKey = (job.payload as { resultKey?: string } | null)?.resultKey
+        if (!resultKey) continue
+        await deleteFile({ key: resultKey, context: 'workspace' }).catch((err) => {
+          logger.warn('Failed to delete pruned export file', {
+            resultKey,
+            error: toError(err).message,
+          })
+        })
       }
     } catch (error) {
-      logger.error('Failed to clean up stale table imports:', {
+      logger.error('Failed to clean up stale table jobs:', {
         error: toError(error).message,
       })
     }
@@ -210,8 +236,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         staleThresholdMinutes: STALE_THRESHOLD_MINUTES,
         retentionHours: JOB_RETENTION_HOURS,
       },
-      tableImports: {
-        staleMarkedFailed: staleImportsMarkedFailed,
+      tableJobs: {
+        staleMarkedFailed: staleTableJobsMarkedFailed,
       },
     })
   } catch (error) {

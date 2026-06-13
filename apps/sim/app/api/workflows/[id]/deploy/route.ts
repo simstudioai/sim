@@ -10,6 +10,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { performFullDeploy, performFullUndeploy } from '@/lib/workflows/orchestration'
+import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import {
   checkNeedsRedeployment,
@@ -106,9 +107,10 @@ export const POST = withRouteHandler(
       })
 
       if (!result.success) {
-        const status =
-          result.errorCode === 'validation' ? 400 : result.errorCode === 'not_found' ? 404 : 500
-        return createErrorResponse(result.error || 'Failed to deploy workflow', status)
+        return createErrorResponse(
+          result.error || 'Failed to deploy workflow',
+          statusForOrchestrationError(result.errorCode)
+        )
       }
 
       logger.info(`[${requestId}] Workflow deployed successfully: ${id}`)

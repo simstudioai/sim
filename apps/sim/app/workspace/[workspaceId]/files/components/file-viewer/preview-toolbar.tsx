@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
-import { Button } from '@/components/emcn'
+import { Chip } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 interface PreviewNavigationControls {
@@ -31,14 +31,14 @@ export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarPr
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-3 py-1.5',
+        'flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1',
         className
       )}
     >
-      <div className='flex items-center gap-1'>
+      <div className='flex items-center'>
         {navigation && <PreviewNavigationControls {...navigation} />}
       </div>
-      <div className='flex items-center gap-1'>{zoom && <PreviewZoomControls {...zoom} />}</div>
+      <div className='flex items-center'>{zoom && <PreviewZoomControls {...zoom} />}</div>
     </div>
   )
 }
@@ -54,29 +54,21 @@ function PreviewNavigationControls({
 }: PreviewNavigationControls) {
   return (
     <>
-      <Button
-        variant='ghost'
-        size='sm'
+      <Chip
+        leftIcon={ChevronLeft}
         onClick={onPrevious}
         disabled={!canPrevious}
-        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label={`Previous ${label}`}
-      >
-        <ChevronLeft className='size-[14px]' />
-      </Button>
-      <span className='min-w-[5rem] text-center text-[12px] text-[var(--text-secondary)]'>
+      />
+      <span className='min-w-[4.5rem] text-center text-[var(--text-body)] text-sm'>
         {total > 0 ? `${current} / ${total}` : '0 / 0'}
       </span>
-      <Button
-        variant='ghost'
-        size='sm'
+      <Chip
+        leftIcon={ChevronRight}
         onClick={onNext}
         disabled={!canNext}
-        className='size-6 p-0 text-[var(--text-icon)]'
         aria-label={`Next ${label}`}
-      >
-        <ChevronRight className='size-[14px]' />
-      </Button>
+      />
     </>
   )
 }
@@ -92,39 +84,13 @@ function PreviewZoomControls({
   return (
     <>
       {onReset && (
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onReset}
-          className='h-6 px-2 text-[11px]'
-          aria-label='Reset zoom'
-        >
+        <Chip onClick={onReset} aria-label='Reset zoom'>
           Reset
-        </Button>
+        </Chip>
       )}
-      <Button
-        variant='ghost'
-        size='sm'
-        onClick={onZoomOut}
-        disabled={!canZoomOut}
-        className='size-6 p-0 text-[var(--text-icon)]'
-        aria-label='Zoom out'
-      >
-        <ZoomOut className='size-[14px]' />
-      </Button>
-      <span className='min-w-[3rem] text-center text-[12px] text-[var(--text-secondary)]'>
-        {label}
-      </span>
-      <Button
-        variant='ghost'
-        size='sm'
-        onClick={onZoomIn}
-        disabled={!canZoomIn}
-        className='size-6 p-0 text-[var(--text-icon)]'
-        aria-label='Zoom in'
-      >
-        <ZoomIn className='size-[14px]' />
-      </Button>
+      <Chip leftIcon={ZoomOut} onClick={onZoomOut} disabled={!canZoomOut} aria-label='Zoom out' />
+      <span className='min-w-[3.25rem] text-center text-[var(--text-body)] text-sm'>{label}</span>
+      <Chip leftIcon={ZoomIn} onClick={onZoomIn} disabled={!canZoomIn} aria-label='Zoom in' />
     </>
   )
 }

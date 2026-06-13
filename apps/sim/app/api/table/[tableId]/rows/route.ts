@@ -1,5 +1,4 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   type BatchInsertTableRowsBodyInput,
@@ -14,7 +13,7 @@ import { isZodError, validationErrorResponse } from '@/lib/api/server/validation
 import { type AuthTypeValue, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { Filter, RowData, Sort, TableSchema } from '@/lib/table'
+import type { Filter, RowData, Sort, TableRowsCursor, TableSchema } from '@/lib/table'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -29,7 +28,7 @@ import {
 import { queryRows } from '@/lib/table/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess } from '@/app/api/table/utils'
+import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableRowsAPI')
 
@@ -98,18 +97,8 @@ async function handleBatchInsert(
       },
     })
   } catch (error) {
-    const errorMessage = toError(error).message
-
-    if (
-      errorMessage.includes('row limit') ||
-      errorMessage.includes('Insufficient capacity') ||
-      errorMessage.includes('Schema validation') ||
-      errorMessage.includes('must be unique') ||
-      errorMessage.includes('Row size exceeds') ||
-      errorMessage.match(/^Row \d+:/)
-    ) {
-      return NextResponse.json({ error: errorMessage }, { status: 400 })
-    }
+    const response = rowWriteErrorResponse(error)
+    if (response) return response
 
     logger.error(`[${requestId}] Error batch inserting rows:`, error)
     return NextResponse.json({ error: 'Failed to insert rows' }, { status: 500 })
@@ -197,17 +186,8 @@ export const POST = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const errorMessage = toError(error).message
-
-      if (
-        errorMessage.includes('row limit') ||
-        errorMessage.includes('Insufficient capacity') ||
-        errorMessage.includes('Schema validation') ||
-        errorMessage.includes('must be unique') ||
-        errorMessage.includes('Row size exceeds')
-      ) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error inserting row:`, error)
       return NextResponse.json({ error: 'Failed to insert row' }, { status: 500 })
@@ -231,12 +211,14 @@ export const GET = withRouteHandler(
       const workspaceId = searchParams.get('workspaceId')
       const filterParam = searchParams.get('filter')
       const sortParam = searchParams.get('sort')
+      const afterParam = searchParams.get('after')
       const limit = searchParams.get('limit')
       const offset = searchParams.get('offset')
       const includeTotalParam = searchParams.get('includeTotal')
 
       let filter: Record<string, unknown> | undefined
       let sort: Sort | undefined
+      let after: TableRowsCursor | undefined
 
       try {
         if (filterParam) {
@@ -245,14 +227,18 @@ export const GET = withRouteHandler(
         if (sortParam) {
           sort = JSON.parse(sortParam) as Sort
         }
+        if (afterParam) {
+          after = JSON.parse(afterParam) as TableRowsCursor
+        }
       } catch {
-        return NextResponse.json({ error: 'Invalid filter or sort JSON' }, { status: 400 })
+        return NextResponse.json({ error: 'Invalid filter, sort, or after JSON' }, { status: 400 })
       }
 
       const validated = tableRowsQuerySchema.parse({
         workspaceId,
         filter,
         sort,
+        after,
         limit,
         offset,
         includeTotal: includeTotalParam,
@@ -278,6 +264,7 @@ export const GET = withRouteHandler(
           sort: validated.sort ? wire.sortIn(validated.sort) : undefined,
           limit: validated.limit,
           offset: validated.offset,
+          after: validated.after,
           includeTotal: validated.includeTotal,
         },
         requestId
@@ -403,18 +390,8 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const errorMessage = toError(error).message
-
-      if (
-        errorMessage.includes('Row size exceeds') ||
-        errorMessage.includes('Schema validation') ||
-        errorMessage.includes('must be unique') ||
-        errorMessage.includes('Unique constraint violation') ||
-        errorMessage.includes('Cannot set unique column') ||
-        errorMessage.includes('Filter is required')
-      ) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error updating rows by filter:`, error)
       return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })
@@ -506,11 +483,8 @@ export const DELETE = withRouteHandler(
         return NextResponse.json({ error: error.message }, { status: 400 })
       }
 
-      const errorMessage = toError(error).message
-
-      if (errorMessage.includes('Filter is required')) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error deleting rows:`, error)
       return NextResponse.json({ error: 'Failed to delete rows' }, { status: 500 })
@@ -575,22 +549,8 @@ export const PATCH = withRouteHandler(
         return validationErrorResponse(error)
       }
 
-      const errorMessage = toError(error).message
-
-      if (
-        errorMessage.includes('Row size exceeds') ||
-        errorMessage.includes('Schema validation') ||
-        errorMessage.includes('must be valid') ||
-        errorMessage.includes('must be string') ||
-        errorMessage.includes('must be number') ||
-        errorMessage.includes('must be boolean') ||
-        errorMessage.includes('must be unique') ||
-        errorMessage.includes('Unique constraint violation') ||
-        errorMessage.includes('Cannot set unique column') ||
-        errorMessage.includes('Rows not found')
-      ) {
-        return NextResponse.json({ error: errorMessage }, { status: 400 })
-      }
+      const response = rowWriteErrorResponse(error)
+      if (response) return response
 
       logger.error(`[${requestId}] Error batch updating rows:`, error)
       return NextResponse.json({ error: 'Failed to update rows' }, { status: 500 })

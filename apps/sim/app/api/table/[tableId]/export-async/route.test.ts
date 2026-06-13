@@ -6,14 +6,23 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockCheckAccess, mockMarkImportCanceled, mockAppendTableEvent } = vi.hoisted(() => ({
+const { mockCheckAccess, mockMarkTableJobRunning, mockRunTableExport } = vi.hoisted(() => ({
   mockCheckAccess: vi.fn(),
-  mockMarkImportCanceled: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
+  mockMarkTableJobRunning: vi.fn(),
+  mockRunTableExport: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({ markImportCanceled: mockMarkImportCanceled }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
+vi.mock('@sim/utils/id', () => ({
+  generateId: vi.fn().mockReturnValue('job-id-xyz'),
+  generateShortId: vi.fn().mockReturnValue('short-id'),
+}))
+vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
+vi.mock('@/lib/table/export-runner', () => ({ runTableExport: mockRunTableExport }))
+vi.mock('@/lib/core/utils/background', () => ({
+  runDetached: (_label: string, work: () => Promise<unknown>) => {
+    void work()
+  },
+}))
 vi.mock('@/app/api/table/utils', async () => {
   const { NextResponse } = await import('next/server')
   return {
@@ -23,7 +32,7 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 
-import { POST } from '@/app/api/table/[tableId]/import/cancel/route'
+import { POST } from '@/app/api/table/[tableId]/export-async/route'
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -32,7 +41,7 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
     description: null,
     schema: { columns: [{ name: 'name', type: 'string' }] },
     metadata: null,
-    rowCount: 0,
+    rowCount: 50000,
     maxRows: 1_000_000,
     workspaceId: 'workspace-1',
     createdBy: 'user-1',
@@ -44,7 +53,7 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
 }
 
 function makeRequest(body: unknown, tableId = 'tbl_1') {
-  const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/import/cancel`, {
+  const req = new NextRequest(`http://localhost:3000/api/table/${tableId}/export-async`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
@@ -52,9 +61,9 @@ function makeRequest(body: unknown, tableId = 'tbl_1') {
   return POST(req, { params: Promise.resolve({ tableId }) })
 }
 
-const validBody = { workspaceId: 'workspace-1', importId: 'import-id-xyz' }
+const validBody = { workspaceId: 'workspace-1', format: 'csv' }
 
-describe('POST /api/table/[tableId]/import/cancel', () => {
+describe('POST /api/table/[tableId]/export-async', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
@@ -63,48 +72,57 @@ describe('POST /api/table/[tableId]/import/cancel', () => {
       authType: 'session',
     })
     mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable() })
-    mockMarkImportCanceled.mockResolvedValue(true)
+    mockMarkTableJobRunning.mockResolvedValue(true)
+    mockRunTableExport.mockResolvedValue(undefined)
   })
 
-  it('cancels the import and emits a canceled event', async () => {
+  it('claims an export job and kicks off the worker', async () => {
     const response = await makeRequest(validBody)
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.data).toEqual({ canceled: true })
-    expect(mockMarkImportCanceled).toHaveBeenCalledWith('tbl_1', 'import-id-xyz')
-    expect(mockAppendTableEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'import', status: 'canceled', importId: 'import-id-xyz' })
-    )
+    expect(data.data).toEqual({ tableId: 'tbl_1', jobId: 'job-id-xyz' })
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', 'job-id-xyz', 'export', {
+      format: 'csv',
+    })
+    expect(mockRunTableExport).toHaveBeenCalledWith({
+      jobId: 'job-id-xyz',
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-1',
+      format: 'csv',
+    })
   })
 
-  it('does not emit an event when nothing was importing', async () => {
-    mockMarkImportCanceled.mockResolvedValue(false)
-    const response = await makeRequest(validBody)
-    const data = await response.json()
-
+  it('defaults the format to csv', async () => {
+    const response = await makeRequest({ workspaceId: 'workspace-1' })
     expect(response.status).toBe(200)
-    expect(data.data).toEqual({ canceled: false })
-    expect(mockAppendTableEvent).not.toHaveBeenCalled()
+    expect(mockRunTableExport).toHaveBeenCalledWith(expect.objectContaining({ format: 'csv' }))
+  })
+
+  it('returns 409 when the claim fails', async () => {
+    mockMarkTableJobRunning.mockResolvedValue(false)
+    const response = await makeRequest(validBody)
+    expect(response.status).toBe(409)
+    expect(mockRunTableExport).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
     const response = await makeRequest(validBody)
     expect(response.status).toBe(401)
-    expect(mockMarkImportCanceled).not.toHaveBeenCalled()
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 
   it('returns the access error status when access is denied', async () => {
     mockCheckAccess.mockResolvedValue({ ok: false, status: 403 })
     const response = await makeRequest(validBody)
     expect(response.status).toBe(403)
+    expect(mockRunTableExport).not.toHaveBeenCalled()
   })
 
   it('returns 400 on workspace mismatch', async () => {
-    mockCheckAccess.mockResolvedValue({ ok: true, table: buildTable({ workspaceId: 'other-ws' }) })
-    const response = await makeRequest(validBody)
+    const response = await makeRequest({ ...validBody, workspaceId: 'other-ws' })
     expect(response.status).toBe(400)
-    expect(mockMarkImportCanceled).not.toHaveBeenCalled()
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 })

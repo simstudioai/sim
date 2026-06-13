@@ -79,6 +79,15 @@ vi.mock('@sim/db/schema', () => ({
     organizationId: 'workspace.organizationId',
     workspaceMode: 'workspace.workspaceMode',
   },
+  permissions: {
+    entityId: 'permissions.entityId',
+    entityType: 'permissions.entityType',
+    userId: 'permissions.userId',
+  },
+  invitationWorkspaceGrant: {
+    invitationId: 'invitationWorkspaceGrant.invitationId',
+    workspaceId: 'invitationWorkspaceGrant.workspaceId',
+  },
 }))
 
 vi.mock('drizzle-orm', () => ({
@@ -180,6 +189,175 @@ describe('POST /api/organizations/[id]/invitations', () => {
       expect.objectContaining({ kind: 'organization', email: 'invitee@example.com' })
     )
     expect(mockCancelPendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('sends a workspace invitation to an existing member for selected workspaces they lack', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ id: 'ws-2', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
+      [{ userId: 'user-2', workspaceId: 'ws-1' }],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          emails: ['member@example.com'],
+          workspaceInvitations: [
+            { workspaceId: 'ws-1', permission: 'write' },
+            { workspaceId: 'ws-2', permission: 'write' },
+          ],
+        },
+        {},
+        'http://localhost/api/organizations/org-1/invitations?batch=true'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(1)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workspace',
+        email: 'member@example.com',
+        organizationId: 'org-1',
+        membershipIntent: 'internal',
+        grants: [{ workspaceId: 'ws-2', permission: 'write' }],
+      })
+    )
+    expect(mockSendInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workspace',
+        email: 'member@example.com',
+        grants: [{ workspaceId: 'ws-2', permission: 'write' }],
+      })
+    )
+
+    const body = await response.json()
+    expect(body.data.invitationsSent).toBe(1)
+    expect(body.data.invitedEmails).toEqual(['member@example.com'])
+    expect(body.data.existingMembers).toEqual([])
+  })
+
+  it('returns 400 when an existing member already has access to every selected workspace', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
+      [{ userId: 'user-2', workspaceId: 'ws-1' }],
+      [],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          emails: ['member@example.com'],
+          workspaceInvitations: [{ workspaceId: 'ws-1', permission: 'write' }],
+        },
+        {},
+        'http://localhost/api/organizations/org-1/invitations?batch=true'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toContain('already has access')
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
+  })
+
+  it('invites new emails to the organization and existing members to workspaces in one batch', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ id: 'ws-1', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
+      [],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          emails: ['new@example.com', 'member@example.com'],
+          workspaceInvitations: [{ workspaceId: 'ws-1', permission: 'read' }],
+        },
+        {},
+        'http://localhost/api/organizations/org-1/invitations?batch=true'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(2)
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'organization',
+        email: 'new@example.com',
+        grants: [{ workspaceId: 'ws-1', permission: 'read' }],
+      })
+    )
+    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'workspace',
+        email: 'member@example.com',
+        grants: [{ workspaceId: 'ws-1', permission: 'read' }],
+      })
+    )
+
+    const body = await response.json()
+    expect(body.data.invitationsSent).toBe(2)
+    expect(body.data.invitedEmails).toEqual(['new@example.com', 'member@example.com'])
+  })
+
+  it('still rejects existing members on the non-batch organization invite path', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { emails: ['member@example.com'] },
+        {},
+        'http://localhost/api/organizations/org-1/invitations'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    const body = await response.json()
+    expect(body.error).toBe(
+      'Failed to send invitation. User is already a part of the organization.'
+    )
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('rolls back the pending invitation when email delivery fails', async () => {

@@ -15,7 +15,7 @@ import {
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { INTEGRATIONS } from '@/lib/integrations'
+import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
 import { getServiceConfigByProviderId } from '@/lib/oauth'
 import {
   AddPeopleModal,
@@ -98,15 +98,20 @@ export function ConnectedCredentialDetail({
   }, [credential])
 
   /**
-   * Resolve the integration block type from the OAuth service name so the
-   * header tile can render with the same brand background used by the rows on
-   * the integrations list page.
+   * Resolve the integration block type from the credential's OAuth service so
+   * the header tile can render with the same brand background used by the rows
+   * on the integrations list page. Several integrations can share one service
+   * (e.g. Jira and Jira Service Management); the one named after the service
+   * is preferred since it is the service's canonical integration.
    */
   const integrationBlockType = useMemo(() => {
-    const name = serviceConfig?.name.toLowerCase()
-    if (!name) return ''
-    const match = INTEGRATIONS.find((i) => i.name.toLowerCase() === name)
-    return match?.type ?? ''
+    if (!serviceConfig) return ''
+    const candidates = INTEGRATIONS.filter(
+      (i) => resolveOAuthServiceForIntegration(i)?.providerId === serviceConfig.providerId
+    )
+    const serviceName = serviceConfig.name.toLowerCase()
+    const canonical = candidates.find((i) => i.name.toLowerCase() === serviceName)
+    return (canonical ?? candidates[0])?.type ?? ''
   }, [serviceConfig])
 
   const handleReconnectOAuth = async () => {

@@ -16,7 +16,7 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('import-id-xyz'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
-vi.mock('@/lib/table/service', () => ({ markTableImporting: mockMarkTableImporting }))
+vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableImporting }))
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: mockRunTableImport }))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: (_label: string, work: () => Promise<unknown>) => {
@@ -92,7 +92,7 @@ describe('POST /api/table/[tableId]/import-async', () => {
 
     expect(response.status).toBe(200)
     expect(data.data).toEqual({ tableId: 'tbl_1', importId: 'import-id-xyz' })
-    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'import-id-xyz')
+    expect(mockMarkTableImporting).toHaveBeenCalledWith('tbl_1', 'import-id-xyz', 'import')
     expect(mockRunTableImport).toHaveBeenCalledWith(
       expect.objectContaining({
         tableId: 'tbl_1',

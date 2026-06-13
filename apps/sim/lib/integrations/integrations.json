@@ -441,6 +441,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "airtable",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["spreadsheet", "automation"]
@@ -946,6 +947,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "asana",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing", "automation"]
@@ -1453,6 +1455,7 @@
       ],
       "triggerCount": 22,
       "authType": "oauth",
+      "oauthServiceId": "attio",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement", "enrichment"]
@@ -1960,6 +1963,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "microsoft-ad",
       "category": "tools",
       "integrationType": "security",
       "tags": ["identity", "microsoft-365"]
@@ -2138,6 +2142,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "box",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["cloud", "content-management", "e-signatures"]
@@ -2506,6 +2511,7 @@
       ],
       "triggerCount": 9,
       "authType": "oauth",
+      "oauthServiceId": "calcom",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"]
@@ -3325,6 +3331,7 @@
       ],
       "triggerCount": 23,
       "authType": "oauth",
+      "oauthServiceId": "confluence",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["knowledge-base", "content-management", "note-taking"]
@@ -4039,6 +4046,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "docusign",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["e-signatures", "document-processing"]
@@ -4098,6 +4106,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "dropbox",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["cloud", "document-processing"]
@@ -5506,6 +5515,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "gmail",
       "category": "tools",
       "integrationType": "email",
       "tags": ["google-workspace", "messaging"]
@@ -5663,6 +5673,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-ads",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["marketing", "google-workspace", "data-analytics"]
@@ -5702,6 +5713,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-bigquery",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "google-workspace", "data-analytics"]
@@ -5794,6 +5806,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "google-calendar",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["calendar", "scheduling", "google-workspace"]
@@ -5837,6 +5850,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-contacts",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["google-workspace", "customer-support", "enrichment"]
@@ -5868,6 +5882,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-docs",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["google-workspace", "document-processing", "content-management"]
@@ -5965,6 +5980,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "google-drive",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["cloud", "google-workspace", "document-processing"]
@@ -6026,6 +6042,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "google-forms",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["google-workspace", "forms", "data-analytics"]
@@ -6109,6 +6126,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-groups",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["google-workspace", "messaging", "identity"]
@@ -6223,6 +6241,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-meet",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["meeting", "google-workspace", "scheduling"]
@@ -6328,6 +6347,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "google-sheets",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["spreadsheet", "google-workspace", "data-analytics"]
@@ -6555,6 +6575,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-drive",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["google-workspace", "document-processing", "content-management"]
@@ -6598,6 +6619,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-tasks",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["google-workspace", "project-management", "scheduling"]
@@ -6672,6 +6694,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "google-vault",
       "category": "tools",
       "integrationType": "security",
       "tags": ["google-workspace", "document-processing"]
@@ -7257,6 +7280,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "hubspot",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["marketing", "sales-engagement", "customer-support"]
@@ -8128,6 +8152,7 @@
       ],
       "triggerCount": 15,
       "authType": "oauth",
+      "oauthServiceId": "jira",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"]
@@ -8309,6 +8334,7 @@
       ],
       "triggerCount": 5,
       "authType": "oauth",
+      "oauthServiceId": "jira",
       "category": "tools",
       "integrationType": "support",
       "tags": ["customer-support", "ticketing", "incident-management"]
@@ -9068,6 +9094,7 @@
       ],
       "triggerCount": 15,
       "authType": "oauth",
+      "oauthServiceId": "linear",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"]
@@ -9095,6 +9122,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "linkedin",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["marketing", "sales-engagement"]
@@ -9870,6 +9898,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "microsoft-dataverse",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["microsoft-365", "data-warehouse", "cloud"]
@@ -9897,6 +9926,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "microsoft-excel",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["spreadsheet", "microsoft-365"]
@@ -9968,6 +9998,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "microsoft-planner",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "microsoft-365"]
@@ -10049,6 +10080,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "microsoft-teams",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "microsoft-365"]
@@ -10211,6 +10243,7 @@
       ],
       "triggerCount": 9,
       "authType": "oauth",
+      "oauthServiceId": "monday",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"]
@@ -10469,6 +10502,7 @@
       ],
       "triggerCount": 9,
       "authType": "oauth",
+      "oauthServiceId": "notion",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["note-taking", "knowledge-base", "content-management"]
@@ -10682,6 +10716,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "onedrive",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "cloud", "document-processing"]
@@ -10743,6 +10778,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "outlook",
       "category": "tools",
       "integrationType": "email",
       "tags": ["microsoft-365", "messaging", "automation"]
@@ -11160,6 +11196,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "pipedrive",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement", "project-management"]
@@ -12170,6 +12207,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "reddit",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["content-management", "web-scraping"]
@@ -13221,6 +13259,7 @@
       ],
       "triggerCount": 6,
       "authType": "oauth",
+      "oauthServiceId": "salesforce",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement", "customer-support"]
@@ -14083,6 +14122,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "sharepoint",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["microsoft-365", "content-management", "document-processing"]
@@ -14186,6 +14226,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "shopify",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["payments", "automation"]
@@ -14425,6 +14466,7 @@
       ],
       "triggerCount": 1,
       "authType": "oauth",
+      "oauthServiceId": "slack",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "webhooks", "automation"],
@@ -15272,6 +15314,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "trello",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["project-management", "ticketing"]
@@ -15667,6 +15710,141 @@
       "tags": ["cloud"]
     },
     {
+      "type": "vanta",
+      "slug": "vanta",
+      "name": "Vanta",
+      "description": "Query compliance status and manage evidence in Vanta",
+      "longDescription": "Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and automated tests; find failing test entities; manage evidence documents including file upload, download, and submission; and track people, policies, vendors, monitored computers, vulnerabilities, and risk scenarios. Requires Vanta OAuth client credentials.",
+      "bgColor": "#F8F4F3",
+      "iconName": "VantaIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/vanta",
+      "operations": [
+        {
+          "name": "List Frameworks",
+          "description": "List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts"
+        },
+        {
+          "name": "Get Framework",
+          "description": "Get a Vanta compliance framework by ID, including its requirement categories and mapped controls"
+        },
+        {
+          "name": "List Framework Controls",
+          "description": "List the controls that belong to a specific Vanta compliance framework"
+        },
+        {
+          "name": "List Controls",
+          "description": "List the security controls in a Vanta account, optionally filtered by framework"
+        },
+        {
+          "name": "Get Control",
+          "description": "Get a Vanta security control by ID, including its status and evidence pass/fail counts"
+        },
+        {
+          "name": "List Control Tests",
+          "description": "List the automated tests mapped to a specific Vanta control"
+        },
+        {
+          "name": "List Control Documents",
+          "description": "List the evidence documents mapped to a specific Vanta control"
+        },
+        {
+          "name": "List Tests",
+          "description": "List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category"
+        },
+        {
+          "name": "Get Test",
+          "description": "Get a Vanta automated compliance test by ID, including its status and remediation info"
+        },
+        {
+          "name": "List Test Entities",
+          "description": "List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation"
+        },
+        {
+          "name": "List Documents",
+          "description": "List the evidence documents in a Vanta account, optionally filtered by framework or document status"
+        },
+        {
+          "name": "Get Document",
+          "description": "Get a Vanta evidence document by ID, including its renewal schedule and deactivation status"
+        },
+        {
+          "name": "List Document Uploads",
+          "description": "List the files uploaded to a specific Vanta evidence document"
+        },
+        {
+          "name": "Upload Document File",
+          "description": "Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope."
+        },
+        {
+          "name": "Download Document File",
+          "description": "Download a file previously uploaded to a Vanta evidence document and store it in execution files"
+        },
+        {
+          "name": "Submit Document",
+          "description": "Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access."
+        },
+        {
+          "name": "List People",
+          "description": "List the people tracked in a Vanta account with employment status, group membership, and security task completion"
+        },
+        {
+          "name": "Get Person",
+          "description": "Get a person tracked in Vanta by ID, including employment, leave, and security task status"
+        },
+        {
+          "name": "List Policies",
+          "description": "List the security policies in a Vanta account with approval status and version info"
+        },
+        {
+          "name": "Get Policy",
+          "description": "Get a Vanta security policy by ID, including its approval status and latest approved version documents"
+        },
+        {
+          "name": "List Vendors",
+          "description": "List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules"
+        },
+        {
+          "name": "Get Vendor",
+          "description": "Get a Vanta vendor by ID, including risk levels, contract details, and authentication info"
+        },
+        {
+          "name": "List Monitored Computers",
+          "description": "List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes"
+        },
+        {
+          "name": "List Vulnerabilities",
+          "description": "List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration"
+        },
+        {
+          "name": "List Vulnerability Remediations",
+          "description": "List remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates"
+        },
+        {
+          "name": "List Vulnerable Assets",
+          "description": "List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)"
+        },
+        {
+          "name": "Get Vulnerable Asset",
+          "description": "Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details"
+        },
+        {
+          "name": "List Risk Scenarios",
+          "description": "List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status"
+        },
+        {
+          "name": "Get Risk Scenario",
+          "description": "Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status"
+        }
+      ],
+      "operationCount": 29,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["monitoring", "automation", "document-processing"]
+    },
+    {
       "type": "vercel",
       "slug": "vercel",
       "name": "Vercel",
@@ -15989,6 +16167,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "wealthbox",
       "category": "tools",
       "integrationType": "sales",
       "tags": ["sales-engagement"]
@@ -16049,6 +16228,7 @@
       ],
       "triggerCount": 4,
       "authType": "oauth",
+      "oauthServiceId": "webflow",
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["content-management", "seo"]
@@ -16266,6 +16446,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "wordpress",
       "category": "tools",
       "integrationType": "marketing",
       "tags": ["content-management", "seo"]
@@ -16456,6 +16637,7 @@
       "triggers": [],
       "triggerCount": 0,
       "authType": "oauth",
+      "oauthServiceId": "x",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["marketing", "messaging"]
@@ -16806,6 +16988,7 @@
       ],
       "triggerCount": 6,
       "authType": "oauth",
+      "oauthServiceId": "zoom",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["meeting", "calendar", "scheduling"]

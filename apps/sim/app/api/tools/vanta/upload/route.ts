@@ -1,0 +1,145 @@
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { type NextRequest, NextResponse } from 'next/server'
+import { vantaUploadContract } from '@/lib/api/contracts/tools/vanta'
+import { parseRequest } from '@/lib/api/server'
+import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { generateRequestId } from '@/lib/core/utils/request'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import { assertToolFileAccess } from '@/app/api/files/authorization'
+import {
+  asVantaRecord,
+  buildVantaUrl,
+  extractVantaError,
+  fetchVantaWithAuth,
+  getVantaBaseUrl,
+  normalizeVantaUploadedFile,
+  VANTA_DOCUMENT_UPLOAD_SCOPE,
+} from '@/tools/vanta/utils'
+
+export const dynamic = 'force-dynamic'
+
+const logger = createLogger('VantaUploadAPI')
+
+const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024
+
+function uploadSizeError(bytes: number): NextResponse {
+  const sizeMB = (bytes / (1024 * 1024)).toFixed(2)
+  return NextResponse.json(
+    { success: false, error: `File size (${sizeMB}MB) exceeds upload limit of 100MB` },
+    { status: 400 }
+  )
+}
+
+export const POST = withRouteHandler(async (request: NextRequest) => {
+  const requestId = generateRequestId()
+
+  try {
+    const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
+    if (!authResult.success || !authResult.userId) {
+      logger.warn(`[${requestId}] Unauthorized Vanta upload attempt`, {
+        error: authResult.error || 'Missing userId',
+      })
+      return NextResponse.json(
+        { success: false, error: authResult.error || 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const parsed = await parseRequest(vantaUploadContract, request, {})
+    if (!parsed.success) return parsed.response
+    const params = parsed.data.body
+
+    let fileBuffer: Buffer
+    let fileName: string
+    let mimeType: string
+
+    if (params.file) {
+      const userFiles = processFilesToUserFiles([params.file as RawFileInput], requestId, logger)
+      if (userFiles.length === 0) {
+        return NextResponse.json({ success: false, error: 'Invalid file input' }, { status: 400 })
+      }
+
+      const userFile = userFiles[0]
+      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+      if (denied) return denied
+
+      if (userFile.size > MAX_UPLOAD_SIZE_BYTES) {
+        return uploadSizeError(userFile.size)
+      }
+
+      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+      fileName = params.fileName || userFile.name
+      mimeType = userFile.type || params.mimeType || 'application/octet-stream'
+    } else if (params.fileContent) {
+      fileBuffer = Buffer.from(params.fileContent, 'base64')
+      fileName = params.fileName || 'file'
+      mimeType = params.mimeType || 'application/octet-stream'
+    } else {
+      return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+    }
+
+    if (fileBuffer.length > MAX_UPLOAD_SIZE_BYTES) {
+      return uploadSizeError(fileBuffer.length)
+    }
+
+    logger.info(`[${requestId}] Uploading file to Vanta document`, {
+      documentId: params.documentId,
+      fileName,
+      size: fileBuffer.length,
+    })
+
+    const uploadUrl = buildVantaUrl(
+      getVantaBaseUrl(params.region),
+      `/documents/${encodeURIComponent(params.documentId)}/uploads`
+    )
+    const response = await fetchVantaWithAuth(
+      {
+        clientId: params.clientId,
+        clientSecret: params.clientSecret,
+        region: params.region,
+        scope: VANTA_DOCUMENT_UPLOAD_SCOPE,
+      },
+      (accessToken) => {
+        const formData = new FormData()
+        formData.append(
+          'file',
+          new Blob([new Uint8Array(fileBuffer)], { type: mimeType }),
+          fileName
+        )
+        if (params.description) {
+          formData.append('description', params.description)
+        }
+        if (params.effectiveAtDate) {
+          formData.append('effectiveAtDate', params.effectiveAtDate)
+        }
+        return fetch(uploadUrl, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+          cache: 'no-store',
+        })
+      }
+    )
+
+    const data: unknown = await response.json().catch(() => null)
+    if (!response.ok) {
+      const message = extractVantaError(data, 'Failed to upload file to Vanta document')
+      logger.error(`[${requestId}] Vanta upload failed`, { status: response.status, message })
+      return NextResponse.json({ success: false, error: message }, { status: response.status })
+    }
+
+    logger.info(`[${requestId}] Vanta upload successful`, { documentId: params.documentId })
+
+    return NextResponse.json({
+      success: true,
+      output: { upload: normalizeVantaUploadedFile(asVantaRecord(data)) },
+    })
+  } catch (error) {
+    const message = toError(error).message
+    logger.error(`[${requestId}] Vanta upload failed`, { error: message })
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+})

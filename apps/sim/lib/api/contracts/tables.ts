@@ -8,6 +8,7 @@ import type {
   TableDefinition,
   TableMetadata,
   TableRow,
+  TableRowsCursor,
 } from '@/lib/table'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
@@ -293,10 +294,17 @@ export const deleteTableRowsBodySchema = z
     message: 'Provide either filter or rowIds, but not both',
   })
 
-export const tableRowsQuerySchema = z.object({
+/** Unrefined base so v1 contracts can `.extend()` — consumers use {@link tableRowsQuerySchema}. */
+export const tableRowsQueryBaseSchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   filter: domainObjectSchema<Filter>().optional(),
   sort: domainObjectSchema<Sort>().optional(),
+  /**
+   * Keyset cursor `(orderKey, id)` for the default row order — each page is an index seek
+   * instead of OFFSET's scan-and-discard. Mutually exclusive with `sort` (cursors only make
+   * sense on the default order); takes precedence over `offset`.
+   */
+  after: domainObjectSchema<TableRowsCursor>().optional(),
   limit: z
     .preprocess(
       (value) =>
@@ -328,6 +336,11 @@ export const tableRowsQuerySchema = z.object({
     )
     .default(true),
 })
+
+export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
+  (data) => !(data.after && data.sort),
+  { message: 'after cursor cannot be combined with sort — cursors paginate the default order' }
+)
 
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
@@ -724,6 +737,79 @@ export const tableExportFormatSchema = z
   )
   .default('csv')
 
+export const exportTableAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  format: z.enum(['csv', 'json']).default('csv'),
+})
+
+export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
+
+/**
+ * Kickoff for a background export (large tables — small ones use the synchronous streaming
+ * `/export` route). The worker generates the file, uploads it to workspace storage, and the
+ * client fetches a presigned URL from the download contract once the job is `ready`.
+ */
+export const exportTableAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/export-async',
+  params: tableIdParamsSchema,
+  body: exportTableAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
+  },
+})
+
+export const tableJobSummarySchema = z.object({
+  jobId: z.string(),
+  tableId: z.string(),
+  tableName: z.string(),
+  status: z.enum(['running', 'ready', 'failed', 'canceled']),
+  rowsProcessed: z.number(),
+  format: z.enum(['csv', 'json']),
+  hasResult: z.boolean(),
+  error: z.string().nullable(),
+})
+
+export type TableJobSummary = z.output<typeof tableJobSummarySchema>
+
+export const listTableJobsQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  type: z.literal('export'),
+})
+
+/**
+ * Workspace-scoped job listing the header tray polls. Export-only today: exports are excluded
+ * from the table-level job derivation (they run concurrently with other jobs), so this is their
+ * dedicated read path — running jobs plus recently-finished ones for re-download.
+ */
+export const listTableJobsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/jobs',
+  query: listTableJobsQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ jobs: z.array(tableJobSummarySchema) })),
+  },
+})
+
+export const exportDownloadQuerySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  jobId: z.string().min(1, 'Job ID is required'),
+})
+
+/** Resolves a completed export job to a short-lived presigned download URL. */
+export const exportDownloadContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/table/[tableId]/export/download',
+  params: tableIdParamsSchema,
+  query: exportDownloadQuerySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ url: z.string().min(1), fileName: z.string() })),
+  },
+})
+
 /**
  * `mapping` form field — a JSON-encoded `CsvHeaderMapping` (CSV header →
  * column name, or `null` to skip the header).
@@ -831,6 +917,40 @@ export const deleteTableRowsContract = defineRouteContract({
         missingRowIds: z.array(z.string()).optional(),
       })
     ),
+  },
+})
+
+/**
+ * Kickoff body for an asynchronous "select all" delete. Sends the active filter (and an optional
+ * exclusion set for "select all then deselect a few") instead of every row id, so the background
+ * worker deletes in paginated batches. Omitting `filter` deletes the whole table (at the cutoff).
+ */
+export const deleteTableRowsAsyncBodySchema = z.object({
+  workspaceId: z.string().min(1, 'Workspace ID is required'),
+  filter: nonEmptyFilterSchema.optional(),
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional(),
+  /** Display-only doomed-row estimate (the filtered total minus deselections the client just
+   *  showed). Persisted on the job so list/detail counts can subtract the not-yet-deleted
+   *  remainder mid-job; clamped server-side, never used to scope the delete itself. */
+  estimatedCount: z.number().int().min(0).optional(),
+})
+
+export type DeleteTableRowsAsyncBody = z.input<typeof deleteTableRowsAsyncBodySchema>
+
+export const deleteTableRowsAsyncContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/table/[tableId]/delete-async',
+  params: tableIdParamsSchema,
+  body: deleteTableRowsAsyncBodySchema,
+  response: {
+    mode: 'json',
+    schema: successResponseSchema(z.object({ tableId: z.string(), jobId: z.string() })),
   },
 })
 
@@ -993,7 +1113,8 @@ export const deleteWorkflowGroupContract = defineRouteContract({
 
 /**
  * Cancel scopes:
- *  - `all`     — every running/pending cell in the table
+ *  - `all`     — every running/pending cell in the table; with `filter`, only
+ *                cells on rows matching it (filtered "select all" Stop)
  *  - `row`     — every running/pending cell for a specific row (`rowId` required)
  */
 export const cancelTableRunsBodySchema = z
@@ -1001,6 +1122,15 @@ export const cancelTableRunsBodySchema = z
     workspaceId: z.string().min(1, 'Workspace ID is required'),
     scope: z.enum(['all', 'row']),
     rowId: z.string().min(1).optional(),
+    filter: domainObjectSchema<Filter>().optional(),
+    /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
+    excludeRowIds: z
+      .array(z.string().min(1))
+      .max(
+        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+      )
+      .optional(),
   })
   .superRefine((value, ctx) => {
     if (value.scope === 'row' && !value.rowId) {
@@ -1008,6 +1138,20 @@ export const cancelTableRunsBodySchema = z
         code: 'custom',
         path: ['rowId'],
         message: 'rowId is required when scope is "row"',
+      })
+    }
+    if (value.scope === 'row' && value.filter) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['filter'],
+        message: 'filter only applies to scope "all"',
+      })
+    }
+    if (value.scope === 'row' && value.excludeRowIds) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['excludeRowIds'],
+        message: 'excludeRowIds only applies to scope "all"',
       })
     }
   })
@@ -1023,23 +1167,26 @@ export const cancelTableRunsContract = defineRouteContract({
   },
 })
 
-export const cancelTableImportBodySchema = z.object({
+export const cancelTableJobBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  importId: z.string().min(1, 'Import ID is required'),
+  jobId: z.string().min(1, 'Job ID is required'),
 })
 
-/** Cancel an in-flight async CSV import. The worker stops; committed rows are left in place. */
-export const cancelTableImportContract = defineRouteContract({
+/**
+ * Cancel an in-flight async table job (import or delete). The worker stops at its next ownership
+ * check; committed work (inserted/deleted rows) is left in place.
+ */
+export const cancelTableJobContract = defineRouteContract({
   method: 'POST',
-  path: '/api/table/[tableId]/import/cancel',
+  path: '/api/table/[tableId]/job/cancel',
   params: tableIdParamsSchema,
-  body: cancelTableImportBodySchema,
+  body: cancelTableJobBodySchema,
   response: {
     mode: 'json',
     schema: successResponseSchema(z.object({ canceled: z.boolean() })),
   },
 })
-export type CancelTableImportBody = z.input<typeof cancelTableImportBodySchema>
+export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
 
 /**
  * Run modes for `POST /api/table/[tableId]/columns/run`:
@@ -1071,14 +1218,32 @@ export const runLimitSchema = z.object({
     .max(1_000_000, 'max cannot exceed 1,000,000'),
 })
 
-export const runColumnBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  groupIds: z.array(z.string().min(1)).min(1),
-  runMode: z.enum(['all', 'incomplete']).default('all'),
-  rowIds: z.array(z.string().min(1)).min(1).optional(),
-  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
-  limit: runLimitSchema.optional(),
-})
+export const runColumnBodySchema = z
+  .object({
+    workspaceId: z.string().min(1, 'Workspace ID is required'),
+    groupIds: z.array(z.string().min(1)).min(1),
+    runMode: z.enum(['all', 'incomplete']).default('all'),
+    rowIds: z.array(z.string().min(1)).min(1).optional(),
+    /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
+     *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
+    filter: nonEmptyFilterSchema.optional(),
+    /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
+    excludeRowIds: z
+      .array(z.string().min(1))
+      .max(
+        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+      )
+      .optional(),
+    /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
+    limit: runLimitSchema.optional(),
+  })
+  .refine((data) => !(data.rowIds && data.filter), {
+    message: 'Provide either filter or rowIds, but not both',
+  })
+  .refine((data) => !(data.rowIds && data.excludeRowIds), {
+    message: 'excludeRowIds only applies to select-all scope (no rowIds)',
+  })
 
 export const runColumnContract = defineRouteContract({
   method: 'POST',

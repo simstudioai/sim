@@ -388,12 +388,14 @@ export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
   /**
    * Optional domain-level validator. Runs AFTER the field's internal format
    * check passes. Return an error message to reject the email (added as an
-   * invalid chip and surfaced in the inline banner); return `null` to accept.
+   * invalid chip whose reason shows in a tooltip on hover); return `null`
+   * to accept.
    */
   validate?: (email: string) => string | null
   /**
-   * External error (e.g. server-side submit failure). Takes precedence over
-   * the field's internal validation banner while present.
+   * External error (e.g. server-side submit failure), rendered in the inline
+   * banner below the field. Per-email rejection reasons are shown on the
+   * invalid chips themselves, not here.
    */
   error?: React.ReactNode
   /** Auto-focus the input when the field mounts. */
@@ -561,8 +563,11 @@ function derivePlaceholderWithTags(placeholder: string): string {
 
 /**
  * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
- * chip lifecycle (valid + invalid items, dedupe, inline error banner) and
- * lifts only the valid email list up to the consumer via `onChange`.
+ * chip lifecycle (valid + invalid items, dedupe, per-chip error tooltips)
+ * and lifts only the valid email list up to the consumer via `onChange`.
+ * Each rejected entry carries its rejection reason on the chip itself,
+ * surfaced as a tooltip; the inline banner is reserved for the consumer's
+ * `error` (e.g. server-side submit failures).
  */
 function ChipModalEmailsControl({
   value,
@@ -576,7 +581,21 @@ function ChipModalEmailsControl({
   errorId,
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
   const [items, setItems] = React.useState<TagItem[]>([])
-  const [internalError, setInternalError] = React.useState<string | null>(null)
+
+  /**
+   * Synchronous mirror of `items`. Pasting multiple values calls `handleAdd`
+   * once per value within a single event, before React re-renders — reading
+   * the `items` state there would make every call see the same stale array
+   * and each add overwrite the previous one (only the last pasted email
+   * survives). All reads and writes go through the ref so consecutive adds
+   * compose; `commitItems` keeps state and ref in lockstep.
+   */
+  const itemsRef = React.useRef<TagItem[]>(items)
+
+  const commitItems = React.useCallback((next: TagItem[]) => {
+    itemsRef.current = next
+    setItems(next)
+  }, [])
 
   /**
    * Reconcile internal `items` with the consumer's `value` when the latter
@@ -585,61 +604,56 @@ function ChipModalEmailsControl({
    * `items` already match `value` and this is a no-op.
    */
   React.useEffect(() => {
-    setItems((prev) => {
-      const prevValid = prev.filter((item) => item.isValid).map((item) => item.value)
-      if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
-        return prev
-      }
-      return value.map((v) => ({ value: v, isValid: true }))
-    })
+    const prevValid = itemsRef.current.filter((item) => item.isValid).map((item) => item.value)
+    if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
+      return
+    }
+    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
+    setItems(itemsRef.current)
   }, [value])
 
   const handleAdd = React.useCallback(
     (raw: string): boolean => {
       const email = raw.trim().toLowerCase()
       if (!email) return false
-      if (items.some((item) => item.value === email)) return false
+      const current = itemsRef.current
+      if (current.some((item) => item.value === email)) return false
 
-      if (!quickValidateEmail(email).isValid) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(null)
+      const formatCheck = quickValidateEmail(email)
+      if (!formatCheck.isValid) {
+        commitItems([
+          ...current,
+          { value: email, isValid: false, error: formatCheck.reason ?? 'Invalid email format' },
+        ])
         return false
       }
 
       const reason = validate?.(email)
       if (reason) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(reason)
+        commitItems([...current, { value: email, isValid: false, error: reason }])
         return false
       }
 
-      const next = [...items, { value: email, isValid: true }]
-      setItems(next)
+      const next = [...current, { value: email, isValid: true }]
+      commitItems(next)
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      setInternalError(null)
       return true
     },
-    [items, validate, onChange]
+    [validate, onChange, commitItems]
   )
 
   const handleRemove = React.useCallback(
     (_removed: string, index: number) => {
-      const wasValid = items[index]?.isValid ?? false
-      const next = items.filter((_, i) => i !== index)
-      setItems(next)
+      const current = itemsRef.current
+      const wasValid = current[index]?.isValid ?? false
+      const next = current.filter((_, i) => i !== index)
+      commitItems(next)
       if (wasValid) {
         onChange(next.filter((item) => item.isValid).map((item) => item.value))
       }
-      setInternalError(null)
     },
-    [items, onChange]
+    [onChange, commitItems]
   )
-
-  const handleInputChange = React.useCallback(() => {
-    setInternalError(null)
-  }, [])
-
-  const banner = error ?? internalError
 
   return (
     <>
@@ -648,16 +662,15 @@ function ChipModalEmailsControl({
         items={items}
         onAdd={handleAdd}
         onRemove={handleRemove}
-        onInputChange={handleInputChange}
         placeholder={placeholder}
         placeholderWithTags={derivePlaceholderWithTags(placeholder)}
         disabled={disabled}
         autoFocus={autoFocus}
         id={id}
       />
-      {banner && (
+      {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
-          {banner}
+          {error}
         </p>
       )}
     </>

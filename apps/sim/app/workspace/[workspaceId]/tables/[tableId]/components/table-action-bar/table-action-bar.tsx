@@ -1,5 +1,6 @@
 'use client'
 
+import type React from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
 import { Button, Tooltip } from '@/components/emcn'
 import { Eye, PlayOutline, RefreshCw, Square } from '@/components/emcn/icons'
@@ -98,71 +99,35 @@ export function TableActionBar({
 
               <div className='flex items-center gap-[5px]'>
                 {showPlay && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onPlay}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label={playLabel}
-                      >
-                        <PlayOutline className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{playLabel}</Tooltip.Content>
-                  </Tooltip.Root>
+                  <ActionIconButton label={playLabel} onClick={onPlay} disabled={isLoading}>
+                    <PlayOutline className='size-[12px]' />
+                  </ActionIconButton>
                 )}
 
                 {showRefresh && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onRefresh}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label={refreshLabel}
-                      >
-                        <RefreshCw className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{refreshLabel}</Tooltip.Content>
-                  </Tooltip.Root>
+                  <ActionIconButton label={refreshLabel} onClick={onRefresh} disabled={isLoading}>
+                    <RefreshCw className='size-[12px]' />
+                  </ActionIconButton>
                 )}
 
                 {runningCount > 0 && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onStopWorkflows}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label={stopLabel}
-                      >
-                        <Square className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>{stopLabel}</Tooltip.Content>
-                  </Tooltip.Root>
+                  <ActionIconButton
+                    label={stopLabel}
+                    onClick={onStopWorkflows}
+                    disabled={isLoading}
+                  >
+                    <Square className='size-[12px]' />
+                  </ActionIconButton>
                 )}
 
                 {onViewExecution && (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Button
-                        variant='ghost'
-                        onClick={onViewExecution}
-                        disabled={isLoading}
-                        className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
-                        aria-label='View execution'
-                      >
-                        <Eye className='size-[12px]' />
-                      </Button>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top'>View execution</Tooltip.Content>
-                  </Tooltip.Root>
+                  <ActionIconButton
+                    label='View execution'
+                    onClick={onViewExecution}
+                    disabled={isLoading}
+                  >
+                    <Eye className='size-[12px]' />
+                  </ActionIconButton>
                 )}
               </div>
             </div>
@@ -170,5 +135,36 @@ export function TableActionBar({
         )}
       </AnimatePresence>
     </LazyMotion>
+  )
+}
+
+interface ActionIconButtonProps {
+  /** Tooltip text, also used as the button's accessible label. */
+  label: string
+  onClick: () => void
+  disabled: boolean
+  children: React.ReactNode
+}
+
+/**
+ * Tooltip-wrapped icon button sharing the action bar's brand-hover chrome,
+ * so the chrome string lives in one place.
+ */
+function ActionIconButton({ label, onClick, disabled, children }: ActionIconButtonProps) {
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='ghost'
+          onClick={onClick}
+          disabled={disabled}
+          className='hover-hover:!text-[var(--text-inverse)] size-[28px] rounded-lg bg-[var(--surface-5)] p-0 text-[var(--text-secondary)] hover-hover:bg-[var(--brand-secondary)]'
+          aria-label={label}
+        >
+          {children}
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>{label}</Tooltip.Content>
+    </Tooltip.Root>
   )
 }

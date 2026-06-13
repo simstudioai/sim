@@ -35,6 +35,8 @@ export interface UseTableReturn {
   isLoadingTable: boolean
   /** Flattened across every fetched infinite-query page. */
   rows: TableRow[]
+  /** Filter-scoped total row count (server COUNT(*) for the active filter); null until loaded. */
+  rowTotal: number | null
   isLoadingRows: boolean
   refetchRows: () => void
   /**
@@ -93,6 +95,14 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
 
   const rows = useMemo<TableRow[]>(
     () => rowsData?.pages.flatMap((p) => p.rows) ?? [],
+    [rowsData?.pages]
+  )
+
+  // Server-side COUNT(*) for the active filter (page 0 only). Null until the first page lands;
+  // callers fall back to the table's unfiltered `rowCount`. This is the true "select all" total —
+  // it reflects the filter, unlike `tableData.rowCount`.
+  const rowTotal = useMemo<number | null>(
+    () => rowsData?.pages[0]?.totalCount ?? null,
     [rowsData?.pages]
   )
 
@@ -219,6 +229,7 @@ export function useTable({ workspaceId, tableId, queryOptions }: UseTableParams)
     tableData,
     isLoadingTable,
     rows,
+    rowTotal,
     isLoadingRows,
     refetchRows,
     fetchNextPage: fetchNextPageWrapped,
