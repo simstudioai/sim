@@ -1,7 +1,15 @@
 'use client'
 
 import type React from 'react'
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { Button, Paperclip, Plus, Slash, Tooltip, toast } from '@/components/emcn'
