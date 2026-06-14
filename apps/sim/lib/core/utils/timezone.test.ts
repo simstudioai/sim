@@ -33,6 +33,25 @@ describe('zonedWallClockToUtc', () => {
       '2026-07-01T23:59:59.000Z'
     )
   })
+
+  it('resolves a wall-clock on the autumn DST fall-back day at the correct offset', () => {
+    // America/New_York falls back EDT(-4)→EST(-5) at 2026-11-01 06:00Z. A naive
+    // single-pass offset read lands these an hour early; the two-pass resolve
+    // settles on EST (-5) for these post-transition wall clocks.
+    expect(zonedWallClockToUtc('2026-11-01T02:00', 'America/New_York').toISOString()).toBe(
+      '2026-11-01T07:00:00.000Z'
+    )
+    expect(zonedWallClockToUtc('2026-11-01T05:00', 'America/New_York').toISOString()).toBe(
+      '2026-11-01T10:00:00.000Z'
+    )
+  })
+
+  it('resolves a spring-forward gap wall-clock forward by the DST shift', () => {
+    // 2026-03-08 02:00–02:59 does not exist in America/New_York (EST→EDT).
+    expect(zonedWallClockToUtc('2026-03-08T02:30', 'America/New_York').toISOString()).toBe(
+      '2026-03-08T07:30:00.000Z'
+    )
+  })
 })
 
 describe('wallClockNow', () => {

@@ -103,16 +103,27 @@ function timezoneOffsetMs(instant: Date, timeZone: string): number {
 
 /**
  * Resolves a naive `yyyy-MM-ddTHH:mm[:ss]` wall-clock — interpreted as local
- * time in `timeZone` — to the exact UTC instant. The offset is read at the
- * target instant, so it is correct for any date including future ones whose
- * offset differs from today's. A wall-clock that falls in the spring-forward
- * gap (a nonexistent local hour) resolves forward by the DST shift, matching
- * how calendar apps treat that once-a-year hour.
+ * time in `timeZone` — to the exact UTC instant. It resolves to the instant
+ * whose own offset reproduces the requested wall-clock, which is correct for any
+ * date (including future ones whose offset differs from today's) and across DST:
+ * a naive single pass reads the offset on the wrong side of a same-day boundary
+ * — notably the autumn fall-back hour — and lands an hour off. For an ambiguous
+ * fall-back wall-clock the later (post-transition) instant is chosen; a
+ * wall-clock in the spring-forward gap (a nonexistent local hour) has no
+ * self-consistent instant and resolves forward by the DST shift, matching how
+ * calendar apps treat that once-a-year hour.
  */
 export function zonedWallClockToUtc(wallClock: string, timeZone: string): Date {
   const [datePart, timePart] = wallClock.split('T')
   const [year, month, day] = datePart.split('-').map(Number)
   const [hour, minute, second = 0] = timePart.split(':').map(Number)
   const utcGuess = Date.UTC(year, month - 1, day, hour, minute, second)
-  return new Date(utcGuess - timezoneOffsetMs(new Date(utcGuess), timeZone))
+  const guessOffset = timezoneOffsetMs(new Date(utcGuess), timeZone)
+  const candidate = utcGuess - guessOffset
+  const candidateOffset = timezoneOffsetMs(new Date(candidate), timeZone)
+  if (candidateOffset === guessOffset) return new Date(candidate)
+  const adjusted = utcGuess - candidateOffset
+  return timezoneOffsetMs(new Date(adjusted), timeZone) === candidateOffset
+    ? new Date(adjusted)
+    : new Date(candidate)
 }

@@ -36,23 +36,36 @@ function isLaunchInPast(launchDate: string, launchTime: string, timezone: string
 }
 
 /**
- * Seeds the launch date/time for a create. A clicked slot uses its day (and
- * time, when a specific hour was clicked) at 9am otherwise. With no slot (the
- * header action) the default is the next top of the hour in the task's
- * `timezone`, so the modal never opens with a past, already-disabled default.
- * The `Z` suffix keeps the next-hour step pure wall-clock arithmetic (adding an
- * hour and rolling the date at 23:xx), not a timezone conversion.
+ * The next top of the hour in `timezone`, as a `{ date, time }` wall-clock pair.
+ * The `Z` suffix keeps the step pure wall-clock arithmetic (adding an hour and
+ * rolling the date at 23:xx), not a timezone conversion.
+ */
+function nextTopOfHour(timezone: string): { date: string; time: string } {
+  const next = new Date(`${wallClockNow(timezone)}:00Z`)
+  next.setUTCMinutes(0, 0, 0)
+  next.setUTCHours(next.getUTCHours() + 1)
+  return { date: next.toISOString().slice(0, 10), time: next.toISOString().slice(11, 16) }
+}
+
+/**
+ * Seeds the launch date/time for a create. A slot with a specific hour uses it;
+ * a whole-day slot (month cell) and the no-slot header action both default to
+ * the next top of the hour in `timezone` when the target day is today — so the
+ * modal never opens with a past, already-disabled default — and to 9am on a
+ * future day.
  */
 function defaultLaunch(
   slot: CalendarSlot | null | undefined,
   timezone: string
 ): { date: string; time: string } {
   if (slot?.time) return { date: format(slot.date, 'yyyy-MM-dd'), time: slot.time }
-  if (slot?.date) return { date: format(slot.date, 'yyyy-MM-dd'), time: DEFAULT_TIME }
-  const next = new Date(`${wallClockNow(timezone)}:00Z`)
-  next.setUTCMinutes(0, 0, 0)
-  next.setUTCHours(next.getUTCHours() + 1)
-  return { date: next.toISOString().slice(0, 10), time: next.toISOString().slice(11, 16) }
+  const upcoming = nextTopOfHour(timezone)
+  if (slot?.date) {
+    const date = format(slot.date, 'yyyy-MM-dd')
+    const today = wallClockNow(timezone).slice(0, 10)
+    return date === today ? upcoming : { date, time: DEFAULT_TIME }
+  }
+  return upcoming
 }
 
 /** The data a task create or edit captures. */

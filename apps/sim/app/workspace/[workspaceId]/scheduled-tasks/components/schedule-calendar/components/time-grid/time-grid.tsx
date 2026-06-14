@@ -61,7 +61,7 @@ function CurrentTimeIndicator({ timezone }: { timezone: string }) {
   return (
     <div
       style={{ top: timeToOffset(zonedClockDate(now, timezone)) }}
-      className='pointer-events-none absolute inset-x-0 z-10'
+      className='pointer-events-none absolute inset-x-0 z-20'
     >
       <div className='-translate-x-1/2 -translate-y-1/2 absolute top-0 left-0 size-[10px] rounded-full bg-[var(--text-primary)] dark:bg-white' />
       <div className='-translate-y-1/2 absolute inset-x-0 top-0 h-[2px] bg-[var(--text-primary)] dark:bg-white' />
@@ -102,7 +102,8 @@ function HourCell({
  * A day column's task pills, each absolutely positioned at its exact start time
  * via {@link timeToOffset}. The layer is non-interactive so empty space falls
  * through to the hour cells beneath (click-to-create); the pills re-enable
- * pointer events. Coincident tasks overlap by design.
+ * pointer events. The layer clips to the day's bounds so a late-night pill never
+ * spills past the final hour row. Coincident tasks overlap by design.
  */
 function DayEvents({
   events,
@@ -119,7 +120,7 @@ function DayEvents({
   return (
     <div
       className={cn(
-        'pointer-events-none absolute inset-y-0 left-0.5 z-10',
+        'pointer-events-none absolute inset-y-0 left-0.5 z-10 overflow-hidden',
         isLastColumn ? 'right-6' : 'right-0.5'
       )}
     >
