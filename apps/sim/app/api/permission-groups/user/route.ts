@@ -7,7 +7,10 @@ import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  checkWorkspaceAccess,
+  isOrganizationAdminOrOwner,
+} from '@/lib/workspaces/permissions/utils'
 
 export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
@@ -32,12 +35,33 @@ export const GET = withRouteHandler(async (req: Request) => {
   }
 
   const organizationId = access.workspace?.organizationId ?? null
-  if (!organizationId || !(await isOrganizationOnEnterprisePlan(organizationId))) {
+
+  // Workspaces without an organization have no permission groups, and the caller
+  // can never be an org admin in that case.
+  if (!organizationId) {
     return NextResponse.json({
       permissionGroupId: null,
       groupName: null,
       config: null,
       entitled: false,
+      organizationId: null,
+      isOrgAdmin: false,
+    })
+  }
+
+  // Resolve role + entitlement against the WORKSPACE's owning organization (not
+  // the caller's active org) so management gating is scoped to the org that
+  // actually governs this workspace. External members are not org admins here.
+  const isOrgAdmin = await isOrganizationAdminOrOwner(session.user.id, organizationId)
+
+  if (!(await isOrganizationOnEnterprisePlan(organizationId))) {
+    return NextResponse.json({
+      permissionGroupId: null,
+      groupName: null,
+      config: null,
+      entitled: false,
+      organizationId,
+      isOrgAdmin,
     })
   }
 
@@ -80,6 +104,8 @@ export const GET = withRouteHandler(async (req: Request) => {
       groupName: null,
       config: null,
       entitled: true,
+      organizationId,
+      isOrgAdmin,
     })
   }
 
@@ -88,5 +114,7 @@ export const GET = withRouteHandler(async (req: Request) => {
     groupName: resolved.groupName,
     config: parsePermissionGroupConfig(resolved.config),
     entitled: true,
+    organizationId,
+    isOrgAdmin,
   })
 })

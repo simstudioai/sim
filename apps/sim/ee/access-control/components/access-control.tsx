@@ -25,12 +25,10 @@ import {
   Switch,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
-import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { getUserRole } from '@/lib/workspaces/organization'
 import { getAllBlocks } from '@/blocks'
 import {
   type PermissionGroup,
@@ -44,7 +42,7 @@ import {
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
-import { useOrganizationRoster, useOrganizations } from '@/hooks/queries/organization'
+import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
 import {
   DYNAMIC_MODEL_PROVIDERS,
@@ -407,27 +405,31 @@ export function AccessControl() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const { data: session } = useSession()
-  const { data: organizationsData, isPending: orgLoading } = useOrganizations()
-  const activeOrganization = organizationsData?.activeOrganization
-  const organizationId = activeOrganization?.id
-
-  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    organizationId,
-    !!organizationId
-  )
-  const { data: roster } = useOrganizationRoster(organizationId)
+  // Access control is governed by the workspace's OWNING organization, which may
+  // differ from the caller's active org (e.g. external members). Resolve the org
+  // id and the caller's admin status server-side from the workspace so gating is
+  // never keyed off the session's active org.
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
+  const organizationId = userPermissionConfig?.organizationId ?? undefined
+  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
 
-  const userRole = getUserRole(activeOrganization, session?.user?.email ?? undefined)
-  const currentUserIsOrgAdmin = userRole === 'owner' || userRole === 'admin'
+  // Group + roster reads require org admin/owner on the host org; only fetch them
+  // for admins to avoid surfacing expected 403s for non-admins/external members.
+  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
+    organizationId,
+    !!organizationId && currentUserIsOrgAdmin
+  )
+  const { data: roster } = useOrganizationRoster(currentUserIsOrgAdmin ? organizationId : undefined)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
   const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
   const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
-  const isLoading = !workspaceId || orgLoading || groupsLoading || entitlementLoading
+  const isLoading =
+    !workspaceId ||
+    entitlementLoading ||
+    (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()
