@@ -162,7 +162,13 @@ function TaskModalContent({
     if (source?.contexts && source.contexts.length > 0) setContexts(source.contexts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const seed = source
+  const seedFromSource =
+    source &&
+    !(
+      source.recurrence.frequency === 'once' &&
+      isLaunchInPast(source.launchDate, source.launchTime, timezone)
+    )
+  const seed = seedFromSource
     ? { date: source.launchDate, time: source.launchTime }
     : defaultLaunch(slot, timezone)
   const [launchDate, setLaunchDate] = useState(seed.date)

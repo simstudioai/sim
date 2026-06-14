@@ -89,8 +89,10 @@ function timezoneOffsetMs(instant: Date, timeZone: string): number {
 /**
  * Resolves a naive `yyyy-MM-ddTHH:mm[:ss]` wall-clock — interpreted as local
  * time in `timeZone` — to the exact UTC instant. The offset is read at the
- * target instant, so it stays correct across DST (including future dates whose
- * offset differs from today's).
+ * target instant, so it is correct for any date including future ones whose
+ * offset differs from today's. A wall-clock that falls in the spring-forward
+ * gap (a nonexistent local hour) resolves forward by the DST shift, matching
+ * how calendar apps treat that once-a-year hour.
  */
 export function zonedWallClockToUtc(wallClock: string, timeZone: string): Date {
   const [datePart, timePart] = wallClock.split('T')

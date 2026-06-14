@@ -108,8 +108,7 @@ describe('layoutColumn', () => {
     ])
   })
 
-  it('splits overlapping events into side-by-side lanes', () => {
-    // 9:00 and 9:10 are ~8px apart — within the 22px pill height, so they overlap.
+  it('splits events within one pill-height of each other into side-by-side lanes', () => {
     const placed = layoutColumn([at(9, 0), at(9, 10)], EVENT_CHIP_HEIGHT)
     expect(placed.map((p) => ({ lane: p.lane, lanes: p.lanes }))).toEqual([
       { lane: 0, lanes: 2 },
