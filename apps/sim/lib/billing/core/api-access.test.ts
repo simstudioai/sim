@@ -3,16 +3,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetHighestPrioritySubscription, mockGetWorkspaceBilledAccountUserId, hostedState } =
+const { mockGetHighestPrioritySubscription, mockGetWorkspaceBilledAccountUserId, billingState } =
   vi.hoisted(() => ({
     mockGetHighestPrioritySubscription: vi.fn(),
     mockGetWorkspaceBilledAccountUserId: vi.fn(),
-    hostedState: { isHosted: true },
+    billingState: { isBillingEnabled: true },
   }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
-  get isHosted() {
-    return hostedState.isHosted
+  get isBillingEnabled() {
+    return billingState.isBillingEnabled
   },
 }))
 
@@ -32,7 +32,7 @@ import {
 describe('isApiExecutionEntitled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hostedState.isHosted = true
+    billingState.isBillingEnabled = true
   })
 
   it('is false for a free plan', async () => {
@@ -54,7 +54,7 @@ describe('isApiExecutionEntitled', () => {
   )
 
   it('is true on self-hosted regardless of plan, without a subscription lookup', async () => {
-    hostedState.isHosted = false
+    billingState.isBillingEnabled = false
     expect(await isApiExecutionEntitled('user-1')).toBe(true)
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
@@ -68,7 +68,7 @@ describe('isApiExecutionEntitled', () => {
 describe('isWorkspaceApiExecutionEntitled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    hostedState.isHosted = true
+    billingState.isBillingEnabled = true
   })
 
   it('is false when the workspace billed account is free', async () => {
@@ -84,7 +84,7 @@ describe('isWorkspaceApiExecutionEntitled', () => {
   })
 
   it('skips the billed-account lookup on self-hosted', async () => {
-    hostedState.isHosted = false
+    billingState.isBillingEnabled = false
     expect(await isWorkspaceApiExecutionEntitled('ws-1')).toBe(true)
     expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
   })

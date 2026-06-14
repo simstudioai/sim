@@ -22,11 +22,11 @@ import {
   ModalTabsTrigger,
 } from '@/components/emcn'
 import { isFree } from '@/lib/billing/plan-helpers'
-import { isHosted } from '@/lib/core/config/feature-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -162,7 +162,7 @@ export function DeployModal({
   // Hold the gate closed until the plan is known — isFree(undefined) is true, so
   // gating during load would flash the upgrade wall at paid users.
   const gateProgrammaticDeploy =
-    isHosted && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
+    isBillingEnabled && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''

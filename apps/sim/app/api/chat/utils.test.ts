@@ -31,7 +31,7 @@ const {
   mockGetSession: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
   mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
-  flagState: { isHosted: false },
+  flagState: { isBillingEnabled: false },
 }))
 
 vi.mock('@/lib/billing/core/api-access', () => ({
@@ -77,8 +77,8 @@ vi.mock('@/lib/core/security/deployment', () => ({
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
   isProd: false,
-  get isHosted() {
-    return flagState.isHosted
+  get isBillingEnabled() {
+    return flagState.isBillingEnabled
   },
 }))
 
@@ -474,7 +474,7 @@ describe('Chat API Utils', () => {
 describe('assertChatEmbedAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    flagState.isHosted = true
+    flagState.isBillingEnabled = true
     mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
   })
 
@@ -509,8 +509,8 @@ describe('assertChatEmbedAllowed', () => {
     expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
   })
 
-  it('is a no-op on self-hosted', async () => {
-    flagState.isHosted = false
+  it('is a no-op when billing is disabled', async () => {
+    flagState.isBillingEnabled = false
     const res = await assertChatEmbedAllowed(
       chatRequest('https://evil.example.com'),
       'wf-1',

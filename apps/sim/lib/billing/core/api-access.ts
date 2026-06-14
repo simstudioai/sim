@@ -1,6 +1,6 @@
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/feature-flags'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 /**
@@ -11,15 +11,15 @@ export const API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE =
   'Programmatic workflow execution requires a paid plan. Upgrade to Pro or higher to use the API.'
 
 /**
- * Whether `userId` may run workflows programmatically. Always allowed on
- * self-hosted (no billing) and when no user is resolved; on hosted, requires a
- * paid plan.
+ * Whether `userId` may run workflows programmatically. Always allowed when
+ * billing enforcement is off (self-hosted / `BILLING_ENABLED` unset) and when no
+ * user is resolved; otherwise requires a paid plan.
  *
  * `getHighestPrioritySubscription` rolls up organization memberships, so a free
  * individual belonging to a paid org/workspace is entitled.
  */
 export async function isApiExecutionEntitled(userId: string | undefined): Promise<boolean> {
-  if (!isHosted || !userId) return true
+  if (!isBillingEnabled || !userId) return true
 
   const subscription = await getHighestPrioritySubscription(userId)
   return isPaid(subscription?.plan)
@@ -27,13 +27,13 @@ export async function isApiExecutionEntitled(userId: string | undefined): Promis
 
 /**
  * Workspace-scoped variant of {@link isApiExecutionEntitled} that gates on the
- * workspace's billed account. Short-circuits on self-hosted before any DB
- * lookup, so the billed-account query only runs on hosted.
+ * workspace's billed account. Short-circuits when billing is off before any DB
+ * lookup, so the billed-account query only runs when billing is enforced.
  */
 export async function isWorkspaceApiExecutionEntitled(
   workspaceId: string | undefined
 ): Promise<boolean> {
-  if (!isHosted || !workspaceId) return true
+  if (!isBillingEnabled || !workspaceId) return true
 
   const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
   return isApiExecutionEntitled(billedUserId ?? undefined)
