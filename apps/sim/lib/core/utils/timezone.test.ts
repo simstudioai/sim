@@ -70,23 +70,36 @@ describe('getSupportedTimezones', () => {
 })
 
 describe('getTimezoneOptions', () => {
-  it('leads with curated, human-friendly labels', () => {
+  it('renders every zone as "(GMT±HH:MM) City"', () => {
     const options = getTimezoneOptions()
-    expect(options[0]).toEqual({ value: 'UTC', label: 'Coordinated Universal Time (UTC)' })
-    expect(options.find((o) => o.value === 'America/Los_Angeles')?.label).toBe(
-      'US Pacific Time - Los Angeles (PT)'
-    )
+    expect(options.length).toBeGreaterThan(0)
+    for (const option of options) {
+      expect(option.label).toMatch(/^\(GMT[+-]\d{2}:\d{2}\) .+/)
+    }
   })
 
-  it('has no duplicate values even across legacy aliases', () => {
+  it('orders zones west-to-east by UTC offset', () => {
+    const offsets = getTimezoneOptions().map((option) => {
+      const match = option.label.match(/^\(GMT([+-])(\d{2}):(\d{2})\)/)
+      if (!match) throw new Error(`unexpected label: ${option.label}`)
+      const sign = match[1] === '-' ? -1 : 1
+      return sign * (Number(match[2]) * 60 + Number(match[3]))
+    })
+    expect(offsets).toEqual([...offsets].sort((a, b) => a - b))
+  })
+
+  it('uses a live DST-aware offset and a friendly city', () => {
+    const options = getTimezoneOptions()
+    expect(options.find((o) => o.value === 'UTC')?.label).toBe('(GMT+00:00) UTC')
+    // India has no DST, so this offset is stable regardless of when the test runs.
+    expect(
+      options.find((o) => o.value === 'Asia/Kolkata' || o.value === 'Asia/Calcutta')?.label
+    ).toMatch(/^\(GMT\+05:30\) (Kolkata|Calcutta)$/)
+  })
+
+  it('has no duplicate values', () => {
     const values = getTimezoneOptions().map((o) => o.value)
     expect(new Set(values).size).toBe(values.length)
-    expect(values).not.toContain('Asia/Calcutta')
-  })
-
-  it('labels the alphabetical tail with a GMT offset', () => {
-    const abidjan = getTimezoneOptions().find((o) => o.value === 'Africa/Abidjan')
-    expect(abidjan?.label).toMatch(/^Africa\/Abidjan \(GMT[+-]\d/)
   })
 })
 
