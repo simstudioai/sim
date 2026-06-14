@@ -1,7 +1,12 @@
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/feature-flags'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
+
+/** The programmatic-execution paywall is active only when billing is enforced AND the gate flag is on. */
+function isApiExecutionGateActive(): boolean {
+  return isBillingEnabled && isFreeApiDeploymentGateEnabled
+}
 
 /**
  * Message for the 402 returned when a free-plan account attempts programmatic
@@ -19,7 +24,7 @@ export const API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE =
  * individual belonging to a paid org/workspace is entitled.
  */
 export async function isApiExecutionEntitled(userId: string | undefined): Promise<boolean> {
-  if (!isBillingEnabled || !userId) return true
+  if (!isApiExecutionGateActive() || !userId) return true
 
   const subscription = await getHighestPrioritySubscription(userId)
   return isPaid(subscription?.plan)
@@ -33,7 +38,7 @@ export async function isApiExecutionEntitled(userId: string | undefined): Promis
 export async function isWorkspaceApiExecutionEntitled(
   workspaceId: string | undefined
 ): Promise<boolean> {
-  if (!isBillingEnabled || !workspaceId) return true
+  if (!isApiExecutionGateActive() || !workspaceId) return true
 
   const billedUserId = await getWorkspaceBilledAccountUserId(workspaceId)
   return isApiExecutionEntitled(billedUserId ?? undefined)

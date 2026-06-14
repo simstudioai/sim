@@ -7,7 +7,7 @@ import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest, NextResponse } from 'next/server'
 import { isWorkspaceApiExecutionEntitled } from '@/lib/billing/core/api-access'
 import { getEnv } from '@/lib/core/config/env'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/feature-flags'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import {
@@ -70,7 +70,7 @@ export async function assertChatEmbedAllowed(
   workflowId: string,
   requestId: string
 ): Promise<NextResponse | null> {
-  if (!isBillingEnabled) return null
+  if (!isBillingEnabled || !isFreeApiDeploymentGateEnabled) return null
 
   const origin = request.headers.get('origin')
   if (!origin || isFirstPartyOrigin(origin)) return null

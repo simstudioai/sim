@@ -7,12 +7,15 @@ const { mockGetHighestPrioritySubscription, mockGetWorkspaceBilledAccountUserId,
   vi.hoisted(() => ({
     mockGetHighestPrioritySubscription: vi.fn(),
     mockGetWorkspaceBilledAccountUserId: vi.fn(),
-    billingState: { isBillingEnabled: true },
+    billingState: { isBillingEnabled: true, isFreeApiDeploymentGateEnabled: true },
   }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   get isBillingEnabled() {
     return billingState.isBillingEnabled
+  },
+  get isFreeApiDeploymentGateEnabled() {
+    return billingState.isFreeApiDeploymentGateEnabled
   },
 }))
 
@@ -33,6 +36,7 @@ describe('isApiExecutionEntitled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     billingState.isBillingEnabled = true
+    billingState.isFreeApiDeploymentGateEnabled = true
   })
 
   it('is false for a free plan', async () => {
@@ -59,6 +63,12 @@ describe('isApiExecutionEntitled', () => {
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
+  it('is true (gate off) when the feature flag is disabled, even with billing on', async () => {
+    billingState.isFreeApiDeploymentGateEnabled = false
+    expect(await isApiExecutionEntitled('user-1')).toBe(true)
+    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
+  })
+
   it('is true when userId is missing', async () => {
     expect(await isApiExecutionEntitled(undefined)).toBe(true)
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
@@ -69,6 +79,7 @@ describe('isWorkspaceApiExecutionEntitled', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     billingState.isBillingEnabled = true
+    billingState.isFreeApiDeploymentGateEnabled = true
   })
 
   it('is false when the workspace billed account is free', async () => {
@@ -85,6 +96,12 @@ describe('isWorkspaceApiExecutionEntitled', () => {
 
   it('skips the billed-account lookup on self-hosted', async () => {
     billingState.isBillingEnabled = false
+    expect(await isWorkspaceApiExecutionEntitled('ws-1')).toBe(true)
+    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
+  })
+
+  it('skips the lookup (gate off) when the feature flag is disabled', async () => {
+    billingState.isFreeApiDeploymentGateEnabled = false
     expect(await isWorkspaceApiExecutionEntitled('ws-1')).toBe(true)
     expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
   })

@@ -31,7 +31,7 @@ const {
   mockGetSession: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
   mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
-  flagState: { isBillingEnabled: false },
+  flagState: { isBillingEnabled: false, isFreeApiDeploymentGateEnabled: true },
 }))
 
 vi.mock('@/lib/billing/core/api-access', () => ({
@@ -79,6 +79,9 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isProd: false,
   get isBillingEnabled() {
     return flagState.isBillingEnabled
+  },
+  get isFreeApiDeploymentGateEnabled() {
+    return flagState.isFreeApiDeploymentGateEnabled
   },
 }))
 
@@ -475,6 +478,7 @@ describe('assertChatEmbedAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     flagState.isBillingEnabled = true
+    flagState.isFreeApiDeploymentGateEnabled = true
     mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
   })
 
@@ -511,6 +515,17 @@ describe('assertChatEmbedAllowed', () => {
 
   it('is a no-op when billing is disabled', async () => {
     flagState.isBillingEnabled = false
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op when the gate feature flag is disabled', async () => {
+    flagState.isFreeApiDeploymentGateEnabled = false
     const res = await assertChatEmbedAllowed(
       chatRequest('https://evil.example.com'),
       'wf-1',
