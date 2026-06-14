@@ -27,7 +27,7 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { getBrowserTimezone, getSupportedTimezones } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, getTimezonesByPopularity } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -42,8 +42,11 @@ import { clearUserData } from '@/stores'
 
 const logger = createLogger('General')
 
-/** IANA zones for the timezone picker; labels drop underscores so search reads naturally. */
-const TIMEZONE_OPTIONS = getSupportedTimezones().map((tz) => ({
+/**
+ * IANA zones for the timezone picker, ordered most-popular first; labels drop
+ * underscores so search reads naturally.
+ */
+const TIMEZONE_OPTIONS = getTimezonesByPopularity().map((tz) => ({
   label: tz.replace(/_/g, ' '),
   value: tz,
 }))
@@ -419,28 +422,19 @@ export function General() {
               </div>
 
               <div className='flex items-center justify-between gap-4'>
-                <div className='flex items-center gap-1.5'>
-                  <Label>Timezone</Label>
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='bottom' align='start'>
-                      <p>The timezone scheduled tasks run in. Defaults to this device's zone.</p>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
+                <Label>Timezone</Label>
+                <div className='w-[260px] flex-shrink-0'>
+                  <ChipCombobox
+                    align='start'
+                    dropdownWidth={260}
+                    searchable
+                    searchPlaceholder='Search timezones'
+                    value={settings?.timezone ?? getBrowserTimezone()}
+                    onChange={handleTimezoneChange}
+                    placeholder='Select timezone'
+                    options={TIMEZONE_OPTIONS}
+                  />
                 </div>
-                <ChipCombobox
-                  className='min-w-0 max-w-[260px]'
-                  align='start'
-                  dropdownWidth={260}
-                  searchable
-                  searchPlaceholder='Search timezones'
-                  value={settings?.timezone ?? getBrowserTimezone()}
-                  onChange={handleTimezoneChange}
-                  placeholder='Select timezone'
-                  options={TIMEZONE_OPTIONS}
-                />
               </div>
 
               <div className='flex items-center justify-between'>

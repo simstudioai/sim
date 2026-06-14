@@ -1,6 +1,8 @@
 /**
- * A curated fallback for runtimes without `Intl.supportedValuesOf` (e.g. Safari
- * < 15.4), so the timezone picker is never an empty dead-end.
+ * The most-used zones, ranked by popularity. Doubles as the popularity prefix
+ * for {@link getTimezonesByPopularity} and as a curated fallback for runtimes
+ * without `Intl.supportedValuesOf` (e.g. Safari < 15.4), so the timezone picker
+ * is never an empty dead-end.
  */
 const COMMON_TIMEZONES = [
   'UTC',
@@ -36,6 +38,21 @@ export function getSupportedTimezones(): string[] {
       ? Intl.supportedValuesOf('timeZone')
       : COMMON_TIMEZONES
   return zones.includes('UTC') ? zones : ['UTC', ...zones]
+}
+
+/**
+ * Supported timezones ordered by popularity: the most-used zones
+ * ({@link COMMON_TIMEZONES}) first, in ranked order, followed by every
+ * remaining zone alphabetically. For the picker, where the zones people
+ * actually pick should surface above the long alphabetical tail.
+ */
+export function getTimezonesByPopularity(): string[] {
+  const supported = getSupportedTimezones()
+  const supportedSet = new Set(supported)
+  const popular = COMMON_TIMEZONES.filter((tz) => supportedSet.has(tz))
+  const popularSet = new Set(popular)
+  const rest = supported.filter((tz) => !popularSet.has(tz)).sort((a, b) => a.localeCompare(b))
+  return [...popular, ...rest]
 }
 
 /**
