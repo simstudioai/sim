@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/emcn'
-import { Duplicate as DuplicateIcon, Pencil, Trash } from '@/components/emcn/icons'
+import { Duplicate as DuplicateIcon, Pause, Pencil, Play, Trash } from '@/components/emcn/icons'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
 interface TaskContextMenuProps {
@@ -19,13 +19,18 @@ interface TaskContextMenuProps {
   onEdit: () => void
   /** Opens a new-task modal pre-filled from this task. */
   onDuplicate: () => void
+  /** Pauses an active recurring task — suspends its future runs. */
+  onPause: () => void
+  /** Resumes a paused recurring task. */
+  onResume: () => void
   onDelete: () => void
 }
 
 /**
  * Right-click menu for a calendar task pill. Upcoming (`pending`) tasks can be
- * edited or deleted; any task can be duplicated into a new one. Finished tasks
- * open their read-only record on click, so the menu only offers Duplicate.
+ * edited or deleted, and recurring ones paused or resumed; any task can be
+ * duplicated into a new one. Finished tasks open their read-only record on
+ * click, so the menu only offers Duplicate.
  */
 export function TaskContextMenu({
   isOpen,
@@ -34,9 +39,13 @@ export function TaskContextMenu({
   task,
   onEdit,
   onDuplicate,
+  onPause,
+  onResume,
   onDelete,
 }: TaskContextMenuProps) {
   const isUpcoming = task?.status === 'pending'
+  /** Pause/Resume applies to recurring tasks only — one-time tasks carry no cadence. */
+  const canPauseResume = isUpcoming && task?.recurring === true
 
   return (
     <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
@@ -67,6 +76,18 @@ export function TaskContextMenu({
               <Pencil />
               Edit
             </DropdownMenuItem>
+            {canPauseResume &&
+              (task?.disabled ? (
+                <DropdownMenuItem onSelect={onResume}>
+                  <Play />
+                  Resume
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onSelect={onPause}>
+                  <Pause />
+                  Pause
+                </DropdownMenuItem>
+              ))}
             <DropdownMenuItem onSelect={onDuplicate}>
               <DuplicateIcon />
               Duplicate

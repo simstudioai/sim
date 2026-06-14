@@ -24,7 +24,9 @@ interface CalendarEventChipProps {
  * details modal carries the state. The pill is the grid's real `<button>` (its
  * parent cells are plain clickable `<div>`s), so tasks are the tab-reachable
  * elements; clicks stop propagating so the cell underneath doesn't also open
- * the create modal.
+ * the create modal. A paused task (`task.disabled`) renders dimmed — the one
+ * status the pill signals visually, since a paused task can sit on the calendar
+ * indefinitely without running.
  */
 export function CalendarEventChip({
   event,
@@ -49,6 +51,7 @@ export function CalendarEventChip({
         chipContentGap,
         chipPrimaryFillTokens,
         'hover-hover:bg-[var(--text-body)] dark:hover-hover:bg-[var(--text-secondary)]',
+        event.task.disabled && 'opacity-45',
         className
       )}
     >
