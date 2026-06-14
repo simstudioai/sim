@@ -66,15 +66,18 @@ export const salesforceGetDashboardTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
+    const meta = data.dashboardMetadata ?? {}
+    const attrs = meta.attributes ?? {}
+
     return {
       success: true,
       output: {
         dashboard: data,
-        dashboardId: params?.dashboardId || '',
+        dashboardId: attrs.dashboardId ?? params?.dashboardId ?? '',
         components: data.componentData || [],
-        dashboardName: data.name ?? null,
-        folderId: data.folderId ?? null,
-        runningUser: data.runningUser ?? null,
+        dashboardName: attrs.dashboardName ?? null,
+        dashboardMetadata: data.dashboardMetadata ?? null,
+        runningUser: meta.runningUser ?? null,
         success: true,
       },
     }

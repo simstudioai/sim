@@ -1,10 +1,13 @@
+import { createLogger } from '@sim/logger'
 import type {
   SalesforceUpdateOpportunityParams,
   SalesforceUpdateOpportunityResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SalesforceUpdateOpportunity')
 
 export const salesforceUpdateOpportunityTool: ToolConfig<
   SalesforceUpdateOpportunityParams,
@@ -75,8 +78,10 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Opportunity/${params.opportunityId}`,
+    url: (params) => {
+      const opportunityId = params.opportunityId.trim()
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Opportunity/${opportunityId}`
+    },
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -98,7 +103,8 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json()
-      throw new Error(data[0]?.message || data.message || 'Failed to update opportunity')
+      logger.error('Failed to update opportunity', { data, status: response.status })
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to update opportunity'))
     }
     return {
       success: true,

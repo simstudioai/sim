@@ -3,7 +3,7 @@ import type {
   SalesforceUpdateCaseResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceUpdateCaseTool: ToolConfig<
@@ -60,6 +60,24 @@ export const salesforceUpdateCaseTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Priority (e.g., Low, Medium, High)',
     },
+    origin: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Origin (e.g., Phone, Email, Web)',
+    },
+    contactId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Salesforce Contact ID (18-character string starting with 003)',
+    },
+    accountId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Salesforce Account ID (18-character string starting with 001)',
+    },
     description: {
       type: 'string',
       required: false,
@@ -69,8 +87,10 @@ export const salesforceUpdateCaseTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${params.caseId}`,
+    url: (params) => {
+      const caseId = params.caseId.trim()
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${caseId}`
+    },
     method: 'PATCH',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -81,6 +101,9 @@ export const salesforceUpdateCaseTool: ToolConfig<
       if (params.subject) body.Subject = params.subject
       if (params.status) body.Status = params.status
       if (params.priority) body.Priority = params.priority
+      if (params.origin) body.Origin = params.origin
+      if (params.contactId) body.ContactId = params.contactId
+      if (params.accountId) body.AccountId = params.accountId
       if (params.description) body.Description = params.description
       return body
     },
@@ -89,7 +112,7 @@ export const salesforceUpdateCaseTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json()
-      throw new Error(data[0]?.message || data.message || 'Failed to update case')
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to update case'))
     }
     return {
       success: true,

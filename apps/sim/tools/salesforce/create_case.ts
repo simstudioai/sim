@@ -3,7 +3,7 @@ import type {
   SalesforceCreateCaseResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceCreateCaseTool: ToolConfig<
@@ -102,7 +102,8 @@ export const salesforceCreateCaseTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) throw new Error(data[0]?.message || data.message || 'Failed to create case')
+    if (!response.ok)
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to create case'))
     return {
       success: true,
       output: {

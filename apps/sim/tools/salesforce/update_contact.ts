@@ -4,7 +4,7 @@ import type {
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -108,7 +108,8 @@ export const salesforceUpdateContactTool: ToolConfig<
   request: {
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${params.contactId}`
+      const contactId = params.contactId.trim()
+      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}`
     },
     method: 'PATCH',
     headers: (params) => ({
@@ -140,7 +141,9 @@ export const salesforceUpdateContactTool: ToolConfig<
     if (!response.ok) {
       const data = await response.json()
       logger.error('Salesforce API request failed', { data, status: response.status })
-      throw new Error(data[0]?.message || data.message || 'Failed to update contact in Salesforce')
+      throw new Error(
+        extractErrorMessage(data, response.status, 'Failed to update contact in Salesforce')
+      )
     }
 
     return {

@@ -4,7 +4,7 @@ import type {
   SalesforceCreateContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -134,7 +134,9 @@ export const salesforceCreateContactTool: ToolConfig<
 
     if (!response.ok) {
       logger.error('Salesforce API request failed', { data, status: response.status })
-      throw new Error(data[0]?.message || data.message || 'Failed to create contact in Salesforce')
+      throw new Error(
+        extractErrorMessage(data, response.status, 'Failed to create contact in Salesforce')
+      )
     }
 
     return {
