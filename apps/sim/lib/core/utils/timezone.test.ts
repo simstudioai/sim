@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getSupportedTimezones,
+  getTimezoneOptions,
   wallClockNow,
   zonedClockDate,
   zonedWallClockToUtc,
@@ -65,6 +66,37 @@ describe('getSupportedTimezones', () => {
     const zones = getSupportedTimezones()
     expect(zones.length).toBeGreaterThan(0)
     expect(zones).toContain('UTC')
+  })
+})
+
+describe('getTimezoneOptions', () => {
+  it('renders every zone as "City (GMT±HH:MM)"', () => {
+    const options = getTimezoneOptions()
+    expect(options.length).toBeGreaterThan(0)
+    for (const option of options) {
+      expect(option.label).toMatch(/^.+ \(GMT[+-]\d{2}:\d{2}\)$/)
+    }
+  })
+
+  it('orders zones alphabetically by city', () => {
+    const cities = getTimezoneOptions().map((option) =>
+      option.label.replace(/ \(GMT[+-]\d{2}:\d{2}\)$/, '')
+    )
+    expect(cities).toEqual([...cities].sort((a, b) => a.localeCompare(b)))
+  })
+
+  it('uses a live DST-aware offset and a friendly city', () => {
+    const options = getTimezoneOptions()
+    expect(options.find((o) => o.value === 'UTC')?.label).toBe('UTC (GMT+00:00)')
+    // India has no DST, so this offset is stable regardless of when the test runs.
+    expect(
+      options.find((o) => o.value === 'Asia/Kolkata' || o.value === 'Asia/Calcutta')?.label
+    ).toMatch(/^(Kolkata|Calcutta) \(GMT\+05:30\)$/)
+  })
+
+  it('has no duplicate values', () => {
+    const values = getTimezoneOptions().map((o) => o.value)
+    expect(new Set(values).size).toBe(values.length)
   })
 })
 

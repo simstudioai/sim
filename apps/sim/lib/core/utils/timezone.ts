@@ -38,6 +38,50 @@ export function getSupportedTimezones(): string[] {
   return zones.includes('UTC') ? zones : ['UTC', ...zones]
 }
 
+/** A timezone choice for a picker: the canonical IANA value plus a display label. */
+export interface TimezoneOption {
+  value: string
+  label: string
+}
+
+/** The city/locale portion of an IANA id, formatted for display (e.g. `Los Angeles`). */
+function timezoneCity(timeZone: string): string {
+  return (timeZone.split('/').pop() ?? timeZone).replace(/_/g, ' ')
+}
+
+/** `GMT±HH:MM` for an offset expressed in minutes east of UTC (e.g. `GMT-08:00`). */
+function formatGmtOffset(offsetMinutes: number): string {
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absMinutes = Math.abs(offsetMinutes)
+  const hours = String(Math.floor(absMinutes / 60)).padStart(2, '0')
+  const minutes = String(absMinutes % 60).padStart(2, '0')
+  return `GMT${sign}${hours}:${minutes}`
+}
+
+/**
+ * Timezone options for a picker. Each zone reads as `City (GMT±HH:MM)` — city
+ * first, offset for reference — and the list is sorted alphabetically by city,
+ * the order usability research (NN/g, Smart Interface Design Patterns) found
+ * users expect; offset-sorting confuses people who don't know their offset. The
+ * offset is computed live, so it tracks DST automatically. Pair this with the
+ * picker's search and a browser-detected default. Values stay canonical IANA
+ * ids — what we persist.
+ */
+export function getTimezoneOptions(): TimezoneOption[] {
+  const now = new Date()
+  return getSupportedTimezones()
+    .map((value) => ({
+      value,
+      city: timezoneCity(value),
+      offsetMinutes: Math.round(timezoneOffsetMs(now, value) / 60_000),
+    }))
+    .sort((a, b) => a.city.localeCompare(b.city))
+    .map(({ value, city, offsetMinutes }) => ({
+      value,
+      label: `${city} (${formatGmtOffset(offsetMinutes)})`,
+    }))
+}
+
 /**
  * An instant's wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm`
  * string. Lets callers reason about a user's local date/time without UTC — e.g.
