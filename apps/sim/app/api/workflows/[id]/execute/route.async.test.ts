@@ -18,13 +18,22 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueue, mockExecuteWorkflowCore, mockHandlePostExecutionPauseState } = vi.hoisted(
-  () => ({
-    mockEnqueue: vi.fn().mockResolvedValue('job-123'),
-    mockExecuteWorkflowCore: vi.fn(),
-    mockHandlePostExecutionPauseState: vi.fn(),
-  })
-)
+const {
+  mockEnqueue,
+  mockExecuteWorkflowCore,
+  mockHandlePostExecutionPauseState,
+  mockIsApiExecutionEntitled,
+} = vi.hoisted(() => ({
+  mockEnqueue: vi.fn().mockResolvedValue('job-123'),
+  mockExecuteWorkflowCore: vi.fn(),
+  mockHandlePostExecutionPauseState: vi.fn(),
+  mockIsApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
+  isApiExecutionEntitled: mockIsApiExecutionEntitled,
+}))
 
 const mockCheckHybridAuth = hybridAuthMockFns.mockCheckHybridAuth
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
