@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
-import { format, getHours } from 'date-fns'
+import { format } from 'date-fns'
 import type { WorkspaceScheduleRow } from '@/lib/api/contracts/schedules'
+import { zonedClockDate } from '@/lib/core/utils/timezone'
 import { expandOccurrences } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import type { ChatContext } from '@/stores/panel'
 
@@ -39,6 +40,12 @@ export interface ScheduledTask {
  */
 export interface CalendarEvent {
   id: string
+  /**
+   * The occurrence's wall-clock position in the task's own timezone, as a
+   * device-local {@link zonedClockDate} — a layout coordinate, not the real
+   * instant. Keeps the calendar showing each task at the local time it was
+   * scheduled for, matching the modal. The true instant lives in `task.runAt`.
+   */
   start: Date
   title: string
   task: ScheduledTask
@@ -47,11 +54,6 @@ export interface CalendarEvent {
 /** Bucket key for a day cell (`yyyy-MM-dd`). */
 export function dayKey(date: Date): string {
   return format(date, 'yyyy-MM-dd')
-}
-
-/** Bucket key for an hour slot (`yyyy-MM-dd-HH`). */
-export function hourKey(date: Date, hour: number): string {
-  return `${dayKey(date)}-${hour.toString().padStart(2, '0')}`
 }
 
 /** The most recent terminal run of a schedule, or `null` if it has never run. */
@@ -133,39 +135,29 @@ export function scheduleToTasks(
 }
 
 /**
- * Adapts a task occurrence into a positioned calendar event. Every occurrence
- * renders identically regardless of status; the details modal carries the state.
+ * Adapts a task occurrence into a positioned calendar event, placing it at its
+ * wall-clock time in the task's own timezone (see {@link CalendarEvent.start}).
+ * Every occurrence renders identically regardless of status; the details modal
+ * carries the state.
  */
 export function taskToCalendarEvent(task: ScheduledTask): CalendarEvent {
   const prompt = task.prompt.trim()
   return {
     id: task.id,
-    start: task.runAt,
+    start: zonedClockDate(task.runAt, task.timezone),
     title: prompt ? truncate(prompt, 60) : 'Scheduled task',
     task,
   }
 }
 
-function bucketBy(
-  events: CalendarEvent[],
-  keyOf: (event: CalendarEvent) => string
-): Map<string, CalendarEvent[]> {
+/** Groups events by calendar day for both the month grid and the time grid. */
+export function bucketEventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   const map = new Map<string, CalendarEvent[]>()
   for (const event of events) {
-    const key = keyOf(event)
+    const key = dayKey(event.start)
     const bucket = map.get(key)
     if (bucket) bucket.push(event)
     else map.set(key, [event])
   }
   return map
-}
-
-/** Groups events by calendar day for month-view cell lookup. */
-export function bucketEventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  return bucketBy(events, (event) => dayKey(event.start))
-}
-
-/** Groups events by hour slot for week/day-view slot lookup. */
-export function bucketEventsByHour(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  return bucketBy(events, (event) => hourKey(event.start, getHours(event.start)))
 }

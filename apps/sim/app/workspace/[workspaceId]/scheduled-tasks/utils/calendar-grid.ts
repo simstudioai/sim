@@ -54,6 +54,9 @@ export const HOURS: number[] = Array.from({ length: 24 }, (_, hour) => hour)
 /** Fixed pixel height of one hour row in the time grid. */
 export const TIME_SLOT_HEIGHT = 48
 
+/** Rendered height of a task pill in the time grid, used for overlap detection. */
+export const EVENT_CHIP_HEIGHT = 22
+
 const BASE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 /** Weekday header labels rotated to honor {@link WEEK_STARTS_ON}. */
@@ -120,12 +123,8 @@ export function buildCalendarGrid(scope: CalendarScope, anchor: Date, today: Dat
   }
 }
 
-/**
- * The inclusive [start, end] instant window the current view renders, matching
- * `buildCalendarGrid` exactly (the month view spans its 4–6 spillover weeks).
- * Used to bound recurrence expansion to occurrences that are actually on screen.
- */
-export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
+/** The day span the current view renders (month spans its 4–6 spillover weeks). */
+function visibleSpan(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
   switch (scope) {
     case 'month':
       return {
@@ -140,6 +139,20 @@ export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date;
     case 'day':
       return { start: startOfDay(anchor), end: endOfDay(anchor) }
   }
+}
+
+/**
+ * The instant window that bounds recurrence expansion for the current view,
+ * padded one day past the rendered span on each side. The grid frame is in the
+ * viewer's zone, but each occurrence is positioned in its task's own zone, so an
+ * instant up to a full UTC offset (≤14h) outside the rendered span can still
+ * fall on a visible day. The pad guarantees those boundary occurrences are
+ * expanded; `bucketEventsByDay` then places each on its zoned day, so any that
+ * land off-screen sit in an unrendered bucket and never show.
+ */
+export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
+  const span = visibleSpan(scope, anchor)
+  return { start: addDays(span.start, -1), end: addDays(span.end, 1) }
 }
 
 /** Toolbar period label, e.g. `June 2026`, `Jun 7 – 13, 2026`, `June 10, 2026`. */
@@ -169,4 +182,56 @@ export function timeToOffset(date: Date): number {
 /** Wire-format time string for an hour slot, e.g. `07:00`. */
 export function formatSlotTime(hour: number): string {
   return `${hour.toString().padStart(2, '0')}:00`
+}
+
+/** A time-grid item placed at its minute, with its column slot within an overlap cluster. */
+export interface PlacedEvent<T> {
+  item: T
+  /** Pixel offset from the top of the day column. */
+  topPx: number
+  /** 0-based column index within the overlap cluster. */
+  lane: number
+  /** Total columns the overlap cluster spans (1 when nothing overlaps). */
+  lanes: number
+}
+
+/**
+ * Google-Calendar-style lane assignment for events sharing a day column. Items
+ * whose pill rectangles (`[topPx, topPx + chipHeight]`) intersect form a cluster
+ * and split the width into side-by-side lanes; non-overlapping items keep the
+ * full width. Pure: positions come from {@link timeToOffset}.
+ */
+export function layoutColumn<T extends { start: Date }>(
+  items: T[],
+  chipHeight: number
+): PlacedEvent<T>[] {
+  const sorted = [...items].sort((a, b) => a.start.getTime() - b.start.getTime())
+  const placed: PlacedEvent<T>[] = []
+  let cluster: PlacedEvent<T>[] = []
+  let laneBottoms: number[] = []
+
+  const closeCluster = () => {
+    for (const entry of cluster) entry.lanes = laneBottoms.length
+    cluster = []
+    laneBottoms = []
+  }
+
+  for (const item of sorted) {
+    const topPx = timeToOffset(item.start)
+    if (laneBottoms.length > 0 && laneBottoms.every((bottom) => topPx >= bottom)) {
+      closeCluster()
+    }
+    let lane = laneBottoms.findIndex((bottom) => topPx >= bottom)
+    if (lane === -1) {
+      lane = laneBottoms.length
+      laneBottoms.push(topPx + chipHeight)
+    } else {
+      laneBottoms[lane] = topPx + chipHeight
+    }
+    const entry: PlacedEvent<T> = { item, topPx, lane, lanes: 1 }
+    cluster.push(entry)
+    placed.push(entry)
+  }
+  closeCluster()
+  return placed
 }

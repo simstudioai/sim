@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { truncate } from '@sim/utils/string'
-import { format } from 'date-fns'
 import type { CreateScheduleBody, UpdateScheduleBody } from '@/lib/api/contracts/schedules'
+import { zonedWallClock } from '@/lib/core/utils/timezone'
 import type {
   TaskDraft,
   TaskEditSeed,
@@ -14,7 +14,6 @@ import {
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import {
   bucketEventsByDay,
-  bucketEventsByHour,
   type CalendarEvent,
   type ScheduledTask,
   scheduleToTasks,
@@ -34,7 +33,12 @@ function titleFromPrompt(prompt: string): string {
 }
 
 function draftToCreateBody(draft: TaskDraft, workspaceId: string): CreateScheduleBody {
-  const fields = recurrenceToScheduleFields(draft.recurrence, draft.launchDate, draft.launchTime)
+  const fields = recurrenceToScheduleFields(
+    draft.recurrence,
+    draft.launchDate,
+    draft.launchTime,
+    draft.timezone
+  )
   return {
     workspaceId,
     title: titleFromPrompt(draft.prompt),
@@ -51,7 +55,12 @@ function draftToCreateBody(draft: TaskDraft, workspaceId: string): CreateSchedul
 
 /** Edit always sends every recurrence field so clearing an end boundary or switching cadence sticks. */
 function draftToUpdateBody(draft: TaskDraft): Omit<UpdateScheduleBody, 'action'> {
-  const fields = recurrenceToScheduleFields(draft.recurrence, draft.launchDate, draft.launchTime)
+  const fields = recurrenceToScheduleFields(
+    draft.recurrence,
+    draft.launchDate,
+    draft.launchTime,
+    draft.timezone
+  )
   return {
     title: titleFromPrompt(draft.prompt),
     prompt: draft.prompt,
@@ -74,10 +83,8 @@ export interface UseScheduledTasksParams {
 
 export interface UseScheduledTasksReturn {
   isLoading: boolean
-  /** Day-bucketed events for the month grid, chronological within each day. */
+  /** Day-bucketed events feeding both the month grid and the time grid. */
   eventsByDay: Map<string, CalendarEvent[]>
-  /** Hour-bucketed events for the time grid, chronological within each slot. */
-  eventsByHour: Map<string, CalendarEvent[]>
   /** The task occurrence whose modal is open, or `null` when none is. */
   selectedTask: ScheduledTask | null
   openTask: (task: ScheduledTask) => void
@@ -121,7 +128,6 @@ export function useScheduledTasks({
   }, [schedules, rangeStart, rangeEnd])
 
   const eventsByDay = useMemo(() => bucketEventsByDay(events), [events])
-  const eventsByHour = useMemo(() => bucketEventsByHour(events), [events])
 
   const openTask = useCallback((task: ScheduledTask) => setSelectedTask(task), [])
   const closeTask = useCallback(() => setSelectedTask(null), [])
@@ -135,13 +141,15 @@ export function useScheduledTasks({
         maxRuns: schedule.maxRuns,
         endsAt: schedule.endsAt,
         anchor: task.runAt,
+        timezone: schedule.timezone,
       })
       return {
         scheduleId: schedule.id,
         prompt: schedule.prompt ?? '',
         contexts: task.contexts,
-        launchDate: format(task.runAt, 'yyyy-MM-dd'),
+        launchDate: zonedWallClock(task.runAt, schedule.timezone).slice(0, 10),
         launchTime,
+        timezone: schedule.timezone,
         recurrence,
       }
     },
@@ -184,7 +192,6 @@ export function useScheduledTasks({
   return {
     isLoading,
     eventsByDay,
-    eventsByHour,
     selectedTask,
     openTask,
     closeTask,
