@@ -93,8 +93,8 @@ export const salesforceCreateCaseTool: ToolConfig<
       if (params.status) body.Status = params.status
       if (params.priority) body.Priority = params.priority
       if (params.origin) body.Origin = params.origin
-      if (params.contactId) body.ContactId = params.contactId
-      if (params.accountId) body.AccountId = params.accountId
+      if (params.contactId) body.ContactId = params.contactId.trim()
+      if (params.accountId) body.AccountId = params.accountId.trim()
       if (params.description) body.Description = params.description
       return body
     },

@@ -63,7 +63,7 @@ export const salesforceDeleteTaskTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.taskId || '',
+        id: params?.taskId?.trim() || '',
         deleted: true,
       },
     }

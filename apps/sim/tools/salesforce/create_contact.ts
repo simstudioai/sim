@@ -115,7 +115,7 @@ export const salesforceCreateContactTool: ToolConfig<
       if (params.firstName) body.FirstName = params.firstName
       if (params.email) body.Email = params.email
       if (params.phone) body.Phone = params.phone
-      if (params.accountId) body.AccountId = params.accountId
+      if (params.accountId) body.AccountId = params.accountId.trim()
       if (params.title) body.Title = params.title
       if (params.department) body.Department = params.department
       if (params.mailingStreet) body.MailingStreet = params.mailingStreet

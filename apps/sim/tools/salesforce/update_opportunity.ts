@@ -92,7 +92,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
       if (params.name) body.Name = params.name
       if (params.stageName) body.StageName = params.stageName
       if (params.closeDate) body.CloseDate = params.closeDate
-      if (params.accountId) body.AccountId = params.accountId
+      if (params.accountId) body.AccountId = params.accountId.trim()
       if (params.amount) body.Amount = Number.parseFloat(params.amount)
       if (params.probability) body.Probability = Number.parseInt(params.probability)
       if (params.description) body.Description = params.description
@@ -109,7 +109,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.opportunityId || '',
+        id: params?.opportunityId?.trim() || '',
         updated: true,
       },
     }

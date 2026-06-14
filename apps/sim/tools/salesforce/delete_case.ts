@@ -63,7 +63,7 @@ export const salesforceDeleteCaseTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.caseId || '',
+        id: params?.caseId?.trim() || '',
         deleted: true,
       },
     }

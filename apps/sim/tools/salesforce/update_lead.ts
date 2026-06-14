@@ -114,7 +114,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.leadId || '',
+        id: params?.leadId?.trim() || '',
         updated: true,
       },
     }

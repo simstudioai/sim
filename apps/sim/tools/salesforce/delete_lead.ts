@@ -49,7 +49,7 @@ export const salesforceDeleteLeadTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.leadId || '',
+        id: params?.leadId?.trim() || '',
         deleted: true,
       },
     }

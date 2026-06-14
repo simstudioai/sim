@@ -56,7 +56,7 @@ export const salesforceDeleteContactTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.contactId || '',
+        id: params?.contactId?.trim() || '',
         deleted: true,
       },
     }

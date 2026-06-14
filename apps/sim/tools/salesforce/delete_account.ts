@@ -74,7 +74,7 @@ export const salesforceDeleteAccountTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.accountId || '',
+        id: params?.accountId?.trim() || '',
         deleted: true,
       },
     }

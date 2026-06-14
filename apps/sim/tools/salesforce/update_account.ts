@@ -173,7 +173,7 @@ export const salesforceUpdateAccountTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.accountId || '',
+        id: params?.accountId?.trim() || '',
         updated: true,
       },
     }

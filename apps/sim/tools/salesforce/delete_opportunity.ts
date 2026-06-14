@@ -53,7 +53,7 @@ export const salesforceDeleteOpportunityTool: ToolConfig<
     return {
       success: true,
       output: {
-        id: params?.opportunityId || '',
+        id: params?.opportunityId?.trim() || '',
         deleted: true,
       },
     }
