@@ -7,15 +7,17 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { FAQ } from '@/components/ui/faq'
 import { Image } from '@/components/ui/image'
 
-Access Control lets workspace admins define permission groups that restrict what each set of workspace members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to a single workspace: a user can be in different groups (or no group) in different workspaces. Restrictions are enforced both in the workflow executor and in Mothership, based on the workflow's workspace.
+Access Control lets organization admins define permission groups that restrict what each set of organization members can do — which AI model providers they can use, which workflow blocks they can place, and which platform features are visible to them. Permission groups are scoped to the **organization** and apply to every workspace under it: a user belongs to at most one group per organization. Restrictions are enforced both in the workflow executor and in Mothership, based on the organization that owns the workflow's workspace.
 
 ---
 
 ## How it works
 
-Access control is built around **permission groups**. Each group belongs to a specific workspace and has a name, an optional description, and a configuration that defines what its members can and cannot do. A user can belong to at most one permission group **per workspace**, but can belong to different groups in different workspaces.
+Access control is built around **permission groups**. Each group belongs to a specific organization and has a name, an optional description, and a configuration that defines what its members can and cannot do. A user can belong to at most one permission group **per organization**, and that group governs them in every workspace under the organization. Personal workspaces that do not belong to an organization have no permission groups.
 
-When a user runs a workflow or uses Mothership, Sim reads their group's configuration and applies it:
+Sim resolves the governing group deterministically, with no per-workspace fallbacks: a user's explicitly assigned group takes precedence; otherwise the organization's **default group** applies (if one is set); otherwise no restrictions apply.
+
+When a user runs a workflow or uses Mothership, Sim reads the resolved group's configuration and applies it:
 
 - **In the executor:** If a workflow uses a disallowed block type or model provider, execution halts immediately with an error. This applies to both manual runs and scheduled or API-triggered deployments.
 - **In Mothership:** Disallowed blocks are filtered out of the block list so they cannot be added to a workflow. Disallowed tool types (MCP, custom tools, skills) are skipped if Mothership attempts to use them.
@@ -26,13 +28,13 @@ When a user runs a workflow or uses Mothership, Sim reads their group's configur
 
 ### 1. Open Access Control settings
 
-Go to **Settings → Enterprise → Access Control** in the workspace you want to manage. Each workspace has its own set of permission groups.
+Go to **Settings → Enterprise → Access Control** from any workspace in your organization. Permission groups are defined once at the organization level and apply to every workspace under it. Only organization owners and admins can manage them.
 
 <Image src="/static/enterprise/access-control-groups.png" alt="Access Control settings showing a list of permission groups: Contractors, Sales, Engineering, and Marketing, each with Details and Delete actions" width={900} height={500} />
 
 ### 2. Create a permission group
 
-Click **+ Create** and enter a name (required) and optional description. You can also enable **Auto-add new members** — when active, any new member who joins this workspace is automatically added to this group. Only one group per workspace can have this setting enabled at a time.
+Click **+ Create** and enter a name (required) and optional description. You can also mark the group as the **organization default group** — when set, it governs every organization member who is not explicitly assigned to another group, as well as external workspace members operating in the organization's workspaces. Only one group per organization can be the default at a time.
 
 ### 3. Configure permissions
 
@@ -128,9 +130,9 @@ Controls visibility of platform features and modules.
 
 ### 4. Add members
 
-Open the group's **Details** view and add members by searching for users by name or email. Only users who already have workspace-level access can be added. A user can only belong to one group per workspace — adding a user to a new group within the same workspace removes them from their current group for that workspace.
+Open the group's **Details** view and add members by searching for users by name or email. The member picker lists your organization's members. A user can belong to at most one group per organization — adding a user to a new group removes them from their current group.
 
-External workspace members are treated like other workspace members for access-control purposes. They can be assigned to permission groups in any workspace they have access to, but they do not become organization members or appear in the organization roster.
+External workspace members (people who have access to a workspace but belong to a different organization) are not assigned to groups individually. They are governed by the organization's **default group** when one is set; otherwise no restrictions apply to them.
 
 ---
 
@@ -157,18 +159,18 @@ When a user opens Mothership, their permission group is read before any block or
 
 ## User membership rules
 
-- A user can belong to **at most one** permission group **per workspace**, but may be in different groups across different workspaces.
-- Moving a user to a new group within a workspace automatically removes them from their previous group in that workspace.
-- Users not assigned to any group in a workspace have no restrictions applied in that workspace (all blocks, providers, and features are available to them there).
-- If **Auto-add new members** is enabled on a group, new members of that workspace are automatically placed in the group. Only one group per workspace can have this setting active.
-- External workspace members follow the same per-workspace permission group rules as internal members.
+- A user can belong to **at most one** permission group **per organization**, and that group governs them in every workspace under the organization.
+- Moving a user to a new group automatically removes them from their previous group.
+- Users not assigned to any group fall under the organization's **default group** if one is set; otherwise no restrictions are applied to them.
+- Only one group per organization can be marked as the **default group**. The default also governs external workspace members operating in the organization's workspaces.
+- Personal or grandfathered workspaces that do not belong to an organization have no permission groups.
 
 ---
 
 <FAQ items={[
   {
     question: "Who can create and manage permission groups?",
-    answer: "Any workspace admin on an Enterprise-entitled workspace can create, edit, and delete permission groups for that workspace. The workspace's billed account must be on the Enterprise plan."
+    answer: "Any organization owner or admin on an Enterprise-entitled organization can create, edit, and delete permission groups. The organization must be on the Enterprise plan."
   },
   {
     question: "What happens to a workflow that was built before a block was restricted?",
@@ -176,23 +178,23 @@ When a user opens Mothership, their permission group is read before any block or
   },
   {
     question: "Can a user be in multiple permission groups?",
-    answer: "A user can belong to at most one permission group per workspace, but can belong to different groups in different workspaces. Adding a user to a new group within the same workspace automatically removes them from their previous group in that workspace."
+    answer: "A user can belong to at most one permission group per organization, and that group governs them across every workspace under the organization. Adding a user to a new group automatically removes them from their previous group."
   },
   {
-    question: "What does a user see if they have no permission group assigned in a workspace?",
-    answer: "Users with no group in a given workspace have no restrictions in that workspace. All blocks, model providers, and platform features are fully available to them there. Restrictions only apply in the specific workspaces where they are assigned to a group."
+    question: "What governs a user who has no permission group assigned?",
+    answer: "If the organization has a default group, it governs every member (and external workspace member) who is not explicitly assigned to another group. If no default group is set, those users have no restrictions — all blocks, model providers, and platform features are available to them."
   },
   {
     question: "Does Mothership respect the same restrictions as the executor?",
-    answer: "Yes. Mothership reads the user's permission group for the active workspace before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
+    answer: "Yes. Mothership reads the user's permission group for the workspace's organization before suggesting blocks or tools. Disallowed blocks are filtered out of the block picker, and disallowed tool types are skipped during workflow generation."
   },
   {
-    question: "Can I restrict access to specific workflows or workspaces?",
-    answer: "Access Control operates at the feature and block level within a workspace. To restrict who can access the workspace itself, use workspace invitations and permissions. To apply different restrictions to different workflows, put them in different workspaces with distinct permission groups."
+    question: "Can I apply different restrictions to different people?",
+    answer: "Permission groups apply across the entire organization, so assign different sets of users to different permission groups to give them different restrictions. Who can access a given workspace is still controlled separately by workspace invitations and permissions."
   },
   {
-    question: "What is Auto-add new members?",
-    answer: "When a group has Auto-add new members enabled, any new member who joins the workspace is automatically added to that group. Only one group per workspace can have this setting enabled at a time."
+    question: "What is the default group?",
+    answer: "The default group is the single group per organization that governs everyone not explicitly assigned to another group, including external workspace members operating in the organization's workspaces. Only one group per organization can be the default at a time. If no default is set, ungrouped users have no restrictions."
   }
 ]} />
 

@@ -2,40 +2,24 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updatePermissionGroupContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
+  PERMISSION_GROUP_CONSTRAINTS,
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
-import { checkWorkspaceAccess, hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  authorizeOrgAccessControl,
+  loadGroupInOrganization,
+} from '@/app/api/organizations/[id]/permission-groups/utils'
 
-const logger = createLogger('WorkspacePermissionGroup')
-
-async function loadGroupInWorkspace(groupId: string, workspaceId: string) {
-  const [group] = await db
-    .select({
-      id: permissionGroup.id,
-      workspaceId: permissionGroup.workspaceId,
-      name: permissionGroup.name,
-      description: permissionGroup.description,
-      config: permissionGroup.config,
-      createdBy: permissionGroup.createdBy,
-      createdAt: permissionGroup.createdAt,
-      updatedAt: permissionGroup.updatedAt,
-      autoAddNewMembers: permissionGroup.autoAddNewMembers,
-    })
-    .from(permissionGroup)
-    .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.workspaceId, workspaceId)))
-    .limit(1)
-
-  return group ?? null
-}
+const logger = createLogger('OrganizationPermissionGroup')
 
 export const GET = withRouteHandler(
   async (_req: NextRequest, { params }: { params: Promise<{ id: string; groupId: string }> }) => {
@@ -44,26 +28,12 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await params
+    const { id: organizationId, groupId: id } = await params
 
-    const access = await checkWorkspaceAccess(workspaceId, session.user.id)
-    if (!access.exists) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-    if (!access.hasAccess) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+    if (denied) return denied
 
-    const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-    if (!entitled) {
-      return NextResponse.json(
-        { error: 'Access Control is an Enterprise feature' },
-        { status: 403 }
-      )
-    }
-
-    const group = await loadGroupInWorkspace(id, workspaceId)
-
+    const group = await loadGroupInOrganization(id, organizationId)
     if (!group) {
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
     }
@@ -84,23 +54,13 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await context.params
+    const { id: organizationId, groupId: id } = await context.params
 
     try {
-      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      if (!isWorkspaceAdmin) {
-        return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
-      }
+      const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+      if (denied) return denied
 
-      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-      if (!entitled) {
-        return NextResponse.json(
-          { error: 'Access Control is an Enterprise feature' },
-          { status: 403 }
-        )
-      }
-
-      const group = await loadGroupInWorkspace(id, workspaceId)
+      const group = await loadGroupInOrganization(id, organizationId)
       if (!group) {
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
@@ -118,7 +78,7 @@ export const PUT = withRouteHandler(
           .from(permissionGroup)
           .where(
             and(
-              eq(permissionGroup.workspaceId, workspaceId),
+              eq(permissionGroup.organizationId, organizationId),
               eq(permissionGroup.name, updates.name)
             )
           )
@@ -140,14 +100,14 @@ export const PUT = withRouteHandler(
       const now = new Date()
 
       await db.transaction(async (tx) => {
-        if (updates.autoAddNewMembers === true) {
+        if (updates.isDefault === true) {
           await tx
             .update(permissionGroup)
-            .set({ autoAddNewMembers: false, updatedAt: now })
+            .set({ isDefault: false, updatedAt: now })
             .where(
               and(
-                eq(permissionGroup.workspaceId, workspaceId),
-                eq(permissionGroup.autoAddNewMembers, true)
+                eq(permissionGroup.organizationId, organizationId),
+                eq(permissionGroup.isDefault, true)
               )
             )
         }
@@ -157,9 +117,7 @@ export const PUT = withRouteHandler(
           .set({
             ...(updates.name !== undefined && { name: updates.name }),
             ...(updates.description !== undefined && { description: updates.description }),
-            ...(updates.autoAddNewMembers !== undefined && {
-              autoAddNewMembers: updates.autoAddNewMembers,
-            }),
+            ...(updates.isDefault !== undefined && { isDefault: updates.isDefault }),
             config: newConfig,
             updatedAt: now,
           })
@@ -173,7 +131,6 @@ export const PUT = withRouteHandler(
         .limit(1)
 
       recordAudit({
-        workspaceId,
         actorId: session.user.id,
         action: AuditAction.PERMISSION_GROUP_UPDATED,
         resourceType: AuditResourceType.PERMISSION_GROUP,
@@ -183,7 +140,7 @@ export const PUT = withRouteHandler(
         resourceName: updated.name,
         description: `Updated permission group "${updated.name}"`,
         metadata: {
-          workspaceId,
+          organizationId,
           updatedFields: Object.keys(updates).filter(
             (k) => updates[k as keyof typeof updates] !== undefined
           ),
@@ -198,6 +155,24 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
+      if (getPostgresErrorCode(error) === '23505') {
+        const constraint = getPostgresConstraintName(error)
+        if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationName) {
+          return NextResponse.json(
+            { error: 'A permission group with this name already exists' },
+            { status: 409 }
+          )
+        }
+        if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationDefault) {
+          return NextResponse.json(
+            {
+              error:
+                'Another group was concurrently set as the default. Please refresh and try again.',
+            },
+            { status: 409 }
+          )
+        }
+      }
       logger.error('Error updating permission group', error)
       return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })
     }
@@ -211,23 +186,13 @@ export const DELETE = withRouteHandler(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { id: workspaceId, groupId: id } = await params
+    const { id: organizationId, groupId: id } = await params
 
     try {
-      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(session.user.id, workspaceId)
-      if (!isWorkspaceAdmin) {
-        return NextResponse.json({ error: 'Admin permissions required' }, { status: 403 })
-      }
+      const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
+      if (denied) return denied
 
-      const entitled = await isWorkspaceOnEnterprisePlan(workspaceId)
-      if (!entitled) {
-        return NextResponse.json(
-          { error: 'Access Control is an Enterprise feature' },
-          { status: 403 }
-        )
-      }
-
-      const group = await loadGroupInWorkspace(id, workspaceId)
+      const group = await loadGroupInOrganization(id, organizationId)
       if (!group) {
         return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
       }
@@ -241,12 +206,11 @@ export const DELETE = withRouteHandler(
 
       logger.info('Deleted permission group', {
         permissionGroupId: id,
-        workspaceId,
+        organizationId,
         userId: session.user.id,
       })
 
       recordAudit({
-        workspaceId,
         actorId: session.user.id,
         action: AuditAction.PERMISSION_GROUP_DELETED,
         resourceType: AuditResourceType.PERMISSION_GROUP,
@@ -255,7 +219,7 @@ export const DELETE = withRouteHandler(
         actorEmail: session.user.email ?? undefined,
         resourceName: group.name,
         description: `Deleted permission group "${group.name}"`,
-        metadata: { workspaceId },
+        metadata: { organizationId },
         request: req,
       })
 

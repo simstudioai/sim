@@ -4,7 +4,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { userPermissionConfigQuerySchema } from '@/lib/api/contracts/permission-groups'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -31,8 +31,8 @@ export const GET = withRouteHandler(async (req: Request) => {
     return NextResponse.json({ error: 'Not a member of this workspace' }, { status: 403 })
   }
 
-  const isEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
-  if (!isEnterprise) {
+  const organizationId = access.workspace?.organizationId ?? null
+  if (!organizationId || !(await isOrganizationOnEnterprisePlan(organizationId))) {
     return NextResponse.json({
       permissionGroupId: null,
       groupName: null,
@@ -41,7 +41,7 @@ export const GET = withRouteHandler(async (req: Request) => {
     })
   }
 
-  const [groupMembership] = await db
+  const [explicit] = await db
     .select({
       permissionGroupId: permissionGroupMember.permissionGroupId,
       config: permissionGroup.config,
@@ -52,13 +52,29 @@ export const GET = withRouteHandler(async (req: Request) => {
     .where(
       and(
         eq(permissionGroupMember.userId, session.user.id),
-        eq(permissionGroup.workspaceId, workspaceId)
+        eq(permissionGroup.organizationId, organizationId)
       )
     )
     .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
     .limit(1)
 
-  if (!groupMembership) {
+  let resolved = explicit
+  if (!resolved) {
+    const [defaultGroup] = await db
+      .select({
+        permissionGroupId: permissionGroup.id,
+        config: permissionGroup.config,
+        groupName: permissionGroup.name,
+      })
+      .from(permissionGroup)
+      .where(
+        and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
+      )
+      .limit(1)
+    resolved = defaultGroup
+  }
+
+  if (!resolved) {
     return NextResponse.json({
       permissionGroupId: null,
       groupName: null,
@@ -68,9 +84,9 @@ export const GET = withRouteHandler(async (req: Request) => {
   }
 
   return NextResponse.json({
-    permissionGroupId: groupMembership.permissionGroupId,
-    groupName: groupMembership.groupName,
-    config: parsePermissionGroupConfig(groupMembership.config),
+    permissionGroupId: resolved.permissionGroupId,
+    groupName: resolved.groupName,
+    config: parsePermissionGroupConfig(resolved.config),
     entitled: true,
   })
 })
