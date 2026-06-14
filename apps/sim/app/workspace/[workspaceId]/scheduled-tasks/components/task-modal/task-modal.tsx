@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { addHours, format, isSameDay, startOfHour } from 'date-fns'
+import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
   Calendar,
@@ -13,6 +13,7 @@ import {
   ChipModalPromptBody,
   ChipTimePicker,
 } from '@/components/emcn'
+import { wallClockNow, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import {
   PromptEditor,
   usePromptEditor,
@@ -29,25 +30,32 @@ import type { ChatContext } from '@/stores/panel'
 const DEFAULT_TIME = '09:00'
 const PAST_LAUNCH_MESSAGE = "You can't schedule a one-time task in the past"
 
-/** Whether a one-time launch datetime has already passed, at minute granularity. */
-function isLaunchInPast(launchDate: string, launchTime: string): boolean {
-  return new Date(`${launchDate}T${launchTime}`) < new Date()
+/** Whether a one-time launch has already passed, evaluated in the task's `timezone`. */
+function isLaunchInPast(launchDate: string, launchTime: string, timezone: string): boolean {
+  return zonedWallClockToUtc(`${launchDate}T${launchTime}`, timezone) < new Date()
 }
 
 /**
- * Seeds the launch date/time for a create. A clicked time slot uses it
- * verbatim; otherwise the default lands on a valid future instant — the next
- * top of the hour when the target day is today, else 9am — so the modal never
- * opens with the primary action disabled by a past default.
+ * Seeds the launch date/time for a create, in the task's `timezone`. A clicked
+ * time slot uses it verbatim; otherwise the default lands on a valid future
+ * instant — the next top of the hour when the target day is today (in that
+ * zone), else 9am — so the modal never opens with the primary action disabled.
+ * For today, the `Z` suffix makes the next-hour step pure wall-clock arithmetic
+ * (adding an hour and rolling the date at 23:xx), not a timezone conversion.
  */
-function defaultLaunch(slot: CalendarSlot | null | undefined): { date: string; time: string } {
+function defaultLaunch(
+  slot: CalendarSlot | null | undefined,
+  timezone: string
+): { date: string; time: string } {
   if (slot?.time) return { date: format(slot.date, 'yyyy-MM-dd'), time: slot.time }
-  const now = new Date()
-  const day = slot?.date ?? now
-  const base = isSameDay(day, now)
-    ? addHours(startOfHour(now), 1)
-    : new Date(`${format(day, 'yyyy-MM-dd')}T${DEFAULT_TIME}`)
-  return { date: format(base, 'yyyy-MM-dd'), time: format(base, 'HH:mm') }
+  const nowWall = wallClockNow(timezone)
+  const today = nowWall.slice(0, 10)
+  const date = slot?.date ? format(slot.date, 'yyyy-MM-dd') : today
+  if (date !== today) return { date, time: DEFAULT_TIME }
+  const next = new Date(`${nowWall}:00Z`)
+  next.setUTCMinutes(0, 0, 0)
+  next.setUTCHours(next.getUTCHours() + 1)
+  return { date: next.toISOString().slice(0, 10), time: next.toISOString().slice(11, 16) }
 }
 
 /** The data a task create or edit captures. */
@@ -144,7 +152,9 @@ function TaskModalContent({
     if (edit?.contexts && edit.contexts.length > 0) setContexts(edit.contexts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const seed = edit ? { date: edit.launchDate, time: edit.launchTime } : defaultLaunch(slot)
+  const seed = edit
+    ? { date: edit.launchDate, time: edit.launchTime }
+    : defaultLaunch(slot, timezone)
   const [launchDate, setLaunchDate] = useState(seed.date)
   const [launchTime, setLaunchTime] = useState(seed.time)
   const [recurrence, setRecurrence] = useState<Recurrence>(
@@ -153,7 +163,7 @@ function TaskModalContent({
 
   const close = () => onOpenChange(false)
   const isOneTime = recurrence.frequency === 'once'
-  const isPastLaunch = isOneTime && isLaunchInPast(launchDate, launchTime)
+  const isPastLaunch = isOneTime && isLaunchInPast(launchDate, launchTime, timezone)
 
   const promptText = editor.value.trim()
 

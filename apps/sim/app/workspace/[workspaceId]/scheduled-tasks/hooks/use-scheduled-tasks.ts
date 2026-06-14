@@ -33,7 +33,12 @@ function titleFromPrompt(prompt: string): string {
 }
 
 function draftToCreateBody(draft: TaskDraft, workspaceId: string): CreateScheduleBody {
-  const fields = recurrenceToScheduleFields(draft.recurrence, draft.launchDate, draft.launchTime)
+  const fields = recurrenceToScheduleFields(
+    draft.recurrence,
+    draft.launchDate,
+    draft.launchTime,
+    draft.timezone
+  )
   return {
     workspaceId,
     title: titleFromPrompt(draft.prompt),
@@ -50,7 +55,12 @@ function draftToCreateBody(draft: TaskDraft, workspaceId: string): CreateSchedul
 
 /** Edit always sends every recurrence field so clearing an end boundary or switching cadence sticks. */
 function draftToUpdateBody(draft: TaskDraft): Omit<UpdateScheduleBody, 'action'> {
-  const fields = recurrenceToScheduleFields(draft.recurrence, draft.launchDate, draft.launchTime)
+  const fields = recurrenceToScheduleFields(
+    draft.recurrence,
+    draft.launchDate,
+    draft.launchTime,
+    draft.timezone
+  )
   return {
     title: titleFromPrompt(draft.prompt),
     prompt: draft.prompt,

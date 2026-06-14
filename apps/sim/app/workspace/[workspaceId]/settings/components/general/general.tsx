@@ -420,7 +420,7 @@ export function General() {
 
               <div className='flex items-center justify-between gap-4'>
                 <div className='flex items-center gap-1.5'>
-                  <Label htmlFor='timezone-select'>Timezone</Label>
+                  <Label>Timezone</Label>
                   <Tooltip.Root>
                     <Tooltip.Trigger asChild>
                       <Info className='size-[14px] cursor-default text-[var(--text-muted)]' />

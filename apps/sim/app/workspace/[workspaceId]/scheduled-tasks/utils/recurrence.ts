@@ -1,5 +1,6 @@
 import { Cron } from 'croner'
-import { endOfDay, format } from 'date-fns'
+import { format } from 'date-fns'
+import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 /**
  * Recurrence cadence the modal exposes. `once` is a one-time launch; `custom`
@@ -76,18 +77,21 @@ export interface ScheduleFields {
 /**
  * Translates a recurrence + launch into the wire fields the schedules API
  * accepts: a one-time `time`, or a `cronExpression` with an optional end
- * boundary (`maxRuns` for "after N", `endsAt` for "on date").
+ * boundary (`maxRuns` for "after N", `endsAt` for "on date"). The launch
+ * date/time and end date are wall-clock in `timezone`, so they resolve to UTC
+ * instants in that zone — matching how the recurring cron is evaluated.
  */
 export function recurrenceToScheduleFields(
   recurrence: Recurrence,
   launchDate: string,
-  launchTime: string
+  launchTime: string,
+  timezone: string
 ): ScheduleFields {
   const cronExpression = recurrenceToCron(recurrence, launchDate, launchTime)
   if (!cronExpression) {
     return {
       cronExpression: null,
-      time: localDateTime(launchDate, launchTime).toISOString(),
+      time: zonedWallClockToUtc(`${launchDate}T${launchTime}`, timezone).toISOString(),
       lifecycle: 'persistent',
     }
   }
@@ -97,7 +101,9 @@ export function recurrenceToScheduleFields(
     cronExpression,
     maxRuns: end.type === 'after' ? end.count : undefined,
     endsAt:
-      end.type === 'on' ? endOfDay(localDateTime(end.date, '00:00')).toISOString() : undefined,
+      end.type === 'on'
+        ? zonedWallClockToUtc(`${end.date}T23:59:59`, timezone).toISOString()
+        : undefined,
     lifecycle: end.type === 'after' ? 'until_complete' : 'persistent',
   }
 }

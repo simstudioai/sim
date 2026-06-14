@@ -1,4 +1,3 @@
-import { endOfDay } from 'date-fns'
 import { describe, expect, it } from 'vitest'
 import {
   cronToRecurrence,
@@ -57,10 +56,10 @@ describe('recurrenceToCron', () => {
 })
 
 describe('recurrenceToScheduleFields', () => {
-  it('maps a one-time task to a launch time with no cron', () => {
-    const fields = recurrenceToScheduleFields(once, '2026-06-15', '09:00')
+  it('resolves a one-time launch to the UTC instant of that wall-clock in the zone', () => {
+    const fields = recurrenceToScheduleFields(once, '2026-06-15', '09:00', 'America/New_York')
     expect(fields.cronExpression).toBeNull()
-    expect(fields.time).toBe(new Date('2026-06-15T09:00').toISOString())
+    expect(fields.time).toBe('2026-06-15T13:00:00.000Z')
     expect(fields.lifecycle).toBe('persistent')
   })
 
@@ -68,7 +67,8 @@ describe('recurrenceToScheduleFields', () => {
     const fields = recurrenceToScheduleFields(
       { frequency: 'daily', weekdays: [], end: { type: 'after', count: 5 } },
       '2026-06-15',
-      '09:00'
+      '09:00',
+      'UTC'
     )
     expect(fields.cronExpression).toBe('0 9 * * *')
     expect(fields.maxRuns).toBe(5)
@@ -76,13 +76,14 @@ describe('recurrenceToScheduleFields', () => {
     expect(fields.endsAt).toBeUndefined()
   })
 
-  it('maps "ends on date" to an endsAt boundary', () => {
+  it('maps "ends on date" to an end-of-day boundary in the zone', () => {
     const fields = recurrenceToScheduleFields(
       { frequency: 'daily', weekdays: [], end: { type: 'on', date: '2026-07-01' } },
       '2026-06-15',
-      '09:00'
+      '09:00',
+      'UTC'
     )
-    expect(fields.endsAt).toBe(endOfDay(new Date('2026-07-01T00:00')).toISOString())
+    expect(fields.endsAt).toBe('2026-07-01T23:59:59.000Z')
     expect(fields.maxRuns).toBeUndefined()
     expect(fields.lifecycle).toBe('persistent')
   })
