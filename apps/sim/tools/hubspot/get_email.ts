@@ -1,17 +1,15 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotListContactsParams, HubSpotListContactsResponse } from '@/tools/hubspot/types'
-import { CONTACTS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotGetEmailParams, HubSpotGetEmailResponse } from '@/tools/hubspot/types'
+import { EMAIL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotListContacts')
+const logger = createLogger('HubSpotGetEmail')
 
-export const hubspotListContactsTool: ToolConfig<
-  HubSpotListContactsParams,
-  HubSpotListContactsResponse
-> = {
-  id: 'hubspot_list_contacts',
-  name: 'List Contacts from HubSpot',
-  description: 'Retrieve all contacts from HubSpot account with pagination support',
+export const hubspotGetEmailTool: ToolConfig<HubSpotGetEmailParams, HubSpotGetEmailResponse> = {
+  id: 'hubspot_get_email',
+  name: 'Get Email from HubSpot',
+  description:
+    'Retrieve a single email engagement by ID from HubSpot (content requires the sales-email-read scope)',
   version: '1.0.0',
 
   oauth: {
@@ -26,45 +24,33 @@ export const hubspotListContactsTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the HubSpot API',
     },
-    limit: {
+    emailId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results per page (max 100, default 10)',
-    },
-    after: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page of results (from previous response)',
+      description: 'The HubSpot email engagement ID to retrieve',
     },
     properties: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of HubSpot property names to return (e.g., "email,firstname,lastname,phone")',
+        'Comma-separated list of HubSpot property names to return (e.g., "hs_email_subject,hs_email_text,hs_timestamp")',
     },
     associations: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of object types to retrieve associated IDs for (e.g., "companies,deals")',
+        'Comma-separated list of object types to retrieve associated IDs for (e.g., "contacts,companies,deals")',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/contacts'
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/emails/${params.emailId.trim()}`
       const queryParams = new URLSearchParams()
 
-      if (params.limit) {
-        queryParams.append('limit', params.limit)
-      }
-      if (params.after) {
-        queryParams.append('after', params.after)
-      }
       if (params.properties) {
         queryParams.append('properties', params.properties)
       }
@@ -93,27 +79,22 @@ export const hubspotListContactsTool: ToolConfig<
 
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to list contacts from HubSpot')
+      throw new Error(data.message || 'Failed to get email from HubSpot')
     }
 
     return {
       success: true,
       output: {
-        contacts: data.results || [],
-        paging: data.paging ?? null,
-        metadata: {
-          totalReturned: data.results?.length || 0,
-          hasMore: !!data.paging?.next,
-        },
+        email: data,
+        emailId: data.id,
         success: true,
       },
     }
   },
 
   outputs: {
-    contacts: CONTACTS_ARRAY_OUTPUT,
-    paging: PAGING_OUTPUT,
-    metadata: METADATA_OUTPUT,
+    email: EMAIL_OBJECT_OUTPUT,
+    emailId: { type: 'string', description: 'The retrieved email engagement ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

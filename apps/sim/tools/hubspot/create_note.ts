@@ -1,16 +1,16 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotCreateDealParams, HubSpotCreateDealResponse } from '@/tools/hubspot/types'
-import { DEAL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotCreateNoteParams, HubSpotCreateNoteResponse } from '@/tools/hubspot/types'
+import { NOTE_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotCreateDeal')
+const logger = createLogger('HubSpotCreateNote')
 
-export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotCreateDealResponse> =
+export const hubspotCreateNoteTool: ToolConfig<HubSpotCreateNoteParams, HubSpotCreateNoteResponse> =
   {
-    id: 'hubspot_create_deal',
-    name: 'Create Deal in HubSpot',
+    id: 'hubspot_create_note',
+    name: 'Create Note in HubSpot',
     description:
-      'Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)',
+      'Log a note in HubSpot and optionally associate it with contacts, companies, or deals. Requires hs_timestamp and hs_note_body properties',
     version: '1.0.0',
 
     oauth: {
@@ -30,24 +30,25 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
         required: true,
         visibility: 'user-or-llm',
         description:
-          'Deal properties as JSON object. Must include dealname (e.g., {"dealname": "New Deal", "amount": "5000", "dealstage": "appointmentscheduled"})',
+          'Note properties as JSON object. Must include "hs_timestamp" (ISO 8601 activity time) and "hs_note_body" (the note text). e.g., {"hs_timestamp": "2026-06-13T00:00:00Z", "hs_note_body": "Followed up via phone"}',
       },
       associations: {
         type: 'array',
         required: false,
         visibility: 'user-or-llm',
         description:
-          'Array of associations to create with the deal as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId"',
+          'Array of associations as JSON. Each object has "to.id" (record ID) and "types" array with "associationCategory" ("HUBSPOT_DEFINED") and "associationTypeId" (202 = note→contact, 190 = note→company, 214 = note→deal)',
       },
     },
 
     request: {
-      url: () => 'https://api.hubapi.com/crm/v3/objects/deals',
+      url: () => 'https://api.hubapi.com/crm/v3/objects/notes',
       method: 'POST',
       headers: (params) => {
         if (!params.accessToken) {
           throw new Error('Access token is required')
         }
+
         return {
           Authorization: `Bearer ${params.accessToken}`,
           'Content-Type': 'application/json',
@@ -64,7 +65,11 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
             )
           }
         }
-        const body: Record<string, unknown> = { properties }
+
+        const body: Record<string, unknown> = {
+          properties,
+        }
+
         let associations = params.associations
         if (typeof associations === 'string') {
           try {
@@ -78,25 +83,32 @@ export const hubspotCreateDealTool: ToolConfig<HubSpotCreateDealParams, HubSpotC
         if (Array.isArray(associations) && associations.length > 0) {
           body.associations = associations
         }
+
         return body
       },
     },
 
     transformResponse: async (response: Response) => {
       const data = await response.json()
+
       if (!response.ok) {
         logger.error('HubSpot API request failed', { data, status: response.status })
-        throw new Error(data.message || 'Failed to create deal in HubSpot')
+        throw new Error(data.message || 'Failed to create note in HubSpot')
       }
+
       return {
         success: true,
-        output: { deal: data, dealId: data.id, success: true },
+        output: {
+          note: data,
+          noteId: data.id,
+          success: true,
+        },
       }
     },
 
     outputs: {
-      deal: DEAL_OBJECT_OUTPUT,
-      dealId: { type: 'string', description: 'The created deal ID' },
+      note: NOTE_OBJECT_OUTPUT,
+      noteId: { type: 'string', description: 'The created note ID' },
       success: { type: 'boolean', description: 'Operation success status' },
     },
   }
