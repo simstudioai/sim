@@ -56,19 +56,34 @@ export function ScheduledTasks() {
   /** Pre-fill for a duplicate — opens the create modal seeded from an existing task. */
   const [duplicatePrefill, setDuplicatePrefill] = useState<TaskPrefill | null>(null)
 
-  /** Starts a blank create, clearing any duplicate pre-fill so it can't bleed in. */
+  /** Starts a blank create. The three modal sources are mutually exclusive, so it closes the others. */
   const handleOpenCreate = useCallback(() => {
     setDuplicatePrefill(null)
+    tasks.closeTask()
     calendar.openCreate()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calendar.openCreate])
 
-  /** Starts a slot-seeded create, clearing any duplicate pre-fill. */
+  /** Starts a slot-seeded create, closing any other open modal. */
   const handleSelectSlot = useCallback(
     (date: Date, time?: string) => {
       setDuplicatePrefill(null)
+      tasks.closeTask()
       calendar.selectSlot(date, time)
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [calendar.selectSlot]
+  )
+
+  /** Opens a task's edit/record modal, closing any create/duplicate flow. */
+  const handleOpenTask = useCallback(
+    (task: ScheduledTask) => {
+      setDuplicatePrefill(null)
+      calendar.closeCreate()
+      tasks.openTask(task)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [calendar.closeCreate]
   )
 
   const handleDuplicate = useCallback(() => {
@@ -77,6 +92,7 @@ export function ScheduledTasks() {
     if (!seed) return
     const { scheduleId: _scheduleId, ...prefill } = seed
     calendar.closeCreate()
+    tasks.closeTask()
     setDuplicatePrefill(prefill)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextTask, calendar.closeCreate])
@@ -92,8 +108,8 @@ export function ScheduledTasks() {
 
   /** Opens the right-clicked task's modal (edit for pending, record otherwise). */
   const openContextTask = useCallback(() => {
-    if (contextTask) tasks.openTask(contextTask)
-  }, [contextTask, tasks.openTask])
+    if (contextTask) handleOpenTask(contextTask)
+  }, [contextTask, handleOpenTask])
 
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -135,7 +151,7 @@ export function ScheduledTasks() {
           onToday={calendar.goToday}
           onSelectDate={calendar.goToDate}
           onSelectSlot={handleSelectSlot}
-          onSelectTask={tasks.openTask}
+          onSelectTask={handleOpenTask}
           onTaskContextMenu={handleTaskContextMenu}
           onShowDay={calendar.openDay}
           eventsByDay={tasks.eventsByDay}
