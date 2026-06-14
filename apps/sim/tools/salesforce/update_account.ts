@@ -3,7 +3,7 @@ import type {
   SalesforceUpdateAccountResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceUpdateAccountTool: ToolConfig<
@@ -125,7 +125,7 @@ export const salesforceUpdateAccountTool: ToolConfig<
   request: {
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      const accountId = params.accountId.trim()
+      const accountId = requireId(params.accountId, 'Account ID')
 
       return `${instanceUrl}/services/data/v59.0/sobjects/Account/${accountId}`
     },

@@ -3,7 +3,7 @@ import type {
   SalesforceDeleteTaskResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceDeleteTaskTool: ToolConfig<
@@ -46,7 +46,7 @@ export const salesforceDeleteTaskTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const taskId = params.taskId.trim()
+      const taskId = requireId(params.taskId, 'Task ID')
       return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${taskId}`
     },
     method: 'DELETE',

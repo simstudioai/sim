@@ -169,8 +169,8 @@ export const salesforceCreateAccountTool: ToolConfig<
       success: true,
       output: {
         id: data.id,
-        success: true,
-        created: true,
+        success: data.success === true,
+        created: data.success === true,
       },
     }
   },

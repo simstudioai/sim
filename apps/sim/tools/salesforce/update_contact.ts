@@ -4,7 +4,7 @@ import type {
   SalesforceUpdateContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -108,7 +108,7 @@ export const salesforceUpdateContactTool: ToolConfig<
   request: {
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      const contactId = params.contactId.trim()
+      const contactId = requireId(params.contactId, 'Contact ID')
       return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}`
     },
     method: 'PATCH',

@@ -4,7 +4,7 @@ import type {
   SalesforceDeleteOpportunityResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceDeleteOpportunity')
@@ -37,7 +37,7 @@ export const salesforceDeleteOpportunityTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const opportunityId = params.opportunityId.trim()
+      const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
       return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Opportunity/${opportunityId}`
     },
     method: 'DELETE',

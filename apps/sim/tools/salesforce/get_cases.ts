@@ -1,6 +1,6 @@
 import type { SalesforceGetCasesParams, SalesforceGetCasesResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceGetCasesTool: ToolConfig<
@@ -52,7 +52,7 @@ export const salesforceGetCasesTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.caseId) {
-        const caseId = params.caseId.trim()
+        const caseId = requireId(params.caseId, 'Case ID')
         const fields =
           params.fields || 'Id,CaseNumber,Subject,Status,Priority,Origin,ContactId,AccountId'
         return `${instanceUrl}/services/data/v59.0/sobjects/Case/${caseId}?fields=${encodeURIComponent(fields)}`

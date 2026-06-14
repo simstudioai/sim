@@ -3,7 +3,7 @@ import type {
   SalesforceUpdateLeadResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceUpdateLeadTool: ToolConfig<
@@ -83,7 +83,7 @@ export const salesforceUpdateLeadTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const leadId = params.leadId.trim()
+      const leadId = requireId(params.leadId, 'Lead ID')
       return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${leadId}`
     },
     method: 'PATCH',

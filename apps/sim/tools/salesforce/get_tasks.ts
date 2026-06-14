@@ -1,6 +1,6 @@
 import type { SalesforceGetTasksParams, SalesforceGetTasksResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceGetTasksTool: ToolConfig<
@@ -64,10 +64,10 @@ export const salesforceGetTasksTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.taskId) {
-        const taskId = params.taskId.trim()
+        const taskId = requireId(params.taskId, 'Task ID')
         const fields =
           params.fields || 'Id,Subject,Status,Priority,ActivityDate,WhoId,WhatId,OwnerId'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Task/${taskId}?fields=${fields}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Task/${taskId}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields = params.fields || 'Id,Subject,Status,Priority,ActivityDate,WhoId,WhatId,OwnerId'

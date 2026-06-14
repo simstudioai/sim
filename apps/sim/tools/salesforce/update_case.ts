@@ -3,7 +3,7 @@ import type {
   SalesforceUpdateCaseResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceUpdateCaseTool: ToolConfig<
@@ -88,7 +88,7 @@ export const salesforceUpdateCaseTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const caseId = params.caseId.trim()
+      const caseId = requireId(params.caseId, 'Case ID')
       return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${caseId}`
     },
     method: 'PATCH',

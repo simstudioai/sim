@@ -4,7 +4,7 @@ import type {
   SalesforceUpdateOpportunityResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_UPDATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceUpdateOpportunity')
@@ -79,7 +79,7 @@ export const salesforceUpdateOpportunityTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const opportunityId = params.opportunityId.trim()
+      const opportunityId = requireId(params.opportunityId, 'Opportunity ID')
       return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Opportunity/${opportunityId}`
     },
     method: 'PATCH',

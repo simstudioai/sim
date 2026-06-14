@@ -143,8 +143,8 @@ export const salesforceCreateContactTool: ToolConfig<
       success: true,
       output: {
         id: data.id,
-        success: data.success,
-        created: true,
+        success: data.success === true,
+        created: data.success === true,
       },
     }
   },

@@ -1,6 +1,6 @@
 import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceGetLeadsTool: ToolConfig<
@@ -52,7 +52,7 @@ export const salesforceGetLeadsTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.leadId) {
-        const leadId = params.leadId.trim()
+        const leadId = requireId(params.leadId, 'Lead ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
         return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${leadId}?fields=${encodeURIComponent(fields)}`
