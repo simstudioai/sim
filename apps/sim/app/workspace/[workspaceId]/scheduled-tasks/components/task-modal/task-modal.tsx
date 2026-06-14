@@ -138,6 +138,13 @@ export function TaskModal({
    * Escape, and overlay click all route through this one handler — so an
    * in-progress create/edit can't be abandoned and lose its draft. `submitting`
    * lives here (not in the unmounted-on-close content) so this guard can see it.
+   *
+   * The programmatic close on a *successful* submit is intentionally NOT blocked:
+   * `handleSubmit` runs in the pre-submit render where `submitting` was still
+   * false, so its `close()` resolves to that render's handler and passes through,
+   * while user dismisses fire from the current (submitting) render and are caught
+   * here. Keep `submitting` as render state — moving it to a ref or memoizing this
+   * handler with `submitting` in deps would make the success-close start blocking.
    */
   const handleOpenChange = (next: boolean) => {
     if (!next && submitting) return
