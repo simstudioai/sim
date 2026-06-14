@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
@@ -21,10 +21,12 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
+import { isFree } from '@/lib/billing/plan-helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -44,6 +46,7 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
+import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import { useWorkspaceSettings } from '@/hooks/queries/workspace'
@@ -57,6 +60,7 @@ import {
   A2aDeploy,
   ApiDeploy,
   ChatDeploy,
+  DeployUpgradeGate,
   type ExistingChat,
   GeneralDeploy,
   McpDeploy,
@@ -64,6 +68,19 @@ import {
 import { ApiInfoModal } from './components/general/components/api-info-modal'
 
 const logger = createLogger('DeployModal')
+
+/** Renders the upgrade prompt in place of a programmatic-deploy tab when gated. */
+function GatedTabContent({
+  gated,
+  feature,
+  children,
+}: {
+  gated: boolean
+  feature: 'API' | 'MCP' | 'A2A'
+  children: ReactNode
+}) {
+  return gated ? <DeployUpgradeGate feature={feature} /> : <>{children}</>
+}
 
 interface DeployModalProps {
   open: boolean
@@ -141,6 +158,11 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
+  const { data: subscriptionData, isLoading: isLoadingSubscription } = useSubscriptionData()
+  // Hold the gate closed until the plan is known — isFree(undefined) is true, so
+  // gating during load would flash the upgrade wall at paid users.
+  const gateProgrammaticDeploy =
+    isBillingEnabled && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -605,16 +627,18 @@ export function DeployModal({
                 />
               </ModalTabsContent>
 
-              <ModalTabsContent value='api'>
-                <ApiDeploy
-                  workflowId={workflowId}
-                  deploymentInfo={deploymentInfo}
-                  isLoading={isLoadingDeploymentInfo}
-                  needsRedeployment={needsRedeployment}
-                  getInputFormatExample={getInputFormatExample}
-                  selectedStreamingOutputs={selectedStreamingOutputs}
-                  onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
-                />
+              <ModalTabsContent value='api' className='h-full'>
+                <GatedTabContent gated={gateProgrammaticDeploy} feature='API'>
+                  <ApiDeploy
+                    workflowId={workflowId}
+                    deploymentInfo={deploymentInfo}
+                    isLoading={isLoadingDeploymentInfo}
+                    needsRedeployment={needsRedeployment}
+                    getInputFormatExample={getInputFormatExample}
+                    selectedStreamingOutputs={selectedStreamingOutputs}
+                    onSelectedStreamingOutputsChange={setSelectedStreamingOutputs}
+                  />
+                </GatedTabContent>
               </ModalTabsContent>
 
               <ModalTabsContent value='chat'>
@@ -634,32 +658,36 @@ export function DeployModal({
               </ModalTabsContent>
 
               <ModalTabsContent value='mcp' className='h-full'>
-                {workflowId && (
-                  <McpDeploy
-                    workflowId={workflowId}
-                    workflowName={workflowMetadata?.name || 'Workflow'}
-                    workflowDescription={workflowMetadata?.description}
-                    isDeployed={isDeployed}
-                    onSubmittingChange={setMcpToolSubmitting}
-                    onCanSaveChange={setMcpToolCanSave}
-                  />
-                )}
+                <GatedTabContent gated={gateProgrammaticDeploy} feature='MCP'>
+                  {workflowId && (
+                    <McpDeploy
+                      workflowId={workflowId}
+                      workflowName={workflowMetadata?.name || 'Workflow'}
+                      workflowDescription={workflowMetadata?.description}
+                      isDeployed={isDeployed}
+                      onSubmittingChange={setMcpToolSubmitting}
+                      onCanSaveChange={setMcpToolCanSave}
+                    />
+                  )}
+                </GatedTabContent>
               </ModalTabsContent>
 
               <ModalTabsContent value='a2a' className='h-full'>
-                {workflowId && (
-                  <A2aDeploy
-                    workflowId={workflowId}
-                    workflowName={workflowMetadata?.name || 'Workflow'}
-                    workflowDescription={workflowMetadata?.description}
-                    isDeployed={isDeployed}
-                    workflowNeedsRedeployment={needsRedeployment}
-                    onSubmittingChange={setA2aSubmitting}
-                    onCanSaveChange={setA2aCanSave}
-                    onNeedsRepublishChange={setA2aNeedsRepublish}
-                    onDeployWorkflow={onDeploy}
-                  />
-                )}
+                <GatedTabContent gated={gateProgrammaticDeploy} feature='A2A'>
+                  {workflowId && (
+                    <A2aDeploy
+                      workflowId={workflowId}
+                      workflowName={workflowMetadata?.name || 'Workflow'}
+                      workflowDescription={workflowMetadata?.description}
+                      isDeployed={isDeployed}
+                      workflowNeedsRedeployment={needsRedeployment}
+                      onSubmittingChange={setA2aSubmitting}
+                      onCanSaveChange={setA2aCanSave}
+                      onNeedsRepublishChange={setA2aNeedsRepublish}
+                      onDeployWorkflow={onDeploy}
+                    />
+                  )}
+                </GatedTabContent>
               </ModalTabsContent>
             </ModalBody>
           </ModalTabs>
@@ -679,7 +707,7 @@ export function DeployModal({
               }}
             />
           )}
-          {activeTab === 'api' && (
+          {activeTab === 'api' && !gateProgrammaticDeploy && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -731,7 +759,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'mcp' && isDeployed && hasMcpServers && (
+          {activeTab === 'mcp' && !gateProgrammaticDeploy && isDeployed && hasMcpServers && (
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
@@ -753,7 +781,7 @@ export function DeployModal({
               </div>
             </ModalFooter>
           )}
-          {activeTab === 'a2a' && (
+          {activeTab === 'a2a' && !gateProgrammaticDeploy && (
             <ModalFooter className='items-center justify-between'>
               {hasA2aAgent ? (
                 isA2aPublished ? (

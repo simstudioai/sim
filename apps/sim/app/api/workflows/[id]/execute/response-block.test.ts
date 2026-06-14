@@ -21,12 +21,19 @@ const {
   mockRegisterLargeValueOwner,
   mockUploadFile,
   uploadedFiles,
+  mockIsWorkspaceApiExecutionEntitled,
 } = vi.hoisted(() => ({
   mockAddLargeValueReference: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockRegisterLargeValueOwner: vi.fn(),
   mockUploadFile: vi.fn(),
   uploadedFiles: new Map<string, Buffer>(),
+  mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
+  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
 }))
 
 const MATERIALIZATION_CONTEXT = {
