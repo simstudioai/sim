@@ -13,6 +13,7 @@ import {
   layoutColumn,
   TIME_SLOT_HEIGHT,
   timeToOffset,
+  visibleRange,
   WEEKDAY_LABELS,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
 
@@ -55,6 +56,21 @@ describe('buildCalendarGrid', () => {
     expect(grid.day.date).toEqual(ANCHOR)
     expect(grid.day.isToday).toBe(true)
     expect(grid.hours).toHaveLength(24)
+  })
+})
+
+describe('visibleRange', () => {
+  it('pads the rendered span by a day each side to cover timezone offset slop', () => {
+    // Week of Jun 7–13, 2026 (Sun–Sat); padded to Jun 6 → Jun 14.
+    const { start, end } = visibleRange('week', ANCHOR)
+    expect(start).toEqual(new Date(2026, 5, 6))
+    expect(end.getDate()).toBe(14)
+  })
+
+  it('pads the single-day span to the neighboring days', () => {
+    const { start, end } = visibleRange('day', ANCHOR)
+    expect(start.getDate()).toBe(9)
+    expect(end.getDate()).toBe(11)
   })
 })
 

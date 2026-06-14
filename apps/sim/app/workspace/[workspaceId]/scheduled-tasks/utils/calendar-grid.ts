@@ -123,12 +123,8 @@ export function buildCalendarGrid(scope: CalendarScope, anchor: Date, today: Dat
   }
 }
 
-/**
- * The inclusive [start, end] instant window the current view renders, matching
- * `buildCalendarGrid` exactly (the month view spans its 4–6 spillover weeks).
- * Used to bound recurrence expansion to occurrences that are actually on screen.
- */
-export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
+/** The day span the current view renders (month spans its 4–6 spillover weeks). */
+function visibleSpan(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
   switch (scope) {
     case 'month':
       return {
@@ -143,6 +139,20 @@ export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date;
     case 'day':
       return { start: startOfDay(anchor), end: endOfDay(anchor) }
   }
+}
+
+/**
+ * The instant window that bounds recurrence expansion for the current view,
+ * padded one day past the rendered span on each side. The grid frame is in the
+ * viewer's zone, but each occurrence is positioned in its task's own zone, so an
+ * instant up to a full UTC offset (≤14h) outside the rendered span can still
+ * fall on a visible day. The pad guarantees those boundary occurrences are
+ * expanded; `bucketEventsByDay` then places each on its zoned day, so any that
+ * land off-screen sit in an unrendered bucket and never show.
+ */
+export function visibleRange(scope: CalendarScope, anchor: Date): { start: Date; end: Date } {
+  const span = visibleSpan(scope, anchor)
+  return { start: addDays(span.start, -1), end: addDays(span.end, 1) }
 }
 
 /** Toolbar period label, e.g. `June 2026`, `Jun 7 – 13, 2026`, `June 10, 2026`. */

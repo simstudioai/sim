@@ -100,8 +100,7 @@ export function ScheduleCalendar({
     const target =
       headerHeight + timeToOffset(zonedClockDate(new Date(), timezone)) - region.clientHeight / 2
     region.scrollTo({ top: Math.max(0, target), behavior })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scope, scrollSignal])
+  }, [scope, scrollSignal, timezone])
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
