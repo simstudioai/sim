@@ -56,14 +56,30 @@ export function ScheduledTasks() {
   /** Pre-fill for a duplicate — opens the create modal seeded from an existing task. */
   const [duplicatePrefill, setDuplicatePrefill] = useState<TaskPrefill | null>(null)
 
+  /** Starts a blank create, clearing any duplicate pre-fill so it can't bleed in. */
+  const handleOpenCreate = useCallback(() => {
+    setDuplicatePrefill(null)
+    calendar.openCreate()
+  }, [calendar.openCreate])
+
+  /** Starts a slot-seeded create, clearing any duplicate pre-fill. */
+  const handleSelectSlot = useCallback(
+    (date: Date, time?: string) => {
+      setDuplicatePrefill(null)
+      calendar.selectSlot(date, time)
+    },
+    [calendar.selectSlot]
+  )
+
   const handleDuplicate = useCallback(() => {
     if (!contextTask) return
     const seed = tasks.editSeedFor(contextTask)
     if (!seed) return
     const { scheduleId: _scheduleId, ...prefill } = seed
+    calendar.closeCreate()
     setDuplicatePrefill(prefill)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [contextTask])
+  }, [contextTask, calendar.closeCreate])
 
   const handleTaskContextMenu = useCallback(
     (task: ScheduledTask, e: React.MouseEvent) => {
@@ -98,11 +114,11 @@ export function ScheduledTasks() {
       {
         text: 'New scheduled task',
         icon: Plus,
-        onSelect: calendar.openCreate,
+        onSelect: handleOpenCreate,
         variant: 'primary',
       },
     ],
-    [calendar.openCreate]
+    [handleOpenCreate]
   )
 
   return (
@@ -118,7 +134,7 @@ export function ScheduledTasks() {
           onNext={calendar.next}
           onToday={calendar.goToday}
           onSelectDate={calendar.goToDate}
-          onSelectSlot={calendar.selectSlot}
+          onSelectSlot={handleSelectSlot}
           onSelectTask={tasks.openTask}
           onTaskContextMenu={handleTaskContextMenu}
           onShowDay={calendar.openDay}
@@ -130,7 +146,7 @@ export function ScheduledTasks() {
         isOpen={isListContextMenuOpen}
         position={listContextMenuPosition}
         onClose={closeListContextMenu}
-        onCreateSchedule={calendar.openCreate}
+        onCreateSchedule={handleOpenCreate}
       />
 
       <TaskContextMenu
