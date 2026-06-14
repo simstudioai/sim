@@ -31,6 +31,12 @@ export interface ScheduledTask {
   status: ScheduledTaskStatus
   /** Whether the task repeats — drives edit seeding and the delete dialog. */
   recurring: boolean
+  /**
+   * Whether the parent schedule is paused. A paused recurring task still shows
+   * its upcoming occurrences (rendered dimmed) so it can be found and resumed;
+   * it will not run until resumed. Always `false` for past runs and one-time tasks.
+   */
+  disabled: boolean
 }
 
 /**
@@ -76,7 +82,11 @@ function withinRange(date: Date, rangeStart: Date, rangeEnd: Date): boolean {
 /**
  * Maps a persisted job schedule into the occurrences visible in `[rangeStart,
  * rangeEnd]`: upcoming runs (`pending`, expanded from the recurrence) plus the
- * schedule's most recent terminal run. `now` separates upcoming from past.
+ * schedule's most recent terminal run. `now` separates upcoming from past. A
+ * paused (`disabled`) recurring schedule still expands its upcoming occurrences
+ * — flagged `disabled` so the calendar can render them dimmed and offer Resume —
+ * since the cadence is intact and only suspended. `completed` schedules expand
+ * no future runs.
  */
 export function scheduleToTasks(
   row: WorkspaceScheduleRow,
@@ -85,6 +95,7 @@ export function scheduleToTasks(
   now: Date
 ): ScheduledTask[] {
   const recurring = Boolean(row.cronExpression)
+  const paused = row.status === 'disabled'
   // double-cast-allowed: contexts persist as open kind/label objects; the calendar consumes them as ChatContext
   const contexts = (row.contexts ?? undefined) as unknown as ChatContext[] | undefined
   const base = {
@@ -93,6 +104,7 @@ export function scheduleToTasks(
     contexts,
     timezone: row.timezone,
     recurring,
+    disabled: false,
   }
   const tasks: ScheduledTask[] = []
 
@@ -111,7 +123,7 @@ export function scheduleToTasks(
     return tasks
   }
 
-  if (row.status === 'active' && row.cronExpression) {
+  if ((row.status === 'active' || paused) && row.cronExpression) {
     const occurrences = expandOccurrences({
       cronExpression: row.cronExpression,
       timezone: row.timezone,
@@ -122,7 +134,13 @@ export function scheduleToTasks(
       endsAt: row.endsAt ? new Date(row.endsAt) : null,
     })
     for (const runAt of occurrences) {
-      tasks.push({ ...base, id: `${row.id}:${runAt.toISOString()}`, runAt, status: 'pending' })
+      tasks.push({
+        ...base,
+        id: `${row.id}:${runAt.toISOString()}`,
+        runAt,
+        status: 'pending',
+        disabled: paused,
+      })
     }
   }
 

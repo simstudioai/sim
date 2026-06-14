@@ -22,7 +22,9 @@ import {
 import {
   useCreateSchedule,
   useDeleteSchedule,
+  useDisableSchedule,
   useExcludeOccurrence,
+  useResumeSchedule,
   useUpdateSchedule,
   useWorkspaceSchedules,
 } from '@/hooks/queries/schedules'
@@ -91,12 +93,18 @@ export interface UseScheduledTasksReturn {
   closeTask: () => void
   /** Recovers the modal's edit seed (recurrence, launch) from a task's schedule. */
   editSeedFor: (task: ScheduledTask) => TaskEditSeed | null
-  createTask: (draft: TaskDraft) => void
-  updateTask: (scheduleId: string, draft: TaskDraft) => void
+  /** Resolves once the create persists; rejects on failure so the modal stays open. */
+  createTask: (draft: TaskDraft) => Promise<void>
+  /** Resolves once the edit persists; rejects on failure so the modal stays open. */
+  updateTask: (scheduleId: string, draft: TaskDraft) => Promise<void>
   /** Deletes the whole task (one-time or the entire recurring series). */
   deleteTask: (scheduleId: string) => void
   /** Deletes a single occurrence of a recurring task. */
   deleteOccurrence: (scheduleId: string, occurrence: Date) => void
+  /** Pauses a recurring task — suspends future runs until resumed. */
+  pauseTask: (scheduleId: string) => void
+  /** Resumes a paused recurring task, recomputing its next run from the cron. */
+  resumeTask: (scheduleId: string) => void
 }
 
 /**
@@ -115,6 +123,8 @@ export function useScheduledTasks({
   const updateSchedule = useUpdateSchedule()
   const deleteSchedule = useDeleteSchedule()
   const excludeOccurrence = useExcludeOccurrence()
+  const disableSchedule = useDisableSchedule()
+  const resumeSchedule = useResumeSchedule()
 
   const [selectedTask, setSelectedTask] = useState<ScheduledTask | null>(null)
 
@@ -157,15 +167,16 @@ export function useScheduledTasks({
   )
 
   const createTask = useCallback(
-    (draft: TaskDraft) => createSchedule.mutate(draftToCreateBody(draft, workspaceId)),
+    async (draft: TaskDraft) => {
+      await createSchedule.mutateAsync(draftToCreateBody(draft, workspaceId))
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
   )
 
   const updateTask = useCallback(
-    (scheduleId: string, draft: TaskDraft) => {
-      updateSchedule.mutate({ scheduleId, workspaceId, ...draftToUpdateBody(draft) })
-      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+    async (scheduleId: string, draft: TaskDraft) => {
+      await updateSchedule.mutateAsync({ scheduleId, workspaceId, ...draftToUpdateBody(draft) })
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceId]
@@ -189,6 +200,24 @@ export function useScheduledTasks({
     [workspaceId]
   )
 
+  const pauseTask = useCallback(
+    (scheduleId: string) => {
+      disableSchedule.mutate({ scheduleId, workspaceId })
+      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workspaceId]
+  )
+
+  const resumeTask = useCallback(
+    (scheduleId: string) => {
+      resumeSchedule.mutate({ scheduleId, workspaceId })
+      setSelectedTask((current) => (current?.scheduleId === scheduleId ? null : current))
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workspaceId]
+  )
+
   return {
     isLoading,
     eventsByDay,
@@ -200,5 +229,7 @@ export function useScheduledTasks({
     updateTask,
     deleteTask,
     deleteOccurrence,
+    pauseTask,
+    resumeTask,
   }
 }

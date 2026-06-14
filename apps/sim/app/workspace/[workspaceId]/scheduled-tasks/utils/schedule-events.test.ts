@@ -20,6 +20,7 @@ function makeTask(overrides: Partial<ScheduledTask>): ScheduledTask {
     timezone: 'UTC',
     status: 'pending',
     recurring: false,
+    disabled: false,
     ...overrides,
   }
 }
@@ -173,13 +174,32 @@ describe('scheduleToTasks', () => {
     expect(runs).not.toContain('2026-06-12T12:00:00.000Z')
   })
 
-  it('produces nothing for a disabled schedule with no run history', () => {
+  it('flags active recurring occurrences as not disabled', () => {
+    const tasks = scheduleToTasks(
+      makeRow({ cronExpression: '0 12 * * *' }),
+      RANGE_START,
+      RANGE_END,
+      NOW
+    )
+    const pending = tasks.filter((t) => t.status === 'pending')
+    expect(pending.length).toBeGreaterThan(0)
+    expect(pending.every((t) => !t.disabled)).toBe(true)
+  })
+
+  it('expands a paused recurring schedule as disabled occurrences so it stays resumable', () => {
     const tasks = scheduleToTasks(
       makeRow({ status: 'disabled', cronExpression: '0 12 * * *' }),
       RANGE_START,
       RANGE_END,
       NOW
     )
+    const pending = tasks.filter((t) => t.status === 'pending')
+    expect(pending.length).toBe(5) // Jun 10–14 noon (NOW is Jun 10 00:00)
+    expect(pending.every((t) => t.disabled)).toBe(true)
+  })
+
+  it('produces nothing for a paused one-time task with no run history', () => {
+    const tasks = scheduleToTasks(makeRow({ status: 'disabled' }), RANGE_START, RANGE_END, NOW)
     expect(tasks).toHaveLength(0)
   })
 })

@@ -105,8 +105,12 @@ interface TaskModalProps {
   edit?: TaskEditSeed | null
   /** Pre-fill for a create (duplicate): opens in create mode with every field copied. */
   prefill?: TaskPrefill | null
-  /** Receives the captured draft on submit (create and save alike). */
-  onSubmit: (draft: TaskDraft) => void
+  /**
+   * Receives the captured draft on submit (create and save alike). May return a
+   * promise — the modal awaits it, keeping itself open until the task persists
+   * and closing only on success, so a failed save never silently discards the draft.
+   */
+  onSubmit: (draft: TaskDraft) => void | Promise<void>
   /** Asks the parent to start the delete flow (which handles the recurring this/all choice). */
   onRequestDelete?: () => void
 }
@@ -127,23 +131,51 @@ export function TaskModal({
   onSubmit,
   onRequestDelete,
 }: TaskModalProps) {
+  const [submitting, setSubmitting] = useState(false)
+
+  /**
+   * While a save is in flight, swallow every dismiss path — Cancel, header X,
+   * Escape, and overlay click all route through this one handler — so an
+   * in-progress create/edit can't be abandoned and lose its draft. `submitting`
+   * lives here (not in the unmounted-on-close content) so this guard can see it.
+   *
+   * The programmatic close on a *successful* submit is intentionally NOT blocked:
+   * `handleSubmit` runs in the pre-submit render where `submitting` was still
+   * false, so its `close()` resolves to that render's handler and passes through,
+   * while user dismisses fire from the current (submitting) render and are caught
+   * here. Keep `submitting` as render state — moving it to a ref or memoizing this
+   * handler with `submitting` in deps would make the success-close start blocking.
+   */
+  const handleOpenChange = (next: boolean) => {
+    if (!next && submitting) return
+    onOpenChange(next)
+  }
+
   return (
     <ChipModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       size='lg'
       srTitle={edit ? 'Edit scheduled task' : 'New scheduled task'}
     >
       <TaskModalContent
-        onOpenChange={onOpenChange}
+        onOpenChange={handleOpenChange}
         slot={slot}
         edit={edit}
         prefill={prefill}
         onSubmit={onSubmit}
         onRequestDelete={onRequestDelete}
+        submitting={submitting}
+        setSubmitting={setSubmitting}
       />
     </ChipModal>
   )
+}
+
+interface TaskModalContentProps extends Omit<TaskModalProps, 'open'> {
+  /** Whether a save is in flight — owned by {@link TaskModal} so the dismiss guard can read it. */
+  submitting: boolean
+  setSubmitting: (submitting: boolean) => void
 }
 
 /**
@@ -158,7 +190,9 @@ function TaskModalContent({
   prefill,
   onSubmit,
   onRequestDelete,
-}: Omit<TaskModalProps, 'open'>) {
+  submitting,
+  setSubmitting,
+}: TaskModalContentProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const source = edit ?? prefill
   const accountTimezone = useTimezone()
@@ -190,6 +224,14 @@ function TaskModalContent({
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
   const launchEditedRef = useRef(false)
+  /**
+   * Synchronous mirror of `submitting` that gates {@link handleSubmit}. The
+   * `submitting` state only reflects after a re-render, so two invocations in the
+   * same tick (Enter racing the click) could both pass a state-based guard; the
+   * ref flips immediately, so the second is rejected before it can fire a second
+   * mutation.
+   */
+  const submittingRef = useRef(false)
 
   /**
    * Re-seed a blank create's default launch when the effective zone resolves
@@ -223,22 +265,52 @@ function TaskModalContent({
 
   const promptText = editor.value.trim()
 
-  const handleSubmit = () => {
-    if (!promptText || isPastLaunch) return
-    onSubmit({
-      prompt: editor.getPlainValue().trim(),
-      contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
-      launchDate,
-      launchTime,
-      timezone,
-      recurrence,
-    })
-    close()
+  /**
+   * Submits the draft and waits for it to persist. The synchronous
+   * {@link submittingRef} guard blocks a double-submit (Enter racing the click).
+   * The modal closes only when the save resolves; a rejection leaves it open so
+   * the draft survives — the mutation hook already surfaces the error via toast,
+   * so it is swallowed here rather than duplicated. Both the ref and the
+   * `submitting` state are always cleared, so the button can never stick disabled
+   * while the modal stays open.
+   */
+  const handleSubmit = async () => {
+    if (!promptText || isPastLaunch || submittingRef.current) return
+    submittingRef.current = true
+    setSubmitting(true)
+    const persisted = await Promise.resolve(
+      onSubmit({
+        prompt: editor.getPlainValue().trim(),
+        contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
+        launchDate,
+        launchTime,
+        timezone,
+        recurrence,
+      })
+    )
+      .then(() => true)
+      .catch(() => false)
+    submittingRef.current = false
+    setSubmitting(false)
+    if (persisted) close()
   }
 
+  /**
+   * Footer secondary actions. Delete is disabled while `submitting` because it
+   * bypasses the dismiss guard — it closes the modal via `closeTask`, not the
+   * guarded `onOpenChange` — so without the lock an in-flight edit and a delete
+   * could run against the same task at once.
+   */
   const secondaryActions: ChipModalFooterSlotAction[] = [
     ...(edit && onRequestDelete
-      ? [{ label: 'Delete', variant: 'destructive' as const, onClick: onRequestDelete }]
+      ? [
+          {
+            label: 'Delete',
+            variant: 'destructive' as const,
+            onClick: onRequestDelete,
+            disabled: submitting,
+          },
+        ]
       : []),
     {
       custom: (
@@ -268,11 +340,12 @@ function TaskModalContent({
       </ChipModalPromptBody>
       <ChipModalFooter
         onCancel={close}
+        cancelDisabled={submitting}
         secondaryActions={secondaryActions}
         primaryAction={{
-          label: edit ? 'Save' : 'Schedule',
+          label: submitting ? (edit ? 'Saving...' : 'Scheduling...') : edit ? 'Save' : 'Schedule',
           onClick: handleSubmit,
-          disabled: !promptText || isPastLaunch,
+          disabled: !promptText || isPastLaunch || submitting,
           disabledTooltip: isPastLaunch ? PAST_LAUNCH_MESSAGE : undefined,
         }}
       />
