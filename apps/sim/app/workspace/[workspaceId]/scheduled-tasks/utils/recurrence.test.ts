@@ -98,14 +98,20 @@ describe('cronToRecurrence', () => {
       maxRuns: null,
       endsAt: null,
       anchor,
+      timezone: 'UTC',
     })
     expect(recurrence.frequency).toBe('once')
   })
 
   it('recovers daily, weekly, and monthly cadences', () => {
     expect(
-      cronToRecurrence({ cronExpression: '30 9 * * *', maxRuns: null, endsAt: null, anchor })
-        .recurrence.frequency
+      cronToRecurrence({
+        cronExpression: '30 9 * * *',
+        maxRuns: null,
+        endsAt: null,
+        anchor,
+        timezone: 'UTC',
+      }).recurrence.frequency
     ).toBe('daily')
 
     const weekly = cronToRecurrence({
@@ -113,13 +119,19 @@ describe('cronToRecurrence', () => {
       maxRuns: null,
       endsAt: null,
       anchor,
+      timezone: 'UTC',
     }).recurrence
     expect(weekly.frequency).toBe('weekly')
     expect(weekly.weekdays).toEqual([1, 3])
 
     expect(
-      cronToRecurrence({ cronExpression: '5 7 15 * *', maxRuns: null, endsAt: null, anchor })
-        .recurrence.frequency
+      cronToRecurrence({
+        cronExpression: '5 7 15 * *',
+        maxRuns: null,
+        endsAt: null,
+        anchor,
+        timezone: 'UTC',
+      }).recurrence.frequency
     ).toBe('monthly')
   })
 
@@ -129,6 +141,7 @@ describe('cronToRecurrence', () => {
       maxRuns: null,
       endsAt: null,
       anchor,
+      timezone: 'UTC',
     })
     expect(recurrence.frequency).toBe('custom')
     expect(recurrence.cron).toBe('*/5 * * * *')
@@ -136,8 +149,13 @@ describe('cronToRecurrence', () => {
 
   it('recovers the end boundary from maxRuns and endsAt', () => {
     expect(
-      cronToRecurrence({ cronExpression: '0 9 * * *', maxRuns: 5, endsAt: null, anchor }).recurrence
-        .end
+      cronToRecurrence({
+        cronExpression: '0 9 * * *',
+        maxRuns: 5,
+        endsAt: null,
+        anchor,
+        timezone: 'UTC',
+      }).recurrence.end
     ).toEqual({ type: 'after', count: 5 })
 
     expect(

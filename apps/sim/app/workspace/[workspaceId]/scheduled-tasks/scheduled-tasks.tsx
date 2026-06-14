@@ -10,7 +10,10 @@ import { ScheduleListContextMenu } from '@/app/workspace/[workspaceId]/scheduled
 import { TaskContextMenu } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-context-menu'
 import { TaskDeleteDialog } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-delete-dialog'
 import { TaskDetailsModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-details-modal'
-import { TaskModal } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal'
+import {
+  TaskModal,
+  type TaskPrefill,
+} from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal'
 import { useCalendar } from '@/app/workspace/[workspaceId]/scheduled-tasks/hooks/use-calendar'
 import { useScheduledTasks } from '@/app/workspace/[workspaceId]/scheduled-tasks/hooks/use-scheduled-tasks'
 import { visibleRange } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
@@ -50,6 +53,17 @@ export function ScheduledTasks() {
   const [contextTask, setContextTask] = useState<ScheduledTask | null>(null)
   /** The task targeted for deletion — drives the (recurring-aware) delete dialog. */
   const [deletingTask, setDeletingTask] = useState<ScheduledTask | null>(null)
+  /** Pre-fill for a duplicate — opens the create modal seeded from an existing task. */
+  const [duplicatePrefill, setDuplicatePrefill] = useState<TaskPrefill | null>(null)
+
+  const handleDuplicate = useCallback(() => {
+    if (!contextTask) return
+    const seed = tasks.editSeedFor(contextTask)
+    if (!seed) return
+    const { scheduleId: _scheduleId, ...prefill } = seed
+    setDuplicatePrefill(prefill)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextTask])
 
   const handleTaskContextMenu = useCallback(
     (task: ScheduledTask, e: React.MouseEvent) => {
@@ -124,8 +138,8 @@ export function ScheduledTasks() {
         position={taskContextMenuPosition}
         onClose={closeTaskContextMenu}
         task={contextTask}
-        onSeeDetails={openContextTask}
         onEdit={openContextTask}
+        onDuplicate={handleDuplicate}
         onDelete={() => setDeletingTask(contextTask)}
       />
 
@@ -137,11 +151,15 @@ export function ScheduledTasks() {
       />
 
       <TaskModal
-        open={calendar.isCreateOpen}
+        open={calendar.isCreateOpen || duplicatePrefill !== null}
         onOpenChange={(open) => {
-          if (!open) calendar.closeCreate()
+          if (!open) {
+            calendar.closeCreate()
+            setDuplicatePrefill(null)
+          }
         }}
-        slot={calendar.selectedSlot}
+        slot={duplicatePrefill ? null : calendar.selectedSlot}
+        prefill={duplicatePrefill}
         onSubmit={tasks.createTask}
       />
 

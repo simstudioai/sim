@@ -36,23 +36,20 @@ function isLaunchInPast(launchDate: string, launchTime: string, timezone: string
 }
 
 /**
- * Seeds the launch date/time for a create, in the task's `timezone`. A clicked
- * time slot uses it verbatim; otherwise the default lands on a valid future
- * instant — the next top of the hour when the target day is today (in that
- * zone), else 9am — so the modal never opens with the primary action disabled.
- * For today, the `Z` suffix makes the next-hour step pure wall-clock arithmetic
- * (adding an hour and rolling the date at 23:xx), not a timezone conversion.
+ * Seeds the launch date/time for a create. A clicked slot uses its day (and
+ * time, when a specific hour was clicked) at 9am otherwise. With no slot (the
+ * header action) the default is the next top of the hour in the task's
+ * `timezone`, so the modal never opens with a past, already-disabled default.
+ * The `Z` suffix keeps the next-hour step pure wall-clock arithmetic (adding an
+ * hour and rolling the date at 23:xx), not a timezone conversion.
  */
 function defaultLaunch(
   slot: CalendarSlot | null | undefined,
   timezone: string
 ): { date: string; time: string } {
   if (slot?.time) return { date: format(slot.date, 'yyyy-MM-dd'), time: slot.time }
-  const nowWall = wallClockNow(timezone)
-  const today = nowWall.slice(0, 10)
-  const date = slot?.date ? format(slot.date, 'yyyy-MM-dd') : today
-  if (date !== today) return { date, time: DEFAULT_TIME }
-  const next = new Date(`${nowWall}:00Z`)
+  if (slot?.date) return { date: format(slot.date, 'yyyy-MM-dd'), time: DEFAULT_TIME }
+  const next = new Date(`${wallClockNow(timezone)}:00Z`)
   next.setUTCMinutes(0, 0, 0)
   next.setUTCHours(next.getUTCHours() + 1)
   return { date: next.toISOString().slice(0, 10), time: next.toISOString().slice(11, 16) }
@@ -69,15 +66,19 @@ export interface TaskDraft {
   recurrence: Recurrence
 }
 
-/** Seeds the modal when editing an existing task, recovered from its schedule. */
-export interface TaskEditSeed {
-  scheduleId: string
+/** Pre-filled fields shared by the edit and duplicate flows. */
+export interface TaskPrefill {
   prompt: string
-  /** Stored `@`-mention contexts, re-registered so editing preserves them. */
+  /** Stored `@`-mention contexts, re-registered so they carry over. */
   contexts?: ChatContext[]
   launchDate: string
   launchTime: string
   recurrence: Recurrence
+}
+
+/** Seeds the modal when editing an existing task, recovered from its schedule. */
+export interface TaskEditSeed extends TaskPrefill {
+  scheduleId: string
 }
 
 interface TaskModalProps {
@@ -85,8 +86,10 @@ interface TaskModalProps {
   onOpenChange: (open: boolean) => void
   /** Slot seeding a create — the clicked day/time, or `null` from the header action. */
   slot?: CalendarSlot | null
-  /** Seed for an edit; when set the modal opens in edit mode. */
+  /** Seed for an edit; when set the modal opens in edit mode (Save + Delete). */
   edit?: TaskEditSeed | null
+  /** Pre-fill for a create (duplicate): opens in create mode with every field copied. */
+  prefill?: TaskPrefill | null
   /** Receives the captured draft on submit (create and save alike). */
   onSubmit: (draft: TaskDraft) => void
   /** Asks the parent to start the delete flow (which handles the recurring this/all choice). */
@@ -94,17 +97,18 @@ interface TaskModalProps {
 }
 
 /**
- * The "schedule a task" modal, shared by create (seeded from a calendar slot)
- * and edit (seeded from a task's schedule). The body is one prompt surface —
- * the chat input's editor, so `@` mentions resources and `/` invokes skills
- * exactly like talking to Sim — and the footer carries the recurrence, launch
- * date/time, and (edit only) Delete.
+ * The "schedule a task" modal, shared by create (blank, or pre-filled from a
+ * duplicate) and edit (seeded from a task's schedule). The body is one prompt
+ * surface — the chat input's editor, so `@` mentions resources and `/` invokes
+ * skills exactly like talking to Sim — and the footer carries the recurrence,
+ * launch date/time, and (edit only) Delete.
  */
 export function TaskModal({
   open,
   onOpenChange,
   slot,
   edit,
+  prefill,
   onSubmit,
   onRequestDelete,
 }: TaskModalProps) {
@@ -119,6 +123,7 @@ export function TaskModal({
         onOpenChange={onOpenChange}
         slot={slot}
         edit={edit}
+        prefill={prefill}
         onSubmit={onSubmit}
         onRequestDelete={onRequestDelete}
       />
@@ -135,30 +140,32 @@ function TaskModalContent({
   onOpenChange,
   slot,
   edit,
+  prefill,
   onSubmit,
   onRequestDelete,
 }: Omit<TaskModalProps, 'open'>) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const timezone = useTimezone()
-  const editor = usePromptEditor({ workspaceId, initialValue: edit?.prompt })
+  const source = edit ?? prefill
+  const editor = usePromptEditor({ workspaceId, initialValue: source?.prompt })
   const setContexts = editor.setContexts
 
   /**
-   * Re-registers an edited task's stored `@`-mentions once on open: the editor
+   * Re-registers a seeded task's stored `@`-mentions once on open: the editor
    * seeds from `initialValue` text only, never its contexts. Runs once per open
    * since the dialog's content remounts each time it opens.
    */
   useEffect(() => {
-    if (edit?.contexts && edit.contexts.length > 0) setContexts(edit.contexts)
+    if (source?.contexts && source.contexts.length > 0) setContexts(source.contexts)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const seed = edit
-    ? { date: edit.launchDate, time: edit.launchTime }
+  const seed = source
+    ? { date: source.launchDate, time: source.launchTime }
     : defaultLaunch(slot, timezone)
   const [launchDate, setLaunchDate] = useState(seed.date)
   const [launchTime, setLaunchTime] = useState(seed.time)
   const [recurrence, setRecurrence] = useState<Recurrence>(
-    () => edit?.recurrence ?? DEFAULT_RECURRENCE
+    () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
 
   const close = () => onOpenChange(false)

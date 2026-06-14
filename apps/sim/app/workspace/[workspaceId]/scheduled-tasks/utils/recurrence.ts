@@ -1,6 +1,5 @@
 import { Cron } from 'croner'
-import { format } from 'date-fns'
-import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { zonedWallClock, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 
 /**
  * Recurrence cadence the modal exposes. `once` is a one-time launch; `custom`
@@ -33,15 +32,12 @@ export const DEFAULT_RECURRENCE: Recurrence = {
 /** Upper bound on occurrences materialized for one schedule in a single view. */
 const MAX_OCCURRENCES_PER_VIEW = 500
 
-/** Combines a `yyyy-MM-dd` date and `HH:mm` time into a local `Date`. */
-function localDateTime(date: string, time: string): Date {
-  return new Date(`${date}T${time}`)
-}
-
 /**
  * Builds the cron expression for a recurrence, evaluated in the schedule's
  * timezone against the launch day/time. Returns `null` for a one-time task and
- * the preserved expression for a `custom` recurrence.
+ * the preserved expression for a `custom` recurrence. The weekday/day-of-month
+ * are read from the launch date as a zone-independent calendar date (UTC parse),
+ * so the cron targets the right day regardless of the device zone.
  */
 export function recurrenceToCron(
   recurrence: Recurrence,
@@ -52,17 +48,17 @@ export function recurrenceToCron(
   if (recurrence.frequency === 'custom') return recurrence.cron ?? null
 
   const [hour, minute] = launchTime.split(':').map(Number)
-  const launch = localDateTime(launchDate, launchTime)
+  const launchDay = new Date(`${launchDate}T00:00:00Z`)
 
   switch (recurrence.frequency) {
     case 'daily':
       return `${minute} ${hour} * * *`
     case 'weekly': {
-      const days = recurrence.weekdays.length > 0 ? recurrence.weekdays : [launch.getDay()]
+      const days = recurrence.weekdays.length > 0 ? recurrence.weekdays : [launchDay.getUTCDay()]
       return `${minute} ${hour} * * ${[...new Set(days)].sort((a, b) => a - b).join(',')}`
     }
     case 'monthly':
-      return `${minute} ${hour} ${launch.getDate()} * *`
+      return `${minute} ${hour} ${launchDay.getUTCDate()} * *`
   }
 }
 
@@ -112,7 +108,9 @@ const CRON_FIELD_COUNT = 5
 
 /**
  * Recovers the modal's recurrence + launch fields from a stored schedule so
- * editing reflects what is persisted. A cron the UI did not author maps to
+ * editing reflects what is persisted, read back in the schedule's `timezone`.
+ * A recurring task's launch clock comes from its cron; a one-time task's comes
+ * from the stored instant (`anchor`). A cron the UI did not author maps to
  * `custom` and round-trips untouched.
  */
 export function cronToRecurrence(params: {
@@ -120,19 +118,21 @@ export function cronToRecurrence(params: {
   maxRuns: number | null
   endsAt: string | null
   anchor: Date
+  timezone: string
 }): { recurrence: Recurrence; launchTime: string } {
-  const { cronExpression, maxRuns, endsAt, anchor } = params
+  const { cronExpression, maxRuns, endsAt, anchor, timezone } = params
 
   const end: RecurrenceEnd = endsAt
-    ? { type: 'on', date: format(new Date(endsAt), 'yyyy-MM-dd') }
+    ? { type: 'on', date: zonedWallClock(new Date(endsAt), timezone).slice(0, 10) }
     : maxRuns
       ? { type: 'after', count: maxRuns }
       : { type: 'never' }
+  const anchorTime = zonedWallClock(anchor, timezone).slice(11, 16)
 
   if (!cronExpression) {
     return {
       recurrence: { frequency: 'once', weekdays: [], end },
-      launchTime: format(anchor, 'HH:mm'),
+      launchTime: anchorTime,
     }
   }
 
@@ -140,7 +140,7 @@ export function cronToRecurrence(params: {
   if (parts.length !== CRON_FIELD_COUNT) {
     return {
       recurrence: { frequency: 'custom', weekdays: [], end, cron: cronExpression },
-      launchTime: format(anchor, 'HH:mm'),
+      launchTime: anchorTime,
     }
   }
 

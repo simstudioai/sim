@@ -39,11 +39,11 @@ export function getSupportedTimezones(): string[] {
 }
 
 /**
- * The current wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm`
- * string. Lets callers reason about a user's local date/time without converting
- * to UTC — e.g. to compare a picked launch time against "now" in their zone.
+ * An instant's wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm`
+ * string. Lets callers reason about a user's local date/time without UTC — e.g.
+ * to recover the local date/time a stored task instant represents in its zone.
  */
-export function wallClockNow(timeZone: string): string {
+export function zonedWallClock(instant: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -52,9 +52,14 @@ export function wallClockNow(timeZone: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
-  }).formatToParts(new Date())
+  }).formatToParts(instant)
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00'
   return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`
+}
+
+/** The current wall-clock time in `timeZone` as a naive `yyyy-MM-ddTHH:mm` string. */
+export function wallClockNow(timeZone: string): string {
+  return zonedWallClock(new Date(), timeZone)
 }
 
 /** The UTC offset (ms, east-positive) of `timeZone` at a given instant. */

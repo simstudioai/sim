@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { truncate } from '@sim/utils/string'
-import { format } from 'date-fns'
 import type { CreateScheduleBody, UpdateScheduleBody } from '@/lib/api/contracts/schedules'
+import { zonedWallClock } from '@/lib/core/utils/timezone'
 import type {
   TaskDraft,
   TaskEditSeed,
@@ -141,12 +141,13 @@ export function useScheduledTasks({
         maxRuns: schedule.maxRuns,
         endsAt: schedule.endsAt,
         anchor: task.runAt,
+        timezone: schedule.timezone,
       })
       return {
         scheduleId: schedule.id,
         prompt: schedule.prompt ?? '',
         contexts: task.contexts,
-        launchDate: format(task.runAt, 'yyyy-MM-dd'),
+        launchDate: zonedWallClock(task.runAt, schedule.timezone).slice(0, 10),
         launchTime,
         recurrence,
       }
