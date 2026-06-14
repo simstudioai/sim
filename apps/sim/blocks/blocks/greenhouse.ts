@@ -423,6 +423,7 @@ Return ONLY the ISO 8601 timestamp - no explanations, no extra text.`,
 
 export const GreenhouseBlockMeta = {
   tags: ['hiring'],
+  url: 'https://www.greenhouse.com',
   templates: [
     {
       icon: GreenhouseIcon,

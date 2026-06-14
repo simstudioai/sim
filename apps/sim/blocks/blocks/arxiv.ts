@@ -156,6 +156,7 @@ export const ArxivBlock: BlockConfig<ArxivResponse> = {
 
 export const ArxivBlockMeta = {
   tags: ['document-processing', 'knowledge-base'],
+  url: 'https://arxiv.org',
   templates: [
     {
       icon: ArxivIcon,

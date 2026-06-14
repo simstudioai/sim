@@ -750,6 +750,7 @@ Return ONLY the commit message - no explanations, no extra text.`,
 
 export const GitLabBlockMeta = {
   tags: ['version-control', 'ci-cd'],
+  url: 'https://about.gitlab.com',
   templates: [
     {
       icon: GitLabIcon,

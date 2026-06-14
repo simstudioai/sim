@@ -623,6 +623,7 @@ export const AgentMailBlock: BlockConfig = {
 
 export const AgentMailBlockMeta = {
   tags: ['messaging', 'automation'],
+  url: 'https://agentmail.to',
   templates: [
     {
       icon: AgentMailIcon,

@@ -13,11 +13,11 @@ import {
 
 export const adminV1PermissionGroupSchema = z.object({
   id: z.string(),
-  workspaceId: z.string(),
-  workspaceName: z.string().nullable(),
-  organizationId: z.string().nullable(),
+  organizationId: z.string(),
+  organizationName: z.string().nullable(),
   name: z.string(),
   description: z.string().nullable(),
+  isDefault: z.boolean(),
   memberCount: z.number(),
   createdAt: z.string(),
   createdByUserId: z.string(),
@@ -25,7 +25,6 @@ export const adminV1PermissionGroupSchema = z.object({
 })
 
 export const adminV1AccessControlQuerySchema = z.object({
-  workspaceId: adminV1QueryStringSchema,
   organizationId: adminV1QueryStringSchema,
 })
 
@@ -33,8 +32,8 @@ export const adminV1AccessControlDeleteQuerySchema = adminV1AccessControlQuerySc
   .extend({
     reason: adminV1QueryStringSchema.default('Enterprise plan churn cleanup'),
   })
-  .refine((query) => query.workspaceId || query.organizationId, {
-    error: 'workspaceId or organizationId is required',
+  .refine((query) => Boolean(query.organizationId), {
+    error: 'organizationId is required',
   })
 
 const adminV1AccessControlListResultSchema = z.object({

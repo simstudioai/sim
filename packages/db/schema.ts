@@ -648,6 +648,12 @@ export const workflowSchedule = pgTable(
       onDelete: 'cascade',
     }),
     jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
+    /** `@`-mentioned resources / `/`-invoked skills captured with the prompt, resolved into the agent run at fire time. */
+    contexts: jsonb('contexts').$type<Array<Record<string, unknown>>>(),
+    /** ISO timestamps of recurring occurrences the user deleted individually (EXDATE); the executor skips them. */
+    excludedDates: jsonb('excluded_dates').$type<string[]>(),
+    /** Recurrence end boundary: the schedule completes once its next run would fall after this instant. */
+    endsAt: timestamp('ends_at'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2920,9 +2926,9 @@ export const permissionGroup = pgTable(
   'permission_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
+    organizationId: text('organization_id')
       .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+      .references(() => organization.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
     config: jsonb('config').notNull().default('{}'),
@@ -2931,17 +2937,17 @@ export const permissionGroup = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-    autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
+    isDefault: boolean('is_default').notNull().default(false),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
-    workspaceNameUnique: uniqueIndex('permission_group_workspace_name_unique').on(
-      table.workspaceId,
+    organizationNameUnique: uniqueIndex('permission_group_organization_name_unique').on(
+      table.organizationId,
       table.name
     ),
-    autoAddNewMembersUnique: uniqueIndex('permission_group_workspace_auto_add_unique')
-      .on(table.workspaceId)
-      .where(sql`auto_add_new_members = true`),
+    defaultGroupUnique: uniqueIndex('permission_group_organization_default_unique')
+      .on(table.organizationId)
+      .where(sql`is_default = true`),
   })
 )
 
@@ -2952,9 +2958,9 @@ export const permissionGroupMember = pgTable(
     permissionGroupId: text('permission_group_id')
       .notNull()
       .references(() => permissionGroup.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
+    organizationId: text('organization_id')
       .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+      .references(() => organization.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -2967,8 +2973,8 @@ export const permissionGroupMember = pgTable(
       table.permissionGroupId,
       table.userId
     ),
-    workspaceUserUnique: uniqueIndex('permission_group_member_workspace_user_unique').on(
-      table.workspaceId,
+    organizationUserUnique: uniqueIndex('permission_group_member_organization_user_unique').on(
+      table.organizationId,
       table.userId
     ),
   })

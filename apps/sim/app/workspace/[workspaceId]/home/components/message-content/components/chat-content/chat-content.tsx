@@ -294,6 +294,17 @@ function ChatContentInner({
   const streamedContent = useSmoothText(displayContent, isStreaming)
   const isRevealing = isStreaming || streamedContent.length < displayContent.length
 
+  /**
+   * One-way latch: once a message has streamed in this mount, keep rendering it
+   * through Streamdown's streaming/animation pipeline for the rest of its life.
+   * Drives `mode`, `animated`, AND `isAnimating` together — all three must stay
+   * constant across the completion boundary. Streamdown removes the per-word
+   * `<span>` wrappers (and re-parses the whole message) the instant `isAnimating`
+   * goes false, so wiring `isAnimating` to `isRevealing` (which flips at
+   * completion) reintroduces the streaming→static flash this latch exists to
+   * prevent. Content is stable once revealed, so a permanently-true
+   * `isAnimating` never re-fades anything.
+   */
   const streamedThisSession = useRef(false)
   if (isStreaming) streamedThisSession.current = true
   const keepStreamingTree = isRevealing || streamedThisSession.current
@@ -372,7 +383,7 @@ function ChatContentInner({
                 <Streamdown
                   mode={keepStreamingTree ? undefined : 'static'}
                   animated={keepStreamingTree ? STREAM_ANIMATION : false}
-                  isAnimating={isRevealing}
+                  isAnimating={keepStreamingTree}
                   components={MARKDOWN_COMPONENTS}
                 >
                   {group.markdown}
@@ -398,7 +409,7 @@ function ChatContentInner({
       <Streamdown
         mode={keepStreamingTree ? undefined : 'static'}
         animated={keepStreamingTree ? STREAM_ANIMATION : false}
-        isAnimating={isRevealing}
+        isAnimating={keepStreamingTree}
         components={MARKDOWN_COMPONENTS}
       >
         {streamedContent}

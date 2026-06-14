@@ -112,6 +112,9 @@ jobs:
       - name: Zustand v5 selector audit
         run: bun run check:zustand-v5
 
+      - name: React Query pattern audit
+        run: bun run check:react-query
+
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 

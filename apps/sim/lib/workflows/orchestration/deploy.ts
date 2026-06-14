@@ -22,7 +22,10 @@ import {
   undeployWorkflow,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
-import { emitWorkflowDeployedEvent } from '@/lib/workspace-events/emitter'
+import {
+  emitWorkflowDeployedEvent,
+  emitWorkflowUndeployedEvent,
+} from '@/lib/workspace-events/emitter'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('DeployOrchestration')
@@ -287,6 +290,15 @@ export async function performFullUndeploy(
 
   await notifySocketDeploymentChanged(workflowId)
   const sideEffectWarning = await processDeploymentSideEffectsNow(outboxEventId, requestId)
+
+  const undeployWorkspaceId = workflowData.workspaceId as string | null
+  if (undeployWorkspaceId) {
+    void emitWorkflowUndeployedEvent({
+      workflowId,
+      workflowName: (workflowData.name as string) || workflowId,
+      workspaceId: undeployWorkspaceId,
+    })
+  }
 
   return { success: true, warnings: sideEffectWarning ? [sideEffectWarning] : undefined }
 }

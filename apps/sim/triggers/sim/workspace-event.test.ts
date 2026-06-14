@@ -247,6 +247,12 @@ describe('sim workspace event outputs', () => {
     )
   })
 
+  it('workflow_undeployed exposes only the base fields', () => {
+    expect(visibleOutputsFor('workflow_undeployed')).toEqual(
+      ['event', 'timestamp', 'workflowId', 'workflowName'].sort()
+    )
+  })
+
   it('no_activity exposes only the base fields', () => {
     expect(visibleOutputsFor('no_activity')).toEqual(
       ['event', 'timestamp', 'workflowId', 'workflowName'].sort()

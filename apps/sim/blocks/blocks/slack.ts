@@ -2233,6 +2233,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
 
 export const SlackBlockMeta = {
   tags: ['messaging', 'webhooks', 'automation'],
+  url: 'https://slack.com',
   templates: [
     {
       icon: SlackIcon,

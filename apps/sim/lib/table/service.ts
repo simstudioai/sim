@@ -2434,6 +2434,12 @@ export async function importAppendRows(
   return db.transaction(async (trx) => {
     let working = table
     if (additions.length > 0) {
+      // Take the row-order lock before creating columns so this path uses the
+      // same rows_pos → user_table_definitions order as plain inserts. Creating
+      // columns first would lock the definition row before rows_pos, inverting
+      // the order and deadlocking concurrent inserts on this table. The lock is
+      // re-entrant, so the per-batch acquire below is a no-op.
+      await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, table, additions, ctx.requestId)
     }
     const inserted: TableRow[] = []
@@ -2464,6 +2470,7 @@ export async function importReplaceRows(
   return db.transaction(async (trx) => {
     let working = table
     if (additions.length > 0) {
+      await acquireRowOrderLock(trx, table.id)
       working = await addTableColumnsWithTx(trx, table, additions, requestId)
     }
     return replaceTableRowsWithTx(

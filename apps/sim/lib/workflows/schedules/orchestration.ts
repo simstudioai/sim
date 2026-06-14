@@ -5,8 +5,13 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
+import type { ScheduleContext } from '@/lib/api/contracts/schedules'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { parseCronToHumanReadable, validateCronExpression } from '@/lib/workflows/schedules/utils'
+import {
+  computeNextRunAt,
+  parseCronToHumanReadable,
+  validateCronExpression,
+} from '@/lib/workflows/schedules/utils'
 
 const logger = createLogger('ScheduleOrchestration')
 
@@ -30,6 +35,10 @@ export interface PerformCreateJobParams extends ActorMetadata {
   successCondition?: string | null
   maxRuns?: number | null
   startDate?: string | null
+  /** Recurrence end on a date (ISO 8601); the schedule completes once its next run would fall after this. */
+  endsAt?: string | null
+  /** `@`-mentioned resources / `/`-invoked skills captured with the prompt. */
+  contexts?: ScheduleContext[] | null
   sourceChatId?: string | null
   sourceTaskName?: string | null
 }
@@ -50,13 +59,23 @@ export interface PerformUpdateJobParams extends ActorMetadata {
   userId: string
   title?: string
   prompt?: string
-  cronExpression?: string
+  cronExpression?: string | null
   time?: string | null
   timezone?: string
   status?: string
   lifecycle?: string
   successCondition?: string | null
   maxRuns?: number | null
+  endsAt?: string | null
+  contexts?: ScheduleContext[] | null
+}
+
+export interface PerformExcludeOccurrenceParams extends ActorMetadata {
+  jobId: string
+  workspaceId: string
+  userId: string
+  /** The exact occurrence instant to skip (ISO 8601), as produced by the recurrence. */
+  occurrence: string
 }
 
 export interface PerformDeleteJobParams extends ActorMetadata {
@@ -123,17 +142,30 @@ export async function performCreateJob(
     }
   }
 
+  let endsAt: Date | null = null
+  if (params.endsAt) {
+    const parsedEndsAt = new Date(params.endsAt)
+    if (Number.isNaN(parsedEndsAt.getTime())) {
+      return {
+        success: false,
+        error: `Invalid endsAt value: ${params.endsAt}`,
+        errorCode: 'validation',
+      }
+    }
+    endsAt = parsedEndsAt
+  }
+
   let nextRunAt: Date | null = null
   if (cronExpression) {
     const validation = validateCronExpression(cronExpression, params.timezone)
-    if (!validation.isValid || !validation.nextRun) {
+    if (!validation.isValid) {
       return {
         success: false,
         error: validation.error || 'Invalid cron expression',
         errorCode: 'validation',
       }
     }
-    nextRunAt = validation.nextRun
+    nextRunAt = computeNextRunAt({ cronExpression, timezone: params.timezone, endsAt })
   }
 
   if (params.time) {
@@ -178,6 +210,9 @@ export async function performCreateJob(
       successCondition: params.successCondition || null,
       maxRuns: params.maxRuns ?? null,
       runCount: 0,
+      contexts: params.contexts ?? null,
+      excludedDates: null,
+      endsAt,
       sourceChatId: params.sourceChatId || null,
       sourceTaskName: params.sourceTaskName || null,
       sourceUserId: params.userId,
@@ -267,12 +302,31 @@ export async function performUpdateJob(
     }
     if (params.successCondition !== undefined) updates.successCondition = params.successCondition
     if (params.maxRuns !== undefined) updates.maxRuns = params.maxRuns
+    if (params.contexts !== undefined) updates.contexts = params.contexts
     const effectiveStatus = updates.status ?? job.status
 
-    if (params.cronExpression !== undefined) {
+    let endsAt: Date | null = job.endsAt
+    if (params.endsAt !== undefined) {
+      if (params.endsAt === null) {
+        endsAt = null
+      } else {
+        const parsedEndsAt = new Date(params.endsAt)
+        if (Number.isNaN(parsedEndsAt.getTime())) {
+          return {
+            success: false,
+            error: `Invalid endsAt value: ${params.endsAt}`,
+            errorCode: 'validation',
+          }
+        }
+        endsAt = parsedEndsAt
+      }
+      updates.endsAt = endsAt
+    }
+
+    if (params.cronExpression !== undefined && params.cronExpression !== null) {
       const timezone = params.timezone || job.timezone || 'UTC'
       const validation = validateCronExpression(params.cronExpression, timezone)
-      if (!validation.isValid || !validation.nextRun) {
+      if (!validation.isValid) {
         return {
           success: false,
           error: validation.error || 'Invalid cron expression',
@@ -280,7 +334,16 @@ export async function performUpdateJob(
         }
       }
       updates.cronExpression = params.cronExpression
-      if (effectiveStatus === 'active') updates.nextRunAt = validation.nextRun
+      if (effectiveStatus === 'active') {
+        updates.nextRunAt = computeNextRunAt({
+          cronExpression: params.cronExpression,
+          timezone,
+          excludedDates: job.excludedDates,
+          endsAt,
+        })
+      }
+    } else if (params.cronExpression === null) {
+      updates.cronExpression = null
     }
     if (params.time !== undefined && params.time !== null) {
       const timezone = params.timezone || job.timezone || 'UTC'
@@ -324,6 +387,81 @@ export async function performUpdateJob(
   } catch (error) {
     logger.error('Failed to update job', { error: toError(error).message })
     return { success: false, error: 'Failed to update job', errorCode: 'internal' }
+  }
+}
+
+export async function performExcludeOccurrence(
+  params: PerformExcludeOccurrenceParams
+): Promise<PerformScheduleResult> {
+  const occurrence = new Date(params.occurrence)
+  if (Number.isNaN(occurrence.getTime())) {
+    return {
+      success: false,
+      error: `Invalid occurrence value: ${params.occurrence}`,
+      errorCode: 'validation',
+    }
+  }
+
+  try {
+    const [job] = await db
+      .select()
+      .from(workflowSchedule)
+      .where(activeJobCondition(params.jobId, params.workspaceId))
+      .limit(1)
+
+    if (!job)
+      return { success: false, error: `Job not found: ${params.jobId}`, errorCode: 'not_found' }
+    if (!job.cronExpression) {
+      return {
+        success: false,
+        error: 'Only recurring tasks have individual occurrences to delete',
+        errorCode: 'validation',
+      }
+    }
+
+    const occurrenceIso = occurrence.toISOString()
+    const excludedDates = Array.from(new Set([...(job.excludedDates ?? []), occurrenceIso]))
+
+    const updates: Partial<typeof workflowSchedule.$inferInsert> = {
+      excludedDates,
+      updatedAt: new Date(),
+    }
+
+    if (job.nextRunAt && job.nextRunAt.getTime() === occurrence.getTime()) {
+      const nextRunAt = computeNextRunAt({
+        cronExpression: job.cronExpression,
+        timezone: job.timezone || 'UTC',
+        from: occurrence,
+        excludedDates,
+        endsAt: job.endsAt,
+      })
+      updates.nextRunAt = nextRunAt
+      if (!nextRunAt) updates.status = 'completed'
+    }
+
+    await db
+      .update(workflowSchedule)
+      .set(updates)
+      .where(and(eq(workflowSchedule.id, params.jobId), isNull(workflowSchedule.archivedAt)))
+
+    recordAudit({
+      workspaceId: params.workspaceId,
+      actorId: params.userId,
+      actorName: params.actorName ?? undefined,
+      actorEmail: params.actorEmail ?? undefined,
+      action: AuditAction.SCHEDULE_UPDATED,
+      resourceType: AuditResourceType.SCHEDULE,
+      resourceId: params.jobId,
+      resourceName: job.jobTitle ?? undefined,
+      description: `Deleted one occurrence of job "${job.jobTitle ?? params.jobId}"`,
+      metadata: { operation: 'exclude_occurrence', occurrence: occurrenceIso },
+      request: params.request,
+    })
+
+    return { success: true }
+  } catch (error) {
+    logger.error('Failed to exclude occurrence', { error: toError(error).message })
+    return { success: false, error: 'Failed to delete occurrence', errorCode: 'internal' }
   }
 }
 

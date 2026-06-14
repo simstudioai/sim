@@ -76,6 +76,7 @@ export const TwilioSMSBlock: BlockConfig<TwilioSMSBlockOutput> = {
 
 export const TwilioSMSBlockMeta = {
   tags: ['messaging', 'automation'],
+  url: 'https://www.twilio.com',
   templates: [
     {
       icon: TwilioIcon,

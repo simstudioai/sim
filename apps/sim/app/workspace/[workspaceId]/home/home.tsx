@@ -233,36 +233,35 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     }
   }, [resources, collapseResource])
 
-  function handleStopGeneration() {
+  const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
       workspace_id: workspaceId,
       view: 'mothership',
       request_id: getCurrentRequestId(),
     })
     void stopGeneration().catch(() => {})
-  }
+  }, [workspaceId, getCurrentRequestId, stopGeneration])
 
-  function handleSubmit(
-    text: string,
-    fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
-  ) {
-    const trimmed = text.trim()
-    if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
+  const handleSubmit = useCallback(
+    (text: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+      const trimmed = text.trim()
+      if (!trimmed && !(fileAttachments && fileAttachments.length > 0)) return
 
-    captureEvent(posthogRef.current, 'task_message_sent', {
-      workspace_id: workspaceId,
-      has_attachments: !!(fileAttachments && fileAttachments.length > 0),
-      has_contexts: !!(contexts && contexts.length > 0),
-      is_new_task: !chatId,
-    })
+      captureEvent(posthogRef.current, 'task_message_sent', {
+        workspace_id: workspaceId,
+        has_attachments: !!(fileAttachments && fileAttachments.length > 0),
+        has_contexts: !!(contexts && contexts.length > 0),
+        is_new_task: !chatId,
+      })
 
-    if (initialViewInputRef.current) {
-      setIsInputEntering(true)
-    }
+      if (initialViewInputRef.current) {
+        setIsInputEntering(true)
+      }
 
-    sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
-  }
+      sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
+    },
+    [workspaceId, chatId, sendMessage]
+  )
 
   useEffect(() => {
     const handler = (e: Event) => {

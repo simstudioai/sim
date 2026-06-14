@@ -443,11 +443,11 @@ export function WorkflowSidebarBody({
       const body = rawBody as unknown as WorkflowStateContractInput
       await requestJson(putWorkflowNormalizedStateContract, { params: { id: wfId }, body })
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workflowKeys.state(selectedWorkflowId) })
-    },
     onError: (err) => {
       toast.error(toError(err).message)
+    },
+    onSettled: () => {
+      return queryClient.invalidateQueries({ queryKey: workflowKeys.state(selectedWorkflowId) })
     },
   })
 

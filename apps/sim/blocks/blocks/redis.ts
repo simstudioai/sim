@@ -323,6 +323,7 @@ export const RedisBlock: BlockConfig<RedisResponse> = {
 
 export const RedisBlockMeta = {
   tags: ['cloud'],
+  url: 'https://redis.io',
   templates: [
     {
       icon: RedisIcon,

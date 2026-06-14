@@ -12,7 +12,7 @@ import { saveWorkflowToNormalizedTables as saveWorkflowToNormalizedTablesRaw } f
 import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/types'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
 import type { Edge } from 'reactflow'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -1143,11 +1143,93 @@ async function activateWorkflowVersionById(params: {
   }
 }
 
+/**
+ * Resolves the deployment version that precedes the currently active one —
+ * the default rollback target when no explicit version is given.
+ */
+export async function findPreviousDeploymentVersion(
+  workflowId: string
+): Promise<
+  { ok: true; version: number } | { ok: false; reason: 'no_active_version' | 'no_previous_version' }
+> {
+  const [activeRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!activeRow) {
+    return { ok: false, reason: 'no_active_version' }
+  }
+
+  const [previousRow] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        lt(workflowDeploymentVersion.version, activeRow.version)
+      )
+    )
+    .orderBy(desc(workflowDeploymentVersion.version))
+    .limit(1)
+
+  if (!previousRow) {
+    return { ok: false, reason: 'no_previous_version' }
+  }
+
+  return { ok: true, version: previousRow.version }
+}
+
+/**
+ * Fetches a single deployment version of a workflow, including its state
+ * snapshot. Returns null when the version does not exist.
+ */
+export async function getWorkflowDeploymentVersion(
+  workflowId: string,
+  version: number
+): Promise<{
+  id: string
+  version: number
+  name: string | null
+  description: string | null
+  isActive: boolean
+  createdAt: Date
+  state: unknown
+} | null> {
+  const [row] = await db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      state: workflowDeploymentVersion.state,
+    })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.version, version)
+      )
+    )
+    .limit(1)
+
+  return row ?? null
+}
+
 export async function listWorkflowVersions(workflowId: string): Promise<{
   versions: Array<{
     id: string
     version: number
     name: string | null
+    description: string | null
     isActive: boolean
     createdAt: Date
     createdBy: string | null
@@ -1156,11 +1238,12 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
-  const versions = await db
+  const rows = await db
     .select({
       id: workflowDeploymentVersion.id,
       version: workflowDeploymentVersion.version,
       name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
       isActive: workflowDeploymentVersion.isActive,
       createdAt: workflowDeploymentVersion.createdAt,
       createdBy: workflowDeploymentVersion.createdBy,
@@ -1171,5 +1254,10 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
     .where(eq(workflowDeploymentVersion.workflowId, workflowId))
     .orderBy(desc(workflowDeploymentVersion.version))
 
-  return { versions }
+  return {
+    versions: rows.map((row) => ({
+      ...row,
+      deployedByName: row.deployedByName ?? (row.createdBy === 'admin-api' ? 'Admin' : null),
+    })),
+  }
 }

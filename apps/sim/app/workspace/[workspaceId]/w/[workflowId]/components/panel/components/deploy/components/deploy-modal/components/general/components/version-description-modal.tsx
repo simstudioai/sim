@@ -118,11 +118,13 @@ export function VersionDescriptionModal({
         <ChipModalFooter
           onCancel={handleCloseAttempt}
           cancelDisabled={updateMutation.isPending || isGenerating}
-          secondaryAction={{
-            label: isGenerating ? 'Generating...' : 'Generate',
-            onClick: handleGenerateDescription,
-            disabled: isGenerating || updateMutation.isPending,
-          }}
+          secondaryActions={[
+            {
+              label: isGenerating ? 'Generating...' : 'Generate',
+              onClick: handleGenerateDescription,
+              disabled: isGenerating || updateMutation.isPending,
+            },
+          ]}
           primaryAction={{
             label: updateMutation.isPending ? 'Saving...' : 'Save',
             onClick: handleSave,
@@ -136,7 +138,7 @@ export function VersionDescriptionModal({
         onOpenChange={setShowUnsavedChangesAlert}
         srTitle='Unsaved Changes'
         title='Unsaved Changes'
-        description='You have unsaved changes. Are you sure you want to discard them?'
+        text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{
           label: 'Discard Changes',

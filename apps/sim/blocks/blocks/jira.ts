@@ -1339,6 +1339,7 @@ Return ONLY the comment text - no explanations.`,
 
 export const JiraBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://www.atlassian.com/software/jira',
   templates: [
     {
       icon: JiraIcon,

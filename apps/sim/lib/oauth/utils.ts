@@ -314,6 +314,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.objects.appointments.write': 'Create and update HubSpot appointments',
   'crm.objects.carts.read': 'Read HubSpot shopping carts',
   'crm.objects.carts.write': 'Create and update HubSpot shopping carts',
+  'sales-email-read': 'Read the content of HubSpot email engagements',
   'crm.import': 'Import data into HubSpot',
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',

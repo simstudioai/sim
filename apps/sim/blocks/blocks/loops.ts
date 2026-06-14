@@ -538,6 +538,7 @@ Return ONLY the JSON object - no explanations, no extra text.`,
 
 export const LoopsBlockMeta = {
   tags: ['email-marketing', 'marketing', 'automation'],
+  url: 'https://loops.so',
   templates: [
     {
       icon: LoopsIcon,

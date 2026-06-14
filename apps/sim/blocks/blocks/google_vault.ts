@@ -549,6 +549,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
 
 export const GoogleVaultBlockMeta = {
   tags: ['google-workspace', 'document-processing'],
+  url: 'https://support.google.com/vault',
   templates: [
     {
       icon: ShieldCheck,

@@ -711,6 +711,7 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
 
 export const GoogleCalendarBlockMeta = {
   tags: ['calendar', 'scheduling', 'google-workspace'],
+  url: 'https://workspace.google.com/products/calendar',
   templates: [
     {
       icon: GoogleCalendarIcon,
@@ -814,4 +815,5 @@ export const GoogleCalendarBlockMeta = {
 
 export const GoogleCalendarV2BlockMeta = {
   tags: ['calendar', 'scheduling', 'google-workspace'],
+  url: 'https://workspace.google.com/products/calendar',
 } as const satisfies BlockMeta

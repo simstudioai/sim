@@ -115,7 +115,7 @@ export function useToggleInbox() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })
+      return queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })
     },
   })
 }
@@ -131,7 +131,7 @@ export function useUpdateInboxAddress() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })
+      return queryClient.invalidateQueries({ queryKey: inboxKeys.config(variables.workspaceId) })
     },
   })
 }
@@ -181,7 +181,9 @@ export function useAddInboxSender() {
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: inboxKeys.senderList(variables.workspaceId) })
+      return queryClient.invalidateQueries({
+        queryKey: inboxKeys.senderList(variables.workspaceId),
+      })
     },
   })
 }
@@ -215,7 +217,9 @@ export function useRemoveInboxSender() {
       }
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: inboxKeys.senderList(variables.workspaceId) })
+      return queryClient.invalidateQueries({
+        queryKey: inboxKeys.senderList(variables.workspaceId),
+      })
     },
   })
 }

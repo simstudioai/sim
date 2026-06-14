@@ -15,9 +15,10 @@ Pick one event per Sim trigger block:
 **Plain events** — fire on every occurrence:
 
 <ul className="list-disc space-y-1 pl-6">
-  <li><strong>Execution Error</strong>: a watched workflow's run failed</li>
-  <li><strong>Execution Success</strong>: a watched workflow's run completed successfully</li>
+  <li><strong>Run Error</strong>: a watched workflow's run failed</li>
+  <li><strong>Run Success</strong>: a watched workflow's run completed successfully</li>
   <li><strong>Workflow Deployed</strong>: a watched workflow was deployed (including redeploys and version rollbacks)</li>
+  <li><strong>Workflow Undeployed</strong>: a watched workflow was taken offline</li>
 </ul>
 
 **Alert conditions** — evaluated as runs complete (failure-based conditions evaluate on failed runs), with a cooldown so they fire at most once per cooldown window:
@@ -40,7 +41,7 @@ By default the trigger watches every workflow in the workspace. Select specific 
 
 All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the source workflow). Additional fields depend on the event type:
 
-<Tabs items={['Execution Events', 'Alert Conditions', 'Workflow Deployed']}>
+<Tabs items={['Run Events', 'Alert Conditions', 'Workflow Deployed']}>
   <Tab>
     <ul className="list-disc space-y-1 pl-6">
       <li><strong>runId</strong>: the run that completed</li>
@@ -60,6 +61,7 @@ All events include `event`, `timestamp`, `workflowId`, and `workflowName` (the s
     <ul className="list-disc space-y-1 pl-6">
       <li><strong>version</strong>: the deployment version number that was activated</li>
     </ul>
+    <p>Workflow Undeployed carries only the base fields.</p>
   </Tab>
 </Tabs>
 

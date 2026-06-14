@@ -8,10 +8,8 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   checkWorkspaceAccess,
@@ -160,16 +158,8 @@ export const PATCH = withRouteHandler(
         existingPerms.map((p) => [p.userId, { permission: p.permissionType, email: p.email }])
       )
 
-      // Resolved before the transaction: the entitlement check reads billing
-      // tables on the global pool and must not run while the tx holds a
-      // pooled connection.
-      const hasNewMembers = body.updates.some((update) => !permLookup.has(update.userId))
-      const autoAddEntitled = hasNewMembers ? await isWorkspaceOnEnterprisePlan(workspaceId) : false
-
       await db.transaction(async (tx) => {
         for (const update of body.updates) {
-          const isNew = !permLookup.has(update.userId)
-
           await tx
             .delete(permissions)
             .where(
@@ -189,10 +179,6 @@ export const PATCH = withRouteHandler(
             createdAt: new Date(),
             updatedAt: new Date(),
           })
-
-          if (isNew) {
-            await applyWorkspaceAutoAddGroup(tx, workspaceId, update.userId, autoAddEntitled)
-          }
         }
       })
 

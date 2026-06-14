@@ -8,10 +8,10 @@ import {
   createScheduleContract,
   deleteScheduleContract,
   disableScheduleContract,
+  excludeOccurrenceContract,
   getScheduleContract,
   listWorkspaceSchedulesContract,
   reactivateScheduleContract,
-  type ScheduleLifecycle,
   type UpdateScheduleBody,
   updateScheduleContract,
   type WorkflowScheduleRow,
@@ -173,17 +173,21 @@ export function useReactivateSchedule() {
 
       return { workflowId, blockId, workspaceId }
     },
-    onSuccess: ({ workflowId, blockId, workspaceId }) => {
+    onSuccess: ({ workflowId, blockId }) => {
       logger.info('Schedule reactivated', { workflowId, blockId })
-      queryClient.invalidateQueries({
-        queryKey: scheduleKeys.schedule(workflowId, blockId),
-      })
-      if (workspaceId) {
-        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
-      }
     },
     onError: (error) => {
       logger.error('Failed to reactivate schedule', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      const { workflowId, blockId, workspaceId } = data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.schedule(workflowId, blockId) }),
+        workspaceId
+          ? queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
+          : Promise.resolve(),
+      ])
     },
   })
 }
@@ -209,12 +213,15 @@ export function useDisableSchedule() {
 
       return { workspaceId }
     },
-    onSuccess: ({ workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
-    },
     onError: (error) => {
       logger.error('Failed to disable schedule', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
+      ])
     },
   })
 }
@@ -239,12 +246,52 @@ export function useDeleteSchedule() {
 
       return { workspaceId }
     },
-    onSuccess: ({ workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
-    },
     onError: (error) => {
       logger.error('Failed to delete schedule', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
+      ])
+    },
+  })
+}
+
+/**
+ * Mutation to delete a single occurrence of a recurring task (gcal "this
+ * event"). The whole series is deleted via {@link useDeleteSchedule} instead.
+ */
+export function useExcludeOccurrence() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      scheduleId,
+      occurrence,
+      workspaceId,
+    }: {
+      scheduleId: string
+      occurrence: string
+      workspaceId: string
+    }) => {
+      await requestJson(excludeOccurrenceContract, {
+        params: { id: scheduleId },
+        body: { action: 'exclude_occurrence', occurrence },
+      })
+
+      return { workspaceId }
+    },
+    onError: (error) => {
+      logger.error('Failed to delete occurrence', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
+      ])
     },
   })
 }
@@ -271,12 +318,15 @@ export function useUpdateSchedule() {
 
       return { workspaceId }
     },
-    onSuccess: ({ workspaceId }) => {
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(workspaceId) })
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.details() })
-    },
     onError: (error) => {
       logger.error('Failed to update schedule', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.list(data.workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.details() }),
+      ])
     },
   })
 }
@@ -288,38 +338,12 @@ export function useCreateSchedule() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      title,
-      prompt,
-      cronExpression,
-      timezone,
-      lifecycle,
-      maxRuns,
-      startDate,
-    }: CreateScheduleBody & {
-      timezone: string
-      lifecycle: ScheduleLifecycle
-    }) => {
-      return requestJson(createScheduleContract, {
-        body: {
-          workspaceId,
-          title,
-          prompt,
-          cronExpression,
-          timezone,
-          lifecycle,
-          maxRuns,
-          startDate,
-        },
-      })
-    },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(variables.workspaceId) })
-    },
+    mutationFn: async (body: CreateScheduleBody) => requestJson(createScheduleContract, { body }),
     onError: (error) => {
       logger.error('Failed to create schedule', { error })
     },
+    onSettled: (_data, _error, variables) =>
+      queryClient.invalidateQueries({ queryKey: scheduleKeys.list(variables.workspaceId) }),
   })
 }
 
@@ -339,19 +363,18 @@ export function useRedeployWorkflowSchedule() {
     },
     onSuccess: ({ workflowId, blockId }) => {
       logger.info('Workflow redeployed for schedule reset', { workflowId, blockId })
-      queryClient.invalidateQueries({
-        queryKey: scheduleKeys.schedule(workflowId, blockId),
-      })
-      // Also invalidate deployment queries since we redeployed
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(workflowId),
-      })
     },
     onError: (error) => {
       logger.error('Failed to redeploy workflow', { error })
+    },
+    onSettled: async (data) => {
+      if (!data) return
+      const { workflowId, blockId } = data
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.schedule(workflowId, blockId) }),
+        queryClient.invalidateQueries({ queryKey: deploymentKeys.info(workflowId) }),
+        queryClient.invalidateQueries({ queryKey: deploymentKeys.versions(workflowId) }),
+      ])
     },
   })
 }

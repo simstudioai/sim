@@ -46,7 +46,7 @@ export const hubspotGetAppointmentTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of HubSpot property names to return (e.g., "hs_meeting_title,hs_meeting_start_time")',
+        'Comma-separated list of HubSpot property names to return (e.g., "hs_appointment_name,hs_appointment_start")',
     },
     associations: {
       type: 'string',

@@ -128,6 +128,7 @@ export const GooglePagespeedBlock: BlockConfig<GooglePagespeedAnalyzeResponse> =
 
 export const GooglePagespeedBlockMeta = {
   tags: ['google-workspace', 'seo', 'monitoring'],
+  url: 'https://pagespeed.web.dev',
   templates: [
     {
       icon: GooglePagespeedIcon,
