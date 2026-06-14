@@ -164,6 +164,7 @@ describe('cronToRecurrence', () => {
         maxRuns: null,
         endsAt: '2026-07-01T23:59:59Z',
         anchor,
+        timezone: 'UTC',
       }).recurrence.end
     ).toEqual({ type: 'on', date: '2026-07-01' })
   })
