@@ -56,9 +56,26 @@ export function useCalendar(timezone: string): UseCalendarReturn {
   const [anchor, setAnchor] = useState<Date>(() => zonedClockDate(new Date(), timezone))
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const todayRef = useRef(today)
 
   useEffect(() => {
+    todayRef.current = today
+  }, [today])
+
+  /**
+   * Re-sync to the effective zone's current day when `timezone` actually
+   * changes — e.g. when `useTimezone()` resolves from the browser fallback to
+   * the saved account zone after mount. The focused day follows only while it is
+   * still on "today", so an in-progress navigation is preserved. Owning
+   * `timezoneRef` here (instead of a separate sync effect) keeps the guard
+   * honest: the ref still reflects the previous zone when this runs.
+   */
+  useEffect(() => {
+    if (timezoneRef.current === timezone) return
     timezoneRef.current = timezone
+    const now = zonedClockDate(new Date(), timezone)
+    setAnchor((current) => (isSameDay(current, todayRef.current) ? now : current))
+    setToday(now)
   }, [timezone])
 
   useEffect(() => {
