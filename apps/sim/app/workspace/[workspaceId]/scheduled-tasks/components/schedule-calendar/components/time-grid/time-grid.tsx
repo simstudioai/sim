@@ -138,7 +138,7 @@ function DayEvents({
  * they stay aligned. The sticky header paints chrome on the day cells only —
  * its gutter spacer is transparent and border-free, so the hour labels scroll
  * clear to the top of the viewport. Today's column is `relative` and hosts the
- * {@link CurrentTimeIndicator}. Events flow in via `eventsByHour` — the single
+ * {@link CurrentTimeIndicator}. Events flow in via `eventsByDay` — the single
  * injection point the container fills.
  */
 export function TimeGrid({

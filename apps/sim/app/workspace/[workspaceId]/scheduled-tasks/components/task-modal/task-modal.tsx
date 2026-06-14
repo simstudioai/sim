@@ -23,9 +23,9 @@ import {
   DEFAULT_RECURRENCE,
   type Recurrence,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
+import { useTimezone } from '@/hooks/queries/general-settings'
 import type { ChatContext } from '@/stores/panel'
 
-const DEFAULT_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 const DEFAULT_TIME = '09:00'
 const PAST_LAUNCH_MESSAGE = "You can't schedule a one-time task in the past"
 
@@ -131,6 +131,7 @@ function TaskModalContent({
   onRequestDelete,
 }: Omit<TaskModalProps, 'open'>) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
+  const timezone = useTimezone()
   const editor = usePromptEditor({ workspaceId, initialValue: edit?.prompt })
   const setContexts = editor.setContexts
 
@@ -163,7 +164,7 @@ function TaskModalContent({
       contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
       launchDate,
       launchTime,
-      timezone: DEFAULT_TIMEZONE,
+      timezone,
       recurrence,
     })
     close()
