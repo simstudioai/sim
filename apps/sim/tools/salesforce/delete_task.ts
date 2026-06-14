@@ -3,7 +3,7 @@ import type {
   SalesforceDeleteTaskResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceDeleteTaskTool: ToolConfig<
@@ -45,8 +45,10 @@ export const salesforceDeleteTaskTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${params.taskId}`,
+    url: (params) => {
+      const taskId = requireId(params.taskId, 'Task ID')
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Task/${taskId}`
+    },
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -56,12 +58,12 @@ export const salesforceDeleteTaskTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data[0]?.message || data.message || 'Failed to delete task')
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to delete task'))
     }
     return {
       success: true,
       output: {
-        id: params?.taskId || '',
+        id: params?.taskId?.trim() || '',
         deleted: true,
       },
     }
