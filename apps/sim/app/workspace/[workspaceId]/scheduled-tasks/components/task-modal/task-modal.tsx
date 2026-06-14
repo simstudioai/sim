@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
@@ -176,6 +176,33 @@ function TaskModalContent({
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
+  const launchEditedRef = useRef(false)
+
+  /**
+   * Re-seed a blank create's default launch when the effective zone resolves
+   * after mount — `useTimezone()` starts on the browser fallback, so without
+   * this the next-top-of-the-hour default (and its past-launch guard) would be
+   * computed in the wrong zone and submitted in the resolved one. No-op once the
+   * user edits the fields, and skipped for slot/edit/duplicate seeds, whose
+   * launch is zone-stable (slot times are zone-independent; source seeds carry
+   * the task's own fixed zone).
+   */
+  useEffect(() => {
+    if (launchEditedRef.current || source || slot) return
+    const next = defaultLaunch(null, timezone)
+    setLaunchDate(next.date)
+    setLaunchTime(next.time)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timezone])
+
+  const editLaunchDate = (date: string) => {
+    launchEditedRef.current = true
+    setLaunchDate(date)
+  }
+  const editLaunchTime = (time: string) => {
+    launchEditedRef.current = true
+    setLaunchTime(time)
+  }
 
   const close = () => onOpenChange(false)
   const isOneTime = recurrence.frequency === 'once'
@@ -209,8 +236,8 @@ function TaskModalContent({
         />
       ),
     },
-    { custom: <ChipDatePicker value={launchDate} onChange={setLaunchDate} flush /> },
-    { custom: <ChipTimePicker value={launchTime} onChange={setLaunchTime} flush /> },
+    { custom: <ChipDatePicker value={launchDate} onChange={editLaunchDate} flush /> },
+    { custom: <ChipTimePicker value={launchTime} onChange={editLaunchTime} flush /> },
   ]
 
   return (
