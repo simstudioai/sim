@@ -105,8 +105,12 @@ interface TaskModalProps {
   edit?: TaskEditSeed | null
   /** Pre-fill for a create (duplicate): opens in create mode with every field copied. */
   prefill?: TaskPrefill | null
-  /** Receives the captured draft on submit (create and save alike). */
-  onSubmit: (draft: TaskDraft) => void
+  /**
+   * Receives the captured draft on submit (create and save alike). May return a
+   * promise — the modal awaits it, keeping itself open until the task persists
+   * and closing only on success, so a failed save never silently discards the draft.
+   */
+  onSubmit: (draft: TaskDraft) => void | Promise<void>
   /** Asks the parent to start the delete flow (which handles the recurring this/all choice). */
   onRequestDelete?: () => void
 }
@@ -189,6 +193,7 @@ function TaskModalContent({
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
+  const [submitting, setSubmitting] = useState(false)
   const launchEditedRef = useRef(false)
 
   /**
@@ -223,17 +228,28 @@ function TaskModalContent({
 
   const promptText = editor.value.trim()
 
-  const handleSubmit = () => {
-    if (!promptText || isPastLaunch) return
-    onSubmit({
-      prompt: editor.getPlainValue().trim(),
-      contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
-      launchDate,
-      launchTime,
-      timezone,
-      recurrence,
-    })
-    close()
+  /**
+   * Submits the draft and waits for it to persist. The `submitting` guard blocks
+   * a double-submit (Enter racing the click); on success the modal closes, on
+   * failure it stays open so the draft survives — the mutation hook surfaces the
+   * error via toast, so no message is duplicated here.
+   */
+  const handleSubmit = async () => {
+    if (!promptText || isPastLaunch || submitting) return
+    setSubmitting(true)
+    try {
+      await onSubmit({
+        prompt: editor.getPlainValue().trim(),
+        contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
+        launchDate,
+        launchTime,
+        timezone,
+        recurrence,
+      })
+      close()
+    } catch {
+      setSubmitting(false)
+    }
   }
 
   const secondaryActions: ChipModalFooterSlotAction[] = [
@@ -270,9 +286,9 @@ function TaskModalContent({
         onCancel={close}
         secondaryActions={secondaryActions}
         primaryAction={{
-          label: edit ? 'Save' : 'Schedule',
+          label: submitting ? (edit ? 'Saving...' : 'Scheduling...') : edit ? 'Save' : 'Schedule',
           onClick: handleSubmit,
-          disabled: !promptText || isPastLaunch,
+          disabled: !promptText || isPastLaunch || submitting,
           disabledTooltip: isPastLaunch ? PAST_LAUNCH_MESSAGE : undefined,
         }}
       />

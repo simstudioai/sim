@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Calendar, Chip, Plus } from '@/components/emcn'
 import { zonedClockDate } from '@/lib/core/utils/timezone'
 import {
   CalendarToolbar,
@@ -38,6 +39,32 @@ interface ScheduleCalendarProps {
   onShowDay: (date: Date) => void
   /** Day-bucketed events feeding both the month grid and the time grid. */
   eventsByDay?: Map<string, CalendarEvent[]>
+  /** The workspace has no scheduled tasks yet — show the first-run prompt instead of the grid. */
+  isEmpty?: boolean
+  /** Starts a blank create from the first-run prompt. */
+  onCreate: () => void
+}
+
+/**
+ * First-run prompt shown in place of the grid when the workspace has no
+ * scheduled tasks. The grid stays one click away — empty space and this CTA both
+ * open the create modal.
+ */
+function CalendarEmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className='flex h-full flex-col items-center justify-center gap-3 px-6 text-center'>
+      <Calendar className='size-6 text-[var(--text-muted)]' />
+      <div className='flex flex-col gap-1'>
+        <p className='text-[var(--text-body)] text-base'>No scheduled tasks</p>
+        <p className='max-w-[320px] text-[var(--text-muted)] text-small'>
+          Schedule Sim to run on its own — daily digests, reminders, recurring checks.
+        </p>
+      </div>
+      <Chip variant='primary' leftIcon={Plus} onClick={onCreate}>
+        New scheduled task
+      </Chip>
+    </div>
+  )
 }
 
 /**
@@ -72,6 +99,8 @@ export function ScheduleCalendar({
   onTaskContextMenu,
   onShowDay,
   eventsByDay,
+  isEmpty = false,
+  onCreate,
 }: ScheduleCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastScrollSignalRef = useRef(0)
@@ -87,7 +116,7 @@ export function ScheduleCalendar({
 
   useEffect(() => {
     const region = scrollRef.current
-    if (!region) return
+    if (!region || isEmpty) return
     const behavior: ScrollBehavior =
       scrollSignal !== lastScrollSignalRef.current ? 'smooth' : 'auto'
     lastScrollSignalRef.current = scrollSignal
@@ -100,7 +129,7 @@ export function ScheduleCalendar({
     const target =
       headerHeight + timeToOffset(zonedClockDate(new Date(), timezone)) - region.clientHeight / 2
     region.scrollTo({ top: Math.max(0, target), behavior })
-  }, [scope, scrollSignal, timezone])
+  }, [scope, scrollSignal, timezone, isEmpty])
 
   return (
     <div className='relative flex min-h-0 flex-1 flex-col overflow-hidden'>
@@ -115,7 +144,9 @@ export function ScheduleCalendar({
         onScopeChange={onScopeChange}
       />
       <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto overscroll-none'>
-        {grid.kind === 'month' ? (
+        {isEmpty ? (
+          <CalendarEmptyState onCreate={onCreate} />
+        ) : grid.kind === 'month' ? (
           <MonthGrid
             grid={grid}
             onSelectDay={(date) => onSelectSlot(date)}

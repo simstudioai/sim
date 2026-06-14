@@ -113,6 +113,16 @@ export function ScheduledTasks() {
     if (contextTask) handleOpenTask(contextTask)
   }, [contextTask, handleOpenTask])
 
+  const handlePauseContextTask = useCallback(() => {
+    if (contextTask) tasks.pauseTask(contextTask.scheduleId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextTask])
+
+  const handleResumeContextTask = useCallback(() => {
+    if (contextTask) tasks.resumeTask(contextTask.scheduleId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextTask])
+
   const handleContentContextMenu = useCallback(
     (e: React.MouseEvent) => {
       const target = e.target as HTMLElement
@@ -158,6 +168,8 @@ export function ScheduledTasks() {
           onTaskContextMenu={handleTaskContextMenu}
           onShowDay={calendar.openDay}
           eventsByDay={tasks.eventsByDay}
+          isEmpty={!tasks.isLoading && !tasks.hasTasks}
+          onCreate={handleOpenCreate}
         />
       </Resource>
 
@@ -175,6 +187,8 @@ export function ScheduledTasks() {
         task={contextTask}
         onEdit={openContextTask}
         onDuplicate={handleDuplicate}
+        onPause={handlePauseContextTask}
+        onResume={handleResumeContextTask}
         onDelete={() => setDeletingTask(contextTask)}
       />
 
