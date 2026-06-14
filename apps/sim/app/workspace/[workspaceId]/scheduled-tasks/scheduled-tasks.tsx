@@ -218,9 +218,7 @@ export function ScheduledTasks() {
           if (!open) tasks.closeTask()
         }}
         edit={editSeed}
-        onSubmit={(draft) => {
-          if (editTask) tasks.updateTask(editTask.scheduleId, draft)
-        }}
+        onSubmit={(draft) => (editTask ? tasks.updateTask(editTask.scheduleId, draft) : undefined)}
         onRequestDelete={() => {
           setDeletingTask(editTask)
           tasks.closeTask()
