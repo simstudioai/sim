@@ -109,7 +109,6 @@ export function ScheduledTasks() {
           onTaskContextMenu={handleTaskContextMenu}
           onShowDay={calendar.openDay}
           eventsByDay={tasks.eventsByDay}
-          eventsByHour={tasks.eventsByHour}
         />
       </Resource>
 

@@ -1,5 +1,5 @@
 import { truncate } from '@sim/utils/string'
-import { format, getHours } from 'date-fns'
+import { format } from 'date-fns'
 import type { WorkspaceScheduleRow } from '@/lib/api/contracts/schedules'
 import { expandOccurrences } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import type { ChatContext } from '@/stores/panel'
@@ -47,11 +47,6 @@ export interface CalendarEvent {
 /** Bucket key for a day cell (`yyyy-MM-dd`). */
 export function dayKey(date: Date): string {
   return format(date, 'yyyy-MM-dd')
-}
-
-/** Bucket key for an hour slot (`yyyy-MM-dd-HH`). */
-export function hourKey(date: Date, hour: number): string {
-  return `${dayKey(date)}-${hour.toString().padStart(2, '0')}`
 }
 
 /** The most recent terminal run of a schedule, or `null` if it has never run. */
@@ -146,26 +141,14 @@ export function taskToCalendarEvent(task: ScheduledTask): CalendarEvent {
   }
 }
 
-function bucketBy(
-  events: CalendarEvent[],
-  keyOf: (event: CalendarEvent) => string
-): Map<string, CalendarEvent[]> {
+/** Groups events by calendar day for both the month grid and the time grid. */
+export function bucketEventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
   const map = new Map<string, CalendarEvent[]>()
   for (const event of events) {
-    const key = keyOf(event)
+    const key = dayKey(event.start)
     const bucket = map.get(key)
     if (bucket) bucket.push(event)
     else map.set(key, [event])
   }
   return map
-}
-
-/** Groups events by calendar day for month-view cell lookup. */
-export function bucketEventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  return bucketBy(events, (event) => dayKey(event.start))
-}
-
-/** Groups events by hour slot for week/day-view slot lookup. */
-export function bucketEventsByHour(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  return bucketBy(events, (event) => hourKey(event.start, getHours(event.start)))
 }

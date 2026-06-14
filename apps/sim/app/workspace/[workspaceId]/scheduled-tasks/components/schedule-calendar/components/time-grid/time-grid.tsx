@@ -14,7 +14,7 @@ import {
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
 import {
   type CalendarEvent,
-  hourKey,
+  dayKey,
   type ScheduledTask,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 
@@ -31,7 +31,7 @@ interface TimeGridProps {
   onSelectTask: (task: ScheduledTask) => void
   /** A task pill was right-clicked — open its context menu at the cursor. */
   onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
-  eventsByHour?: Map<string, CalendarEvent[]>
+  eventsByDay?: Map<string, CalendarEvent[]>
 }
 
 /**
@@ -61,46 +61,71 @@ function CurrentTimeIndicator() {
 }
 
 /**
- * One hour cell in a day column. Clicking empty space opens the create modal;
- * the cell is a plain clickable `<div>` so the task pills inside can be real
- * `<button>`s without nesting interactive elements. Concurrent tasks share the
- * slot side-by-side — each pill flexes to an equal share of the row and
- * truncates, so any number of simultaneous tasks stays clickable.
+ * One hour cell in a day column: a click target that opens the create modal
+ * seeded to this hour, plus the hour's gridlines. Tasks are not rendered here —
+ * they live in the day's {@link DayEvents} overlay so each sits at its exact
+ * minute rather than snapping to the top of the hour.
  */
-function TimeSlot({
+function HourCell({
   date,
   hour,
-  events,
   isLastColumn,
   onSelect,
-  onSelectTask,
-  onTaskContextMenu,
 }: {
   date: Date
   hour: number
-  events: CalendarEvent[]
   isLastColumn: boolean
   onSelect: (date: Date, time: string) => void
-  onSelectTask: (task: ScheduledTask) => void
-  onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
 }) {
   return (
     <div
       onClick={() => onSelect(date, formatSlotTime(hour))}
       style={{ height: TIME_SLOT_HEIGHT }}
       className={cn(
-        'flex cursor-pointer items-start gap-0.5 overflow-hidden border-[var(--border)] border-r border-b p-0.5 transition-colors hover-hover:bg-[var(--surface-active)]',
+        'cursor-pointer border-[var(--border)] border-r border-b transition-colors hover-hover:bg-[var(--surface-active)]',
         isLastColumn && 'pr-6'
+      )}
+    />
+  )
+}
+
+/**
+ * A day column's task pills, each absolutely positioned at its exact start time
+ * via {@link timeToOffset}. The layer is non-interactive so empty space falls
+ * through to the hour cells beneath (click-to-create); the pills re-enable
+ * pointer events. Coincident tasks overlap by design.
+ */
+function DayEvents({
+  events,
+  isLastColumn,
+  onSelectTask,
+  onTaskContextMenu,
+}: {
+  events: CalendarEvent[]
+  isLastColumn: boolean
+  onSelectTask: (task: ScheduledTask) => void
+  onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
+}) {
+  return (
+    <div
+      className={cn(
+        'pointer-events-none absolute inset-y-0 left-0.5 z-10',
+        isLastColumn ? 'right-6' : 'right-0.5'
       )}
     >
       {events.map((event) => (
-        <CalendarEventChip
+        <div
           key={event.id}
-          event={event}
-          onSelect={onSelectTask}
-          onContextMenu={onTaskContextMenu}
-          className='min-w-0 flex-1'
-        />
+          style={{ top: timeToOffset(event.start) }}
+          className='pointer-events-auto absolute inset-x-0'
+        >
+          <CalendarEventChip
+            event={event}
+            onSelect={onSelectTask}
+            onContextMenu={onTaskContextMenu}
+            className='w-full'
+          />
+        </div>
       ))}
     </div>
   )
@@ -122,7 +147,7 @@ export function TimeGrid({
   onSelectSlot,
   onSelectTask,
   onTaskContextMenu,
-  eventsByHour,
+  eventsByDay,
 }: TimeGridProps) {
   const columnsStyle = {
     gridTemplateColumns: `${GUTTER_WIDTH}px repeat(${days.length}, minmax(0, 1fr))`,
@@ -172,17 +197,20 @@ export function TimeGrid({
           <div key={day.date.toISOString()} className='relative flex flex-col'>
             {day.isToday && <CurrentTimeIndicator />}
             {hours.map((hour) => (
-              <TimeSlot
+              <HourCell
                 key={hour}
                 date={day.date}
                 hour={hour}
-                events={eventsByHour?.get(hourKey(day.date, hour)) ?? []}
                 isLastColumn={dayIndex === days.length - 1}
                 onSelect={onSelectSlot}
-                onSelectTask={onSelectTask}
-                onTaskContextMenu={onTaskContextMenu}
               />
             ))}
+            <DayEvents
+              events={eventsByDay?.get(dayKey(day.date)) ?? []}
+              isLastColumn={dayIndex === days.length - 1}
+              onSelectTask={onSelectTask}
+              onTaskContextMenu={onTaskContextMenu}
+            />
           </div>
         ))}
       </div>

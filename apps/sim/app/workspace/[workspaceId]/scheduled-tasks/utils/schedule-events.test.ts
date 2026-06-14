@@ -5,9 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { WorkspaceScheduleRow } from '@/lib/api/contracts/schedules'
 import {
   bucketEventsByDay,
-  bucketEventsByHour,
   dayKey,
-  hourKey,
   type ScheduledTask,
   scheduleToTasks,
   taskToCalendarEvent,
@@ -169,8 +167,8 @@ describe('scheduleToTasks', () => {
   })
 })
 
-describe('bucketing', () => {
-  it('groups events by day and by hour', () => {
+describe('bucketEventsByDay', () => {
+  it('groups events by calendar day', () => {
     const events = [
       taskToCalendarEvent(makeTask({ id: 'a', runAt: new Date('2026-06-10T14:30:00.000Z') })),
       taskToCalendarEvent(makeTask({ id: 'b', runAt: new Date('2026-06-10T14:45:00.000Z') })),
@@ -178,12 +176,8 @@ describe('bucketing', () => {
     ]
 
     const byDay = bucketEventsByDay(events)
-    const firstDay = byDay.get(dayKey(events[0].start))
-    expect(firstDay).toHaveLength(2)
-
-    const byHour = bucketEventsByHour(events)
-    const firstHour = byHour.get(hourKey(events[0].start, events[0].start.getHours()))
-    expect(firstHour).toHaveLength(2)
-    expect(byHour.size).toBe(2)
+    expect(byDay.size).toBe(2)
+    expect(byDay.get(dayKey(events[0].start))).toHaveLength(2)
+    expect(byDay.get(dayKey(events[2].start))).toHaveLength(1)
   })
 })

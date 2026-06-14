@@ -33,10 +33,8 @@ interface ScheduleCalendarProps {
   onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
   /** A month cell's overflow line was clicked — jump to that day's view. */
   onShowDay: (date: Date) => void
-  /** Day-bucketed events for the month grid. */
+  /** Day-bucketed events feeding both the month grid and the time grid. */
   eventsByDay?: Map<string, CalendarEvent[]>
-  /** Hour-bucketed events for the time grid. */
-  eventsByHour?: Map<string, CalendarEvent[]>
 }
 
 /**
@@ -53,8 +51,8 @@ interface ScheduleCalendarProps {
  * computed from the time-grid header height plus {@link timeToOffset} rather than
  * the now-line element, so it works even on first paint before the line mounts.
  *
- * Event injection is the single integration point — `eventsByDay`/`eventsByHour`
- * are threaded straight into the two grids, which forward them to their cells.
+ * Event injection is the single integration point — `eventsByDay` is threaded
+ * straight into both grids, which forward it to their cells.
  */
 export function ScheduleCalendar({
   scope,
@@ -70,7 +68,6 @@ export function ScheduleCalendar({
   onTaskContextMenu,
   onShowDay,
   eventsByDay,
-  eventsByHour,
 }: ScheduleCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastScrollSignalRef = useRef(0)
@@ -129,7 +126,7 @@ export function ScheduleCalendar({
             onSelectSlot={(date, time) => onSelectSlot(date, time)}
             onSelectTask={onSelectTask}
             onTaskContextMenu={onTaskContextMenu}
-            eventsByHour={eventsByHour}
+            eventsByDay={eventsByDay}
           />
         )}
       </div>
