@@ -1,24 +1,14 @@
 import { createLogger } from '@sim/logger'
-import type {
-  HubSpotListMarketingEventsParams,
-  HubSpotListMarketingEventsResponse,
-} from '@/tools/hubspot/types'
-import {
-  MARKETING_EVENTS_ARRAY_OUTPUT,
-  METADATA_OUTPUT,
-  PAGING_OUTPUT,
-} from '@/tools/hubspot/types'
+import type { HubSpotListNotesParams, HubSpotListNotesResponse } from '@/tools/hubspot/types'
+import { METADATA_OUTPUT, NOTES_ARRAY_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotListMarketingEvents')
+const logger = createLogger('HubSpotListNotes')
 
-export const hubspotListMarketingEventsTool: ToolConfig<
-  HubSpotListMarketingEventsParams,
-  HubSpotListMarketingEventsResponse
-> = {
-  id: 'hubspot_list_marketing_events',
-  name: 'List Marketing Events from HubSpot',
-  description: 'Retrieve all marketing events from HubSpot account with pagination support',
+export const hubspotListNotesTool: ToolConfig<HubSpotListNotesParams, HubSpotListNotesResponse> = {
+  id: 'hubspot_list_notes',
+  name: 'List Notes from HubSpot',
+  description: 'Retrieve all notes from HubSpot account with pagination support',
   version: '1.0.0',
 
   oauth: {
@@ -45,14 +35,40 @@ export const hubspotListMarketingEventsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Pagination cursor for next page of results (from previous response)',
     },
+    properties: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of HubSpot property names to return (e.g., "hs_note_body,hs_timestamp,hubspot_owner_id")',
+    },
+    associations: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Comma-separated list of object types to retrieve associated IDs for (e.g., "contacts,companies,deals")',
+    },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/marketing/marketing-events/v3'
+      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/notes'
       const queryParams = new URLSearchParams()
-      if (params.limit) queryParams.append('limit', params.limit)
-      if (params.after) queryParams.append('after', params.after)
+
+      if (params.limit) {
+        queryParams.append('limit', params.limit)
+      }
+      if (params.after) {
+        queryParams.append('after', params.after)
+      }
+      if (params.properties) {
+        queryParams.append('properties', params.properties)
+      }
+      if (params.associations) {
+        queryParams.append('associations', params.associations)
+      }
+
       const queryString = queryParams.toString()
       return queryString ? `${baseUrl}?${queryString}` : baseUrl
     },
@@ -61,6 +77,7 @@ export const hubspotListMarketingEventsTool: ToolConfig<
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
@@ -70,18 +87,19 @@ export const hubspotListMarketingEventsTool: ToolConfig<
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to list marketing events from HubSpot')
+      throw new Error(data.message || 'Failed to list notes from HubSpot')
     }
-    const results = data.results || []
+
     return {
       success: true,
       output: {
-        events: results,
+        notes: data.results || [],
         paging: data.paging ?? null,
         metadata: {
-          totalReturned: results.length,
+          totalReturned: data.results?.length || 0,
           hasMore: !!data.paging?.next,
         },
         success: true,
@@ -90,7 +108,7 @@ export const hubspotListMarketingEventsTool: ToolConfig<
   },
 
   outputs: {
-    events: MARKETING_EVENTS_ARRAY_OUTPUT,
+    notes: NOTES_ARRAY_OUTPUT,
     paging: PAGING_OUTPUT,
     metadata: METADATA_OUTPUT,
     success: { type: 'boolean', description: 'Operation success status' },

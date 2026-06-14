@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-13",
+  "updatedAt": "2026-06-14",
   "integrations": [
     {
       "type": "onepassword",
@@ -7191,7 +7191,7 @@
         },
         {
           "name": "Create Deal",
-          "description": "Create a new deal in HubSpot. Requires at least a dealname property"
+          "description": "Create a new deal in HubSpot with the given properties (e.g., dealname, amount, dealstage)"
         },
         {
           "name": "Update Deal",
@@ -7216,6 +7216,42 @@
         {
           "name": "Search Tickets",
           "description": "Search for tickets in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Notes",
+          "description": "Retrieve all notes from HubSpot account with pagination support"
+        },
+        {
+          "name": "Create Note",
+          "description": "Log a note in HubSpot and optionally associate it with contacts, companies, or deals. Requires hs_timestamp and hs_note_body properties"
+        },
+        {
+          "name": "Search Notes",
+          "description": "Search for notes in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Emails",
+          "description": "Retrieve all email engagements from HubSpot account with pagination support"
+        },
+        {
+          "name": "Create Email",
+          "description": "Log an email engagement in HubSpot and optionally associate it with contacts. Requires the hs_timestamp property"
+        },
+        {
+          "name": "Search Emails",
+          "description": "Search for email engagements in HubSpot using filters, sorting, and queries"
+        },
+        {
+          "name": "Get Properties",
+          "description": "Read property definitions and their enumeration (picklist) options for a HubSpot object type, e.g. the values for lifecyclestage or hs_lead_status on contacts"
+        },
+        {
+          "name": "List Associations",
+          "description": "List records of one object type associated with a given record, e.g. all emails or notes logged on a contact"
+        },
+        {
+          "name": "Create Association",
+          "description": "Associate two HubSpot records. Creates the default (unlabeled) association unless an association type ID is provided"
         },
         {
           "name": "Get Line Items",
@@ -7270,7 +7306,7 @@
           "description": "Retrieve all users from HubSpot account"
         }
       ],
-      "operationCount": 29,
+      "operationCount": 38,
       "triggers": [
         {
           "id": "hubspot_poller",

@@ -1,20 +1,18 @@
 import { createLogger } from '@sim/logger'
-import type {
-  HubSpotCreateAppointmentParams,
-  HubSpotCreateAppointmentResponse,
-} from '@/tools/hubspot/types'
-import { APPOINTMENT_OBJECT_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotCreateEmailParams, HubSpotCreateEmailResponse } from '@/tools/hubspot/types'
+import { EMAIL_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotCreateAppointment')
+const logger = createLogger('HubSpotCreateEmail')
 
-export const hubspotCreateAppointmentTool: ToolConfig<
-  HubSpotCreateAppointmentParams,
-  HubSpotCreateAppointmentResponse
+export const hubspotCreateEmailTool: ToolConfig<
+  HubSpotCreateEmailParams,
+  HubSpotCreateEmailResponse
 > = {
-  id: 'hubspot_create_appointment',
-  name: 'Create Appointment in HubSpot',
-  description: 'Create a new appointment in HubSpot',
+  id: 'hubspot_create_email',
+  name: 'Create Email in HubSpot',
+  description:
+    'Log an email engagement in HubSpot and optionally associate it with contacts. Requires the hs_timestamp property',
   version: '1.0.0',
 
   oauth: {
@@ -34,24 +32,25 @@ export const hubspotCreateAppointmentTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Appointment properties as JSON object (e.g., {"hs_appointment_name": "Discovery Call", "hs_appointment_start": "2024-01-15T10:00:00Z", "hs_appointment_end": "2024-01-15T11:00:00Z"})',
+        'Email properties as JSON object. Must include "hs_timestamp" (ISO 8601). Common fields: "hs_email_direction" (EMAIL, INCOMING_EMAIL, FORWARDED_EMAIL), "hs_email_status" (SENT, SENDING, SCHEDULED, FAILED, BOUNCED), "hs_email_subject", "hs_email_text", "hs_email_html", "hs_email_headers" (JSON string)',
     },
     associations: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Array of associations to create with the appointment as JSON. Each object should have "to.id" and "types" array with "associationCategory" and "associationTypeId"',
+        'Array of associations as JSON. Each object has "to.id" (record ID) and "types" array with "associationCategory" ("HUBSPOT_DEFINED") and "associationTypeId" (198 = email→contact)',
     },
   },
 
   request: {
-    url: () => 'https://api.hubapi.com/crm/v3/objects/appointments',
+    url: () => 'https://api.hubapi.com/crm/v3/objects/emails',
     method: 'POST',
     headers: (params) => {
       if (!params.accessToken) {
         throw new Error('Access token is required')
       }
+
       return {
         Authorization: `Bearer ${params.accessToken}`,
         'Content-Type': 'application/json',
@@ -66,7 +65,11 @@ export const hubspotCreateAppointmentTool: ToolConfig<
           throw new Error('Invalid JSON format for properties. Please provide a valid JSON object.')
         }
       }
-      const body: Record<string, unknown> = { properties }
+
+      const body: Record<string, unknown> = {
+        properties,
+      }
+
       let associations = params.associations
       if (typeof associations === 'string') {
         try {
@@ -80,25 +83,32 @@ export const hubspotCreateAppointmentTool: ToolConfig<
       if (Array.isArray(associations) && associations.length > 0) {
         body.associations = associations
       }
+
       return body
     },
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
+
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to create appointment in HubSpot')
+      throw new Error(data.message || 'Failed to create email in HubSpot')
     }
+
     return {
       success: true,
-      output: { appointment: data, appointmentId: data.id, success: true },
+      output: {
+        email: data,
+        emailId: data.id,
+        success: true,
+      },
     }
   },
 
   outputs: {
-    appointment: APPOINTMENT_OBJECT_OUTPUT,
-    appointmentId: { type: 'string', description: 'The created appointment ID' },
+    email: EMAIL_OBJECT_OUTPUT,
+    emailId: { type: 'string', description: 'The created email engagement ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }

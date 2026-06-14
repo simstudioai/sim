@@ -1,17 +1,14 @@
 import { createLogger } from '@sim/logger'
-import type { HubSpotListContactsParams, HubSpotListContactsResponse } from '@/tools/hubspot/types'
-import { CONTACTS_ARRAY_OUTPUT, METADATA_OUTPUT, PAGING_OUTPUT } from '@/tools/hubspot/types'
+import type { HubSpotGetNoteParams, HubSpotGetNoteResponse } from '@/tools/hubspot/types'
+import { NOTE_OBJECT_OUTPUT } from '@/tools/hubspot/types'
 import type { ToolConfig } from '@/tools/types'
 
-const logger = createLogger('HubSpotListContacts')
+const logger = createLogger('HubSpotGetNote')
 
-export const hubspotListContactsTool: ToolConfig<
-  HubSpotListContactsParams,
-  HubSpotListContactsResponse
-> = {
-  id: 'hubspot_list_contacts',
-  name: 'List Contacts from HubSpot',
-  description: 'Retrieve all contacts from HubSpot account with pagination support',
+export const hubspotGetNoteTool: ToolConfig<HubSpotGetNoteParams, HubSpotGetNoteResponse> = {
+  id: 'hubspot_get_note',
+  name: 'Get Note from HubSpot',
+  description: 'Retrieve a single note by ID from HubSpot',
   version: '1.0.0',
 
   oauth: {
@@ -26,45 +23,33 @@ export const hubspotListContactsTool: ToolConfig<
       visibility: 'hidden',
       description: 'The access token for the HubSpot API',
     },
-    limit: {
+    noteId: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Maximum number of results per page (max 100, default 10)',
-    },
-    after: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Pagination cursor for next page of results (from previous response)',
+      description: 'The HubSpot note ID to retrieve',
     },
     properties: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of HubSpot property names to return (e.g., "email,firstname,lastname,phone")',
+        'Comma-separated list of HubSpot property names to return (e.g., "hs_note_body,hs_timestamp,hubspot_owner_id")',
     },
     associations: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated list of object types to retrieve associated IDs for (e.g., "companies,deals")',
+        'Comma-separated list of object types to retrieve associated IDs for (e.g., "contacts,companies,deals")',
     },
   },
 
   request: {
     url: (params) => {
-      const baseUrl = 'https://api.hubapi.com/crm/v3/objects/contacts'
+      const baseUrl = `https://api.hubapi.com/crm/v3/objects/notes/${params.noteId.trim()}`
       const queryParams = new URLSearchParams()
 
-      if (params.limit) {
-        queryParams.append('limit', params.limit)
-      }
-      if (params.after) {
-        queryParams.append('after', params.after)
-      }
       if (params.properties) {
         queryParams.append('properties', params.properties)
       }
@@ -93,27 +78,22 @@ export const hubspotListContactsTool: ToolConfig<
 
     if (!response.ok) {
       logger.error('HubSpot API request failed', { data, status: response.status })
-      throw new Error(data.message || 'Failed to list contacts from HubSpot')
+      throw new Error(data.message || 'Failed to get note from HubSpot')
     }
 
     return {
       success: true,
       output: {
-        contacts: data.results || [],
-        paging: data.paging ?? null,
-        metadata: {
-          totalReturned: data.results?.length || 0,
-          hasMore: !!data.paging?.next,
-        },
+        note: data,
+        noteId: data.id,
         success: true,
       },
     }
   },
 
   outputs: {
-    contacts: CONTACTS_ARRAY_OUTPUT,
-    paging: PAGING_OUTPUT,
-    metadata: METADATA_OUTPUT,
+    note: NOTE_OBJECT_OUTPUT,
+    noteId: { type: 'string', description: 'The retrieved note ID' },
     success: { type: 'boolean', description: 'Operation success status' },
   },
 }
