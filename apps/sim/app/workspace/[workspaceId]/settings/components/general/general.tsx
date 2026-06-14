@@ -46,6 +46,13 @@ const logger = createLogger('General')
 const TIMEZONE_OPTIONS = getTimezoneOptions()
 
 /**
+ * Shared trigger width for the three appearance dropdowns (Theme, Timezone, Snap
+ * to grid) so they line up as one column instead of three differently-sized
+ * pills. Wide enough for the longest common timezone label.
+ */
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
+
+/**
  * Extracts initials from a user's name.
  * @param name - The user's full name
  * @returns Up to 2 characters: first letters of first and last name, or just the first letter
@@ -401,26 +408,29 @@ export function General() {
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='theme-select'>Theme</Label>
-                <ChipSelect
-                  align='start'
-                  dropdownWidth={140}
-                  value={settings?.theme}
-                  onChange={handleThemeChange}
-                  placeholder='Select theme'
-                  options={[
-                    { label: 'System', value: 'system' },
-                    { label: 'Light', value: 'light' },
-                    { label: 'Dark', value: 'dark' },
-                  ]}
-                />
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipSelect
+                    align='start'
+                    fullWidth
+                    dropdownWidth='trigger'
+                    value={settings?.theme}
+                    onChange={handleThemeChange}
+                    placeholder='Select theme'
+                    options={[
+                      { label: 'System', value: 'system' },
+                      { label: 'Light', value: 'light' },
+                      { label: 'Dark', value: 'dark' },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className='flex items-center justify-between gap-4'>
                 <Label>Timezone</Label>
-                <div className='w-[260px] flex-shrink-0'>
+                <div className={DROPDOWN_TRIGGER_CLASS}>
                   <ChipCombobox
                     align='start'
-                    dropdownWidth={260}
+                    dropdownWidth={240}
                     searchable
                     searchPlaceholder='Search timezones'
                     value={settings?.timezone ?? getBrowserTimezone()}
@@ -480,21 +490,24 @@ export function General() {
 
               <div className='flex items-center justify-between'>
                 <Label htmlFor='snap-to-grid'>Snap to grid</Label>
-                <ChipSelect
-                  align='start'
-                  dropdownWidth={140}
-                  value={String(snapToGridValue)}
-                  onChange={handleSnapToGridChange}
-                  placeholder='Select size'
-                  options={[
-                    { label: 'Off', value: '0' },
-                    { label: '10px', value: '10' },
-                    { label: '20px', value: '20' },
-                    { label: '30px', value: '30' },
-                    { label: '40px', value: '40' },
-                    { label: '50px', value: '50' },
-                  ]}
-                />
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipSelect
+                    align='start'
+                    fullWidth
+                    dropdownWidth='trigger'
+                    value={String(snapToGridValue)}
+                    onChange={handleSnapToGridChange}
+                    placeholder='Select size'
+                    options={[
+                      { label: 'Off', value: '0' },
+                      { label: '10px', value: '10' },
+                      { label: '20px', value: '20' },
+                      { label: '30px', value: '30' },
+                      { label: '40px', value: '40' },
+                      { label: '50px', value: '50' },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className='flex items-center justify-between'>
