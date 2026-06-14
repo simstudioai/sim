@@ -3,7 +3,7 @@ import type {
   SalesforceDeleteLeadResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceDeleteLeadTool: ToolConfig<
@@ -33,8 +33,10 @@ export const salesforceDeleteLeadTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${params.leadId}`,
+    url: (params) => {
+      const leadId = requireId(params.leadId, 'Lead ID')
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Lead/${leadId}`
+    },
     method: 'DELETE',
     headers: (params) => ({ Authorization: `Bearer ${params.accessToken}` }),
   },
@@ -42,12 +44,12 @@ export const salesforceDeleteLeadTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data[0]?.message || data.message || 'Failed to delete lead')
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to delete lead'))
     }
     return {
       success: true,
       output: {
-        id: params?.leadId || '',
+        id: params?.leadId?.trim() || '',
         deleted: true,
       },
     }

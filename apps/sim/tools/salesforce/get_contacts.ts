@@ -4,7 +4,7 @@ import type {
   SalesforceGetContactsResponse,
 } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -60,9 +60,10 @@ export const salesforceGetContactsTool: ToolConfig<
 
       // Single contact by ID
       if (params.contactId) {
+        const contactId = requireId(params.contactId, 'Contact ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Email,Phone,AccountId,Title,Department'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${params.contactId}?fields=${fields}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}?fields=${encodeURIComponent(fields)}`
       }
 
       // List contacts with SOQL query
@@ -87,7 +88,7 @@ export const salesforceGetContactsTool: ToolConfig<
     if (!response.ok) {
       logger.error('Salesforce API request failed', { data, status: response.status })
       throw new Error(
-        data[0]?.message || data.message || 'Failed to fetch contacts from Salesforce'
+        extractErrorMessage(data, response.status, 'Failed to fetch contacts from Salesforce')
       )
     }
 
