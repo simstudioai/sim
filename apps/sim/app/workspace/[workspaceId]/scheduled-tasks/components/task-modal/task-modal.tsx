@@ -131,23 +131,44 @@ export function TaskModal({
   onSubmit,
   onRequestDelete,
 }: TaskModalProps) {
+  const [submitting, setSubmitting] = useState(false)
+
+  /**
+   * While a save is in flight, swallow every dismiss path — Cancel, header X,
+   * Escape, and overlay click all route through this one handler — so an
+   * in-progress create/edit can't be abandoned and lose its draft. `submitting`
+   * lives here (not in the unmounted-on-close content) so this guard can see it.
+   */
+  const handleOpenChange = (next: boolean) => {
+    if (!next && submitting) return
+    onOpenChange(next)
+  }
+
   return (
     <ChipModal
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       size='lg'
       srTitle={edit ? 'Edit scheduled task' : 'New scheduled task'}
     >
       <TaskModalContent
-        onOpenChange={onOpenChange}
+        onOpenChange={handleOpenChange}
         slot={slot}
         edit={edit}
         prefill={prefill}
         onSubmit={onSubmit}
         onRequestDelete={onRequestDelete}
+        submitting={submitting}
+        setSubmitting={setSubmitting}
       />
     </ChipModal>
   )
+}
+
+interface TaskModalContentProps extends Omit<TaskModalProps, 'open'> {
+  /** Whether a save is in flight — owned by {@link TaskModal} so the dismiss guard can read it. */
+  submitting: boolean
+  setSubmitting: (submitting: boolean) => void
 }
 
 /**
@@ -162,7 +183,9 @@ function TaskModalContent({
   prefill,
   onSubmit,
   onRequestDelete,
-}: Omit<TaskModalProps, 'open'>) {
+  submitting,
+  setSubmitting,
+}: TaskModalContentProps) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const source = edit ?? prefill
   const accountTimezone = useTimezone()
@@ -193,7 +216,6 @@ function TaskModalContent({
   const [recurrence, setRecurrence] = useState<Recurrence>(
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
-  const [submitting, setSubmitting] = useState(false)
   const launchEditedRef = useRef(false)
 
   /**
@@ -287,6 +309,7 @@ function TaskModalContent({
       </ChipModalPromptBody>
       <ChipModalFooter
         onCancel={close}
+        cancelDisabled={submitting}
         secondaryActions={secondaryActions}
         primaryAction={{
           label: submitting ? (edit ? 'Saving...' : 'Scheduling...') : edit ? 'Save' : 'Schedule',
