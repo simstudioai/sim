@@ -259,16 +259,17 @@ function TaskModalContent({
 
   /**
    * Submits the draft and waits for it to persist. The `submitting` guard blocks
-   * a double-submit (Enter racing the click); on success the modal closes, on
-   * failure it stays open so the draft survives — the mutation hook surfaces the
-   * error via toast, so no message is duplicated here. `submitting` always resets
-   * in `finally`, so the button can never stick disabled if the modal is kept open.
+   * a double-submit (Enter racing the click). The modal closes only when the save
+   * resolves; a rejection leaves it open so the draft survives — the mutation hook
+   * already surfaces the error via toast, so it is swallowed here rather than
+   * duplicated. `submitting` is always cleared, so the button can never stick
+   * disabled while the modal stays open.
    */
   const handleSubmit = async () => {
     if (!promptText || isPastLaunch || submitting) return
     setSubmitting(true)
-    try {
-      await onSubmit({
+    const persisted = await Promise.resolve(
+      onSubmit({
         prompt: editor.getPlainValue().trim(),
         contexts: editor.contexts.length > 0 ? editor.contexts : undefined,
         launchDate,
@@ -276,14 +277,19 @@ function TaskModalContent({
         timezone,
         recurrence,
       })
-      close()
-    } catch {
-      // Failure keeps the modal open; the mutation hook surfaces the error via toast.
-    } finally {
-      setSubmitting(false)
-    }
+    )
+      .then(() => true)
+      .catch(() => false)
+    setSubmitting(false)
+    if (persisted) close()
   }
 
+  /**
+   * Footer secondary actions. Delete is disabled while `submitting` because it
+   * bypasses the dismiss guard — it closes the modal via `closeTask`, not the
+   * guarded `onOpenChange` — so without the lock an in-flight edit and a delete
+   * could run against the same task at once.
+   */
   const secondaryActions: ChipModalFooterSlotAction[] = [
     ...(edit && onRequestDelete
       ? [
@@ -291,9 +297,6 @@ function TaskModalContent({
             label: 'Delete',
             variant: 'destructive' as const,
             onClick: onRequestDelete,
-            // Locked during a save: Delete bypasses the dismiss guard (it closes the
-            // modal via closeTask, not onOpenChange), so without this an in-flight
-            // edit and a delete could run against the same task at once.
             disabled: submitting,
           },
         ]
