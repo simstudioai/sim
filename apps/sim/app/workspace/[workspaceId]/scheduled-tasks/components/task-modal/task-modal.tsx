@@ -232,7 +232,8 @@ function TaskModalContent({
    * Submits the draft and waits for it to persist. The `submitting` guard blocks
    * a double-submit (Enter racing the click); on success the modal closes, on
    * failure it stays open so the draft survives — the mutation hook surfaces the
-   * error via toast, so no message is duplicated here.
+   * error via toast, so no message is duplicated here. `submitting` always resets
+   * in `finally`, so the button can never stick disabled if the modal is kept open.
    */
   const handleSubmit = async () => {
     if (!promptText || isPastLaunch || submitting) return
@@ -248,6 +249,8 @@ function TaskModalContent({
       })
       close()
     } catch {
+      // Failure keeps the modal open; the mutation hook surfaces the error via toast.
+    } finally {
       setSubmitting(false)
     }
   }
