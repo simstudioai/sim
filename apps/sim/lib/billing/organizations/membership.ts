@@ -1061,6 +1061,19 @@ export async function removeUserFromOrganization(
         return usage
       }
 
+      // Permission groups are organization-scoped, so a departing member's group
+      // membership must be cleared whenever they leave the org — including the
+      // zero-workspace early return below (a group can exist with members but no
+      // workspaces).
+      await tx
+        .delete(permissionGroupMember)
+        .where(
+          and(
+            eq(permissionGroupMember.userId, userId),
+            eq(permissionGroupMember.organizationId, organizationId)
+          )
+        )
+
       if (workspaceIds.length === 0) {
         const capturedUsage = await captureDepartedUsage()
 
@@ -1100,15 +1113,6 @@ export async function removeUserFromOrganization(
           )
         )
         .returning({ entityId: permissions.entityId })
-
-      await tx
-        .delete(permissionGroupMember)
-        .where(
-          and(
-            eq(permissionGroupMember.userId, userId),
-            inArray(permissionGroupMember.workspaceId, workspaceIds)
-          )
-        )
 
       const credentialMembershipsRevoked = await revokeWorkspaceCredentialMembershipsTx({
         tx,
@@ -1299,7 +1303,7 @@ export async function removeExternalUserFromOrganizationWorkspaces(params: {
         .where(
           and(
             eq(permissionGroupMember.userId, userId),
-            inArray(permissionGroupMember.workspaceId, workspaceIds)
+            eq(permissionGroupMember.organizationId, organizationId)
           )
         )
         .returning({ id: permissionGroupMember.id })

@@ -38,6 +38,12 @@ export const nonEmptyIdSchema = z.string().min(1)
 export const workspaceIdSchema = z.string().min(1, 'Workspace ID is required')
 
 /**
+ * Non-empty `organizationId` field. Same constraint as `nonEmptyIdSchema` with a
+ * stable, human-readable message.
+ */
+export const organizationIdSchema = z.string().min(1, 'Organization ID is required')
+
+/**
  * Non-empty `workflowId` field. Same constraint as `nonEmptyIdSchema` with a
  * stable, human-readable message.
  */

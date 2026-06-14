@@ -1,8 +1,8 @@
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, workspace } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, asc, eq, sql } from 'drizzle-orm'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing'
+import { and, eq } from 'drizzle-orm'
+import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
   isAccessControlEnabled,
@@ -15,6 +15,7 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
+import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import type { ExecutionContext } from '@/executor/types'
 import { getProviderFromModel } from '@/providers/utils'
 
@@ -110,9 +111,59 @@ function mergeEnvAllowlist(config: PermissionGroupConfig | null): PermissionGrou
 }
 
 /**
+ * Resolve the raw (pre-env-merge) permission-group config that governs `userId`
+ * within `organizationId`. Resolution is deterministic with no workspace-level
+ * fallbacks:
+ *   1. the user's explicitly assigned group in the organization, else
+ *   2. the organization's default group (`isDefault`), which also governs
+ *      external members operating in the org's workspaces, else
+ *   3. `null` (unrestricted).
+ *
+ * Callers are responsible for the enterprise-entitlement gate before invoking
+ * this and for merging the env allowlist afterwards.
+ */
+async function resolveOrganizationGroupConfig(
+  userId: string,
+  organizationId: string
+): Promise<PermissionGroupConfig | null> {
+  const [explicit] = await db
+    .select({ config: permissionGroup.config })
+    .from(permissionGroupMember)
+    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+    .where(
+      and(
+        eq(permissionGroupMember.userId, userId),
+        eq(permissionGroupMember.organizationId, organizationId)
+      )
+    )
+    .limit(1)
+
+  if (explicit) {
+    return parsePermissionGroupConfig(explicit.config)
+  }
+
+  const [defaultGroup] = await db
+    .select({ config: permissionGroup.config })
+    .from(permissionGroup)
+    .where(
+      and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
+    )
+    .limit(1)
+
+  if (defaultGroup) {
+    return parsePermissionGroupConfig(defaultGroup.config)
+  }
+
+  return null
+}
+
+/**
  * Resolve the effective permission-group config for a user in the context of a
- * specific workspace. Returns `null` when the workspace isn't on an enterprise
- * plan or the user isn't a member of any permission group in that workspace.
+ * specific workspace. The workspace is mapped to its organization and the
+ * org-scoped config is resolved (explicit group -> org default -> none).
+ *
+ * Returns `null` (after env merge) when the workspace has no organization, the
+ * organization isn't on an enterprise plan, or no group governs the user.
  *
  * The env-level integration allowlist is always merged last so self-hosted
  * deployments can constrain integrations without touching the DB.
@@ -125,26 +176,33 @@ export async function getUserPermissionConfig(
     return mergeEnvAllowlist(null)
   }
 
-  const isEnterprise = await isWorkspaceOnEnterprisePlan(workspaceId)
+  const ws = await getWorkspaceWithOwner(workspaceId, { includeArchived: true })
+  if (!ws?.organizationId) {
+    return mergeEnvAllowlist(null)
+  }
+
+  return getUserPermissionConfigForOrganization(userId, ws.organizationId)
+}
+
+/**
+ * Org-addressed variant of {@link getUserPermissionConfig}. Use when the
+ * organization id is already known (e.g. organization-level invitations) so no
+ * workspace -> organization lookup is needed.
+ */
+export async function getUserPermissionConfigForOrganization(
+  userId: string,
+  organizationId: string
+): Promise<PermissionGroupConfig | null> {
+  if (!isHosted && !isAccessControlEnabled) {
+    return mergeEnvAllowlist(null)
+  }
+
+  const isEnterprise = await isOrganizationOnEnterprisePlan(organizationId)
   if (!isEnterprise) {
     return mergeEnvAllowlist(null)
   }
 
-  const [groupMembership] = await db
-    .select({ config: permissionGroup.config })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .where(
-      and(eq(permissionGroupMember.userId, userId), eq(permissionGroup.workspaceId, workspaceId))
-    )
-    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
-    .limit(1)
-
-  if (!groupMembership) {
-    return mergeEnvAllowlist(null)
-  }
-
-  return mergeEnvAllowlist(parsePermissionGroupConfig(groupMembership.config))
+  return mergeEnvAllowlist(await resolveOrganizationGroupConfig(userId, organizationId))
 }
 
 /**
@@ -323,12 +381,10 @@ export async function validateSkillsAllowed(
 
 /**
  * Validates if the user is allowed to send invitations. Pass one of:
- *  - `workspaceId` — workspace-scoped invite: block when the user's group in that workspace has
- *    `disableInvitations`.
+ *  - `workspaceId` — workspace-scoped invite: block when the user's governing group (explicit or
+ *    org default) for the workspace's organization has `disableInvitations`.
  *  - `organizationId` — organization-level invite (no specific workspace target): block when the
- *    user has `disableInvitations` set on their group in any organization-owned workspace. This
- *    mirrors the pre-refactor behavior where `disableInvitations` was an organization-level
- *    policy.
+ *    user's group in that organization (explicit or the org default) has `disableInvitations`.
  *  - neither — only the global feature flag is checked.
  */
 export async function validateInvitationsAllowed(
@@ -357,25 +413,11 @@ export async function validateInvitationsAllowed(
   }
 
   if (organizationId) {
-    const [row] = await db
-      .select({ id: permissionGroup.id })
-      .from(permissionGroupMember)
-      .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-      .innerJoin(workspace, eq(permissionGroup.workspaceId, workspace.id))
-      .where(
-        and(
-          eq(permissionGroupMember.userId, userId),
-          eq(workspace.organizationId, organizationId),
-          sql`${permissionGroup.config} @> '{"disableInvitations": true}'::jsonb`
-        )
-      )
-      .limit(1)
-
-    if (row) {
+    const config = await getUserPermissionConfigForOrganization(userId, organizationId)
+    if (config?.disableInvitations) {
       logger.warn('Invitations blocked by permission group (organization-wide)', {
         userId,
         organizationId,
-        permissionGroupId: row.id,
       })
       throw new InvitationsNotAllowedError()
     }
