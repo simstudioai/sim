@@ -27,6 +27,7 @@
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:zustand-v5": "bun run scripts/check-zustand-v5-selectors.ts",
     "check:utils": "bun run scripts/check-utils-enforcement.ts",
+    "check:migrations": "bun run scripts/check-migrations-safety.ts",
     "mship-contracts:generate": "bun run scripts/sync-mothership-stream-contract.ts",
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
