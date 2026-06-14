@@ -74,7 +74,6 @@ export const hubspotCreateAssociationTool: ToolConfig<
       const from = `${encodeURIComponent(params.objectType.trim())}/${encodeURIComponent(params.objectId.trim())}`
       const to = `${encodeURIComponent(params.toObjectType.trim())}/${encodeURIComponent(params.toObjectId.trim())}`
 
-      // A specific type ID means a labeled association; otherwise create the default.
       return params.associationTypeId != null
         ? `https://api.hubapi.com/crm/v4/objects/${from}/associations/${to}`
         : `https://api.hubapi.com/crm/v4/objects/${from}/associations/default/${to}`
@@ -91,7 +90,6 @@ export const hubspotCreateAssociationTool: ToolConfig<
       }
     },
     body: (params) => {
-      // The default-association endpoint takes no body.
       if (params.associationTypeId == null) {
         return undefined
       }
@@ -113,8 +111,6 @@ export const hubspotCreateAssociationTool: ToolConfig<
       throw new Error(data.message || 'Failed to create association in HubSpot')
     }
 
-    // Labeled associations return LabelsBetweenObjectPair; default associations
-    // return a batch response with a single result.
     const batchResult = Array.isArray(data.results) ? data.results[0] : undefined
 
     return {

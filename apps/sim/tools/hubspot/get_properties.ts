@@ -88,8 +88,6 @@ export const hubspotGetPropertiesTool: ToolConfig<
       throw new Error(data.message || 'Failed to get properties from HubSpot')
     }
 
-    // The list endpoint returns { results: Property[] }; the single-property
-    // endpoint returns the Property object directly.
     const properties = Array.isArray(data.results) ? data.results : [data]
 
     return {
