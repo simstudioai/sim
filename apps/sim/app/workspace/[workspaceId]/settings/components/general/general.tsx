@@ -27,7 +27,7 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
-import { getBrowserTimezone, getTimezonesByPopularity } from '@/lib/core/utils/timezone'
+import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -42,14 +42,8 @@ import { clearUserData } from '@/stores'
 
 const logger = createLogger('General')
 
-/**
- * IANA zones for the timezone picker, ordered most-popular first; labels drop
- * underscores so search reads naturally.
- */
-const TIMEZONE_OPTIONS = getTimezonesByPopularity().map((tz) => ({
-  label: tz.replace(/_/g, ' '),
-  value: tz,
-}))
+/** Human-friendly timezone options for the picker, common zones first. */
+const TIMEZONE_OPTIONS = getTimezoneOptions()
 
 /**
  * Extracts initials from a user's name.

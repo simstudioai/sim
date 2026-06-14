@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getSupportedTimezones,
+  getTimezoneOptions,
   wallClockNow,
   zonedClockDate,
   zonedWallClockToUtc,
@@ -65,6 +66,27 @@ describe('getSupportedTimezones', () => {
     const zones = getSupportedTimezones()
     expect(zones.length).toBeGreaterThan(0)
     expect(zones).toContain('UTC')
+  })
+})
+
+describe('getTimezoneOptions', () => {
+  it('leads with curated, human-friendly labels', () => {
+    const options = getTimezoneOptions()
+    expect(options[0]).toEqual({ value: 'UTC', label: 'Coordinated Universal Time (UTC)' })
+    expect(options.find((o) => o.value === 'America/Los_Angeles')?.label).toBe(
+      'US Pacific Time - Los Angeles (PT)'
+    )
+  })
+
+  it('has no duplicate values even across legacy aliases', () => {
+    const values = getTimezoneOptions().map((o) => o.value)
+    expect(new Set(values).size).toBe(values.length)
+    expect(values).not.toContain('Asia/Calcutta')
+  })
+
+  it('labels the alphabetical tail with a GMT offset', () => {
+    const abidjan = getTimezoneOptions().find((o) => o.value === 'Africa/Abidjan')
+    expect(abidjan?.label).toMatch(/^Africa\/Abidjan \(GMT[+-]\d/)
   })
 })
 
