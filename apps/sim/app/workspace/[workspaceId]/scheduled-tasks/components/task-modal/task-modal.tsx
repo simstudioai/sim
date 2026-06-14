@@ -286,7 +286,17 @@ function TaskModalContent({
 
   const secondaryActions: ChipModalFooterSlotAction[] = [
     ...(edit && onRequestDelete
-      ? [{ label: 'Delete', variant: 'destructive' as const, onClick: onRequestDelete }]
+      ? [
+          {
+            label: 'Delete',
+            variant: 'destructive' as const,
+            onClick: onRequestDelete,
+            // Locked during a save: Delete bypasses the dismiss guard (it closes the
+            // modal via closeTask, not onOpenChange), so without this an in-flight
+            // edit and a delete could run against the same task at once.
+            disabled: submitting,
+          },
+        ]
       : []),
     {
       custom: (
