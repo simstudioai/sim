@@ -19,10 +19,12 @@ import { useScheduledTasks } from '@/app/workspace/[workspaceId]/scheduled-tasks
 import { visibleRange } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
 import type { ScheduledTask } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/schedule-events'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
+import { useTimezone } from '@/hooks/queries/general-settings'
 
 export function ScheduledTasks() {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const calendar = useCalendar()
+  const timezone = useTimezone()
+  const calendar = useCalendar(timezone)
 
   const range = useMemo(
     () => visibleRange(calendar.scope, calendar.anchor),
@@ -145,6 +147,7 @@ export function ScheduledTasks() {
           scope={calendar.scope}
           anchor={calendar.anchor}
           today={calendar.today}
+          timezone={timezone}
           onScopeChange={calendar.setScope}
           onPrev={calendar.prev}
           onNext={calendar.next}

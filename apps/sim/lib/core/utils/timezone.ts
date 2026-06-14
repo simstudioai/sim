@@ -62,6 +62,21 @@ export function wallClockNow(timeZone: string): string {
   return zonedWallClock(new Date(), timeZone)
 }
 
+/**
+ * A `Date` whose device-local fields (year…minute) equal the wall-clock time of
+ * `instant` in `timeZone`. It deliberately does NOT represent the same instant —
+ * it is a positioning coordinate that lets naive-local layout code (the calendar
+ * grid, {@link zonedWallClock}-free pixel offsets) render in `timeZone` without
+ * itself being timezone-aware. Never read its `getTime()` as a real timestamp;
+ * the true instant always lives alongside it (e.g. a task's `runAt`).
+ */
+export function zonedClockDate(instant: Date, timeZone: string): Date {
+  const [datePart, timePart] = zonedWallClock(instant, timeZone).split('T')
+  const [year, month, day] = datePart.split('-').map(Number)
+  const [hour, minute] = timePart.split(':').map(Number)
+  return new Date(year, month - 1, day, hour, minute)
+}
+
 /** The UTC offset (ms, east-positive) of `timeZone` at a given instant. */
 function timezoneOffsetMs(instant: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat('en-US', {

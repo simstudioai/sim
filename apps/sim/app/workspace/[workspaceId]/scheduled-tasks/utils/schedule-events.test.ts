@@ -47,13 +47,30 @@ function makeRow(overrides: Partial<WorkspaceScheduleRow>): WorkspaceScheduleRow
 }
 
 describe('taskToCalendarEvent', () => {
-  it('positions the event at the run time and keeps the task for click-through', () => {
-    const task = makeTask({ id: 'abc' })
+  it('positions the event at its wall-clock time in the task timezone and keeps the task', () => {
+    const task = makeTask({ id: 'abc', runAt: new Date('2026-06-10T14:30:00.000Z') })
     const event = taskToCalendarEvent(task)
     expect(event.id).toBe('abc')
-    expect(event.start).toBe(task.runAt)
+    // start is a device-local layout coordinate carrying the UTC wall clock (14:30).
+    expect(event.start.getFullYear()).toBe(2026)
+    expect(event.start.getMonth()).toBe(5)
+    expect(event.start.getDate()).toBe(10)
+    expect(event.start.getHours()).toBe(14)
+    expect(event.start.getMinutes()).toBe(30)
     expect(event.title).toBe('Summarize yesterday')
     expect(event.task).toBe(task)
+  })
+
+  it('shifts the position to the task timezone, not the run instant', () => {
+    const task = makeTask({
+      runAt: new Date('2026-06-10T14:30:00.000Z'),
+      timezone: 'America/New_York',
+    })
+    const event = taskToCalendarEvent(task)
+    // 14:30 UTC is 10:30 in New York (EDT, UTC-4) on this date.
+    expect(event.start.getHours()).toBe(10)
+    expect(event.start.getMinutes()).toBe(30)
+    expect(event.start.getDate()).toBe(10)
   })
 
   it('truncates long prompts and falls back to a default title', () => {

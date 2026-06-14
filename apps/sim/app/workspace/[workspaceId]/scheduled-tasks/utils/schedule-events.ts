@@ -1,6 +1,7 @@
 import { truncate } from '@sim/utils/string'
 import { format } from 'date-fns'
 import type { WorkspaceScheduleRow } from '@/lib/api/contracts/schedules'
+import { zonedClockDate } from '@/lib/core/utils/timezone'
 import { expandOccurrences } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 import type { ChatContext } from '@/stores/panel'
 
@@ -39,6 +40,12 @@ export interface ScheduledTask {
  */
 export interface CalendarEvent {
   id: string
+  /**
+   * The occurrence's wall-clock position in the task's own timezone, as a
+   * device-local {@link zonedClockDate} — a layout coordinate, not the real
+   * instant. Keeps the calendar showing each task at the local time it was
+   * scheduled for, matching the modal. The true instant lives in `task.runAt`.
+   */
   start: Date
   title: string
   task: ScheduledTask
@@ -128,14 +135,16 @@ export function scheduleToTasks(
 }
 
 /**
- * Adapts a task occurrence into a positioned calendar event. Every occurrence
- * renders identically regardless of status; the details modal carries the state.
+ * Adapts a task occurrence into a positioned calendar event, placing it at its
+ * wall-clock time in the task's own timezone (see {@link CalendarEvent.start}).
+ * Every occurrence renders identically regardless of status; the details modal
+ * carries the state.
  */
 export function taskToCalendarEvent(task: ScheduledTask): CalendarEvent {
   const prompt = task.prompt.trim()
   return {
     id: task.id,
-    start: task.runAt,
+    start: zonedClockDate(task.runAt, task.timezone),
     title: prompt ? truncate(prompt, 60) : 'Scheduled task',
     task,
   }

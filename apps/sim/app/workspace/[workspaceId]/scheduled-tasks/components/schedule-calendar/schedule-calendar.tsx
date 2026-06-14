@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { zonedClockDate } from '@/lib/core/utils/timezone'
 import {
   CalendarToolbar,
   MonthGrid,
@@ -21,6 +22,8 @@ interface ScheduleCalendarProps {
   scope: CalendarScope
   anchor: Date
   today: Date
+  /** The viewer's effective timezone — positions the now-line and centering. */
+  timezone: string
   onScopeChange: (scope: CalendarScope) => void
   onPrev: () => void
   onNext: () => void
@@ -58,6 +61,7 @@ export function ScheduleCalendar({
   scope,
   anchor,
   today,
+  timezone,
   onScopeChange,
   onPrev,
   onNext,
@@ -93,8 +97,10 @@ export function ScheduleCalendar({
     }
     const header = region.querySelector('[data-time-grid-header]')
     const headerHeight = header ? header.getBoundingClientRect().height : 0
-    const target = headerHeight + timeToOffset(new Date()) - region.clientHeight / 2
+    const target =
+      headerHeight + timeToOffset(zonedClockDate(new Date(), timezone)) - region.clientHeight / 2
     region.scrollTo({ top: Math.max(0, target), behavior })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scope, scrollSignal])
 
   return (
@@ -123,6 +129,7 @@ export function ScheduleCalendar({
           <TimeGrid
             days={grid.kind === 'week' ? grid.days : [grid.day]}
             hours={grid.hours}
+            timezone={timezone}
             onSelectSlot={(date, time) => onSelectSlot(date, time)}
             onSelectTask={onSelectTask}
             onTaskContextMenu={onTaskContextMenu}

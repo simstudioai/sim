@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { chipPrimaryFillTokens } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { zonedClockDate } from '@/lib/core/utils/timezone'
 import { CalendarEventChip } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-event-chip'
 import {
   type CalendarDayCell,
@@ -29,6 +30,8 @@ interface TimeGridProps {
   /** One column per day: 7 for week scope, 1 for day scope. */
   days: CalendarDayCell[]
   hours: number[]
+  /** The viewer's effective timezone — positions the now-line. */
+  timezone: string
   onSelectSlot: (date: Date, time: string) => void
   onSelectTask: (task: ScheduledTask) => void
   /** A task pill was right-clicked — open its context menu at the cursor. */
@@ -41,9 +44,10 @@ interface TimeGridProps {
  * and a hairline across the column, positioned by {@link timeToOffset}. Renders
  * nothing until mounted (keeps SSR output stable, avoiding a hydration mismatch
  * on the time-dependent offset), then ticks once a minute so the line advances.
+ * Positioned in `timezone` so it tracks the same zone the day columns render in.
  * The parent column is `relative`; this is `absolute`.
  */
-function CurrentTimeIndicator() {
+function CurrentTimeIndicator({ timezone }: { timezone: string }) {
   const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
@@ -55,7 +59,10 @@ function CurrentTimeIndicator() {
   if (!now) return null
 
   return (
-    <div style={{ top: timeToOffset(now) }} className='pointer-events-none absolute inset-x-0 z-10'>
+    <div
+      style={{ top: timeToOffset(zonedClockDate(now, timezone)) }}
+      className='pointer-events-none absolute inset-x-0 z-10'
+    >
       <div className='-translate-x-1/2 -translate-y-1/2 absolute top-0 left-0 size-[10px] rounded-full bg-[var(--text-primary)] dark:bg-white' />
       <div className='-translate-y-1/2 absolute inset-x-0 top-0 h-[2px] bg-[var(--text-primary)] dark:bg-white' />
     </div>
@@ -152,6 +159,7 @@ function DayEvents({
 export function TimeGrid({
   days,
   hours,
+  timezone,
   onSelectSlot,
   onSelectTask,
   onTaskContextMenu,
@@ -203,7 +211,7 @@ export function TimeGrid({
 
         {days.map((day, dayIndex) => (
           <div key={day.date.toISOString()} className='relative flex flex-col'>
-            {day.isToday && <CurrentTimeIndicator />}
+            {day.isToday && <CurrentTimeIndicator timezone={timezone} />}
             {hours.map((hour) => (
               <HourCell
                 key={hour}
