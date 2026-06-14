@@ -158,8 +158,11 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const { data: subscriptionData } = useSubscriptionData()
-  const gateProgrammaticDeploy = isHosted && isFree(subscriptionData?.data?.plan)
+  const { data: subscriptionData, isLoading: isLoadingSubscription } = useSubscriptionData()
+  // Hold the gate closed until the plan is known — isFree(undefined) is true, so
+  // gating during load would flash the upgrade wall at paid users.
+  const gateProgrammaticDeploy =
+    isHosted && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''

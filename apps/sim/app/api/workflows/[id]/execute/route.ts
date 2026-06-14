@@ -11,7 +11,7 @@ import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
   API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
-  isApiExecutionEntitled,
+  isWorkspaceApiExecutionEntitled,
 } from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
@@ -400,6 +400,7 @@ async function handleExecutePost(
 
     let userId: string
     let isPublicApiAccess = false
+    let gateWorkspaceId: string | undefined
 
     if (!auth.success || !auth.userId) {
       const hasExplicitCredentials =
@@ -434,15 +435,29 @@ async function handleExecutePost(
 
       userId = wf.userId
       isPublicApiAccess = true
+      gateWorkspaceId = wf.workspaceId
     } else {
       userId = auth.userId
     }
 
-    if (
-      (auth.authType === AuthType.API_KEY || isPublicApiAccess) &&
-      !(await isApiExecutionEntitled(userId))
-    ) {
-      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    // Programmatic execution (API key or public API) is gated on the workflow's
+    // workspace billed account — the same entity MCP/A2A/webhooks/chat gate on —
+    // so a paid workspace is never blocked because an individual is on free.
+    if (auth.authType === AuthType.API_KEY || isPublicApiAccess) {
+      if (!gateWorkspaceId) {
+        const [wfRow] = await db
+          .select({ workspaceId: workflowTable.workspaceId })
+          .from(workflowTable)
+          .where(eq(workflowTable.id, workflowId))
+          .limit(1)
+        gateWorkspaceId = wfRow?.workspaceId ?? undefined
+      }
+      if (!(await isWorkspaceApiExecutionEntitled(gateWorkspaceId))) {
+        return NextResponse.json(
+          { error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE },
+          { status: 402 }
+        )
+      }
     }
 
     let body: any = {}

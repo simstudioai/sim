@@ -399,6 +399,7 @@ describe('Webhook Trigger API Route', () => {
       isFromNormalizedTables: true,
     })
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
+    isWorkspaceApiExecutionEntitledMock.mockResolvedValue(true)
 
     mockExecutionDependencies()
     mockTriggerDevSdk()
@@ -624,6 +625,44 @@ describe('Webhook Trigger API Route', () => {
         workspaceId: 'test-workspace-id',
       })
       isWorkspaceApiExecutionEntitledMock.mockResolvedValueOnce(false)
+
+      const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
+      const params = Promise.resolve({ path: 'test-path' })
+
+      const response = await POST(req as any, { params })
+
+      expect(response.status).toBe(402)
+    })
+
+    it('returns 402 (not 500) when every webhook in a shared path is generic and free', async () => {
+      testData.webhooks.push(
+        {
+          id: 'generic-webhook-a',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+          rateLimitCount: 100,
+          rateLimitPeriod: 60,
+        },
+        {
+          id: 'generic-webhook-b',
+          provider: 'generic',
+          path: 'test-path',
+          isActive: true,
+          providerConfig: { requireAuth: false },
+          workflowId: 'test-workflow-id',
+          rateLimitCount: 100,
+          rateLimitPeriod: 60,
+        }
+      )
+      testData.workflows.push({
+        id: 'test-workflow-id',
+        userId: 'test-user-id',
+        workspaceId: 'test-workspace-id',
+      })
+      isWorkspaceApiExecutionEntitledMock.mockResolvedValue(false)
 
       const req = createMockRequest('POST', { event: 'test', id: 'test-123' })
       const params = Promise.resolve({ path: 'test-path' })

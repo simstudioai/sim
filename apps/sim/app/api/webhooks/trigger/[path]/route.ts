@@ -126,6 +126,7 @@ async function handleWebhookPost(
   // Process each webhook
   // For credential sets with shared paths, each webhook represents a different credential
   const responses: NextResponse[] = []
+  let billingBlocked = false
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
     // Generic ("custom") webhooks are an unauthenticated programmatic execution
@@ -136,6 +137,7 @@ async function handleWebhookPost(
       !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
     ) {
       logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
+      billingBlocked = true
       if (webhooksForPath.length > 1) continue
       return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
     }
@@ -203,6 +205,9 @@ async function handleWebhookPost(
   }
 
   if (responses.length === 0) {
+    if (billingBlocked) {
+      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    }
     return new NextResponse('No webhooks processed successfully', { status: 500 })
   }
 
