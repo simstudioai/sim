@@ -77,7 +77,7 @@ export const salesforceRefreshDashboardTool: ToolConfig<
         dashboardId: attrs.dashboardId ?? params?.dashboardId ?? '',
         components: data.componentData ?? data.componentStatus ?? [],
         status: data.dashboardStatus ?? data.status ?? null,
-        statusUrl: attrs.statusUrl ?? null,
+        statusUrl: data.statusUrl ?? attrs.statusUrl ?? null,
         dashboardName: attrs.dashboardName ?? null,
         dashboardMetadata: data.dashboardMetadata ?? null,
         success: true,

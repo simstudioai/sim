@@ -1693,7 +1693,6 @@ export interface SalesforceDeleteTaskResponse {
 }
 
 export interface SalesforceListReportsParams extends BaseSalesforceParams {
-  folderName?: string
   searchTerm?: string
 }
 

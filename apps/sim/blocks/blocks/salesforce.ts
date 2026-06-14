@@ -566,14 +566,6 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       required: true,
     },
     {
-      id: 'folderName',
-      title: 'Folder Name',
-      type: 'short-input',
-      placeholder: 'Filter by folder name',
-      mode: 'advanced',
-      condition: { field: 'operation', value: ['list_reports'] },
-    },
-    {
       id: 'searchTerm',
       title: 'Search Term',
       type: 'short-input',

@@ -57,7 +57,13 @@ export const salesforceListDashboardsTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
-    const dashboards = Array.isArray(data.dashboards) ? data.dashboards : []
+    // GET /analytics/dashboards returns a bare top-level array of dashboard objects;
+    // fall back to a `dashboards` wrapper defensively in case the shape varies by org.
+    const dashboards = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.dashboards)
+        ? data.dashboards
+        : []
 
     return {
       success: true,
