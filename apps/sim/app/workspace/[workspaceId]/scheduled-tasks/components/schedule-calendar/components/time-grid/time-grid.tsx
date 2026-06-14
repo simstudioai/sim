@@ -7,8 +7,10 @@ import { cn } from '@/lib/core/utils/cn'
 import { CalendarEventChip } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/schedule-calendar/components/calendar-event-chip'
 import {
   type CalendarDayCell,
+  EVENT_CHIP_HEIGHT,
   formatHourLabel,
   formatSlotTime,
+  layoutColumn,
   TIME_SLOT_HEIGHT,
   timeToOffset,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
@@ -106,6 +108,7 @@ function DayEvents({
   onSelectTask: (task: ScheduledTask) => void
   onTaskContextMenu: (task: ScheduledTask, e: React.MouseEvent) => void
 }) {
+  const placed = layoutColumn(events, EVENT_CHIP_HEIGHT)
   return (
     <div
       className={cn(
@@ -113,17 +116,22 @@ function DayEvents({
         isLastColumn ? 'right-6' : 'right-0.5'
       )}
     >
-      {events.map((event) => (
+      {placed.map(({ item: event, topPx, lane, lanes }) => (
         <div
           key={event.id}
-          style={{ top: timeToOffset(event.start) }}
-          className='pointer-events-auto absolute inset-x-0'
+          style={{
+            top: topPx,
+            height: EVENT_CHIP_HEIGHT,
+            left: `${(lane / lanes) * 100}%`,
+            width: `${(1 / lanes) * 100}%`,
+          }}
+          className='pointer-events-auto absolute pr-0.5'
         >
           <CalendarEventChip
             event={event}
             onSelect={onSelectTask}
             onContextMenu={onTaskContextMenu}
-            className='w-full'
+            className='h-full w-full'
           />
         </div>
       ))}

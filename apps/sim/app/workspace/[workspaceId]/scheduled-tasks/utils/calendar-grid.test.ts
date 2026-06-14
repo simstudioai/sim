@@ -5,10 +5,12 @@ import { describe, expect, it } from 'vitest'
 import {
   advanceAnchor,
   buildCalendarGrid,
+  EVENT_CHIP_HEIGHT,
   formatHourLabel,
   formatScopeLabel,
   formatSlotTime,
   HOURS,
+  layoutColumn,
   TIME_SLOT_HEIGHT,
   timeToOffset,
   WEEKDAY_LABELS,
@@ -92,5 +94,41 @@ describe('timeToOffset', () => {
     expect(timeToOffset(new Date(2026, 5, 10, 1, 0))).toBe(TIME_SLOT_HEIGHT)
     expect(timeToOffset(new Date(2026, 5, 10, 6, 30))).toBe(6.5 * TIME_SLOT_HEIGHT)
     expect(timeToOffset(new Date(2026, 5, 10, 23, 0))).toBe(23 * TIME_SLOT_HEIGHT)
+  })
+})
+
+describe('layoutColumn', () => {
+  const at = (h: number, m: number) => ({ start: new Date(2026, 5, 15, h, m) })
+
+  it('keeps non-overlapping events full width in a single lane', () => {
+    const placed = layoutColumn([at(9, 0), at(11, 0)], EVENT_CHIP_HEIGHT)
+    expect(placed.map((p) => ({ lane: p.lane, lanes: p.lanes }))).toEqual([
+      { lane: 0, lanes: 1 },
+      { lane: 0, lanes: 1 },
+    ])
+  })
+
+  it('splits overlapping events into side-by-side lanes', () => {
+    // 9:00 and 9:10 are ~8px apart — within the 22px pill height, so they overlap.
+    const placed = layoutColumn([at(9, 0), at(9, 10)], EVENT_CHIP_HEIGHT)
+    expect(placed.map((p) => ({ lane: p.lane, lanes: p.lanes }))).toEqual([
+      { lane: 0, lanes: 2 },
+      { lane: 1, lanes: 2 },
+    ])
+  })
+
+  it('reuses a freed lane after the overlap clears and resets the cluster', () => {
+    const placed = layoutColumn([at(9, 0), at(9, 10), at(12, 0)], EVENT_CHIP_HEIGHT)
+    expect(placed.map((p) => ({ lane: p.lane, lanes: p.lanes }))).toEqual([
+      { lane: 0, lanes: 2 },
+      { lane: 1, lanes: 2 },
+      { lane: 0, lanes: 1 },
+    ])
+  })
+
+  it('sorts by start time before assigning lanes', () => {
+    const placed = layoutColumn([at(9, 10), at(9, 0)], EVENT_CHIP_HEIGHT)
+    expect(placed[0].item).toEqual(at(9, 0))
+    expect(placed[1].item).toEqual(at(9, 10))
   })
 })

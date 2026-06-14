@@ -54,6 +54,9 @@ export const HOURS: number[] = Array.from({ length: 24 }, (_, hour) => hour)
 /** Fixed pixel height of one hour row in the time grid. */
 export const TIME_SLOT_HEIGHT = 48
 
+/** Rendered height of a task pill in the time grid, used for overlap detection. */
+export const EVENT_CHIP_HEIGHT = 22
+
 const BASE_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const
 
 /** Weekday header labels rotated to honor {@link WEEK_STARTS_ON}. */
@@ -169,4 +172,56 @@ export function timeToOffset(date: Date): number {
 /** Wire-format time string for an hour slot, e.g. `07:00`. */
 export function formatSlotTime(hour: number): string {
   return `${hour.toString().padStart(2, '0')}:00`
+}
+
+/** A time-grid item placed at its minute, with its column slot within an overlap cluster. */
+export interface PlacedEvent<T> {
+  item: T
+  /** Pixel offset from the top of the day column. */
+  topPx: number
+  /** 0-based column index within the overlap cluster. */
+  lane: number
+  /** Total columns the overlap cluster spans (1 when nothing overlaps). */
+  lanes: number
+}
+
+/**
+ * Google-Calendar-style lane assignment for events sharing a day column. Items
+ * whose pill rectangles (`[topPx, topPx + chipHeight]`) intersect form a cluster
+ * and split the width into side-by-side lanes; non-overlapping items keep the
+ * full width. Pure: positions come from {@link timeToOffset}.
+ */
+export function layoutColumn<T extends { start: Date }>(
+  items: T[],
+  chipHeight: number
+): PlacedEvent<T>[] {
+  const sorted = [...items].sort((a, b) => a.start.getTime() - b.start.getTime())
+  const placed: PlacedEvent<T>[] = []
+  let cluster: PlacedEvent<T>[] = []
+  let laneBottoms: number[] = []
+
+  const closeCluster = () => {
+    for (const entry of cluster) entry.lanes = laneBottoms.length
+    cluster = []
+    laneBottoms = []
+  }
+
+  for (const item of sorted) {
+    const topPx = timeToOffset(item.start)
+    if (laneBottoms.length > 0 && laneBottoms.every((bottom) => topPx >= bottom)) {
+      closeCluster()
+    }
+    let lane = laneBottoms.findIndex((bottom) => topPx >= bottom)
+    if (lane === -1) {
+      lane = laneBottoms.length
+      laneBottoms.push(topPx + chipHeight)
+    } else {
+      laneBottoms[lane] = topPx + chipHeight
+    }
+    const entry: PlacedEvent<T> = { item, topPx, lane, lanes: 1 }
+    cluster.push(entry)
+    placed.push(entry)
+  }
+  closeCluster()
+  return placed
 }
