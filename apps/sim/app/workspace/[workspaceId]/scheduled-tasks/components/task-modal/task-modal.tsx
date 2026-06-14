@@ -224,6 +224,14 @@ function TaskModalContent({
     () => source?.recurrence ?? DEFAULT_RECURRENCE
   )
   const launchEditedRef = useRef(false)
+  /**
+   * Synchronous mirror of `submitting` that gates {@link handleSubmit}. The
+   * `submitting` state only reflects after a re-render, so two invocations in the
+   * same tick (Enter racing the click) could both pass a state-based guard; the
+   * ref flips immediately, so the second is rejected before it can fire a second
+   * mutation.
+   */
+  const submittingRef = useRef(false)
 
   /**
    * Re-seed a blank create's default launch when the effective zone resolves
@@ -258,15 +266,17 @@ function TaskModalContent({
   const promptText = editor.value.trim()
 
   /**
-   * Submits the draft and waits for it to persist. The `submitting` guard blocks
-   * a double-submit (Enter racing the click). The modal closes only when the save
-   * resolves; a rejection leaves it open so the draft survives — the mutation hook
-   * already surfaces the error via toast, so it is swallowed here rather than
-   * duplicated. `submitting` is always cleared, so the button can never stick
-   * disabled while the modal stays open.
+   * Submits the draft and waits for it to persist. The synchronous
+   * {@link submittingRef} guard blocks a double-submit (Enter racing the click).
+   * The modal closes only when the save resolves; a rejection leaves it open so
+   * the draft survives — the mutation hook already surfaces the error via toast,
+   * so it is swallowed here rather than duplicated. Both the ref and the
+   * `submitting` state are always cleared, so the button can never stick disabled
+   * while the modal stays open.
    */
   const handleSubmit = async () => {
-    if (!promptText || isPastLaunch || submitting) return
+    if (!promptText || isPastLaunch || submittingRef.current) return
+    submittingRef.current = true
     setSubmitting(true)
     const persisted = await Promise.resolve(
       onSubmit({
@@ -280,6 +290,7 @@ function TaskModalContent({
     )
       .then(() => true)
       .catch(() => false)
+    submittingRef.current = false
     setSubmitting(false)
     if (persisted) close()
   }
