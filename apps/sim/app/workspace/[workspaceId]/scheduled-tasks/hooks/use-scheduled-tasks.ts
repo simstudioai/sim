@@ -85,8 +85,6 @@ export interface UseScheduledTasksParams {
 
 export interface UseScheduledTasksReturn {
   isLoading: boolean
-  /** Whether the workspace has any scheduled task at all — drives the first-run empty state. */
-  hasTasks: boolean
   /** Day-bucketed events feeding both the month grid and the time grid. */
   eventsByDay: Map<string, CalendarEvent[]>
   /** The task occurrence whose modal is open, or `null` when none is. */
@@ -140,11 +138,6 @@ export function useScheduledTasks({
   }, [schedules, rangeStart, rangeEnd])
 
   const eventsByDay = useMemo(() => bucketEventsByDay(events), [events])
-
-  const hasTasks = useMemo(
-    () => schedules.some((schedule) => schedule.sourceType === 'job'),
-    [schedules]
-  )
 
   const openTask = useCallback((task: ScheduledTask) => setSelectedTask(task), [])
   const closeTask = useCallback(() => setSelectedTask(null), [])
@@ -227,7 +220,6 @@ export function useScheduledTasks({
 
   return {
     isLoading,
-    hasTasks,
     eventsByDay,
     selectedTask,
     openTask,

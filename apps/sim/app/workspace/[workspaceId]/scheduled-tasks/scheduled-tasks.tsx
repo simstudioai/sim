@@ -168,8 +168,6 @@ export function ScheduledTasks() {
           onTaskContextMenu={handleTaskContextMenu}
           onShowDay={calendar.openDay}
           eventsByDay={tasks.eventsByDay}
-          isEmpty={!tasks.isLoading && !tasks.hasTasks}
-          onCreate={handleOpenCreate}
         />
       </Resource>
 

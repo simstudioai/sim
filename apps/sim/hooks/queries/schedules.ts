@@ -7,7 +7,6 @@ import { requestJson } from '@/lib/api/client/request'
 import { deployWorkflowContract } from '@/lib/api/contracts/deployments'
 import {
   type CreateScheduleBody,
-  type CreateScheduleResponse,
   createScheduleContract,
   deleteScheduleContract,
   disableScheduleContract,
@@ -393,55 +392,6 @@ export function useUpdateSchedule() {
 }
 
 /**
- * Builds the workspace-list row for a just-created job from the create response
- * (server-generated `id`/`status`/`cronExpression`/`nextRunAt`) plus the request
- * body. Seeded into the list cache on success so the new task renders instantly
- * and the first-run empty state never flashes between success and the refetch;
- * `onSettled` then reconciles it with the authoritative row.
- */
-function optimisticScheduleRow(
-  response: CreateScheduleResponse,
-  body: CreateScheduleBody,
-  nowIso: string
-): WorkspaceScheduleRow {
-  return {
-    id: response.schedule.id,
-    workflowId: null,
-    deploymentVersionId: null,
-    blockId: null,
-    cronExpression: response.schedule.cronExpression,
-    nextRunAt: response.schedule.nextRunAt,
-    lastRanAt: null,
-    lastQueuedAt: null,
-    triggerType: 'schedule',
-    timezone: body.timezone ?? 'UTC',
-    failedCount: 0,
-    infraRetryCount: 0,
-    status: response.schedule.status,
-    lastFailedAt: null,
-    sourceType: 'job',
-    jobTitle: body.title,
-    prompt: body.prompt,
-    lifecycle: body.lifecycle ?? 'persistent',
-    successCondition: null,
-    maxRuns: body.maxRuns ?? null,
-    runCount: 0,
-    sourceChatId: null,
-    sourceTaskName: null,
-    sourceUserId: null,
-    sourceWorkspaceId: body.workspaceId,
-    jobHistory: null,
-    contexts: body.contexts ?? null,
-    excludedDates: null,
-    endsAt: body.endsAt ?? null,
-    archivedAt: null,
-    createdAt: nowIso,
-    updatedAt: nowIso,
-    workflowName: null,
-  }
-}
-
-/**
  * Mutation to create a standalone scheduled job
  */
 export function useCreateSchedule() {
@@ -449,14 +399,8 @@ export function useCreateSchedule() {
 
   return useMutation({
     mutationFn: async (body: CreateScheduleBody) => requestJson(createScheduleContract, { body }),
-    onSuccess: (data, variables) => {
+    onSuccess: () => {
       toast.success('Task scheduled')
-      const nowIso = new Date().toISOString()
-      queryClient.setQueryData<WorkspaceScheduleRow[]>(
-        scheduleKeys.list(variables.workspaceId),
-        (current) =>
-          current ? [...current, optimisticScheduleRow(data, variables, nowIso)] : current
-      )
     },
     onError: (error) => {
       logger.error('Failed to create schedule', { error })
