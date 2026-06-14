@@ -509,6 +509,7 @@ Return ONLY the JSON object with properties - no explanations, no markdown, no e
           'get_quotes',
           'get_appointments',
           'get_carts',
+          'get_users',
         ],
       },
     },
@@ -1301,6 +1302,7 @@ Return ONLY the JSON array of property names - no explanations, no markdown, no 
           'get_quotes',
           'get_appointments',
           'get_carts',
+          'get_users',
         ]
         if (properties && !searchProperties && getListOps.includes(operation as string)) {
           cleanParams.properties = properties

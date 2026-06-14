@@ -66,7 +66,7 @@ export const hubspotCreateEmailTool: ToolConfig<
         }
       }
 
-      const body: any = {
+      const body: Record<string, unknown> = {
         properties,
       }
 

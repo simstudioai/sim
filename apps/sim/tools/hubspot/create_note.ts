@@ -66,7 +66,7 @@ export const hubspotCreateNoteTool: ToolConfig<HubSpotCreateNoteParams, HubSpotC
           }
         }
 
-        const body: any = {
+        const body: Record<string, unknown> = {
           properties,
         }
 

@@ -679,7 +679,6 @@ export const LISTS_ARRAY_OUTPUT: OutputProperty = {
 }
 
 /**
-/**
  * Common note properties returned by HubSpot API.
  * @see https://developers.hubspot.com/docs/api-reference/crm-notes-v3
  */

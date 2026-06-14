@@ -84,10 +84,13 @@ export const hubspotCreateAssociationTool: ToolConfig<
         throw new Error('Access token is required')
       }
 
-      return {
+      const headers: Record<string, string> = {
         Authorization: `Bearer ${params.accessToken}`,
-        'Content-Type': 'application/json',
       }
+      if (params.associationTypeId != null) {
+        headers['Content-Type'] = 'application/json'
+      }
+      return headers
     },
     body: (params) => {
       if (params.associationTypeId == null) {
