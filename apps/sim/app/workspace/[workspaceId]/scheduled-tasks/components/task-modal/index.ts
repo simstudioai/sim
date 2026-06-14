@@ -1,1 +1,1 @@
-export { type TaskDraft, type TaskEditSeed, TaskModal } from './task-modal'
+export { type TaskDraft, type TaskEditSeed, TaskModal, type TaskPrefill } from './task-modal'

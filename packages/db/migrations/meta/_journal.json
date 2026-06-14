@@ -1653,6 +1653,13 @@
       "when": 1781394340181,
       "tag": "0236_org_scope_permission_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1781398805524,
+      "tag": "0237_user_settings_timezone",
+      "breakpoints": true
     }
   ]
 }
