@@ -9,6 +9,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
@@ -432,6 +436,13 @@ async function handleExecutePost(
       isPublicApiAccess = true
     } else {
       userId = auth.userId
+    }
+
+    if (
+      (auth.authType === AuthType.API_KEY || isPublicApiAccess) &&
+      !(await isApiExecutionEntitled(userId))
+    ) {
+      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
     }
 
     let body: any = {}

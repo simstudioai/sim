@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { webhookTriggerGetContract, webhookTriggerPostContract } from '@/lib/api/contracts/webhooks'
 import { parseRequest } from '@/lib/api/server'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isWorkspaceApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -124,6 +128,18 @@ async function handleWebhookPost(
   const responses: NextResponse[] = []
 
   for (const { webhook: foundWebhook, workflow: foundWorkflow } of webhooksForPath) {
+    // Generic ("custom") webhooks are an unauthenticated programmatic execution
+    // surface, so they fall under the same paid-plan gate as the API. Provider
+    // webhooks (slack, github, ...) are unaffected.
+    if (
+      foundWebhook.provider === 'generic' &&
+      !(await isWorkspaceApiExecutionEntitled(foundWorkflow.workspaceId))
+    ) {
+      logger.warn(`[${requestId}] Generic webhook blocked: workspace on free plan`)
+      if (webhooksForPath.length > 1) continue
+      return NextResponse.json({ error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE }, { status: 402 })
+    }
+
     const authError = await verifyProviderAuth(
       foundWebhook,
       foundWorkflow,

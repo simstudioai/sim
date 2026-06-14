@@ -26,6 +26,10 @@ import {
   a2aTaskIdParamsSchema,
 } from '@/lib/api/contracts/a2a-agents'
 import { type AuthResult, AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { acquireLock, getRedisClient, releaseLock } from '@/lib/core/config/redis'
 import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import { getClientIp } from '@/lib/core/utils/request'
@@ -312,6 +316,17 @@ export const POST = withRouteHandler(
           { status: 500 }
         )
       }
+      if (!(await isApiExecutionEntitled(billedUserId))) {
+        return NextResponse.json(
+          createError(
+            id,
+            A2A_ERROR_CODES.AGENT_UNAVAILABLE,
+            API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE
+          ),
+          { status: 402 }
+        )
+      }
+
       const executionUserId =
         isPersonalApiKeyCaller && authenticatedUserId ? authenticatedUserId : billedUserId
 

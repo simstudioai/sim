@@ -20,6 +20,8 @@ const {
   mockIsEmailAllowed,
   mockGetSession,
   mockCheckRateLimitDirect,
+  mockIsWorkspaceApiExecutionEntitled,
+  flagState,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
@@ -28,6 +30,12 @@ const {
   mockIsEmailAllowed: vi.fn(),
   mockGetSession: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
+  mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+  flagState: { isHosted: false },
+}))
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
@@ -68,14 +76,23 @@ vi.mock('@/lib/core/security/deployment', () => ({
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
-  isHosted: false,
   isProd: false,
+  get isHosted() {
+    return flagState.isHosted
+  },
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
+import { NextRequest } from 'next/server'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+import { assertChatEmbedAllowed, setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+
+function chatRequest(origin?: string): NextRequest {
+  return new NextRequest('https://www.sim.ai/api/chat/abc', {
+    headers: origin ? { origin } : undefined,
+  })
+}
 
 describe('Chat API Utils', () => {
   beforeEach(() => {
@@ -451,5 +468,55 @@ describe('Chat API Utils', () => {
 
       expect(extractedFromStreaming).toBe(executionResult)
     })
+  })
+})
+
+describe('assertChatEmbedAllowed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    flagState.isHosted = true
+    mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
+  })
+
+  it('returns 403 for a cross-site origin when the owner is on the free plan', async () => {
+    mockIsWorkspaceApiExecutionEntitled.mockResolvedValueOnce(false)
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res?.status).toBe(403)
+  })
+
+  it('allows a cross-site origin when the owner is on a paid plan', async () => {
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+  })
+
+  it('allows a first-party *.sim.ai origin without gating', async () => {
+    const res = await assertChatEmbedAllowed(chatRequest('https://chat.sim.ai'), 'wf-1', 'req-1')
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('allows requests with no Origin header', async () => {
+    const res = await assertChatEmbedAllowed(chatRequest(), 'wf-1', 'req-1')
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op on self-hosted', async () => {
+    flagState.isHosted = false
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
   })
 })
