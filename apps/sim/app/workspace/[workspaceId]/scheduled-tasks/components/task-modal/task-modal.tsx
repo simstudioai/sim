@@ -73,6 +73,8 @@ export interface TaskPrefill {
   contexts?: ChatContext[]
   launchDate: string
   launchTime: string
+  /** The task's own zone; the modal seeds AND submits in it so unchanged times never drift. */
+  timezone: string
   recurrence: Recurrence
 }
 
@@ -145,8 +147,9 @@ function TaskModalContent({
   onRequestDelete,
 }: Omit<TaskModalProps, 'open'>) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const timezone = useTimezone()
   const source = edit ?? prefill
+  const accountTimezone = useTimezone()
+  const timezone = source?.timezone ?? accountTimezone
   const editor = usePromptEditor({ workspaceId, initialValue: source?.prompt })
   const setContexts = editor.setContexts
 

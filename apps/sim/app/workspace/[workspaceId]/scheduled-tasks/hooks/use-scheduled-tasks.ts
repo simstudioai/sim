@@ -149,6 +149,7 @@ export function useScheduledTasks({
         contexts: task.contexts,
         launchDate: zonedWallClock(task.runAt, schedule.timezone).slice(0, 10),
         launchTime,
+        timezone: schedule.timezone,
         recurrence,
       }
     },
