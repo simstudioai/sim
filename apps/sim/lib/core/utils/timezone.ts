@@ -59,10 +59,13 @@ function formatGmtOffset(offsetMinutes: number): string {
 }
 
 /**
- * Timezone options for a picker, following the calendar-app convention: every
- * zone rendered as `(GMT±HH:MM) City`, ordered west-to-east by current UTC
- * offset (ties alphabetical by city). The offset is computed live, so it tracks
- * DST automatically. Values stay canonical IANA ids — what we persist.
+ * Timezone options for a picker. Each zone reads as `City (GMT±HH:MM)` — city
+ * first, offset for reference — and the list is sorted alphabetically by city,
+ * the order usability research (NN/g, Smart Interface Design Patterns) found
+ * users expect; offset-sorting confuses people who don't know their offset. The
+ * offset is computed live, so it tracks DST automatically. Pair this with the
+ * picker's search and a browser-detected default. Values stay canonical IANA
+ * ids — what we persist.
  */
 export function getTimezoneOptions(): TimezoneOption[] {
   const now = new Date()
@@ -72,10 +75,10 @@ export function getTimezoneOptions(): TimezoneOption[] {
       city: timezoneCity(value),
       offsetMinutes: Math.round(timezoneOffsetMs(now, value) / 60_000),
     }))
-    .sort((a, b) => a.offsetMinutes - b.offsetMinutes || a.city.localeCompare(b.city))
+    .sort((a, b) => a.city.localeCompare(b.city))
     .map(({ value, city, offsetMinutes }) => ({
       value,
-      label: `(${formatGmtOffset(offsetMinutes)}) ${city}`,
+      label: `${city} (${formatGmtOffset(offsetMinutes)})`,
     }))
 }
 
