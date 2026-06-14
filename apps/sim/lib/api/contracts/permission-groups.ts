@@ -90,6 +90,10 @@ export const userPermissionConfigSchema = z.object({
   groupName: z.string().nullable(),
   config: permissionGroupFullConfigSchema.nullable(),
   entitled: z.boolean(),
+  /** The workspace's owning organization id (null when the workspace has no org). */
+  organizationId: z.string().nullable(),
+  /** Whether the caller is an owner/admin of the workspace's owning organization. */
+  isOrgAdmin: z.boolean(),
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 

@@ -35,6 +35,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   adminValidationErrorResponse,
+  badRequestResponse,
   internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
@@ -133,6 +134,12 @@ export const DELETE = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const { organizationId, reason: rawReason } = parsed.data.query
+    // The contract's refine guarantees this at the boundary; this explicit guard
+    // narrows the type (avoiding a non-null assertion) and stays correct even if
+    // the contract changes.
+    if (!organizationId) {
+      return badRequestResponse('organizationId is required')
+    }
     const reason = rawReason || 'Enterprise plan churn cleanup'
 
     try {
@@ -142,7 +149,7 @@ export const DELETE = withRouteHandler(
           name: permissionGroup.name,
         })
         .from(permissionGroup)
-        .where(eq(permissionGroup.organizationId, organizationId!))
+        .where(eq(permissionGroup.organizationId, organizationId))
 
       if (existingGroups.length === 0) {
         logger.info('Admin API: No permission groups to delete', { organizationId })
