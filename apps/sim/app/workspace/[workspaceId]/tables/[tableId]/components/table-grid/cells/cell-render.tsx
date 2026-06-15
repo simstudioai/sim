@@ -2,12 +2,20 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { Phone, Star } from 'lucide-react'
 import { parse } from 'tldts'
 import { Badge, Checkbox, Tooltip } from '@/components/emcn'
+import { Mail } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { RowExecutionMetadata } from '@/lib/table'
+import { RATING_MAX } from '@/lib/table/constants'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
-import { storageToDisplay } from '../../../utils'
+import {
+  formatCurrencyDisplay,
+  formatPercentDisplay,
+  selectBadgeVariant,
+  storageToDisplay,
+} from '../../../utils'
 import type { DisplayColumn } from '../types'
 import { SimResourceCell, type SimResourceType } from './sim-resource-cell'
 
@@ -28,6 +36,12 @@ export type CellRenderKind =
   | { kind: 'json'; text: string }
   | { kind: 'date'; text: string }
   | { kind: 'url'; text: string; href: string; domain: string }
+  | { kind: 'email'; text: string; href: string }
+  | { kind: 'phone'; text: string; href: string }
+  /** `option` — canonical predefined option matched case-insensitively;
+   *  undefined means an off-list value (renders as a gray tag). */
+  | { kind: 'select'; text: string; option?: string }
+  | { kind: 'rating'; value: number }
   | {
       kind: 'sim-resource'
       workspaceId: string
@@ -115,13 +129,77 @@ export function resolveCellRender({
 
   if (column.type === 'boolean') return { kind: 'boolean', checked: Boolean(value) }
   if (isNull) return { kind: 'empty' }
-  if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
-  if (column.type === 'date') return { kind: 'date', text: String(value) }
-  if (column.type === 'string') {
-    const text = stringifyValue(value)
-    return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }
+
+  switch (column.type) {
+    case 'json':
+      return { kind: 'json', text: JSON.stringify(value) }
+    case 'date':
+      return { kind: 'date', text: String(value) }
+    case 'string':
+    case 'url': {
+      const text = stringifyValue(value)
+      return resolveLinkKind(text, currentWorkspaceId) ?? { kind: 'text', text }
+    }
+    case 'email': {
+      const text = stringifyValue(value)
+      return resolveEmailKind(text) ?? { kind: 'text', text }
+    }
+    case 'phone': {
+      const text = stringifyValue(value)
+      return resolvePhoneKind(text) ?? { kind: 'text', text }
+    }
+    case 'select': {
+      if (isEmpty) return { kind: 'empty' }
+      const text = stringifyValue(value)
+      const lower = text.toLowerCase()
+      const option = (column.options ?? []).find((o) => o.toLowerCase() === lower)
+      return { kind: 'select', text, option }
+    }
+    case 'currency':
+      return {
+        kind: 'text',
+        text: typeof value === 'number' ? formatCurrencyDisplay(value) : stringifyValue(value),
+      }
+    case 'percent':
+      return {
+        kind: 'text',
+        text: typeof value === 'number' ? formatPercentDisplay(value) : stringifyValue(value),
+      }
+    case 'rating':
+      return typeof value === 'number'
+        ? { kind: 'rating', value }
+        : { kind: 'text', text: stringifyValue(value) }
+    default:
+      return { kind: 'text', text: stringifyValue(value) }
   }
-  return { kind: 'text', text: stringifyValue(value) }
+}
+
+/**
+ * Lenient whole-string email shape for promoting a cell to a mailto link.
+ * Intentionally looser than signup validation — a non-match just renders as
+ * plain text, so false negatives cost a link, never data.
+ */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHONE_RE = /^\+?[\d\s().-]+$/
+const PHONE_DIGIT_RE = /\d/g
+const PHONE_SEPARATOR_RE = /[\s().-]/g
+
+/** Promotes a cell value that is wholly an email address to a mailto link, else null. */
+function resolveEmailKind(text: string): Extract<CellRenderKind, { kind: 'email' }> | null {
+  const trimmed = text.trim()
+  if (!EMAIL_RE.test(trimmed)) return null
+  return { kind: 'email', text, href: `mailto:${trimmed}` }
+}
+
+/**
+ * Promotes a cell value that looks like a phone number (optional `+`, then
+ * digits with common separators, at least 3 digits) to a tel link, else null.
+ */
+function resolvePhoneKind(text: string): Extract<CellRenderKind, { kind: 'phone' }> | null {
+  const trimmed = text.trim()
+  if (!PHONE_RE.test(trimmed)) return null
+  if ((trimmed.match(PHONE_DIGIT_RE)?.length ?? 0) < 3) return null
+  return { kind: 'phone', text, href: `tel:${trimmed.replace(PHONE_SEPARATOR_RE, '')}` }
 }
 
 function stringifyValue(value: unknown): string {
@@ -350,21 +428,56 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
               e.currentTarget.style.display = 'none'
             }}
           />
-          <a
-            href={kind.href}
-            target='_blank'
-            rel='noopener noreferrer'
-            className={cn(
-              'min-w-0 overflow-clip text-ellipsis text-[var(--text-primary)] underline underline-offset-2 transition-colors hover-hover:text-[var(--text-secondary)]',
-              isEditing && 'pointer-events-none'
-            )}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-          >
-            {kind.text}
-          </a>
+          <CellLink href={kind.href} text={kind.text} isEditing={isEditing} external />
         </span>
       )
+
+    case 'email':
+    case 'phone': {
+      const Icon = kind.kind === 'email' ? Mail : Phone
+      return (
+        <span className={cn('flex min-w-0 items-center gap-1.5', isEditing && 'invisible')}>
+          <Icon className='size-3 shrink-0 text-[var(--text-icon)]' />
+          <CellLink href={kind.href} text={kind.text} isEditing={isEditing} />
+        </span>
+      )
+    }
+
+    case 'select':
+      return (
+        <span className={cn('flex min-w-0 items-center', isEditing && 'invisible')}>
+          <Badge
+            variant={kind.option !== undefined ? selectBadgeVariant(kind.option) : 'gray'}
+            size='sm'
+            className='max-w-full'
+          >
+            <span className='truncate'>{kind.text}</span>
+          </Badge>
+        </span>
+      )
+
+    case 'rating': {
+      const filled = Math.min(RATING_MAX, Math.max(0, Math.round(kind.value)))
+      return (
+        <span
+          role='img'
+          aria-label={`${filled} of ${RATING_MAX} stars`}
+          className={cn('flex items-center gap-[3px]', isEditing && 'invisible')}
+        >
+          {Array.from({ length: RATING_MAX }, (_, i) => (
+            <Star
+              key={i}
+              className={cn(
+                'size-[13px]',
+                i < filled
+                  ? 'fill-[var(--badge-amber-text)] text-[var(--badge-amber-text)]'
+                  : 'text-[var(--border-1)]'
+              )}
+            />
+          ))}
+        </span>
+      )
+    }
 
     case 'sim-resource':
       return (
@@ -420,6 +533,32 @@ export function CellRender({ kind, isEditing }: CellRenderProps): React.ReactEle
 function Wrap({ isEditing, children }: { isEditing: boolean; children: React.ReactNode }) {
   if (!isEditing) return <>{children}</>
   return <div className='invisible'>{children}</div>
+}
+
+interface CellLinkProps {
+  href: string
+  text: string
+  isEditing: boolean
+  /** Open in a new tab (http links). mailto:/tel: stay in-place. */
+  external?: boolean
+}
+
+/** Shared anchor chrome for url / email / phone cells. */
+function CellLink({ href, text, isEditing, external = false }: CellLinkProps) {
+  return (
+    <a
+      href={href}
+      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+      className={cn(
+        'min-w-0 overflow-clip text-ellipsis text-[var(--text-primary)] underline underline-offset-2 transition-colors hover-hover:text-[var(--text-secondary)]',
+        isEditing && 'pointer-events-none'
+      )}
+      onClick={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+    >
+      {text}
+    </a>
+  )
 }
 
 const TYPEWRITER_MS_PER_CHAR = 15

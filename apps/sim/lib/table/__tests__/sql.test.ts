@@ -97,6 +97,13 @@ describe('SQL Builder', () => {
       expect(out).not.toContain('::timestamp')
     })
 
+    it('emits ::numeric cast for $gte on a currency column', () => {
+      const cols: ColumnDefinition[] = [{ name: 'price', type: 'currency' }]
+      const out = render(buildFilterClause({ price: { $gte: 10 } }, TABLE, cols))
+      expect(out).toContain(`(${TABLE}.data->>'price')::numeric >= `)
+      expect(out).not.toContain('::timestamp')
+    })
+
     it('falls back to ::numeric when column type is unknown', () => {
       const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
       expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
@@ -389,6 +396,24 @@ describe('SQL Builder', () => {
       const out = render(buildSortClause({ birthDate: 'asc' }, TABLE, cols))
       expect(out).toBe(`(${TABLE}.data->>'birthDate')::timestamptz ASC NULLS LAST`)
     })
+
+    it.each(['currency', 'percent', 'rating'] as const)(
+      'sorts number-backed %s columns with ::numeric NULLS LAST',
+      (type) => {
+        const cols: ColumnDefinition[] = [{ name: 'amount', type }]
+        const out = render(buildSortClause({ amount: 'desc' }, TABLE, cols))
+        expect(out).toBe(`(${TABLE}.data->>'amount')::numeric DESC NULLS LAST`)
+      }
+    )
+
+    it.each(['select', 'url', 'email', 'phone'] as const)(
+      'sorts string-backed %s columns as text (no cast)',
+      (type) => {
+        const cols: ColumnDefinition[] = [{ name: 'field', type }]
+        const out = render(buildSortClause({ field: 'asc' }, TABLE, cols))
+        expect(out).toBe(`${TABLE}.data->>'field' ASC`)
+      }
+    )
 
     it('sorts createdAt / updatedAt as direct column refs', () => {
       expect(render(buildSortClause({ createdAt: 'desc' }, TABLE, NO_COLUMNS))).toBe(

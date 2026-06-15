@@ -57,6 +57,8 @@ export type TableUndoAction =
       columnPosition: number
       columnUnique: boolean
       columnRequired: boolean
+      /** Predefined options to restore on re-create (select columns). */
+      columnOptions?: string[]
       cellData: Array<{ rowId: string; value: unknown }>
       previousOrder: string[] | null
       previousWidth: number | null
@@ -69,6 +71,11 @@ export type TableUndoAction =
       columnName: string
       previousType: ColumnDefinition['type']
       newType: ColumnDefinition['type']
+      /** Options to restore when undoing back to a select column (the server
+       *  strips them on the way out of select). */
+      previousOptions?: string[]
+      /** Options to re-apply when redoing a change to a select column. */
+      newOptions?: string[]
     }
   | {
       type: 'toggle-column-constraint'

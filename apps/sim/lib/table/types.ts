@@ -41,6 +41,13 @@ export interface ColumnDefinition {
   required?: boolean
   unique?: boolean
   /**
+   * Predefined choices for `select` columns; ignored on every other type.
+   * Membership is a soft constraint — cell values outside this list stay
+   * valid (so removing an option never strands row data) and render as an
+   * uncolored tag. Bounded by `TABLE_LIMITS.MAX_SELECT_OPTIONS`.
+   */
+  options?: string[]
+  /**
    * When set, this column is one of a workflow group's outputs. The value in
    * `row.data[getColumnId(col)]` is populated by the group's per-cell run.
    */
@@ -552,6 +559,18 @@ export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
   newType: (typeof COLUMN_TYPES)[number]
+  /**
+   * Replacement option set applied atomically with the type change (same
+   * locked transaction). Only valid when `newType` is `select`.
+   */
+  options?: string[]
+}
+
+export interface UpdateColumnOptionsData {
+  tableId: string
+  columnName: string
+  /** Full replacement set of predefined options for a `select` column. */
+  options: string[]
 }
 
 export interface UpdateColumnConstraintsData {

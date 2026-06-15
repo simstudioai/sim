@@ -35,6 +35,10 @@ export const TABLE_LIMITS = {
   EXPORT_ASYNC_THRESHOLD_ROWS: 10000,
   /** Cap on the exclusion set ("select all, minus these") sent to an async delete job. */
   MAX_EXCLUDE_ROW_IDS: 10000,
+  /** Maximum predefined options on a `select` column. */
+  MAX_SELECT_OPTIONS: 100,
+  /** Maximum length of a single `select` column option. */
+  MAX_SELECT_OPTION_LENGTH: 100,
 } as const
 
 /**
@@ -111,7 +115,66 @@ export function getTablePlanLimits(): TablePlanLimitsByPlan {
   }
 }
 
-export const COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
+/**
+ * All column types a table column can declare. The first five are the storage
+ * primitives; the rest are rich display types that persist as one of those
+ * primitives (see {@link COLUMN_TYPE_STORAGE}) but render and edit with a
+ * richer UI — e.g. `url` is a string under the hood shown as a favicon link,
+ * `rating` is a number shown as stars.
+ */
+export const COLUMN_TYPES = [
+  'string',
+  'number',
+  'boolean',
+  'date',
+  'json',
+  'select',
+  'url',
+  'email',
+  'phone',
+  'currency',
+  'percent',
+  'rating',
+] as const
+
+/** Ratings range 0..RATING_MAX; `rating` cells render as RATING_MAX stars. */
+export const RATING_MAX = 5
+
+/** Storage primitives — the value shapes actually persisted in row data. */
+export const STORAGE_COLUMN_TYPES = ['string', 'number', 'boolean', 'date', 'json'] as const
+
+export type StorageColumnType = (typeof STORAGE_COLUMN_TYPES)[number]
+
+/**
+ * Maps every column type to the storage primitive its values persist as.
+ * Validation, coercion, SQL casts, and type-change compatibility all key off
+ * the primitive so rich types behave exactly like their underlying primitive
+ * everywhere except display/editing.
+ */
+export const COLUMN_TYPE_STORAGE: Record<(typeof COLUMN_TYPES)[number], StorageColumnType> = {
+  string: 'string',
+  number: 'number',
+  boolean: 'boolean',
+  date: 'date',
+  json: 'json',
+  select: 'string',
+  url: 'string',
+  email: 'string',
+  phone: 'string',
+  currency: 'number',
+  percent: 'number',
+  rating: 'number',
+}
+
+/**
+ * Resolves a column type to its storage primitive. Accepts any string so
+ * call sites holding a possibly-stale or unknown type (legacy schemas, UI
+ * display columns) degrade to `'string'` — the most permissive primitive —
+ * instead of throwing.
+ */
+export function getColumnStorageType(type: string | undefined): StorageColumnType {
+  return COLUMN_TYPE_STORAGE[type as (typeof COLUMN_TYPES)[number]] ?? 'string'
+}
 
 export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
 

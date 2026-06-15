@@ -12,6 +12,7 @@ import { tableJobs, tableRowExecutions, userTableDefinitions, userTableRows } fr
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import {
   and,
   asc,
@@ -40,7 +41,13 @@ import {
   remapGroupColumnRefs,
   withGeneratedColumnIds,
 } from './column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from './constants'
+import {
+  COLUMN_TYPES,
+  getColumnStorageType,
+  NAME_PATTERN,
+  TABLE_LIMITS,
+  USER_TABLE_ROWS_SQL_NAME,
+} from './constants'
 import { areGroupDepsSatisfied } from './deps'
 import { CSV_MAX_BATCH_SIZE } from './import'
 import { keyBetween, nKeysBetween } from './order-key'
@@ -79,6 +86,7 @@ import type {
   TableRow,
   TableSchema,
   UpdateColumnConstraintsData,
+  UpdateColumnOptionsData,
   UpdateColumnTypeData,
   UpdateRowData,
   UpdateWorkflowGroupData,
@@ -93,6 +101,7 @@ import {
   coerceRowToSchema,
   coerceRowValues,
   getUniqueColumns,
+  validateColumnOptions,
   validateRowSize,
   validateTableName,
   validateTableSchema,
@@ -642,6 +651,7 @@ export async function addTableColumn(
     type: string
     required?: boolean
     unique?: boolean
+    options?: string[]
     position?: number
   },
   requestId: string
@@ -665,6 +675,17 @@ export async function addTableColumn(
       )
     }
 
+    if (column.options !== undefined) {
+      const optionsValidation = validateColumnOptions(
+        column.options,
+        column.name,
+        column.type as (typeof COLUMN_TYPES)[number]
+      )
+      if (!optionsValidation.valid) {
+        throw new Error(`Invalid column options: ${optionsValidation.errors.join('; ')}`)
+      }
+    }
+
     const schema = table.schema
     if (schema.columns.some((c) => c.name.toLowerCase() === column.name.toLowerCase())) {
       throw new Error(`Column "${column.name}" already exists`)
@@ -684,6 +705,7 @@ export async function addTableColumn(
       type: column.type as TableSchema['columns'][number]['type'],
       required: column.required ?? false,
       unique: column.unique ?? false,
+      ...(column.options !== undefined ? { options: column.options } : {}),
     }
     const newColumnId = getColumnId(newColumn)
 
@@ -4288,43 +4310,56 @@ export async function updateColumnType(
     }
 
     const column = schema.columns[columnIndex]
-    if (column.type === data.newType) {
+    if (column.type === data.newType && data.options === undefined) {
       return table
     }
-    const columnKey = getColumnId(column)
 
-    // Validate existing data is compatible with the new type
-    const rows = await trx
-      .select({ id: userTableRows.id, data: userTableRows.data })
-      .from(userTableRows)
-      .where(
-        and(
-          eq(userTableRows.tableId, data.tableId),
-          sql`${userTableRows.data} ? ${columnKey}`,
-          sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
-        )
-      )
-
-    let incompatibleCount = 0
-    for (const row of rows) {
-      const rowData = row.data as RowData
-      const value = rowData[columnKey]
-      if (value === null || value === undefined) continue
-
-      if (!isValueCompatibleWithType(value, data.newType)) {
-        incompatibleCount++
+    if (data.options !== undefined) {
+      const optionsValidation = validateColumnOptions(data.options, column.name, data.newType)
+      if (!optionsValidation.valid) {
+        throw new Error(`Invalid column options: ${optionsValidation.errors.join('; ')}`)
       }
     }
 
-    if (incompatibleCount > 0) {
-      throw new Error(
-        `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
-      )
+    const columnKey = getColumnId(column)
+
+    if (column.type !== data.newType) {
+      // Validate existing data is compatible with the new type
+      const rows = await trx
+        .select({ id: userTableRows.id, data: userTableRows.data })
+        .from(userTableRows)
+        .where(
+          and(
+            eq(userTableRows.tableId, data.tableId),
+            sql`${userTableRows.data} ? ${columnKey}`,
+            sql`${userTableRows.data}->>${columnKey}::text IS NOT NULL`
+          )
+        )
+
+      let incompatibleCount = 0
+      for (const row of rows) {
+        const rowData = row.data as RowData
+        const value = rowData[columnKey]
+        if (value === null || value === undefined) continue
+
+        if (!isValueCompatibleWithType(value, data.newType)) {
+          incompatibleCount++
+        }
+      }
+
+      if (incompatibleCount > 0) {
+        throw new Error(
+          `Cannot change column "${column.name}" to type "${data.newType}": ${incompatibleCount} row(s) have incompatible values. Fix or remove the incompatible values first.`
+        )
+      }
     }
 
-    const updatedColumns = schema.columns.map((c, i) =>
-      i === columnIndex ? { ...c, type: data.newType } : c
-    )
+    const updatedColumns = schema.columns.map((c, i) => {
+      if (i !== columnIndex) return c
+      const next = { ...c, type: data.newType }
+      if (data.newType !== 'select') return omit(next, ['options'])
+      return data.options !== undefined ? { ...next, options: data.options } : next
+    })
     const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
     const now = new Date()
 
@@ -4335,6 +4370,49 @@ export async function updateColumnType(
 
     logger.info(
       `[${requestId}] Changed column "${column.name}" type from "${column.type}" to "${data.newType}" in table ${data.tableId}`
+    )
+
+    return { ...table, schema: updatedSchema, updatedAt: now }
+  })
+}
+
+/**
+ * Replaces the predefined options of a `select` column. Pure schema metadata —
+ * existing cell values are never rewritten, since option membership is a soft
+ * constraint (values outside the list stay valid and render as plain tags).
+ *
+ * @throws Error if table/column not found or the column is not a select column
+ */
+export async function updateColumnOptions(
+  data: UpdateColumnOptionsData,
+  requestId: string
+): Promise<TableDefinition> {
+  return withLockedTable(data.tableId, async (table, trx) => {
+    const schema = table.schema
+    const columnIndex = schema.columns.findIndex((c) => columnMatchesRef(c, data.columnName))
+    if (columnIndex === -1) {
+      throw new Error(`Column "${data.columnName}" not found`)
+    }
+
+    const column = schema.columns[columnIndex]
+    const validation = validateColumnOptions(data.options, column.name, column.type)
+    if (!validation.valid) {
+      throw new Error(`Invalid column options: ${validation.errors.join('; ')}`)
+    }
+
+    const updatedColumns = schema.columns.map((c, i) =>
+      i === columnIndex ? { ...c, options: data.options } : c
+    )
+    const updatedSchema: TableSchema = { ...schema, columns: updatedColumns }
+    const now = new Date()
+
+    await trx
+      .update(userTableDefinitions)
+      .set({ schema: updatedSchema, updatedAt: now })
+      .where(eq(userTableDefinitions.id, data.tableId))
+
+    logger.info(
+      `[${requestId}] Updated options for column "${column.name}" in table ${data.tableId}`
     )
 
     return { ...table, schema: updatedSchema, updatedAt: now }
@@ -5293,7 +5371,7 @@ function isValueCompatibleWithType(
 ): boolean {
   if (value === null || value === undefined) return true
 
-  switch (targetType) {
+  switch (getColumnStorageType(targetType)) {
     case 'string':
       return true
     case 'number': {

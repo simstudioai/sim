@@ -59,6 +59,38 @@ const descriptionSchema = z
     `Description must be ${TABLE_LIMITS.MAX_DESCRIPTION_LENGTH} characters or less`
   )
 
+/**
+ * Predefined options for `select` columns. Membership is a soft constraint —
+ * cell values outside the list stay valid — so this only bounds the option
+ * list itself (count, per-option length, case-insensitive uniqueness).
+ */
+export const columnOptionsSchema = z
+  .array(
+    z
+      .string()
+      .min(1, 'Option cannot be empty')
+      .max(
+        TABLE_LIMITS.MAX_SELECT_OPTION_LENGTH,
+        `Option must be ${TABLE_LIMITS.MAX_SELECT_OPTION_LENGTH} characters or less`
+      )
+  )
+  .max(
+    TABLE_LIMITS.MAX_SELECT_OPTIONS,
+    `Cannot have more than ${TABLE_LIMITS.MAX_SELECT_OPTIONS} options`
+  )
+  .refine((options) => new Set(options.map((o) => o.toLowerCase())).size === options.length, {
+    message: 'Options must be unique',
+  })
+
+/** Predefined options are only meaningful on `select` columns. */
+const columnOptionsTypeRefine: [
+  (column: { type?: string; options?: string[] }) => boolean,
+  { message: string; path: string[] },
+] = [
+  (column) => column.options === undefined || column.type === 'select',
+  { message: 'options are only allowed on select columns', path: ['options'] },
+]
+
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
@@ -78,16 +110,19 @@ export const getTableQuerySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
 })
 
-export const tableColumnSchema = z.object({
-  /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
-  id: z.string().optional(),
-  name: columnNameSchema,
-  type: columnTypeSchema,
-  required: z.boolean().optional().default(false),
-  unique: z.boolean().optional().default(false),
-  /** Set when the column is a workflow group's output. */
-  workflowGroupId: z.string().optional(),
-})
+export const tableColumnSchema = z
+  .object({
+    /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
+    id: z.string().optional(),
+    name: columnNameSchema,
+    type: columnTypeSchema,
+    required: z.boolean().optional().default(false),
+    unique: z.boolean().optional().default(false),
+    options: columnOptionsSchema.optional(),
+    /** Set when the column is a workflow group's output. */
+    workflowGroupId: z.string().optional(),
+  })
+  .refine(...columnOptionsTypeRefine)
 
 export const createTableBodySchema = z.object({
   name: tableNameSchema,
@@ -112,27 +147,42 @@ export const renameTableBodySchema = z.object({
 
 export const createTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
-  column: z.object({
-    // Optional stable id — first-party undo of a delete re-creates the column
-    // with its original id so saved (id-keyed) cell data restores correctly.
-    id: z.string().optional(),
-    name: columnNameSchema,
-    type: columnTypeSchema,
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-    position: z.number().int().min(0).optional(),
-  }),
+  column: z
+    .object({
+      // Optional stable id — first-party undo of a delete re-creates the column
+      // with its original id so saved (id-keyed) cell data restores correctly.
+      id: z.string().optional(),
+      name: columnNameSchema,
+      type: columnTypeSchema,
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      options: columnOptionsSchema.optional(),
+      position: z.number().int().min(0).optional(),
+    })
+    .refine(...columnOptionsTypeRefine),
 })
 
 export const updateTableColumnBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   columnName: columnNameSchema,
-  updates: z.object({
-    name: columnNameSchema.optional(),
-    type: columnTypeSchema.optional(),
-    required: z.boolean().optional(),
-    unique: z.boolean().optional(),
-  }),
+  updates: z
+    .object({
+      name: columnNameSchema.optional(),
+      type: columnTypeSchema.optional(),
+      required: z.boolean().optional(),
+      unique: z.boolean().optional(),
+      /** Full replacement option set for a `select` column; the server rejects
+       *  options on any other column type. */
+      options: columnOptionsSchema.optional(),
+    })
+    .refine(
+      (updates) =>
+        updates.options === undefined || updates.type === undefined || updates.type === 'select',
+      {
+        message: 'options can only be set when the column type is (or is being changed to) select',
+        path: ['options'],
+      }
+    ),
 })
 
 export const deleteTableColumnBodySchema = z.object({

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { TABLE_LIMITS } from '../constants'
+import { COLUMN_TYPES, TABLE_LIMITS } from '../constants'
 import {
   type ColumnDefinition,
   coerceRowToSchema,
@@ -10,6 +10,7 @@ import {
   getUniqueColumns,
   type TableSchema,
   validateColumnDefinition,
+  validateColumnOptions,
   validateRowAgainstSchema,
   validateRowSize,
   validateTableName,
@@ -79,12 +80,29 @@ describe('Validation', () => {
     })
 
     it('should accept all valid column types', () => {
-      const types = ['string', 'number', 'boolean', 'date', 'json'] as const
-
-      for (const type of types) {
+      for (const type of COLUMN_TYPES) {
         const result = validateColumnDefinition({ name: 'test', type })
         expect(result.valid).toBe(true)
       }
+    })
+
+    it('should accept options on a select column', () => {
+      const result = validateColumnDefinition({
+        name: 'status',
+        type: 'select',
+        options: ['Open', 'Closed'],
+      })
+      expect(result.valid).toBe(true)
+    })
+
+    it('should reject options on a non-select column', () => {
+      const result = validateColumnDefinition({
+        name: 'name',
+        type: 'string',
+        options: ['a'],
+      })
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('only select columns take options')
     })
 
     it('should reject empty column name', () => {
@@ -107,6 +125,46 @@ describe('Validation', () => {
       const result = validateColumnDefinition({ name: longName, type: 'string' })
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds maximum length')
+    })
+  })
+
+  describe('validateColumnOptions', () => {
+    it('should accept bounded unique options on a select column', () => {
+      const result = validateColumnOptions(['Open', 'In progress', 'Closed'], 'status', 'select')
+      expect(result.valid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
+    it('should reject options on a non-select column type', () => {
+      const result = validateColumnOptions(['a'], 'name', 'string')
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('only select columns take options')
+    })
+
+    it('should reject more than the maximum number of options', () => {
+      const options = Array.from({ length: TABLE_LIMITS.MAX_SELECT_OPTIONS + 1 }, (_, i) => `o${i}`)
+      const result = validateColumnOptions(options, 'status', 'select')
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('exceeds maximum options')
+    })
+
+    it('should reject empty options', () => {
+      const result = validateColumnOptions(['Open', '  '], 'status', 'select')
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('non-empty strings')
+    })
+
+    it('should reject options exceeding max length', () => {
+      const long = 'a'.repeat(TABLE_LIMITS.MAX_SELECT_OPTION_LENGTH + 1)
+      const result = validateColumnOptions([long], 'status', 'select')
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('exceeds maximum length')
+    })
+
+    it('should reject case-insensitive duplicate options', () => {
+      const result = validateColumnOptions(['Open', 'open'], 'status', 'select')
+      expect(result.valid).toBe(false)
+      expect(result.errors[0]).toContain('duplicate option')
     })
   })
 
@@ -276,6 +334,73 @@ describe('Validation', () => {
       const result = validateRowAgainstSchema(data, schema)
       expect(result.valid).toBe(false)
       expect(result.errors[0]).toContain('exceeds max string length')
+    })
+
+    describe('rich column types', () => {
+      const richSchema: TableSchema = {
+        columns: [
+          { name: 'website', type: 'url' },
+          { name: 'contact', type: 'email' },
+          { name: 'mobile', type: 'phone' },
+          { name: 'status', type: 'select', options: ['Open', 'Closed'] },
+          { name: 'price', type: 'currency' },
+          { name: 'progress', type: 'percent' },
+          { name: 'score', type: 'rating' },
+        ],
+      }
+
+      it('should validate string-backed rich types as strings', () => {
+        const result = validateRowAgainstSchema(
+          {
+            website: 'https://sim.ai',
+            contact: 'team@sim.ai',
+            mobile: '+1 (555) 010-0000',
+            status: 'Open',
+          },
+          richSchema
+        )
+        expect(result.valid).toBe(true)
+      })
+
+      it('should reject non-string values for string-backed rich types', () => {
+        const result = validateRowAgainstSchema({ website: 42 }, richSchema)
+        expect(result.valid).toBe(false)
+        expect(result.errors[0]).toContain('must be string')
+      })
+
+      it('should accept select values outside the predefined options', () => {
+        const result = validateRowAgainstSchema({ status: 'Archived' }, richSchema)
+        expect(result.valid).toBe(true)
+      })
+
+      it('should validate number-backed rich types as numbers', () => {
+        const result = validateRowAgainstSchema(
+          { price: 19.99, progress: 75, score: 4 },
+          richSchema
+        )
+        expect(result.valid).toBe(true)
+      })
+
+      it('should reject non-numeric values for number-backed rich types', () => {
+        const result = validateRowAgainstSchema({ price: 'expensive' }, richSchema)
+        expect(result.valid).toBe(false)
+        expect(result.errors[0]).toContain('must be number')
+      })
+
+      it('should round and clamp rating values to 0..RATING_MAX on coercion', () => {
+        const data = { score: 9.6, price: 9.6 }
+        coerceRowValues(data, richSchema)
+        expect(data.score).toBe(5)
+        expect(data.price).toBe(9.6)
+
+        const low = { score: -3 }
+        coerceRowValues(low, richSchema)
+        expect(low.score).toBe(0)
+
+        const fractional = { score: '3.4' }
+        coerceRowValues(fractional, richSchema)
+        expect(fractional.score).toBe(3)
+      })
     })
   })
 

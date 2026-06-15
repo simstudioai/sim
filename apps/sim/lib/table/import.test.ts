@@ -276,6 +276,29 @@ describe('import', () => {
       )
       expect(rows).toEqual([{ name: 'Alice' }])
     })
+
+    it('coerces rich column types as their storage primitive', () => {
+      const richSchema: TableSchema = {
+        columns: [
+          { name: 'website', type: 'url' },
+          { name: 'status', type: 'select', options: ['Open', 'Closed'] },
+          { name: 'price', type: 'currency' },
+          { name: 'score', type: 'rating' },
+        ],
+      }
+      const rows = coerceRowsForTable(
+        [{ website: 'https://sim.ai', status: 'Open', price: '19.99', score: '4' }],
+        richSchema,
+        new Map([
+          ['website', 'website'],
+          ['status', 'status'],
+          ['price', 'price'],
+          ['score', 'score'],
+        ])
+      )
+
+      expect(rows).toEqual([{ website: 'https://sim.ai', status: 'Open', price: 19.99, score: 4 }])
+    })
   })
 
   describe('createCsvParser', () => {

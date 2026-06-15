@@ -13,7 +13,7 @@ import { cn } from '@/lib/core/utils/cn'
 import { captureEvent } from '@/lib/posthog/client'
 import type { ColumnDefinition, Filter, TableRow as TableRowType, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
-import { TABLE_LIMITS } from '@/lib/table/constants'
+import { getColumnStorageType, RATING_MAX, TABLE_LIMITS } from '@/lib/table/constants'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   useAddTableColumn,
@@ -36,6 +36,8 @@ import { useContextMenu, useTable } from '../../hooks'
 import type { EditingCell, QueryOptions, SaveReason } from '../../types'
 import {
   cleanCellValue,
+  formatCurrencyDisplay,
+  formatPercentDisplay,
   generateColumnName as sharedGenerateColumnName,
   storageToDisplay,
 } from '../../utils'
@@ -76,6 +78,10 @@ const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
 
 const COL_WIDTH_MIN = 80
 const COL_WIDTH_AUTO_FIT_MAX = 1000
+/** Rendered width of a rating cell: RATING_MAX 13px stars with 3px gaps. */
+const RATING_STARS_WIDTH = RATING_MAX * 13 + (RATING_MAX - 1) * 3
+/** Horizontal chrome a select cell's Badge adds around its text (`px-[7px]`). */
+const SELECT_BADGE_PADDING_X = 14
 const ROW_HEIGHT_ESTIMATE = 35
 
 /**
@@ -1372,27 +1378,36 @@ export function TableGrid({
       maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 57)
 
       measure.className = 'text-small'
-      for (const row of currentRows) {
-        const val = row.data[column.key]
-        if (val == null) continue
-        let text: string
-        if (column.type === 'json') {
-          if (typeof val === 'string') {
-            text = val
-          } else {
-            try {
-              text = JSON.stringify(val)
-            } catch {
-              text = String(val)
+      if (column.type === 'rating') {
+        maxWidth = Math.max(maxWidth, RATING_STARS_WIDTH + 17)
+      } else {
+        const cellPadding = column.type === 'select' ? 17 + SELECT_BADGE_PADDING_X : 17
+        for (const row of currentRows) {
+          const val = row.data[column.key]
+          if (val == null) continue
+          let text: string
+          if (column.type === 'json') {
+            if (typeof val === 'string') {
+              text = val
+            } else {
+              try {
+                text = JSON.stringify(val)
+              } catch {
+                text = String(val)
+              }
             }
+          } else if (column.type === 'date') {
+            text = storageToDisplay(String(val))
+          } else if (column.type === 'currency' && typeof val === 'number') {
+            text = formatCurrencyDisplay(val)
+          } else if (column.type === 'percent' && typeof val === 'number') {
+            text = formatPercentDisplay(val)
+          } else {
+            text = String(val)
           }
-        } else if (column.type === 'date') {
-          text = storageToDisplay(String(val))
-        } else {
-          text = String(val)
+          measure.textContent = text
+          maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + cellPadding)
         }
-        measure.textContent = text
-        maxWidth = Math.max(maxWidth, measure.getBoundingClientRect().width + 17)
       }
     } finally {
       host.removeChild(measure)
@@ -1957,8 +1972,13 @@ export function TableGrid({
       setSelectionFocus(null)
       setIsColumnSelection(false)
 
-      // Date/number: use inline editor (calendar picker / numeric input).
-      if ((column?.type === 'date' || column?.type === 'number') && canEditRef.current) {
+      // Date/select/number-backed: use inline editor (picker / option list / numeric input).
+      const usesInlineEditor =
+        column &&
+        (column.type === 'date' ||
+          column.type === 'select' ||
+          getColumnStorageType(column.type) === 'number')
+      if (usesInlineEditor && canEditRef.current) {
         setEditingCell({ rowId, columnName })
         setInitialCharacter(null)
         return
@@ -2379,7 +2399,7 @@ export function TableGrid({
         // workflow's value if they want. Booleans toggle on space/click —
         // typeahead doesn't apply to them.
         if (!col || col.type === 'boolean') return
-        if (col.type === 'number' && !/[\d.-]/.test(e.key)) return
+        if (getColumnStorageType(col.type) === 'number' && !/[\d.-]/.test(e.key)) return
         if (col.type === 'date' && !/[\d\-/]/.test(e.key)) return
         e.preventDefault()
 
@@ -3113,6 +3133,7 @@ export function TableGrid({
           columnPosition: adjustedPosition >= 0 ? adjustedPosition : cols.length,
           columnUnique: entry.def?.unique ?? false,
           columnRequired: entry.def?.required ?? false,
+          ...(entry.def?.options !== undefined ? { columnOptions: entry.def.options } : {}),
           cellData,
           previousOrder: orderSnapshot,
           previousWidth,

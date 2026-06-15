@@ -271,6 +271,7 @@ export function useTableUndo({
                   type: action.columnType,
                   required: action.columnRequired,
                   unique: action.columnUnique,
+                  ...(action.columnOptions !== undefined ? { options: action.columnOptions } : {}),
                   position: action.columnPosition,
                 },
                 {
@@ -383,9 +384,11 @@ export function useTableUndo({
 
           case 'update-column-type': {
             const type = direction === 'undo' ? action.previousType : action.newType
+            const options = direction === 'undo' ? action.previousOptions : action.newOptions
+            const restoreOptions = type === 'select' && options !== undefined
             updateColumnMutation.mutate({
               columnName: action.columnName,
-              updates: { type },
+              updates: { type, ...(restoreOptions ? { options } : {}) },
             })
             break
           }

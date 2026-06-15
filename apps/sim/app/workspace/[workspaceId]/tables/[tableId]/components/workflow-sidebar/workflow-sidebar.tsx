@@ -43,6 +43,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { getColumnStorageType } from '@/lib/table/constants'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -154,7 +155,7 @@ interface WorkflowStatePayload {
 }
 
 function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefined): string {
-  switch (colType) {
+  switch (colType === undefined ? undefined : getColumnStorageType(colType)) {
     case 'number':
       return 'number'
     case 'boolean':

@@ -293,6 +293,7 @@ export function normalizeColumn(col: ColumnDefinition): ColumnDefinition {
     type: col.type,
     required: col.required ?? false,
     unique: col.unique ?? false,
+    ...(col.options !== undefined ? { options: col.options } : {}),
     ...(col.workflowGroupId ? { workflowGroupId: col.workflowGroupId } : {}),
   }
 }
