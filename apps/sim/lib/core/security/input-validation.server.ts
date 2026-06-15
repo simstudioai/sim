@@ -402,40 +402,12 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
 }
 
 /**
- * Pool of undici dispatchers keyed by resolved IP so repeated requests to the
- * same pinned target reuse keep-alive connections instead of opening a fresh
- * TCP + TLS connection each time. This is the single source of truth for pinned
- * outbound fetches — both the LLM providers and the MCP transport consume it via
- * {@link createPinnedFetch}.
- */
-const MAX_POOLED_PINNED_AGENTS = 64
-const pinnedFetchAgents = new Map<string, Agent>()
-
-function getPinnedFetchAgent(resolvedIP: string): Agent {
-  const existing = pinnedFetchAgents.get(resolvedIP)
-  if (existing) {
-    pinnedFetchAgents.delete(resolvedIP)
-    pinnedFetchAgents.set(resolvedIP, existing)
-    return existing
-  }
-  if (pinnedFetchAgents.size >= MAX_POOLED_PINNED_AGENTS) {
-    const oldestKey = pinnedFetchAgents.keys().next().value
-    if (oldestKey !== undefined) pinnedFetchAgents.delete(oldestKey)
-  }
-  const agent = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
-  pinnedFetchAgents.set(resolvedIP, agent)
-  return agent
-}
-
-export function __resetPinnedFetchAgentsForTests(): void {
-  pinnedFetchAgents.clear()
-}
-
-/**
  * Builds a standard `fetch`-compatible function that pins every outbound
  * connection to `resolvedIP`, preventing DNS-rebinding (TOCTOU) between URL
  * validation and connection. The original hostname is preserved for TLS SNI and
- * the `Host` header so it still matches the certificate.
+ * the `Host` header so it still matches the certificate. This is the single
+ * source of truth for pinned outbound fetches — both the LLM providers and the
+ * MCP transport consume it.
  *
  * Pass the returned function as the `fetch` option to the OpenAI/Anthropic SDKs
  * (or call it directly) after validating the URL with {@link validateUrlWithDNS}
@@ -444,11 +416,11 @@ export function __resetPinnedFetchAgentsForTests(): void {
  * connects to the validated IP — an attacker cannot rebind a redirect target to
  * an internal address.
  *
- * Dispatchers are pooled by `resolvedIP` so back-to-back calls reuse the same
- * keep-alive connection pool.
+ * The `Agent` is captured for the lifetime of the returned function, so repeated
+ * calls (e.g. a provider tool loop) reuse its keep-alive connections.
  */
 export function createPinnedFetch(resolvedIP: string): typeof fetch {
-  const dispatcher = getPinnedFetchAgent(resolvedIP)
+  const dispatcher = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
 
   const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)

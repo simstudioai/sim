@@ -27,10 +27,7 @@ const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoi
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
-import {
-  __resetPinnedFetchAgentsForTests,
-  createPinnedFetch,
-} from '@/lib/core/security/input-validation.server'
+import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
 
 type LookupCallback = (err: Error | null, address: string, family: number) => void
 type PinnedLookup = (hostname: string, options: { all?: boolean }, callback: LookupCallback) => void
@@ -40,7 +37,6 @@ describe('createPinnedFetch', () => {
     vi.clearAllMocks()
     capturedAgentOptions.length = 0
     agentCloses.length = 0
-    __resetPinnedFetchAgentsForTests()
     mockUndiciFetch.mockResolvedValue(new Response('ok'))
   })
 
@@ -97,11 +93,10 @@ describe('createPinnedFetch', () => {
     expect(init.dispatcher).toBeInstanceOf(mockAgent)
   })
 
-  it('pools one dispatcher per resolved IP across calls and instances', async () => {
-    const a = createPinnedFetch('203.0.113.10')
-    const b = createPinnedFetch('203.0.113.10')
-    await a('https://example.com/a')
-    await b('https://example.com/b')
+  it('reuses one captured dispatcher across all calls of a single instance', async () => {
+    const pinned = createPinnedFetch('203.0.113.10')
+    await pinned('https://example.com/a')
+    await pinned('https://example.com/b')
 
     expect(capturedAgentOptions).toHaveLength(1)
     const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
@@ -109,9 +104,9 @@ describe('createPinnedFetch', () => {
     expect(d1).toBe(d2)
   })
 
-  it('creates separate dispatchers for different resolved IPs', async () => {
+  it('creates an independent dispatcher per instance', async () => {
     const a = createPinnedFetch('203.0.113.10')
-    const b = createPinnedFetch('198.51.100.20')
+    const b = createPinnedFetch('203.0.113.10')
     await a('https://example.com/a')
     await b('https://example.com/b')
 
@@ -119,15 +114,6 @@ describe('createPinnedFetch', () => {
     const d1 = (mockUndiciFetch.mock.calls[0][1] as { dispatcher: unknown }).dispatcher
     const d2 = (mockUndiciFetch.mock.calls[1][1] as { dispatcher: unknown }).dispatcher
     expect(d1).not.toBe(d2)
-  })
-
-  it('does not close evicted agents when the pool overflows its limit', async () => {
-    const early = createPinnedFetch('10.0.0.1')
-    for (let i = 0; i < 64; i++) createPinnedFetch(`10.1.${Math.floor(i / 256)}.${i % 256}`)
-
-    expect(agentCloses).toHaveLength(0)
-    await early('https://example.com/still-works')
-    expect(mockUndiciFetch).toHaveBeenCalledTimes(1)
   })
 
   it('returns the response produced by undici fetch', async () => {
