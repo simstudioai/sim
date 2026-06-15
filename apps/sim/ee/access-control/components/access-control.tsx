@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -31,6 +32,7 @@ import {
   Skeleton,
   Switch,
   Tooltip,
+  toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
@@ -973,6 +975,9 @@ export function AccessControl() {
       } catch (error) {
         logger.error('Failed to update workspace scope', error)
         setViewingGroup(previous)
+        toast.error("Couldn't update workspaces", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     },
     [viewingGroup, organizationId, organizationWorkspaces, updatePermissionGroup]
@@ -1000,6 +1005,9 @@ export function AccessControl() {
         )
       } catch (error) {
         logger.error('Failed to toggle default group', error)
+        toast.error("Couldn't update the default group", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     },
     [viewingGroup, organizationId, updatePermissionGroup]

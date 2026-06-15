@@ -76,15 +76,14 @@ export const POST = withRouteHandler(
       const groupWorkspaceIds = group.appliesToAllWorkspaces
         ? []
         : (await getGroupWorkspaces(id)).map((ws) => ws.id)
-      const conflictUserIds = new Set(
-        await findScopeConflicts({
-          organizationId,
-          excludeGroupId: id,
-          appliesToAllWorkspaces: group.appliesToAllWorkspaces,
-          workspaceIds: groupWorkspaceIds,
-          candidateUserIds: targetUserIds,
-        })
-      )
+      const conflicts = await findScopeConflicts({
+        organizationId,
+        excludeGroupId: id,
+        appliesToAllWorkspaces: group.appliesToAllWorkspaces,
+        workspaceIds: groupWorkspaceIds,
+        candidateUserIds: targetUserIds,
+      })
+      const conflictUserIds = new Set(conflicts.map((c) => c.userId))
 
       const { addedUserIds } = await db.transaction(async (tx) => {
         const existingInGroup = await tx

@@ -19,6 +19,7 @@ import {
   authorizeOrgAccessControl,
   findScopeConflicts,
   findWorkspacesNotInOrganization,
+  formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
@@ -158,13 +159,7 @@ export const PUT = withRouteHandler(
           candidateUserIds: members.map((m) => m.userId),
         })
         if (conflicts.length > 0) {
-          return NextResponse.json(
-            {
-              error:
-                'This scope change would place some members in two groups for the same workspace. Resolve their group memberships first.',
-            },
-            { status: 409 }
-          )
+          return NextResponse.json({ error: formatScopeConflictError(conflicts) }, { status: 409 })
         }
       }
 

@@ -10,6 +10,10 @@ const { mockIsOrganizationAdminOrOwner, mockIsOrganizationOnEnterprisePlan, mock
     mockConflictRows: {
       value: [] as Array<{
         userId: string
+        userName: string | null
+        userEmail: string | null
+        otherGroupId: string
+        otherGroupName: string
         otherAppliesToAll: boolean
         otherWorkspaceId: string | null
       }>,
@@ -42,6 +46,7 @@ vi.mock('@sim/db/schema', () => ({
   permissionGroup: {},
   permissionGroupMember: {},
   permissionGroupWorkspace: {},
+  user: {},
   workspace: {},
 }))
 
@@ -107,8 +112,18 @@ describe('findScopeConflicts', () => {
     candidateUserIds: ['user-1'],
   }
 
+  /** Build a conflict-query row with sensible defaults. */
+  const row = (overrides: { otherAppliesToAll: boolean; otherWorkspaceId: string | null }) => ({
+    userId: 'user-1',
+    userName: 'User One',
+    userEmail: 'user-1@example.com',
+    otherGroupId: 'group-2',
+    otherGroupName: 'Marketing',
+    ...overrides,
+  })
+
   it('returns no conflicts when there are no candidate users', async () => {
-    mockConflictRows.value = [{ userId: 'user-1', otherAppliesToAll: true, otherWorkspaceId: null }]
+    mockConflictRows.value = [row({ otherAppliesToAll: true, otherWorkspaceId: null })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,
@@ -121,7 +136,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('flags an all-workspaces target when the user is in another all-workspaces group', async () => {
-    mockConflictRows.value = [{ userId: 'user-1', otherAppliesToAll: true, otherWorkspaceId: null }]
+    mockConflictRows.value = [row({ otherAppliesToAll: true, otherWorkspaceId: null })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,
@@ -129,13 +144,12 @@ describe('findScopeConflicts', () => {
       workspaceIds: [],
     })
 
-    expect(conflicts).toEqual(['user-1'])
+    expect(conflicts.map((c) => c.userId)).toEqual(['user-1'])
+    expect(conflicts[0].conflictingGroupName).toBe('Marketing')
   })
 
   it('allows an all-workspaces target when the user is only in a specific group', async () => {
-    mockConflictRows.value = [
-      { userId: 'user-1', otherAppliesToAll: false, otherWorkspaceId: 'ws-1' },
-    ]
+    mockConflictRows.value = [row({ otherAppliesToAll: false, otherWorkspaceId: 'ws-1' })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,
@@ -147,9 +161,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('flags a specific target that shares a workspace with another specific group', async () => {
-    mockConflictRows.value = [
-      { userId: 'user-1', otherAppliesToAll: false, otherWorkspaceId: 'ws-1' },
-    ]
+    mockConflictRows.value = [row({ otherAppliesToAll: false, otherWorkspaceId: 'ws-1' })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,
@@ -157,13 +169,12 @@ describe('findScopeConflicts', () => {
       workspaceIds: ['ws-1', 'ws-2'],
     })
 
-    expect(conflicts).toEqual(['user-1'])
+    expect(conflicts.map((c) => c.userId)).toEqual(['user-1'])
+    expect(conflicts[0].conflictingGroupName).toBe('Marketing')
   })
 
   it('allows a specific target whose workspaces are disjoint from the user other specific group', async () => {
-    mockConflictRows.value = [
-      { userId: 'user-1', otherAppliesToAll: false, otherWorkspaceId: 'ws-3' },
-    ]
+    mockConflictRows.value = [row({ otherAppliesToAll: false, otherWorkspaceId: 'ws-3' })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,
@@ -175,7 +186,7 @@ describe('findScopeConflicts', () => {
   })
 
   it('allows a specific target when the user is only in an all-workspaces group', async () => {
-    mockConflictRows.value = [{ userId: 'user-1', otherAppliesToAll: true, otherWorkspaceId: null }]
+    mockConflictRows.value = [row({ otherAppliesToAll: true, otherWorkspaceId: null })]
 
     const conflicts = await findScopeConflicts({
       ...baseParams,

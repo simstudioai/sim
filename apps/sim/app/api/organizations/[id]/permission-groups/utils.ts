@@ -3,6 +3,7 @@ import {
   permissionGroup,
   permissionGroupMember,
   permissionGroupWorkspace,
+  user,
   workspace,
 } from '@sim/db/schema'
 import { and, asc, eq, inArray, ne } from 'drizzle-orm'
@@ -130,13 +131,23 @@ export async function listOrganizationWorkspaces(organizationId: string): Promis
  * All-vs-specific never conflicts (specific overrides all for its workspaces).
  * The candidate group itself (`excludeGroupId`) is ignored.
  */
+/** A member whose other group membership would conflict with a candidate scope. */
+export interface ScopeConflict {
+  userId: string
+  userName: string | null
+  userEmail: string | null
+  /** The group the member already belongs to that causes the conflict. */
+  conflictingGroupId: string
+  conflictingGroupName: string
+}
+
 export async function findScopeConflicts(params: {
   organizationId: string
   excludeGroupId: string
   appliesToAllWorkspaces: boolean
   workspaceIds: string[]
   candidateUserIds: string[]
-}): Promise<string[]> {
+}): Promise<ScopeConflict[]> {
   const { organizationId, excludeGroupId, appliesToAllWorkspaces, workspaceIds, candidateUserIds } =
     params
   if (candidateUserIds.length === 0) return []
@@ -144,6 +155,10 @@ export async function findScopeConflicts(params: {
   const rows = await db
     .select({
       userId: permissionGroupMember.userId,
+      userName: user.name,
+      userEmail: user.email,
+      otherGroupId: permissionGroup.id,
+      otherGroupName: permissionGroup.name,
       otherAppliesToAll: permissionGroup.appliesToAllWorkspaces,
       otherWorkspaceId: permissionGroupWorkspace.workspaceId,
     })
@@ -153,6 +168,7 @@ export async function findScopeConflicts(params: {
       permissionGroupWorkspace,
       eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
     )
+    .leftJoin(user, eq(permissionGroupMember.userId, user.id))
     .where(
       and(
         eq(permissionGroupMember.organizationId, organizationId),
@@ -162,20 +178,42 @@ export async function findScopeConflicts(params: {
     )
 
   const targetWorkspaceSet = new Set(workspaceIds)
-  const conflicts = new Set<string>()
+  const conflictByUser = new Map<string, ScopeConflict>()
 
   for (const row of rows) {
-    if (conflicts.has(row.userId)) continue
-    if (appliesToAllWorkspaces) {
-      if (row.otherAppliesToAll) conflicts.add(row.userId)
-    } else if (
-      !row.otherAppliesToAll &&
-      row.otherWorkspaceId &&
-      targetWorkspaceSet.has(row.otherWorkspaceId)
-    ) {
-      conflicts.add(row.userId)
+    if (conflictByUser.has(row.userId)) continue
+    const isConflict = appliesToAllWorkspaces
+      ? row.otherAppliesToAll
+      : !row.otherAppliesToAll &&
+        row.otherWorkspaceId !== null &&
+        targetWorkspaceSet.has(row.otherWorkspaceId)
+    if (isConflict) {
+      conflictByUser.set(row.userId, {
+        userId: row.userId,
+        userName: row.userName,
+        userEmail: row.userEmail,
+        conflictingGroupId: row.otherGroupId,
+        conflictingGroupName: row.otherGroupName,
+      })
     }
   }
 
-  return Array.from(conflicts)
+  return Array.from(conflictByUser.values())
+}
+
+/**
+ * Human-readable 409 message for a scope/membership conflict, naming the member
+ * and the group they already belong to that overlaps the requested workspaces.
+ */
+export function formatScopeConflictError(conflicts: ScopeConflict[]): string {
+  const [first] = conflicts
+  if (!first) {
+    return 'A member would be governed by two groups for the same workspace. Resolve their group memberships first.'
+  }
+  const who = first.userName || first.userEmail || 'A member'
+  if (conflicts.length === 1) {
+    return `${who} is already in the group "${first.conflictingGroupName}", which targets one of these workspaces. Remove them from one group first.`
+  }
+  const others = conflicts.length - 1
+  return `${who} and ${others} other member${others === 1 ? '' : 's'} already belong to groups that target these workspaces (e.g. "${first.conflictingGroupName}"). Resolve their group memberships first.`
 }

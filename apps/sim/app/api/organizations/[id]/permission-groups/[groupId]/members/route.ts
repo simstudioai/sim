@@ -15,6 +15,7 @@ import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
   authorizeOrgAccessControl,
   findScopeConflicts,
+  formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
@@ -102,14 +103,7 @@ export const POST = withRouteHandler(
         candidateUserIds: [userId],
       })
       if (conflicts.length > 0) {
-        return NextResponse.json(
-          {
-            error: group.appliesToAllWorkspaces
-              ? 'This user already belongs to another all-workspaces group. A user can be in only one all-workspaces group.'
-              : 'This user already belongs to another group targeting one of these workspaces. A user can have only one group per workspace.',
-          },
-          { status: 409 }
-        )
+        return NextResponse.json({ error: formatScopeConflictError(conflicts) }, { status: 409 })
       }
 
       const newMember = await db.transaction(async (tx) => {
