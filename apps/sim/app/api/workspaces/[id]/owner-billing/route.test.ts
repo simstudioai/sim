@@ -4,11 +4,11 @@
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockGetUserEntityPermissions, mockIsWorkspaceApiExecutionEntitled } =
+const { mockGetSession, mockGetUserEntityPermissions, mockGetWorkspaceOwnerSubscriptionAccess } =
   vi.hoisted(() => ({
     mockGetSession: vi.fn(),
     mockGetUserEntityPermissions: vi.fn(),
-    mockIsWorkspaceApiExecutionEntitled: vi.fn(),
+    mockGetWorkspaceOwnerSubscriptionAccess: vi.fn(),
   }))
 
 vi.mock('@/lib/auth', () => ({
@@ -20,13 +20,24 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getUserEntityPermissions: mockGetUserEntityPermissions,
 }))
 
-vi.mock('@/lib/billing/core/api-access', () => ({
-  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
+vi.mock('@/lib/billing/core/workspace-access', () => ({
+  getWorkspaceOwnerSubscriptionAccess: mockGetWorkspaceOwnerSubscriptionAccess,
 }))
 
-import { GET } from '@/app/api/workspaces/[id]/api-execution-entitlement/route'
+import { GET } from '@/app/api/workspaces/[id]/owner-billing/route'
 
 const WORKSPACE_ID = 'ws-1'
+
+const PAID_ACCESS = {
+  plan: 'team_25000',
+  status: 'active',
+  isPaid: true,
+  isPro: false,
+  isTeam: true,
+  isEnterprise: false,
+  isOrgScoped: true,
+  organizationId: 'org-1',
+}
 
 function buildParams() {
   return { params: Promise.resolve({ id: WORKSPACE_ID }) }
@@ -38,40 +49,32 @@ async function callGet() {
   return { status: response.status, body: await response.json() }
 }
 
-describe('GET /api/workspaces/[id]/api-execution-entitlement', () => {
+describe('GET /api/workspaces/[id]/owner-billing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'u-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('read')
-    mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
+    mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue(PAID_ACCESS)
   })
 
   it('returns 401 when unauthenticated', async () => {
     mockGetSession.mockResolvedValue(null)
     const { status } = await callGet()
     expect(status).toBe(401)
-    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
   })
 
   it('returns 404 when the caller has no workspace access', async () => {
     mockGetUserEntityPermissions.mockResolvedValue(null)
     const { status } = await callGet()
     expect(status).toBe(404)
-    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
   })
 
-  it('returns entitled: true for an entitled workspace', async () => {
-    mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
+  it('returns the workspace owner subscription access for a member', async () => {
     const { status, body } = await callGet()
     expect(status).toBe(200)
-    expect(body).toEqual({ entitled: true })
-    expect(mockIsWorkspaceApiExecutionEntitled).toHaveBeenCalledWith(WORKSPACE_ID)
-  })
-
-  it('returns entitled: false for a free workspace with the gate active', async () => {
-    mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(false)
-    const { status, body } = await callGet()
-    expect(status).toBe(200)
-    expect(body).toEqual({ entitled: false })
+    expect(body).toEqual(PAID_ACCESS)
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).toHaveBeenCalledWith(WORKSPACE_ID)
   })
 })

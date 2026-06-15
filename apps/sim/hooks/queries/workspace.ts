@@ -6,16 +6,16 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createWorkspaceContract,
   deleteWorkspaceContract,
-  getWorkspaceApiExecutionEntitlementContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
+  getWorkspaceOwnerBillingContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
   updateWorkspaceContract,
   type Workspace,
-  type WorkspaceApiExecutionEntitlement,
   type WorkspaceCreationPolicy,
   type WorkspaceMember,
+  type WorkspaceOwnerBilling,
   type WorkspacePermissions,
   type WorkspaceQueryScope,
   type WorkspacesResponse,
@@ -35,8 +35,7 @@ export const workspaceKeys = {
   settings: (id: string) => [...workspaceKeys.detail(id), 'settings'] as const,
   permissions: (id: string) => [...workspaceKeys.detail(id), 'permissions'] as const,
   members: (id: string) => [...workspaceKeys.detail(id), 'members'] as const,
-  apiExecutionEntitlement: (id: string) =>
-    [...workspaceKeys.detail(id), 'apiExecutionEntitlement'] as const,
+  ownerBilling: (id: string) => [...workspaceKeys.detail(id), 'ownerBilling'] as const,
   adminLists: () => [...workspaceKeys.all, 'adminList'] as const,
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
@@ -112,29 +111,31 @@ export function useWorkspaceCreationPolicy(enabled = true) {
   })
 }
 
-async function fetchWorkspaceApiExecutionEntitlement(
+async function fetchWorkspaceOwnerBilling(
   workspaceId: string,
   signal?: AbortSignal
-): Promise<WorkspaceApiExecutionEntitlement> {
-  return requestJson(getWorkspaceApiExecutionEntitlementContract, {
+): Promise<WorkspaceOwnerBilling> {
+  return requestJson(getWorkspaceOwnerBillingContract, {
     params: { id: workspaceId },
     signal,
   })
 }
 
 /**
- * Whether the workspace may run workflows programmatically — the UI mirror of the
- * server gate. Reflects the workspace's billed-account plan, not the viewer's
- * individual plan, so a free member of a paid workspace isn't gated.
+ * Subscription access state of the workspace's billed account (its owner's
+ * rolled-up plan) — the workspace-scoped counterpart to `useSubscriptionData`.
+ * Feed the result to `getSubscriptionAccessState` to gate workspace features on
+ * the owner's plan rather than the viewer's, so a free member of a paid workspace
+ * isn't gated.
  *
- * `staleTime: 0` so reopening the deploy modal refetches: a plan upgrade happens
- * outside this query's invalidation graph, and the cached value is shown while the
- * background refetch resolves (no flash), so the gate self-heals on next open.
+ * `staleTime: 0` so consumers (e.g. the deploy modal) refetch on mount: a plan
+ * change happens outside this query's invalidation graph, and the cached value is
+ * shown during the background refetch (no flash), so gates self-heal on reopen.
  */
-export function useWorkspaceApiExecutionEntitlement(workspaceId?: string) {
+export function useWorkspaceOwnerBilling(workspaceId?: string) {
   return useQuery({
-    queryKey: workspaceKeys.apiExecutionEntitlement(workspaceId ?? ''),
-    queryFn: ({ signal }) => fetchWorkspaceApiExecutionEntitlement(workspaceId as string, signal),
+    queryKey: workspaceKeys.ownerBilling(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchWorkspaceOwnerBilling(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
     staleTime: 0,
   })

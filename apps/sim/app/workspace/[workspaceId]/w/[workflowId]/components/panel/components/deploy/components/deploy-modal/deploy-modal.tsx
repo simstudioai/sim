@@ -21,10 +21,12 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
+import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -46,10 +48,7 @@ import {
 } from '@/hooks/queries/deployments'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import {
-  useWorkspaceApiExecutionEntitlement,
-  useWorkspaceSettings,
-} from '@/hooks/queries/workspace'
+import { useWorkspaceOwnerBilling, useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -158,17 +157,15 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  // Mirror the server gate: entitlement reflects the workspace's billed-account
-  // plan (rolled up), not the viewer's individual plan, so a free member of a
-  // paid workspace isn't shown the upgrade wall. Keyed on the URL `workspaceId`
-  // (the workflow's workspace, available on mount) rather than the workflow-map
-  // metadata, so the check fires immediately instead of leaving the tabs ungated
-  // until the map resolves. Undefined while loading keeps the gate closed (no
-  // flash); only an explicit `entitled === false` gates.
-  const { data: apiExecutionEntitlement } = useWorkspaceApiExecutionEntitlement(
-    workspaceId ?? undefined
-  )
-  const gateProgrammaticDeploy = apiExecutionEntitlement?.entitled === false
+  // Gate on the WORKSPACE owner's plan (billed account, rolled up), not the
+  // viewer's individual plan, so a free member of a paid workspace isn't shown
+  // the upgrade wall. Keyed on the URL `workspaceId` (available on mount). While
+  // the owner billing is loading the data is undefined → gate stays closed (no
+  // flash); only a resolved, non-paid owner gates.
+  const { data: ownerBilling } = useWorkspaceOwnerBilling(workspaceId ?? undefined)
+  const ownerAccess = getSubscriptionAccessState(ownerBilling)
+  const gateProgrammaticDeploy =
+    isBillingEnabled && !!ownerBilling && !ownerAccess.hasUsablePaidAccess
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
