@@ -5,11 +5,10 @@
 
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isPlainRecord, isRecordLike } from '@sim/utils/object'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import type { Edge } from 'reactflow'
 import { z } from 'zod'
-import { isPlainRecord } from '@/lib/core/utils/records'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { clearExecutionCancellation } from '@/lib/execution/cancellation'
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
@@ -151,7 +150,7 @@ function parseVariableValueByType(value: unknown, type: string): unknown {
   }
 
   if (type === 'object') {
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value
+    if (isRecordLike(value)) return value
     if (typeof value === 'string' && value.trim()) {
       try {
         return JSON.parse(value)

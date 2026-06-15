@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import type { MothershipStreamV1ToolUI } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
@@ -81,12 +82,8 @@ export type ToolResultPhasePayload = {
   success?: boolean
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 export function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 export function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {

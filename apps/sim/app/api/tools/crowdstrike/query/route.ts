@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { crowdstrikeQueryContract } from '@/lib/api/contracts/tools/crowdstrike'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -31,10 +32,6 @@ function getCloudBaseUrl(cloud: CrowdStrikeCloud): string {
   return cloudMap[cloud]
 }
 
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function getString(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
@@ -56,12 +53,12 @@ function getRecordArray(value: unknown): JsonRecord[] {
     return []
   }
 
-  return value.filter(isJsonRecord)
+  return value.filter(isRecordLike)
 }
 
 function getResourcesArray(data: unknown): unknown[] {
   const root = getResponseRoot(data)
-  if (!isJsonRecord(root) || !Array.isArray(root.resources)) {
+  if (!isRecordLike(root) || !Array.isArray(root.resources)) {
     return []
   }
 
@@ -69,7 +66,7 @@ function getResourcesArray(data: unknown): unknown[] {
 }
 
 function getRecordResources(data: unknown): JsonRecord[] {
-  return getResourcesArray(data).filter(isJsonRecord)
+  return getResourcesArray(data).filter(isRecordLike)
 }
 
 function getStringResources(data: unknown): string[] {
@@ -77,11 +74,11 @@ function getStringResources(data: unknown): string[] {
 }
 
 function getResponseRoot(data: unknown): unknown {
-  if (!isJsonRecord(data)) {
+  if (!isRecordLike(data)) {
     return null
   }
 
-  if (isJsonRecord(data.body)) {
+  if (isRecordLike(data.body)) {
     return data.body
   }
 
@@ -90,7 +87,7 @@ function getResponseRoot(data: unknown): unknown {
 
 function getPagination(data: unknown) {
   const root = getResponseRoot(data)
-  if (!isJsonRecord(root) || !isJsonRecord(root.meta) || !isJsonRecord(root.meta.pagination)) {
+  if (!isRecordLike(root) || !isRecordLike(root.meta) || !isRecordLike(root.meta.pagination)) {
     return null
   }
 
@@ -102,13 +99,13 @@ function getPagination(data: unknown) {
 }
 
 function getErrorMessage(data: unknown, fallback: string): string {
-  if (!isJsonRecord(data)) {
+  if (!isRecordLike(data)) {
     return fallback
   }
 
   const errors = Array.isArray(data.errors) ? data.errors : []
   const firstError = errors[0]
-  if (isJsonRecord(firstError)) {
+  if (isRecordLike(firstError)) {
     const firstMessage = getString(firstError.message) ?? getString(firstError.code)
     if (firstMessage) {
       return firstMessage
@@ -179,7 +176,7 @@ async function getAccessToken(params: CrowdStrikeBaseParams): Promise<string> {
     throw new Error(getErrorMessage(data, 'Failed to authenticate with CrowdStrike'))
   }
 
-  if (!isJsonRecord(data) || typeof data.access_token !== 'string') {
+  if (!isRecordLike(data) || typeof data.access_token !== 'string') {
     throw new Error('CrowdStrike authentication did not return an access token')
   }
 
@@ -234,7 +231,7 @@ function normalizeAggregationBucket(resource: JsonRecord): CrowdStrikeSensorAggr
     count: getNumber(resource.count),
     from: getNumber(resource.from),
     keyAsString: getString(resource.key_as_string),
-    label: isJsonRecord(resource.label) ? resource.label : null,
+    label: isRecordLike(resource.label) ? resource.label : null,
     stringFrom: getString(resource.string_from),
     stringTo: getString(resource.string_to),
     subAggregates: getRecordArray(resource.sub_aggregates).map(normalizeAggregationResult),

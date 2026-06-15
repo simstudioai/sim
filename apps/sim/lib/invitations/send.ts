@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
@@ -17,7 +18,7 @@ import {
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { computeInvitationExpiry, normalizeEmail } from '@/lib/invitations/core'
+import { computeInvitationExpiry } from '@/lib/invitations/core'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 

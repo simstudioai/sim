@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import {
   keepPreviousData,
   skipToken,
@@ -60,10 +61,6 @@ export const mothershipChatKeys = {
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function assertValid(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message)
@@ -82,7 +79,7 @@ function isResourceType(value: unknown): value is MothershipResource['type'] {
 }
 
 function parseStreamSnapshot(value: unknown): MothershipChatHistory['streamSnapshot'] {
-  if (!isRecord(value)) {
+  if (!isRecordLike(value)) {
     return null
   }
 
@@ -116,11 +113,11 @@ function normalizeMessages(value: unknown): PersistedMessage[] {
     return []
   }
 
-  return value.filter(isRecord).map((message) => normalizeMessage(message))
+  return value.filter(isRecordLike).map((message) => normalizeMessage(message))
 }
 
 function parseResource(value: unknown, context: string): MothershipResource {
-  assertValid(isRecord(value), `${context} must be an object`)
+  assertValid(isRecordLike(value), `${context} must be an object`)
   assertValid(isResourceType(value.type), `${context}.type is invalid`)
   assertValid(typeof value.id === 'string', `${context}.id must be a string`)
   assertValid(typeof value.title === 'string', `${context}.title must be a string`)
@@ -155,8 +152,8 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
   const responseContext = 'Invalid chat response'
   const chatContext = `${responseContext}: chat`
 
-  assertValid(isRecord(value), `${responseContext}: body must be an object`)
-  assertValid(isRecord(value.chat), `${chatContext} must be an object`)
+  assertValid(isRecordLike(value), `${responseContext}: body must be an object`)
+  assertValid(isRecordLike(value.chat), `${chatContext} must be an object`)
 
   const chat = value.chat
 
@@ -179,7 +176,7 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
 }
 
 function parseChatResourcesResponse(value: unknown): { resources: MothershipResource[] } {
-  assertValid(isRecord(value), 'Invalid chat resources response: body must be an object')
+  assertValid(isRecordLike(value), 'Invalid chat resources response: body must be an object')
 
   return {
     resources: parseResources(value.resources, 'Invalid chat resources response: resources'),
