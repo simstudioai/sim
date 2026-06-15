@@ -27,6 +27,7 @@ import {
 import { ArrowLeft } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { getAllBlocks } from '@/blocks'
@@ -632,7 +633,7 @@ export function AccessControl() {
   }, [viewingGroup, editingConfig])
 
   const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar && b.type !== 'start_trigger')
+    const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
       const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
       const catA = categoryOrder[a.category] ?? 3

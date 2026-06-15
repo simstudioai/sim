@@ -10,6 +10,7 @@ import {
   isInvitationsDisabled,
   isPublicApiDisabled,
 } from '@/lib/core/config/feature-flags'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -287,7 +288,7 @@ export async function validateBlockType(
   blockType: string,
   ctx?: ExecutionContext
 ): Promise<void> {
-  if (blockType === 'start_trigger') {
+  if (isBlockTypeAccessControlExempt(blockType)) {
     return
   }
 
@@ -478,10 +479,10 @@ interface PermissionAssertion {
 export async function assertPermissionsAllowed(req: PermissionAssertion): Promise<void> {
   const { userId, workspaceId, model, blockType, toolKind, ctx } = req
 
-  if (blockType === 'start_trigger') {
-    if (!model && !toolKind) {
-      return
-    }
+  const blockTypeExempt = blockType ? isBlockTypeAccessControlExempt(blockType) : false
+
+  if (blockTypeExempt && !model && !toolKind) {
+    return
   }
 
   const config =
@@ -509,7 +510,7 @@ export async function assertPermissionsAllowed(req: PermissionAssertion): Promis
     }
   }
 
-  if (blockType && blockType !== 'start_trigger') {
+  if (blockType && !blockTypeExempt) {
     if (config && config.allowedIntegrations !== null) {
       if (!config.allowedIntegrations.includes(blockType.toLowerCase())) {
         const envAllowlist = getAllowedIntegrationsFromEnv()
