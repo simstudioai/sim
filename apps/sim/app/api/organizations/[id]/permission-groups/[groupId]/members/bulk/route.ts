@@ -14,6 +14,7 @@ import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/typ
 import {
   authorizeOrgAccessControl,
   findScopeConflicts,
+  formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
@@ -70,9 +71,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ added: 0, skipped: 0 })
       }
 
-      // Skip users who would be governed by two groups on the same workspace
-      // (all-vs-all, or specific groups sharing a workspace). Memberships are no
-      // longer moved between groups — a user can belong to multiple groups.
+      // Bulk add is all-or-nothing for conflicts: if any selected user would be
+      // governed by two groups on the same workspace (all-vs-all, or specific
+      // groups sharing a workspace), add nobody and surface the conflict so the
+      // admin can fix the selection. Members already in this group are no-ops.
       const groupWorkspaceIds = group.appliesToAllWorkspaces
         ? []
         : (await getGroupWorkspaces(id)).map((ws) => ws.id)
@@ -83,7 +85,9 @@ export const POST = withRouteHandler(
         workspaceIds: groupWorkspaceIds,
         candidateUserIds: targetUserIds,
       })
-      const conflictUserIds = new Set(conflicts.map((c) => c.userId))
+      if (conflicts.length > 0) {
+        return NextResponse.json({ error: formatScopeConflictError(conflicts) }, { status: 409 })
+      }
 
       const { addedUserIds } = await db.transaction(async (tx) => {
         const existingInGroup = await tx
@@ -97,9 +101,7 @@ export const POST = withRouteHandler(
           )
         const alreadyInThisGroup = new Set(existingInGroup.map((m) => m.userId))
 
-        const usersToAdd = targetUserIds.filter(
-          (uid) => !alreadyInThisGroup.has(uid) && !conflictUserIds.has(uid)
-        )
+        const usersToAdd = targetUserIds.filter((uid) => !alreadyInThisGroup.has(uid))
 
         if (usersToAdd.length === 0) {
           return { addedUserIds: [] as string[] }

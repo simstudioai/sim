@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
@@ -498,6 +498,11 @@ export function AccessControl() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
+  // Monotonic token for scope-affecting writes (workspace select + default
+  // toggle, which both set appliesToAllWorkspaces/workspaces). Only the most
+  // recent write may reconcile or revert the local viewingGroup, so rapid
+  // multi-select toggles can't settle on a stale, out-of-order response.
+  const scopeWriteSeqRef = useRef(0)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
   const [newGroupIsDefault, setNewGroupIsDefault] = useState(false)
@@ -910,27 +915,19 @@ export function AccessControl() {
     if (!viewingGroup || !organizationId || selectedMemberIds.size === 0) return
     setAddMembersError(null)
     try {
-      const result = await bulkAddMembers.mutateAsync({
+      // Bulk add is all-or-nothing for conflicts: a conflicting selection
+      // returns a 409 (no one is added) and the named error is shown inline so
+      // the admin can adjust the selection.
+      await bulkAddMembers.mutateAsync({
         organizationId,
         permissionGroupId: viewingGroup.id,
         userIds: Array.from(selectedMemberIds),
       })
-      // Users already governed by a conflicting group on these workspaces are
-      // skipped rather than moved. Surface the all-skipped case instead of
-      // silently closing.
-      if (result.added === 0 && result.skipped > 0) {
-        setAddMembersError(
-          'Selected members already belong to a group that conflicts on these workspaces. A user can have only one group per workspace.'
-        )
-        return
-      }
       setShowAddMembersModal(false)
       setSelectedMemberIds(new Set())
     } catch (error) {
       logger.error('Failed to add members', error)
-      setAddMembersError(
-        error instanceof Error && error.message ? error.message : 'Failed to add members'
-      )
+      setAddMembersError(getErrorMessage(error, 'Failed to add members'))
     }
   }, [viewingGroup, organizationId, selectedMemberIds, bulkAddMembers])
 
@@ -940,9 +937,8 @@ export function AccessControl() {
       // An empty selection means "all workspaces".
       const appliesToAllWorkspaces = workspaceIds.length === 0
       const previous = viewingGroup
-      // Optimistically reflect the new scope so the inline control stays live
-      // across multi-select toggles; reconcile from the result, or revert on
-      // error (e.g. a member conflict).
+      const seq = ++scopeWriteSeqRef.current
+
       setViewingGroup((prev) =>
         prev
           ? {
@@ -961,6 +957,8 @@ export function AccessControl() {
           appliesToAllWorkspaces,
           workspaceIds: appliesToAllWorkspaces ? undefined : workspaceIds,
         })
+
+        if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup((prev) =>
           prev
             ? {
@@ -974,6 +972,9 @@ export function AccessControl() {
         )
       } catch (error) {
         logger.error('Failed to update workspace scope', error)
+        // Only the latest write may revert, so a failed earlier request can't
+        // clobber a newer (successful) selection.
+        if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup(previous)
         toast.error("Couldn't update workspaces", {
           description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -986,13 +987,15 @@ export function AccessControl() {
   const handleToggleDefault = useCallback(
     async (enabled: boolean) => {
       if (!viewingGroup || !organizationId) return
+      const seq = ++scopeWriteSeqRef.current
       try {
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
           isDefault: enabled,
         })
-        // Enabling default forces all-workspaces scope server-side; reflect that.
+
+        if (seq !== scopeWriteSeqRef.current) return
         setViewingGroup((prev) =>
           prev
             ? {

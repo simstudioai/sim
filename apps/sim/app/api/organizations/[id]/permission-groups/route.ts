@@ -105,14 +105,17 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
       const { name, description, config, isDefault } = parsed.data.body
 
-      // The default group always governs every workspace, so a default request
-      // forces all-workspaces scope regardless of the submitted scope.
+      // Resolve scope the same way the update route does: the default group is
+      // always organization-wide; otherwise an explicit `appliesToAllWorkspaces`
+      // wins, and supplying `workspaceIds` alone implies a specific scope (so
+      // those ids are never silently dropped).
+      const requestedWorkspaceIds = parsed.data.body.workspaceIds ?? []
       const appliesToAllWorkspaces = isDefault
         ? true
-        : parsed.data.body.appliesToAllWorkspaces !== false
-      const workspaceIds = appliesToAllWorkspaces
-        ? []
-        : Array.from(new Set(parsed.data.body.workspaceIds ?? []))
+        : parsed.data.body.appliesToAllWorkspaces !== undefined
+          ? parsed.data.body.appliesToAllWorkspaces
+          : requestedWorkspaceIds.length === 0
+      const workspaceIds = appliesToAllWorkspaces ? [] : Array.from(new Set(requestedWorkspaceIds))
 
       if (!appliesToAllWorkspaces) {
         const invalid = await findWorkspacesNotInOrganization(workspaceIds, organizationId)

@@ -289,9 +289,9 @@ export const bulkAddPermissionGroupMembersContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       added: z.number(),
-      // Users not added because they already belong to this group or to another
-      // group that would conflict on a workspace (one effective group per user
-      // per workspace).
+      // Users not added because they were already in this group. A conflicting
+      // selection fails the whole request (409) rather than being skipped, so
+      // the add is all-or-nothing for conflicts.
       skipped: z.number(),
     }),
   },

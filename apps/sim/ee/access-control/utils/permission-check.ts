@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
@@ -158,9 +158,11 @@ async function resolveDefaultGroup(
  *   3. the organization's default group (also governs external members), else
  *   4. `null` (unrestricted).
  *
- * Specific-scope groups a user belongs to may not overlap on a workspace, and a
- * user may belong to at most one all-workspaces group (both enforced when
- * memberships are assigned), so the winner here is unambiguous.
+ * Specific-scope groups a user belongs to should not overlap on a workspace,
+ * and a user should belong to at most one all-workspaces group (enforced at
+ * assignment time, though not by a DB constraint). If an overlap nonetheless
+ * exists, the oldest group wins — rows are ordered by `created_at` (then `id`)
+ * so resolution is deterministic.
  *
  * Callers gate on enterprise entitlement before invoking this and merge the env
  * allowlist afterwards.
@@ -194,6 +196,7 @@ export async function resolveWorkspaceGroup(
         eq(permissionGroupMember.organizationId, organizationId)
       )
     )
+    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
 
   const specific = rows.find((row) => !row.appliesToAllWorkspaces && row.targetsWorkspace !== null)
   const winner = specific ?? rows.find((row) => row.appliesToAllWorkspaces)
@@ -234,6 +237,7 @@ export async function resolveOrganizationWideGroup(
         eq(permissionGroup.appliesToAllWorkspaces, true)
       )
     )
+    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
     .limit(1)
 
   if (allWorkspacesGroup) {
