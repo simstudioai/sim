@@ -77,6 +77,7 @@ interface SignupFormProps {
   googleAvailable: boolean
   microsoftAvailable: boolean
   isProduction: boolean
+  emailSignupEnabled: boolean
 }
 
 function SignupFormContent({
@@ -84,6 +85,7 @@ function SignupFormContent({
   googleAvailable,
   microsoftAvailable,
   isProduction,
+  emailSignupEnabled,
 }: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -354,8 +356,7 @@ function SignupFormContent({
 
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
   const emailEnabled =
-    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) &&
-    !isTruthy(getEnv('NEXT_PUBLIC_DISABLE_EMAIL_SIGNUP'))
+    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
   const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
@@ -615,6 +616,7 @@ export default function SignupPage({
   googleAvailable,
   microsoftAvailable,
   isProduction,
+  emailSignupEnabled,
 }: SignupFormProps) {
   return (
     <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
@@ -623,6 +625,7 @@ export default function SignupPage({
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
         isProduction={isProduction}
+        emailSignupEnabled={emailSignupEnabled}
       />
     </Suspense>
   )
