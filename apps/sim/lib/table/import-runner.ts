@@ -19,6 +19,7 @@ import {
 } from '@/lib/table'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
+import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import {
   addImportColumns,
   bulkInsertImportBatch,
@@ -26,8 +27,6 @@ import {
   getTableById,
   markJobFailed,
   markJobReady,
-  nextImportStartOrderKey,
-  nextImportStartPosition,
   setTableSchemaForImport,
   updateJobProgress,
 } from '@/lib/table/service'

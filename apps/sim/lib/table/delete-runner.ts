@@ -5,13 +5,12 @@ import { truncate } from '@sim/utils/string'
 import type { Filter } from '@/lib/table'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { appendTableEvent } from '@/lib/table/events'
+import { deletePageByIds, selectRowIdPage } from '@/lib/table/rows/ordering'
 import {
-  deletePageByIds,
   getJobProgress,
   getTableById,
   markJobFailed,
   markJobReady,
-  selectRowIdPage,
   updateJobProgress,
 } from '@/lib/table/service'
 import { buildFilterClause } from '@/lib/table/sql'

@@ -28,11 +28,13 @@ const {
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
   getJobProgress: mockGetJobProgress,
-  selectRowIdPage: mockSelectRowIdPage,
-  deletePageByIds: mockDeletePageByIds,
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
   markJobFailed: mockMarkJobFailed,
+}))
+vi.mock('@/lib/table/rows/ordering', () => ({
+  selectRowIdPage: mockSelectRowIdPage,
+  deletePageByIds: mockDeletePageByIds,
 }))
 vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
