@@ -15,6 +15,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
@@ -202,10 +203,6 @@ export async function expireStalePendingInvitationsForWorkspaces(
       error,
     })
   }
-}
-
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase()
 }
 
 export type AcceptInvitationFailure =

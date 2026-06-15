@@ -1,12 +1,12 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { type InvitationMembershipIntent, permissions, user } from '@sim/db/schema'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { normalizeEmail } from '@/lib/invitations/core'
 import {
   cancelPendingInvitation,
   createPendingInvitation,

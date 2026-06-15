@@ -33,8 +33,6 @@
     "mship-contracts:check": "bun run scripts/sync-mothership-stream-contract.ts --check",
     "mship-tools:generate": "bun run scripts/sync-tool-catalog.ts",
     "mship-tools:check": "bun run scripts/sync-tool-catalog.ts --check",
-    "trace-contracts:generate": "bun run scripts/sync-request-trace-contract.ts",
-    "trace-contracts:check": "bun run scripts/sync-request-trace-contract.ts --check",
     "trace-spans-contract:generate": "bun run scripts/sync-trace-spans-contract.ts",
     "trace-spans-contract:check": "bun run scripts/sync-trace-spans-contract.ts --check",
     "trace-attributes-contract:generate": "bun run scripts/sync-trace-attributes-contract.ts",

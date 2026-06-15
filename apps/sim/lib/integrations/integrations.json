@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-14",
+  "updatedAt": "2026-06-15",
   "integrations": [
     {
       "type": "onepassword",
@@ -3335,6 +3335,113 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["knowledge-base", "content-management", "note-taking"]
+    },
+    {
+      "type": "context_dev",
+      "slug": "context-dev",
+      "name": "Context.dev",
+      "description": "Scrape, crawl, search, extract, and enrich web and brand data",
+      "longDescription": "Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.",
+      "bgColor": "#ffffff",
+      "iconName": "ContextDevIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/context_dev",
+      "operations": [
+        {
+          "name": "Scrape Markdown",
+          "description": "Scrape any URL and return clean, LLM-ready markdown content."
+        },
+        {
+          "name": "Scrape HTML",
+          "description": "Scrape any URL and return the raw HTML content of the page."
+        },
+        {
+          "name": "Scrape Images",
+          "description": "Discover every image asset on a page, with optional dimension and type enrichment."
+        },
+        {
+          "name": "Screenshot",
+          "description": "Capture a screenshot of any web page and store it as a downloadable image file."
+        },
+        {
+          "name": "Crawl Website",
+          "description": "Crawl an entire website and return each discovered page as clean markdown."
+        },
+        {
+          "name": "Map Sitemap",
+          "description": "Build a sitemap of a domain and return every discovered page URL."
+        },
+        {
+          "name": "Web Search",
+          "description": "Search the web with natural language and optionally scrape results to markdown."
+        },
+        {
+          "name": "Extract Structured Data",
+          "description": "Crawl a website and extract structured data matching a provided JSON schema."
+        },
+        {
+          "name": "Extract Product",
+          "description": "Detect and extract structured product details from a single product page URL."
+        },
+        {
+          "name": "Extract Products",
+          "description": "Extract the product catalog from a brand"
+        },
+        {
+          "name": "Scrape Fonts",
+          "description": "Extract the font families, usage stats, and font files used by a domain."
+        },
+        {
+          "name": "Scrape Styleguide",
+          "description": "Extract a domain"
+        },
+        {
+          "name": "Classify NAICS",
+          "description": "Classify a brand into NAICS industry codes from its domain or company name."
+        },
+        {
+          "name": "Classify SIC",
+          "description": "Classify a brand into SIC industry codes from its domain or company name."
+        },
+        {
+          "name": "Get Brand by Domain",
+          "description": "Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Name",
+          "description": "Retrieve brand data by company name: logos, colors, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Email",
+          "description": "Retrieve brand data from a work email address. Free/disposable emails are rejected (422)."
+        },
+        {
+          "name": "Get Brand by Ticker",
+          "description": "Retrieve brand data for a public company by its stock ticker symbol."
+        },
+        {
+          "name": "Get Brand (Simplified)",
+          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
+        },
+        {
+          "name": "Identify Transaction",
+          "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
+        },
+        {
+          "name": "Prefetch Domain",
+          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
+        },
+        {
+          "name": "Prefetch by Email",
+          "description": "Queue an email"
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "enrichment", "automation"]
     },
     {
       "type": "convex",
@@ -14552,6 +14659,161 @@
       "authType": "api-key",
       "category": "tools",
       "integrationType": "email"
+    },
+    {
+      "type": "square",
+      "slug": "square",
+      "name": "Square",
+      "description": "Process payments and manage Square commerce data",
+      "longDescription": "Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).",
+      "bgColor": "#000000",
+      "iconName": "SquareIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/square",
+      "operations": [
+        {
+          "name": "Create Payment",
+          "description": "Take a payment using a payment source such as a card nonce or a card on file"
+        },
+        {
+          "name": "Get Payment",
+          "description": "Retrieve details for a single payment by its ID"
+        },
+        {
+          "name": "List Payments",
+          "description": "List payments taken by the account, optionally filtered by location and time range"
+        },
+        {
+          "name": "Cancel Payment",
+          "description": "Cancel (void) an authorized payment that has not been captured"
+        },
+        {
+          "name": "Complete Payment",
+          "description": "Capture (complete) a payment that was authorized with delayed capture"
+        },
+        {
+          "name": "Refund Payment",
+          "description": "Refund all or part of a completed payment"
+        },
+        {
+          "name": "Get Refund",
+          "description": "Retrieve a single payment refund by its ID"
+        },
+        {
+          "name": "List Refunds",
+          "description": "List payment refunds, optionally filtered by location, status, and time range"
+        },
+        {
+          "name": "Create Customer",
+          "description": "Create a new customer profile in the Square customer directory"
+        },
+        {
+          "name": "Get Customer",
+          "description": "Retrieve a single customer profile by its ID"
+        },
+        {
+          "name": "List Customers",
+          "description": "List customer profiles in the Square customer directory"
+        },
+        {
+          "name": "Search Customers",
+          "description": "Search customer profiles using filters such as email, phone, or creation date"
+        },
+        {
+          "name": "Update Customer",
+          "description": "Update fields on an existing customer profile"
+        },
+        {
+          "name": "Delete Customer",
+          "description": "Delete a customer profile from the Square customer directory"
+        },
+        {
+          "name": "List Locations",
+          "description": "List all locations associated with the Square account"
+        },
+        {
+          "name": "Get Location",
+          "description": "Retrieve a single location by its ID"
+        },
+        {
+          "name": "Create Order",
+          "description": "Create an order with line items, taxes, discounts, and fulfillments"
+        },
+        {
+          "name": "Get Order",
+          "description": "Retrieve a single order by its ID"
+        },
+        {
+          "name": "Search Orders",
+          "description": "Search orders across one or more locations using filters and sorting"
+        },
+        {
+          "name": "Pay Order",
+          "description": "Pay for an order using one or more already-approved payments"
+        },
+        {
+          "name": "Create Invoice",
+          "description": "Create a draft invoice for an existing order and customer"
+        },
+        {
+          "name": "Get Invoice",
+          "description": "Retrieve a single invoice by its ID"
+        },
+        {
+          "name": "List Invoices",
+          "description": "List invoices for a specific location"
+        },
+        {
+          "name": "Search Invoices",
+          "description": "Search invoices across one or more locations"
+        },
+        {
+          "name": "Publish Invoice",
+          "description": "Publish a draft invoice so it is sent to the customer and becomes payable"
+        },
+        {
+          "name": "Cancel Invoice",
+          "description": "Cancel a published invoice that is unpaid or partially paid"
+        },
+        {
+          "name": "Delete Invoice",
+          "description": "Delete a draft invoice"
+        },
+        {
+          "name": "Upsert Catalog Object",
+          "description": "Create or update a catalog object such as an item, variation, or category"
+        },
+        {
+          "name": "Get Catalog Object",
+          "description": "Retrieve a single catalog object by its ID"
+        },
+        {
+          "name": "List Catalog",
+          "description": "List catalog objects, optionally filtered by type"
+        },
+        {
+          "name": "Search Catalog Objects",
+          "description": "Search catalog objects by type and query filters"
+        },
+        {
+          "name": "Create Catalog Image",
+          "description": "Upload an image and attach it to the catalog, optionally to a specific item"
+        },
+        {
+          "name": "Delete Catalog Object",
+          "description": "Delete a catalog object and its children (e.g. an item and its variations)"
+        },
+        {
+          "name": "Batch Retrieve Inventory Counts",
+          "description": "Retrieve current inventory counts for catalog items across locations"
+        }
+      ],
+      "operationCount": 34,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "commerce",
+      "tags": ["payments", "subscriptions", "automation"]
     },
     {
       "type": "ssh",

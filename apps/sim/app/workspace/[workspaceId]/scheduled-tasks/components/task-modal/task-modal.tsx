@@ -18,7 +18,7 @@ import {
   PromptEditor,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
-import { RecurrenceControl } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal/recurrence-control'
+import { RecurrenceSection } from '@/app/workspace/[workspaceId]/scheduled-tasks/components/task-modal/recurrence-section'
 import type { CalendarSlot } from '@/app/workspace/[workspaceId]/scheduled-tasks/hooks/use-calendar'
 import {
   DEFAULT_RECURRENCE,
@@ -117,10 +117,10 @@ interface TaskModalProps {
 
 /**
  * The "schedule a task" modal, shared by create (blank, or pre-filled from a
- * duplicate) and edit (seeded from a task's schedule). The body is one prompt
- * surface — the chat input's editor, so `@` mentions resources and `/` invokes
- * skills exactly like talking to Sim — and the footer carries the recurrence,
- * launch date/time, and (edit only) Delete.
+ * duplicate) and edit (seeded from a task's schedule). The body is the chat
+ * input's editor — so `@` mentions resources and `/` invokes skills exactly like
+ * talking to Sim — followed by the recurrence section; the footer carries the
+ * launch date/time and (edit only) Delete.
  */
 export function TaskModal({
   open,
@@ -296,10 +296,11 @@ function TaskModalContent({
   }
 
   /**
-   * Footer secondary actions. Delete is disabled while `submitting` because it
-   * bypasses the dismiss guard — it closes the modal via `closeTask`, not the
-   * guarded `onOpenChange` — so without the lock an in-flight edit and a delete
-   * could run against the same task at once.
+   * Footer secondary actions — the launch date/time pickers and (edit only)
+   * Delete. Delete is disabled while `submitting` because it bypasses the
+   * dismiss guard — it closes the modal via `closeTask`, not the guarded
+   * `onOpenChange` — so without the lock an in-flight edit and a delete could
+   * run against the same task at once. Recurrence lives in the body, not here.
    */
   const secondaryActions: ChipModalFooterSlotAction[] = [
     ...(edit && onRequestDelete
@@ -312,15 +313,6 @@ function TaskModalContent({
           },
         ]
       : []),
-    {
-      custom: (
-        <RecurrenceControl
-          recurrence={recurrence}
-          onChange={setRecurrence}
-          launchDate={launchDate}
-        />
-      ),
-    },
     { custom: <ChipDatePicker value={launchDate} onChange={editLaunchDate} flush /> },
     { custom: <ChipTimePicker value={launchTime} onChange={editLaunchTime} flush /> },
   ]
@@ -338,6 +330,7 @@ function TaskModalContent({
           onSubmit={handleSubmit}
         />
       </ChipModalPromptBody>
+      <RecurrenceSection recurrence={recurrence} onChange={setRecurrence} launchDate={launchDate} />
       <ChipModalFooter
         onCancel={close}
         cancelDisabled={submitting}

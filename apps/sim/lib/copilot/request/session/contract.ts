@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   MothershipStreamV1EventEnvelope,
   MothershipStreamV1StreamRef,
@@ -150,10 +151,6 @@ export type ParseStreamEventEnvelopeResult =
 // Structural helpers (CSP-safe – no codegen / eval / new Function)
 // ---------------------------------------------------------------------------
 
-function isRecord(value: unknown): value is JsonRecord {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function isOptionalString(value: unknown): value is string | undefined {
   return value === undefined || typeof value === 'string'
 }
@@ -164,7 +161,7 @@ function isOptionalFiniteNumber(value: unknown): value is number | undefined {
 
 function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     typeof value.streamId === 'string' &&
     value.streamId.length > 0 &&
     isOptionalString(value.chatId) &&
@@ -174,7 +171,7 @@ function isStreamRef(value: unknown): value is MothershipStreamV1StreamRef {
 
 function isTrace(value: unknown): value is MothershipStreamV1Trace {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     typeof value.requestId === 'string' &&
     isOptionalString(value.goTraceId) &&
     isOptionalString(value.spanId)
@@ -183,7 +180,7 @@ function isTrace(value: unknown): value is MothershipStreamV1Trace {
 
 function isStreamScope(value: unknown): value is MothershipStreamV1StreamScope {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     value.lane === 'subagent' &&
     isOptionalString(value.agentId) &&
     isOptionalString(value.parentToolCallId)
@@ -210,7 +207,7 @@ function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   type: string
   payload: JsonRecord
 } {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
   if (value.v !== 1) return false
   if (typeof value.seq !== 'number' || !Number.isFinite(value.seq)) return false
   if (typeof value.ts !== 'string') return false
@@ -218,7 +215,7 @@ function isValidEnvelopeShell(value: unknown): value is JsonRecord & {
   if (value.trace !== undefined && !isTrace(value.trace)) return false
   if (value.scope !== undefined && !isStreamScope(value.scope)) return false
   if (typeof value.type !== 'string' || !KNOWN_EVENT_TYPES.has(value.type)) return false
-  if (!isRecord(value.payload)) return false
+  if (!isRecordLike(value.payload)) return false
   return true
 }
 
@@ -271,7 +268,7 @@ function isValidResourcePayload(payload: JsonRecord): boolean {
   return (
     (payload.op === MothershipStreamV1ResourceOp.upsert ||
       payload.op === MothershipStreamV1ResourceOp.remove) &&
-    isRecord(payload.resource) &&
+    isRecordLike(payload.resource) &&
     typeof (payload.resource as JsonRecord).id === 'string' &&
     typeof (payload.resource as JsonRecord).type === 'string'
   )
@@ -331,7 +328,7 @@ function isSyntheticEnvelopeBase(value: unknown): value is Omit<
   payload?: unknown
 } {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     value.v === 1 &&
     value.type === 'tool' &&
     typeof value.seq === 'number' &&
@@ -345,7 +342,7 @@ function isSyntheticEnvelopeBase(value: unknown): value is Omit<
 
 function isSyntheticFilePreviewTarget(value: unknown): value is SyntheticFilePreviewTarget {
   return (
-    isRecord(value) &&
+    isRecordLike(value) &&
     (value.kind === 'new_file' || value.kind === 'file_id') &&
     isOptionalString(value.fileId) &&
     isOptionalString(value.fileName)
@@ -353,7 +350,7 @@ function isSyntheticFilePreviewTarget(value: unknown): value is SyntheticFilePre
 }
 
 function isSyntheticFilePreviewPayload(value: unknown): value is SyntheticFilePreviewPayload {
-  if (!isRecord(value)) {
+  if (!isRecordLike(value)) {
     return false
   }
 
@@ -371,7 +368,7 @@ function isSyntheticFilePreviewPayload(value: unknown): value is SyntheticFilePr
         isOptionalString(value.title)
       )
     case FILE_PREVIEW_PHASE.editMeta:
-      return isRecord(value.edit)
+      return isRecordLike(value.edit)
     case FILE_PREVIEW_PHASE.content:
       return (
         typeof value.content === 'string' &&
@@ -382,7 +379,7 @@ function isSyntheticFilePreviewPayload(value: unknown): value is SyntheticFilePr
         isOptionalString(value.fileId) &&
         isOptionalString(value.targetKind) &&
         isOptionalString(value.operation) &&
-        (value.edit === undefined || isRecord(value.edit))
+        (value.edit === undefined || isRecordLike(value.edit))
       )
     case FILE_PREVIEW_PHASE.complete:
       return isOptionalString(value.fileId) && isOptionalFiniteNumber(value.previewVersion)
@@ -402,23 +399,25 @@ export function isSyntheticFilePreviewEventEnvelope(
 // ---------------------------------------------------------------------------
 
 export function isToolCallStreamEvent(event: SessionStreamEvent): event is ToolCallStreamEvent {
-  return event.type === 'tool' && isRecord(event.payload) && event.payload.phase === 'call'
+  return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'call'
 }
 
 export function isToolArgsDeltaStreamEvent(
   event: SessionStreamEvent
 ): event is ToolArgsDeltaStreamEvent {
-  return event.type === 'tool' && isRecord(event.payload) && event.payload.phase === 'args_delta'
+  return (
+    event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'args_delta'
+  )
 }
 
 export function isToolResultStreamEvent(event: SessionStreamEvent): event is ToolResultStreamEvent {
-  return event.type === 'tool' && isRecord(event.payload) && event.payload.phase === 'result'
+  return event.type === 'tool' && isRecordLike(event.payload) && event.payload.phase === 'result'
 }
 
 export function isSubagentSpanStreamEvent(
   event: SessionStreamEvent
 ): event is SubagentSpanStreamEvent {
-  return event.type === 'span' && isRecord(event.payload) && event.payload.kind === 'subagent'
+  return event.type === 'span' && isRecordLike(event.payload) && event.payload.kind === 'subagent'
 }
 
 // ---------------------------------------------------------------------------
@@ -441,13 +440,13 @@ export function parsePersistedStreamEventEnvelope(value: unknown): ParseStreamEv
   }
 
   const hints: string[] = []
-  if (!isRecord(value)) {
+  if (!isRecordLike(value)) {
     hints.push('value is not an object')
   } else {
     if (value.v !== 1) hints.push(`unexpected v=${JSON.stringify(value.v)}`)
     if (typeof value.type !== 'string') hints.push('missing type')
     else if (!KNOWN_EVENT_TYPES.has(value.type)) hints.push(`unknown type="${value.type}"`)
-    if (!isRecord(value.payload)) hints.push('missing or invalid payload')
+    if (!isRecordLike(value.payload)) hints.push('missing or invalid payload')
   }
 
   return {

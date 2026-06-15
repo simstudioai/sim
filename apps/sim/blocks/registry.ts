@@ -38,6 +38,7 @@ import { CloudWatchBlock, CloudWatchBlockMeta } from '@/blocks/blocks/cloudwatch
 import { CodePipelineBlock, CodePipelineBlockMeta } from '@/blocks/blocks/codepipeline'
 import { ConditionBlock } from '@/blocks/blocks/condition'
 import { ConfluenceBlock, ConfluenceBlockMeta, ConfluenceV2Block } from '@/blocks/blocks/confluence'
+import { ContextDevBlock, ContextDevBlockMeta } from '@/blocks/blocks/context_dev'
 import { ConvexBlock, ConvexBlockMeta } from '@/blocks/blocks/convex'
 import { CredentialBlock } from '@/blocks/blocks/credential'
 import { CrowdStrikeBlock, CrowdStrikeBlockMeta } from '@/blocks/blocks/crowdstrike'
@@ -267,6 +268,7 @@ import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
+import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -368,6 +370,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   condition: ConditionBlock,
   confluence: ConfluenceBlock,
   confluence_v2: ConfluenceV2Block,
+  context_dev: ContextDevBlock,
   convex: ConvexBlock,
   credential: CredentialBlock,
   crowdstrike: CrowdStrikeBlock,
@@ -567,6 +570,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
   sqs: SQSBlock,
+  square: SquareBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
@@ -667,6 +671,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   cloudwatch: CloudWatchBlockMeta,
   codepipeline: CodePipelineBlockMeta,
   confluence: ConfluenceBlockMeta,
+  context_dev: ContextDevBlockMeta,
   convex: ConvexBlockMeta,
   crowdstrike: CrowdStrikeBlockMeta,
   cursor: CursorBlockMeta,
@@ -824,6 +829,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   slack: SlackBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,
+  square: SquareBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,

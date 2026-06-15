@@ -21,7 +21,6 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
-import { isFree } from '@/lib/billing/plan-helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -46,10 +45,9 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import { useWorkspaceOwnerBilling, useWorkspaceSettings } from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -158,11 +156,16 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const { data: subscriptionData, isLoading: isLoadingSubscription } = useSubscriptionData()
-  // Hold the gate closed until the plan is known — isFree(undefined) is true, so
-  // gating during load would flash the upgrade wall at paid users.
-  const gateProgrammaticDeploy =
-    isBillingEnabled && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
+  // Gate on the WORKSPACE owner's plan (billed account, rolled up), not the
+  // viewer's individual plan, so a free member of a paid workspace isn't shown
+  // the upgrade wall. Keyed on the URL `workspaceId` (available on mount). Uses
+  // `isPaid` — the same check the server gate runs (any paid plan in an entitled
+  // status, incl. `past_due`) — rather than `hasUsablePaidAccess`, which would
+  // reject `past_due`/billing-blocked owners the API still allows. While loading
+  // the data is undefined → gate stays closed (no flash); only a resolved,
+  // non-paid owner gates.
+  const { data: ownerBilling } = useWorkspaceOwnerBilling(workspaceId ?? undefined)
+  const gateProgrammaticDeploy = isBillingEnabled && !!ownerBilling && !ownerBilling.isPaid
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''

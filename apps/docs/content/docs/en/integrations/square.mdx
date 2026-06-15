@@ -1,0 +1,1479 @@
+---
+title: Square
+description: Process payments and manage Square commerce data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="square"
+  color="#000000"
+/>
+
+## Usage Instructions
+
+Integrate Square into the workflow. Take and refund payments, manage customers, build catalog items and images, create and search orders, and issue invoices. Authenticate with a Square access token (personal access token).
+
+
+
+## Actions
+
+### `square_create_payment`
+
+Take a payment using a payment source such as a card nonce or a card on file
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `sourceId` | string | Yes | ID of the payment source \(card nonce, card-on-file ID, or wallet token\) |
+| `amount` | number | Yes | Amount in the smallest currency denomination \(e.g. 1000 = $10.00\) |
+| `currency` | string | Yes | Three-letter ISO 4217 currency code \(e.g. USD\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+| `customerId` | string | No | ID of the customer associated with the payment |
+| `locationId` | string | No | ID of the location where the payment is taken \(defaults to the main location\) |
+| `orderId` | string | No | ID of the order associated with the payment |
+| `referenceId` | string | No | Optional external reference for the payment |
+| `note` | string | No | Optional note attached to the payment |
+| `autocomplete` | boolean | No | Whether to immediately capture the payment \(defaults to true\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | The created payment object |
+|   ↳ `id` | string | Unique ID for the payment |
+|   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `approved_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `app_fee_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `refunded_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `source_type` | string | Source of the payment \(CARD, BANK_ACCOUNT, WALLET, etc.\) |
+|   ↳ `card_details` | json | Details about a card payment |
+|   ↳ `location_id` | string | ID of the location where the payment was taken |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `reference_id` | string | Optional external reference for the payment |
+|   ↳ `receipt_number` | string | Receipt number for the payment |
+|   ↳ `receipt_url` | string | URL of the payment receipt |
+|   ↳ `note` | string | Optional note attached to the payment |
+|   ↳ `refund_ids` | array | IDs of refunds associated with the payment |
+|   ↳ `processing_fee` | array | Processing fees applied to the payment |
+|   ↳ `created_at` | string | Timestamp when the payment was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the payment was last updated \(RFC 3339\) |
+|   ↳ `version_token` | string | Optimistic concurrency token for the payment |
+| `metadata` | json | Payment summary metadata |
+|   ↳ `id` | string | Square payment ID |
+|   ↳ `status` | string | Current payment status |
+|   ↳ `order_id` | string | Associated order ID |
+
+### `square_get_payment`
+
+Retrieve details for a single payment by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `paymentId` | string | Yes | ID of the payment to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | The retrieved payment object |
+|   ↳ `id` | string | Unique ID for the payment |
+|   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `approved_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `app_fee_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `refunded_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `source_type` | string | Source of the payment \(CARD, BANK_ACCOUNT, WALLET, etc.\) |
+|   ↳ `card_details` | json | Details about a card payment |
+|   ↳ `location_id` | string | ID of the location where the payment was taken |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `reference_id` | string | Optional external reference for the payment |
+|   ↳ `receipt_number` | string | Receipt number for the payment |
+|   ↳ `receipt_url` | string | URL of the payment receipt |
+|   ↳ `note` | string | Optional note attached to the payment |
+|   ↳ `refund_ids` | array | IDs of refunds associated with the payment |
+|   ↳ `processing_fee` | array | Processing fees applied to the payment |
+|   ↳ `created_at` | string | Timestamp when the payment was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the payment was last updated \(RFC 3339\) |
+|   ↳ `version_token` | string | Optimistic concurrency token for the payment |
+| `metadata` | json | Payment summary metadata |
+|   ↳ `id` | string | Square payment ID |
+|   ↳ `status` | string | Current payment status |
+|   ↳ `order_id` | string | Associated order ID |
+
+### `square_list_payments`
+
+List payments taken by the account, optionally filtered by location and time range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationId` | string | No | Filter payments by location ID |
+| `beginTime` | string | No | RFC 3339 timestamp for the beginning of the reporting period |
+| `endTime` | string | No | RFC 3339 timestamp for the end of the reporting period |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payments` | array | Array of payment objects |
+|   ↳ `id` | string | Unique ID for the payment |
+|   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `approved_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `app_fee_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `refunded_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `source_type` | string | Source of the payment \(CARD, BANK_ACCOUNT, WALLET, etc.\) |
+|   ↳ `card_details` | json | Details about a card payment |
+|   ↳ `location_id` | string | ID of the location where the payment was taken |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `reference_id` | string | Optional external reference for the payment |
+|   ↳ `receipt_number` | string | Receipt number for the payment |
+|   ↳ `receipt_url` | string | URL of the payment receipt |
+|   ↳ `note` | string | Optional note attached to the payment |
+|   ↳ `refund_ids` | array | IDs of refunds associated with the payment |
+|   ↳ `processing_fee` | array | Processing fees applied to the payment |
+|   ↳ `created_at` | string | Timestamp when the payment was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the payment was last updated \(RFC 3339\) |
+|   ↳ `version_token` | string | Optimistic concurrency token for the payment |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_cancel_payment`
+
+Cancel (void) an authorized payment that has not been captured
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `paymentId` | string | Yes | ID of the payment to cancel |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | The canceled payment object |
+|   ↳ `id` | string | Unique ID for the payment |
+|   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `approved_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `app_fee_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `refunded_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `source_type` | string | Source of the payment \(CARD, BANK_ACCOUNT, WALLET, etc.\) |
+|   ↳ `card_details` | json | Details about a card payment |
+|   ↳ `location_id` | string | ID of the location where the payment was taken |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `reference_id` | string | Optional external reference for the payment |
+|   ↳ `receipt_number` | string | Receipt number for the payment |
+|   ↳ `receipt_url` | string | URL of the payment receipt |
+|   ↳ `note` | string | Optional note attached to the payment |
+|   ↳ `refund_ids` | array | IDs of refunds associated with the payment |
+|   ↳ `processing_fee` | array | Processing fees applied to the payment |
+|   ↳ `created_at` | string | Timestamp when the payment was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the payment was last updated \(RFC 3339\) |
+|   ↳ `version_token` | string | Optimistic concurrency token for the payment |
+| `metadata` | json | Payment summary metadata |
+|   ↳ `id` | string | Square payment ID |
+|   ↳ `status` | string | Current payment status |
+|   ↳ `order_id` | string | Associated order ID |
+
+### `square_complete_payment`
+
+Capture (complete) a payment that was authorized with delayed capture
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `paymentId` | string | Yes | ID of the payment to complete |
+| `versionToken` | string | No | Optional version token for optimistic concurrency control |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `payment` | object | The completed payment object |
+|   ↳ `id` | string | Unique ID for the payment |
+|   ↳ `status` | string | Payment status \(APPROVED, PENDING, COMPLETED, CANCELED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `approved_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `app_fee_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `refunded_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `source_type` | string | Source of the payment \(CARD, BANK_ACCOUNT, WALLET, etc.\) |
+|   ↳ `card_details` | json | Details about a card payment |
+|   ↳ `location_id` | string | ID of the location where the payment was taken |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `reference_id` | string | Optional external reference for the payment |
+|   ↳ `receipt_number` | string | Receipt number for the payment |
+|   ↳ `receipt_url` | string | URL of the payment receipt |
+|   ↳ `note` | string | Optional note attached to the payment |
+|   ↳ `refund_ids` | array | IDs of refunds associated with the payment |
+|   ↳ `processing_fee` | array | Processing fees applied to the payment |
+|   ↳ `created_at` | string | Timestamp when the payment was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the payment was last updated \(RFC 3339\) |
+|   ↳ `version_token` | string | Optimistic concurrency token for the payment |
+| `metadata` | json | Payment summary metadata |
+|   ↳ `id` | string | Square payment ID |
+|   ↳ `status` | string | Current payment status |
+|   ↳ `order_id` | string | Associated order ID |
+
+### `square_refund_payment`
+
+Refund all or part of a completed payment
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `paymentId` | string | Yes | ID of the payment to refund |
+| `amount` | number | Yes | Amount to refund in the smallest currency denomination \(e.g. 100 = $1.00\) |
+| `currency` | string | Yes | Three-letter ISO 4217 currency code \(e.g. USD\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+| `reason` | string | No | Reason for the refund |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refund` | object | The created refund object |
+|   ↳ `id` | string | Unique ID for the refund |
+|   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `processing_fee` | array | Processing fees refunded |
+|   ↳ `payment_id` | string | ID of the payment being refunded |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `location_id` | string | ID of the associated location |
+|   ↳ `reason` | string | Reason for the refund |
+|   ↳ `created_at` | string | Timestamp when the refund was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the refund was last updated \(RFC 3339\) |
+| `metadata` | json | Refund summary metadata |
+|   ↳ `id` | string | Square refund ID |
+|   ↳ `status` | string | Current refund status |
+|   ↳ `payment_id` | string | Refunded payment ID |
+
+### `square_get_refund`
+
+Retrieve a single payment refund by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `refundId` | string | Yes | ID of the refund to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refund` | object | The retrieved refund object |
+|   ↳ `id` | string | Unique ID for the refund |
+|   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `processing_fee` | array | Processing fees refunded |
+|   ↳ `payment_id` | string | ID of the payment being refunded |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `location_id` | string | ID of the associated location |
+|   ↳ `reason` | string | Reason for the refund |
+|   ↳ `created_at` | string | Timestamp when the refund was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the refund was last updated \(RFC 3339\) |
+| `metadata` | json | Refund summary metadata |
+|   ↳ `id` | string | Square refund ID |
+|   ↳ `status` | string | Current refund status |
+|   ↳ `payment_id` | string | Refunded payment ID |
+
+### `square_list_refunds`
+
+List payment refunds, optionally filtered by location, status, and time range
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationId` | string | No | Filter refunds by location ID |
+| `status` | string | No | Filter by refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
+| `beginTime` | string | No | RFC 3339 timestamp for the beginning of the reporting period |
+| `endTime` | string | No | RFC 3339 timestamp for the end of the reporting period |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `refunds` | array | Array of refund objects |
+|   ↳ `id` | string | Unique ID for the refund |
+|   ↳ `status` | string | Refund status \(PENDING, COMPLETED, REJECTED, or FAILED\) |
+|   ↳ `amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `processing_fee` | array | Processing fees refunded |
+|   ↳ `payment_id` | string | ID of the payment being refunded |
+|   ↳ `order_id` | string | ID of the associated order |
+|   ↳ `location_id` | string | ID of the associated location |
+|   ↳ `reason` | string | Reason for the refund |
+|   ↳ `created_at` | string | Timestamp when the refund was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the refund was last updated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_create_customer`
+
+Create a new customer profile in the Square customer directory
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `givenName` | string | No | First name of the customer |
+| `familyName` | string | No | Last name of the customer |
+| `companyName` | string | No | Business name of the customer |
+| `nickname` | string | No | Nickname of the customer |
+| `emailAddress` | string | No | Email address of the customer |
+| `phoneNumber` | string | No | Phone number of the customer |
+| `birthday` | string | No | Birthday in YYYY-MM-DD or MM-DD format |
+| `note` | string | No | Note about the customer |
+| `referenceId` | string | No | Optional external reference for the customer |
+| `address` | json | No | Square address object for the customer |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The created customer object |
+|   ↳ `id` | string | Unique ID for the customer |
+|   ↳ `given_name` | string | First name of the customer |
+|   ↳ `family_name` | string | Last name of the customer |
+|   ↳ `nickname` | string | Nickname of the customer |
+|   ↳ `company_name` | string | Business name of the customer |
+|   ↳ `email_address` | string | Email address of the customer |
+|   ↳ `phone_number` | string | Phone number of the customer |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `birthday` | string | Birthday in YYYY-MM-DD or MM-DD format |
+|   ↳ `reference_id` | string | Optional external reference for the customer |
+|   ↳ `note` | string | Note about the customer |
+|   ↳ `creation_source` | string | How the customer profile was created |
+|   ↳ `preferences` | json | Customer communication preferences |
+|   ↳ `group_ids` | array | IDs of customer groups the customer belongs to |
+|   ↳ `segment_ids` | array | IDs of customer segments the customer belongs to |
+|   ↳ `version` | number | Optimistic concurrency version of the customer |
+|   ↳ `created_at` | string | Timestamp when the customer was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the customer was last updated \(RFC 3339\) |
+| `metadata` | json | Customer summary metadata |
+|   ↳ `id` | string | Square customer ID |
+|   ↳ `email_address` | string | Customer email address |
+|   ↳ `given_name` | string | Customer first name |
+|   ↳ `family_name` | string | Customer last name |
+
+### `square_get_customer`
+
+Retrieve a single customer profile by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `customerId` | string | Yes | ID of the customer to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The retrieved customer object |
+|   ↳ `id` | string | Unique ID for the customer |
+|   ↳ `given_name` | string | First name of the customer |
+|   ↳ `family_name` | string | Last name of the customer |
+|   ↳ `nickname` | string | Nickname of the customer |
+|   ↳ `company_name` | string | Business name of the customer |
+|   ↳ `email_address` | string | Email address of the customer |
+|   ↳ `phone_number` | string | Phone number of the customer |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `birthday` | string | Birthday in YYYY-MM-DD or MM-DD format |
+|   ↳ `reference_id` | string | Optional external reference for the customer |
+|   ↳ `note` | string | Note about the customer |
+|   ↳ `creation_source` | string | How the customer profile was created |
+|   ↳ `preferences` | json | Customer communication preferences |
+|   ↳ `group_ids` | array | IDs of customer groups the customer belongs to |
+|   ↳ `segment_ids` | array | IDs of customer segments the customer belongs to |
+|   ↳ `version` | number | Optimistic concurrency version of the customer |
+|   ↳ `created_at` | string | Timestamp when the customer was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the customer was last updated \(RFC 3339\) |
+| `metadata` | json | Customer summary metadata |
+|   ↳ `id` | string | Square customer ID |
+|   ↳ `email_address` | string | Customer email address |
+|   ↳ `given_name` | string | Customer first name |
+|   ↳ `family_name` | string | Customer last name |
+
+### `square_list_customers`
+
+List customer profiles in the Square customer directory
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `limit` | number | No | Maximum number of results to return per page \(max 100\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+| `sortField` | string | No | Field to sort by \(DEFAULT or CREATED_AT\) |
+| `sortOrder` | string | No | Sort order \(ASC or DESC\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | Array of customer objects |
+|   ↳ `id` | string | Unique ID for the customer |
+|   ↳ `given_name` | string | First name of the customer |
+|   ↳ `family_name` | string | Last name of the customer |
+|   ↳ `nickname` | string | Nickname of the customer |
+|   ↳ `company_name` | string | Business name of the customer |
+|   ↳ `email_address` | string | Email address of the customer |
+|   ↳ `phone_number` | string | Phone number of the customer |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `birthday` | string | Birthday in YYYY-MM-DD or MM-DD format |
+|   ↳ `reference_id` | string | Optional external reference for the customer |
+|   ↳ `note` | string | Note about the customer |
+|   ↳ `creation_source` | string | How the customer profile was created |
+|   ↳ `preferences` | json | Customer communication preferences |
+|   ↳ `group_ids` | array | IDs of customer groups the customer belongs to |
+|   ↳ `segment_ids` | array | IDs of customer segments the customer belongs to |
+|   ↳ `version` | number | Optimistic concurrency version of the customer |
+|   ↳ `created_at` | string | Timestamp when the customer was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the customer was last updated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_search_customers`
+
+Search customer profiles using filters such as email, phone, or creation date
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `query` | json | No | Square customer query object with optional filter and sort \(e.g. \{"filter":\{"email_address":\{"exact":"a@b.com"\}\}\}\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customers` | array | Array of matching customer objects |
+|   ↳ `id` | string | Unique ID for the customer |
+|   ↳ `given_name` | string | First name of the customer |
+|   ↳ `family_name` | string | Last name of the customer |
+|   ↳ `nickname` | string | Nickname of the customer |
+|   ↳ `company_name` | string | Business name of the customer |
+|   ↳ `email_address` | string | Email address of the customer |
+|   ↳ `phone_number` | string | Phone number of the customer |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `birthday` | string | Birthday in YYYY-MM-DD or MM-DD format |
+|   ↳ `reference_id` | string | Optional external reference for the customer |
+|   ↳ `note` | string | Note about the customer |
+|   ↳ `creation_source` | string | How the customer profile was created |
+|   ↳ `preferences` | json | Customer communication preferences |
+|   ↳ `group_ids` | array | IDs of customer groups the customer belongs to |
+|   ↳ `segment_ids` | array | IDs of customer segments the customer belongs to |
+|   ↳ `version` | number | Optimistic concurrency version of the customer |
+|   ↳ `created_at` | string | Timestamp when the customer was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the customer was last updated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_update_customer`
+
+Update fields on an existing customer profile
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `customerId` | string | Yes | ID of the customer to update |
+| `givenName` | string | No | First name of the customer |
+| `familyName` | string | No | Last name of the customer |
+| `companyName` | string | No | Business name of the customer |
+| `nickname` | string | No | Nickname of the customer |
+| `emailAddress` | string | No | Email address of the customer |
+| `phoneNumber` | string | No | Phone number of the customer |
+| `birthday` | string | No | Birthday in YYYY-MM-DD or MM-DD format |
+| `note` | string | No | Note about the customer |
+| `referenceId` | string | No | Optional external reference for the customer |
+| `address` | json | No | Square address object for the customer |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `customer` | object | The updated customer object |
+|   ↳ `id` | string | Unique ID for the customer |
+|   ↳ `given_name` | string | First name of the customer |
+|   ↳ `family_name` | string | Last name of the customer |
+|   ↳ `nickname` | string | Nickname of the customer |
+|   ↳ `company_name` | string | Business name of the customer |
+|   ↳ `email_address` | string | Email address of the customer |
+|   ↳ `phone_number` | string | Phone number of the customer |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `birthday` | string | Birthday in YYYY-MM-DD or MM-DD format |
+|   ↳ `reference_id` | string | Optional external reference for the customer |
+|   ↳ `note` | string | Note about the customer |
+|   ↳ `creation_source` | string | How the customer profile was created |
+|   ↳ `preferences` | json | Customer communication preferences |
+|   ↳ `group_ids` | array | IDs of customer groups the customer belongs to |
+|   ↳ `segment_ids` | array | IDs of customer segments the customer belongs to |
+|   ↳ `version` | number | Optimistic concurrency version of the customer |
+|   ↳ `created_at` | string | Timestamp when the customer was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the customer was last updated \(RFC 3339\) |
+| `metadata` | json | Customer summary metadata |
+|   ↳ `id` | string | Square customer ID |
+|   ↳ `email_address` | string | Customer email address |
+|   ↳ `given_name` | string | Customer first name |
+|   ↳ `family_name` | string | Customer last name |
+
+### `square_delete_customer`
+
+Delete a customer profile from the Square customer directory
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `customerId` | string | Yes | ID of the customer to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the customer was deleted |
+| `id` | string | ID of the deleted customer |
+
+### `square_list_locations`
+
+List all locations associated with the Square account
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `locations` | array | Array of location objects |
+|   ↳ `id` | string | Unique ID for the location |
+|   ↳ `name` | string | Name of the location |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `timezone` | string | IANA timezone of the location |
+|   ↳ `status` | string | Location status \(ACTIVE or INACTIVE\) |
+|   ↳ `type` | string | Location type \(PHYSICAL or MOBILE\) |
+|   ↳ `merchant_id` | string | ID of the merchant that owns the location |
+|   ↳ `country` | string | Country code of the location |
+|   ↳ `language_code` | string | Language code of the location |
+|   ↳ `currency` | string | Currency used by the location |
+|   ↳ `phone_number` | string | Phone number of the location |
+|   ↳ `business_name` | string | Business name shown to customers |
+|   ↳ `business_email` | string | Email of the business |
+|   ↳ `description` | string | Description of the location |
+|   ↳ `capabilities` | array | Capabilities of the location \(e.g. CREDIT_CARD_PROCESSING\) |
+|   ↳ `created_at` | string | Timestamp when the location was created \(RFC 3339\) |
+| `metadata` | json | List metadata |
+|   ↳ `count` | number | Number of locations returned |
+
+### `square_get_location`
+
+Retrieve a single location by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationId` | string | Yes | ID of the location to retrieve \(use "main" for the main location\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `location` | object | The retrieved location object |
+|   ↳ `id` | string | Unique ID for the location |
+|   ↳ `name` | string | Name of the location |
+|   ↳ `address` | object | Physical address |
+|     ↳ `address_line_1` | string | First line of the address |
+|     ↳ `address_line_2` | string | Second line of the address |
+|     ↳ `address_line_3` | string | Third line of the address |
+|     ↳ `locality` | string | City or town |
+|     ↳ `sublocality` | string | Neighborhood or district |
+|     ↳ `administrative_district_level_1` | string | State, province, or region |
+|     ↳ `postal_code` | string | Postal or ZIP code |
+|     ↳ `country` | string | Two-letter ISO 3166-1 alpha-2 country code |
+|     ↳ `first_name` | string | First name of the addressee |
+|     ↳ `last_name` | string | Last name of the addressee |
+|   ↳ `timezone` | string | IANA timezone of the location |
+|   ↳ `status` | string | Location status \(ACTIVE or INACTIVE\) |
+|   ↳ `type` | string | Location type \(PHYSICAL or MOBILE\) |
+|   ↳ `merchant_id` | string | ID of the merchant that owns the location |
+|   ↳ `country` | string | Country code of the location |
+|   ↳ `language_code` | string | Language code of the location |
+|   ↳ `currency` | string | Currency used by the location |
+|   ↳ `phone_number` | string | Phone number of the location |
+|   ↳ `business_name` | string | Business name shown to customers |
+|   ↳ `business_email` | string | Email of the business |
+|   ↳ `description` | string | Description of the location |
+|   ↳ `capabilities` | array | Capabilities of the location \(e.g. CREDIT_CARD_PROCESSING\) |
+|   ↳ `created_at` | string | Timestamp when the location was created \(RFC 3339\) |
+| `metadata` | json | Location summary metadata |
+|   ↳ `id` | string | Square location ID |
+|   ↳ `name` | string | Location name |
+
+### `square_create_order`
+
+Create an order with line items, taxes, discounts, and fulfillments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `order` | json | Yes | Square order object including location_id and line_items \(e.g. \{"location_id":"L1","line_items":\[\{"name":"Coffee","quantity":"1","base_price_money":\{"amount":250,"currency":"USD"\}\}\]\}\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The created order object |
+|   ↳ `id` | string | Unique ID for the order |
+|   ↳ `location_id` | string | ID of the location for the order |
+|   ↳ `reference_id` | string | Optional external reference for the order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `state` | string | Order state \(OPEN, COMPLETED, or CANCELED\) |
+|   ↳ `version` | number | Optimistic concurrency version of the order |
+|   ↳ `line_items` | array | Line items in the order |
+|   ↳ `taxes` | array | Taxes applied to the order |
+|   ↳ `discounts` | array | Discounts applied to the order |
+|   ↳ `fulfillments` | array | Fulfillments for the order |
+|   ↳ `net_amounts` | json | Net money amounts for the order |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tax_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_discount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_service_charge_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `created_at` | string | Timestamp when the order was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the order was last updated \(RFC 3339\) |
+|   ↳ `closed_at` | string | Timestamp when the order was closed \(RFC 3339\) |
+| `metadata` | json | Order summary metadata |
+|   ↳ `id` | string | Square order ID |
+|   ↳ `state` | string | Current order state |
+|   ↳ `location_id` | string | Order location ID |
+
+### `square_get_order`
+
+Retrieve a single order by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `orderId` | string | Yes | ID of the order to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The retrieved order object |
+|   ↳ `id` | string | Unique ID for the order |
+|   ↳ `location_id` | string | ID of the location for the order |
+|   ↳ `reference_id` | string | Optional external reference for the order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `state` | string | Order state \(OPEN, COMPLETED, or CANCELED\) |
+|   ↳ `version` | number | Optimistic concurrency version of the order |
+|   ↳ `line_items` | array | Line items in the order |
+|   ↳ `taxes` | array | Taxes applied to the order |
+|   ↳ `discounts` | array | Discounts applied to the order |
+|   ↳ `fulfillments` | array | Fulfillments for the order |
+|   ↳ `net_amounts` | json | Net money amounts for the order |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tax_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_discount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_service_charge_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `created_at` | string | Timestamp when the order was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the order was last updated \(RFC 3339\) |
+|   ↳ `closed_at` | string | Timestamp when the order was closed \(RFC 3339\) |
+| `metadata` | json | Order summary metadata |
+|   ↳ `id` | string | Square order ID |
+|   ↳ `state` | string | Current order state |
+|   ↳ `location_id` | string | Order location ID |
+
+### `square_search_orders`
+
+Search orders across one or more locations using filters and sorting
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationIds` | array | Yes | Array of location IDs to search within |
+| `query` | json | No | Square order query object with optional filter and sort \(e.g. \{"filter":\{"state_filter":\{"states":\["OPEN"\]\}\}\}\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `orders` | array | Array of matching order objects |
+|   ↳ `id` | string | Unique ID for the order |
+|   ↳ `location_id` | string | ID of the location for the order |
+|   ↳ `reference_id` | string | Optional external reference for the order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `state` | string | Order state \(OPEN, COMPLETED, or CANCELED\) |
+|   ↳ `version` | number | Optimistic concurrency version of the order |
+|   ↳ `line_items` | array | Line items in the order |
+|   ↳ `taxes` | array | Taxes applied to the order |
+|   ↳ `discounts` | array | Discounts applied to the order |
+|   ↳ `fulfillments` | array | Fulfillments for the order |
+|   ↳ `net_amounts` | json | Net money amounts for the order |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tax_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_discount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_service_charge_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `created_at` | string | Timestamp when the order was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the order was last updated \(RFC 3339\) |
+|   ↳ `closed_at` | string | Timestamp when the order was closed \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_pay_order`
+
+Pay for an order using one or more already-approved payments
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `orderId` | string | Yes | ID of the order to pay for |
+| `paymentIds` | array | No | IDs of approved payments to apply to the order |
+| `orderVersion` | number | No | Version of the order being paid \(for optimistic concurrency\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `order` | object | The paid order object |
+|   ↳ `id` | string | Unique ID for the order |
+|   ↳ `location_id` | string | ID of the location for the order |
+|   ↳ `reference_id` | string | Optional external reference for the order |
+|   ↳ `customer_id` | string | ID of the associated customer |
+|   ↳ `state` | string | Order state \(OPEN, COMPLETED, or CANCELED\) |
+|   ↳ `version` | number | Optimistic concurrency version of the order |
+|   ↳ `line_items` | array | Line items in the order |
+|   ↳ `taxes` | array | Taxes applied to the order |
+|   ↳ `discounts` | array | Discounts applied to the order |
+|   ↳ `fulfillments` | array | Fulfillments for the order |
+|   ↳ `net_amounts` | json | Net money amounts for the order |
+|   ↳ `total_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tax_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_discount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_service_charge_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `total_tip_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `created_at` | string | Timestamp when the order was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the order was last updated \(RFC 3339\) |
+|   ↳ `closed_at` | string | Timestamp when the order was closed \(RFC 3339\) |
+| `metadata` | json | Order summary metadata |
+|   ↳ `id` | string | Square order ID |
+|   ↳ `state` | string | Current order state |
+|   ↳ `location_id` | string | Order location ID |
+
+### `square_create_invoice`
+
+Create a draft invoice for an existing order and customer
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `invoice` | json | Yes | Square invoice object including location_id, order_id, primary_recipient, and payment_requests \(e.g. \{"location_id":"L1","order_id":"O1","primary_recipient":\{"customer_id":"C1"\},"payment_requests":\[\{"request_type":"BALANCE","due_date":"2026-07-01"\}\]\}\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | The created invoice object |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | Invoice summary metadata |
+|   ↳ `id` | string | Square invoice ID |
+|   ↳ `status` | string | Current invoice status |
+|   ↳ `version` | number | Invoice version |
+
+### `square_get_invoice`
+
+Retrieve a single invoice by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `invoiceId` | string | Yes | ID of the invoice to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | The retrieved invoice object |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | Invoice summary metadata |
+|   ↳ `id` | string | Square invoice ID |
+|   ↳ `status` | string | Current invoice status |
+|   ↳ `version` | number | Invoice version |
+
+### `square_list_invoices`
+
+List invoices for a specific location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationId` | string | Yes | ID of the location to list invoices for |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoices` | array | Array of invoice objects |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_search_invoices`
+
+Search invoices across one or more locations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `locationId` | string | Yes | ID of the location to search within \(Square allows one location per search\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoices` | array | Array of matching invoice objects |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_publish_invoice`
+
+Publish a draft invoice so it is sent to the customer and becomes payable
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `invoiceId` | string | Yes | ID of the invoice to publish |
+| `version` | number | Yes | Current version of the invoice \(use the version returned by Create Invoice\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | The published invoice object |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | Invoice summary metadata |
+|   ↳ `id` | string | Square invoice ID |
+|   ↳ `status` | string | Current invoice status |
+|   ↳ `version` | number | Invoice version |
+
+### `square_cancel_invoice`
+
+Cancel a published invoice that is unpaid or partially paid
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `invoiceId` | string | Yes | ID of the invoice to cancel |
+| `version` | number | Yes | Current version of the invoice |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `invoice` | object | The canceled invoice object |
+|   ↳ `id` | string | Unique ID for the invoice |
+|   ↳ `version` | number | Optimistic concurrency version of the invoice |
+|   ↳ `location_id` | string | ID of the location for the invoice |
+|   ↳ `order_id` | string | ID of the order the invoice bills for |
+|   ↳ `status` | string | Invoice status \(DRAFT, UNPAID, SCHEDULED, PARTIALLY_PAID, PAID, etc.\) |
+|   ↳ `invoice_number` | string | Human-readable invoice number |
+|   ↳ `title` | string | Title of the invoice |
+|   ↳ `description` | string | Description of the invoice |
+|   ↳ `public_url` | string | URL where the customer can view and pay the invoice |
+|   ↳ `primary_recipient` | json | Primary recipient of the invoice |
+|   ↳ `payment_requests` | array | Payment requests for the invoice |
+|   ↳ `next_payment_amount_money` | object | Monetary amount with a currency |
+|     ↳ `amount` | number | Amount in the smallest denomination of the currency \(e.g. cents for USD\) |
+|     ↳ `currency` | string | Three-letter ISO 4217 currency code \(e.g. USD\) |
+|   ↳ `scheduled_at` | string | Timestamp when the invoice is scheduled to be sent \(RFC 3339\) |
+|   ↳ `timezone` | string | Timezone used for invoice dates |
+|   ↳ `delivery_method` | string | How the invoice is delivered \(EMAIL, SHARE_MANUALLY, SMS\) |
+|   ↳ `created_at` | string | Timestamp when the invoice was created \(RFC 3339\) |
+|   ↳ `updated_at` | string | Timestamp when the invoice was last updated \(RFC 3339\) |
+| `metadata` | json | Invoice summary metadata |
+|   ↳ `id` | string | Square invoice ID |
+|   ↳ `status` | string | Current invoice status |
+|   ↳ `version` | number | Invoice version |
+
+### `square_delete_invoice`
+
+Delete a draft invoice
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `invoiceId` | string | Yes | ID of the draft invoice to delete |
+| `version` | number | No | Current version of the invoice \(required if the invoice has been updated\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the invoice was deleted |
+| `id` | string | ID of the deleted invoice |
+
+### `square_upsert_catalog_object`
+
+Create or update a catalog object such as an item, variation, or category
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `object` | json | Yes | Square catalog object to create or update. Use ID "#name" for new objects \(e.g. \{"type":"ITEM","id":"#Coffee","item_data":\{"name":"Coffee"\}\}\) |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object` | object | The created or updated catalog object |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `metadata` | json | Catalog object summary metadata |
+|   ↳ `id` | string | Square catalog object ID |
+|   ↳ `type` | string | Catalog object type |
+|   ↳ `version` | number | Catalog object version |
+
+### `square_get_catalog_object`
+
+Retrieve a single catalog object by its ID
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `objectId` | string | Yes | ID of the catalog object to retrieve |
+| `includeRelatedObjects` | boolean | No | Whether to include related objects such as an item variations |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object` | object | The retrieved catalog object |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `metadata` | json | Catalog object summary metadata |
+|   ↳ `id` | string | Square catalog object ID |
+|   ↳ `type` | string | Catalog object type |
+|   ↳ `version` | number | Catalog object version |
+
+### `square_list_catalog`
+
+List catalog objects, optionally filtered by type
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `types` | string | No | Comma-separated catalog object types to return \(e.g. ITEM,CATEGORY\). Defaults to all top-level types |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | array | Array of catalog objects |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_search_catalog_objects`
+
+Search catalog objects by type and query filters
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `objectTypes` | array | No | Array of catalog object types to search \(e.g. \["ITEM","CATEGORY"\]\) |
+| `query` | json | No | Square catalog query object \(e.g. \{"text_query":\{"keywords":\["coffee"\]\}\} or \{"prefix_query":\{...\}\}\) |
+| `limit` | number | No | Maximum number of results to return per page |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `objects` | array | Array of matching catalog objects |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+### `square_create_catalog_image`
+
+Upload an image and attach it to the catalog, optionally to a specific item
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `file` | file | Yes | The image file to upload \(UserFile object\) |
+| `fileName` | string | No | Optional filename override for the image |
+| `objectId` | string | No | ID of the catalog object \(e.g. an item\) to attach the image to |
+| `caption` | string | No | Caption \(alt text\) for the image |
+| `idempotencyKey` | string | No | Unique key to make the request idempotent \(auto-generated if omitted\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `object` | object | The created catalog image object |
+|   ↳ `type` | string | Type of catalog object \(ITEM, ITEM_VARIATION, CATEGORY, IMAGE, etc.\) |
+|   ↳ `id` | string | Unique ID for the catalog object |
+|   ↳ `version` | number | Optimistic concurrency version of the object |
+|   ↳ `updated_at` | string | Timestamp when the object was last updated \(RFC 3339\) |
+|   ↳ `is_deleted` | boolean | Whether the object is deleted |
+|   ↳ `present_at_all_locations` | boolean | Whether the object is present at all locations |
+|   ↳ `item_data` | json | Item-specific data \(when type is ITEM\) |
+|   ↳ `item_variation_data` | json | Variation-specific data \(when type is ITEM_VARIATION\) |
+|   ↳ `category_data` | json | Category-specific data \(when type is CATEGORY\) |
+|   ↳ `image_data` | json | Image-specific data \(when type is IMAGE\) |
+| `metadata` | json | Catalog object summary metadata |
+|   ↳ `id` | string | Square catalog object ID |
+|   ↳ `type` | string | Catalog object type |
+|   ↳ `version` | number | Catalog object version |
+
+### `square_delete_catalog_object`
+
+Delete a catalog object and its children (e.g. an item and its variations)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `objectId` | string | Yes | ID of the catalog object to delete |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `deleted` | boolean | Whether the catalog object was deleted |
+| `deleted_object_ids` | array | IDs of all catalog objects deleted \(including children\) |
+| `deleted_at` | string | Timestamp when the deletion occurred \(RFC 3339\) |
+
+### `square_batch_retrieve_inventory_counts`
+
+Retrieve current inventory counts for catalog items across locations
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Square access token \(personal access token\) |
+| `catalogObjectIds` | array | No | IDs of the catalog item variations to retrieve counts for |
+| `locationIds` | array | No | IDs of the locations to retrieve counts for \(defaults to all locations\) |
+| `states` | array | No | Inventory states to filter by \(e.g. IN_STOCK, SOLD, IN_TRANSIT\) |
+| `updatedAfter` | string | No | Only return counts updated after this RFC 3339 timestamp |
+| `limit` | number | No | Maximum number of results to return per page \(1-1000\) |
+| `cursor` | string | No | Pagination cursor from a previous response |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `counts` | array | Array of inventory count objects |
+|   ↳ `catalog_object_id` | string | ID of the catalog object \(item variation\) being counted |
+|   ↳ `catalog_object_type` | string | Type of the counted catalog object \(usually ITEM_VARIATION\) |
+|   ↳ `state` | string | Inventory state \(e.g. IN_STOCK, SOLD, WASTE\) |
+|   ↳ `location_id` | string | ID of the location for this count |
+|   ↳ `quantity` | string | Number of units in the given state at the location |
+|   ↳ `calculated_at` | string | Timestamp when the count was calculated \(RFC 3339\) |
+| `metadata` | json | List pagination metadata |
+|   ↳ `count` | number | Number of items returned in this page |
+|   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
+
+
