@@ -9,6 +9,7 @@ const {
   mockIsOrganizationOnEnterprisePlan,
   mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
+  mockGetBlock,
   mockExplicitGroup,
   mockDefaultGroup,
 } = vi.hoisted(() => ({
@@ -40,6 +41,7 @@ const {
   mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
   mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
+  mockGetBlock: vi.fn<(type: string) => { hideFromToolbar?: boolean } | undefined>(),
   // The explicit-group query joins permission_group_member -> permission_group;
   // the org-default query selects permission_group directly. The db mock returns
   // the explicit rows when `innerJoin` was called and the default rows otherwise.
@@ -108,6 +110,11 @@ vi.mock('@/providers/utils', () => ({
   getProviderFromModel: mockGetProviderFromModel,
 }))
 
+vi.mock('@/blocks/registry', () => ({
+  getBlock: mockGetBlock,
+  getAllBlocks: vi.fn(() => []),
+}))
+
 import {
   assertPermissionsAllowed,
   CustomToolsNotAllowedError,
@@ -127,6 +134,15 @@ function setEnterpriseOrgWorkspace() {
   mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: 'org-1' })
   mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
 }
+
+/**
+ * Default every block to non-legacy. `vi.clearAllMocks()` (used by the
+ * describe-level hooks) keeps implementations, so reset here to stop a legacy
+ * `getBlock` implementation set in one test from leaking into later ones.
+ */
+beforeEach(() => {
+  mockGetBlock.mockImplementation(() => undefined)
+})
 
 describe('IntegrationNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {
@@ -278,6 +294,14 @@ describe('validateBlockType', () => {
 
     it('always allows start_trigger regardless of allowlist', async () => {
       await validateBlockType(undefined, undefined, 'start_trigger')
+    })
+
+    it('always allows legacy blocks hidden from the toolbar', async () => {
+      mockGetBlock.mockImplementation((type) =>
+        type === 'notion' ? { hideFromToolbar: true } : undefined
+      )
+
+      await validateBlockType(undefined, undefined, 'notion')
     })
 
     it('matches case-insensitively', async () => {
@@ -443,6 +467,19 @@ describe('assertPermissionsAllowed', () => {
         blockType: 'discord',
       })
     ).rejects.toBeInstanceOf(IntegrationNotAllowedError)
+  })
+
+  it('exempts legacy blocks from the integration allowlist', async () => {
+    mockExplicitGroup.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    mockGetBlock.mockImplementation((type) =>
+      type === 'notion' ? { hideFromToolbar: true } : undefined
+    )
+
+    await assertPermissionsAllowed({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      blockType: 'notion',
+    })
   })
 
   it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {
