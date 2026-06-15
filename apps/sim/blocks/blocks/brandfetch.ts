@@ -100,6 +100,7 @@ export const BrandfetchBlock: BlockConfig<BrandfetchGetBrandResponse | Brandfetc
 
 export const BrandfetchBlockMeta = {
   tags: ['enrichment', 'marketing'],
+  url: 'https://brandfetch.com',
   templates: [
     {
       icon: BrandfetchIcon,

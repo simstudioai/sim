@@ -240,6 +240,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
 
 export const ApifyBlockMeta = {
   tags: ['web-scraping', 'automation', 'data-analytics'],
+  url: 'https://apify.com',
   templates: [
     {
       icon: ApifyIcon,

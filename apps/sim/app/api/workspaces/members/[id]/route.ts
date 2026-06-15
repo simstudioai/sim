@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissionGroupMember, permissions, workspace } from '@sim/db/schema'
+import { member, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -150,15 +150,6 @@ export const DELETE = withRouteHandler(
             )
 
           await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-
-          await tx
-            .delete(permissionGroupMember)
-            .where(
-              and(
-                eq(permissionGroupMember.userId, userId),
-                eq(permissionGroupMember.workspaceId, workspaceId)
-              )
-            )
 
           return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
         }

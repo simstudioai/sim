@@ -137,3 +137,7 @@ const handler = useCallback(() => {
 - **Query hooks**: `useEntity`, `useEntityList`
 - **Mutation hooks**: `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`
 - **Fetch functions**: `fetchEntity`, `fetchEntities` (private)
+
+## Enforcement
+
+`scripts/check-react-query-patterns.ts` (`bun run check:react-query`, run in CI) statically enforces these conventions: every `useQuery`/`useInfiniteQuery`/`useSuspenseQuery` declares an explicit `staleTime`, inline `queryFn`s destructure `signal`, `queryKey`s reference a colocated factory rather than an inline literal, and every `*Keys` factory in `hooks/queries/**` exposes an `all` root key. `hooks/queries/**` is a zero-tolerance zone; the rest of `apps/sim/**` is ratcheted against `scripts/check-react-query-patterns.baseline.json`. For a genuine exception, put `// rq-lint-allow: <reason>` on the line directly above the flagged construct.

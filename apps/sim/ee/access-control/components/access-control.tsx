@@ -42,8 +42,8 @@ import {
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
+import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
-import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   getProviderModels,
@@ -55,7 +55,7 @@ import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('AccessControl')
 
-interface WorkspaceMemberOption {
+interface OrganizationMemberOption {
   userId: string
   user: {
     name: string | null
@@ -67,7 +67,7 @@ interface WorkspaceMemberOption {
 interface AddMembersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  availableMembers: WorkspaceMemberOption[]
+  availableMembers: OrganizationMemberOption[]
   selectedMemberIds: Set<string>
   setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onAddMembers: () => void
@@ -145,7 +145,7 @@ function AddMembersModal({
       <ChipModalBody>
         {availableMembers.length === 0 ? (
           <p className='px-2 text-[var(--text-muted)] text-sm'>
-            All workspace members are already in this group.
+            All organization members are already in this group.
           </p>
         ) : (
           <ChipModalField type='custom' title='Members'>
@@ -405,23 +405,31 @@ export function AccessControl() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    workspaceId,
-    !!workspaceId
-  )
-  const { data: workspacePermissionsData, isPending: permsLoading } = useWorkspacePermissionsQuery(
-    workspaceId ?? null
-  )
+  // Access control is governed by the workspace's OWNING organization, which may
+  // differ from the caller's active org (e.g. external members). Resolve the org
+  // id and the caller's admin status server-side from the workspace so gating is
+  // never keyed off the session's active org.
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
+  const organizationId = userPermissionConfig?.organizationId ?? undefined
+  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
 
-  const currentUserIsWorkspaceAdmin = workspacePermissionsData?.viewer?.isAdmin ?? false
+  // Group + roster reads require org admin/owner on the host org; only fetch them
+  // for admins to avoid surfacing expected 403s for non-admins/external members.
+  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
+    organizationId,
+    !!organizationId && currentUserIsOrgAdmin
+  )
+  const { data: roster } = useOrganizationRoster(currentUserIsOrgAdmin ? organizationId : undefined)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
   const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
-  const canManage = isEntitled && currentUserIsWorkspaceAdmin
+  const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
-  const isLoading = !workspaceId || groupsLoading || permsLoading || entitlementLoading
+  const isLoading =
+    !workspaceId ||
+    entitlementLoading ||
+    (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()
@@ -433,13 +441,13 @@ export function AccessControl() {
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
-  const [newGroupAutoAdd, setNewGroupAutoAdd] = useState(false)
+  const [newGroupIsDefault, setNewGroupIsDefault] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<{ id: string; name: string } | null>(null)
   const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(() => new Set())
 
   const { data: members = [], isPending: membersLoading } = usePermissionGroupMembers(
-    workspaceId,
+    organizationId,
     viewingGroup?.id
   )
   const removeMember = useRemovePermissionGroupMember()
@@ -471,7 +479,7 @@ export function AccessControl() {
       },
       {
         id: 'hide-copilot',
-        label: 'Copilot',
+        label: 'Chat',
         category: 'Workflow Panel',
         configKey: 'hideCopilot' as const,
       },
@@ -664,17 +672,19 @@ export function AccessControl() {
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [filteredBlocks])
 
-  const workspaceMembers = useMemo<WorkspaceMemberOption[]>(() => {
-    if (!workspacePermissionsData) return []
-    return workspacePermissionsData.users.map((u) => ({
-      userId: u.userId,
-      user: {
-        name: u.name,
-        email: u.email,
-        image: u.image,
-      },
-    }))
-  }, [workspacePermissionsData])
+  const organizationMembers = useMemo<OrganizationMemberOption[]>(() => {
+    if (!roster?.members) return []
+    return roster.members
+      .filter((m) => m.role !== 'external')
+      .map((m) => ({
+        userId: m.userId,
+        user: {
+          name: m.name,
+          email: m.email,
+          image: m.image,
+        },
+      }))
+  }, [roster])
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm.trim()) return permissionGroups
@@ -683,19 +693,19 @@ export function AccessControl() {
   }, [permissionGroups, searchTerm])
 
   const handleCreatePermissionGroup = useCallback(async () => {
-    if (!newGroupName.trim() || !workspaceId) return
+    if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
     try {
       await createPermissionGroup.mutateAsync({
-        workspaceId,
+        organizationId,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
-        autoAddNewMembers: newGroupAutoAdd,
+        isDefault: newGroupIsDefault,
       })
       setShowCreateModal(false)
       setNewGroupName('')
       setNewGroupDescription('')
-      setNewGroupAutoAdd(false)
+      setNewGroupIsDefault(false)
     } catch (error) {
       logger.error('Failed to create permission group', error)
       if (error instanceof Error) {
@@ -704,13 +714,13 @@ export function AccessControl() {
         setCreateError('Failed to create permission group')
       }
     }
-  }, [newGroupName, newGroupDescription, newGroupAutoAdd, workspaceId, createPermissionGroup])
+  }, [newGroupName, newGroupDescription, newGroupIsDefault, organizationId, createPermissionGroup])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
     setNewGroupName('')
     setNewGroupDescription('')
-    setNewGroupAutoAdd(false)
+    setNewGroupIsDefault(false)
     setCreateError(null)
   }, [])
 
@@ -723,12 +733,12 @@ export function AccessControl() {
   }, [])
 
   const confirmDelete = useCallback(async () => {
-    if (!deletingGroup || !workspaceId) return
+    if (!deletingGroup || !organizationId) return
     setDeletingGroupIds((prev) => new Set(prev).add(deletingGroup.id))
     try {
       await deletePermissionGroup.mutateAsync({
         permissionGroupId: deletingGroup.id,
-        workspaceId,
+        organizationId,
       })
       setDeletingGroup(null)
       if (viewingGroup?.id === deletingGroup.id) {
@@ -743,14 +753,14 @@ export function AccessControl() {
         return next
       })
     }
-  }, [deletingGroup, workspaceId, deletePermissionGroup, viewingGroup?.id])
+  }, [deletingGroup, organizationId, deletePermissionGroup, viewingGroup?.id])
 
   const handleRemoveMember = useCallback(
     async (memberId: string) => {
-      if (!viewingGroup || !workspaceId) return
+      if (!viewingGroup || !organizationId) return
       try {
         await removeMember.mutateAsync({
-          workspaceId,
+          organizationId,
           permissionGroupId: viewingGroup.id,
           memberId,
         })
@@ -758,7 +768,7 @@ export function AccessControl() {
         logger.error('Failed to remove member', error)
       }
     },
-    [viewingGroup, workspaceId, removeMember]
+    [viewingGroup, organizationId, removeMember]
   )
 
   const handleOpenConfigModal = useCallback(() => {
@@ -768,11 +778,11 @@ export function AccessControl() {
   }, [viewingGroup])
 
   const handleSaveConfig = useCallback(async () => {
-    if (!viewingGroup || !editingConfig || !workspaceId) return
+    if (!viewingGroup || !editingConfig || !organizationId) return
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
-        workspaceId,
+        organizationId,
         config: editingConfig,
       })
       setShowConfigModal(false)
@@ -784,7 +794,7 @@ export function AccessControl() {
     } catch (error) {
       logger.error('Failed to update config', error)
     }
-  }, [viewingGroup, editingConfig, workspaceId, updatePermissionGroup])
+  }, [viewingGroup, editingConfig, organizationId, updatePermissionGroup])
 
   const handleCloseConfigModal = useCallback(() => {
     if (hasConfigChanges) {
@@ -818,11 +828,11 @@ export function AccessControl() {
   }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
-    if (!viewingGroup || !workspaceId || selectedMemberIds.size === 0) return
+    if (!viewingGroup || !organizationId || selectedMemberIds.size === 0) return
     setAddMembersError(null)
     try {
       await bulkAddMembers.mutateAsync({
-        workspaceId,
+        organizationId,
         permissionGroupId: viewingGroup.id,
         userIds: Array.from(selectedMemberIds),
       })
@@ -834,23 +844,23 @@ export function AccessControl() {
         error instanceof Error && error.message ? error.message : 'Failed to add members'
       )
     }
-  }, [viewingGroup, workspaceId, selectedMemberIds, bulkAddMembers])
+  }, [viewingGroup, organizationId, selectedMemberIds, bulkAddMembers])
 
-  const handleToggleAutoAdd = useCallback(
+  const handleToggleDefault = useCallback(
     async (enabled: boolean) => {
-      if (!viewingGroup || !workspaceId) return
+      if (!viewingGroup || !organizationId) return
       try {
         await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
-          workspaceId,
-          autoAddNewMembers: enabled,
+          organizationId,
+          isDefault: enabled,
         })
-        setViewingGroup((prev) => (prev ? { ...prev, autoAddNewMembers: enabled } : null))
+        setViewingGroup((prev) => (prev ? { ...prev, isDefault: enabled } : null))
       } catch (error) {
-        logger.error('Failed to toggle auto-add', error)
+        logger.error('Failed to toggle default group', error)
       }
     },
-    [viewingGroup, workspaceId, updatePermissionGroup]
+    [viewingGroup, organizationId, updatePermissionGroup]
   )
 
   const toggleIntegration = useCallback(
@@ -984,8 +994,8 @@ export function AccessControl() {
 
   const availableMembersToAdd = useMemo(() => {
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
-    return workspaceMembers.filter((m) => !existingMemberUserIds.has(m.userId))
-  }, [workspaceMembers, members])
+    return organizationMembers.filter((m) => !existingMemberUserIds.has(m.userId))
+  }, [organizationMembers, members])
 
   if (isLoading) {
     return null
@@ -994,7 +1004,7 @@ export function AccessControl() {
   if (!canManage) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Only workspace admins on Enterprise plans can manage Access Control settings.
+        Only organization admins on Enterprise plans can manage Access Control settings.
       </div>
     )
   }
@@ -1033,15 +1043,16 @@ export function AccessControl() {
               <div className='flex items-center justify-between'>
                 <div className='flex flex-col gap-0.5'>
                   <span className='font-medium text-[var(--text-primary)] text-sm'>
-                    Auto-add new members
+                    Default group
                   </span>
                   <span className='text-[var(--text-muted)] text-small'>
-                    Automatically add new workspace members to this group
+                    Applies to everyone in the organization not assigned to another group, including
+                    external workspace members
                   </span>
                 </div>
                 <Switch
-                  checked={viewingGroup.autoAddNewMembers}
-                  onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
+                  checked={viewingGroup.isDefault}
+                  onCheckedChange={(checked) => handleToggleDefault(checked)}
                   disabled={updatePermissionGroup.isPending}
                 />
               </div>
@@ -1411,11 +1422,13 @@ export function AccessControl() {
           </ChipModalBody>
           <ChipModalFooter
             onCancel={() => setShowUnsavedChanges(false)}
-            secondaryAction={{
-              label: 'Discard Changes',
-              onClick: handleDiscardConfig,
-              variant: 'destructive',
-            }}
+            secondaryActions={[
+              {
+                label: 'Discard Changes',
+                onClick: handleDiscardConfig,
+                variant: 'destructive',
+              },
+            ]}
             primaryAction={{
               label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
               onClick: handleSaveConfigFromUnsaved,
@@ -1484,9 +1497,9 @@ export function AccessControl() {
                         <span className='truncate text-[14px] text-[var(--text-body)]'>
                           {group.name}
                         </span>
-                        {group.autoAddNewMembers && (
+                        {group.isDefault && (
                           <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                            Auto-enrolls
+                            Default
                           </span>
                         )}
                       </div>
@@ -1531,12 +1544,12 @@ export function AccessControl() {
           <ChipModalField type='custom' title='Membership'>
             <div className='flex items-center gap-2'>
               <Checkbox
-                id='auto-add-members'
-                checked={newGroupAutoAdd}
-                onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
+                id='default-group'
+                checked={newGroupIsDefault}
+                onCheckedChange={(checked) => setNewGroupIsDefault(checked === true)}
               />
-              <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
-                Auto-add new workspace members
+              <Label htmlFor='default-group' className='cursor-pointer font-normal'>
+                Make this the organization default group
               </Label>
             </div>
           </ChipModalField>
@@ -1557,16 +1570,13 @@ export function AccessControl() {
         onOpenChange={() => setDeletingGroup(null)}
         srTitle='Delete Permission Group'
         title='Delete Permission Group'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              All members will be removed from this group.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: deletingGroup?.name ?? 'this group', bold: true },
+          '? ',
+          { text: 'All members will be removed from this group.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: confirmDelete,

@@ -752,6 +752,7 @@ export const AgentPhoneBlock: BlockConfig = {
 
 export const AgentPhoneBlockMeta = {
   tags: ['messaging', 'automation'],
+  url: 'https://agentphone.ai',
   templates: [
     {
       icon: AgentPhoneIcon,

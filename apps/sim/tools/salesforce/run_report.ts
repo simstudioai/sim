@@ -80,7 +80,7 @@ export const salesforceRunReportTool: ToolConfig<
         }
       }
       // Return undefined for GET requests (no body)
-      return undefined as any
+      return undefined
     },
   },
 
@@ -107,7 +107,7 @@ export const salesforceRunReportTool: ToolConfig<
         groupingsAcross: data.groupingsAcross ?? null,
         hasDetailRows: data.hasDetailRows ?? null,
         allData: data.allData ?? null,
-        reportName: data.reportMetadata?.name ?? null,
+        reportName: data.reportMetadata?.name ?? data.attributes?.reportName ?? null,
         reportFormat: data.reportMetadata?.reportFormat ?? null,
         success: true,
       },

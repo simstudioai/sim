@@ -682,13 +682,11 @@ function ServerDetailView({ workspaceId, serverId, onBack }: ServerDetailViewPro
         onOpenChange={(open) => !open && setToolToDelete(null)}
         srTitle='Remove Workflow'
         title='Remove Workflow'
-        description={
-          <>
-            Are you sure you want to remove{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.toolName}</span>{' '}
-            from this server? The workflow will remain deployed and can be added back later.
-          </>
-        }
+        text={[
+          'Are you sure you want to remove ',
+          { text: toolToDelete?.toolName ?? 'this workflow', bold: true },
+          ' from this server? The workflow will remain deployed and can be added back later.',
+        ]}
         confirm={{
           label: 'Remove',
           onClick: handleDeleteTool,
@@ -1071,13 +1069,11 @@ export function WorkflowMcpServers() {
         onOpenChange={(open) => !open && setServerToDelete(null)}
         srTitle='Delete MCP Server'
         title='Delete MCP Server'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{serverToDelete?.name}</span>?
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: serverToDelete?.name ?? 'this server', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{ label: 'Delete', onClick: handleDeleteServer }}
       />
     </>

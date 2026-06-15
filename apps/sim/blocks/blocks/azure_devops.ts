@@ -627,6 +627,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
 
 export const AzureDevOpsBlockMeta = {
   tags: ['version-control', 'ci-cd', 'project-management'],
+  url: 'https://azure.microsoft.com/products/devops',
   templates: [
     {
       icon: AzureIcon,

@@ -50,6 +50,48 @@ export function validateCronExpression(
   }
 }
 
+/** Upper bound on how many excluded occurrences the next-run search skips before giving up. */
+const MAX_OCCURRENCE_SKIP = 1000
+
+/**
+ * Computes the next run instant for a recurring schedule, skipping occurrences
+ * the user deleted individually and stopping at the recurrence end boundary.
+ * Returns `null` when the recurrence has no remaining run (past `endsAt`, or
+ * every candidate within the search bound is excluded).
+ *
+ * Excluded occurrences are matched by exact instant, so callers must record the
+ * cron-produced occurrence time (not a rounded value) when excluding.
+ */
+export function computeNextRunAt(params: {
+  cronExpression: string
+  timezone?: string
+  from?: Date
+  excludedDates?: string[] | null
+  endsAt?: Date | null
+}): Date | null {
+  const { cronExpression, timezone, from, excludedDates, endsAt } = params
+  let cron: Cron
+  try {
+    cron = new Cron(cronExpression, timezone ? { timezone } : undefined)
+  } catch {
+    return null
+  }
+
+  const excluded = new Set(
+    (excludedDates ?? []).map((iso) => new Date(iso).getTime()).filter((ms) => !Number.isNaN(ms))
+  )
+
+  let cursor = from ?? new Date()
+  for (let i = 0; i < MAX_OCCURRENCE_SKIP; i++) {
+    const next = cron.nextRun(cursor)
+    if (!next) return null
+    if (endsAt && next.getTime() > endsAt.getTime()) return null
+    if (!excluded.has(next.getTime())) return next
+    cursor = next
+  }
+  return null
+}
+
 interface SubBlockValue {
   value: string
 }

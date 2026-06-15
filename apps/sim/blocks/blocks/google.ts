@@ -94,6 +94,7 @@ Return ONLY the search query - no explanations, no quotes around the whole thing
 
 export const GoogleSearchBlockMeta = {
   tags: ['web-scraping', 'seo'],
+  url: 'https://developers.google.com/custom-search',
   templates: [
     {
       icon: GoogleIcon,

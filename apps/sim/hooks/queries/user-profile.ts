@@ -91,7 +91,7 @@ export function useUpdateUserProfile() {
       logger.error('Failed to update profile:', err)
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: userProfileKeys.profile() })
+      return queryClient.invalidateQueries({ queryKey: userProfileKeys.profile() })
     },
   })
 }

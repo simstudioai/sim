@@ -1265,6 +1265,7 @@ Return ONLY the comment text - no explanations.`,
 
 export const JiraServiceManagementBlockMeta = {
   tags: ['customer-support', 'ticketing', 'incident-management'],
+  url: 'https://www.atlassian.com/software/jira/service-management',
   templates: [
     {
       icon: JiraServiceManagementIcon,

@@ -2613,6 +2613,7 @@ export const LinearV2Block: BlockConfig<LinearResponse> = {
 
 export const LinearBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://linear.app',
   templates: [
     {
       icon: LinearIcon,

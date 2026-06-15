@@ -794,6 +794,7 @@ import type { BlockMeta } from '@/blocks/types'
 
 export const {Service}BlockMeta = {
   tags: ['tag1', 'tag2'],                  // IntegrationTag[]
+  url: 'https://{service}.com',            // external service homepage (verify it resolves) — NOT docs.sim.ai
   templates: [
     {
       icon: {Service}Icon,
@@ -845,6 +846,7 @@ Derive templates from the service's real use cases. Each prompt should name a co
 - [ ] Optional/rarely-used fields set to `mode: 'advanced'`
 - [ ] Timestamps and complex inputs have `wandConfig` enabled
 - [ ] Exported `{Service}BlockMeta` with at least 7 templates
+- [ ] `url` set on `{Service}BlockMeta` to the external service's verified homepage (omit only for first-party blocks with no external service)
 - [ ] `skills` added to `{Service}BlockMeta`, each grounded in `tools.access` and sourced from a real online use case (not invented)
 
 ## Final Validation (Required)

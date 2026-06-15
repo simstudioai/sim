@@ -125,18 +125,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           expirationSeconds: 3600,
         })
       } catch (error) {
-        throw new ValidationError(getErrorMessage(error, 'Copilot validation failed'))
+        throw new ValidationError(getErrorMessage(error, 'Chat validation failed'))
       }
     } else if (uploadType === 'mothership') {
       const workspaceId = request.nextUrl.searchParams.get('workspaceId')
       if (!workspaceId?.trim()) {
-        throw new ValidationError('workspaceId query parameter is required for mothership uploads')
+        throw new ValidationError('workspaceId query parameter is required for chat uploads')
       }
 
       const permission = await getUserEntityPermissions(sessionUserId, 'workspace', workspaceId)
       if (permission !== 'write' && permission !== 'admin') {
         return NextResponse.json(
-          { error: 'Write or Admin access required for mothership uploads' },
+          { error: 'Write or Admin access required for chat uploads' },
           { status: 403 }
         )
       }

@@ -54,6 +54,7 @@ export const CirclebackBlock: BlockConfig = {
 
 export const CirclebackBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://circleback.ai',
   templates: [
     {
       icon: CirclebackIcon,

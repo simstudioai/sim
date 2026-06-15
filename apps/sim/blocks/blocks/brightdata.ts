@@ -346,6 +346,7 @@ export const BrightDataBlock: BlockConfig<BrightDataResponse> = {
 
 export const BrightDataBlockMeta = {
   tags: ['web-scraping', 'automation'],
+  url: 'https://brightdata.com',
   templates: [
     {
       icon: BrightDataIcon,

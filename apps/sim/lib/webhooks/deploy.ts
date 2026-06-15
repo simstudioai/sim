@@ -932,6 +932,10 @@ async function persistCreatedWebhookRecordAfterCleanupFailure({
  * Removes external subscriptions and deletes webhook records from the database.
  *
  * @param skipExternalCleanup - If true, skip external subscription cleanup (already done elsewhere)
+ * @param shouldDeleteWebhook - Best-effort early-exit probe. Its implementations
+ *   query the global pool, so it MUST only be awaited while no transaction is open.
+ *   See {@link deleteWebhookRecordAfterCleanup} for the in-transaction recheck that
+ *   makes this probe non-authoritative.
  */
 export async function cleanupWebhooksForWorkflow(
   workflowId: string,
@@ -1036,6 +1040,16 @@ export async function cleanupWebhooksForWorkflow(
   )
 }
 
+/**
+ * Deletes a webhook record unless the deployment became active again.
+ *
+ * `shouldDeleteWebhook` is awaited BEFORE the transaction opens — its
+ * implementations query the global pool, so running it inside the
+ * transaction would nest a second pooled checkout under the held
+ * connection. The transaction does not need it: the `FOR UPDATE` select
+ * on the deployment version row is the authoritative recheck, and it
+ * aborts the delete if the version was reactivated.
+ */
 async function deleteWebhookRecordAfterCleanup(params: {
   workflowId: string
   deploymentVersionId?: string | null

@@ -1214,7 +1214,8 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }

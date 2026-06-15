@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   mockGetAllowedIntegrationsFromEnv,
-  mockIsWorkspaceOnEnterprisePlan,
+  mockIsOrganizationOnEnterprisePlan,
+  mockGetWorkspaceWithOwner,
   mockGetProviderFromModel,
-  mockDbGroupMembership,
+  mockExplicitGroup,
+  mockDefaultGroup,
 } = vi.hoisted(() => ({
   DEFAULT_PERMISSION_GROUP_CONFIG: {
     allowedIntegrations: null,
@@ -35,20 +37,33 @@ const {
     hideDeployTemplate: false,
   },
   mockGetAllowedIntegrationsFromEnv: vi.fn<() => string[] | null>(),
-  mockIsWorkspaceOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+  mockIsOrganizationOnEnterprisePlan: vi.fn<() => Promise<boolean>>(),
+  mockGetWorkspaceWithOwner: vi.fn<() => Promise<{ organizationId: string | null } | null>>(),
   mockGetProviderFromModel: vi.fn<(model: string) => string>(),
-  mockDbGroupMembership: { value: [] as Array<{ config: Record<string, unknown> }> },
+  // The explicit-group query joins permission_group_member -> permission_group;
+  // the org-default query selects permission_group directly. The db mock returns
+  // the explicit rows when `innerJoin` was called and the default rows otherwise.
+  mockExplicitGroup: { value: [] as Array<{ config: Record<string, unknown> }> },
+  mockDefaultGroup: { value: [] as Array<{ config: Record<string, unknown> }> },
 }))
 
 vi.mock('@sim/db', () => ({
   db: {
     select: vi.fn().mockImplementation(() => {
       const chain: Record<string, unknown> = {}
+      let usedInnerJoin = false
       chain.from = vi.fn().mockReturnValue(chain)
-      chain.innerJoin = vi.fn().mockReturnValue(chain)
+      chain.innerJoin = vi.fn().mockImplementation(() => {
+        usedInnerJoin = true
+        return chain
+      })
       chain.where = vi.fn().mockReturnValue(chain)
       chain.orderBy = vi.fn().mockReturnValue(chain)
-      chain.limit = vi.fn().mockImplementation(() => Promise.resolve(mockDbGroupMembership.value))
+      chain.limit = vi
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(usedInnerJoin ? mockExplicitGroup.value : mockDefaultGroup.value)
+        )
       return chain
     }),
   },
@@ -66,7 +81,11 @@ vi.mock('drizzle-orm', () => ({
 }))
 
 vi.mock('@/lib/billing', () => ({
-  isWorkspaceOnEnterprisePlan: mockIsWorkspaceOnEnterprisePlan,
+  isOrganizationOnEnterprisePlan: mockIsOrganizationOnEnterprisePlan,
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
@@ -103,6 +122,12 @@ import {
   validateModelProvider,
 } from './permission-check'
 
+/** Default an org-backed, enterprise-entitled workspace so resolution reaches the group queries. */
+function setEnterpriseOrgWorkspace() {
+  mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: 'org-1' })
+  mockIsOrganizationOnEnterprisePlan.mockResolvedValue(true)
+}
+
 describe('IntegrationNotAllowedError', () => {
   it.concurrent('creates error with correct name and message', () => {
     const error = new IntegrationNotAllowedError('discord')
@@ -119,35 +144,97 @@ describe('IntegrationNotAllowedError', () => {
   })
 })
 
-describe('getUserPermissionConfig', () => {
+describe('getUserPermissionConfig (org-scoped resolution)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbGroupMembership.value = []
-  })
-
-  it('returns env allowlist config when access control is disabled locally', async () => {
-    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
-
-    const config = await getUserPermissionConfig('user-123', 'workspace-1')
-
-    expect(config).not.toBeNull()
-    expect(config!.allowedIntegrations).toEqual(['slack'])
-  })
-
-  it('returns env allowlist config when workspace is not on enterprise plan', async () => {
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(false)
+  })
+
+  it('returns null when the workspace has no organization', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
 
     const config = await getUserPermissionConfig('user-123', 'workspace-1')
 
     expect(config).toBeNull()
+    expect(mockIsOrganizationOnEnterprisePlan).not.toHaveBeenCalled()
+  })
+
+  it('still applies the env allowlist on a no-org workspace', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: null })
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(['slack'])
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.allowedIntegrations).toEqual(['slack'])
+  })
+
+  it('returns null when the organization is not on an enterprise plan', async () => {
+    mockGetWorkspaceWithOwner.mockResolvedValue({ organizationId: 'org-1' })
+    mockIsOrganizationOnEnterprisePlan.mockResolvedValue(false)
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config).toBeNull()
+  })
+
+  it('returns the explicit group config when the user is assigned to one', async () => {
+    setEnterpriseOrgWorkspace()
+    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.disableMcpTools).toBe(true)
+  })
+
+  it('falls back to the org default group when the user has no explicit group', async () => {
+    setEnterpriseOrgWorkspace()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = [{ config: { disableSkills: true } }]
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.disableSkills).toBe(true)
+  })
+
+  it('governs an external member (no explicit group) via the org default group', async () => {
+    setEnterpriseOrgWorkspace()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = [{ config: { disableCustomTools: true } }]
+
+    const config = await getUserPermissionConfig('external-user', 'workspace-1')
+
+    expect(config?.disableCustomTools).toBe(true)
+  })
+
+  it('returns null when there is no explicit group and no default group', async () => {
+    setEnterpriseOrgWorkspace()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config).toBeNull()
+  })
+
+  it('prefers the explicit group over the org default group', async () => {
+    setEnterpriseOrgWorkspace()
+    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
+    mockDefaultGroup.value = [{ config: { disableSkills: true } }]
+
+    const config = await getUserPermissionConfig('user-123', 'workspace-1')
+
+    expect(config?.disableMcpTools).toBe(true)
+    expect(config?.disableSkills).toBe(false)
   })
 })
 
 describe('validateBlockType', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockDbGroupMembership.value = []
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
   })
 
   describe('when no env allowlist is configured', () => {
@@ -215,8 +302,10 @@ describe('validateBlockType', () => {
 describe('validateModelProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
+    setEnterpriseOrgWorkspace()
   })
 
   it('no-ops when user or workspace is missing', async () => {
@@ -225,7 +314,7 @@ describe('validateModelProvider', () => {
   })
 
   it('throws ProviderNotAllowedError when provider is not in allowlist', async () => {
-    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -234,14 +323,14 @@ describe('validateModelProvider', () => {
   })
 
   it('allows when provider is on the allowlist', async () => {
-    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
+    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic', 'openai'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4')
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -250,7 +339,7 @@ describe('validateModelProvider', () => {
   })
 
   it('denylist match is case-insensitive', async () => {
-    mockDbGroupMembership.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
+    mockExplicitGroup.value = [{ config: { deniedModels: ['Ollama/Llama3'] } }]
     mockGetProviderFromModel.mockReturnValue('ollama')
 
     await expect(
@@ -259,9 +348,7 @@ describe('validateModelProvider', () => {
   })
 
   it('enforces the denylist even when no provider allowlist is set', async () => {
-    mockDbGroupMembership.value = [
-      { config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } },
-    ]
+    mockExplicitGroup.value = [{ config: { allowedModelProviders: null, deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
@@ -270,22 +357,34 @@ describe('validateModelProvider', () => {
   })
 
   it('allows a model that is not on the denylist', async () => {
-    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await validateModelProvider('user-123', 'workspace-1', 'gpt-4o')
+  })
+
+  it('applies the org default group when the user has no explicit group', async () => {
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockGetProviderFromModel.mockReturnValue('openai')
+
+    await expect(validateModelProvider('user-123', 'workspace-1', 'gpt-4')).rejects.toBeInstanceOf(
+      ProviderNotAllowedError
+    )
   })
 })
 
 describe('validateMcpToolsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
+    setEnterpriseOrgWorkspace()
   })
 
   it('throws McpToolsNotAllowedError when disableMcpTools is set', async () => {
-    mockDbGroupMembership.value = [{ config: { disableMcpTools: true } }]
+    mockExplicitGroup.value = [{ config: { disableMcpTools: true } }]
 
     await expect(validateMcpToolsAllowed('user-123', 'workspace-1')).rejects.toBeInstanceOf(
       McpToolsNotAllowedError
@@ -293,7 +392,7 @@ describe('validateMcpToolsAllowed', () => {
   })
 
   it('no-ops when disableMcpTools is false', async () => {
-    mockDbGroupMembership.value = [{ config: {} }]
+    mockExplicitGroup.value = [{ config: {} }]
 
     await validateMcpToolsAllowed('user-123', 'workspace-1')
   })
@@ -302,12 +401,14 @@ describe('validateMcpToolsAllowed', () => {
 describe('assertPermissionsAllowed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
     mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
-    mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
+    setEnterpriseOrgWorkspace()
   })
 
   it('throws ProviderNotAllowedError when model provider is blocked', async () => {
-    mockDbGroupMembership.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
+    mockExplicitGroup.value = [{ config: { allowedModelProviders: ['anthropic'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -320,7 +421,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws ModelNotAllowedError when the model is on the denylist', async () => {
-    mockDbGroupMembership.value = [{ config: { deniedModels: ['gpt-4'] } }]
+    mockExplicitGroup.value = [{ config: { deniedModels: ['gpt-4'] } }]
     mockGetProviderFromModel.mockReturnValue('openai')
 
     await expect(
@@ -333,7 +434,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws IntegrationNotAllowedError when block type is blocked', async () => {
-    mockDbGroupMembership.value = [{ config: { allowedIntegrations: ['slack'] } }]
+    mockExplicitGroup.value = [{ config: { allowedIntegrations: ['slack'] } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -345,7 +446,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws CustomToolsNotAllowedError when custom tools are disabled', async () => {
-    mockDbGroupMembership.value = [{ config: { disableCustomTools: true } }]
+    mockExplicitGroup.value = [{ config: { disableCustomTools: true } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -357,7 +458,7 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('throws SkillsNotAllowedError when skills are disabled', async () => {
-    mockDbGroupMembership.value = [{ config: { disableSkills: true } }]
+    mockExplicitGroup.value = [{ config: { disableSkills: true } }]
 
     await expect(
       assertPermissionsAllowed({
@@ -369,7 +470,8 @@ describe('assertPermissionsAllowed', () => {
   })
 
   it('passes when the workspace has no blocking config', async () => {
-    mockDbGroupMembership.value = []
+    mockExplicitGroup.value = []
+    mockDefaultGroup.value = []
 
     await assertPermissionsAllowed({
       userId: 'user-123',

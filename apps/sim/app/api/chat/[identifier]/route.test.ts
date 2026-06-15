@@ -13,6 +13,7 @@ import {
   workflowsApiUtilsMock,
   workflowsApiUtilsMockFns,
 } from '@sim/testing'
+import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -63,10 +64,16 @@ const createMockStream = () => {
   })
 }
 
-const { mockValidateChatAuth, mockSetChatAuthCookie, mockValidateAuthToken } = vi.hoisted(() => ({
+const {
+  mockValidateChatAuth,
+  mockSetChatAuthCookie,
+  mockValidateAuthToken,
+  mockAssertChatEmbedAllowed,
+} = vi.hoisted(() => ({
   mockValidateChatAuth: vi.fn().mockResolvedValue({ authorized: true }),
   mockSetChatAuthCookie: vi.fn(),
   mockValidateAuthToken: vi.fn().mockReturnValue(false),
+  mockAssertChatEmbedAllowed: vi.fn().mockResolvedValue(null),
 }))
 
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -87,6 +94,7 @@ vi.mock('@/lib/core/security/deployment', () => ({
 vi.mock('@/app/api/chat/utils', () => ({
   validateChatAuth: mockValidateChatAuth,
   setChatAuthCookie: mockSetChatAuthCookie,
+  assertChatEmbedAllowed: mockAssertChatEmbedAllowed,
 }))
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
@@ -230,6 +238,24 @@ describe('Chat Identifier API Route', () => {
       expect(data.customizations).toHaveProperty('welcomeMessage', 'Welcome to the test chat')
     })
 
+    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
+      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
+        NextResponse.json(
+          { error: 'Embedding this chat on external sites requires a paid plan' },
+          {
+            status: 403,
+          }
+        )
+      )
+
+      const req = createMockNextRequest('GET', undefined, { origin: 'https://evil.example.com' })
+      const params = Promise.resolve({ identifier: 'test-chat' })
+
+      const response = await GET(req, { params })
+
+      expect(response.status).toBe(403)
+    })
+
     it('should return 404 for non-existent identifier', async () => {
       dbChainMockFns.select.mockImplementation(() => {
         return {
@@ -302,6 +328,28 @@ describe('Chat Identifier API Route', () => {
   })
 
   describe('POST endpoint', () => {
+    it('should return 403 when embedding is blocked for a cross-origin caller', async () => {
+      mockAssertChatEmbedAllowed.mockResolvedValueOnce(
+        NextResponse.json(
+          { error: 'Embedding this chat on external sites requires a paid plan' },
+          {
+            status: 403,
+          }
+        )
+      )
+
+      const req = createMockNextRequest(
+        'POST',
+        { input: 'Hello' },
+        { origin: 'https://evil.example.com' }
+      )
+      const params = Promise.resolve({ identifier: 'test-chat' })
+
+      const response = await POST(req, { params })
+
+      expect(response.status).toBe(403)
+    })
+
     it('should return chat config on successful authentication', async () => {
       const req = createMockNextRequest('POST', { password: 'test-password' })
       const params = Promise.resolve({ identifier: 'password-protected-chat' })

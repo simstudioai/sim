@@ -1377,7 +1377,7 @@ export const Terminal = memo(function Terminal() {
                         <Button
                           variant='ghost'
                           onClick={handleTrainingClick}
-                          aria-label={isTraining ? 'Stop training' : 'Train Copilot'}
+                          aria-label={isTraining ? 'Stop training' : 'Train Sim'}
                           className={clsx(
                             '!p-1.5 -m-1.5',
                             isTraining && 'text-orange-600 dark:text-orange-400'
@@ -1391,7 +1391,7 @@ export const Terminal = memo(function Terminal() {
                         </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content>
-                        <span>{isTraining ? 'Stop Training' : 'Train Copilot'}</span>
+                        <span>{isTraining ? 'Stop Training' : 'Train Sim'}</span>
                       </Tooltip.Content>
                     </Tooltip.Root>
                   )}

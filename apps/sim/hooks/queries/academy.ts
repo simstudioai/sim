@@ -34,8 +34,7 @@ export function useIssueCertificate() {
   return useMutation({
     mutationFn: (variables: { courseId: string; completedLessonIds: string[] }) =>
       requestJson(issueAcademyCertificateContract, { body: variables }).then((d) => d.certificate),
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: academyKeys.certificate(variables.courseId) })
-    },
+    onSettled: (_data, _error, variables) =>
+      queryClient.invalidateQueries({ queryKey: academyKeys.certificate(variables.courseId) }),
   })
 }

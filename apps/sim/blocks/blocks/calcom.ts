@@ -920,6 +920,7 @@ Return ONLY valid JSON - no explanations.`,
 
 export const CalComBlockMeta = {
   tags: ['scheduling', 'calendar', 'meeting'],
+  url: 'https://cal.com',
   templates: [
     {
       icon: CalComIcon,

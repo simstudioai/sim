@@ -879,6 +879,7 @@ Return ONLY the numeric timestamp - no explanations, no quotes, no extra text.`,
 
 export const CloudWatchBlockMeta = {
   tags: ['cloud', 'monitoring'],
+  url: 'https://aws.amazon.com/cloudwatch',
   templates: [
     {
       icon: CloudWatchIcon,

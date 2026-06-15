@@ -1,6 +1,6 @@
 import type { SalesforceGetLeadsParams, SalesforceGetLeadsResponse } from '@/tools/salesforce/types'
 import { QUERY_PAGING_OUTPUT, RESPONSE_METADATA_OUTPUT } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceGetLeadsTool: ToolConfig<
@@ -9,7 +9,7 @@ export const salesforceGetLeadsTool: ToolConfig<
 > = {
   id: 'salesforce_get_leads',
   name: 'Get Leads from Salesforce',
-  description: 'Get lead(s) from Salesforce',
+  description: 'Retrieve lead(s) from Salesforce CRM',
   version: '1.0.0',
 
   oauth: {
@@ -52,9 +52,10 @@ export const salesforceGetLeadsTool: ToolConfig<
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
       if (params.leadId) {
+        const leadId = requireId(params.leadId, 'Lead ID')
         const fields =
           params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
-        return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${params.leadId}?fields=${fields}`
+        return `${instanceUrl}/services/data/v59.0/sobjects/Lead/${leadId}?fields=${encodeURIComponent(fields)}`
       }
       const limit = params.limit ? Number.parseInt(params.limit) : 100
       const fields = params.fields || 'Id,FirstName,LastName,Company,Email,Phone,Status,LeadSource'
@@ -71,7 +72,8 @@ export const salesforceGetLeadsTool: ToolConfig<
 
   transformResponse: async (response, params?) => {
     const data = await response.json()
-    if (!response.ok) throw new Error(data[0]?.message || data.message || 'Failed to fetch leads')
+    if (!response.ok)
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to fetch leads'))
     if (params?.leadId) {
       return {
         success: true,

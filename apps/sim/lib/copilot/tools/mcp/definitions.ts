@@ -211,7 +211,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     name: 'create_job',
     toolId: 'create_job',
     description:
-      'Create a scheduled background job that runs a prompt against the Mothership at a specified frequency or time. Use for polling, reminders, or deferred tasks. Provide cron for recurring jobs or time for one-time execution.',
+      'Create a scheduled background job that runs a prompt against Sim at a specified frequency or time. Use for polling, reminders, or deferred tasks. Provide cron for recurring jobs or time for one-time execution.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -445,7 +445,7 @@ Supports full and partial execution:
     name: 'sim_job',
     agentId: 'job',
     description:
-      'Manage scheduled background jobs. Supports creating, listing, updating, pausing, resuming, and deleting jobs that run prompts against the Mothership on a schedule or at a specific time.',
+      'Manage scheduled background jobs. Supports creating, listing, updating, pausing, resuming, and deleting jobs that run prompts against Sim on a schedule or at a specific time.',
     inputSchema: {
       type: 'object',
       properties: {

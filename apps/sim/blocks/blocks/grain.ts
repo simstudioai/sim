@@ -464,6 +464,7 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
 
 export const GrainBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://grain.com',
   templates: [
     {
       icon: GrainIcon,

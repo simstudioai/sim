@@ -103,7 +103,7 @@ async function* pages(input: SourcePageInput): AsyncIterable<CopilotChatRow[]> {
 
 export const copilotChatsSource: DrainSource<CopilotChatRow> = {
   type: 'copilot_chats',
-  displayName: 'Copilot chats',
+  displayName: 'Chats',
   pages,
   serialize(row) {
     return {

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Chip, chipVariants } from '@/components/emcn/components/chip/chip'
+import { chipContentLabelClass } from '@/components/emcn/components/chip/chip-chrome'
 import { cn } from '@/lib/core/utils/cn'
 
 const MONTHS = [
@@ -85,9 +87,11 @@ export interface CalendarProps {
 }
 
 /**
- * Single-month date grid aligned with the chip family — `rounded-lg` day cells,
- * `--surface-active` hover, and a `primary`-chip fill on the selected day. Pair
- * it with {@link ChipDatePicker} for a chip trigger, or embed it directly.
+ * Single-month date grid composed from the chip family — icon-only `Chip`
+ * chevrons for month navigation, day cells built on `chipVariants` (`primary`
+ * fill when selected, the `border` shadow-ring on today), and a `filled`-chip
+ * Today action. Pair it with {@link ChipDatePicker} for a chip trigger, or
+ * embed it directly.
  *
  * @example
  * <Calendar value={value} onChange={setValue} />
@@ -139,33 +143,19 @@ export function Calendar({ value, onChange, className }: CalendarProps) {
 
   return (
     <div className={cn('flex w-[256px] flex-col p-2', className)}>
-      <div className='flex items-center justify-between px-1 pb-1'>
-        <button
-          type='button'
-          aria-label='Previous month'
-          onClick={goToPrevMonth}
-          className='flex size-[28px] items-center justify-center rounded-lg text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
-        >
-          <ChevronLeft className='size-4' />
-        </button>
-        <span className='font-medium text-[var(--text-primary)] text-sm'>
+      <div className='flex items-center justify-between pb-1'>
+        <Chip leftIcon={ChevronLeft} aria-label='Previous month' onClick={goToPrevMonth} />
+        <span className={chipContentLabelClass}>
           {MONTHS[view.month]} {view.year}
         </span>
-        <button
-          type='button'
-          aria-label='Next month'
-          onClick={goToNextMonth}
-          className='flex size-[28px] items-center justify-center rounded-lg text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
-        >
-          <ChevronRight className='size-4' />
-        </button>
+        <Chip rightIcon={ChevronRight} aria-label='Next month' onClick={goToNextMonth} />
       </div>
 
       <div className='grid grid-cols-7'>
         {WEEKDAYS.map((weekday) => (
           <div
             key={weekday}
-            className='flex h-[28px] items-center justify-center text-[var(--text-muted)] text-xs'
+            className='flex h-[28px] items-center justify-center text-[var(--text-muted)] text-caption'
           >
             {weekday}
           </div>
@@ -186,12 +176,12 @@ export function Calendar({ value, onChange, className }: CalendarProps) {
                 type='button'
                 onClick={() => selectDay(day)}
                 className={cn(
-                  'flex size-[30px] items-center justify-center rounded-lg text-sm transition-colors',
-                  isSelected
-                    ? 'bg-[var(--text-primary)] text-[var(--text-inverse)] dark:bg-white dark:text-[var(--bg)]'
-                    : isToday
-                      ? 'font-medium text-[var(--text-primary)] ring-1 ring-[var(--border-1)] ring-inset hover-hover:bg-[var(--surface-active)]'
-                      : 'text-[var(--text-body)] hover-hover:bg-[var(--surface-active)]'
+                  chipVariants({
+                    variant: isSelected ? 'primary' : isToday ? 'border' : undefined,
+                    flush: true,
+                  }),
+                  'size-[30px] justify-center p-0',
+                  !isSelected && 'text-[var(--text-body)]'
                 )}
               >
                 {day}
@@ -204,9 +194,12 @@ export function Calendar({ value, onChange, className }: CalendarProps) {
       <button
         type='button'
         onClick={goToToday}
-        className='mt-1 flex h-[30px] w-full items-center justify-center rounded-lg text-[var(--text-secondary)] text-sm transition-colors hover-hover:bg-[var(--surface-active)] hover-hover:text-[var(--text-primary)]'
+        className={cn(
+          chipVariants({ variant: 'filled', fullWidth: true, flush: true }),
+          'mt-1 justify-center'
+        )}
       >
-        Today
+        <span className={chipContentLabelClass}>Today</span>
       </button>
     </div>
   )

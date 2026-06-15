@@ -369,6 +369,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const AsanaBlockMeta = {
   tags: ['project-management', 'ticketing', 'automation'],
+  url: 'https://asana.com',
   templates: [
     {
       icon: AsanaIcon,

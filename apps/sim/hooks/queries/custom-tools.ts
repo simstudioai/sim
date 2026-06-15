@@ -217,8 +217,7 @@ export function useCreateCustomTool() {
       logger.info(`Created custom tool: ${tool.title}`)
       return data.data as CustomToolDefinition[]
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate tools list for the workspace
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: customToolsKeys.list(variables.workspaceId) })
     },
   })

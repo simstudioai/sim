@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { organizationIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
@@ -31,12 +32,14 @@ export const addPermissionGroupMemberBodySchema = z.object({
   userId: z.string().min(1),
 })
 
+/** Route params for organization-scoped permission-group collection routes (`id` = organizationId). */
 export const permissionGroupParamsSchema = z.object({
-  id: z.string().min(1),
+  id: organizationIdSchema,
 })
 
+/** Route params for a single permission group (`id` = organizationId, `groupId` = permission group id). */
 export const permissionGroupDetailParamsSchema = z.object({
-  id: z.string().min(1),
+  id: organizationIdSchema,
   groupId: z.string().min(1),
 })
 
@@ -51,20 +54,20 @@ export const permissionGroupSchema = z.object({
   creatorName: z.string().nullable(),
   creatorEmail: z.string().nullable(),
   memberCount: z.number(),
-  autoAddNewMembers: z.boolean(),
+  isDefault: z.boolean(),
 })
 export type PermissionGroup = z.output<typeof permissionGroupSchema>
 
 export const permissionGroupWriteSchema = z.object({
   id: z.string(),
-  workspaceId: z.string(),
+  organizationId: z.string(),
   name: z.string(),
   description: z.string().nullable(),
   config: permissionGroupFullConfigSchema,
   createdBy: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),
-  autoAddNewMembers: z.boolean(),
+  isDefault: z.boolean(),
 })
 export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
 
@@ -87,6 +90,10 @@ export const userPermissionConfigSchema = z.object({
   groupName: z.string().nullable(),
   config: permissionGroupFullConfigSchema.nullable(),
   entitled: z.boolean(),
+  /** The workspace's owning organization id (null when the workspace has no org). */
+  organizationId: z.string().nullable(),
+  /** Whether the caller is an owner/admin of the workspace's owning organization. */
+  isOrgAdmin: z.boolean(),
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 
@@ -94,14 +101,14 @@ export const createPermissionGroupBodySchema = z.object({
   name: z.string().trim().min(1).max(100),
   description: z.string().max(500).optional(),
   config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
 })
 
 export const updatePermissionGroupBodySchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
   config: permissionGroupConfigSchema.optional(),
-  autoAddNewMembers: z.boolean().optional(),
+  isDefault: z.boolean().optional(),
 })
 
 export const removePermissionGroupMemberQuerySchema = z.object({
@@ -110,7 +117,7 @@ export const removePermissionGroupMemberQuerySchema = z.object({
 
 export const bulkAddPermissionGroupMembersBodySchema = z.object({
   userIds: z.array(z.string()).optional(),
-  addAllWorkspaceMembers: z.boolean().optional(),
+  addAllOrganizationMembers: z.boolean().optional(),
 })
 
 const successResponseSchema = z.object({
@@ -119,7 +126,7 @@ const successResponseSchema = z.object({
 
 export const listPermissionGroupsContract = defineRouteContract({
   method: 'GET',
-  path: '/api/workspaces/[id]/permission-groups',
+  path: '/api/organizations/[id]/permission-groups',
   params: permissionGroupParamsSchema,
   response: {
     mode: 'json',
@@ -131,7 +138,7 @@ export const listPermissionGroupsContract = defineRouteContract({
 
 export const createPermissionGroupContract = defineRouteContract({
   method: 'POST',
-  path: '/api/workspaces/[id]/permission-groups',
+  path: '/api/organizations/[id]/permission-groups',
   params: permissionGroupParamsSchema,
   body: createPermissionGroupBodySchema,
   response: {
@@ -154,7 +161,7 @@ export const getUserPermissionConfigContract = defineRouteContract({
 
 export const updatePermissionGroupContract = defineRouteContract({
   method: 'PUT',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]',
+  path: '/api/organizations/[id]/permission-groups/[groupId]',
   params: permissionGroupDetailParamsSchema,
   body: updatePermissionGroupBodySchema,
   response: {
@@ -167,7 +174,7 @@ export const updatePermissionGroupContract = defineRouteContract({
 
 export const deletePermissionGroupContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]',
+  path: '/api/organizations/[id]/permission-groups/[groupId]',
   params: permissionGroupDetailParamsSchema,
   response: {
     mode: 'json',
@@ -177,7 +184,7 @@ export const deletePermissionGroupContract = defineRouteContract({
 
 export const listPermissionGroupMembersContract = defineRouteContract({
   method: 'GET',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]/members',
+  path: '/api/organizations/[id]/permission-groups/[groupId]/members',
   params: permissionGroupDetailParamsSchema,
   response: {
     mode: 'json',
@@ -189,7 +196,7 @@ export const listPermissionGroupMembersContract = defineRouteContract({
 
 export const removePermissionGroupMemberContract = defineRouteContract({
   method: 'DELETE',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]/members',
+  path: '/api/organizations/[id]/permission-groups/[groupId]/members',
   params: permissionGroupDetailParamsSchema,
   query: removePermissionGroupMemberQuerySchema,
   response: {
@@ -200,7 +207,7 @@ export const removePermissionGroupMemberContract = defineRouteContract({
 
 export const addPermissionGroupMemberContract = defineRouteContract({
   method: 'POST',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]/members',
+  path: '/api/organizations/[id]/permission-groups/[groupId]/members',
   params: permissionGroupDetailParamsSchema,
   body: addPermissionGroupMemberBodySchema,
   response: {
@@ -209,7 +216,7 @@ export const addPermissionGroupMemberContract = defineRouteContract({
       member: z.object({
         id: z.string(),
         permissionGroupId: z.string(),
-        workspaceId: z.string(),
+        organizationId: z.string(),
         userId: z.string(),
         assignedBy: z.string(),
         assignedAt: z.string(),
@@ -220,7 +227,7 @@ export const addPermissionGroupMemberContract = defineRouteContract({
 
 export const bulkAddPermissionGroupMembersContract = defineRouteContract({
   method: 'POST',
-  path: '/api/workspaces/[id]/permission-groups/[groupId]/members/bulk',
+  path: '/api/organizations/[id]/permission-groups/[groupId]/members/bulk',
   params: permissionGroupDetailParamsSchema,
   body: bulkAddPermissionGroupMembersBodySchema,
   response: {

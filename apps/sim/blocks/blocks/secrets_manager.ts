@@ -282,6 +282,7 @@ export const SecretsManagerBlock: BlockConfig<SecretsManagerBaseResponse> = {
 
 export const SecretsManagerBlockMeta = {
   tags: ['cloud', 'secrets-management'],
+  url: 'https://aws.amazon.com/secrets-manager',
   templates: [
     {
       icon: SecretsManagerIcon,
