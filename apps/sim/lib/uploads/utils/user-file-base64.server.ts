@@ -1,5 +1,6 @@
 import type { Logger } from '@sim/logger'
 import { createLogger } from '@sim/logger'
+import { isPlainRecord } from '@sim/utils/object'
 import { getRedisClient } from '@/lib/core/config/redis'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
 import { recordMaterializedAccessKeys } from '@/lib/execution/payloads/access-keys'
@@ -573,14 +574,6 @@ export async function hydrateUserFileWithBase64(
   return hydrateUserFile(file, options, state, logger)
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object') {
-    return false
-  }
-  const proto = Object.getPrototypeOf(value)
-  return proto === Object.prototype || proto === null
-}
-
 /**
  * Checks if a value contains any UserFile objects with metadata.
  */
@@ -597,7 +590,7 @@ export function containsUserFileWithMetadata(value: unknown): boolean {
     return value.some((item) => containsUserFileWithMetadata(item))
   }
 
-  if (!isPlainObject(value)) {
+  if (!isPlainRecord(value)) {
     return false
   }
 

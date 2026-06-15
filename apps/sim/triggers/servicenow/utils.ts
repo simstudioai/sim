@@ -1,5 +1,6 @@
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
+import { normalizeToken } from '@/triggers/utils/tokens'
 
 /**
  * Shared trigger dropdown options for all ServiceNow triggers
@@ -128,13 +129,6 @@ export function buildChangeRequestOutputs(): Record<string, TriggerOutput> {
     category: { type: 'string', description: 'Change category' },
     record: { type: 'json', description: 'Full change request record data' },
   }
-}
-
-function normalizeToken(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_')
 }
 
 /**

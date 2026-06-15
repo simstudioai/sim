@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { videoProviders, videoToolContract } from '@/lib/api/contracts/tools/media/video'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
@@ -1081,10 +1082,6 @@ function formatFalAIDuration(
   return String(duration)
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function getStringProperty(
   record: Record<string, unknown> | undefined,
   key: string
@@ -1159,7 +1156,7 @@ function getFalAIValidationError(
 
 function getFalAIErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error
-  if (isRecord(error)) return getStringProperty(error, 'message') || JSON.stringify(error)
+  if (isRecordLike(error)) return getStringProperty(error, 'message') || JSON.stringify(error)
   return 'Unknown error'
 }
 
@@ -1236,7 +1233,7 @@ async function generateWithFalAI(
   }
 
   const createData = await readVideoJson<unknown>(createResponse, 'Fal.ai queue response')
-  if (!isRecord(createData)) {
+  if (!isRecordLike(createData)) {
     throw new Error('Invalid Fal.ai queue response')
   }
 
@@ -1273,7 +1270,7 @@ async function generateWithFalAI(
     }
 
     const statusData = await readVideoJson<unknown>(statusResponse, 'Fal.ai status response')
-    if (!isRecord(statusData)) {
+    if (!isRecordLike(statusData)) {
       throw new Error('Invalid Fal.ai status response')
     }
 
@@ -1300,12 +1297,12 @@ async function generateWithFalAI(
       }
 
       const resultData = await readVideoJson<unknown>(resultResponse, 'Fal.ai result response')
-      if (!isRecord(resultData)) {
+      if (!isRecordLike(resultData)) {
         throw new Error('Invalid Fal.ai result response')
       }
 
-      const videoOutput = isRecord(resultData.video) ? resultData.video : undefined
-      const fallbackOutput = isRecord(resultData.output) ? resultData.output : undefined
+      const videoOutput = isRecordLike(resultData.video) ? resultData.video : undefined
+      const fallbackOutput = isRecordLike(resultData.output) ? resultData.output : undefined
       const videoUrl =
         getStringProperty(videoOutput, 'url') || getStringProperty(fallbackOutput, 'url')
       if (!videoUrl) {

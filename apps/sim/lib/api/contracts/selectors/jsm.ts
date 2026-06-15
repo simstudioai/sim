@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import {
   credentialWorkflowDomainBodySchema,
@@ -159,10 +160,9 @@ export const jsmAttachFormBodySchema = jsmIssueFormsBodySchema.extend({
 })
 
 export const jsmSaveFormAnswersBodySchema = jsmIssueFormBodySchema.extend({
-  answers: z.custom<Record<string, unknown>>(
-    (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
-    { message: 'Answers object is required' }
-  ),
+  answers: z.custom<Record<string, unknown>>(isRecordLike, {
+    message: 'Answers object is required',
+  }),
 })
 
 export const jsmProjectFormTemplatesBodySchema = jsmBaseBodySchema.extend({

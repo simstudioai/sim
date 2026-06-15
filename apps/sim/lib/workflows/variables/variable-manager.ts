@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type { VariableType } from '@/stores/variables/types'
 
 /**
@@ -66,7 +67,7 @@ export class VariableManager {
 
       case 'object':
         // Already an object (not array)
-        if (typeof unquoted === 'object' && unquoted !== null && !Array.isArray(unquoted)) {
+        if (isRecordLike(unquoted)) {
           return unquoted
         }
         // Special case for test
