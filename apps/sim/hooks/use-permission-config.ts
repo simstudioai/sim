@@ -7,6 +7,7 @@ import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,
@@ -91,7 +92,7 @@ export function usePermissionConfig(): PermissionConfigResult {
 
   const isBlockAllowed = useMemo(() => {
     return (blockType: string) => {
-      if (blockType === 'start_trigger') return true
+      if (isBlockTypeAccessControlExempt(blockType)) return true
       if (mergedAllowedIntegrations === null) return true
       return mergedAllowedIntegrations.includes(blockType.toLowerCase())
     }
@@ -117,7 +118,7 @@ export function usePermissionConfig(): PermissionConfigResult {
       if (mergedAllowedIntegrations === null) return blocks
       return blocks.filter(
         (block) =>
-          block.type === 'start_trigger' ||
+          isBlockTypeAccessControlExempt(block.type) ||
           mergedAllowedIntegrations.includes(block.type.toLowerCase())
       )
     }
