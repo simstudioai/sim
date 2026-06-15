@@ -19,15 +19,15 @@ import {
 } from '@/lib/table'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
-import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
-import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
 import {
   addImportColumns,
   bulkInsertImportBatch,
   deleteAllTableRows,
-  getTableById,
   setTableSchemaForImport,
-} from '@/lib/table/service'
+} from '@/lib/table/import-data'
+import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
+import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
 

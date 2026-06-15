@@ -10,7 +10,7 @@
 import { userTableDefinitions } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { importAppendRows } from '@/lib/table/service'
+import { importAppendRows } from '@/lib/table/import-data'
 import type { TableDefinition } from '@/lib/table/types'
 
 vi.mock('@sim/db', () => dbChainMock)
