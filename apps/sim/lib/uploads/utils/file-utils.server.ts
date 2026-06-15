@@ -158,10 +158,17 @@ export interface DownloadFileFromUrlOptions {
 }
 
 /**
- * Download a file from a URL (internal or external)
+ * Download a file from a URL (internal or external).
+ *
  * For internal URLs, uses direct storage access (server-side only) after
- * authorizing the resolved storage key against `userId`
- * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
+ * authorizing the resolved storage key against `userId`. Context is derived
+ * from the key via {@link inferContextFromKey}, never from a caller-controlled
+ * `?context=` query param — trusting the param would let a private key be
+ * labeled with a world-readable context (e.g. profile-pictures) so
+ * {@link verifyFileAccess} short-circuits to granted while the private object is
+ * still read. This mirrors how `/api/files/serve` resolves context.
+ *
+ * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning.
  */
 export async function downloadFileFromUrl(
   fileUrl: string,
@@ -181,11 +188,6 @@ export async function downloadFileFromUrl(
       throw new Error('Access denied: could not resolve internal file key')
     }
 
-    // Derive the storage context from the key itself, never from a caller-controlled
-    // `?context=` query param. Trusting the param lets a private key be labeled with a
-    // world-readable context (e.g. profile-pictures), so verifyFileAccess short-circuits
-    // to granted while downloadFile still reads the private object. This mirrors how
-    // /api/files/serve resolves context (inferContextFromKey only).
     const context = inferContextFromKey(key)
 
     const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
