@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
-import { ChipDatePicker, ChipModalField, Switch } from '@/components/emcn'
+import { ChipDatePicker, ChipModalField, ChipModalSeparator, Switch } from '@/components/emcn'
 import type {
   Recurrence,
   RecurrenceFrequency,
@@ -128,7 +128,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
   return (
     <div className='flex flex-col'>
-      <div className='h-px bg-[var(--border)]' />
+      <ChipModalSeparator />
       <div className='flex flex-col gap-4 px-2 pt-4 pb-4.5'>
         <ChipModalField type='custom' title='Recurring'>
           <Switch checked={isRecurring} onCheckedChange={handleRecurringToggle} />
