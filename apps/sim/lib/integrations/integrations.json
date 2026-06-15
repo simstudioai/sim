@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-14",
+  "updatedAt": "2026-06-15",
   "integrations": [
     {
       "type": "onepassword",
@@ -3335,6 +3335,113 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["knowledge-base", "content-management", "note-taking"]
+    },
+    {
+      "type": "context_dev",
+      "slug": "context-dev",
+      "name": "Context.dev",
+      "description": "Scrape, crawl, search, extract, and enrich web and brand data",
+      "longDescription": "Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.",
+      "bgColor": "#ffffff",
+      "iconName": "ContextDevIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/context_dev",
+      "operations": [
+        {
+          "name": "Scrape Markdown",
+          "description": "Scrape any URL and return clean, LLM-ready markdown content."
+        },
+        {
+          "name": "Scrape HTML",
+          "description": "Scrape any URL and return the raw HTML content of the page."
+        },
+        {
+          "name": "Scrape Images",
+          "description": "Discover every image asset on a page, with optional dimension and type enrichment."
+        },
+        {
+          "name": "Screenshot",
+          "description": "Capture a screenshot of any web page and store it as a downloadable image file."
+        },
+        {
+          "name": "Crawl Website",
+          "description": "Crawl an entire website and return each discovered page as clean markdown."
+        },
+        {
+          "name": "Map Sitemap",
+          "description": "Build a sitemap of a domain and return every discovered page URL."
+        },
+        {
+          "name": "Web Search",
+          "description": "Search the web with natural language and optionally scrape results to markdown."
+        },
+        {
+          "name": "Extract Structured Data",
+          "description": "Crawl a website and extract structured data matching a provided JSON schema."
+        },
+        {
+          "name": "Extract Product",
+          "description": "Detect and extract structured product details from a single product page URL."
+        },
+        {
+          "name": "Extract Products",
+          "description": "Extract the product catalog from a brand"
+        },
+        {
+          "name": "Scrape Fonts",
+          "description": "Extract the font families, usage stats, and font files used by a domain."
+        },
+        {
+          "name": "Scrape Styleguide",
+          "description": "Extract a domain"
+        },
+        {
+          "name": "Classify NAICS",
+          "description": "Classify a brand into NAICS industry codes from its domain or company name."
+        },
+        {
+          "name": "Classify SIC",
+          "description": "Classify a brand into SIC industry codes from its domain or company name."
+        },
+        {
+          "name": "Get Brand by Domain",
+          "description": "Retrieve brand data for a domain: logos, colors, backdrops, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Name",
+          "description": "Retrieve brand data by company name: logos, colors, socials, address, and industry."
+        },
+        {
+          "name": "Get Brand by Email",
+          "description": "Retrieve brand data from a work email address. Free/disposable emails are rejected (422)."
+        },
+        {
+          "name": "Get Brand by Ticker",
+          "description": "Retrieve brand data for a public company by its stock ticker symbol."
+        },
+        {
+          "name": "Get Brand (Simplified)",
+          "description": "Retrieve essential brand data for a domain: title, colors, logos, and backdrops."
+        },
+        {
+          "name": "Identify Transaction",
+          "description": "Identify the brand behind a raw bank/card transaction descriptor and return its brand data."
+        },
+        {
+          "name": "Prefetch Domain",
+          "description": "Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits)."
+        },
+        {
+          "name": "Prefetch by Email",
+          "description": "Queue an email"
+        }
+      ],
+      "operationCount": 22,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["web-scraping", "enrichment", "automation"]
     },
     {
       "type": "convex",
