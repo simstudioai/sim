@@ -14,6 +14,7 @@ import {
 } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import { buildGeminiMessageParts } from '@/providers/attachments'
 import type { ProviderRequest } from '@/providers/types'
 import { trackForcedToolUsage } from '@/providers/utils'
@@ -30,8 +31,8 @@ const logger = createLogger('GoogleUtils')
  * @returns A Record<string, unknown> suitable for functionResponse.response
  */
 export function ensureStructResponse(value: unknown): Record<string, unknown> {
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    return value as Record<string, unknown>
+  if (isRecordLike(value)) {
+    return value
   }
   return { value }
 }

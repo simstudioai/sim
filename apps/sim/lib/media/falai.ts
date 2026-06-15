@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { isRecordLike } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
   secureFetchWithPinnedIP,
@@ -44,10 +45,6 @@ export function getFalApiKey(): string {
   return keys[index]
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 export function getStringProp(
   record: Record<string, unknown> | undefined,
   key: string
@@ -70,7 +67,7 @@ function falQueueUrl(endpoint: string, requestId: string, path: 'status' | 'resp
 
 function falErrorMessage(error: unknown): string {
   if (typeof error === 'string') return error
-  if (isRecord(error)) return getStringProp(error, 'message') || JSON.stringify(error)
+  if (isRecordLike(error)) return getStringProp(error, 'message') || JSON.stringify(error)
   return 'Unknown Fal.ai error'
 }
 
@@ -105,7 +102,7 @@ export async function runFalQueue(
     maxBytes: MAX_MEDIA_JSON_BYTES,
     label: 'Fal.ai create response',
   })
-  if (!isRecord(createData)) throw new Error('Invalid Fal.ai queue response')
+  if (!isRecordLike(createData)) throw new Error('Invalid Fal.ai queue response')
 
   const requestId = getStringProp(createData, 'request_id')
   if (!requestId) throw new Error('Fal.ai queue response missing request_id')
@@ -134,7 +131,7 @@ export async function runFalQueue(
       maxBytes: MAX_MEDIA_JSON_BYTES,
       label: 'Fal.ai status response',
     })
-    if (!isRecord(statusData)) throw new Error('Invalid Fal.ai status response')
+    if (!isRecordLike(statusData)) throw new Error('Invalid Fal.ai status response')
 
     const status = getStringProp(statusData, 'status')
     if (status === 'COMPLETED') {
@@ -157,7 +154,7 @@ export async function runFalQueue(
         maxBytes: MAX_MEDIA_JSON_BYTES,
         label: 'Fal.ai result response',
       })
-      if (!isRecord(resultData)) throw new Error('Invalid Fal.ai result response')
+      if (!isRecordLike(resultData)) throw new Error('Invalid Fal.ai result response')
       return { requestId, data: resultData }
     }
 
@@ -180,12 +177,12 @@ export function extractFalMediaUrl(
   for (const key of keys) {
     const value = data[key]
     if (typeof value === 'string') return value
-    if (isRecord(value)) {
+    if (isRecordLike(value)) {
       const url = getStringProp(value, 'url')
       if (url) return url
     }
     if (Array.isArray(value)) {
-      const first = value.find(isRecord) as Record<string, unknown> | undefined
+      const first = value.find(isRecordLike) as Record<string, unknown> | undefined
       const url = getStringProp(first, 'url')
       if (url) return url
     }

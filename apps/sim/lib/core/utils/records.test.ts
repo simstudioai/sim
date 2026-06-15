@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  isPlainRecord,
   normalizeRecord,
   normalizeRecordMap,
   normalizeStringRecord,
@@ -8,13 +7,6 @@ import {
 } from '@/lib/core/utils/records'
 
 describe('record normalization utilities', () => {
-  it('identifies plain records without accepting arrays or null', () => {
-    expect(isPlainRecord({})).toBe(true)
-    expect(isPlainRecord(Object.create(null))).toBe(true)
-    expect(isPlainRecord([])).toBe(false)
-    expect(isPlainRecord(null)).toBe(false)
-  })
-
   it('normalizes unknown values to object records', () => {
     expect(normalizeRecord({ value: 1 })).toEqual({ value: 1 })
     expect(normalizeRecord([])).toEqual({})

@@ -3,6 +3,7 @@
  */
 
 import { generateShortId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import type { Filter, FilterRule, JsonValue, Sort, SortDirection, SortRule } from '../types'
 
 /** Converts UI filter rules to a Filter object for API queries. */
@@ -162,7 +163,7 @@ function parseFilterGroup(group: Filter): FilterRule[] {
   for (const [column, value] of Object.entries(group)) {
     if (column === '$or' || column === '$and') continue
 
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (isRecordLike(value)) {
       for (const [op, opValue] of Object.entries(value)) {
         if (!op.startsWith('$')) continue
         // `$empty` is a valueless boolean operator — map it back to the two

@@ -1,16 +1,13 @@
 import type { AgentCapabilities, AgentSkill, Message } from '@a2a-js/sdk'
+import { isRecordLike } from '@sim/utils/object'
 import { z } from 'zod'
 import type { AgentAuthentication } from '@/lib/a2a/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const dateStringSchema = z.string()
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function isAgentAuthentication(value: unknown): value is AgentAuthentication {
-  if (!isRecord(value)) return false
+  if (!isRecordLike(value)) return false
 
   const schemes = value.schemes
   if (schemes === undefined) return true
@@ -30,7 +27,7 @@ export const listA2AAgentsQuerySchema = z.object({
   workspaceId: z.string({ error: 'workspaceId is required' }).min(1, 'workspaceId is required'),
 })
 
-export const a2aAgentCapabilitiesSchema = z.custom<AgentCapabilities>(isRecord, {
+export const a2aAgentCapabilitiesSchema = z.custom<AgentCapabilities>(isRecordLike, {
   message: 'Agent capabilities must be an object',
 })
 
@@ -38,7 +35,7 @@ export const a2aAgentAuthenticationSchema = z.custom<AgentAuthentication>(isAgen
   message: 'Agent authentication must be an object',
 })
 
-export const a2aAgentSkillSchema = z.custom<AgentSkill>(isRecord, {
+export const a2aAgentSkillSchema = z.custom<AgentSkill>(isRecordLike, {
   message: 'Agent skill must be an object',
 })
 
@@ -215,9 +212,7 @@ export type A2AJsonRpcRequest = z.output<typeof a2aJsonRpcRequestSchema>
 
 export const a2aMessageSendParamsSchema = z
   .object({
-    message: z.custom<Message>(
-      (message) => typeof message === 'object' && message !== null && !Array.isArray(message)
-    ),
+    message: z.custom<Message>(isRecordLike),
   })
   .passthrough()
 export type A2AMessageSendParams = z.output<typeof a2aMessageSendParamsSchema>

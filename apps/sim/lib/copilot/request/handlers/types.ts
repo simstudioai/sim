@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   AsyncCompletionSignal,
   AsyncTerminalCompletionSnapshot,
@@ -36,10 +37,6 @@ export type StreamHandler = (
 export type ToolScope = 'main' | MothershipStreamV1StreamScope['lane']
 
 const logger = createLogger('CopilotHandlerHelpers')
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
 
 export function addContentBlock(
   context: StreamingContext,
@@ -228,7 +225,7 @@ export async function emitSyntheticToolResult(
       : undefined
 
   const resultPayload = isCancelled
-    ? isRecord(completionData)
+    ? isRecordLike(completionData)
       ? { ...completionData, reason: 'user_cancelled', cancelledByUser: true }
       : completionData !== undefined
         ? { output: completionData, reason: 'user_cancelled', cancelledByUser: true }
