@@ -16,11 +16,11 @@ When the user runs `/ship`:
   - Types: `fix`, `feat`, `improvement`, `chore`
   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
   - Keep it concise
-3. **Run the cleanup pass** on the current changes before anything else: `/cleanup`
-  - This runs the six code-quality skills (effects, memo, callbacks, state, React Query, emcn) and applies fixes, so they land in this commit.
+3. **Run the cleanup pass** — only if the diff modifies UI code (any `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`): `/cleanup`
+  - The six code-quality skills (effects, memo, callbacks, state, React Query, emcn) only apply to React code, so skip this step entirely when no UI was touched. When it runs, it applies fixes so they land in this commit.
 4. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
-  - `bun run check:migrations` must pass. Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
+  - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
 5. **Run pre-ship checks** from the repo root before staging:
   - `bun run lint` to fix formatting issues
   - `bun run check:api-validation:strict` to catch boundary contract failures before CI

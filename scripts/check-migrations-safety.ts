@@ -20,7 +20,7 @@
  *
  * Scope is new migration files only (git diff vs base); the existing corpus is
  * grandfathered. Usage:
- *   bun run scripts/check-migrations-safety.ts [baseRef]
+ *   bun run scripts/check-migrations-safety.ts [baseRef]   # base defaults to origin/staging
  *   bun run scripts/check-migrations-safety.ts --all          # whole corpus
  *   bun run scripts/check-migrations-safety.ts --dir <path>   # a directory
  */
@@ -438,7 +438,7 @@ async function resolveFiles(argv: string[]): Promise<string[] | null> {
     if (!dir) throw new Error('--dir requires a path')
     return (await listSqlFiles(path.resolve(dir))).map((f) => path.relative(ROOT, f))
   }
-  const baseRef = argv.find((a) => !a.startsWith('--')) ?? 'origin/main'
+  const baseRef = argv.find((a) => !a.startsWith('--')) ?? 'origin/staging'
   const files = changedMigrationFiles(baseRef)
   if (files.length === 0 && git(['rev-parse', 'HEAD']) === null) {
     console.warn('⚠ git unavailable — skipping migration safety check.')
