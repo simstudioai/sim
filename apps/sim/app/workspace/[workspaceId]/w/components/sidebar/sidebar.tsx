@@ -46,7 +46,10 @@ import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
+import {
+  createCommands,
+  formatCommandShortcut,
+} from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   CollapsedChatFlyoutItem,
   CollapsedFolderItems,
@@ -390,6 +393,7 @@ export const Sidebar = memo(function Sidebar() {
   }, [isCollapsed])
 
   const isMac = isMacPlatform()
+  const collapseShortcut = formatCommandShortcut('collapse-sidebar', isMac)
 
   const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
 
@@ -1275,12 +1279,13 @@ export const Sidebar = memo(function Sidebar() {
                 sessionUserId={sessionData?.user?.id}
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
+                expandShortcut={collapseShortcut}
               />
               <SidebarTooltip
                 label='Collapse sidebar'
                 enabled={!isCollapsed}
                 side='bottom'
-                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+                shortcut={collapseShortcut}
               >
                 <button
                   type='button'

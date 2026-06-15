@@ -15,6 +15,7 @@ import {
   Plus,
   Send,
   Skeleton,
+  Tooltip,
 } from '@/components/emcn'
 import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -68,6 +69,8 @@ interface WorkspaceHeaderProps {
   isCollapsed?: boolean
   /** Callback to expand the sidebar from collapsed state */
   onExpandSidebar?: () => void
+  /** Formatted keyboard shortcut shown in the expand affordance tooltip */
+  expandShortcut?: string
 }
 
 /**
@@ -93,6 +96,7 @@ function WorkspaceHeaderImpl({
   sessionUserId,
   isCollapsed = false,
   onExpandSidebar,
+  expandShortcut,
 }: WorkspaceHeaderProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -270,41 +274,52 @@ function WorkspaceHeaderImpl({
   return (
     <div className='min-w-0 flex-1'>
       {isMounted && isCollapsed ? (
-        <button
-          type='button'
-          aria-label='Expand sidebar'
-          onClick={onExpandSidebar}
-          className={chipVariants({ fullWidth: true })}
-        >
-          <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
-            {!activeWorkspaceFull ? (
-              <Skeleton className='size-[16px] rounded-sm' />
-            ) : (
-              <>
-                {activeWorkspaceFull.logoUrl ? (
-                  <img
-                    src={activeWorkspaceFull.logoUrl}
-                    alt={activeWorkspaceFull.name || 'Workspace logo'}
-                    className='size-[16px] rounded-sm object-cover group-hover:invisible'
-                  />
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <button
+              type='button'
+              aria-label='Expand sidebar'
+              onClick={onExpandSidebar}
+              className={chipVariants({ fullWidth: true })}
+            >
+              <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
+                {!activeWorkspaceFull ? (
+                  <Skeleton className='size-[16px] rounded-sm' />
                 ) : (
-                  <div
-                    className='flex size-[16px] items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none group-hover:invisible'
-                    style={{
-                      backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
-                    }}
-                  >
-                    {workspaceInitial}
-                  </div>
+                  <>
+                    {activeWorkspaceFull.logoUrl ? (
+                      <img
+                        src={activeWorkspaceFull.logoUrl}
+                        alt={activeWorkspaceFull.name || 'Workspace logo'}
+                        className='size-[16px] rounded-sm object-cover group-hover:invisible'
+                      />
+                    ) : (
+                      <div
+                        className='flex size-[16px] items-center justify-center rounded-sm font-medium text-[9px] text-white leading-none group-hover:invisible'
+                        style={{
+                          backgroundColor: activeWorkspaceFull.color ?? 'var(--brand-accent)',
+                        }}
+                      >
+                        {workspaceInitial}
+                      </div>
+                    )}
+                    <PanelLeft
+                      aria-hidden
+                      className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
+                    />
+                  </>
                 )}
-                <PanelLeft
-                  aria-hidden
-                  className='pointer-events-none invisible absolute inset-0 m-auto size-[16px] rotate-180 text-[var(--text-icon)] group-hover:visible'
-                />
-              </>
+              </div>
+            </button>
+          </Tooltip.Trigger>
+          <Tooltip.Content side='right'>
+            {expandShortcut ? (
+              <Tooltip.Shortcut keys={expandShortcut}>Expand sidebar</Tooltip.Shortcut>
+            ) : (
+              <p>Expand sidebar</p>
             )}
-          </div>
-        </button>
+          </Tooltip.Content>
+        </Tooltip.Root>
       ) : isMounted && isWorkspaceReady ? (
         <DropdownMenu
           open={isWorkspaceMenuOpen}

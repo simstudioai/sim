@@ -61,7 +61,7 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   'collapse-sidebar': {
     id: 'collapse-sidebar',
     shortcut: 'Mod+B',
-    allowInEditable: true,
+    allowInEditable: false,
   },
   'goto-logs': {
     id: 'goto-logs',
@@ -149,4 +149,34 @@ export function createCommand(input: CreateCommandInput): GlobalCommand {
  */
 export function createCommands(inputs: CreateCommandInput[]): GlobalCommand[] {
   return inputs.map((input) => createCommand(input))
+}
+
+/** Display symbols for shortcut modifiers on macOS. */
+const MAC_MODIFIER_SYMBOLS: Record<string, string> = {
+  Mod: '⌘',
+  Shift: '⇧',
+  Alt: '⌥',
+}
+
+/** Display labels for shortcut modifiers on Windows/Linux. */
+const NON_MAC_MODIFIER_LABELS: Record<string, string> = {
+  Mod: 'Ctrl',
+  Shift: 'Shift',
+  Alt: 'Alt',
+}
+
+/**
+ * Formats a command's shortcut for display, deriving the keys from
+ * {@link COMMAND_DEFINITIONS} so tooltips never drift from the registered
+ * binding. macOS renders compact symbols (`⌘⇧P`); other platforms render
+ * `+`-joined labels (`Ctrl+Shift+P`).
+ *
+ * @param id - Command whose shortcut to format.
+ * @param isMac - Whether to render macOS symbols instead of Windows/Linux labels.
+ */
+export function formatCommandShortcut(id: CommandId, isMac: boolean): string {
+  const tokens = COMMAND_DEFINITIONS[id].shortcut.split('+')
+  return isMac
+    ? tokens.map((token) => MAC_MODIFIER_SYMBOLS[token] ?? token).join('')
+    : tokens.map((token) => NON_MAC_MODIFIER_LABELS[token] ?? token).join('+')
 }
