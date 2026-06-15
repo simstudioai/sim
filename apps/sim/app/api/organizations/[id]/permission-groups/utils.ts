@@ -6,7 +6,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
-import { and, asc, eq, inArray, ne } from 'drizzle-orm'
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import type { DbOrTx } from '@/lib/db/types'
@@ -39,6 +39,36 @@ export async function authorizeOrgAccessControl(
   }
 
   return null
+}
+
+const PERMISSION_GROUP_LOCK_TIMEOUT_MS = 5_000
+
+/**
+ * Serialize all permission-group membership and scope writes for an organization
+ * via a transaction-scoped Postgres advisory lock. Callers acquire it at the top
+ * of the transaction that both checks (`findScopeConflicts`) and mutates, so a
+ * concurrent member add or scope change can't commit in the check-to-write
+ * window and leave a user governed by two groups on the same workspace.
+ *
+ * The invariant (one effective group per user per workspace) spans users and
+ * groups in ways a unique constraint can't express, and these are low-frequency
+ * admin writes, so a single org-scoped lock is simpler and more obviously
+ * correct than fine-grained per-user/per-group locks with acquire-ordering.
+ *
+ * `pg_advisory_xact_lock` auto-releases at transaction end (safe on pooled
+ * connections), and `lock_timeout` bounds the wait (raising SQLSTATE 55P03)
+ * instead of hanging if a holder is stuck.
+ */
+export async function acquirePermissionGroupOrgLock(
+  tx: DbOrTx,
+  organizationId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select set_config('lock_timeout', ${`${PERMISSION_GROUP_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`permission_group:${organizationId}`}, 0))`
+  )
 }
 
 /** Load a permission group only if it belongs to the given organization. */

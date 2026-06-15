@@ -9,10 +9,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { bulkAddPermissionGroupMembersContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { acquireOrgMembershipLock } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import {
+  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
   findScopeConflicts,
   formatScopeConflictError,
@@ -77,15 +77,10 @@ export const POST = withRouteHandler(
         return NextResponse.json({ added: 0, skipped: 0 })
       }
 
-      // Lock the candidate (user, org) pairs in a deterministic order so the
-      // conflict check + insert is atomic against concurrent adds for the same
-      // users, and two concurrent bulk ops can't deadlock on each other.
-      const lockUserIds = [...targetUserIds].sort()
-
       const { addedUserIds } = await db.transaction(async (tx) => {
-        for (const lockUserId of lockUserIds) {
-          await acquireOrgMembershipLock(tx, lockUserId, organizationId)
-        }
+        // Serialize all permission-group writes for this org so the conflict
+        // check and inserts are atomic against concurrent adds or scope changes.
+        await acquirePermissionGroupOrgLock(tx, organizationId)
 
         // Bulk add is all-or-nothing for conflicts: if any selected user would be
         // governed by two groups on the same workspace (all-vs-all, or specific

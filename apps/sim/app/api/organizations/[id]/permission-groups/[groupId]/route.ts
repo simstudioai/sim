@@ -16,12 +16,14 @@ import {
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
 import {
+  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
   findScopeConflicts,
   findWorkspacesNotInOrganization,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
+  type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroup')
@@ -63,6 +65,10 @@ export const PUT = withRouteHandler(
     }
 
     const { id: organizationId, groupId: id } = await context.params
+
+    // Populated inside the transaction when a scope conflict is detected, so the
+    // catch can format the 409 after the rollback.
+    let scopeConflicts: ScopeConflict[] = []
 
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
@@ -144,28 +150,35 @@ export const PUT = withRouteHandler(
         }
       }
 
-      // When the scope changes, ensure no current member would end up governed by
-      // two groups on the same workspace.
-      if (scopeProvided) {
-        const members = await db
-          .select({ userId: permissionGroupMember.userId })
-          .from(permissionGroupMember)
-          .where(eq(permissionGroupMember.permissionGroupId, id))
-        const conflicts = await findScopeConflicts({
-          organizationId,
-          excludeGroupId: id,
-          appliesToAllWorkspaces: resolvedAppliesToAll,
-          workspaceIds: resolvedWorkspaceIds,
-          candidateUserIds: members.map((m) => m.userId),
-        })
-        if (conflicts.length > 0) {
-          return NextResponse.json({ error: formatScopeConflictError(conflicts) }, { status: 409 })
-        }
-      }
-
       const now = new Date()
 
       await db.transaction(async (tx) => {
+        // When the scope changes, serialize against other permission-group writes
+        // for this org and re-check membership conflicts atomically with the
+        // write, so a concurrent member add (or scope change) can't slip a user
+        // into two groups that overlap on a workspace.
+        if (scopeProvided) {
+          await acquirePermissionGroupOrgLock(tx, organizationId)
+          const members = await tx
+            .select({ userId: permissionGroupMember.userId })
+            .from(permissionGroupMember)
+            .where(eq(permissionGroupMember.permissionGroupId, id))
+          const conflicts = await findScopeConflicts(
+            {
+              organizationId,
+              excludeGroupId: id,
+              appliesToAllWorkspaces: resolvedAppliesToAll,
+              workspaceIds: resolvedWorkspaceIds,
+              candidateUserIds: members.map((m) => m.userId),
+            },
+            tx
+          )
+          if (conflicts.length > 0) {
+            scopeConflicts = conflicts
+            throw new Error('SCOPE_CONFLICT')
+          }
+        }
+
         if (updates.isDefault === true) {
           await tx
             .update(permissionGroup)
@@ -244,6 +257,12 @@ export const PUT = withRouteHandler(
         },
       })
     } catch (error) {
+      if (error instanceof Error && error.message === 'SCOPE_CONFLICT') {
+        return NextResponse.json(
+          { error: formatScopeConflictError(scopeConflicts) },
+          { status: 409 }
+        )
+      }
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)
         if (constraint === PERMISSION_GROUP_CONSTRAINTS.organizationName) {
@@ -261,6 +280,13 @@ export const PUT = withRouteHandler(
             { status: 409 }
           )
         }
+      }
+      // Advisory lock wait exceeded (lock_timeout) — transient contention.
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This group is being updated by another request. Please try again.' },
+          { status: 503 }
+        )
       }
       logger.error('Error updating permission group', error)
       return NextResponse.json({ error: 'Failed to update permission group' }, { status: 500 })

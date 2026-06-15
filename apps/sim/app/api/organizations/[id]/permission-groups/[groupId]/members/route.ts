@@ -9,11 +9,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
-import { acquireOrgMembershipLock } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
+  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
   findScopeConflicts,
   formatScopeConflictError,
@@ -96,11 +96,11 @@ export const POST = withRouteHandler(
       }
 
       const newMember = await db.transaction(async (tx) => {
-        // Serialize concurrent membership changes for this (user, org) so the
-        // conflict check and insert are atomic. Without it, two concurrent adds
-        // could both pass findScopeConflicts and place the user in two groups
-        // that overlap on a workspace, violating one-effective-group-per-ws.
-        await acquireOrgMembershipLock(tx, userId, organizationId)
+        // Serialize all permission-group writes for this org so the conflict
+        // check and insert are atomic. Without it, two concurrent adds (or a
+        // concurrent scope change) could both pass findScopeConflicts and place
+        // the user in two groups that overlap on a workspace.
+        await acquirePermissionGroupOrgLock(tx, organizationId)
 
         const [existingInGroup] = await tx
           .select({ id: permissionGroupMember.id })
