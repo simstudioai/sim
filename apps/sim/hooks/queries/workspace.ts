@@ -126,13 +126,17 @@ async function fetchWorkspaceApiExecutionEntitlement(
  * Whether the workspace may run workflows programmatically — the UI mirror of the
  * server gate. Reflects the workspace's billed-account plan, not the viewer's
  * individual plan, so a free member of a paid workspace isn't gated.
+ *
+ * `staleTime: 0` so reopening the deploy modal refetches: a plan upgrade happens
+ * outside this query's invalidation graph, and the cached value is shown while the
+ * background refetch resolves (no flash), so the gate self-heals on next open.
  */
 export function useWorkspaceApiExecutionEntitlement(workspaceId?: string) {
   return useQuery({
     queryKey: workspaceKeys.apiExecutionEntitlement(workspaceId ?? ''),
     queryFn: ({ signal }) => fetchWorkspaceApiExecutionEntitlement(workspaceId as string, signal),
     enabled: Boolean(workspaceId),
-    staleTime: 60 * 1000,
+    staleTime: 0,
   })
 }
 

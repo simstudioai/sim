@@ -160,10 +160,13 @@ export function DeployModal({
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
   // Mirror the server gate: entitlement reflects the workspace's billed-account
   // plan (rolled up), not the viewer's individual plan, so a free member of a
-  // paid workspace isn't shown the upgrade wall. Undefined while loading keeps
-  // the gate closed (no flash); only an explicit `entitled === false` gates.
+  // paid workspace isn't shown the upgrade wall. Keyed on the URL `workspaceId`
+  // (the workflow's workspace, available on mount) rather than the workflow-map
+  // metadata, so the check fires immediately instead of leaving the tabs ungated
+  // until the map resolves. Undefined while loading keeps the gate closed (no
+  // flash); only an explicit `entitled === false` gates.
   const { data: apiExecutionEntitlement } = useWorkspaceApiExecutionEntitlement(
-    workflowWorkspaceId ?? undefined
+    workspaceId ?? undefined
   )
   const gateProgrammaticDeploy = apiExecutionEntitlement?.entitled === false
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
