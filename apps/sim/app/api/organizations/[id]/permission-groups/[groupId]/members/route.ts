@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
+import { permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -14,6 +14,8 @@ import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/typ
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
   authorizeOrgAccessControl,
+  findScopeConflicts,
+  getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
@@ -86,35 +88,44 @@ export const POST = withRouteHandler(
         )
       }
 
+      // A user may belong to multiple groups, but only one may govern any given
+      // workspace. Reject when this group's scope would overlap a group the user
+      // is already in (all-vs-all, or specific groups sharing a workspace).
+      const groupWorkspaceIds = group.appliesToAllWorkspaces
+        ? []
+        : (await getGroupWorkspaces(id)).map((ws) => ws.id)
+      const conflicts = await findScopeConflicts({
+        organizationId,
+        excludeGroupId: id,
+        appliesToAllWorkspaces: group.appliesToAllWorkspaces,
+        workspaceIds: groupWorkspaceIds,
+        candidateUserIds: [userId],
+      })
+      if (conflicts.length > 0) {
+        return NextResponse.json(
+          {
+            error: group.appliesToAllWorkspaces
+              ? 'This user already belongs to another all-workspaces group. A user can be in only one all-workspaces group.'
+              : 'This user already belongs to another group targeting one of these workspaces. A user can have only one group per workspace.',
+          },
+          { status: 409 }
+        )
+      }
+
       const newMember = await db.transaction(async (tx) => {
-        const existingInOrganization = await tx
-          .select({
-            id: permissionGroupMember.id,
-            permissionGroupId: permissionGroupMember.permissionGroupId,
-          })
+        const [existingInGroup] = await tx
+          .select({ id: permissionGroupMember.id })
           .from(permissionGroupMember)
-          .innerJoin(
-            permissionGroup,
-            eq(permissionGroupMember.permissionGroupId, permissionGroup.id)
-          )
           .where(
             and(
-              eq(permissionGroupMember.userId, userId),
-              eq(permissionGroup.organizationId, organizationId)
+              eq(permissionGroupMember.permissionGroupId, id),
+              eq(permissionGroupMember.userId, userId)
             )
           )
+          .limit(1)
 
-        if (existingInOrganization.some((row) => row.permissionGroupId === id)) {
+        if (existingInGroup) {
           throw new Error('ALREADY_IN_GROUP')
-        }
-
-        if (existingInOrganization.length > 0) {
-          await tx.delete(permissionGroupMember).where(
-            inArray(
-              permissionGroupMember.id,
-              existingInOrganization.map((row) => row.id)
-            )
-          )
         }
 
         const memberData = {
@@ -162,23 +173,14 @@ export const POST = withRouteHandler(
           { status: 409 }
         )
       }
-      if (getPostgresErrorCode(error) === '23505') {
-        const constraint = getPostgresConstraintName(error)
-        if (constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.organizationUser) {
-          return NextResponse.json(
-            {
-              error:
-                'User was concurrently added to another group in this organization. Please refresh and try again.',
-            },
-            { status: 409 }
-          )
-        }
-        if (constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser) {
-          return NextResponse.json(
-            { error: 'User is already in this permission group' },
-            { status: 409 }
-          )
-        }
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
+      ) {
+        return NextResponse.json(
+          { error: 'User is already in this permission group' },
+          { status: 409 }
+        )
       }
       logger.error('Error adding member to permission group', error)
       return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })

@@ -1,9 +1,20 @@
 import { db } from '@sim/db'
-import { permissionGroup } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  workspace,
+} from '@sim/db/schema'
+import { and, asc, eq, inArray, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
+
+/** A workspace reference (id + display name). */
+export interface WorkspaceRef {
+  id: string
+  name: string
+}
 
 /**
  * Authorize an organization-scoped access-control management request. The caller
@@ -41,10 +52,130 @@ export async function loadGroupInOrganization(groupId: string, organizationId: s
       createdAt: permissionGroup.createdAt,
       updatedAt: permissionGroup.updatedAt,
       isDefault: permissionGroup.isDefault,
+      appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
     })
     .from(permissionGroup)
     .where(and(eq(permissionGroup.id, groupId), eq(permissionGroup.organizationId, organizationId)))
     .limit(1)
 
   return group ?? null
+}
+
+/** The workspaces ({id, name}) a specific-scope group targets. */
+export async function getGroupWorkspaces(groupId: string): Promise<WorkspaceRef[]> {
+  return db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(permissionGroupWorkspace)
+    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
+    .where(eq(permissionGroupWorkspace.permissionGroupId, groupId))
+    .orderBy(asc(workspace.name))
+}
+
+/** Batched map of `groupId -> targeted workspaces` for a list of groups. */
+export async function getWorkspacesForGroups(
+  groupIds: string[]
+): Promise<Map<string, WorkspaceRef[]>> {
+  const byGroup = new Map<string, WorkspaceRef[]>()
+  if (groupIds.length === 0) return byGroup
+
+  const rows = await db
+    .select({
+      groupId: permissionGroupWorkspace.permissionGroupId,
+      id: workspace.id,
+      name: workspace.name,
+    })
+    .from(permissionGroupWorkspace)
+    .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
+    .where(inArray(permissionGroupWorkspace.permissionGroupId, groupIds))
+    .orderBy(asc(workspace.name))
+
+  for (const row of rows) {
+    const list = byGroup.get(row.groupId) ?? []
+    list.push({ id: row.id, name: row.name })
+    byGroup.set(row.groupId, list)
+  }
+  return byGroup
+}
+
+/** Returns the subset of `workspaceIds` that do NOT belong to the organization. */
+export async function findWorkspacesNotInOrganization(
+  workspaceIds: string[],
+  organizationId: string
+): Promise<string[]> {
+  if (workspaceIds.length === 0) return []
+  const rows = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(and(inArray(workspace.id, workspaceIds), eq(workspace.organizationId, organizationId)))
+  const valid = new Set(rows.map((row) => row.id))
+  return workspaceIds.filter((id) => !valid.has(id))
+}
+
+/** List an organization's workspaces ({id, name}), ordered by name. */
+export async function listOrganizationWorkspaces(organizationId: string): Promise<WorkspaceRef[]> {
+  return db
+    .select({ id: workspace.id, name: workspace.name })
+    .from(workspace)
+    .where(eq(workspace.organizationId, organizationId))
+    .orderBy(asc(workspace.name))
+}
+
+/**
+ * Given a candidate group scope, return which of `candidateUserIds` would
+ * violate the one-effective-group-per-workspace rule through their OTHER
+ * memberships in the organization:
+ *  - an all-workspaces target conflicts with another all-workspaces membership;
+ *  - a specific target conflicts with another specific membership that shares a
+ *    workspace.
+ * All-vs-specific never conflicts (specific overrides all for its workspaces).
+ * The candidate group itself (`excludeGroupId`) is ignored.
+ */
+export async function findScopeConflicts(params: {
+  organizationId: string
+  excludeGroupId: string
+  appliesToAllWorkspaces: boolean
+  workspaceIds: string[]
+  candidateUserIds: string[]
+}): Promise<string[]> {
+  const { organizationId, excludeGroupId, appliesToAllWorkspaces, workspaceIds, candidateUserIds } =
+    params
+  if (candidateUserIds.length === 0) return []
+
+  const rows = await db
+    .select({
+      userId: permissionGroupMember.userId,
+      otherAppliesToAll: permissionGroup.appliesToAllWorkspaces,
+      otherWorkspaceId: permissionGroupWorkspace.workspaceId,
+    })
+    .from(permissionGroupMember)
+    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
+    .leftJoin(
+      permissionGroupWorkspace,
+      eq(permissionGroupWorkspace.permissionGroupId, permissionGroup.id)
+    )
+    .where(
+      and(
+        eq(permissionGroupMember.organizationId, organizationId),
+        inArray(permissionGroupMember.userId, candidateUserIds),
+        ne(permissionGroupMember.permissionGroupId, excludeGroupId)
+      )
+    )
+
+  const targetWorkspaceSet = new Set(workspaceIds)
+  const conflicts = new Set<string>()
+
+  for (const row of rows) {
+    if (conflicts.has(row.userId)) continue
+    if (appliesToAllWorkspaces) {
+      if (row.otherAppliesToAll) conflicts.add(row.userId)
+    } else if (
+      !row.otherAppliesToAll &&
+      row.otherWorkspaceId &&
+      targetWorkspaceSet.has(row.otherWorkspaceId)
+    ) {
+      conflicts.add(row.userId)
+    }
+  }
+
+  return Array.from(conflicts)
 }

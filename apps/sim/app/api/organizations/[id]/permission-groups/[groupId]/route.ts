@@ -1,8 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updatePermissionGroupContract } from '@/lib/api/contracts/permission-groups'
@@ -16,6 +17,9 @@ import {
 } from '@/lib/permission-groups/types'
 import {
   authorizeOrgAccessControl,
+  findScopeConflicts,
+  findWorkspacesNotInOrganization,
+  getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
@@ -38,10 +42,13 @@ export const GET = withRouteHandler(
       return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
     }
 
+    const workspaces = group.appliesToAllWorkspaces ? [] : await getGroupWorkspaces(id)
+
     return NextResponse.json({
       permissionGroup: {
         ...group,
         config: parsePermissionGroupConfig(group.config),
+        workspaces,
       },
     })
   }
@@ -97,6 +104,70 @@ export const PUT = withRouteHandler(
         ? { ...currentConfig, ...updates.config }
         : currentConfig
 
+      // Resolve the target workspace scope. Setting the group as default forces
+      // all-workspaces; otherwise an explicit `appliesToAllWorkspaces` wins, and
+      // supplying `workspaceIds` alone implies a specific scope.
+      const scopeProvided =
+        updates.appliesToAllWorkspaces !== undefined ||
+        updates.workspaceIds !== undefined ||
+        updates.isDefault === true
+
+      const resolvedAppliesToAll =
+        updates.isDefault === true
+          ? true
+          : updates.appliesToAllWorkspaces !== undefined
+            ? updates.appliesToAllWorkspaces
+            : updates.workspaceIds !== undefined
+              ? false
+              : group.appliesToAllWorkspaces
+
+      let resolvedWorkspaceIds: string[] = []
+      if (!resolvedAppliesToAll) {
+        const provided =
+          updates.workspaceIds !== undefined
+            ? updates.workspaceIds
+            : (await getGroupWorkspaces(id)).map((ws) => ws.id)
+        resolvedWorkspaceIds = Array.from(new Set(provided))
+        if (resolvedWorkspaceIds.length === 0) {
+          return NextResponse.json(
+            { error: 'Select at least one workspace when the group targets specific workspaces' },
+            { status: 400 }
+          )
+        }
+        const invalid = await findWorkspacesNotInOrganization(resolvedWorkspaceIds, organizationId)
+        if (invalid.length > 0) {
+          return NextResponse.json(
+            { error: 'One or more selected workspaces do not belong to this organization' },
+            { status: 400 }
+          )
+        }
+      }
+
+      // When the scope changes, ensure no current member would end up governed by
+      // two groups on the same workspace.
+      if (scopeProvided) {
+        const members = await db
+          .select({ userId: permissionGroupMember.userId })
+          .from(permissionGroupMember)
+          .where(eq(permissionGroupMember.permissionGroupId, id))
+        const conflicts = await findScopeConflicts({
+          organizationId,
+          excludeGroupId: id,
+          appliesToAllWorkspaces: resolvedAppliesToAll,
+          workspaceIds: resolvedWorkspaceIds,
+          candidateUserIds: members.map((m) => m.userId),
+        })
+        if (conflicts.length > 0) {
+          return NextResponse.json(
+            {
+              error:
+                'This scope change would place some members in two groups for the same workspace. Resolve their group memberships first.',
+            },
+            { status: 409 }
+          )
+        }
+      }
+
       const now = new Date()
 
       await db.transaction(async (tx) => {
@@ -118,10 +189,28 @@ export const PUT = withRouteHandler(
             ...(updates.name !== undefined && { name: updates.name }),
             ...(updates.description !== undefined && { description: updates.description }),
             ...(updates.isDefault !== undefined && { isDefault: updates.isDefault }),
+            ...(scopeProvided && { appliesToAllWorkspaces: resolvedAppliesToAll }),
             config: newConfig,
             updatedAt: now,
           })
           .where(eq(permissionGroup.id, id))
+
+        if (scopeProvided) {
+          await tx
+            .delete(permissionGroupWorkspace)
+            .where(eq(permissionGroupWorkspace.permissionGroupId, id))
+          if (!resolvedAppliesToAll && resolvedWorkspaceIds.length > 0) {
+            await tx.insert(permissionGroupWorkspace).values(
+              resolvedWorkspaceIds.map((workspaceId) => ({
+                id: generateId(),
+                permissionGroupId: id,
+                workspaceId,
+                organizationId,
+                createdAt: now,
+              }))
+            )
+          }
+        }
       })
 
       const [updated] = await db
@@ -129,6 +218,10 @@ export const PUT = withRouteHandler(
         .from(permissionGroup)
         .where(eq(permissionGroup.id, id))
         .limit(1)
+
+      const finalWorkspaceIds = updated.appliesToAllWorkspaces
+        ? []
+        : (await getGroupWorkspaces(id)).map((ws) => ws.id)
 
       recordAudit({
         actorId: session.user.id,
@@ -152,6 +245,7 @@ export const PUT = withRouteHandler(
         permissionGroup: {
           ...updated,
           config: parsePermissionGroupConfig(updated.config),
+          workspaceIds: finalWorkspaceIds,
         },
       })
     } catch (error) {

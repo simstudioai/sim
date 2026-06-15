@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { member, permissionGroupMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -13,6 +13,8 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import {
   authorizeOrgAccessControl,
+  findScopeConflicts,
+  getGroupWorkspaces,
   loadGroupInOrganization,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
@@ -65,48 +67,43 @@ export const POST = withRouteHandler(
       }
 
       if (targetUserIds.length === 0) {
-        return NextResponse.json({ added: 0, moved: 0 })
+        return NextResponse.json({ added: 0, skipped: 0 })
       }
 
-      const { addedUserIds, movedCount } = await db.transaction(async (tx) => {
-        const existingMemberships = await tx
-          .select({
-            id: permissionGroupMember.id,
-            userId: permissionGroupMember.userId,
-            permissionGroupId: permissionGroupMember.permissionGroupId,
-          })
+      // Skip users who would be governed by two groups on the same workspace
+      // (all-vs-all, or specific groups sharing a workspace). Memberships are no
+      // longer moved between groups — a user can belong to multiple groups.
+      const groupWorkspaceIds = group.appliesToAllWorkspaces
+        ? []
+        : (await getGroupWorkspaces(id)).map((ws) => ws.id)
+      const conflictUserIds = new Set(
+        await findScopeConflicts({
+          organizationId,
+          excludeGroupId: id,
+          appliesToAllWorkspaces: group.appliesToAllWorkspaces,
+          workspaceIds: groupWorkspaceIds,
+          candidateUserIds: targetUserIds,
+        })
+      )
+
+      const { addedUserIds } = await db.transaction(async (tx) => {
+        const existingInGroup = await tx
+          .select({ userId: permissionGroupMember.userId })
           .from(permissionGroupMember)
-          .innerJoin(
-            permissionGroup,
-            eq(permissionGroupMember.permissionGroupId, permissionGroup.id)
-          )
           .where(
             and(
-              eq(permissionGroup.organizationId, organizationId),
+              eq(permissionGroupMember.permissionGroupId, id),
               inArray(permissionGroupMember.userId, targetUserIds)
             )
           )
+        const alreadyInThisGroup = new Set(existingInGroup.map((m) => m.userId))
 
-        const alreadyInThisGroup = new Set(
-          existingMemberships.filter((m) => m.permissionGroupId === id).map((m) => m.userId)
+        const usersToAdd = targetUserIds.filter(
+          (uid) => !alreadyInThisGroup.has(uid) && !conflictUserIds.has(uid)
         )
-        const usersToAdd = targetUserIds.filter((uid) => !alreadyInThisGroup.has(uid))
 
         if (usersToAdd.length === 0) {
-          return { addedUserIds: [] as string[], movedCount: 0 }
-        }
-
-        const membershipsToDelete = existingMemberships.filter(
-          (m) => m.permissionGroupId !== id && usersToAdd.includes(m.userId)
-        )
-
-        if (membershipsToDelete.length > 0) {
-          await tx.delete(permissionGroupMember).where(
-            inArray(
-              permissionGroupMember.id,
-              membershipsToDelete.map((m) => m.id)
-            )
-          )
+          return { addedUserIds: [] as string[] }
         }
 
         const newMembers = usersToAdd.map((userId) => ({
@@ -120,18 +117,20 @@ export const POST = withRouteHandler(
 
         await tx.insert(permissionGroupMember).values(newMembers)
 
-        return { addedUserIds: usersToAdd, movedCount: membershipsToDelete.length }
+        return { addedUserIds: usersToAdd }
       })
 
+      const skipped = targetUserIds.length - addedUserIds.length
+
       if (addedUserIds.length === 0) {
-        return NextResponse.json({ added: 0, moved: 0 })
+        return NextResponse.json({ added: 0, skipped })
       }
 
       logger.info('Bulk added members to permission group', {
         permissionGroupId: id,
         organizationId,
         addedCount: addedUserIds.length,
-        movedCount,
+        skipped,
         assignedBy: session.user.id,
       })
 
@@ -148,27 +147,24 @@ export const POST = withRouteHandler(
           organizationId,
           permissionGroupId: id,
           addedUserIds,
-          movedCount,
+          skipped,
         },
         request: req,
       })
 
-      return NextResponse.json({ added: addedUserIds.length, moved: movedCount })
+      return NextResponse.json({ added: addedUserIds.length, skipped })
     } catch (error) {
-      if (getPostgresErrorCode(error) === '23505') {
-        const constraint = getPostgresConstraintName(error)
-        if (
-          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.organizationUser ||
-          constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
-        ) {
-          return NextResponse.json(
-            {
-              error:
-                'One or more users were concurrently added to a group in this organization. Please refresh and try again.',
-            },
-            { status: 409 }
-          )
-        }
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              'One or more users were concurrently added to this group. Please refresh and try again.',
+          },
+          { status: 409 }
+        )
       }
       logger.error('Error bulk adding members to permission group', error)
       return NextResponse.json({ error: 'Failed to add members' }, { status: 500 })
