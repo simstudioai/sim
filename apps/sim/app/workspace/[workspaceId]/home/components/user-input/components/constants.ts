@@ -47,27 +47,25 @@ export interface PlusMenuHandle {
 /**
  * Box and typography shared by the textarea and its mirror overlay — both must
  * produce identical line wrapping so the overlay text sits exactly over the
- * (transparent) textarea text. The scale is the canonical chip text-field
- * scale ({@link ChipTextarea}: `text-sm`, default tracking), so the editor
- * reads identically in the chat input and inside chip modals — one size,
- * everywhere.
+ * (transparent) textarea text. The scale is the chat input's native prompt
+ * scale (`text-[15px]`, `-0.015em` tracking); the task modal's body inherits it
+ * so the editor reads the same whether it's the chat input or inside the modal.
  */
 const FIELD_MIRROR_CLASSES = cn(
-  'm-0 box-border min-h-[20px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
-  'px-1 py-1 font-body text-sm leading-[20px]'
+  'm-0 box-border min-h-[24px] w-full break-words [overflow-wrap:anywhere] border-0 bg-transparent',
+  'px-1 py-1 font-body text-[15px] leading-[24px] tracking-[-0.015em]'
 )
 
 /**
  * The textarea grows to its full content height (`h-auto`, no internal scroll);
  * the shared scroller clips and scrolls it. Its text is transparent so the
- * mirror overlay shows through; only the caret paints. The placeholder uses
- * the canonical `--text-muted`, matching every other chip text field.
+ * mirror overlay shows through; only the caret paints.
  */
 export const TEXTAREA_BASE_CLASSES = cn(
   FIELD_MIRROR_CLASSES,
   'block h-auto resize-none overflow-hidden',
   'text-transparent caret-[var(--text-primary)] outline-none',
-  'placeholder:text-[var(--text-muted)]',
+  'placeholder:font-[380] placeholder:text-[var(--text-subtle)]',
   'focus-visible:ring-0 focus-visible:ring-offset-0'
 )
 
