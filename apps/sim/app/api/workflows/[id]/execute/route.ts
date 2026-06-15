@@ -20,6 +20,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
+import { isSameOriginBrowserRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
@@ -393,6 +394,17 @@ async function handleExecutePost(
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+
+    // Session-cookie execution must originate from our own front-end (the Run
+    // button). Reject cross-origin / non-browser callers replaying a session
+    // cookie — this closes a CSRF hole and blocks cookie-replay automation.
+    // API-key, public-API, and internal-JWT callers don't use cookies, so the
+    // guard is scoped strictly to session auth.
+    if (auth.success && auth.authType === AuthType.SESSION && !isSameOriginBrowserRequest(req)) {
+      reqLogger.warn('Rejected cross-origin session-authenticated execute request')
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
     const useMcpBridgeAuthenticatedUserAsActor =
