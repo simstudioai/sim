@@ -37,6 +37,14 @@ export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.a
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Block free-plan accounts from programmatic workflow execution (API key, public
+ * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
+ * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
+ * dark and be enabled per-deployment once verified.
+ */
+export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
+
+/**
  * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
  * legacy integer `position`. When off, behavior is unchanged. Keys are written
  * regardless of this flag; it only controls which column is authoritative for

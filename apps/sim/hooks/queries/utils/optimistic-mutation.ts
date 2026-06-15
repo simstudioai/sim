@@ -67,7 +67,7 @@ export function createOptimisticMutationHandlers<TData, TVariables, TItem>(
     },
 
     onSettled: (_data: TData | undefined, _error: Error | null, variables: TVariables) => {
-      queryClient.invalidateQueries({ queryKey: getQueryKey(variables) })
+      return queryClient.invalidateQueries({ queryKey: getQueryKey(variables) })
     },
   }
 }

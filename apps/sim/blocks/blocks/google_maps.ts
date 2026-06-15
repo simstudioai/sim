@@ -641,6 +641,7 @@ export const GoogleMapsBlock: BlockConfig = {
 
 export const GoogleMapsBlockMeta = {
   tags: ['google-workspace', 'enrichment'],
+  url: 'https://mapsplatform.google.com',
   templates: [
     {
       icon: GoogleMapsIcon,

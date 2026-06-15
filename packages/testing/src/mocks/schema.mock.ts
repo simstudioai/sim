@@ -1024,11 +1024,12 @@ export const schemaMock = {
     createdBy: 'createdBy',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt',
-    autoAddNewMembers: 'autoAddNewMembers',
+    isDefault: 'isDefault',
   },
   permissionGroupMember: {
     id: 'id',
     permissionGroupId: 'permissionGroupId',
+    organizationId: 'organizationId',
     userId: 'userId',
     assignedBy: 'assignedBy',
     assignedAt: 'assignedAt',

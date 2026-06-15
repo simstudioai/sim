@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   Button,
   Chip,
+  ChipCombobox,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -26,6 +27,7 @@ import { ANONYMOUS_USER_ID } from '@/lib/auth/constants'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { getBrowserTimezone, getTimezoneOptions } from '@/lib/core/utils/timezone'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useProfilePictureUpload } from '@/app/workspace/[workspaceId]/settings/hooks/use-profile-picture-upload'
@@ -39,6 +41,16 @@ import {
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('General')
+
+/** Human-friendly timezone options for the picker, common zones first. */
+const TIMEZONE_OPTIONS = getTimezoneOptions()
+
+/**
+ * Shared trigger width for the three appearance dropdowns (Theme, Timezone, Snap
+ * to grid) so they line up as one column instead of three differently-sized
+ * pills. Wide enough for the longest common timezone label.
+ */
+const DROPDOWN_TRIGGER_CLASS = 'w-[240px] flex-shrink-0'
 
 /**
  * Extracts initials from a user's name.
@@ -195,6 +207,10 @@ export function General() {
 
   const handleThemeChange = async (value: string) => {
     await updateSetting.mutateAsync({ key: 'theme', value: value as 'system' | 'light' | 'dark' })
+  }
+
+  const handleTimezoneChange = async (value: string) => {
+    await updateSetting.mutateAsync({ key: 'timezone', value })
   }
 
   const handleAutoConnectChange = async (checked: boolean) => {
@@ -392,18 +408,37 @@ export function General() {
             <div className='flex flex-col gap-4'>
               <div className='flex items-center justify-between'>
                 <Label htmlFor='theme-select'>Theme</Label>
-                <ChipSelect
-                  align='start'
-                  dropdownWidth={140}
-                  value={settings?.theme}
-                  onChange={handleThemeChange}
-                  placeholder='Select theme'
-                  options={[
-                    { label: 'System', value: 'system' },
-                    { label: 'Light', value: 'light' },
-                    { label: 'Dark', value: 'dark' },
-                  ]}
-                />
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipSelect
+                    align='start'
+                    fullWidth
+                    dropdownWidth='trigger'
+                    value={settings?.theme}
+                    onChange={handleThemeChange}
+                    placeholder='Select theme'
+                    options={[
+                      { label: 'System', value: 'system' },
+                      { label: 'Light', value: 'light' },
+                      { label: 'Dark', value: 'dark' },
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className='flex items-center justify-between gap-4'>
+                <Label>Timezone</Label>
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipCombobox
+                    align='start'
+                    dropdownWidth={240}
+                    searchable
+                    searchPlaceholder='Search timezones'
+                    value={settings?.timezone ?? getBrowserTimezone()}
+                    onChange={handleTimezoneChange}
+                    placeholder='Select timezone'
+                    options={TIMEZONE_OPTIONS}
+                  />
+                </div>
               </div>
 
               <div className='flex items-center justify-between'>
@@ -455,21 +490,24 @@ export function General() {
 
               <div className='flex items-center justify-between'>
                 <Label htmlFor='snap-to-grid'>Snap to grid</Label>
-                <ChipSelect
-                  align='start'
-                  dropdownWidth={140}
-                  value={String(snapToGridValue)}
-                  onChange={handleSnapToGridChange}
-                  placeholder='Select size'
-                  options={[
-                    { label: 'Off', value: '0' },
-                    { label: '10px', value: '10' },
-                    { label: '20px', value: '20' },
-                    { label: '30px', value: '30' },
-                    { label: '40px', value: '40' },
-                    { label: '50px', value: '50' },
-                  ]}
-                />
+                <div className={DROPDOWN_TRIGGER_CLASS}>
+                  <ChipSelect
+                    align='start'
+                    fullWidth
+                    dropdownWidth='trigger'
+                    value={String(snapToGridValue)}
+                    onChange={handleSnapToGridChange}
+                    placeholder='Select size'
+                    options={[
+                      { label: 'Off', value: '0' },
+                      { label: '10px', value: '10' },
+                      { label: '20px', value: '20' },
+                      { label: '30px', value: '30' },
+                      { label: '40px', value: '40' },
+                      { label: '50px', value: '50' },
+                    ]}
+                  />
+                </div>
               </div>
 
               <div className='flex items-center justify-between'>

@@ -457,21 +457,15 @@ export function BYOKKeyManager(props: BYOKKeyManagerProps) {
         }}
         srTitle='Delete API Key'
         title='Delete API Key'
-        description={
-          <>
-            Are you sure you want to delete the{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deleteMeta?.name}</span> API
-            key?{' '}
-            {isDeletingLastKey ? (
-              <span className='text-[var(--text-error)]'>
-                This workspace will revert to using platform hosted keys.
-              </span>
-            ) : (
-              <>Requests will continue using the remaining {deleteMeta?.name} keys.</>
-            )}{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete the ',
+          { text: deleteMeta?.name ?? 'selected', bold: true },
+          ' API key? ',
+          isDeletingLastKey
+            ? { text: 'This workspace will revert to using platform hosted keys.', error: true }
+            : `Requests will continue using the remaining ${deleteMeta?.name ?? 'provider'} keys.`,
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

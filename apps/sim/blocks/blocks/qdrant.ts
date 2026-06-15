@@ -249,6 +249,7 @@ Return ONLY the JSON object.`,
 
 export const QdrantBlockMeta = {
   tags: ['vector-search', 'knowledge-base'],
+  url: 'https://qdrant.tech',
   templates: [
     {
       icon: QdrantIcon,

@@ -412,6 +412,7 @@ export const ClerkBlock: BlockConfig<ClerkResponse> = {
 
 export const ClerkBlockMeta = {
   tags: ['identity', 'automation'],
+  url: 'https://clerk.com',
   templates: [
     {
       icon: ClerkIcon,

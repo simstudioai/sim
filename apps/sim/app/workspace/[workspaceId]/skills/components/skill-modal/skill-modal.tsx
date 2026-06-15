@@ -224,14 +224,16 @@ export function SkillModal({
         <ChipModalFooter
           onCancel={() => onOpenChange(false)}
           cancelDisabled={readOnly}
-          secondaryAction={
+          secondaryActions={
             isEditing && onDelete
-              ? {
-                  label: 'Delete',
-                  onClick: () => onDelete(initialValues.id),
-                  variant: 'destructive',
-                  disabled: readOnly,
-                }
+              ? [
+                  {
+                    label: 'Delete',
+                    onClick: () => onDelete(initialValues.id),
+                    variant: 'destructive',
+                    disabled: readOnly,
+                  },
+                ]
               : undefined
           }
           primaryAction={{

@@ -350,6 +350,7 @@ export const UpstashBlock: BlockConfig<UpstashResponse> = {
 
 export const UpstashBlockMeta = {
   tags: ['cloud'],
+  url: 'https://upstash.com',
   templates: [
     {
       icon: UpstashIcon,

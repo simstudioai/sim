@@ -539,6 +539,7 @@ export const QuartrBlock: BlockConfig<ToolResponse> = {
 
 export const QuartrBlockMeta = {
   tags: ['data-analytics', 'enrichment', 'document-processing'],
+  url: 'https://quartr.com',
   templates: [
     {
       icon: QuartrIcon,

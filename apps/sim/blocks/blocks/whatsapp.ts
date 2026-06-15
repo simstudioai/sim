@@ -179,6 +179,7 @@ export const WhatsAppBlock: BlockConfig<WhatsAppResponse> = {
 
 export const WhatsAppBlockMeta = {
   tags: ['messaging', 'automation'],
+  url: 'https://www.whatsapp.com',
   templates: [
     {
       icon: WhatsAppIcon,

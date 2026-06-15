@@ -277,6 +277,7 @@ Return ONLY the date/time string - no explanations, no quotes, no extra text.`,
 
 export const WealthboxBlockMeta = {
   tags: ['sales-engagement'],
+  url: 'https://www.wealthbox.com',
   templates: [
     {
       icon: WealthboxIcon,

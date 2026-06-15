@@ -4,6 +4,8 @@
  * @vitest-environment node
  */
 import {
+  dbChainMock,
+  dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
@@ -20,6 +22,8 @@ const {
   mockIsEmailAllowed,
   mockGetSession,
   mockCheckRateLimitDirect,
+  mockIsWorkspaceApiExecutionEntitled,
+  flagState,
 } = vi.hoisted(() => ({
   mockMergeSubblockStateWithValues: vi.fn().mockReturnValue({}),
   mockMergeSubBlockValues: vi.fn().mockReturnValue({}),
@@ -28,6 +32,14 @@ const {
   mockIsEmailAllowed: vi.fn(),
   mockGetSession: vi.fn(),
   mockCheckRateLimitDirect: vi.fn().mockResolvedValue({ allowed: true }),
+  mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+  flagState: { isBillingEnabled: false, isFreeApiDeploymentGateEnabled: true },
+}))
+
+vi.mock('@sim/db', () => dbChainMock)
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
 }))
 
 vi.mock('@/lib/core/rate-limiter', () => ({
@@ -68,14 +80,26 @@ vi.mock('@/lib/core/security/deployment', () => ({
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
   isDev: true,
-  isHosted: false,
   isProd: false,
+  get isBillingEnabled() {
+    return flagState.isBillingEnabled
+  },
+  get isFreeApiDeploymentGateEnabled() {
+    return flagState.isFreeApiDeploymentGateEnabled
+  },
 }))
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
+import { NextRequest } from 'next/server'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+import { assertChatEmbedAllowed, setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+
+function chatRequest(origin?: string): NextRequest {
+  return new NextRequest('https://www.sim.ai/api/chat/abc', {
+    headers: origin ? { origin } : undefined,
+  })
+}
 
 describe('Chat API Utils', () => {
   beforeEach(() => {
@@ -451,5 +475,79 @@ describe('Chat API Utils', () => {
 
       expect(extractedFromStreaming).toBe(executionResult)
     })
+  })
+})
+
+describe('assertChatEmbedAllowed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    flagState.isBillingEnabled = true
+    flagState.isFreeApiDeploymentGateEnabled = true
+    mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
+    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-1' }])
+  })
+
+  it('returns 403 for a cross-site origin when the owner is on the free plan', async () => {
+    mockIsWorkspaceApiExecutionEntitled.mockResolvedValueOnce(false)
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res?.status).toBe(403)
+  })
+
+  it('allows a cross-site origin when the owner is on a paid plan', async () => {
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+  })
+
+  it('returns 403 for a cross-site origin when the workflow has no active workspace', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res?.status).toBe(403)
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('allows a first-party *.sim.ai origin without gating', async () => {
+    const res = await assertChatEmbedAllowed(chatRequest('https://chat.sim.ai'), 'wf-1', 'req-1')
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('allows requests with no Origin header', async () => {
+    const res = await assertChatEmbedAllowed(chatRequest(), 'wf-1', 'req-1')
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op when billing is disabled', async () => {
+    flagState.isBillingEnabled = false
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
+  })
+
+  it('is a no-op when the gate feature flag is disabled', async () => {
+    flagState.isFreeApiDeploymentGateEnabled = false
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res).toBeNull()
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
   })
 })

@@ -128,16 +128,14 @@ export function RowModal({ mode, isOpen, onClose, table, row, rowIds, onSuccess 
         onOpenChange={handleClose}
         srTitle={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
         title={`Delete ${isSingleRow ? 'Row' : `${deleteCount} Rows`}`}
-        description={
-          <>
-            Are you sure you want to delete {isSingleRow ? 'this row' : `these ${deleteCount} rows`}
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will permanently remove all data in {isSingleRow ? 'this row' : 'these rows'}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          `Are you sure you want to delete ${isSingleRow ? 'this row' : `these ${deleteCount} rows`}? `,
+          {
+            text: `This will permanently remove all data in ${isSingleRow ? 'this row' : 'these rows'}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDelete,

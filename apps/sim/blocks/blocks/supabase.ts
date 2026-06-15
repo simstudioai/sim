@@ -1225,6 +1225,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
 
 export const SupabaseBlockMeta = {
   tags: ['cloud', 'data-warehouse', 'vector-search'],
+  url: 'https://supabase.com',
   templates: [
     {
       icon: SupabaseIcon,

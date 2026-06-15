@@ -199,6 +199,7 @@ export const GreptileBlock: BlockConfig<GreptileResponse> = {
 
 export const GreptileBlockMeta = {
   tags: ['version-control', 'knowledge-base'],
+  url: 'https://www.greptile.com',
   templates: [
     {
       icon: SlackIcon,

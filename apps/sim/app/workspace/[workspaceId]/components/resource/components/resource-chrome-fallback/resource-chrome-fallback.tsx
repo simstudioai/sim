@@ -86,7 +86,7 @@ export function ResourceChromeFallback({
         sort={hasSort ? { options: [], active: null, onSort: noop } : undefined}
         filter={hasFilter ? { content: null } : undefined}
       />
-      {columns ? <Resource.Table columns={columns} rows={[]} isLoading /> : null}
+      {columns ? <Resource.Table columns={columns} rows={[]} /> : null}
     </Resource>
   )
 }

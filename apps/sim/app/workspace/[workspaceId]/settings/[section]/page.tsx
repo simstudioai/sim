@@ -31,7 +31,7 @@ const SECTION_TITLES: Record<string, string> = {
   team: 'Team',
   sso: 'Single Sign-On',
   whitelabeling: 'Whitelabeling',
-  copilot: 'Copilot Keys',
+  copilot: 'Chat Keys',
   mcp: 'MCP Tools',
   'custom-tools': 'Custom Tools',
   'workflow-mcp-servers': 'MCP Servers',
