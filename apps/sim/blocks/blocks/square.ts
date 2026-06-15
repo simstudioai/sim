@@ -309,54 +309,24 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       mode: 'advanced',
     },
 
-    // Search query — one field per search operation so the placeholder and wand
-    // prompt match each endpoint's distinct query schema. All map to the same
-    // canonical `query` param.
+    // Search query — shared across the three search operations. The placeholder
+    // stays schema-neutral (each endpoint expects a different query shape) and
+    // the examples for each are spelled out in the wand prompt.
     {
-      id: 'queryCustomers',
+      id: 'query',
       title: 'Query (JSON)',
       type: 'code',
       language: 'json',
-      canonicalParamId: 'query',
-      placeholder: '{"filter": {"email_address": {"exact": "customer@example.com"}}}',
-      condition: { field: 'operation', value: 'search_customers' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a Square SearchCustomers query JSON object with a filter and optional sort. Return ONLY the JSON object.',
-        generationType: 'json-object',
+      placeholder: 'Square search query JSON for the selected operation',
+      condition: {
+        field: 'operation',
+        value: ['search_customers', 'search_orders', 'search_catalog_objects'],
       },
-    },
-    {
-      id: 'queryOrders',
-      title: 'Query (JSON)',
-      type: 'code',
-      language: 'json',
-      canonicalParamId: 'query',
-      placeholder: '{"filter": {"state_filter": {"states": ["OPEN"]}}}',
-      condition: { field: 'operation', value: 'search_orders' },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Square SearchOrders query JSON object with a filter (e.g. state_filter, date_time_filter) and optional sort. Return ONLY the JSON object.',
-        generationType: 'json-object',
-      },
-    },
-    {
-      id: 'queryCatalog',
-      title: 'Query (JSON)',
-      type: 'code',
-      language: 'json',
-      canonicalParamId: 'query',
-      placeholder: '{"text_query": {"keywords": ["coffee"]}}',
-      condition: { field: 'operation', value: 'search_catalog_objects' },
-      mode: 'advanced',
-      wandConfig: {
-        enabled: true,
-        prompt:
-          'Generate a Square SearchCatalogObjects query JSON object (e.g. text_query, prefix_query, exact_query). Return ONLY the JSON object.',
+          'Generate a Square search query JSON object for the selected operation. For Search Customers use a filter like {"filter":{"email_address":{"exact":"a@b.com"}}}; for Search Orders use {"filter":{"state_filter":{"states":["OPEN"]}}}; for Search Catalog Objects use {"text_query":{"keywords":["coffee"]}}. Return ONLY the JSON object.',
         generationType: 'json-object',
       },
     },
@@ -707,8 +677,6 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       params: (params) => {
         const {
           operation,
-          uploadFile,
-          fileRef,
           address,
           query,
           order,
@@ -728,8 +696,9 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           ...rest
         } = params
 
-        // Normalize the catalog image file from basic (uploadFile) or advanced (fileRef)
-        const normalizedFile = normalizeFileInput(uploadFile || fileRef, { single: true })
+        // The basic/advanced image inputs are collapsed into the canonical `file`
+        // param before this runs, so normalize from params.file.
+        const normalizedFile = normalizeFileInput(params.file, { single: true })
 
         // Parse a JSON-typed input, naming the field in any error so the user
         // knows exactly which input to fix.
