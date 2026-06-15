@@ -53,6 +53,7 @@ export {
   ChipModalPromptBody,
   type ChipModalPromptBodyProps,
   type ChipModalProps,
+  ChipModalSeparator,
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
