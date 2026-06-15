@@ -1080,3 +1080,229 @@ export type JsmResponse =
   | JsmCopyFormsResponse
   | JsmGetFormAnswersResponse
   | JsmReopenFormResponse
+  | JsmListObjectSchemasResponse
+  | JsmGetObjectSchemaResponse
+  | JsmListObjectTypesResponse
+  | JsmGetObjectTypeAttributesResponse
+  | JsmSearchObjectsAqlResponse
+  | JsmGetObjectResponse
+  | JsmCreateObjectResponse
+  | JsmUpdateObjectResponse
+  | JsmDeleteObjectResponse
+
+/**
+ * JSM Assets (Insight / CMDB) tool types.
+ *
+ * The Assets API is keyed by an Assets `workspaceId` (resolved server-side from
+ * the Jira `cloudId`). All tools share {@link JsmAssetsBaseParams}.
+ */
+
+/** Base params shared by every JSM Assets tool */
+export interface JsmAssetsBaseParams {
+  accessToken: string
+  domain: string
+  /** Jira Cloud ID (resolved server-side from the domain when omitted) */
+  cloudId?: string
+  /** Assets workspace ID (resolved server-side from the cloudId when omitted) */
+  workspaceId?: string
+}
+
+/** A single attribute value entry on an Assets object */
+export interface AssetObjectAttributeValue {
+  value: string | null
+  displayValue: string | null
+  searchValue?: string | null
+  referencedType?: boolean
+  referencedObject?: Record<string, unknown> | null
+}
+
+/** A resolved attribute on an Assets object (read shape) */
+export interface AssetObjectAttribute {
+  id: string
+  objectTypeAttributeId: string
+  objectAttributeValues: AssetObjectAttributeValue[]
+}
+
+/** An Assets object as returned by get/create/update */
+export interface AssetObject {
+  id: string
+  label: string | null
+  objectKey: string | null
+  globalId: string | null
+  created: string | null
+  updated: string | null
+  hasAvatar: boolean
+  objectType: Record<string, unknown> | null
+  attributes: AssetObjectAttribute[]
+  link: string | null
+}
+
+/** Attribute payload for creating/updating an Assets object */
+export interface AssetObjectAttributeInput {
+  objectTypeAttributeId: string
+  objectAttributeValues: Array<{ value: unknown }>
+}
+
+/** Raw attribute value as returned by the Assets API (before normalization) */
+export interface RawAssetObjectAttributeValue {
+  value?: string | null
+  displayValue?: string | null
+  searchValue?: string | null
+  referencedType?: boolean
+  referencedObject?: Record<string, unknown> | null
+}
+
+/** Raw attribute as returned by the Assets API (before normalization) */
+export interface RawAssetObjectAttribute {
+  id?: string
+  objectTypeAttributeId?: string
+  objectAttributeValues?: RawAssetObjectAttributeValue[]
+}
+
+/** Raw Assets object as returned by get/create/update/AQL (before normalization) */
+export interface RawAssetObject {
+  id: string
+  label?: string | null
+  objectKey?: string | null
+  globalId?: string | null
+  created?: string | null
+  updated?: string | null
+  hasAvatar?: boolean
+  objectType?: Record<string, unknown> | null
+  attributes?: RawAssetObjectAttribute[]
+  _links?: { self?: string } | null
+}
+
+/** Output property descriptors reused across Assets object responses */
+export const ASSET_OBJECT_PROPERTIES = {
+  id: { type: 'string', description: 'Object ID' },
+  label: { type: 'string', description: 'Human-readable object label', optional: true },
+  objectKey: { type: 'string', description: 'Object key (e.g., HOST-123)', optional: true },
+  globalId: { type: 'string', description: 'Global object ID', optional: true },
+  objectType: { type: 'json', description: 'Object type metadata', optional: true },
+  attributes: { type: 'json', description: 'Resolved attribute values for the object' },
+  hasAvatar: { type: 'boolean', description: 'Whether the object has an avatar', optional: true },
+  created: { type: 'string', description: 'Creation timestamp', optional: true },
+  updated: { type: 'string', description: 'Last update timestamp', optional: true },
+  link: { type: 'string', description: 'Self link to the object', optional: true },
+} as const
+
+export interface JsmListObjectSchemasParams extends JsmAssetsBaseParams {
+  startAt?: number
+  maxResults?: number
+  includeCounts?: boolean
+}
+
+export interface JsmListObjectSchemasResponse extends ToolResponse {
+  output: {
+    ts: string
+    schemas: Array<Record<string, unknown>>
+    total: number
+    isLast: boolean
+  }
+}
+
+export interface JsmGetObjectSchemaParams extends JsmAssetsBaseParams {
+  schemaId: string
+}
+
+export interface JsmGetObjectSchemaResponse extends ToolResponse {
+  output: {
+    ts: string
+    schema: Record<string, unknown> | null
+  }
+}
+
+export interface JsmListObjectTypesParams extends JsmAssetsBaseParams {
+  schemaId: string
+  excludeAbstract?: boolean
+}
+
+export interface JsmListObjectTypesResponse extends ToolResponse {
+  output: {
+    ts: string
+    objectTypes: Array<Record<string, unknown>>
+    total: number
+  }
+}
+
+export interface JsmGetObjectTypeAttributesParams extends JsmAssetsBaseParams {
+  objectTypeId: string
+  onlyValueEditable?: boolean
+  query?: string
+}
+
+export interface JsmGetObjectTypeAttributesResponse extends ToolResponse {
+  output: {
+    ts: string
+    attributes: Array<Record<string, unknown>>
+    total: number
+  }
+}
+
+export interface JsmSearchObjectsAqlParams extends JsmAssetsBaseParams {
+  qlQuery: string
+  page?: number
+  resultsPerPage?: number
+  includeAttributes?: boolean
+  objectTypeId?: string
+  objectSchemaId?: string
+}
+
+export interface JsmSearchObjectsAqlResponse extends ToolResponse {
+  output: {
+    ts: string
+    objects: Array<Record<string, unknown>>
+    total: number
+    pageNumber: number
+    pageSize: number
+  }
+}
+
+export interface JsmGetObjectParams extends JsmAssetsBaseParams {
+  objectId: string
+}
+
+export interface JsmGetObjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    object: AssetObject | null
+  }
+}
+
+export interface JsmCreateObjectParams extends JsmAssetsBaseParams {
+  objectTypeId: string
+  attributes: AssetObjectAttributeInput[]
+}
+
+export interface JsmCreateObjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    object: AssetObject | null
+  }
+}
+
+export interface JsmUpdateObjectParams extends JsmAssetsBaseParams {
+  objectId: string
+  attributes: AssetObjectAttributeInput[]
+  objectTypeId?: string
+}
+
+export interface JsmUpdateObjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    object: AssetObject | null
+  }
+}
+
+export interface JsmDeleteObjectParams extends JsmAssetsBaseParams {
+  objectId: string
+}
+
+export interface JsmDeleteObjectResponse extends ToolResponse {
+  output: {
+    ts: string
+    objectId: string
+    deleted: boolean
+  }
+}
