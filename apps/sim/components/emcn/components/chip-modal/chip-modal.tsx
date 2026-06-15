@@ -62,8 +62,12 @@ import { Loader } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
-/** Shared inset separator used by the header and footer edges. */
-function ChipModalSeparator({ className }: { className?: string }) {
+/**
+ * The modal's hairline divider — used by the header and footer edges, and
+ * exported so body sections (e.g. a settings band below a prompt) can draw the
+ * same line instead of re-deriving the `h-px bg-[var(--border)]` string.
+ */
+export function ChipModalSeparator({ className }: { className?: string }) {
   return <div className={cn('h-px bg-[var(--border)]', className)} />
 }
 
