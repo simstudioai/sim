@@ -9,14 +9,14 @@ import { runDetached } from '@/lib/core/utils/background'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { appendTableEvent } from '@/lib/table/events'
-import { batchUpdateRows } from '@/lib/table/rows/service'
 import {
-  getTableById,
   markJobFailed,
   markJobReady,
   markTableJobRunning,
   updateJobProgress,
-} from '@/lib/table/service'
+} from '@/lib/table/jobs/service'
+import { batchUpdateRows } from '@/lib/table/rows/service'
+import { getTableById } from '@/lib/table/service'
 import type {
   RowData,
   TableBackfillJobPayload,
@@ -330,7 +330,7 @@ export async function maybeBackfillGroupOutputs(opts: {
       // Release the claim so a ghost `running` job doesn't block imports/deletes.
       // Swallowed (warn only): a failed backfill never fails the schema change —
       // the data stays backfillable.
-      const { releaseJobClaim } = await import('./service')
+      const { releaseJobClaim } = await import('./jobs/service')
       await releaseJobClaim(table.id, jobId).catch(() => {})
       logger.warn(
         `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,

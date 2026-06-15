@@ -9,7 +9,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import type { TableDeleteJobPayload } from '@/lib/table/types'
 import { accessError, checkAccess, tableFilterError } from '@/app/api/table/utils'
 

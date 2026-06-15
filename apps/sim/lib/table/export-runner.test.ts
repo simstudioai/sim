@@ -27,6 +27,8 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+}))
+vi.mock('@/lib/table/jobs/service', () => ({
   selectExportRowPage: mockSelectExportRowPage,
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,

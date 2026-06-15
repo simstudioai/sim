@@ -10,13 +10,13 @@ import {
   toCsvRow,
 } from '@/lib/table/export-format'
 import {
-  getTableById,
   markJobFailed,
   markJobReady,
   selectExportRowPage,
   setJobResultKey,
   updateJobProgress,
-} from '@/lib/table/service'
+} from '@/lib/table/jobs/service'
+import { getTableById } from '@/lib/table/service'
 import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('TableExportRunner')

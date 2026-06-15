@@ -54,6 +54,9 @@ vi.mock('@/app/api/table/utils', async () => {
 vi.mock('@/lib/table/service', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
+}))
+
+vi.mock('@/lib/table/jobs/service', () => ({
   markTableJobRunning: mockMarkTableImporting,
   releaseJobClaim: mockReleaseImportClaim,
 }))
