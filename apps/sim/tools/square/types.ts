@@ -892,7 +892,7 @@ export interface PayOrderParams {
 
 export interface SearchInvoicesParams {
   apiKey: string
-  locationIds: string[]
+  locationId: string
   limit?: number
   cursor?: string
 }

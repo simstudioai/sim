@@ -22,11 +22,11 @@ export const squareSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
       visibility: 'user-only',
       description: 'Square access token (personal access token)',
     },
-    locationIds: {
-      type: 'array',
+    locationId: {
+      type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Array of location IDs to search within',
+      description: 'ID of the location to search within (Square allows one location per search)',
     },
     limit: {
       type: 'number',
@@ -49,7 +49,7 @@ export const squareSearchInvoicesTool: ToolConfig<SearchInvoicesParams, InvoiceL
     body: (params) => {
       const body: Record<string, unknown> = {
         query: {
-          filter: { location_ids: params.locationIds },
+          filter: { location_ids: [params.locationId] },
         },
       }
       if (params.limit !== undefined) body.limit = params.limit

@@ -381,9 +381,9 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       placeholder: '["L123", "L456"]',
       condition: {
         field: 'operation',
-        value: ['search_orders', 'search_invoices', 'batch_retrieve_inventory_counts'],
+        value: ['search_orders', 'batch_retrieve_inventory_counts'],
       },
-      required: { field: 'operation', value: ['search_orders', 'search_invoices'] },
+      required: { field: 'operation', value: 'search_orders' },
     },
 
     // Invoices
@@ -563,9 +563,16 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       placeholder: 'Square location ID',
       condition: {
         field: 'operation',
-        value: ['create_payment', 'list_payments', 'list_invoices', 'list_refunds', 'get_location'],
+        value: [
+          'create_payment',
+          'list_payments',
+          'list_invoices',
+          'search_invoices',
+          'list_refunds',
+          'get_location',
+        ],
       },
-      required: { field: 'operation', value: ['list_invoices', 'get_location'] },
+      required: { field: 'operation', value: ['list_invoices', 'search_invoices', 'get_location'] },
     },
     {
       id: 'limit',
@@ -725,6 +732,22 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
         const parsedCatalogObjectIds = parseJsonField(catalogObjectIds, 'catalogObjectIds')
         const parsedStates = parseJsonField(states, 'states')
 
+        // Coerce a numeric input, failing locally with a clear message rather than
+        // forwarding NaN to Square when the value is non-numeric.
+        const coerceNumber = (value: unknown, field: string): number | undefined => {
+          if (value === undefined || value === null || value === '') return undefined
+          const num = Number(value)
+          if (!Number.isFinite(num)) {
+            throw new Error(`"${field}" must be a valid number`)
+          }
+          return num
+        }
+
+        const coercedAmount = coerceNumber(amount, 'amount')
+        const coercedLimit = coerceNumber(limit, 'limit')
+        const coercedVersion = coerceNumber(version, 'version')
+        const coercedOrderVersion = coerceNumber(orderVersion, 'orderVersion')
+
         return {
           ...rest,
           ...(normalizedFile && { file: normalizedFile }),
@@ -738,11 +761,10 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           ...(parsedPaymentIds !== undefined && { paymentIds: parsedPaymentIds }),
           ...(parsedCatalogObjectIds !== undefined && { catalogObjectIds: parsedCatalogObjectIds }),
           ...(parsedStates !== undefined && { states: parsedStates }),
-          ...(amount !== undefined && amount !== '' && { amount: Number(amount) }),
-          ...(limit !== undefined && limit !== '' && { limit: Number(limit) }),
-          ...(version !== undefined && version !== '' && { version: Number(version) }),
-          ...(orderVersion !== undefined &&
-            orderVersion !== '' && { orderVersion: Number(orderVersion) }),
+          ...(coercedAmount !== undefined && { amount: coercedAmount }),
+          ...(coercedLimit !== undefined && { limit: coercedLimit }),
+          ...(coercedVersion !== undefined && { version: coercedVersion }),
+          ...(coercedOrderVersion !== undefined && { orderVersion: coercedOrderVersion }),
           ...(autocomplete !== undefined && { autocomplete: autocomplete === 'true' }),
           ...(includeRelatedObjects !== undefined && {
             includeRelatedObjects: includeRelatedObjects === 'true',
