@@ -16,7 +16,7 @@ vi.mock('@sim/utils/id', () => ({
   generateId: vi.fn().mockReturnValue('job-id-xyz'),
   generateShortId: vi.fn().mockReturnValue('short-id'),
 }))
-vi.mock('@/lib/table/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
+vi.mock('@/lib/table/jobs/service', () => ({ markTableJobRunning: mockMarkTableJobRunning }))
 vi.mock('@/lib/table/export-runner', () => ({ runTableExport: mockRunTableExport }))
 vi.mock('@/lib/core/utils/background', () => ({
   runDetached: (_label: string, work: () => Promise<unknown>) => {

@@ -56,26 +56,39 @@ vi.mock('@/enrichments/registry', () => ({
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  addTableColumn: vi.fn(),
-  addWorkflowGroup: mockAddWorkflowGroup,
-  batchInsertRows: mockBatchInsertRows,
-  batchUpdateRows: vi.fn(),
   createTable: mockCreateTable,
+  deleteTable: mockDeleteTable,
+  getTableById: mockGetTableById,
+  renameTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/workflow-groups/service', () => ({
+  addWorkflowGroup: mockAddWorkflowGroup,
+  addWorkflowGroupOutput: vi.fn(),
+  deleteWorkflowGroup: vi.fn(),
+  deleteWorkflowGroupOutput: vi.fn(),
+  updateWorkflowGroup: vi.fn(),
+}))
+
+vi.mock('@/lib/table/columns/service', () => ({
+  addTableColumn: vi.fn(),
   deleteColumn: vi.fn(),
   deleteColumns: vi.fn(),
+  renameColumn: vi.fn(),
+  updateColumnConstraints: vi.fn(),
+  updateColumnType: vi.fn(),
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  batchInsertRows: mockBatchInsertRows,
+  batchUpdateRows: vi.fn(),
   deleteRow: vi.fn(),
   deleteRowsByFilter: vi.fn(),
   deleteRowsByIds: vi.fn(),
-  deleteTable: mockDeleteTable,
   getRowById: vi.fn(),
-  getTableById: mockGetTableById,
   insertRow: vi.fn(),
   queryRows: vi.fn(),
-  renameColumn: vi.fn(),
-  renameTable: vi.fn(),
   replaceTableRows: mockReplaceTableRows,
-  updateColumnConstraints: vi.fn(),
-  updateColumnType: vi.fn(),
   updateRow: vi.fn(),
   updateRowsByFilter: vi.fn(),
 }))

@@ -4,7 +4,14 @@
 
 import { generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
-import type { Filter, FilterRule, JsonValue, Sort, SortDirection, SortRule } from '../types'
+import type {
+  Filter,
+  FilterRule,
+  JsonValue,
+  Sort,
+  SortDirection,
+  SortRule,
+} from '@/lib/table/types'
 
 /** Converts UI filter rules to a Filter object for API queries. */
 export function filterRulesToFilter(rules: FilterRule[]): Filter | null {

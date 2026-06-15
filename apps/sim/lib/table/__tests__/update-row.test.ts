@@ -3,15 +3,14 @@
  */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
   batchInsertRows,
-  deleteColumn,
   insertRow,
-  renameColumn,
   replaceTableRows,
   updateRow,
   upsertRow,
-} from '@/lib/table/service'
+} from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { getUniqueColumns } from '@/lib/table/validation'
 

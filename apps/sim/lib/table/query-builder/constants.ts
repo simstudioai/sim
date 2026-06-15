@@ -2,7 +2,7 @@
  * Constants for table query builder UI (filtering and sorting).
  */
 
-export type { FilterRule, SortRule } from '../types'
+export type { FilterRule, SortRule } from '@/lib/table/types'
 
 export const COMPARISON_OPERATORS = [
   { value: 'eq', label: 'equals' },
