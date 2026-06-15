@@ -43,9 +43,6 @@ const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
  */
 async function readAgentMailBody(req: Request): Promise<string> {
   assertContentLengthWithinLimit(req.headers, WEBHOOK_MAX_BODY_BYTES, AGENTMAIL_BODY_LABEL)
-  // `readStreamToBufferWithLimit` returns an empty buffer for a null body, so a
-  // single capped read covers the empty-body case without an uncapped `.text()`
-  // fallback that could bypass the limit.
   const buffer = await readStreamToBufferWithLimit(req.body, {
     maxBytes: WEBHOOK_MAX_BODY_BYTES,
     label: AGENTMAIL_BODY_LABEL,
