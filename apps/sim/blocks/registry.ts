@@ -268,6 +268,7 @@ import { SlackBlock, SlackBlockMeta } from '@/blocks/blocks/slack'
 import { SmtpBlock } from '@/blocks/blocks/smtp'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
+import { SquareBlock, SquareBlockMeta } from '@/blocks/blocks/square'
 import { SSHBlock } from '@/blocks/blocks/ssh'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
@@ -569,6 +570,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   smtp: SmtpBlock,
   spotify: SpotifyBlock,
   sqs: SQSBlock,
+  square: SquareBlock,
   ssh: SSHBlock,
   stagehand: StagehandBlock,
   start_trigger: StartTriggerBlock,
@@ -827,6 +829,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   slack: SlackBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,
+  square: SquareBlockMeta,
   stagehand: StagehandBlockMeta,
   stripe: StripeBlockMeta,
   sts: STSBlockMeta,
