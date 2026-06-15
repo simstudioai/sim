@@ -41,6 +41,12 @@ export interface ResponsesProviderConfig {
   endpoint: string
   headers: Record<string, string>
   logger: Logger
+  /**
+   * Optional fetch implementation. Used to pin the connection to a pre-validated
+   * IP (DNS-rebinding/SSRF protection) when the endpoint is user-supplied.
+   * Defaults to the global fetch.
+   */
+  fetch?: typeof fetch
 }
 
 /**
@@ -51,6 +57,7 @@ export async function executeResponsesProviderRequest(
   config: ResponsesProviderConfig
 ): Promise<ProviderResponse | StreamingExecution> {
   const { logger } = config
+  const fetchImpl = config.fetch ?? fetch
 
   logger.info(`Preparing ${config.providerLabel} request`, {
     model: request.model,
@@ -207,7 +214,7 @@ export async function executeResponsesProviderRequest(
   const postResponses = async (
     body: Record<string, unknown>
   ): Promise<OpenAI.Responses.Response> => {
-    const response = await fetch(config.endpoint, {
+    const response = await fetchImpl(config.endpoint, {
       method: 'POST',
       headers: config.headers,
       body: JSON.stringify(body),
@@ -229,7 +236,7 @@ export async function executeResponsesProviderRequest(
     if (request.stream && (!tools || tools.length === 0)) {
       logger.info(`Using streaming response for ${config.providerLabel} request`)
 
-      const streamResponse = await fetch(config.endpoint, {
+      const streamResponse = await fetchImpl(config.endpoint, {
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(initialInput, { stream: true })),
@@ -643,7 +650,7 @@ export async function executeResponsesProviderRequest(
         }
       }
 
-      const streamResponse = await fetch(config.endpoint, {
+      const streamResponse = await fetchImpl(config.endpoint, {
         method: 'POST',
         headers: config.headers,
         body: JSON.stringify(createRequestBody(currentInput, streamOverrides)),
