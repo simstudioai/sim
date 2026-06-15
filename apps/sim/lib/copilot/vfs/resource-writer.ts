@@ -207,7 +207,9 @@ async function resolveWorkflowAliasFileTarget(args: {
         includeReservedSystemFolders: true,
       })
   if (!folderId) {
-    throw new Error(`Plan backing directory is not provisioned for ${args.alias.aliasPath}.`)
+    throw new Error(
+      `Plan backing directory is not provisioned for ${args.alias.aliasPath}. Create the plan with touch_plan first.`
+    )
   }
 
   return {
