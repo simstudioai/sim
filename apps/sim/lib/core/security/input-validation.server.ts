@@ -5,6 +5,7 @@ import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
+import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
 import { isHosted } from '@/lib/core/config/feature-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -398,6 +399,63 @@ export function createPinnedLookup(resolvedIP: string): LookupFunction {
       callback(null, resolvedIP, family)
     }
   }
+}
+
+/**
+ * Pool of undici dispatchers keyed by resolved IP so repeated requests to the
+ * same pinned target reuse keep-alive connections instead of opening a fresh
+ * TCP + TLS connection each time.
+ */
+const MAX_POOLED_PINNED_AGENTS = 64
+const pinnedFetchAgents = new Map<string, Agent>()
+
+function getPinnedFetchAgent(resolvedIP: string): Agent {
+  const existing = pinnedFetchAgents.get(resolvedIP)
+  if (existing) {
+    pinnedFetchAgents.delete(resolvedIP)
+    pinnedFetchAgents.set(resolvedIP, existing)
+    return existing
+  }
+  if (pinnedFetchAgents.size >= MAX_POOLED_PINNED_AGENTS) {
+    const oldestKey = pinnedFetchAgents.keys().next().value
+    if (oldestKey !== undefined) pinnedFetchAgents.delete(oldestKey)
+  }
+  const agent = new Agent({ connect: { lookup: createPinnedLookup(resolvedIP) } })
+  pinnedFetchAgents.set(resolvedIP, agent)
+  return agent
+}
+
+export function __resetPinnedFetchAgentsForTests(): void {
+  pinnedFetchAgents.clear()
+}
+
+/**
+ * Builds a standard `fetch`-compatible function that pins every outbound
+ * connection to `resolvedIP`, preventing DNS-rebinding (TOCTOU) between URL
+ * validation and connection. The original hostname is preserved for TLS SNI and
+ * the `Host` header so it still matches the certificate.
+ *
+ * Pass the returned function as the `fetch` option to the OpenAI/Anthropic SDKs
+ * (or call it directly) after validating the URL with {@link validateUrlWithDNS}
+ * and capturing `resolvedIP`. Because the pinned lookup always returns
+ * `resolvedIP` regardless of hostname, any redirect the server returns also
+ * connects to the validated IP — an attacker cannot rebind a redirect target to
+ * an internal address.
+ */
+export function createPinnedFetch(resolvedIP: string): typeof fetch {
+  const dispatcher = getPinnedFetchAgent(resolvedIP)
+
+  const pinned = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    // double-cast-allowed: DOM RequestInfo/URL and undici fetch input types differ but are structurally compatible at runtime (Node's global fetch IS undici)
+    const undiciInput = input as unknown as Parameters<typeof undiciFetch>[0]
+    // double-cast-allowed: DOM RequestInit and undici RequestInit are structurally compatible at runtime but the TS types differ
+    const undiciInit: UndiciRequestInit = { ...(init as unknown as UndiciRequestInit), dispatcher }
+    const response = await undiciFetch(undiciInput, undiciInit)
+    // double-cast-allowed: undici Response and DOM Response are structurally compatible at runtime
+    return response as unknown as Response
+  }
+
+  return pinned
 }
 
 /**
