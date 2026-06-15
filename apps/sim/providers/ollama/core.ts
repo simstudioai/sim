@@ -9,6 +9,8 @@ import type { CompletionUsage } from 'openai/resources/completions'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import { createStreamingExecution } from '@/providers/streaming-execution'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type { Message, ProviderRequest, ProviderResponse, TimeSegment } from '@/providers/types'
 import { ProviderError } from '@/providers/types'
@@ -103,14 +105,7 @@ export async function executeOllamaProviderRequest(
   const formattedMessages = formatMessagesForProvider(allMessages, providerId) as Message[]
 
   const tools = request.tools?.length
-    ? request.tools.map((tool) => ({
-        type: 'function',
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }))
+    ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
     : undefined
 
   const payload: any = {
@@ -179,82 +174,43 @@ export async function executeOllamaProviderRequest(
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
-      const streamingResult = {
-        stream: config.createStream(streamResponse, (content, usage) => {
-          streamingResult.execution.output.content = content
+      const streamingResult = createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: { kind: 'simple', segmentName: request.model },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { input: 0, output: 0, total: 0 },
+        createStream: ({ output, finalizeTiming }) =>
+          config.createStream(streamResponse, (content, usage) => {
+            output.content = content
 
-          if (content && request.responseFormat) {
-            streamingResult.execution.output.content = content
-              .replace(/```json\n?|\n?```/g, '')
-              .trim()
-          }
-
-          streamingResult.execution.output.tokens = {
-            input: usage.prompt_tokens,
-            output: usage.completion_tokens,
-            total: usage.total_tokens,
-          }
-
-          const costResult = calculateCost(
-            request.model,
-            usage.prompt_tokens,
-            usage.completion_tokens
-          )
-          streamingResult.execution.output.cost = {
-            input: costResult.input,
-            output: costResult.output,
-            total: costResult.total,
-          }
-
-          const streamEndTime = Date.now()
-          const streamEndTimeISO = new Date(streamEndTime).toISOString()
-
-          if (streamingResult.execution.output.providerTiming) {
-            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-            streamingResult.execution.output.providerTiming.duration =
-              streamEndTime - providerStartTime
-
-            if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
-              streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
-                streamEndTime
-              streamingResult.execution.output.providerTiming.timeSegments[0].duration =
-                streamEndTime - providerStartTime
+            if (content && request.responseFormat) {
+              output.content = content.replace(/```json\n?|\n?```/g, '').trim()
             }
-          }
-        }),
-        execution: {
-          success: true,
-          output: {
-            content: '',
-            model: request.model,
-            tokens: { input: 0, output: 0, total: 0 },
-            toolCalls: undefined,
-            providerTiming: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-              timeSegments: [
-                {
-                  type: 'model',
-                  name: request.model,
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                },
-              ],
-            },
-            cost: { input: 0, output: 0, total: 0 },
-          },
-          logs: [],
-          metadata: {
-            startTime: providerStartTimeISO,
-            endTime: new Date().toISOString(),
-            duration: Date.now() - providerStartTime,
-          },
-        },
-      } as StreamingExecution
 
-      return streamingResult as StreamingExecution
+            output.tokens = {
+              input: usage.prompt_tokens,
+              output: usage.completion_tokens,
+              total: usage.total_tokens,
+            }
+
+            const costResult = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
+            finalizeTiming()
+          }),
+      })
+
+      return streamingResult
     }
 
     const initialCallTime = Date.now()
@@ -504,78 +460,65 @@ export async function executeOllamaProviderRequest(
         request.abortSignal ? { signal: request.abortSignal } : undefined
       )
 
-      const streamingResult = {
-        stream: config.createStream(streamResponse, (content, usage) => {
-          streamingResult.execution.output.content = content
-
-          if (content && request.responseFormat) {
-            streamingResult.execution.output.content = content
-              .replace(/```json\n?|\n?```/g, '')
-              .trim()
-          }
-
-          streamingResult.execution.output.tokens = {
-            input: tokens.input + usage.prompt_tokens,
-            output: tokens.output + usage.completion_tokens,
-            total: tokens.total + usage.total_tokens,
-          }
-
-          const streamCost = calculateCost(
-            request.model,
-            usage.prompt_tokens,
-            usage.completion_tokens
-          )
-          const tc = sumToolCosts(toolResults)
-          streamingResult.execution.output.cost = {
-            input: accumulatedCost.input + streamCost.input,
-            output: accumulatedCost.output + streamCost.output,
-            toolCost: tc || undefined,
-            total: accumulatedCost.total + streamCost.total + tc,
-          }
-        }),
-        execution: {
-          success: true,
-          output: {
-            content: '',
-            model: request.model,
-            tokens: {
-              input: tokens.input,
-              output: tokens.output,
-              total: tokens.total,
-            },
-            toolCalls:
-              toolCalls.length > 0
-                ? {
-                    list: toolCalls,
-                    count: toolCalls.length,
-                  }
-                : undefined,
-            providerTiming: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-              modelTime: modelTime,
-              toolsTime: toolsTime,
-              firstResponseTime: firstResponseTime,
-              iterations: iterationCount + 1,
-              timeSegments: timeSegments,
-            },
-            cost: {
-              input: accumulatedCost.input,
-              output: accumulatedCost.output,
-              total: accumulatedCost.total,
-            },
-          },
-          logs: [],
-          metadata: {
-            startTime: providerStartTimeISO,
-            endTime: new Date().toISOString(),
-            duration: Date.now() - providerStartTime,
-          },
+      const streamingResult = createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: {
+          kind: 'accumulated',
+          modelTime,
+          toolsTime,
+          firstResponseTime,
+          iterations: iterationCount + 1,
+          timeSegments,
         },
-      } as StreamingExecution
+        initialTokens: {
+          input: tokens.input,
+          output: tokens.output,
+          total: tokens.total,
+        },
+        initialCost: {
+          input: accumulatedCost.input,
+          output: accumulatedCost.output,
+          total: accumulatedCost.total,
+        },
+        toolCalls:
+          toolCalls.length > 0
+            ? {
+                list: toolCalls,
+                count: toolCalls.length,
+              }
+            : undefined,
+        createStream: ({ output }) =>
+          config.createStream(streamResponse, (content, usage) => {
+            output.content = content
 
-      return streamingResult as StreamingExecution
+            if (content && request.responseFormat) {
+              output.content = content.replace(/```json\n?|\n?```/g, '').trim()
+            }
+
+            output.tokens = {
+              input: tokens.input + usage.prompt_tokens,
+              output: tokens.output + usage.completion_tokens,
+              total: tokens.total + usage.total_tokens,
+            }
+
+            const streamCost = calculateCost(
+              request.model,
+              usage.prompt_tokens,
+              usage.completion_tokens
+            )
+            const tc = sumToolCosts(toolResults)
+            output.cost = {
+              input: accumulatedCost.input + streamCost.input,
+              output: accumulatedCost.output + streamCost.output,
+              toolCost: tc || undefined,
+              total: accumulatedCost.total + streamCost.total + tc,
+            }
+          }),
+      })
+
+      return streamingResult
     }
 
     // Deferred structured output: one final JSON-mode call now that tools have run.
