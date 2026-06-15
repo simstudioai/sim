@@ -23,6 +23,7 @@ const GENERATORS = [
   'scripts/sync-trace-attributes-contract.ts',
   'scripts/sync-trace-attribute-values-contract.ts',
   'scripts/sync-trace-events-contract.ts',
+  'scripts/sync-metrics-contract.ts',
 ]
 
 // Generated files under this path. We biome-format this whole dir on

@@ -27,6 +27,7 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
@@ -472,15 +473,30 @@ export class WorkspaceVFS {
             markSpanForError(span, err)
             throw err
           } finally {
+            // Record on success AND failure: a mid-phase failure (e.g. a DB
+            // timeout) still belongs in copilot.vfs.materialize.duration, else
+            // p50/p99 skew toward successes only. phaseMs holds whatever phases
+            // completed before the failure.
+            for (const [phase, ms] of Object.entries(phaseMs)) {
+              recordVfsMaterialize(phase, ms)
+            }
+            recordVfsMaterialize('total', Date.now() - start)
             span.end()
           }
         }
       )
 
+    // Durable Grafana signal for "how long does VFS materialize" — total plus
+    // per-phase (bounded phase set). getOrMaterializeVFS runs per VFS tool call
+    // with no cross-request cache, so this reveals whether materialize is the
+    // bottleneck (observability only; not a fix). Recorded inside the span's
+    // finally above so a failed materialize is captured too, not just successes.
+    const totalMs = Date.now() - start
+
     logger.info('VFS materialized', {
       workspaceId,
       fileCount: this.files.size,
-      durationMs: Date.now() - start,
+      durationMs: totalMs,
       phaseMs,
     })
   }
