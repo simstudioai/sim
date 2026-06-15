@@ -29,6 +29,14 @@ import {
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
+  addTableColumn,
+  deleteColumn,
+  deleteColumns,
+  renameColumn,
+  updateColumnConstraints,
+  updateColumnType,
+} from '@/lib/table/columns/service'
+import {
   batchInsertRows,
   batchUpdateRows,
   deleteRow,
@@ -42,20 +50,14 @@ import {
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
 import {
-  addTableColumn,
   addWorkflowGroup,
   addWorkflowGroupOutput,
   createTable,
-  deleteColumn,
-  deleteColumns,
   deleteTable,
   deleteWorkflowGroup,
   deleteWorkflowGroupOutput,
   getTableById,
-  renameColumn,
   renameTable,
-  updateColumnConstraints,
-  updateColumnType,
   updateWorkflowGroup,
 } from '@/lib/table/service'
 import type {

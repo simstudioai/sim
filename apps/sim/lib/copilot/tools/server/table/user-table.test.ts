@@ -56,15 +56,18 @@ vi.mock('@/enrichments/registry', () => ({
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  addTableColumn: vi.fn(),
   addWorkflowGroup: mockAddWorkflowGroup,
   createTable: mockCreateTable,
-  deleteColumn: vi.fn(),
-  deleteColumns: vi.fn(),
   deleteTable: mockDeleteTable,
   getTableById: mockGetTableById,
-  renameColumn: vi.fn(),
   renameTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/columns/service', () => ({
+  addTableColumn: vi.fn(),
+  deleteColumn: vi.fn(),
+  deleteColumns: vi.fn(),
+  renameColumn: vi.fn(),
   updateColumnConstraints: vi.fn(),
   updateColumnType: vi.fn(),
 }))
