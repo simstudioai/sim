@@ -48,7 +48,7 @@ export const enrichmentRunServerTool: BaseServerTool<EnrichmentRunParams, Enrich
     })
 
     const matched = Object.keys(result).length > 0
-    logger.info('Enrichment run', { enrichmentId, matched, provider })
+    logger.info('Enrichment run', { enrichmentId, matched, provider, cost })
 
     // A genuine "no match" returns normally (matched: false). Only surface an
     // error when every provider that ran failed (infra/auth/rate-limit).
