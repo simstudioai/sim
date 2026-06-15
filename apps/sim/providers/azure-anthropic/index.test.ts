@@ -104,4 +104,17 @@ describe('azureAnthropicProvider — SSRF pinning', () => {
     expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
     expect(mockExecuteAnthropic).not.toHaveBeenCalled()
   })
+
+  it('fails closed when validation passes but yields no resolvable IP to pin', async () => {
+    mockValidate.mockResolvedValue({ isValid: true })
+
+    await expect(
+      azureAnthropicProvider.executeRequest(
+        request({ azureEndpoint: 'https://rebind.attacker.tld' })
+      )
+    ).rejects.toThrow('could not resolve a pinnable IP address')
+
+    expect(mockCreatePinnedFetch).not.toHaveBeenCalled()
+    expect(mockExecuteAnthropic).not.toHaveBeenCalled()
+  })
 })

@@ -618,9 +618,12 @@ export const azureOpenAIProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure OpenAI endpoint: ${validation.error}`)
       }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid Azure OpenAI endpoint: could not resolve a pinnable IP address')
+      }
       // Pin the connection to the validated IP so the SDK / fetch DNS resolution
       // at connect time cannot be rebound to an internal address (TOCTOU SSRF).
-      pinnedFetch = createPinnedFetch(validation.resolvedIP!)
+      pinnedFetch = createPinnedFetch(validation.resolvedIP)
     }
 
     const apiKey = request.apiKey
