@@ -2,28 +2,35 @@ import type { NextRequest } from 'next/server'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 /**
- * Returns true when a request demonstrably originates from the application's own
- * front-end (a same-origin browser fetch), and false for cross-site or
- * non-browser callers — e.g. a script replaying a leaked/borrowed session cookie.
+ * Returns true when a request is provably cross-origin — a browser fetch driven
+ * from a different site than our own. Used to reject session-cookie CSRF on
+ * state-changing routes: a cross-site browser request always carries
+ * `Sec-Fetch-Site: cross-site` or a mismatched `Origin`, and neither header can
+ * be set by in-browser attacker JavaScript (both are forbidden headers).
  *
- * `Sec-Fetch-Site` is computed by the browser and is a forbidden header, so it
- * cannot be set by `fetch`, `curl`, or a server-side HTTP client. It is therefore
- * the primary, unforgeable signal. When it is absent (rare; older clients), we
- * fall back to an `Origin` same-origin check — a browser `fetch` POST always
- * sends `Origin`, so a missing `Origin` here indicates a non-browser caller and
- * is rejected (secure default).
+ * `Sec-Fetch-Site` is the primary signal; only `same-origin` is treated as our
+ * own front-end. The app is single-origin, so `same-site` (sibling subdomains),
+ * `cross-site`, and `none` are all rejected. When it is absent, fall back to an
+ * `Origin` same-origin check. When neither header is present the origin cannot
+ * be determined, so the request is allowed — a genuine cross-site browser attack
+ * cannot omit these headers.
  *
- * Intended to guard session-cookie-authenticated, state-changing routes against
- * cross-site request forgery and cookie-replay automation. API-key / public-API
- * / internal-JWT callers do not use cookies and must not be gated by this.
+ * This is CSRF protection only. It does not defend against a non-browser client
+ * that forges headers directly (no header-based check can); that surface is
+ * covered by the credit and execution rate-limit gates.
  */
-export function isSameOriginBrowserRequest(req: NextRequest): boolean {
+export function isCrossOriginSessionRequest(req: NextRequest): boolean {
   const secFetchSite = req.headers.get('sec-fetch-site')
   if (secFetchSite) {
-    return secFetchSite === 'same-origin' || secFetchSite === 'same-site'
+    return secFetchSite !== 'same-origin'
   }
 
   const origin = req.headers.get('origin')
   if (!origin) return false
-  return isSameOrigin(origin)
+
+  try {
+    return !isSameOrigin(origin)
+  } catch {
+    return false
+  }
 }
