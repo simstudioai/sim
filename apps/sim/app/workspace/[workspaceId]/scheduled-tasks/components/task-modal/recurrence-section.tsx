@@ -1,8 +1,12 @@
 'use client'
 
+import { useRef } from 'react'
 import { format } from 'date-fns'
 import { ChipDatePicker, ChipModalField, Switch } from '@/components/emcn'
-import type { Recurrence } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
+import type {
+  Recurrence,
+  RecurrenceFrequency,
+} from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
 
 const WEEKDAY_PRESET = [1, 2, 3, 4, 5]
 /** Seed count when the user first chooses "ends after N runs". */
@@ -50,6 +54,16 @@ interface RecurrenceSectionProps {
  * primitives.
  */
 export function RecurrenceSection({ recurrence, onChange, launchDate }: RecurrenceSectionProps) {
+  /**
+   * The cadence to reinstate when recurrence is toggled back on. Toggling off
+   * collapses `frequency` to `once`, dropping which preset was active, so the
+   * last recurring cadence is cached here and restored — a paused "Weekly on
+   * Mon" returns as weekly, not silently reset to daily. Written during render
+   * (an idempotent cache), so it is current before the toggle handler reads it.
+   */
+  const lastRecurringFrequency = useRef<RecurrenceFrequency>(DEFAULT_RECURRING_FREQUENCY)
+  if (recurrence.frequency !== 'once') lastRecurringFrequency.current = recurrence.frequency
+
   const launch = new Date(`${launchDate}T00:00`)
   const isRecurring = recurrence.frequency !== 'once'
 
@@ -63,21 +77,13 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
   /**
    * Flips the one-time launch into a repeat and back. Toggling off keeps the
-   * recurrence shape (cadence, end, and a passed-through `custom` cron) on the
-   * object and only sets `frequency: 'once'` — the wire ignores everything but
-   * `frequency` for a one-time task — so toggling back on restores `custom`
-   * rather than silently rewriting a conversationally-authored cron to `daily`.
+   * recurrence shape (weekdays, end, and a passed-through `custom` cron) on the
+   * object and only collapses `frequency` to `once`; toggling back on reinstates
+   * the remembered cadence, so neither a weekly preset nor a conversationally
+   * authored custom cron is silently rewritten to daily.
    */
   const handleRecurringToggle = (checked: boolean) => {
-    if (!checked) {
-      onChange({ ...recurrence, frequency: 'once' })
-      return
-    }
-    onChange({
-      ...recurrence,
-      frequency: recurrence.cron ? 'custom' : DEFAULT_RECURRING_FREQUENCY,
-      weekdays: [],
-    })
+    onChange({ ...recurrence, frequency: checked ? lastRecurringFrequency.current : 'once' })
   }
 
   const handleFrequencyChange = (value: string) => {
