@@ -743,6 +743,10 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           return num
         }
 
+        // Accept both the dropdown's string values and real booleans (which can
+        // arrive via connected blocks or templated inputs).
+        const coerceBoolean = (value: unknown): boolean => value === true || value === 'true'
+
         const coercedAmount = coerceNumber(amount, 'amount')
         const coercedLimit = coerceNumber(limit, 'limit')
         const coercedVersion = coerceNumber(version, 'version')
@@ -765,9 +769,9 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           ...(coercedLimit !== undefined && { limit: coercedLimit }),
           ...(coercedVersion !== undefined && { version: coercedVersion }),
           ...(coercedOrderVersion !== undefined && { orderVersion: coercedOrderVersion }),
-          ...(autocomplete !== undefined && { autocomplete: autocomplete === 'true' }),
+          ...(autocomplete !== undefined && { autocomplete: coerceBoolean(autocomplete) }),
           ...(includeRelatedObjects !== undefined && {
-            includeRelatedObjects: includeRelatedObjects === 'true',
+            includeRelatedObjects: coerceBoolean(includeRelatedObjects),
           }),
         }
       },
