@@ -6,7 +6,7 @@
  * get from the sidebar.
  */
 
-import type { ColumnDefinition } from './types'
+import type { ColumnDefinition } from '@/lib/table/types'
 
 /**
  * Slugifies a string into a `NAME_PATTERN`-safe column name. Lowercase,

@@ -5,7 +5,7 @@ import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listWorkspaceExportJobs } from '@/lib/table/service'
+import { listWorkspaceExportJobs } from '@/lib/table/jobs/service'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableJobsAPI')

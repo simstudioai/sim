@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
+import type { ColumnOption } from '@/lib/table/types'
 import { useTable } from '@/hooks/queries/tables'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import type { ColumnOption } from '../types'
 
 interface UseTableColumnsOptions {
   tableId: string | null | undefined

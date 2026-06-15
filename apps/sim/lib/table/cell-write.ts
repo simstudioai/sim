@@ -44,7 +44,8 @@ export async function writeWorkflowGroupState(
 ): Promise<'wrote' | 'skipped'> {
   const { tableId, rowId, workspaceId, groupId, executionId } = ctx
   const requestId = ctx.requestId ?? `wfgrp-${executionId}`
-  const { getTableById, getRowById, updateRow } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById, updateRow } = await import('@/lib/table/rows/service')
 
   const table = await getTableById(tableId)
   if (!table) {

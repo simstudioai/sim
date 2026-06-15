@@ -12,7 +12,7 @@ const { mockCheckAccess, mockGetTableJob, mockGeneratePresignedDownloadUrl } = v
   mockGeneratePresignedDownloadUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableJob: mockGetTableJob }))
+vi.mock('@/lib/table/jobs/service', () => ({ getTableJob: mockGetTableJob }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({
   generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
 }))
