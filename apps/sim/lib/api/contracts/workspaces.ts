@@ -181,6 +181,25 @@ export const getWorkspaceContract = defineRouteContract({
   },
 })
 
+export const workspaceApiExecutionEntitlementSchema = z.object({
+  /** Whether this workspace may run workflows programmatically (mirrors the server gate). */
+  entitled: z.boolean(),
+})
+
+export type WorkspaceApiExecutionEntitlement = z.output<
+  typeof workspaceApiExecutionEntitlementSchema
+>
+
+export const getWorkspaceApiExecutionEntitlementContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/api-execution-entitlement',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceApiExecutionEntitlementSchema,
+  },
+})
+
 export const updateWorkspaceContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]',

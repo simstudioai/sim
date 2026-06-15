@@ -21,12 +21,10 @@ import {
   ModalTabsList,
   ModalTabsTrigger,
 } from '@/components/emcn'
-import { isFree } from '@/lib/billing/plan-helpers'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getInputFormatExample as getInputFormatExampleUtil } from '@/lib/workflows/operations/deployment-utils'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
-import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   releaseDeployAction,
   tryAcquireDeployAction,
@@ -46,10 +44,12 @@ import {
   useDeployWorkflow,
   useUndeployWorkflow,
 } from '@/hooks/queries/deployments'
-import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useWorkflowMcpServers } from '@/hooks/queries/workflow-mcp-servers'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
-import { useWorkspaceSettings } from '@/hooks/queries/workspace'
+import {
+  useWorkspaceApiExecutionEntitlement,
+  useWorkspaceSettings,
+} from '@/hooks/queries/workspace'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -158,11 +158,14 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
-  const { data: subscriptionData, isLoading: isLoadingSubscription } = useSubscriptionData()
-  // Hold the gate closed until the plan is known — isFree(undefined) is true, so
-  // gating during load would flash the upgrade wall at paid users.
-  const gateProgrammaticDeploy =
-    isBillingEnabled && !isLoadingSubscription && isFree(subscriptionData?.data?.plan)
+  // Mirror the server gate: entitlement reflects the workspace's billed-account
+  // plan (rolled up), not the viewer's individual plan, so a free member of a
+  // paid workspace isn't shown the upgrade wall. Undefined while loading keeps
+  // the gate closed (no flash); only an explicit `entitled === false` gates.
+  const { data: apiExecutionEntitlement } = useWorkspaceApiExecutionEntitlement(
+    workflowWorkspaceId ?? undefined
+  )
+  const gateProgrammaticDeploy = apiExecutionEntitlement?.entitled === false
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''

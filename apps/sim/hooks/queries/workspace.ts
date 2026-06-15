@@ -6,12 +6,14 @@ import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   createWorkspaceContract,
   deleteWorkspaceContract,
+  getWorkspaceApiExecutionEntitlementContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
   updateWorkspaceContract,
   type Workspace,
+  type WorkspaceApiExecutionEntitlement,
   type WorkspaceCreationPolicy,
   type WorkspaceMember,
   type WorkspacePermissions,
@@ -33,6 +35,8 @@ export const workspaceKeys = {
   settings: (id: string) => [...workspaceKeys.detail(id), 'settings'] as const,
   permissions: (id: string) => [...workspaceKeys.detail(id), 'permissions'] as const,
   members: (id: string) => [...workspaceKeys.detail(id), 'members'] as const,
+  apiExecutionEntitlement: (id: string) =>
+    [...workspaceKeys.detail(id), 'apiExecutionEntitlement'] as const,
   adminLists: () => [...workspaceKeys.all, 'adminList'] as const,
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
@@ -105,6 +109,30 @@ export function useWorkspaceCreationPolicy(enabled = true) {
     select: (data) => data.creationPolicy,
     enabled,
     staleTime: 30 * 1000,
+  })
+}
+
+async function fetchWorkspaceApiExecutionEntitlement(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<WorkspaceApiExecutionEntitlement> {
+  return requestJson(getWorkspaceApiExecutionEntitlementContract, {
+    params: { id: workspaceId },
+    signal,
+  })
+}
+
+/**
+ * Whether the workspace may run workflows programmatically — the UI mirror of the
+ * server gate. Reflects the workspace's billed-account plan, not the viewer's
+ * individual plan, so a free member of a paid workspace isn't gated.
+ */
+export function useWorkspaceApiExecutionEntitlement(workspaceId?: string) {
+  return useQuery({
+    queryKey: workspaceKeys.apiExecutionEntitlement(workspaceId ?? ''),
+    queryFn: ({ signal }) => fetchWorkspaceApiExecutionEntitlement(workspaceId as string, signal),
+    enabled: Boolean(workspaceId),
+    staleTime: 60 * 1000,
   })
 }
 
