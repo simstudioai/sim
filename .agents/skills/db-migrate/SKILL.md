@@ -34,6 +34,7 @@ Never put expand and contract in the same PR. If this PR both removes the code t
 | Change a column type | add a new column of the new type; dual-write | backfill, swap reads, drop old |
 | Add FK / CHECK | `ADD CONSTRAINT ... NOT VALID` | `VALIDATE CONSTRAINT` separately |
 | Index an existing table | `COMMIT;` breakpoint → `SET lock_timeout = 0` → `CREATE INDEX CONCURRENTLY IF NOT EXISTS` (see `packages/db/scripts/migrate.ts`) | — |
+| Drop an index | `COMMIT;` breakpoint → `DROP INDEX CONCURRENTLY` — plain `DROP INDEX` takes ACCESS EXCLUSIVE on the table | — |
 | Backfill data | batched + idempotent `UPDATE` (keyset/`WHERE`, bounded) | — |
 
 A `CREATE INDEX`, `ADD COLUMN`, or `ADD CONSTRAINT` against a table **created in the same migration** is always safe (no rows, no live traffic) — the lint already suppresses those.

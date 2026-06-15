@@ -137,6 +137,45 @@ describe('warnings (non-blocking)', () => {
   })
 })
 
+describe('review fixes', () => {
+  test('RENAME CONSTRAINT is metadata-only — not flagged', () => {
+    expect(
+      lintSql('ALTER TABLE "permission_group" RENAME CONSTRAINT "old_fk" TO "new_fk";')
+    ).toEqual([])
+  })
+
+  test('ALTER INDEX ... RENAME is metadata-only — not flagged', () => {
+    expect(lintSql('ALTER INDEX "old_idx" RENAME TO "new_idx";')).toEqual([])
+  })
+
+  test('table RENAME TO is still a hard error', () => {
+    expect(rules('ALTER TABLE "marketplace" RENAME TO "listings";')).toEqual(['error:rename'])
+  })
+
+  test('plain DROP INDEX is a hard error (ACCESS EXCLUSIVE lock)', () => {
+    expect(rules('DROP INDEX "permission_group_workspace_name_unique";')).toEqual([
+      'error:drop-index-not-concurrent',
+    ])
+  })
+
+  test('DROP INDEX CONCURRENTLY after a COMMIT passes clean', () => {
+    const sql = `COMMIT;
+--> statement-breakpoint
+DROP INDEX CONCURRENTLY IF EXISTS "stale_idx";`
+    expect(lintSql(sql)).toEqual([])
+  })
+
+  test('DROP INDEX CONCURRENTLY without a preceding COMMIT errors', () => {
+    expect(rules('DROP INDEX CONCURRENTLY IF EXISTS "stale_idx";')).toEqual([
+      'error:concurrent-drop-index-no-commit',
+    ])
+  })
+
+  test('alter-type does not match TYPE inside a string default', () => {
+    expect(lintSql(`ALTER TABLE "x" ALTER COLUMN "y" SET DEFAULT 'change TYPE later';`)).toEqual([])
+  })
+})
+
 describe('parser robustness', () => {
   test('semicolon inside a string literal does not split', () => {
     expect(lintSql(`ALTER TABLE "x" ADD COLUMN "y" text DEFAULT 'a;b' NOT NULL;`)).toEqual([])

@@ -243,12 +243,12 @@ function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): 
     })
   }
 
-  if (/\bRENAME\b/i.test(s)) {
+  if (/\bRENAME COLUMN\b/i.test(s) || /^ALTER TABLE\b[^;]*\bRENAME TO\b/i.test(s)) {
     matches.push({
       kind: 'error',
       rule: 'rename',
       message:
-        'RENAME breaks old code reading the old name. Add the new column/table, dual-write in code, then drop the old one in a later deploy.',
+        'RENAME of a column/table breaks old code reading the old name. Add the new column/table, dual-write in code, then drop the old one in a later deploy.',
     })
   }
 
@@ -282,12 +282,26 @@ function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): 
     if (/\bSET NOT NULL\b/i.test(s)) {
       matches.push({ kind: 'annotate', rule: 'set-not-null', message: 'SET NOT NULL' })
     }
-    if (/\b(?:SET DATA TYPE|ALTER COLUMN [^;]*\bTYPE)\b/i.test(s)) {
+    if (/\bSET DATA TYPE\b/i.test(s) || /\bALTER COLUMN ("?[.\w]+"?) TYPE\b/i.test(s)) {
       matches.push({ kind: 'annotate', rule: 'alter-type', message: 'column type change' })
     }
   }
   if (/^DROP INDEX\b/i.test(s)) {
-    matches.push({ kind: 'annotate', rule: 'drop-index', message: 'DROP INDEX' })
+    if (!/\bCONCURRENTLY\b/i.test(s)) {
+      matches.push({
+        kind: 'error',
+        rule: 'drop-index-not-concurrent',
+        message:
+          'Plain DROP INDEX takes an ACCESS EXCLUSIVE lock on the table for the whole drop. Use DROP INDEX CONCURRENTLY after a COMMIT; breakpoint (see packages/db/scripts/migrate.ts).',
+      })
+    } else if (!sawCommit) {
+      matches.push({
+        kind: 'error',
+        rule: 'concurrent-drop-index-no-commit',
+        message:
+          'DROP INDEX CONCURRENTLY cannot run inside the migration transaction. Precede it with a COMMIT; breakpoint (see packages/db/scripts/migrate.ts).',
+      })
+    }
   }
 
   if (/^(UPDATE|DELETE)\b/i.test(s)) {
