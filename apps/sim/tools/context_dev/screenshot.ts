@@ -12,6 +12,32 @@ import {
 } from '@/tools/context_dev/utils'
 import type { ToolConfig, ToolFileData } from '@/tools/types'
 
+/** Maps a lowercase image file extension to its MIME type. */
+const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  avif: 'image/avif',
+}
+
+/**
+ * Derives the file extension and MIME type for a stored screenshot from its URL,
+ * falling back to PNG when the URL has no recognizable image extension.
+ */
+function screenshotFileMeta(url: string): { extension: string; mimeType: string } {
+  try {
+    const ext = new URL(url).pathname.split('.').pop()?.toLowerCase() ?? ''
+    if (IMAGE_MIME_BY_EXTENSION[ext]) {
+      return { extension: ext, mimeType: IMAGE_MIME_BY_EXTENSION[ext] }
+    }
+  } catch {
+    // Unparseable URL — fall back to the default below.
+  }
+  return { extension: 'png', mimeType: 'image/png' }
+}
+
 export const contextDevScreenshotTool: ToolConfig<
   ContextDevScreenshotParams,
   ContextDevScreenshotResponse
@@ -100,10 +126,11 @@ export const contextDevScreenshotTool: ToolConfig<
     const screenshotUrl: string = data.screenshot ?? ''
     const domain: string | null = data.domain ?? null
 
+    const { extension, mimeType } = screenshotFileMeta(screenshotUrl)
     const file: ToolFileData | undefined = screenshotUrl
       ? {
-          name: `${domain ?? 'screenshot'}.png`,
-          mimeType: 'image/png',
+          name: `${domain ?? 'screenshot'}.${extension}`,
+          mimeType,
           url: screenshotUrl,
         }
       : undefined

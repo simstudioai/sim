@@ -239,6 +239,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
       condition: { field: 'operation', value: ['scrape_markdown', 'crawl'] },
     },
     {
+      id: 'includeFrames',
+      title: 'Include Frames',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['scrape_markdown', 'scrape_html'] },
+    },
+    {
       id: 'fullScreenshot',
       title: 'Full Page Screenshot',
       type: 'switch',
@@ -328,9 +335,17 @@ Do not include any explanations, markdown formatting, or other text outside the 
       id: 'maxPages',
       title: 'Max Pages',
       type: 'short-input',
-      placeholder: 'crawl: 100, extract: 5',
+      placeholder: '100',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['crawl', 'extract'] },
+      condition: { field: 'operation', value: 'crawl' },
+    },
+    {
+      id: 'extractMaxPages',
+      title: 'Max Pages',
+      type: 'short-input',
+      placeholder: '5',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'extract' },
     },
     {
       id: 'maxDepth',
@@ -560,6 +575,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setBool('useMainContentOnly')
             setBool('includeLinks')
             setBool('includeImages')
+            setBool('includeFrames')
             setNumber('maxAgeMs')
             setNumber('waitForMs')
             setNumber('timeoutMS')
@@ -567,6 +583,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
           case 'scrape_html':
             setString('url')
             setBool('useMainContentOnly')
+            setBool('includeFrames')
             setNumber('maxAgeMs')
             setNumber('waitForMs')
             setNumber('timeoutMS')
@@ -638,7 +655,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setString('instructions')
             setBool('factCheck')
             setBool('followSubdomains')
-            setNumber('maxPages')
+            setNumber('extractMaxPages', 'maxPages')
             setNumber('maxDepth')
             setNumber('maxAgeMs')
             setNumber('stopAfterMs')
@@ -755,6 +772,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     useMainContentOnly: { type: 'boolean', description: 'Return only main content' },
     includeLinks: { type: 'boolean', description: 'Preserve hyperlinks' },
     includeImages: { type: 'boolean', description: 'Include image references' },
+    includeFrames: { type: 'boolean', description: 'Render iframe contents inline' },
     fullScreenshot: { type: 'boolean', description: 'Capture the full page' },
     handleCookiePopup: { type: 'boolean', description: 'Dismiss cookie banners' },
     markdownEnabled: { type: 'boolean', description: 'Scrape search results to markdown' },
@@ -766,7 +784,11 @@ Do not include any explanations, markdown formatting, or other text outside the 
     queryFanout: { type: 'boolean', description: 'Expand query into variants' },
     factCheck: { type: 'boolean', description: 'Ground extracted values in page facts' },
     followSubdomains: { type: 'boolean', description: 'Follow subdomain links' },
-    maxPages: { type: 'number', description: 'Maximum pages to process' },
+    maxPages: { type: 'number', description: 'Maximum pages to crawl (1-500)' },
+    extractMaxPages: {
+      type: 'number',
+      description: 'Maximum pages to analyze for extraction (1-50)',
+    },
     maxDepth: { type: 'number', description: 'Maximum link depth' },
     maxProducts: { type: 'number', description: 'Maximum products to extract' },
     urlRegex: { type: 'string', description: 'Regex to filter URLs' },
