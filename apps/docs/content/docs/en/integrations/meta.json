@@ -192,6 +192,7 @@
     "slack",
     "smtp",
     "sqs",
+    "square",
     "ssh",
     "stagehand",
     "stripe",
