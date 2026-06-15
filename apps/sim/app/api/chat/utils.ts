@@ -81,7 +81,14 @@ export async function assertChatEmbedAllowed(
     .where(and(eq(workflow.id, workflowId), isNull(workflow.archivedAt)))
     .limit(1)
 
-  if (!(await isWorkspaceApiExecutionEntitled(wf?.workspaceId ?? undefined))) {
+  if (!wf?.workspaceId) {
+    logger.warn(
+      `[${requestId}] Chat embed blocked: no active workspace for workflow ${workflowId}, origin=${origin}`
+    )
+    return createErrorResponse('This chat is currently unavailable', 403)
+  }
+
+  if (!(await isWorkspaceApiExecutionEntitled(wf.workspaceId))) {
     logger.warn(`[${requestId}] Chat embed blocked: workspace on free plan, origin=${origin}`)
     return createErrorResponse('Embedding this chat on external sites requires a paid plan', 403)
   }

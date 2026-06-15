@@ -4,6 +4,8 @@
  * @vitest-environment node
  */
 import {
+  dbChainMock,
+  dbChainMockFns,
   encryptionMock,
   encryptionMockFns,
   loggingSessionMock,
@@ -33,6 +35,8 @@ const {
   mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
   flagState: { isBillingEnabled: false, isFreeApiDeploymentGateEnabled: true },
 }))
+
+vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/billing/core/api-access', () => ({
   isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
@@ -480,6 +484,7 @@ describe('assertChatEmbedAllowed', () => {
     flagState.isBillingEnabled = true
     flagState.isFreeApiDeploymentGateEnabled = true
     mockIsWorkspaceApiExecutionEntitled.mockResolvedValue(true)
+    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-1' }])
   })
 
   it('returns 403 for a cross-site origin when the owner is on the free plan', async () => {
@@ -499,6 +504,17 @@ describe('assertChatEmbedAllowed', () => {
       'req-1'
     )
     expect(res).toBeNull()
+  })
+
+  it('returns 403 for a cross-site origin when the workflow has no active workspace', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    const res = await assertChatEmbedAllowed(
+      chatRequest('https://evil.example.com'),
+      'wf-1',
+      'req-1'
+    )
+    expect(res?.status).toBe(403)
+    expect(mockIsWorkspaceApiExecutionEntitled).not.toHaveBeenCalled()
   })
 
   it('allows a first-party *.sim.ai origin without gating', async () => {
