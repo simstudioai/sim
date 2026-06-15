@@ -27,6 +27,7 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
+import { recordVfsMaterialize } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import { compileDoc, getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { extractDocText, isExtractableDocExt } from '@/lib/copilot/tools/server/files/doc-extract'
@@ -477,10 +478,20 @@ export class WorkspaceVFS {
         }
       )
 
+    const totalMs = Date.now() - start
+    // Durable Grafana signal for "how long does VFS materialize" — total plus
+    // per-phase (bounded phase set). getOrMaterializeVFS runs per VFS tool call
+    // with no cross-request cache, so this reveals whether materialize is the
+    // bottleneck (observability only; not a fix).
+    for (const [phase, ms] of Object.entries(phaseMs)) {
+      recordVfsMaterialize(phase, ms)
+    }
+    recordVfsMaterialize('total', totalMs)
+
     logger.info('VFS materialized', {
       workspaceId,
       fileCount: this.files.size,
-      durationMs: Date.now() - start,
+      durationMs: totalMs,
       phaseMs,
     })
   }
