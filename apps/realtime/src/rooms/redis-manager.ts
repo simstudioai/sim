@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { createClient, type RedisClientType } from 'redis'
 import type { Server } from 'socket.io'
-import { reconcileWorkspaceAccessChange } from '@/rooms/access'
 import type { IRoomManager, UserPresence, UserSession } from '@/rooms/types'
 
 const logger = createLogger('RedisRoomManager')
@@ -98,30 +97,6 @@ return 1
 `
 
 /**
- * Lua script for atomically updating a user's cached role and verification
- * timestamp. Read-modify-write under a single script so a concurrent activity
- * update on the same presence field cannot clobber the refreshed role.
- */
-const UPDATE_ROLE_SCRIPT = `
-local workflowUsersKey = KEYS[1]
-local socketId = ARGV[1]
-local role = ARGV[2]
-local roleCheckedAt = ARGV[3]
-
-local existingJson = redis.call('HGET', workflowUsersKey, socketId)
-if not existingJson then
-  return 0
-end
-
-local existing = cjson.decode(existingJson)
-existing.role = role
-existing.roleCheckedAt = tonumber(roleCheckedAt)
-
-redis.call('HSET', workflowUsersKey, socketId, cjson.encode(existing))
-return 1
-`
-
-/**
  * Redis-backed room manager for multi-pod deployments.
  * Uses Lua scripts for atomic operations to prevent race conditions.
  */
@@ -131,7 +106,6 @@ export class RedisRoomManager implements IRoomManager {
   private isConnected = false
   private removeUserScriptSha: string | null = null
   private updateActivityScriptSha: string | null = null
-  private updateRoleScriptSha: string | null = null
 
   constructor(io: Server, redisUrl: string) {
     this._io = io
@@ -177,7 +151,6 @@ export class RedisRoomManager implements IRoomManager {
       // Pre-load Lua scripts for better performance
       this.removeUserScriptSha = await this.redis.scriptLoad(REMOVE_USER_SCRIPT)
       this.updateActivityScriptSha = await this.redis.scriptLoad(UPDATE_ACTIVITY_SCRIPT)
-      this.updateRoleScriptSha = await this.redis.scriptLoad(UPDATE_ROLE_SCRIPT)
 
       logger.info('RedisRoomManager connected to Redis and scripts loaded')
     } catch (error) {
@@ -358,32 +331,6 @@ export class RedisRoomManager implements IRoomManager {
     }
   }
 
-  async updateUserRole(
-    workflowId: string,
-    socketId: string,
-    role: string,
-    retried = false
-  ): Promise<void> {
-    if (!this.updateRoleScriptSha) {
-      logger.error('updateUserRole called before initialize()')
-      return
-    }
-
-    try {
-      await this.redis.evalSha(this.updateRoleScriptSha, {
-        keys: [KEYS.workflowUsers(workflowId)],
-        arguments: [socketId, role, Date.now().toString()],
-      })
-    } catch (error) {
-      if ((error as Error).message?.includes('NOSCRIPT') && !retried) {
-        logger.warn('Lua script not found, reloading...')
-        this.updateRoleScriptSha = await this.redis.scriptLoad(UPDATE_ROLE_SCRIPT)
-        return this.updateUserRole(workflowId, socketId, role, true)
-      }
-      logger.error(`Failed to update user role: ${socketId}`, error)
-    }
-  }
-
   async updateRoomLastModified(workflowId: string): Promise<void> {
     await this.redis.hSet(KEYS.workflowMeta(workflowId), 'lastModified', Date.now().toString())
   }
@@ -509,10 +456,5 @@ export class RedisRoomManager implements IRoomManager {
 
     const userCount = await this.getUniqueUserCount(workflowId)
     logger.info(`Notified ${userCount} users about workflow deployment change: ${workflowId}`)
-  }
-
-  async handleWorkspaceAccessChange(workspaceId: string, userId: string): Promise<void> {
-    logger.info(`Handling workspace access change for user ${userId} in workspace ${workspaceId}`)
-    await reconcileWorkspaceAccessChange(this, workspaceId, userId)
   }
 }
