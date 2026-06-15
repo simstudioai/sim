@@ -318,6 +318,7 @@ export const env = createEnv({
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
     DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
+    DISABLE_EMAIL_SIGNUP:                  z.boolean().optional(),                 // Block new email/password registrations while keeping email login working
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret

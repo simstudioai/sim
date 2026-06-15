@@ -29,7 +29,7 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+export const isHosted = true //appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Is billing enforcement enabled
@@ -259,6 +259,13 @@ export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
  * When true, the Microsoft OAuth login button is hidden even when credentials are configured
  */
 export const isMicrosoftAuthDisabled = isTruthy(env.DISABLE_MICROSOFT_AUTH)
+
+/**
+ * Is email/password signup disabled
+ * When true, new registrations via email/password are blocked at the server level.
+ * Existing users can still sign in with email/password.
+ */
+export const isEmailSignupDisabled = isTruthy(env.DISABLE_EMAIL_SIGNUP)
 
 /**
  * Is React Grab enabled for UI element debugging

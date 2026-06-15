@@ -65,6 +65,7 @@ import {
   isAuthDisabled,
   isBillingEnabled,
   isEmailPasswordEnabled,
+  isEmailSignupDisabled,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
@@ -883,6 +884,11 @@ export const auth = betterAuth({
             message: 'Email/password authentication is disabled. Please use SSO to sign in.',
           })
       }
+
+      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
+        throw new APIError('FORBIDDEN', {
+          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
+        })
 
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
