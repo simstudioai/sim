@@ -5,9 +5,8 @@ import { VARIABLE_OPERATIONS } from '@sim/realtime-protocol/constants'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
-import { evictRevokedSocket } from '@/handlers/eviction'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { authorizeSocketOperation } from '@/middleware/permissions'
+import { checkRolePermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('VariablesHandlers')
@@ -125,44 +124,18 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
-      const authorization = await authorizeSocketOperation({
-        roomManager,
-        workflowId,
-        socketId: socket.id,
-        userId: session.userId,
-        presence: userPresence,
-        operation: VARIABLE_OPERATIONS.UPDATE,
-      })
-
-      if (authorization.accessRevoked) {
-        socket.emit('operation-forbidden', {
-          type: 'ACCESS_REVOKED',
-          message: authorization.reason || 'Access to this workflow has been revoked',
-          operation: VARIABLE_OPERATIONS.UPDATE,
-          target: 'variable',
-        })
-        if (operationId) {
-          socket.emit('operation-failed', {
-            operationId,
-            error: authorization.reason || 'Access revoked',
-            retryable: false,
-          })
-        }
-        await evictRevokedSocket(roomManager, socket, workflowId)
-        return
-      }
-
-      if (!authorization.allowed) {
+      const permissionCheck = checkRolePermission(userPresence.role, VARIABLE_OPERATIONS.UPDATE)
+      if (!permissionCheck.allowed) {
         socket.emit('operation-forbidden', {
           type: 'INSUFFICIENT_PERMISSIONS',
-          message: authorization.reason || 'Insufficient permissions',
+          message: permissionCheck.reason || 'Insufficient permissions',
           operation: VARIABLE_OPERATIONS.UPDATE,
           target: 'variable',
         })
         if (operationId) {
           socket.emit('operation-failed', {
             operationId,
-            error: authorization.reason || 'Insufficient permissions',
+            error: permissionCheck.reason || 'Insufficient permissions',
             retryable: false,
           })
         }
