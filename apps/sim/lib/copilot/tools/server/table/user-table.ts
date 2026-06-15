@@ -49,17 +49,7 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import {
-  addWorkflowGroup,
-  addWorkflowGroupOutput,
-  createTable,
-  deleteTable,
-  deleteWorkflowGroup,
-  deleteWorkflowGroupOutput,
-  getTableById,
-  renameTable,
-  updateWorkflowGroup,
-} from '@/lib/table/service'
+import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   RowData,
@@ -71,6 +61,13 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table/types'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
+import {
+  addWorkflowGroup,
+  addWorkflowGroupOutput,
+  deleteWorkflowGroup,
+  deleteWorkflowGroupOutput,
+  updateWorkflowGroup,
+} from '@/lib/table/workflow-groups/service'
 import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,

@@ -56,11 +56,18 @@ vi.mock('@/enrichments/registry', () => ({
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  addWorkflowGroup: mockAddWorkflowGroup,
   createTable: mockCreateTable,
   deleteTable: mockDeleteTable,
   getTableById: mockGetTableById,
   renameTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/workflow-groups/service', () => ({
+  addWorkflowGroup: mockAddWorkflowGroup,
+  addWorkflowGroupOutput: vi.fn(),
+  deleteWorkflowGroup: vi.fn(),
+  deleteWorkflowGroupOutput: vi.fn(),
+  updateWorkflowGroup: vi.fn(),
 }))
 
 vi.mock('@/lib/table/columns/service', () => ({
