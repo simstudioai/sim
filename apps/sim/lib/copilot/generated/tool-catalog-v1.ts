@@ -1110,7 +1110,8 @@ export const EnrichmentRun: ToolCatalogEntry = {
       },
       provider: {
         type: 'string',
-        description: 'Label of the provider that produced the result, or null on no match.',
+        description:
+          'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
       },
       result: {
         type: 'object',
