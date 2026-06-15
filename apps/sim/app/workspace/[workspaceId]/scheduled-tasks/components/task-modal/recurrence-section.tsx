@@ -23,6 +23,9 @@ function isWeekdayPreset(weekdays: number[]): boolean {
 function frequencyOptionFor(recurrence: Recurrence): FrequencyOption {
   if (recurrence.frequency === 'weekly')
     return isWeekdayPreset(recurrence.weekdays) ? 'weekdays' : 'weekly'
+  // Exhaustiveness fallback: callers gate on `isRecurring`, so `once` never
+  // reaches here at runtime, but the dropdown can't represent it — mapping it to
+  // a recurring default keeps the return type `FrequencyOption` without a cast.
   if (recurrence.frequency === 'once') return DEFAULT_RECURRING_FREQUENCY
   return recurrence.frequency
 }
@@ -81,16 +84,26 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
     const option = value as FrequencyOption
     switch (option) {
       case 'daily':
-        onChange({ ...recurrence, frequency: 'daily', weekdays: [] })
+        onChange({ ...recurrence, frequency: 'daily', weekdays: [], cron: undefined })
         return
       case 'weekly':
-        onChange({ ...recurrence, frequency: 'weekly', weekdays: [launch.getDay()] })
+        onChange({
+          ...recurrence,
+          frequency: 'weekly',
+          weekdays: [launch.getDay()],
+          cron: undefined,
+        })
         return
       case 'weekdays':
-        onChange({ ...recurrence, frequency: 'weekly', weekdays: [...WEEKDAY_PRESET] })
+        onChange({
+          ...recurrence,
+          frequency: 'weekly',
+          weekdays: [...WEEKDAY_PRESET],
+          cron: undefined,
+        })
         return
       case 'monthly':
-        onChange({ ...recurrence, frequency: 'monthly', weekdays: [] })
+        onChange({ ...recurrence, frequency: 'monthly', weekdays: [], cron: undefined })
         return
       case 'custom':
         onChange({ ...recurrence, frequency: 'custom' })
