@@ -87,18 +87,14 @@ export async function parseWebhookBody(
   try {
     assertContentLengthWithinLimit(request.headers, WEBHOOK_MAX_BODY_BYTES, WEBHOOK_BODY_LABEL)
 
-    const stream = request.clone().body
-    if (stream) {
-      const buffer = await readStreamToBufferWithLimit(stream, {
-        maxBytes: WEBHOOK_MAX_BODY_BYTES,
-        label: WEBHOOK_BODY_LABEL,
-      })
-      rawBody = new TextDecoder().decode(buffer)
-    } else {
-      // A null body stream means the request carries no body, so the parsed
-      // body is empty — no second clone needed.
-      rawBody = ''
-    }
+    // `readStreamToBufferWithLimit` returns an empty buffer for a null body, so
+    // this single capped read covers the empty-body case too — no branch or
+    // redundant clone, and no uncapped `.text()` fallback to bypass.
+    const buffer = await readStreamToBufferWithLimit(request.clone().body, {
+      maxBytes: WEBHOOK_MAX_BODY_BYTES,
+      label: WEBHOOK_BODY_LABEL,
+    })
+    rawBody = new TextDecoder().decode(buffer)
 
     if (!rawBody || rawBody.length === 0) {
       return { body: {}, rawBody: '' }
