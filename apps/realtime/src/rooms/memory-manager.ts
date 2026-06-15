@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { Server } from 'socket.io'
+import { reconcileWorkspaceAccessChange } from '@/rooms/access'
 import type { IRoomManager, UserPresence, UserSession, WorkflowRoom } from '@/rooms/types'
 
 const logger = createLogger('MemoryRoomManager')
@@ -123,6 +124,17 @@ export class MemoryRoomManager implements IRoomManager {
       if (updates.cursor !== undefined) presence.cursor = updates.cursor
       if (updates.selection !== undefined) presence.selection = updates.selection
       presence.lastActivity = updates.lastActivity ?? Date.now()
+    }
+  }
+
+  async updateUserRole(workflowId: string, socketId: string, role: string): Promise<void> {
+    const room = this.workflowRooms.get(workflowId)
+    if (!room) return
+
+    const presence = room.users.get(socketId)
+    if (presence) {
+      presence.role = role
+      presence.roleCheckedAt = Date.now()
     }
   }
 
@@ -254,5 +266,10 @@ export class MemoryRoomManager implements IRoomManager {
     })
 
     logger.info(`Notified ${room.users.size} users about workflow deployment change: ${workflowId}`)
+  }
+
+  async handleWorkspaceAccessChange(workspaceId: string, userId: string): Promise<void> {
+    logger.info(`Handling workspace access change for user ${userId} in workspace ${workspaceId}`)
+    await reconcileWorkspaceAccessChange(this, workspaceId, userId)
   }
 }
