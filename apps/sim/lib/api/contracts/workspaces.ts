@@ -181,6 +181,35 @@ export const getWorkspaceContract = defineRouteContract({
   },
 })
 
+/**
+ * Subscription access fields of the workspace's billed account (its OWNER's
+ * rolled-up plan) — the workspace-scoped counterpart to the viewer `/api/billing`
+ * data. Feed to `getSubscriptionAccessState` to gate workspace features on the
+ * owner's plan instead of the signed-in viewer's. No usage/credit data.
+ */
+export const workspaceOwnerBillingSchema = z.object({
+  plan: z.string(),
+  status: z.string().nullable(),
+  isPaid: z.boolean(),
+  isPro: z.boolean(),
+  isTeam: z.boolean(),
+  isEnterprise: z.boolean(),
+  isOrgScoped: z.boolean(),
+  organizationId: z.string().nullable(),
+})
+
+export type WorkspaceOwnerBilling = z.output<typeof workspaceOwnerBillingSchema>
+
+export const getWorkspaceOwnerBillingContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/owner-billing',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceOwnerBillingSchema,
+  },
+})
+
 export const updateWorkspaceContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/workspaces/[id]',

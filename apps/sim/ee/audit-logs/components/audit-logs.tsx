@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
+import { isRecordLike } from '@sim/utils/object'
 import { ChevronDown } from 'lucide-react'
 import {
   Badge,
@@ -51,10 +52,6 @@ function formatAction(action: string): string {
   return action.replace(/[._]/g, ' ')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function formatMetadataLabel(key: string): string {
   return key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -99,14 +96,14 @@ function renderMetadataValue(value: unknown) {
     )
   }
 
-  if (isRecord(value)) {
+  if (isRecordLike(value)) {
     const entries = Object.entries(value).filter(([, nestedValue]) => nestedValue !== undefined)
     if (entries.length === 0) {
       return <span className='text-[var(--text-muted)]'>None</span>
     }
 
     const hasComplexValues = entries.some(([, nestedValue]) => {
-      return Array.isArray(nestedValue) || isRecord(nestedValue)
+      return Array.isArray(nestedValue) || isRecordLike(nestedValue)
     })
 
     if (!hasComplexValues) {
@@ -136,7 +133,7 @@ function renderMetadataValue(value: unknown) {
 }
 
 function getMetadataEntries(metadata: unknown) {
-  if (!isRecord(metadata)) return []
+  if (!isRecordLike(metadata)) return []
 
   return Object.entries(metadata).filter(([key, value]) => {
     if (value === undefined) return false

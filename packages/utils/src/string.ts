@@ -37,3 +37,11 @@ export function stripVersionSuffix(value: string): string {
 export function isVersionedType(value: string): boolean {
   return /_v\d+$/.test(value)
 }
+
+/**
+ * Normalizes an email address for comparison and storage by trimming
+ * surrounding whitespace and lowercasing.
+ */
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}

@@ -1,4 +1,4 @@
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import type {
   EmailBisonBaseParams,
   EmailBisonCampaign,
@@ -100,7 +100,7 @@ export async function emailBisonArrayData(response: Response, label: string): Pr
 
 export async function emailBisonRecordData(response: Response, label: string): Promise<unknown> {
   const data = await emailBisonData<unknown>(response)
-  if (!isRecord(data)) {
+  if (!isRecordLike(data)) {
     throw new Error(`Email Bison response did not include a valid ${label} object`)
   }
   return data
@@ -441,12 +441,8 @@ function mapReplyAttachment(value: unknown): EmailBisonReplyAttachment {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function toRecord(value: unknown): Record<string, unknown> {
-  return isRecord(value) ? value : {}
+  return isRecordLike(value) ? value : {}
 }
 
 function toArray(value: unknown): unknown[] {

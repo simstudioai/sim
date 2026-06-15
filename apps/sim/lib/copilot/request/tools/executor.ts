@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
 import type {
   AsyncCompletionEnvelope,
   AsyncCompletionSignal,
@@ -70,10 +71,6 @@ export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
 
 const logger = createLogger('CopilotSseToolExecution')
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
   return result !== undefined && Object.hasOwn(result, 'output')
 }
@@ -133,11 +130,11 @@ function summarizeToolResultForSpan(result: {
 function extractAttachmentShape(
   output: unknown
 ): { imageCount: number; imageBytes: number; mediaType?: string } | null {
-  if (!isRecord(output)) return null
+  if (!isRecordLike(output)) return null
   const candidate = (output as Record<string, unknown>).attachment
-  if (!isRecord(candidate)) return null
+  if (!isRecordLike(candidate)) return null
   const source = (candidate as Record<string, unknown>).source
-  if (!isRecord(source)) return null
+  if (!isRecordLike(source)) return null
   const type =
     typeof (candidate as Record<string, unknown>).type === 'string'
       ? ((candidate as Record<string, unknown>).type as string)
@@ -168,7 +165,7 @@ function buildCompletionSignal(input: {
 function getCreateWorkflowOutput(
   output: unknown
 ): { workflowId?: string; workspaceId?: string } | undefined {
-  if (!isRecord(output)) {
+  if (!isRecordLike(output)) {
     return undefined
   }
 
