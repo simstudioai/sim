@@ -19,7 +19,6 @@ import {
   agentMailMessageSchema,
   webhookSvixHeadersSchema,
 } from '@/lib/api/contracts/webhooks'
-import { env } from '@/lib/core/config/env'
 import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
 import {
   assertContentLengthWithinLimit,
@@ -29,29 +28,27 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
 const logger = createLogger('AgentMailWebhook')
 
 const AUTOMATED_SENDERS = ['mailer-daemon@', 'noreply@', 'no-reply@', 'postmaster@']
 const MAX_EMAILS_PER_HOUR = 20
 
+const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
+
 /**
  * Bound the unauthenticated AgentMail webhook body before buffering it for Svix
  * signature verification, so an oversized payload cannot exhaust pod memory.
  */
-const AGENTMAIL_MAX_BODY_BYTES =
-  Number.parseInt(env.WEBHOOK_MAX_REQUEST_BYTES, 10) || 10 * 1024 * 1024
-
-const AGENTMAIL_BODY_LABEL = 'AgentMail webhook body'
-
 async function readAgentMailBody(req: Request): Promise<string> {
-  assertContentLengthWithinLimit(req.headers, AGENTMAIL_MAX_BODY_BYTES, AGENTMAIL_BODY_LABEL)
+  assertContentLengthWithinLimit(req.headers, WEBHOOK_MAX_BODY_BYTES, AGENTMAIL_BODY_LABEL)
   const stream = req.body
   if (!stream) {
     return req.text()
   }
   const buffer = await readStreamToBufferWithLimit(stream, {
-    maxBytes: AGENTMAIL_MAX_BODY_BYTES,
+    maxBytes: WEBHOOK_MAX_BODY_BYTES,
     label: AGENTMAIL_BODY_LABEL,
   })
   return new TextDecoder().decode(buffer)
@@ -65,7 +62,7 @@ export const POST = withRouteHandler(async (req: Request) => {
     } catch (bodyError) {
       if (isPayloadSizeLimitError(bodyError)) {
         logger.warn('Rejected oversized AgentMail webhook body', {
-          maxBytes: AGENTMAIL_MAX_BODY_BYTES,
+          maxBytes: WEBHOOK_MAX_BODY_BYTES,
           observedBytes: bodyError.observedBytes,
         })
         return NextResponse.json({ error: 'Request body too large' }, { status: 413 })

@@ -9,7 +9,6 @@ import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscri
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { env } from '@/lib/core/config/env'
 import { isProd } from '@/lib/core/config/feature-flags'
 import {
   assertContentLengthWithinLimit,
@@ -18,6 +17,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 import {
   getPendingWebhookVerification,
   matchesPendingWebhookVerificationProbe,
@@ -77,15 +77,6 @@ async function verifyCredentialSetBilling(credentialSetId: string): Promise<{
   return { valid: true }
 }
 
-/**
- * Maximum size of a webhook request body read into memory. The webhook receiver
- * is public and unauthenticated, so the body must be bounded before it is
- * buffered to prevent a memory-exhaustion DoS. Provider payloads rarely exceed a
- * few MB; defaults to 10 MB and is overridable via `WEBHOOK_MAX_REQUEST_BYTES`.
- */
-export const WEBHOOK_MAX_BODY_BYTES =
-  Number.parseInt(env.WEBHOOK_MAX_REQUEST_BYTES, 10) || 10 * 1024 * 1024
-
 const WEBHOOK_BODY_LABEL = 'Webhook request body'
 
 export async function parseWebhookBody(
@@ -104,7 +95,9 @@ export async function parseWebhookBody(
       })
       rawBody = new TextDecoder().decode(buffer)
     } else {
-      rawBody = await request.clone().text()
+      // A null body stream means the request carries no body, so the parsed
+      // body is empty — no second clone needed.
+      rawBody = ''
     }
 
     if (!rawBody || rawBody.length === 0) {
