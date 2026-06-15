@@ -168,15 +168,25 @@ export async function downloadFileFromUrl(
   options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
   const { timeoutMs = getMaxExecutionTimeout(), maxBytes, userId } = options
-  const { parseInternalFileUrl } = await import('./file-utils')
 
   if (isInternalFileUrl(fileUrl)) {
-    const { key, context } = parseInternalFileUrl(fileUrl)
-
     if (!userId) {
-      logger.warn('Internal file download denied: no userId provided', { key, context })
+      logger.warn('Internal file download denied: no userId provided', { fileUrl })
       throw new Error('Access denied: internal file URL requires an authenticated user')
     }
+
+    const key = extractStorageKey(fileUrl)
+    if (!key) {
+      logger.warn('Internal file download denied: could not resolve storage key', { fileUrl })
+      throw new Error('Access denied: could not resolve internal file key')
+    }
+
+    // Derive the storage context from the key itself, never from a caller-controlled
+    // `?context=` query param. Trusting the param lets a private key be labeled with a
+    // world-readable context (e.g. profile-pictures), so verifyFileAccess short-circuits
+    // to granted while downloadFile still reads the private object. This mirrors how
+    // /api/files/serve resolves context (inferContextFromKey only).
+    const context = inferContextFromKey(key)
 
     const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
     if (!hasAccess) {
