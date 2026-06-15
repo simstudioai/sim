@@ -138,18 +138,26 @@ export function createStreamingExecution(
           timeSegments: timing.timeSegments,
         }
 
-  const streamingResult: StreamingExecution = {
-    stream: undefined as unknown as ReadableStream,
+  const output: NormalizedBlockOutput = {
+    content: '',
+    model,
+    tokens: initialTokens,
+    toolCalls: toolCalls as NormalizedBlockOutput['toolCalls'],
+    providerTiming,
+    cost: initialCost,
+  }
+
+  const timingKind = timing.kind
+  const stream = createStream({
+    output,
+    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
+  })
+
+  return {
+    stream,
     execution: {
       success: true,
-      output: {
-        content: '',
-        model,
-        tokens: initialTokens,
-        toolCalls: toolCalls as NormalizedBlockOutput['toolCalls'],
-        providerTiming,
-        cost: initialCost,
-      },
+      output,
       logs: [],
       metadata: {
         startTime: providerStartTimeISO,
@@ -159,15 +167,6 @@ export function createStreamingExecution(
       ...(isStreaming ? { isStreaming: true } : {}),
     },
   }
-
-  const output = streamingResult.execution.output
-  const timingKind = timing.kind
-  streamingResult.stream = createStream({
-    output,
-    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
-  })
-
-  return streamingResult
 }
 
 /**
