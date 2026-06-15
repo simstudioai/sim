@@ -9,8 +9,8 @@ import { runDetached } from '@/lib/core/utils/background'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { appendTableEvent } from '@/lib/table/events'
+import { batchUpdateRows } from '@/lib/table/rows/service'
 import {
-  batchUpdateRows,
   getTableById,
   markJobFailed,
   markJobReady,

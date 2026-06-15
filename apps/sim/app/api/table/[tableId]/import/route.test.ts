@@ -54,9 +54,12 @@ vi.mock('@/app/api/table/utils', async () => {
 vi.mock('@/lib/table/service', () => ({
   importAppendRows: mockImportAppendRows,
   importReplaceRows: mockImportReplaceRows,
-  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
   markTableJobRunning: mockMarkTableImporting,
   releaseJobClaim: mockReleaseImportClaim,
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  dispatchAfterBatchInsert: mockDispatchAfterBatchInsert,
 }))
 
 import { POST } from '@/app/api/table/[tableId]/import/route'

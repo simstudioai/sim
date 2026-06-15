@@ -367,7 +367,8 @@ export async function cancelWorkflowGroupRuns(
   rowId?: string,
   options?: { groupIds?: string[]; filter?: Filter; excludeRowIds?: string[] }
 ): Promise<number> {
-  const { getTableById, updateRow } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { updateRow } = await import('@/lib/table/rows/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
   const { listActiveDispatches, markActiveDispatchesCancelled } = await import('./dispatcher')
 
