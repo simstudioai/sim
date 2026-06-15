@@ -105,7 +105,7 @@ const nextConfig: NextConfig = {
     },
   },
   experimental: {
-    optimizeCss: true,
+    optimizeCss: !isDev,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',

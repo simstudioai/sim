@@ -3360,6 +3360,16 @@ import {
   tinybirdTruncateDatasourceTool,
 } from '@/tools/tinybird'
 import {
+  todoistAddCommentTool,
+  todoistCloseTaskTool,
+  todoistCreateTaskTool,
+  todoistDeleteTaskTool,
+  todoistGetTaskTool,
+  todoistListProjectsTool,
+  todoistListTasksTool,
+  todoistUpdateTaskTool,
+} from '@/tools/todoist'
+import {
   trelloAddCommentTool,
   trelloCreateCardTool,
   trelloGetActionsTool,
@@ -7131,4 +7141,12 @@ export const tools: Record<string, ToolConfig> = {
   upstash_redis_lrange: upstashRedisLRangeTool,
   upstash_redis_exists: upstashRedisExistsTool,
   upstash_redis_setnx: upstashRedisSetnxTool,
+  todoist_add_comment: todoistAddCommentTool,
+  todoist_close_task: todoistCloseTaskTool,
+  todoist_create_task: todoistCreateTaskTool,
+  todoist_delete_task: todoistDeleteTaskTool,
+  todoist_get_task: todoistGetTaskTool,
+  todoist_list_projects: todoistListProjectsTool,
+  todoist_list_tasks: todoistListTasksTool,
+  todoist_update_task: todoistUpdateTaskTool,
 }
