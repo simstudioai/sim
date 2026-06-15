@@ -2936,12 +2936,11 @@ export function ClickHouseIcon(props: SVGProps<SVGSVGElement>) {
 
 export function MicrosoftIcon(props: SVGProps<SVGSVGElement>) {
   return (
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 23 23' {...props}>
-      <path fill='#f3f3f3' d='M0 0h23v23H0z' />
-      <path fill='#f35325' d='M1 1h10v10H1z' />
-      <path fill='#81bc06' d='M12 1h10v10H12z' />
-      <path fill='#05a6f0' d='M1 12h10v10H1z' />
-      <path fill='#ffba08' d='M12 12h10v10H12z' />
+    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 109 109' {...props}>
+      <polygon fill='#F1511B' points='51.9,51.9 0,51.9 0,0 51.9,0' />
+      <polygon fill='#80CC28' points='109.3,51.9 57.3,51.9 57.3,0 109.3,0' />
+      <polygon fill='#00ADEF' points='51.9,109.3 0,109.3 0,57.4 51.9,57.4' />
+      <polygon fill='#FBBC09' points='109.3,109.3 57.3,109.3 57.3,57.4 109.3,57.4' />
     </svg>
   )
 }
