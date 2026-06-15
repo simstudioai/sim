@@ -46,6 +46,12 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
       visibility: 'user-or-llm',
       description: 'Business name of the customer',
     },
+    nickname: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Nickname of the customer',
+    },
     emailAddress: {
       type: 'string',
       required: false,
@@ -57,6 +63,12 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
       required: false,
       visibility: 'user-or-llm',
       description: 'Phone number of the customer',
+    },
+    birthday: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Birthday in YYYY-MM-DD or MM-DD format',
     },
     note: {
       type: 'string',
@@ -87,8 +99,10 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
       if (params.givenName !== undefined) body.given_name = params.givenName
       if (params.familyName !== undefined) body.family_name = params.familyName
       if (params.companyName !== undefined) body.company_name = params.companyName
+      if (params.nickname !== undefined) body.nickname = params.nickname
       if (params.emailAddress !== undefined) body.email_address = params.emailAddress
       if (params.phoneNumber !== undefined) body.phone_number = params.phoneNumber
+      if (params.birthday !== undefined) body.birthday = params.birthday
       if (params.note !== undefined) body.note = params.note
       if (params.referenceId !== undefined) body.reference_id = params.referenceId
       if (params.address !== undefined) body.address = params.address

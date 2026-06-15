@@ -140,6 +140,14 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       condition: { field: 'operation', value: 'refund_payment' },
     },
     {
+      id: 'versionToken',
+      title: 'Version Token',
+      type: 'short-input',
+      placeholder: 'Optional version token for concurrency control',
+      condition: { field: 'operation', value: 'complete_payment' },
+      mode: 'advanced',
+    },
+    {
       id: 'autocomplete',
       title: 'Capture Immediately',
       type: 'dropdown',
@@ -215,6 +223,14 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'nickname',
+      title: 'Nickname',
+      type: 'short-input',
+      placeholder: 'Customer nickname',
+      condition: { field: 'operation', value: ['create_customer', 'update_customer'] },
+      mode: 'advanced',
+    },
+    {
       id: 'emailAddress',
       title: 'Email Address',
       type: 'short-input',
@@ -226,6 +242,14 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       title: 'Phone Number',
       type: 'short-input',
       placeholder: '+15551234567',
+      condition: { field: 'operation', value: ['create_customer', 'update_customer'] },
+      mode: 'advanced',
+    },
+    {
+      id: 'birthday',
+      title: 'Birthday',
+      type: 'short-input',
+      placeholder: 'YYYY-MM-DD or MM-DD',
       condition: { field: 'operation', value: ['create_customer', 'update_customer'] },
       mode: 'advanced',
     },
@@ -285,22 +309,54 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       mode: 'advanced',
     },
 
-    // Search query (customers / orders / catalog)
+    // Search query — one field per search operation so the placeholder and wand
+    // prompt match each endpoint's distinct query schema. All map to the same
+    // canonical `query` param.
     {
-      id: 'query',
+      id: 'queryCustomers',
       title: 'Query (JSON)',
       type: 'code',
       language: 'json',
+      canonicalParamId: 'query',
       placeholder: '{"filter": {"email_address": {"exact": "customer@example.com"}}}',
-      condition: {
-        field: 'operation',
-        value: ['search_customers', 'search_orders', 'search_catalog_objects'],
-      },
+      condition: { field: 'operation', value: 'search_customers' },
       mode: 'advanced',
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate a Square search query JSON object for the given operation. Return ONLY the JSON object.',
+          'Generate a Square SearchCustomers query JSON object with a filter and optional sort. Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'queryOrders',
+      title: 'Query (JSON)',
+      type: 'code',
+      language: 'json',
+      canonicalParamId: 'query',
+      placeholder: '{"filter": {"state_filter": {"states": ["OPEN"]}}}',
+      condition: { field: 'operation', value: 'search_orders' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Square SearchOrders query JSON object with a filter (e.g. state_filter, date_time_filter) and optional sort. Return ONLY the JSON object.',
+        generationType: 'json-object',
+      },
+    },
+    {
+      id: 'queryCatalog',
+      title: 'Query (JSON)',
+      type: 'code',
+      language: 'json',
+      canonicalParamId: 'query',
+      placeholder: '{"text_query": {"keywords": ["coffee"]}}',
+      condition: { field: 'operation', value: 'search_catalog_objects' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt:
+          'Generate a Square SearchCatalogObjects query JSON object (e.g. text_query, prefix_query, exact_query). Return ONLY the JSON object.',
         generationType: 'json-object',
       },
     },
@@ -440,6 +496,28 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
       mode: 'advanced',
     },
     {
+      id: 'states',
+      title: 'Inventory States (JSON Array)',
+      type: 'code',
+      language: 'json',
+      placeholder: '["IN_STOCK", "SOLD"]',
+      condition: { field: 'operation', value: 'batch_retrieve_inventory_counts' },
+      mode: 'advanced',
+    },
+    {
+      id: 'updatedAfter',
+      title: 'Updated After',
+      type: 'short-input',
+      placeholder: 'RFC 3339 timestamp',
+      condition: { field: 'operation', value: 'batch_retrieve_inventory_counts' },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: 'Generate an RFC 3339 timestamp. Return ONLY the timestamp string.',
+        generationType: 'timestamp',
+      },
+    },
+    {
       id: 'includeRelatedObjects',
       title: 'Include Related Objects',
       type: 'dropdown',
@@ -535,6 +613,7 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           'list_invoices',
           'search_invoices',
           'search_catalog_objects',
+          'batch_retrieve_inventory_counts',
         ],
       },
       mode: 'advanced',
@@ -639,6 +718,7 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           objectTypes,
           paymentIds,
           catalogObjectIds,
+          states,
           amount,
           limit,
           version,
@@ -651,31 +731,30 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
         // Normalize the catalog image file from basic (uploadFile) or advanced (fileRef)
         const normalizedFile = normalizeFileInput(uploadFile || fileRef, { single: true })
 
-        // Parse JSON-typed inputs
-        let parsedAddress: unknown
-        let parsedQuery: unknown
-        let parsedOrder: unknown
-        let parsedInvoice: unknown
-        let parsedObject: unknown
-        let parsedLocationIds: unknown
-        let parsedObjectTypes: unknown
-        let parsedPaymentIds: unknown
-        let parsedCatalogObjectIds: unknown
-        try {
-          if (address) parsedAddress = JSON.parse(address)
-          if (query) parsedQuery = JSON.parse(query)
-          if (order) parsedOrder = JSON.parse(order)
-          if (invoice) parsedInvoice = JSON.parse(invoice)
-          if (object) parsedObject = JSON.parse(object)
-          if (locationIds) parsedLocationIds = JSON.parse(locationIds)
-          if (objectTypes) parsedObjectTypes = JSON.parse(objectTypes)
-          if (paymentIds) parsedPaymentIds = JSON.parse(paymentIds)
-          if (catalogObjectIds) parsedCatalogObjectIds = JSON.parse(catalogObjectIds)
-        } catch (error) {
-          throw new Error(
-            `Invalid JSON input: ${error instanceof Error ? error.message : 'unknown error'}`
-          )
+        // Parse a JSON-typed input, naming the field in any error so the user
+        // knows exactly which input to fix.
+        const parseJsonField = (value: unknown, field: string): unknown => {
+          if (value === undefined || value === null || value === '') return undefined
+          if (typeof value !== 'string') return value
+          try {
+            return JSON.parse(value)
+          } catch (error) {
+            throw new Error(
+              `Invalid JSON in "${field}": ${error instanceof Error ? error.message : 'unknown error'}`
+            )
+          }
         }
+
+        const parsedAddress = parseJsonField(address, 'address')
+        const parsedQuery = parseJsonField(query, 'query')
+        const parsedOrder = parseJsonField(order, 'order')
+        const parsedInvoice = parseJsonField(invoice, 'invoice')
+        const parsedObject = parseJsonField(object, 'object')
+        const parsedLocationIds = parseJsonField(locationIds, 'locationIds')
+        const parsedObjectTypes = parseJsonField(objectTypes, 'objectTypes')
+        const parsedPaymentIds = parseJsonField(paymentIds, 'paymentIds')
+        const parsedCatalogObjectIds = parseJsonField(catalogObjectIds, 'catalogObjectIds')
+        const parsedStates = parseJsonField(states, 'states')
 
         return {
           ...rest,
@@ -689,6 +768,7 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
           ...(parsedObjectTypes !== undefined && { objectTypes: parsedObjectTypes }),
           ...(parsedPaymentIds !== undefined && { paymentIds: parsedPaymentIds }),
           ...(parsedCatalogObjectIds !== undefined && { catalogObjectIds: parsedCatalogObjectIds }),
+          ...(parsedStates !== undefined && { states: parsedStates }),
           ...(amount !== undefined && amount !== '' && { amount: Number(amount) }),
           ...(limit !== undefined && limit !== '' && { limit: Number(limit) }),
           ...(version !== undefined && version !== '' && { version: Number(version) }),
@@ -713,6 +793,7 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
     amount: { type: 'number', description: 'Amount in smallest currency denomination' },
     currency: { type: 'string', description: 'ISO 4217 currency code' },
     reason: { type: 'string', description: 'Refund reason' },
+    versionToken: { type: 'string', description: 'Version token for payment concurrency control' },
     autocomplete: { type: 'boolean', description: 'Capture payment immediately' },
     beginTime: { type: 'string', description: 'Start of the reporting period (RFC 3339)' },
     endTime: { type: 'string', description: 'End of the reporting period (RFC 3339)' },
@@ -720,8 +801,10 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
     givenName: { type: 'string', description: 'Customer first name' },
     familyName: { type: 'string', description: 'Customer last name' },
     companyName: { type: 'string', description: 'Customer company name' },
+    nickname: { type: 'string', description: 'Customer nickname' },
     emailAddress: { type: 'string', description: 'Customer email address' },
     phoneNumber: { type: 'string', description: 'Customer phone number' },
+    birthday: { type: 'string', description: 'Customer birthday (YYYY-MM-DD or MM-DD)' },
     address: { type: 'json', description: 'Customer address object' },
     note: { type: 'string', description: 'Note' },
     referenceId: { type: 'string', description: 'External reference ID' },
@@ -742,6 +825,11 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
     types: { type: 'string', description: 'Comma-separated catalog object types' },
     objectTypes: { type: 'json', description: 'Array of catalog object types to search' },
     catalogObjectIds: { type: 'json', description: 'Array of catalog object IDs for inventory' },
+    states: { type: 'json', description: 'Array of inventory states to filter by' },
+    updatedAfter: {
+      type: 'string',
+      description: 'Only return inventory counts updated after this time',
+    },
     file: { type: 'json', description: 'Image file to upload (canonical param)' },
     fileName: { type: 'string', description: 'Filename override for the image' },
     caption: { type: 'string', description: 'Image caption' },

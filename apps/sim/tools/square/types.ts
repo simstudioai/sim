@@ -723,8 +723,10 @@ export interface CreateCustomerParams {
   givenName?: string
   familyName?: string
   companyName?: string
+  nickname?: string
   emailAddress?: string
   phoneNumber?: string
+  birthday?: string
   note?: string
   referenceId?: string
   address?: SquareAddress
@@ -757,8 +759,10 @@ export interface UpdateCustomerParams {
   givenName?: string
   familyName?: string
   companyName?: string
+  nickname?: string
   emailAddress?: string
   phoneNumber?: string
+  birthday?: string
   note?: string
   referenceId?: string
   address?: SquareAddress
@@ -846,7 +850,6 @@ export interface SearchCatalogObjectsParams {
 export interface CreateCatalogImageParams {
   apiKey: string
   file?: unknown
-  fileContent?: string
   fileName?: string
   objectId?: string
   caption?: string
@@ -861,6 +864,7 @@ export interface CancelPaymentParams {
 export interface CompletePaymentParams {
   apiKey: string
   paymentId: string
+  versionToken?: string
 }
 
 export interface GetRefundParams {
@@ -919,6 +923,9 @@ export interface BatchRetrieveInventoryCountsParams {
   apiKey: string
   catalogObjectIds?: string[]
   locationIds?: string[]
+  states?: string[]
+  updatedAfter?: string
+  limit?: number
   cursor?: string
 }
 

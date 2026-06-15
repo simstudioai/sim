@@ -260,6 +260,7 @@ Capture (complete) a payment that was authorized with delayed capture
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `paymentId` | string | Yes | ID of the payment to complete |
+| `versionToken` | string | No | Optional version token for optimistic concurrency control |
 
 #### Output
 
@@ -424,8 +425,10 @@ Create a new customer profile in the Square customer directory
 | `givenName` | string | No | First name of the customer |
 | `familyName` | string | No | Last name of the customer |
 | `companyName` | string | No | Business name of the customer |
+| `nickname` | string | No | Nickname of the customer |
 | `emailAddress` | string | No | Email address of the customer |
 | `phoneNumber` | string | No | Phone number of the customer |
+| `birthday` | string | No | Birthday in YYYY-MM-DD or MM-DD format |
 | `note` | string | No | Note about the customer |
 | `referenceId` | string | No | Optional external reference for the customer |
 | `address` | json | No | Square address object for the customer |
@@ -634,8 +637,10 @@ Update fields on an existing customer profile
 | `givenName` | string | No | First name of the customer |
 | `familyName` | string | No | Last name of the customer |
 | `companyName` | string | No | Business name of the customer |
+| `nickname` | string | No | Nickname of the customer |
 | `emailAddress` | string | No | Email address of the customer |
 | `phoneNumber` | string | No | Phone number of the customer |
+| `birthday` | string | No | Birthday in YYYY-MM-DD or MM-DD format |
 | `note` | string | No | Note about the customer |
 | `referenceId` | string | No | Optional external reference for the customer |
 | `address` | json | No | Square address object for the customer |
@@ -1395,8 +1400,7 @@ Upload an image and attach it to the catalog, optionally to a specific item
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Square access token \(personal access token\) |
-| `file` | file | No | The image file to upload \(UserFile object\) |
-| `fileContent` | string | No | Legacy: base64 encoded image content |
+| `file` | file | Yes | The image file to upload \(UserFile object\) |
 | `fileName` | string | No | Optional filename override for the image |
 | `objectId` | string | No | ID of the catalog object \(e.g. an item\) to attach the image to |
 | `caption` | string | No | Caption \(alt text\) for the image |
@@ -1452,6 +1456,9 @@ Retrieve current inventory counts for catalog items across locations
 | `apiKey` | string | Yes | Square access token \(personal access token\) |
 | `catalogObjectIds` | array | No | IDs of the catalog item variations to retrieve counts for |
 | `locationIds` | array | No | IDs of the locations to retrieve counts for \(defaults to all locations\) |
+| `states` | array | No | Inventory states to filter by \(e.g. IN_STOCK, SOLD, IN_TRANSIT\) |
+| `updatedAfter` | string | No | Only return counts updated after this RFC 3339 timestamp |
+| `limit` | number | No | Maximum number of results to return per page \(1-1000\) |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output

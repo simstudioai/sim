@@ -41,6 +41,12 @@ export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
       visibility: 'user-or-llm',
       description: 'Business name of the customer',
     },
+    nickname: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Nickname of the customer',
+    },
     emailAddress: {
       type: 'string',
       required: false,
@@ -52,6 +58,12 @@ export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
       required: false,
       visibility: 'user-or-llm',
       description: 'Phone number of the customer',
+    },
+    birthday: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Birthday in YYYY-MM-DD or MM-DD format',
     },
     note: {
       type: 'string',
@@ -90,8 +102,10 @@ export const squareCreateCustomerTool: ToolConfig<CreateCustomerParams, Customer
       if (params.givenName) body.given_name = params.givenName
       if (params.familyName) body.family_name = params.familyName
       if (params.companyName) body.company_name = params.companyName
+      if (params.nickname) body.nickname = params.nickname
       if (params.emailAddress) body.email_address = params.emailAddress
       if (params.phoneNumber) body.phone_number = params.phoneNumber
+      if (params.birthday) body.birthday = params.birthday
       if (params.note) body.note = params.note
       if (params.referenceId) body.reference_id = params.referenceId
       if (params.address) body.address = params.address

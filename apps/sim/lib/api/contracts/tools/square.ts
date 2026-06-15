@@ -28,7 +28,6 @@ const squareCatalogImageResponseSchema = z.object({
 export const squareCatalogImageBodySchema = z.object({
   accessToken: z.string().min(1, 'Access token is required'),
   file: FileInputSchema.optional().nullable(),
-  fileContent: z.string().optional().nullable(),
   fileName: z.string().optional().nullable(),
   objectId: z.string().optional().nullable(),
   caption: z.string().optional().nullable(),

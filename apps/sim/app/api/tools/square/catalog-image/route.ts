@@ -34,34 +34,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const validatedData = parsed.data.body
 
-    let fileBuffer: Buffer
-    let fileName: string
-    let mimeType = 'application/octet-stream'
-
-    if (validatedData.file) {
-      const userFiles = processFilesToUserFiles(
-        [validatedData.file as RawFileInput],
-        requestId,
-        logger
-      )
-
-      if (userFiles.length === 0) {
-        return NextResponse.json({ success: false, error: 'Invalid file input' }, { status: 400 })
-      }
-
-      const userFile = userFiles[0]
-      const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
-      if (denied) return denied
-
-      fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
-      fileName = validatedData.fileName || userFile.name
-      if (userFile.type) mimeType = userFile.type
-    } else if (validatedData.fileContent) {
-      fileBuffer = Buffer.from(validatedData.fileContent, 'base64')
-      fileName = validatedData.fileName || 'image'
-    } else {
+    if (!validatedData.file) {
       return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
     }
+
+    const userFiles = processFilesToUserFiles(
+      [validatedData.file as RawFileInput],
+      requestId,
+      logger
+    )
+
+    if (userFiles.length === 0) {
+      return NextResponse.json({ success: false, error: 'Invalid file input' }, { status: 400 })
+    }
+
+    const userFile = userFiles[0]
+    const denied = await assertToolFileAccess(userFile.key, authResult.userId, requestId, logger)
+    if (denied) return denied
+
+    const fileBuffer = await downloadFileFromStorage(userFile, requestId, logger)
+    const fileName = validatedData.fileName || userFile.name
+    const mimeType = userFile.type || 'application/octet-stream'
 
     const imageRequest: Record<string, unknown> = {
       idempotency_key: validatedData.idempotencyKey || generateId(),
@@ -75,11 +68,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const formData = new FormData()
     formData.append('request', JSON.stringify(imageRequest))
-    formData.append(
-      'image_file',
-      new Blob([new Uint8Array(fileBuffer)], { type: mimeType }),
-      fileName
-    )
+    formData.append('file', new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), fileName)
 
     const response = await fetch(`${SQUARE_BASE_URL}/v2/catalog/images`, {
       method: 'POST',
@@ -90,14 +79,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       body: formData,
     })
 
-    const data = await response.json()
-
     if (!response.ok) {
-      const errorMessage = data?.errors?.[0]?.detail || 'Failed to upload catalog image'
-      logger.error(`[${requestId}] Square API error:`, { status: response.status, data })
-      return NextResponse.json({ success: false, error: errorMessage }, { status: response.status })
+      const errorText = await response.text()
+      let detail: string | undefined
+      try {
+        detail = JSON.parse(errorText)?.errors?.[0]?.detail
+      } catch {
+        detail = undefined
+      }
+      logger.error(`[${requestId}] Square API error:`, { status: response.status, body: errorText })
+      return NextResponse.json(
+        {
+          success: false,
+          error: detail || `Failed to upload catalog image (HTTP ${response.status})`,
+        },
+        { status: response.status }
+      )
     }
 
+    const data = await response.json()
     const object = data.image ?? {}
 
     return NextResponse.json({

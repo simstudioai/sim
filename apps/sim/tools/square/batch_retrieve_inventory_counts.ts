@@ -40,6 +40,24 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'IDs of the locations to retrieve counts for (defaults to all locations)',
     },
+    states: {
+      type: 'array',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Inventory states to filter by (e.g. IN_STOCK, SOLD, IN_TRANSIT)',
+    },
+    updatedAfter: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only return counts updated after this RFC 3339 timestamp',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of results to return per page (1-1000)',
+    },
     cursor: {
       type: 'string',
       required: false,
@@ -56,6 +74,9 @@ export const squareBatchRetrieveInventoryCountsTool: ToolConfig<
       const body: Record<string, unknown> = {}
       if (params.catalogObjectIds) body.catalog_object_ids = params.catalogObjectIds
       if (params.locationIds) body.location_ids = params.locationIds
+      if (params.states) body.states = params.states
+      if (params.updatedAfter) body.updated_after = params.updatedAfter
+      if (params.limit !== undefined) body.limit = params.limit
       if (params.cursor) body.cursor = params.cursor
       return body
     },

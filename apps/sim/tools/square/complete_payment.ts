@@ -28,6 +28,12 @@ export const squareCompletePaymentTool: ToolConfig<CompletePaymentParams, Paymen
       visibility: 'user-or-llm',
       description: 'ID of the payment to complete',
     },
+    versionToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Optional version token for optimistic concurrency control',
+    },
   },
 
   request: {
@@ -35,7 +41,7 @@ export const squareCompletePaymentTool: ToolConfig<CompletePaymentParams, Paymen
       `${SQUARE_BASE_URL}/v2/payments/${encodeURIComponent(params.paymentId)}/complete`,
     method: 'POST',
     headers: (params) => squareHeaders(params.apiKey),
-    body: () => ({}),
+    body: (params) => (params.versionToken ? { version_token: params.versionToken } : {}),
   },
 
   transformResponse: async (response) => {

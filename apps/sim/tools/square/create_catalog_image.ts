@@ -23,15 +23,9 @@ export const squareCreateCatalogImageTool: ToolConfig<
     },
     file: {
       type: 'file',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
       description: 'The image file to upload (UserFile object)',
-    },
-    fileContent: {
-      type: 'string',
-      required: false,
-      visibility: 'hidden',
-      description: 'Legacy: base64 encoded image content',
     },
     fileName: {
       type: 'string',
@@ -68,7 +62,6 @@ export const squareCreateCatalogImageTool: ToolConfig<
     body: (params) => ({
       accessToken: params.apiKey,
       file: params.file,
-      fileContent: params.fileContent,
       fileName: params.fileName,
       objectId: params.objectId,
       caption: params.caption,
