@@ -1134,6 +1134,36 @@ export interface AssetObjectAttributeInput {
   objectAttributeValues: Array<{ value: unknown }>
 }
 
+/** Raw attribute value as returned by the Assets API (before normalization) */
+export interface RawAssetObjectAttributeValue {
+  value?: string | null
+  displayValue?: string | null
+  searchValue?: string | null
+  referencedType?: boolean
+  referencedObject?: Record<string, unknown> | null
+}
+
+/** Raw attribute as returned by the Assets API (before normalization) */
+export interface RawAssetObjectAttribute {
+  id?: string
+  objectTypeAttributeId?: string
+  objectAttributeValues?: RawAssetObjectAttributeValue[]
+}
+
+/** Raw Assets object as returned by get/create/update/AQL (before normalization) */
+export interface RawAssetObject {
+  id: string
+  label?: string | null
+  objectKey?: string | null
+  globalId?: string | null
+  created?: string | null
+  updated?: string | null
+  hasAvatar?: boolean
+  objectType?: Record<string, unknown> | null
+  attributes?: RawAssetObjectAttribute[]
+  _links?: { self?: string } | null
+}
+
 /** Output property descriptors reused across Assets object responses */
 export const ASSET_OBJECT_PROPERTIES = {
   id: { type: 'string', description: 'Object ID' },

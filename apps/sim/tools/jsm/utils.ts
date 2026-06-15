@@ -3,7 +3,7 @@
  */
 
 import { getJiraCloudId } from '@/tools/jira/utils'
-import type { AssetObject } from '@/tools/jsm/types'
+import type { AssetObject, RawAssetObject } from '@/tools/jsm/types'
 
 /**
  * Resolve the Jira `cloudId` and Assets `workspaceId` needed for an Assets API
@@ -29,7 +29,7 @@ export async function resolveAssetsContext(
  * {@link AssetObject} shape returned by the tools.
  * @param data - The raw object payload from the Assets API
  */
-export function mapAssetObject(data: Record<string, any>): AssetObject {
+export function mapAssetObject(data: RawAssetObject): AssetObject {
   return {
     id: data.id,
     label: data.label ?? null,
@@ -39,21 +39,17 @@ export function mapAssetObject(data: Record<string, any>): AssetObject {
     updated: data.updated ?? null,
     hasAvatar: data.hasAvatar ?? false,
     objectType: data.objectType ?? null,
-    attributes: Array.isArray(data.attributes)
-      ? data.attributes.map((attr: Record<string, any>) => ({
-          id: attr.id,
-          objectTypeAttributeId: attr.objectTypeAttributeId,
-          objectAttributeValues: Array.isArray(attr.objectAttributeValues)
-            ? attr.objectAttributeValues.map((v: Record<string, any>) => ({
-                value: v.value ?? null,
-                displayValue: v.displayValue ?? null,
-                searchValue: v.searchValue ?? null,
-                referencedType: v.referencedType ?? false,
-                referencedObject: v.referencedObject ?? null,
-              }))
-            : [],
-        }))
-      : [],
+    attributes: (data.attributes ?? []).map((attr) => ({
+      id: attr.id ?? '',
+      objectTypeAttributeId: attr.objectTypeAttributeId ?? '',
+      objectAttributeValues: (attr.objectAttributeValues ?? []).map((v) => ({
+        value: v.value ?? null,
+        displayValue: v.displayValue ?? null,
+        searchValue: v.searchValue ?? null,
+        referencedType: v.referencedType ?? false,
+        referencedObject: v.referencedObject ?? null,
+      })),
+    })),
     link: data._links?.self ?? null,
   }
 }

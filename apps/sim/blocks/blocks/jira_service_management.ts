@@ -6,6 +6,16 @@ import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
 
 /**
+ * Coerce an optional numeric block input into an integer, returning undefined for
+ * empty or non-numeric values so no `NaN` reaches the API query string.
+ */
+function toOptionalInt(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const parsed = Number.parseInt(value, 10)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
+/**
  * Parse the Assets attributes input into the API payload array. Accepts either a
  * JSON string (from the block input) or an already-parsed array (from a dynamic
  * reference). Throws a clear error when the value is not a valid array.
@@ -1328,10 +1338,8 @@ Return ONLY the comment text - no explanations.`,
           case 'list_object_schemas':
             return {
               ...baseParams,
-              startAt: params.assetStartAt ? Number.parseInt(params.assetStartAt) : undefined,
-              maxResults: params.assetMaxResults
-                ? Number.parseInt(params.assetMaxResults)
-                : undefined,
+              startAt: toOptionalInt(params.assetStartAt),
+              maxResults: toOptionalInt(params.assetMaxResults),
               includeCounts: params.assetIncludeCounts === 'true' ? true : undefined,
             }
           case 'get_object_schema':
@@ -1365,10 +1373,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               qlQuery: params.assetQlQuery,
-              page: params.assetPage ? Number.parseInt(params.assetPage) : undefined,
-              resultsPerPage: params.assetResultsPerPage
-                ? Number.parseInt(params.assetResultsPerPage)
-                : undefined,
+              page: toOptionalInt(params.assetPage),
+              resultsPerPage: toOptionalInt(params.assetResultsPerPage),
               includeAttributes: params.assetIncludeAttributes === 'false' ? false : undefined,
               objectTypeId: params.assetObjectTypeId || undefined,
               objectSchemaId: params.assetObjectSchemaId || undefined,
