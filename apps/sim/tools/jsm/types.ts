@@ -1080,6 +1080,15 @@ export type JsmResponse =
   | JsmCopyFormsResponse
   | JsmGetFormAnswersResponse
   | JsmReopenFormResponse
+  | JsmListObjectSchemasResponse
+  | JsmGetObjectSchemaResponse
+  | JsmListObjectTypesResponse
+  | JsmGetObjectTypeAttributesResponse
+  | JsmSearchObjectsAqlResponse
+  | JsmGetObjectResponse
+  | JsmCreateObjectResponse
+  | JsmUpdateObjectResponse
+  | JsmDeleteObjectResponse
 
 /**
  * JSM Assets (Insight / CMDB) tool types.
