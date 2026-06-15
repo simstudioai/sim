@@ -19,7 +19,6 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const GENERATORS = [
   'scripts/sync-mothership-stream-contract.ts',
   'scripts/sync-tool-catalog.ts',
-  'scripts/sync-request-trace-contract.ts',
   'scripts/sync-trace-spans-contract.ts',
   'scripts/sync-trace-attributes-contract.ts',
   'scripts/sync-trace-attribute-values-contract.ts',
