@@ -25,7 +25,7 @@ import type {
 } from '../types'
 
 /** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
-export interface DerivedJobFields {
+interface DerivedJobFields {
   jobStatus: TableDefinition['jobStatus']
   jobId: string | null
   jobType: TableDefinition['jobType']
@@ -49,7 +49,7 @@ export const EMPTY_JOB_FIELDS: DerivedJobFields = {
   pendingDeleteRemaining: 0,
 }
 
-export function mapJobRow(
+function mapJobRow(
   row:
     | {
         id: string
@@ -76,7 +76,7 @@ export function mapJobRow(
   }
 }
 
-export const JOB_PROJECTION = {
+const JOB_PROJECTION = {
   id: tableJobs.id,
   type: tableJobs.type,
   status: tableJobs.status,

@@ -163,19 +163,6 @@ export async function getTableById(
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
-async function countTables(workspaceId: string): Promise<number> {
-  const [result] = await db
-    .select({ count: count() })
-    .from(userTableDefinitions)
-    .where(
-      and(
-        eq(userTableDefinitions.workspaceId, workspaceId),
-        isNull(userTableDefinitions.archivedAt)
-      )
-    )
-  return result.count
-}
-
 export async function listTables(
   workspaceId: string,
   options?: { scope?: TableScope }

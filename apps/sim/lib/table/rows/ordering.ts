@@ -174,50 +174,6 @@ export async function compactPositions(
   `)
 }
 
-/** A row value ready to INSERT into `user_table_rows`, with its assigned order. */
-export interface OrderedRowValue {
-  id: string
-  tableId: string
-  workspaceId: string
-  data: RowData
-  position: number
-  orderKey: string
-  createdAt: Date
-  updatedAt: Date
-  createdBy?: string
-}
-
-/**
- * Builds INSERT values for a contiguous run of rows, assigning sequential
- * positions `startPosition + i` and the supplied `orderKeys[i]`. Centralizes
- * row assignment for callers that write a fresh ordered run (e.g. the copilot
- * tool's replace-all write). `orderKeys` must be index-aligned with `rows` —
- * mint them once for the whole run with {@link nKeysBetween}.
- */
-export function buildOrderedRowValues(opts: {
-  tableId: string
-  workspaceId: string
-  rows: RowData[]
-  startPosition: number
-  orderKeys: string[]
-  now: Date
-  createdBy?: string
-  makeId: () => string
-}): OrderedRowValue[] {
-  const { tableId, workspaceId, rows, startPosition, orderKeys, now, createdBy, makeId } = opts
-  return rows.map((data, i) => ({
-    id: makeId(),
-    tableId,
-    workspaceId,
-    data,
-    position: startPosition + i,
-    orderKey: orderKeys[i],
-    createdAt: now,
-    updatedAt: now,
-    ...(createdBy ? { createdBy } : {}),
-  }))
-}
-
 /**
  * Computes the fractional `order_key` for a row inserted at the integer
  * `requestedPosition` (or appended when omitted). Used by position-based callers
