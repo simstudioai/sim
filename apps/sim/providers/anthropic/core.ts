@@ -253,15 +253,7 @@ export async function executeAnthropicProviderRequest(
   }
 
   let anthropicTools: Anthropic.Messages.Tool[] | undefined = request.tools?.length
-    ? request.tools.map((tool) => ({
-        name: tool.id,
-        description: tool.description,
-        input_schema: {
-          type: 'object' as const,
-          properties: tool.parameters.properties,
-          required: tool.parameters.required,
-        },
-      }))
+    ? request.tools.map((tool) => adaptAnthropicToolSchema(tool))
     : undefined
 
   let toolChoice: 'none' | 'auto' | { type: 'tool'; name: string } = 'auto'

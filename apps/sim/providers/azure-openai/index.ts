@@ -119,14 +119,7 @@ async function executeChatCompletionsRequest(
   }
 
   const tools: ChatCompletionTool[] | undefined = request.tools?.length
-    ? request.tools.map((tool) => ({
-        type: 'function' as const,
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }))
+    ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
     : undefined
 
   const payload: ChatCompletionCreateParamsBase & { verbosity?: string } = {

@@ -140,14 +140,7 @@ export async function executeResponsesProviderRequest(
   }
 
   const tools = request.tools?.length
-    ? request.tools.map((tool) => ({
-        type: 'function',
-        function: {
-          name: tool.id,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      }))
+    ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
     : undefined
 
   let preparedTools: PreparedTools | null = null
