@@ -165,6 +165,13 @@ DROP INDEX CONCURRENTLY IF EXISTS "stale_idx";`
     expect(lintSql(sql)).toEqual([])
   })
 
+  test('DROP INDEX CONCURRENTLY without IF EXISTS is not idempotent', () => {
+    const sql = `COMMIT;
+--> statement-breakpoint
+DROP INDEX CONCURRENTLY "stale_idx";`
+    expect(rules(sql)).toEqual(['error:concurrent-drop-index-not-idempotent'])
+  })
+
   test('DROP INDEX CONCURRENTLY without a preceding COMMIT errors', () => {
     expect(rules('DROP INDEX CONCURRENTLY IF EXISTS "stale_idx";')).toEqual([
       'error:concurrent-drop-index-no-commit',

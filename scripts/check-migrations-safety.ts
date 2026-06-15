@@ -294,6 +294,13 @@ function classify(sql: string, createdTables: Set<string>, sawCommit: boolean): 
         message:
           'Plain DROP INDEX takes an ACCESS EXCLUSIVE lock on the table for the whole drop. Use DROP INDEX CONCURRENTLY after a COMMIT; breakpoint (see packages/db/scripts/migrate.ts).',
       })
+    } else if (!/\bIF EXISTS\b/i.test(s)) {
+      matches.push({
+        kind: 'error',
+        rule: 'concurrent-drop-index-not-idempotent',
+        message:
+          'DROP INDEX CONCURRENTLY must be IF EXISTS — a failed run replays from the top and would abort re-dropping an already-gone index.',
+      })
     } else if (!sawCommit) {
       matches.push({
         kind: 'error',
