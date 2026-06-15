@@ -1,6 +1,6 @@
 'use server'
 
-import type { Logger } from '@sim/logger'
+import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
@@ -24,6 +24,8 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
+
+const logger = createLogger('FileUtilsServer')
 
 /**
  * Result type for file input resolution
@@ -172,11 +174,13 @@ export async function downloadFileFromUrl(
     const { key, context } = parseInternalFileUrl(fileUrl)
 
     if (!userId) {
+      logger.warn('Internal file download denied: no userId provided', { key, context })
       throw new Error('Access denied: internal file URL requires an authenticated user')
     }
 
     const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
     if (!hasAccess) {
+      logger.warn('Internal file download denied: access check failed', { key, context, userId })
       throw new Error('Access denied: file not found or insufficient permissions')
     }
 
