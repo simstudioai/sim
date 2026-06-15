@@ -12,6 +12,12 @@ export interface UserPresence {
   joinedAt: number
   lastActivity: number
   role: string
+  /**
+   * Timestamp (ms) of the last time `role` was verified against the live
+   * `permissions` table. Used to bound how long a revoked or downgraded
+   * collaborator can keep acting on a stale, cached role.
+   */
+  roleCheckedAt?: number
   cursor?: { x: number; y: number }
   selection?: { type: 'block' | 'edge' | 'none'; id?: string }
   avatarUrl?: string | null
@@ -100,6 +106,12 @@ export interface IRoomManager {
   ): Promise<void>
 
   /**
+   * Update a user's cached workspace role and refresh its verification
+   * timestamp. Called after re-validating access against the database.
+   */
+  updateUserRole(workflowId: string, socketId: string, role: string): Promise<void>
+
+  /**
    * Update room's lastModified timestamp
    */
   updateRoomLastModified(workflowId: string): Promise<void>
@@ -143,4 +155,11 @@ export interface IRoomManager {
    * Handle workflow deployment change - notify users to refresh deployment state
    */
   handleWorkflowDeployed(workflowId: string): Promise<void>
+
+  /**
+   * Handle a workspace permission change for a user. Evicts the user from any
+   * active workflow rooms in the workspace where their access has been revoked,
+   * and refreshes their cached role where access was merely downgraded.
+   */
+  handleWorkspaceAccessChange(workspaceId: string, userId: string): Promise<void>
 }

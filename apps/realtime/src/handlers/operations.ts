@@ -14,8 +14,9 @@ import { generateId } from '@sim/utils/id'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { ZodError } from 'zod'
 import { persistWorkflowOperation } from '@/database/operations'
+import { evictRevokedSocket } from '@/handlers/eviction'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { checkRolePermission } from '@/middleware/permissions'
+import { authorizeSocketOperation } from '@/middleware/permissions'
 import type { IRoomManager, UserSession } from '@/rooms'
 
 const logger = createLogger('OperationsHandlers')
@@ -125,15 +126,42 @@ export function setupOperationsHandlers(socket: AuthenticatedSocket, roomManager
 
         await roomManager.updateUserActivity(workflowId, socket.id, { lastActivity: Date.now() })
 
-        // Check permissions using cached role (no DB query)
-        const permissionCheck = checkRolePermission(userPresence.role, operation)
-        if (!permissionCheck.allowed) {
+        // Re-validate the cached role against the live permissions table (bounded
+        // by a short TTL) so a revoked or downgraded collaborator cannot keep
+        // mutating the workflow on an already-connected socket.
+        const authorization = await authorizeSocketOperation({
+          roomManager,
+          workflowId,
+          socketId: socket.id,
+          userId: session.userId,
+          presence: userPresence,
+          operation,
+        })
+
+        if (authorization.accessRevoked) {
           logger.warn(
-            `User ${session.userId} (role: ${userPresence.role}) forbidden from ${operation} on ${target}`
+            `User ${session.userId} lost access to workflow ${workflowId}; evicting socket ${socket.id}`
+          )
+          emitOperationError(
+            {
+              type: 'ACCESS_REVOKED',
+              message: authorization.reason || 'Access to this workflow has been revoked',
+              operation,
+              target,
+            },
+            { error: authorization.reason || 'Access revoked', retryable: false }
+          )
+          await evictRevokedSocket(roomManager, socket, workflowId)
+          return
+        }
+
+        if (!authorization.allowed) {
+          logger.warn(
+            `User ${session.userId} (role: ${authorization.role}) forbidden from ${operation} on ${target}`
           )
           emitOperationError({
             type: 'INSUFFICIENT_PERMISSIONS',
-            message: `${permissionCheck.reason} on '${target}'`,
+            message: `${authorization.reason} on '${target}'`,
             operation,
             target,
           })

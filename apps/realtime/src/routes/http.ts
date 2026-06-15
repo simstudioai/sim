@@ -150,6 +150,25 @@ export function createHttpHandler(roomManager: IRoomManager, logger: Logger) {
       return
     }
 
+    // Handle workspace permission change notifications from the main API.
+    // Evicts users whose access was revoked and refreshes downgraded roles.
+    if (req.method === 'POST' && req.url === '/api/permissions-updated') {
+      try {
+        const body = await readRequestBody(req)
+        const { workspaceId, userId } = JSON.parse(body)
+        if (typeof workspaceId !== 'string' || typeof userId !== 'string') {
+          sendError(res, 'workspaceId and userId are required', 400)
+          return
+        }
+        await roomManager.handleWorkspaceAccessChange(workspaceId, userId)
+        sendSuccess(res)
+      } catch (error) {
+        logger.error('Error handling permissions update notification:', error)
+        sendError(res, 'Failed to process permissions update notification')
+      }
+      return
+    }
+
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'Not found' }))
   }
