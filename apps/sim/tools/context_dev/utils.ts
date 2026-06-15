@@ -53,6 +53,23 @@ export function extractCreditMetadata(keyMetadata: ContextDevKeyMetadata | undef
 }
 
 /**
+ * Normalizes a brand-returning Context.dev response into the shared tool output shape.
+ * Used by every endpoint that returns a `brand` object.
+ */
+export function transformBrandResponse(data: any): {
+  status: string
+  brand: Record<string, unknown> | null
+  creditsConsumed: number | null
+  creditsRemaining: number | null
+} {
+  return {
+    status: data.status ?? '',
+    brand: data.brand ?? null,
+    ...extractCreditMetadata(data.key_metadata),
+  }
+}
+
+/**
  * Appends a parameter to a URLSearchParams instance only when it is defined and non-empty.
  * Booleans are serialized as the literal strings 'true' / 'false'.
  */

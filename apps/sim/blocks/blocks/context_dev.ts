@@ -3,7 +3,56 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ContextDevScrapeMarkdownResponse } from '@/tools/context_dev/types'
 
-const SCRAPE_OPS = ['scrape_markdown', 'scrape_html', 'screenshot', 'crawl', 'extract']
+/** Operations whose primary input is a full page URL. */
+const URL_OPS = [
+  'scrape_markdown',
+  'scrape_html',
+  'scrape_images',
+  'screenshot',
+  'crawl',
+  'extract',
+  'extract_product',
+]
+/** Operations whose primary input is a bare domain. */
+const DOMAIN_OPS = [
+  'map',
+  'get_brand',
+  'get_brand_simplified',
+  'extract_products',
+  'scrape_fonts',
+  'scrape_styleguide',
+  'prefetch_domain',
+]
+/** Classification operations keyed on a domain-or-name input. */
+const CLASSIFY_OPS = ['classify_naics', 'classify_sic']
+/** Brand operations that accept language/speed tuning. */
+const BRAND_LANG_OPS = [
+  'get_brand',
+  'get_brand_by_name',
+  'get_brand_by_email',
+  'get_brand_by_ticker',
+  'identify_transaction',
+]
+/** Operations that accept a cache max-age. */
+const MAX_AGE_OPS = [
+  'scrape_markdown',
+  'scrape_html',
+  'scrape_images',
+  'screenshot',
+  'crawl',
+  'extract',
+  'extract_product',
+  'extract_products',
+  'scrape_fonts',
+  'scrape_styleguide',
+  'get_brand',
+  'get_brand_by_name',
+  'get_brand_by_email',
+  'get_brand_by_ticker',
+  'get_brand_simplified',
+]
+/** Operations that accept a post-load browser wait. */
+const WAIT_FOR_OPS = ['scrape_markdown', 'scrape_html', 'scrape_images', 'screenshot', 'crawl']
 
 /**
  * Coerces a value that may be a number or numeric string into a number, or undefined.
@@ -39,7 +88,7 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
   description: 'Scrape, crawl, search, extract, and enrich web and brand data',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, crawl entire sites, map sitemaps, search the web, extract structured data, classify industries, and retrieve brand assets — all from one API.',
+    'Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.',
   docsLink: 'https://docs.sim.ai/integrations/context_dev',
   category: 'tools',
   integrationType: IntegrationType.Search,
@@ -53,14 +102,26 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
       options: [
         { label: 'Scrape Markdown', id: 'scrape_markdown' },
         { label: 'Scrape HTML', id: 'scrape_html' },
+        { label: 'Scrape Images', id: 'scrape_images' },
         { label: 'Screenshot', id: 'screenshot' },
         { label: 'Crawl Website', id: 'crawl' },
         { label: 'Map Sitemap', id: 'map' },
         { label: 'Web Search', id: 'search' },
         { label: 'Extract Structured Data', id: 'extract' },
+        { label: 'Extract Product', id: 'extract_product' },
+        { label: 'Extract Products', id: 'extract_products' },
+        { label: 'Scrape Fonts', id: 'scrape_fonts' },
+        { label: 'Scrape Styleguide', id: 'scrape_styleguide' },
         { label: 'Classify NAICS', id: 'classify_naics' },
         { label: 'Classify SIC', id: 'classify_sic' },
-        { label: 'Get Brand Data', id: 'get_brand' },
+        { label: 'Get Brand by Domain', id: 'get_brand' },
+        { label: 'Get Brand by Name', id: 'get_brand_by_name' },
+        { label: 'Get Brand by Email', id: 'get_brand_by_email' },
+        { label: 'Get Brand by Ticker', id: 'get_brand_by_ticker' },
+        { label: 'Get Brand (Simplified)', id: 'get_brand_simplified' },
+        { label: 'Identify Transaction', id: 'identify_transaction' },
+        { label: 'Prefetch Domain', id: 'prefetch_domain' },
+        { label: 'Prefetch by Email', id: 'prefetch_by_email' },
       ],
       value: () => 'scrape_markdown',
     },
@@ -69,24 +130,24 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
       title: 'Website URL',
       type: 'short-input',
       placeholder: 'https://example.com',
-      condition: { field: 'operation', value: SCRAPE_OPS },
-      required: { field: 'operation', value: SCRAPE_OPS },
+      condition: { field: 'operation', value: URL_OPS },
+      required: { field: 'operation', value: URL_OPS },
     },
     {
       id: 'domain',
       title: 'Domain',
       type: 'short-input',
       placeholder: 'example.com',
-      condition: { field: 'operation', value: ['map', 'get_brand'] },
-      required: { field: 'operation', value: ['map', 'get_brand'] },
+      condition: { field: 'operation', value: DOMAIN_OPS },
+      required: { field: 'operation', value: DOMAIN_OPS },
     },
     {
       id: 'input',
       title: 'Domain or Company Name',
       type: 'short-input',
       placeholder: 'example.com or Company Name',
-      condition: { field: 'operation', value: ['classify_naics', 'classify_sic'] },
-      required: { field: 'operation', value: ['classify_naics', 'classify_sic'] },
+      condition: { field: 'operation', value: CLASSIFY_OPS },
+      required: { field: 'operation', value: CLASSIFY_OPS },
     },
     {
       id: 'query',
@@ -95,6 +156,38 @@ export const ContextDevBlock: BlockConfig<ContextDevScrapeMarkdownResponse> = {
       placeholder: 'Enter your search query',
       condition: { field: 'operation', value: 'search' },
       required: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'name',
+      title: 'Company Name',
+      type: 'short-input',
+      placeholder: 'Apple Inc',
+      condition: { field: 'operation', value: 'get_brand_by_name' },
+      required: { field: 'operation', value: 'get_brand_by_name' },
+    },
+    {
+      id: 'email',
+      title: 'Work Email',
+      type: 'short-input',
+      placeholder: 'name@company.com',
+      condition: { field: 'operation', value: ['get_brand_by_email', 'prefetch_by_email'] },
+      required: { field: 'operation', value: ['get_brand_by_email', 'prefetch_by_email'] },
+    },
+    {
+      id: 'ticker',
+      title: 'Stock Ticker',
+      type: 'short-input',
+      placeholder: 'AAPL',
+      condition: { field: 'operation', value: 'get_brand_by_ticker' },
+      required: { field: 'operation', value: 'get_brand_by_ticker' },
+    },
+    {
+      id: 'transactionInfo',
+      title: 'Transaction Descriptor',
+      type: 'short-input',
+      placeholder: 'SQ *COFFEE SHOP 1234',
+      condition: { field: 'operation', value: 'identify_transaction' },
+      required: { field: 'operation', value: 'identify_transaction' },
     },
     {
       id: 'schema',
@@ -162,6 +255,13 @@ Do not include any explanations, markdown formatting, or other text outside the 
       title: 'Scrape Results to Markdown',
       type: 'switch',
       condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'tickerExchange',
+      title: 'Exchange',
+      type: 'short-input',
+      placeholder: 'NASDAQ',
+      condition: { field: 'operation', value: 'get_brand_by_ticker' },
     },
     {
       id: 'sicType',
@@ -241,6 +341,14 @@ Do not include any explanations, markdown formatting, or other text outside the 
       condition: { field: 'operation', value: ['crawl', 'extract'] },
     },
     {
+      id: 'maxProducts',
+      title: 'Max Products',
+      type: 'short-input',
+      placeholder: '12',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'extract_products' },
+    },
+    {
       id: 'urlRegex',
       title: 'URL Regex',
       type: 'short-input',
@@ -273,12 +381,33 @@ Do not include any explanations, markdown formatting, or other text outside the 
       condition: { field: 'operation', value: 'screenshot' },
     },
     {
+      id: 'enrichResolution',
+      title: 'Enrich: Resolution',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'scrape_images' },
+    },
+    {
+      id: 'enrichHostedUrl',
+      title: 'Enrich: Hosted URL',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'scrape_images' },
+    },
+    {
+      id: 'enrichClassification',
+      title: 'Enrich: Classification',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'scrape_images' },
+    },
+    {
       id: 'minResults',
       title: 'Min Results',
       type: 'short-input',
       placeholder: '1',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['classify_naics', 'classify_sic'] },
+      condition: { field: 'operation', value: CLASSIFY_OPS },
     },
     {
       id: 'maxResults',
@@ -286,7 +415,46 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       placeholder: '5',
       mode: 'advanced',
-      condition: { field: 'operation', value: ['classify_naics', 'classify_sic'] },
+      condition: { field: 'operation', value: CLASSIFY_OPS },
+    },
+    {
+      id: 'countryGl',
+      title: 'Country Code',
+      type: 'short-input',
+      placeholder: 'us',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['get_brand_by_name', 'identify_transaction'] },
+    },
+    {
+      id: 'city',
+      title: 'City',
+      type: 'short-input',
+      placeholder: 'San Francisco',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'identify_transaction' },
+    },
+    {
+      id: 'mcc',
+      title: 'Merchant Category Code',
+      type: 'short-input',
+      placeholder: '5812',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'identify_transaction' },
+    },
+    {
+      id: 'phone',
+      title: 'Phone',
+      type: 'short-input',
+      placeholder: '14155551234',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'identify_transaction' },
+    },
+    {
+      id: 'highConfidenceOnly',
+      title: 'High Confidence Only',
+      type: 'switch',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'identify_transaction' },
     },
     {
       id: 'forceLanguage',
@@ -294,14 +462,14 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       placeholder: 'e.g., en, es, fr',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'get_brand' },
+      condition: { field: 'operation', value: BRAND_LANG_OPS },
     },
     {
       id: 'maxSpeed',
       title: 'Max Speed',
       type: 'switch',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'get_brand' },
+      condition: { field: 'operation', value: BRAND_LANG_OPS },
     },
     {
       id: 'waitForMs',
@@ -309,10 +477,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       placeholder: '0',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['scrape_markdown', 'scrape_html', 'screenshot', 'crawl'],
-      },
+      condition: { field: 'operation', value: WAIT_FOR_OPS },
     },
     {
       id: 'stopAfterMs',
@@ -328,10 +493,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
       type: 'short-input',
       placeholder: '86400000',
       mode: 'advanced',
-      condition: {
-        field: 'operation',
-        value: ['scrape_markdown', 'scrape_html', 'screenshot', 'crawl', 'extract', 'get_brand'],
-      },
+      condition: { field: 'operation', value: MAX_AGE_OPS },
     },
     {
       id: 'timeoutMS',
@@ -353,14 +515,26 @@ Do not include any explanations, markdown formatting, or other text outside the 
     access: [
       'context_dev_scrape_markdown',
       'context_dev_scrape_html',
+      'context_dev_scrape_images',
       'context_dev_screenshot',
       'context_dev_crawl',
       'context_dev_map',
       'context_dev_search',
       'context_dev_extract',
+      'context_dev_extract_product',
+      'context_dev_extract_products',
+      'context_dev_scrape_fonts',
+      'context_dev_scrape_styleguide',
       'context_dev_classify_naics',
       'context_dev_classify_sic',
       'context_dev_get_brand',
+      'context_dev_get_brand_by_name',
+      'context_dev_get_brand_by_email',
+      'context_dev_get_brand_by_ticker',
+      'context_dev_get_brand_simplified',
+      'context_dev_identify_transaction',
+      'context_dev_prefetch_domain',
+      'context_dev_prefetch_by_email',
     ],
     config: {
       tool: (params) =>
@@ -396,6 +570,15 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setNumber('maxAgeMs')
             setNumber('waitForMs')
             setNumber('timeoutMS')
+            break
+          case 'scrape_images':
+            setString('url')
+            setNumber('maxAgeMs')
+            setNumber('waitForMs')
+            setNumber('timeoutMS')
+            setBool('enrichResolution')
+            setBool('enrichHostedUrl')
+            setBool('enrichClassification')
             break
           case 'screenshot':
             setString('url')
@@ -462,6 +645,27 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setNumber('timeoutMS')
             break
           }
+          case 'extract_product':
+            setString('url')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'extract_products':
+            setString('domain')
+            setNumber('maxProducts')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'scrape_fonts':
+            setString('domain')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'scrape_styleguide':
+            setString('domain')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
           case 'classify_naics':
             setString('input')
             setNumber('minResults')
@@ -482,6 +686,53 @@ Do not include any explanations, markdown formatting, or other text outside the 
             setNumber('maxAgeMs')
             setNumber('timeoutMS')
             break
+          case 'get_brand_by_name':
+            setString('name')
+            setString('countryGl')
+            setString('forceLanguage')
+            setBool('maxSpeed')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'get_brand_by_email':
+            setString('email')
+            setString('forceLanguage')
+            setBool('maxSpeed')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'get_brand_by_ticker':
+            setString('ticker')
+            setString('tickerExchange')
+            setString('forceLanguage')
+            setBool('maxSpeed')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'get_brand_simplified':
+            setString('domain')
+            setNumber('maxAgeMs')
+            setNumber('timeoutMS')
+            break
+          case 'identify_transaction':
+            setString('transactionInfo')
+            setString('countryGl')
+            setString('city')
+            setString('mcc')
+            setNumber('phone')
+            setBool('highConfidenceOnly')
+            setString('forceLanguage')
+            setBool('maxSpeed')
+            setNumber('timeoutMS')
+            break
+          case 'prefetch_domain':
+            setString('domain')
+            setNumber('timeoutMS')
+            break
+          case 'prefetch_by_email':
+            setString('email')
+            setNumber('timeoutMS')
+            break
         }
 
         return result
@@ -491,10 +742,14 @@ Do not include any explanations, markdown formatting, or other text outside the 
   inputs: {
     apiKey: { type: 'string', description: 'Context.dev API key' },
     operation: { type: 'string', description: 'Operation to perform' },
-    url: { type: 'string', description: 'Target website URL' },
+    url: { type: 'string', description: 'Target website or page URL' },
     domain: { type: 'string', description: 'Target domain' },
     input: { type: 'string', description: 'Domain or company name for classification' },
     query: { type: 'string', description: 'Web search query' },
+    name: { type: 'string', description: 'Company name for brand lookup' },
+    email: { type: 'string', description: 'Work email for brand lookup or prefetch' },
+    ticker: { type: 'string', description: 'Stock ticker for brand lookup' },
+    transactionInfo: { type: 'string', description: 'Transaction descriptor to identify' },
     schema: { type: 'json', description: 'JSON schema for structured extraction' },
     instructions: { type: 'string', description: 'Extraction guidance' },
     useMainContentOnly: { type: 'boolean', description: 'Return only main content' },
@@ -503,6 +758,7 @@ Do not include any explanations, markdown formatting, or other text outside the 
     fullScreenshot: { type: 'boolean', description: 'Capture the full page' },
     handleCookiePopup: { type: 'boolean', description: 'Dismiss cookie banners' },
     markdownEnabled: { type: 'boolean', description: 'Scrape search results to markdown' },
+    tickerExchange: { type: 'string', description: 'Stock exchange for the ticker' },
     sicType: { type: 'string', description: 'SIC taxonomy version' },
     freshness: { type: 'string', description: 'Search recency filter' },
     includeDomains: { type: 'json', description: 'Domains to allowlist in search' },
@@ -512,12 +768,21 @@ Do not include any explanations, markdown formatting, or other text outside the 
     followSubdomains: { type: 'boolean', description: 'Follow subdomain links' },
     maxPages: { type: 'number', description: 'Maximum pages to process' },
     maxDepth: { type: 'number', description: 'Maximum link depth' },
+    maxProducts: { type: 'number', description: 'Maximum products to extract' },
     urlRegex: { type: 'string', description: 'Regex to filter URLs' },
     maxLinks: { type: 'number', description: 'Maximum sitemap URLs' },
     viewportWidth: { type: 'number', description: 'Screenshot viewport width' },
     viewportHeight: { type: 'number', description: 'Screenshot viewport height' },
+    enrichResolution: { type: 'boolean', description: 'Measure scraped image dimensions' },
+    enrichHostedUrl: { type: 'boolean', description: 'Host scraped images and return URLs' },
+    enrichClassification: { type: 'boolean', description: 'Classify scraped images by type' },
     minResults: { type: 'number', description: 'Minimum classification results' },
     maxResults: { type: 'number', description: 'Maximum classification results' },
+    countryGl: { type: 'string', description: 'ISO country code hint' },
+    city: { type: 'string', description: 'City hint for transaction lookup' },
+    mcc: { type: 'string', description: 'Merchant category code' },
+    phone: { type: 'number', description: 'Phone number from transaction' },
+    highConfidenceOnly: { type: 'boolean', description: 'Require high-confidence match' },
     forceLanguage: { type: 'string', description: 'Override detected brand language' },
     maxSpeed: { type: 'boolean', description: 'Skip slow brand operations' },
     waitForMs: { type: 'number', description: 'Browser wait time in ms' },
@@ -536,14 +801,24 @@ Do not include any explanations, markdown formatting, or other text outside the 
     domain: { type: 'string', description: 'Resolved domain' },
     width: { type: 'number', description: 'Screenshot width in pixels' },
     height: { type: 'number', description: 'Screenshot height in pixels' },
+    success: { type: 'boolean', description: 'Whether the scrape succeeded' },
+    images: { type: 'json', description: 'Discovered image assets' },
     results: { type: 'json', description: 'Crawl pages or search results' },
     metadata: { type: 'json', description: 'Crawl or extraction summary metadata' },
     urls: { type: 'json', description: 'Discovered sitemap URLs' },
     meta: { type: 'json', description: 'Sitemap discovery stats' },
     query: { type: 'string', description: 'The query that was searched' },
     status: { type: 'string', description: 'Operation status' },
+    message: { type: 'string', description: 'Prefetch result message' },
     urlsAnalyzed: { type: 'json', description: 'URLs analyzed during extraction' },
     data: { type: 'json', description: 'Structured data extracted from the site' },
+    isProductPage: { type: 'boolean', description: 'Whether the URL is a product page' },
+    platform: { type: 'string', description: 'Detected commerce platform' },
+    product: { type: 'json', description: 'Extracted single product details' },
+    products: { type: 'json', description: 'Extracted product catalog' },
+    fonts: { type: 'json', description: 'Fonts with usage statistics' },
+    fontLinks: { type: 'json', description: 'Font family download links' },
+    styleguide: { type: 'json', description: 'Design system (colors, typography, components)' },
     codes: { type: 'json', description: 'Matched industry classification codes' },
     classification: { type: 'string', description: 'SIC taxonomy version used' },
     brand: { type: 'json', description: 'Brand data (logos, colors, socials, industry)' },
@@ -579,7 +854,7 @@ export const ContextDevBlockMeta = {
       icon: ContextDevIcon,
       title: 'Context.dev lead enrichment',
       prompt:
-        'Create a workflow that takes a work email or domain, uses Context.dev to retrieve brand data and classify the company into NAICS codes, and writes the enriched firmographics to a CRM record.',
+        'Create a workflow that takes a work email, uses Context.dev to retrieve brand data by email and classify the company into NAICS codes, and writes the enriched firmographics to a CRM record.',
       modules: ['agent', 'tables', 'workflows'],
       category: 'sales',
       tags: ['enrichment', 'sales'],
@@ -604,18 +879,27 @@ export const ContextDevBlockMeta = {
     },
     {
       icon: ContextDevIcon,
-      title: 'Context.dev brand asset fetcher',
+      title: 'Context.dev design-system extractor',
       prompt:
-        'Build a workflow that takes a domain, uses Context.dev to retrieve the brand logos, colors, and a homepage screenshot, and stores the assets as files for a design handoff.',
+        'Build a workflow that takes a domain, uses Context.dev to scrape its styleguide and fonts plus a homepage screenshot, and stores the design tokens and assets as files for a design handoff.',
       modules: ['agent', 'files', 'workflows'],
-      category: 'marketing',
-      tags: ['marketing', 'enrichment'],
+      category: 'engineering',
+      tags: ['design', 'research'],
     },
     {
       icon: ContextDevIcon,
       title: 'Context.dev transaction enrichment',
       prompt:
-        'Create a workflow that classifies a list of company domains into SIC and NAICS industry codes with Context.dev and appends the codes to a table for downstream reporting.',
+        'Create a workflow that takes raw bank transaction descriptors, uses Context.dev to identify the merchant brand behind each one, and appends the resolved company and logo to a table.',
+      modules: ['tables', 'agent', 'workflows'],
+      category: 'operations',
+      tags: ['enrichment', 'automation'],
+    },
+    {
+      icon: ContextDevIcon,
+      title: 'Context.dev product catalog importer',
+      prompt:
+        "Build a workflow that takes a brand domain, uses Context.dev to extract the brand's product catalog with pricing and features, and writes each product as a row in a table.",
       modules: ['tables', 'agent', 'workflows'],
       category: 'operations',
       tags: ['enrichment', 'automation'],

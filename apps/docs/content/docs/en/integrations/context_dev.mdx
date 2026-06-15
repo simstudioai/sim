@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, crawl entire sites, map sitemaps, search the web, extract structured data, classify industries, and retrieve brand assets — all from one API.
+Integrate Context.dev into the workflow. Scrape pages to markdown or HTML, capture screenshots, list images, crawl entire sites, map sitemaps, search the web, extract structured data and products, pull design systems, classify industries, and retrieve brand assets by domain, name, email, ticker, or transaction — all from one API.
 
 
 
@@ -66,6 +66,36 @@ Scrape any URL and return the raw HTML content of the page.
 | `html` | string | Raw HTML content of the page |
 | `url` | string | The scraped URL |
 | `type` | string | Detected content type \(html, xml, json, text, csv, markdown, svg, pdf\) |
+
+### `context_dev_scrape_images`
+
+Discover every image asset on a page, with optional dimension and type enrichment.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The full URL to scrape images from \(must include http:// or https://\) |
+| `maxAgeMs` | number | No | Cache duration in milliseconds \(0-2592000000, default: 86400000\) |
+| `waitForMs` | number | No | Browser wait time after page load in milliseconds \(0-30000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `enrichResolution` | boolean | No | Measure image dimensions \(enables 5-credit enrichment\) |
+| `enrichHostedUrl` | boolean | No | Host images on a CDN and return their URL and MIME type \(enables enrichment\) |
+| `enrichClassification` | boolean | No | Classify each image by visual asset type \(enables enrichment\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `success` | boolean | Whether the scrape succeeded |
+| `images` | array | Discovered image assets with source, element, type, and optional enrichment |
+|   ↳ `src` | string | Image source URL or data |
+|   ↳ `element` | string | Source element \(img, svg, link, source, video, css, object, meta, background\) |
+|   ↳ `type` | string | Image representation \(url, html, base64\) |
+|   ↳ `alt` | string | Alt text |
+|   ↳ `enrichment` | json | Optional enrichment \(width, height, mimetype, url, type\) when requested |
+| `url` | string | The scraped URL |
 
 ### `context_dev_screenshot`
 
@@ -208,6 +238,125 @@ Crawl a website and extract structured data matching a provided JSON schema.
 | `data` | json | Structured data matching the requested schema |
 | `metadata` | object | Crawl summary \(numUrls, maxCrawlDepth, numSucceeded, numFailed, numSkipped\) |
 
+### `context_dev_extract_product`
+
+Detect and extract structured product details from a single product page URL.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | The product page URL \(must include http:// or https://\) |
+| `maxAgeMs` | number | No | Cache duration in milliseconds \(0-2592000000, default: 604800000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `isProductPage` | boolean | Whether the URL is a product page |
+| `platform` | string | Detected platform \(amazon, tiktok_shop, etsy, generic\) |
+| `product` | object | Extracted product details |
+|   ↳ `name` | string | Product name |
+|   ↳ `description` | string | Product description |
+|   ↳ `price` | number | Product price |
+|   ↳ `currency` | string | Price currency |
+|   ↳ `billing_frequency` | string | Billing frequency \(monthly, yearly, one_time, usage_based\) |
+|   ↳ `pricing_model` | string | Pricing model \(per_seat, flat, tiered, freemium, custom\) |
+|   ↳ `url` | string | Product URL |
+|   ↳ `category` | string | Product category |
+|   ↳ `features` | json | Product features |
+|   ↳ `target_audience` | json | Target audience |
+|   ↳ `tags` | json | Product tags |
+|   ↳ `image_url` | string | Primary product image URL |
+|   ↳ `images` | json | Product image URLs |
+|   ↳ `sku` | string | Product SKU |
+
+### `context_dev_extract_products`
+
+Extract the product catalog from a brand
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | The domain to extract products from \(e.g., "example.com"\) |
+| `maxProducts` | number | No | Maximum number of products to extract \(1-12\) |
+| `maxAgeMs` | number | No | Cache duration in milliseconds \(0-2592000000, default: 604800000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `products` | array | Extracted products with pricing, features, and metadata |
+|   ↳ `name` | string | Product name |
+|   ↳ `description` | string | Product description |
+|   ↳ `price` | number | Product price |
+|   ↳ `currency` | string | Price currency |
+|   ↳ `billing_frequency` | string | Billing frequency \(monthly, yearly, one_time, usage_based\) |
+|   ↳ `pricing_model` | string | Pricing model \(per_seat, flat, tiered, freemium, custom\) |
+|   ↳ `url` | string | Product URL |
+|   ↳ `category` | string | Product category |
+|   ↳ `features` | json | Product features |
+|   ↳ `target_audience` | json | Target audience |
+|   ↳ `tags` | json | Product tags |
+|   ↳ `image_url` | string | Primary product image URL |
+|   ↳ `images` | json | Product image URLs |
+|   ↳ `sku` | string | Product SKU |
+
+### `context_dev_scrape_fonts`
+
+Extract the font families, usage stats, and font files used by a domain.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | The domain to extract fonts from \(e.g., "example.com"\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Extraction status |
+| `domain` | string | The domain that was analyzed |
+| `fonts` | array | Fonts with usage statistics and fallbacks |
+|   ↳ `font` | string | Font family name |
+|   ↳ `uses` | json | Where the font is used |
+|   ↳ `fallbacks` | json | Fallback font families |
+|   ↳ `num_elements` | number | Number of elements using the font |
+|   ↳ `num_words` | number | Number of words rendered in the font |
+|   ↳ `percent_words` | number | Percent of words using the font |
+|   ↳ `percent_elements` | number | Percent of elements using the font |
+| `fontLinks` | json | Font family download links keyed by font name \(type, files, category\) |
+
+### `context_dev_scrape_styleguide`
+
+Extract a domain
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | The domain to extract the styleguide from \(e.g., "example.com"\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Extraction status |
+| `domain` | string | The domain that was analyzed |
+| `styleguide` | json | Design system: mode, colors, typography, elementSpacing, shadows, fontLinks, components |
+
 ### `context_dev_classify_naics`
 
 Classify a brand into NAICS industry codes from its domain or company name.
@@ -299,8 +448,231 @@ Retrieve brand data for a domain: logos, colors, backdrops, socials, address, an
 |   ↳ `is_nsfw` | boolean | Whether the brand contains adult content |
 |   ↳ `email` | string | Brand contact email |
 |   ↳ `phone` | string | Brand contact phone |
-|   ↳ `industries` | json | Industry taxonomy \(eic pairs\) |
-|   ↳ `links` | json | Key brand links \(careers, privacy, terms, etc.\) |
+|   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
 |   ↳ `primary_language` | string | Primary language of the brand site |
+
+### `context_dev_get_brand_by_name`
+
+Retrieve brand data by company name: logos, colors, socials, address, and industry.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | string | Yes | Company name to retrieve brand data for \(3-30 chars, e.g., "Apple Inc"\) |
+| `countryGl` | string | No | ISO 2-letter country code to prioritize \(e.g., "us"\) |
+| `forceLanguage` | string | No | Override the detected language with a supported language code |
+| `maxSpeed` | boolean | No | Skip time-consuming operations for a faster response \(default: false\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Retrieval status |
+| `brand` | object | Brand data object |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `title` | string | Brand title |
+|   ↳ `description` | string | Brand description |
+|   ↳ `slogan` | string | Brand slogan |
+|   ↳ `colors` | json | Brand colors \(hex and name\) |
+|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
+|   ↳ `backdrops` | json | Brand backdrop images |
+|   ↳ `socials` | json | Social media profiles \(type and url\) |
+|   ↳ `address` | json | Brand address |
+|   ↳ `stock` | json | Stock info \(ticker and exchange\) |
+|   ↳ `is_nsfw` | boolean | Whether the brand contains adult content |
+|   ↳ `email` | string | Brand contact email |
+|   ↳ `phone` | string | Brand contact phone |
+|   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `primary_language` | string | Primary language of the brand site |
+
+### `context_dev_get_brand_by_email`
+
+Retrieve brand data from a work email address. Free/disposable emails are rejected (422).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Work email address; the domain is extracted \(free providers are rejected\) |
+| `forceLanguage` | string | No | Override the detected language with a supported language code |
+| `maxSpeed` | boolean | No | Skip time-consuming operations for a faster response \(default: false\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Retrieval status |
+| `brand` | object | Brand data object |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `title` | string | Brand title |
+|   ↳ `description` | string | Brand description |
+|   ↳ `slogan` | string | Brand slogan |
+|   ↳ `colors` | json | Brand colors \(hex and name\) |
+|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
+|   ↳ `backdrops` | json | Brand backdrop images |
+|   ↳ `socials` | json | Social media profiles \(type and url\) |
+|   ↳ `address` | json | Brand address |
+|   ↳ `stock` | json | Stock info \(ticker and exchange\) |
+|   ↳ `is_nsfw` | boolean | Whether the brand contains adult content |
+|   ↳ `email` | string | Brand contact email |
+|   ↳ `phone` | string | Brand contact phone |
+|   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `primary_language` | string | Primary language of the brand site |
+
+### `context_dev_get_brand_by_ticker`
+
+Retrieve brand data for a public company by its stock ticker symbol.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ticker` | string | Yes | Stock ticker symbol \(e.g., "AAPL", "GOOGL", "BRK.A"\) |
+| `tickerExchange` | string | No | Exchange code for the ticker \(e.g., "NASDAQ", "NYSE", "LSE"\). Default: NASDAQ |
+| `forceLanguage` | string | No | Override the detected language with a supported language code |
+| `maxSpeed` | boolean | No | Skip time-consuming operations for a faster response \(default: false\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Retrieval status |
+| `brand` | object | Brand data object |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `title` | string | Brand title |
+|   ↳ `description` | string | Brand description |
+|   ↳ `slogan` | string | Brand slogan |
+|   ↳ `colors` | json | Brand colors \(hex and name\) |
+|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
+|   ↳ `backdrops` | json | Brand backdrop images |
+|   ↳ `socials` | json | Social media profiles \(type and url\) |
+|   ↳ `address` | json | Brand address |
+|   ↳ `stock` | json | Stock info \(ticker and exchange\) |
+|   ↳ `is_nsfw` | boolean | Whether the brand contains adult content |
+|   ↳ `email` | string | Brand contact email |
+|   ↳ `phone` | string | Brand contact phone |
+|   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `primary_language` | string | Primary language of the brand site |
+
+### `context_dev_get_brand_simplified`
+
+Retrieve essential brand data for a domain: title, colors, logos, and backdrops.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | The domain to retrieve simplified brand data for \(e.g., "airbnb.com"\) |
+| `maxAgeMs` | number | No | Cache max age in milliseconds \(86400000-31536000000, default: 7776000000\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Retrieval status |
+| `brand` | object | Simplified brand data \(domain, title, colors, logos, backdrops\) |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `title` | string | Brand title |
+|   ↳ `colors` | json | Brand colors \(hex and name\) |
+|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
+|   ↳ `backdrops` | json | Brand backdrop images |
+
+### `context_dev_identify_transaction`
+
+Identify the brand behind a raw bank/card transaction descriptor and return its brand data.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `transactionInfo` | string | Yes | The raw transaction descriptor or identifier to resolve to a brand |
+| `countryGl` | string | No | ISO 2-letter country code from the transaction \(e.g., "us", "gb"\) |
+| `city` | string | No | City name to prioritize in the search |
+| `mcc` | string | No | Merchant Category Code for the business category |
+| `phone` | number | No | Phone number from the transaction for verification |
+| `highConfidenceOnly` | boolean | No | Enforce additional verification steps for higher confidence \(default: false\) |
+| `forceLanguage` | string | No | Override the detected language with a supported language code |
+| `maxSpeed` | boolean | No | Skip time-consuming operations for a faster response \(default: false\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Identification status |
+| `brand` | object | Brand data for the identified merchant |
+|   ↳ `domain` | string | Brand domain |
+|   ↳ `title` | string | Brand title |
+|   ↳ `description` | string | Brand description |
+|   ↳ `slogan` | string | Brand slogan |
+|   ↳ `colors` | json | Brand colors \(hex and name\) |
+|   ↳ `logos` | json | Brand logos with mode, colors, resolution, and type |
+|   ↳ `backdrops` | json | Brand backdrop images |
+|   ↳ `socials` | json | Social media profiles \(type and url\) |
+|   ↳ `address` | json | Brand address |
+|   ↳ `stock` | json | Stock info \(ticker and exchange\) |
+|   ↳ `is_nsfw` | boolean | Whether the brand contains adult content |
+|   ↳ `email` | string | Brand contact email |
+|   ↳ `phone` | string | Brand contact phone |
+|   ↳ `industries` | json | Industry taxonomy \(eic industry/subindustry pairs\) |
+|   ↳ `links` | json | Key brand links \(careers, privacy, terms, blog, pricing\) |
+|   ↳ `primary_language` | string | Primary language of the brand site |
+
+### `context_dev_prefetch_domain`
+
+Queue a domain for brand-data prefetching to reduce latency on later requests (subscribers; 0 credits).
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | The domain to prefetch brand data for \(e.g., "example.com"\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Prefetch status |
+| `message` | string | Human-readable prefetch result message |
+| `domain` | string | The domain queued for prefetching |
+
+### `context_dev_prefetch_by_email`
+
+Queue an email
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | Work email address whose domain should be prefetched \(free providers rejected\) |
+| `timeoutMS` | number | No | Request timeout in milliseconds \(1000-300000\) |
+| `apiKey` | string | Yes | Context.dev API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `status` | string | Prefetch status |
+| `message` | string | Human-readable prefetch result message |
+| `domain` | string | The domain queued for prefetching |
 
 
