@@ -2,7 +2,42 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isAbortError, isNetworkError } from '@/lib/uploads/utils/file-utils'
+import { isAbortError, isInternalFileUrl, isNetworkError } from '@/lib/uploads/utils/file-utils'
+
+describe('isInternalFileUrl', () => {
+  it('classifies relative serve paths as internal', () => {
+    expect(isInternalFileUrl('/api/files/serve/kb/123-file.pdf')).toBe(true)
+    expect(isInternalFileUrl('/api/files/serve/workspace/ws-1/file.txt?context=workspace')).toBe(
+      true
+    )
+  })
+
+  it('classifies absolute serve URLs as internal regardless of host', () => {
+    expect(isInternalFileUrl('https://www.sim.ai/api/files/serve/kb/x.pdf')).toBe(true)
+    expect(isInternalFileUrl('http://localhost:3000/api/files/serve/blob/kb/x')).toBe(true)
+    // Host is not used to gate (self-hosted/multi-domain); the storage sink authorizes.
+    expect(isInternalFileUrl('https://other-host/api/files/serve/workspace/v/x')).toBe(true)
+  })
+
+  it('does not match the marker outside the path (query/fragment)', () => {
+    expect(isInternalFileUrl('https://evil.com/x?next=/api/files/serve/secret')).toBe(false)
+    expect(isInternalFileUrl('https://evil.com/page#/api/files/serve/secret')).toBe(false)
+    expect(isInternalFileUrl('https://evil.com/redirect?u=/api/files/serve/kb/x')).toBe(false)
+  })
+
+  it('preserves traversal sequences so they survive downstream rejection', () => {
+    // Must stay internal (not normalized away) so the parse route applies its `..` check.
+    expect(isInternalFileUrl('https://attacker.com/api/files/serve/../../../etc/passwd')).toBe(true)
+    expect(isInternalFileUrl('/api/files/serve/../../app.js')).toBe(true)
+  })
+
+  it('returns false for non-internal and non-string inputs', () => {
+    expect(isInternalFileUrl('https://example.com/file.pdf')).toBe(false)
+    expect(isInternalFileUrl('data:text/plain;base64,abc')).toBe(false)
+    // @ts-expect-error verifying runtime guard
+    expect(isInternalFileUrl(undefined)).toBe(false)
+  })
+})
 
 describe('isAbortError', () => {
   it('returns true for AbortError-named errors', () => {
