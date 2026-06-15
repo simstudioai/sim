@@ -12,7 +12,7 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('TouchPlanServerTool')
 const TOUCH_PLAN_TOOL_ID = 'touch_plan'

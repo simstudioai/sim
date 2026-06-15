@@ -69,7 +69,7 @@ vi.mock('@/lib/billing', () => ({
   isWorkspaceOnEnterprisePlan: mockIsWorkspaceOnEnterprisePlan,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: mockGetAllowedIntegrationsFromEnv,
   isAccessControlEnabled: true,
   isHosted: true,

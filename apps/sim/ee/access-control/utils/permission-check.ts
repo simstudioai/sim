@@ -9,7 +9,7 @@ import {
   isHosted,
   isInvitationsDisabled,
   isPublicApiDisabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
   type PermissionGroupConfig,

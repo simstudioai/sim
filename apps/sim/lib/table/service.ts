@@ -30,7 +30,7 @@ import {
   type SQL,
   sql,
 } from 'drizzle-orm'
-import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
+import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/env-flags'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import {

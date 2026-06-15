@@ -26,7 +26,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { ensureTeamOrganizationForAcceptance } from '@/lib/billing/organizations/provision-seat'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'

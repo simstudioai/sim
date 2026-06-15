@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
-import { isDev } from './lib/core/config/feature-flags'
+import { isDev } from './lib/core/config/env-flags'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,

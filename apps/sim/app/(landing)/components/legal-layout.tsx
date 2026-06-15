@@ -1,5 +1,5 @@
 import { getNavBlogPosts } from '@/lib/blog/registry'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import Footer from '@/app/(landing)/components/footer/footer'
 import Navbar from '@/app/(landing)/components/navbar/navbar'
 

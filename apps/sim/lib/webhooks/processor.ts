@@ -9,7 +9,7 @@ import { isOrganizationOnTeamOrEnterprisePlan } from '@/lib/billing/core/subscri
 import { tryAdmit } from '@/lib/core/admission/gate'
 import { getInlineJobQueue, getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
-import { isProd } from '@/lib/core/config/feature-flags'
+import { isProd } from '@/lib/core/config/env-flags'
 import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import {

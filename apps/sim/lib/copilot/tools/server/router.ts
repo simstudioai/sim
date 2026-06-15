@@ -59,7 +59,7 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/env-flags'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 

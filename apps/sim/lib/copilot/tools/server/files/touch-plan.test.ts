@@ -18,7 +18,7 @@ vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
   writeWorkspaceFileByPath: mocks.writeWorkspaceFileByPath,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isMothershipBetaFeaturesEnabled: true,
 }))
 

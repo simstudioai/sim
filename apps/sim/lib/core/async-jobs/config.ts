@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { taskContext } from '@trigger.dev/core/v3'
 import type { AsyncBackendType, JobQueueBackend } from '@/lib/core/async-jobs/types'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('AsyncJobsConfig')
 

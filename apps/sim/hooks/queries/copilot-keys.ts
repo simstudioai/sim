@@ -8,7 +8,7 @@ import {
   generateCopilotApiKeyContract,
   listCopilotApiKeysContract,
 } from '@/lib/api/contracts'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('CopilotKeysQuery')
 

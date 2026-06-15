@@ -11,7 +11,7 @@ import {
 import { ensureWorkflowAliasBacking } from '@/lib/copilot/vfs/workflow-alias-backing'
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath } from '@/lib/copilot/vfs/workflow-aliases'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
