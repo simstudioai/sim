@@ -708,29 +708,47 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
         const normalizedFile = normalizeFileInput(params.file, { single: true })
 
         // Parse a JSON-typed input, naming the field in any error so the user
-        // knows exactly which input to fix.
-        const parseJsonField = (value: unknown, field: string): unknown => {
+        // knows exactly which input to fix, and validating the parsed shape so a
+        // valid-but-wrong-type value (e.g. a string where an array is expected)
+        // fails locally instead of as a confusing Square API error.
+        const parseJsonField = (
+          value: unknown,
+          field: string,
+          expected: 'object' | 'array'
+        ): unknown => {
           if (value === undefined || value === null || value === '') return undefined
-          if (typeof value !== 'string') return value
-          try {
-            return JSON.parse(value)
-          } catch (error) {
-            throw new Error(
-              `Invalid JSON in "${field}": ${error instanceof Error ? error.message : 'unknown error'}`
-            )
+          let parsed: unknown = value
+          if (typeof value === 'string') {
+            try {
+              parsed = JSON.parse(value)
+            } catch (error) {
+              throw new Error(
+                `Invalid JSON in "${field}": ${error instanceof Error ? error.message : 'unknown error'}`
+              )
+            }
           }
+          if (expected === 'array' && !Array.isArray(parsed)) {
+            throw new Error(`"${field}" must be a JSON array`)
+          }
+          if (
+            expected === 'object' &&
+            (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed))
+          ) {
+            throw new Error(`"${field}" must be a JSON object`)
+          }
+          return parsed
         }
 
-        const parsedAddress = parseJsonField(address, 'address')
-        const parsedQuery = parseJsonField(query, 'query')
-        const parsedOrder = parseJsonField(order, 'order')
-        const parsedInvoice = parseJsonField(invoice, 'invoice')
-        const parsedObject = parseJsonField(object, 'object')
-        const parsedLocationIds = parseJsonField(locationIds, 'locationIds')
-        const parsedObjectTypes = parseJsonField(objectTypes, 'objectTypes')
-        const parsedPaymentIds = parseJsonField(paymentIds, 'paymentIds')
-        const parsedCatalogObjectIds = parseJsonField(catalogObjectIds, 'catalogObjectIds')
-        const parsedStates = parseJsonField(states, 'states')
+        const parsedAddress = parseJsonField(address, 'address', 'object')
+        const parsedQuery = parseJsonField(query, 'query', 'object')
+        const parsedOrder = parseJsonField(order, 'order', 'object')
+        const parsedInvoice = parseJsonField(invoice, 'invoice', 'object')
+        const parsedObject = parseJsonField(object, 'object', 'object')
+        const parsedLocationIds = parseJsonField(locationIds, 'locationIds', 'array')
+        const parsedObjectTypes = parseJsonField(objectTypes, 'objectTypes', 'array')
+        const parsedPaymentIds = parseJsonField(paymentIds, 'paymentIds', 'array')
+        const parsedCatalogObjectIds = parseJsonField(catalogObjectIds, 'catalogObjectIds', 'array')
+        const parsedStates = parseJsonField(states, 'states', 'array')
 
         // Coerce a numeric input, failing locally with a clear message rather than
         // forwarding NaN to Square when the value is non-numeric.
