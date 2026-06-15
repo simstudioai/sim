@@ -20,6 +20,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
+import { isCrossOriginSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
@@ -393,6 +394,17 @@ async function handleExecutePost(
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+
+    // CSRF guard: reject session-cookie execution that is provably cross-origin
+    // (a different site driving the user's browser). Scoped to session auth —
+    // API-key / public-API / internal-JWT callers don't use cookies. This is not
+    // a defense against a non-browser client forging headers; that surface is
+    // covered by the credit and execution rate-limit gates.
+    if (auth.success && auth.authType === AuthType.SESSION && isCrossOriginSessionRequest(req)) {
+      reqLogger.warn('Rejected cross-origin session-authenticated execute request')
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
     const useMcpBridgeAuthenticatedUserAsActor =
