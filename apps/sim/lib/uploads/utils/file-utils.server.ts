@@ -138,19 +138,48 @@ export async function resolveFileInputToUrl(
 }
 
 /**
+ * Options for {@link downloadFileFromUrl}.
+ */
+export interface DownloadFileFromUrlOptions {
+  /** Download timeout for external URLs. Defaults to the max execution timeout. */
+  timeoutMs?: number
+  /** Hard cap on the number of bytes read from the source. */
+  maxBytes?: number
+  /**
+   * Principal the download is performed on behalf of. Required to authorize
+   * internal (`/api/files/serve/...`) URLs: the resolved storage key is checked
+   * with {@link verifyFileAccess} before any bytes are read. Without it, internal
+   * URLs are rejected (fail closed) so a `/api/files/serve/` substring can never
+   * be treated as implicitly trusted.
+   */
+  userId?: string
+}
+
+/**
  * Download a file from a URL (internal or external)
- * For internal URLs, uses direct storage access (server-side only)
+ * For internal URLs, uses direct storage access (server-side only) after
+ * authorizing the resolved storage key against `userId`
  * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
  */
 export async function downloadFileFromUrl(
   fileUrl: string,
-  timeoutMs = getMaxExecutionTimeout(),
-  maxBytes?: number
+  options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
+  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, userId } = options
   const { parseInternalFileUrl } = await import('./file-utils')
 
   if (isInternalFileUrl(fileUrl)) {
     const { key, context } = parseInternalFileUrl(fileUrl)
+
+    if (!userId) {
+      throw new Error('Access denied: internal file URL requires an authenticated user')
+    }
+
+    const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
+    if (!hasAccess) {
+      throw new Error('Access denied: file not found or insufficient permissions')
+    }
+
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
     return downloadFile({ key, context, maxBytes })
   }
