@@ -10,6 +10,7 @@ export type CommandId =
   | 'accept-diff-changes'
   | 'add-agent'
   | 'add-workflow'
+  | 'collapse-sidebar'
   | 'goto-logs'
   | 'open-search'
   | 'open-workflow-search-replace'
@@ -56,6 +57,11 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
     id: 'add-workflow',
     shortcut: 'Mod+Shift+P',
     allowInEditable: false,
+  },
+  'collapse-sidebar': {
+    id: 'collapse-sidebar',
+    shortcut: 'Mod+B',
+    allowInEditable: true,
   },
   'goto-logs': {
     id: 'goto-logs',
