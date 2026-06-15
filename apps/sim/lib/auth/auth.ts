@@ -69,6 +69,7 @@ import {
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
+  isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
@@ -724,6 +725,15 @@ export const auth = betterAuth({
         ],
       },
     }),
+    ...(!isMicrosoftAuthDisabled &&
+      env.MICROSOFT_CLIENT_ID &&
+      env.MICROSOFT_CLIENT_SECRET && {
+        microsoft: {
+          clientId: env.MICROSOFT_CLIENT_ID,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET,
+          scope: ['openid', 'profile', 'email'],
+        },
+      }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,

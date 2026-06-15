@@ -1,5 +1,10 @@
 import { env } from '@/lib/core/config/env'
-import { isGithubAuthDisabled, isGoogleAuthDisabled, isProd } from '@/lib/core/config/feature-flags'
+import {
+  isGithubAuthDisabled,
+  isGoogleAuthDisabled,
+  isMicrosoftAuthDisabled,
+  isProd,
+} from '@/lib/core/config/feature-flags'
 
 export async function getOAuthProviderStatus() {
   const githubAvailable =
@@ -8,5 +13,8 @@ export async function getOAuthProviderStatus() {
   const googleAvailable =
     !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) && !isGoogleAuthDisabled
 
-  return { githubAvailable, googleAvailable, isProduction: isProd }
+  const microsoftAvailable =
+    !!(env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET) && !isMicrosoftAuthDisabled
+
+  return { githubAvailable, googleAvailable, microsoftAvailable, isProduction: isProd }
 }

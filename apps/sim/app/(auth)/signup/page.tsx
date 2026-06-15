@@ -14,12 +14,14 @@ export default async function SignupPage() {
     return <div>Registration is disabled, please contact your admin.</div>
   }
 
-  const { githubAvailable, googleAvailable, isProduction } = await getOAuthProviderStatus()
+  const { githubAvailable, googleAvailable, microsoftAvailable, isProduction } =
+    await getOAuthProviderStatus()
 
   return (
     <SignupForm
       githubAvailable={githubAvailable}
       googleAvailable={googleAvailable}
+      microsoftAvailable={microsoftAvailable}
       isProduction={isProduction}
     />
   )
