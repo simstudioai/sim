@@ -9,6 +9,7 @@ import {
 import { and, asc, eq, inArray, ne } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
+import type { DbOrTx } from '@/lib/db/types'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 /** A workspace reference (id + display name). */
@@ -63,8 +64,11 @@ export async function loadGroupInOrganization(groupId: string, organizationId: s
 }
 
 /** The workspaces ({id, name}) a specific-scope group targets. */
-export async function getGroupWorkspaces(groupId: string): Promise<WorkspaceRef[]> {
-  return db
+export async function getGroupWorkspaces(
+  groupId: string,
+  executor: DbOrTx = db
+): Promise<WorkspaceRef[]> {
+  return executor
     .select({ id: workspace.id, name: workspace.name })
     .from(permissionGroupWorkspace)
     .innerJoin(workspace, eq(permissionGroupWorkspace.workspaceId, workspace.id))
@@ -141,18 +145,21 @@ export interface ScopeConflict {
   conflictingGroupName: string
 }
 
-export async function findScopeConflicts(params: {
-  organizationId: string
-  excludeGroupId: string
-  appliesToAllWorkspaces: boolean
-  workspaceIds: string[]
-  candidateUserIds: string[]
-}): Promise<ScopeConflict[]> {
+export async function findScopeConflicts(
+  params: {
+    organizationId: string
+    excludeGroupId: string
+    appliesToAllWorkspaces: boolean
+    workspaceIds: string[]
+    candidateUserIds: string[]
+  },
+  executor: DbOrTx = db
+): Promise<ScopeConflict[]> {
   const { organizationId, excludeGroupId, appliesToAllWorkspaces, workspaceIds, candidateUserIds } =
     params
   if (candidateUserIds.length === 0) return []
 
-  const rows = await db
+  const rows = await executor
     .select({
       userId: permissionGroupMember.userId,
       userName: user.name,

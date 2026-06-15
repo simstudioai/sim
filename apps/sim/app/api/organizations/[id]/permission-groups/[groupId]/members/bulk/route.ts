@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { bulkAddPermissionGroupMembersContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { acquireOrgMembershipLock } from '@/lib/billing/organizations/membership'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import {
@@ -17,6 +18,7 @@ import {
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
+  type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroupBulkMembers')
@@ -29,6 +31,10 @@ export const POST = withRouteHandler(
     }
 
     const { id: organizationId, groupId: id } = await context.params
+
+    // Populated inside the transaction when a scope conflict is detected, so the
+    // catch can format the 409 after the rollback.
+    let scopeConflicts: ScopeConflict[] = []
 
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
@@ -71,25 +77,38 @@ export const POST = withRouteHandler(
         return NextResponse.json({ added: 0, skipped: 0 })
       }
 
-      // Bulk add is all-or-nothing for conflicts: if any selected user would be
-      // governed by two groups on the same workspace (all-vs-all, or specific
-      // groups sharing a workspace), add nobody and surface the conflict so the
-      // admin can fix the selection. Members already in this group are no-ops.
-      const groupWorkspaceIds = group.appliesToAllWorkspaces
-        ? []
-        : (await getGroupWorkspaces(id)).map((ws) => ws.id)
-      const conflicts = await findScopeConflicts({
-        organizationId,
-        excludeGroupId: id,
-        appliesToAllWorkspaces: group.appliesToAllWorkspaces,
-        workspaceIds: groupWorkspaceIds,
-        candidateUserIds: targetUserIds,
-      })
-      if (conflicts.length > 0) {
-        return NextResponse.json({ error: formatScopeConflictError(conflicts) }, { status: 409 })
-      }
+      // Lock the candidate (user, org) pairs in a deterministic order so the
+      // conflict check + insert is atomic against concurrent adds for the same
+      // users, and two concurrent bulk ops can't deadlock on each other.
+      const lockUserIds = [...targetUserIds].sort()
 
       const { addedUserIds } = await db.transaction(async (tx) => {
+        for (const lockUserId of lockUserIds) {
+          await acquireOrgMembershipLock(tx, lockUserId, organizationId)
+        }
+
+        // Bulk add is all-or-nothing for conflicts: if any selected user would be
+        // governed by two groups on the same workspace (all-vs-all, or specific
+        // groups sharing a workspace), add nobody and surface the conflict so the
+        // admin can fix the selection. Members already in this group are no-ops.
+        const groupWorkspaceIds = group.appliesToAllWorkspaces
+          ? []
+          : (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+        const conflicts = await findScopeConflicts(
+          {
+            organizationId,
+            excludeGroupId: id,
+            appliesToAllWorkspaces: group.appliesToAllWorkspaces,
+            workspaceIds: groupWorkspaceIds,
+            candidateUserIds: targetUserIds,
+          },
+          tx
+        )
+        if (conflicts.length > 0) {
+          scopeConflicts = conflicts
+          throw new Error('SCOPE_CONFLICT')
+        }
+
         const existingInGroup = await tx
           .select({ userId: permissionGroupMember.userId })
           .from(permissionGroupMember)
@@ -155,6 +174,12 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ added: addedUserIds.length, skipped })
     } catch (error) {
+      if (error instanceof Error && error.message === 'SCOPE_CONFLICT') {
+        return NextResponse.json(
+          { error: formatScopeConflictError(scopeConflicts) },
+          { status: 409 }
+        )
+      }
       if (
         getPostgresErrorCode(error) === '23505' &&
         getPostgresConstraintName(error) === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
@@ -165,6 +190,13 @@ export const POST = withRouteHandler(
               'One or more users were concurrently added to this group. Please refresh and try again.',
           },
           { status: 409 }
+        )
+      }
+      // Advisory lock wait exceeded (lock_timeout) — transient contention.
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This group is being updated by another request. Please try again.' },
+          { status: 503 }
         )
       }
       logger.error('Error bulk adding members to permission group', error)
