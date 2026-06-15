@@ -15,6 +15,7 @@ import {
   markTableJobRunning,
   updateJobProgress,
 } from '@/lib/table/jobs/service'
+import { pluckByPath } from '@/lib/table/pluck'
 import { batchUpdateRows } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type {
@@ -23,7 +24,6 @@ import type {
   TableDefinition,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { pluckByPath } from './pluck'
 
 const logger = createLogger('TableBackfillRunner')
 
@@ -330,7 +330,7 @@ export async function maybeBackfillGroupOutputs(opts: {
       // Release the claim so a ghost `running` job doesn't block imports/deletes.
       // Swallowed (warn only): a failed backfill never fails the schema change —
       // the data stays backfillable.
-      const { releaseJobClaim } = await import('./jobs/service')
+      const { releaseJobClaim } = await import('@/lib/table/jobs/service')
       await releaseJobClaim(table.id, jobId).catch(() => {})
       logger.warn(
         `[${requestId}] Backfill dispatch failed for table ${table.id} group ${groupId}; skipping`,

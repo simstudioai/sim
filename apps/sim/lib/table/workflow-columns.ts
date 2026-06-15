@@ -31,16 +31,16 @@ import type {
 
 const logger = createLogger('WorkflowGroupScheduler')
 
-import { getColumnId } from './column-keys'
-import { USER_TABLE_ROWS_SQL_NAME } from './constants'
-import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from './deps'
-import type { DispatchLimit, DispatchMode } from './dispatcher'
-import { buildFilterClause } from './sql'
+import { getColumnId } from '@/lib/table/column-keys'
+import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
+import { areGroupDepsSatisfied, areOutputsFilled, isExecInFlight } from '@/lib/table/deps'
+import type { DispatchLimit, DispatchMode } from '@/lib/table/dispatcher'
+import { buildFilterClause } from '@/lib/table/sql'
 
 export {
   getUnmetGroupDeps,
   optimisticallyScheduleNewlyEligibleGroups,
-} from './deps'
+} from '@/lib/table/deps'
 
 /**
  * Per-(row, group) eligibility for both the auto-fire reactor and manual
@@ -370,7 +370,9 @@ export async function cancelWorkflowGroupRuns(
   const { getTableById } = await import('@/lib/table/service')
   const { updateRow } = await import('@/lib/table/rows/service')
   const { getJobQueue } = await import('@/lib/core/async-jobs/config')
-  const { listActiveDispatches, markActiveDispatchesCancelled } = await import('./dispatcher')
+  const { listActiveDispatches, markActiveDispatchesCancelled } = await import(
+    '@/lib/table/dispatcher'
+  )
 
   const table = await getTableById(tableId)
   if (!table) {
@@ -662,7 +664,7 @@ export async function runWorkflowColumn(opts: {
   if (rowIds && rowIds.length === 0) return { dispatchId: null }
   // Lazy imports: `./service` and `./dispatcher` both close cycles back to
   // this module; `@trigger.dev/sdk` is heavy and only needed on this op.
-  const { getTableById } = await import('./service')
+  const { getTableById } = await import('@/lib/table/service')
   const table = await getTableById(tableId)
   if (!table) throw new Error('Table not found')
   if (table.workspaceId !== workspaceId) throw new Error('Invalid workspace ID')

@@ -15,14 +15,14 @@ import { db } from '@sim/db'
 import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, inArray, ne, or, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import { pendingDeleteMask } from '../rows/service'
+import { pendingDeleteMask } from '@/lib/table/rows/service'
 import type {
   RowData,
   TableDefinition,
   TableDeleteJobPayload,
   TableExportJobPayload,
   TableJobType,
-} from '../types'
+} from '@/lib/table/types'
 
 /** Job fields projected onto a {@link TableDefinition}, derived from its latest `table_jobs` row. */
 interface DerivedJobFields {

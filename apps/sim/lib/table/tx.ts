@@ -6,7 +6,7 @@
  */
 
 import { sql } from 'drizzle-orm'
-import type { DbTransaction } from './planner'
+import type { DbTransaction } from '@/lib/table/planner'
 
 const TIMEOUT_CAP_MS = 10 * 60_000
 

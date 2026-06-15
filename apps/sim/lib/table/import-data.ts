@@ -9,18 +9,24 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
-import { CSV_MAX_BATCH_SIZE } from './import'
-import { nKeysBetween } from './order-key'
-import { acquireRowOrderLock } from './rows/ordering'
-import { batchInsertRowsWithTx, replaceTableRowsWithTx } from './rows/service'
-import { addTableColumnsWithTx } from './service'
-import type { ReplaceRowsResult, RowData, TableDefinition, TableRow, TableSchema } from './types'
+import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import { nKeysBetween } from '@/lib/table/order-key'
+import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
+import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
+import { addTableColumnsWithTx } from '@/lib/table/service'
+import type {
+  ReplaceRowsResult,
+  RowData,
+  TableDefinition,
+  TableRow,
+  TableSchema,
+} from '@/lib/table/types'
 import {
   checkBatchUniqueConstraintsDb,
   coerceRowToSchema,
   getUniqueColumns,
   validateRowSize,
-} from './validation'
+} from '@/lib/table/validation'
 
 const logger = createLogger('TableImportData')
 

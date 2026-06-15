@@ -7,8 +7,8 @@
 import { createLogger } from '@sim/logger'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
+import { getTablePlanLimits, type PlanName, type TablePlanLimits } from '@/lib/table/constants'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
-import { getTablePlanLimits, type PlanName, type TablePlanLimits } from './constants'
 
 const logger = createLogger('TableBilling')
 

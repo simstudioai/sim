@@ -30,7 +30,7 @@ import {
   TABLE_CONCURRENCY_LIMIT,
   toTableRow,
   type WorkflowGroupCellPayload,
-} from './workflow-columns'
+} from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableRunDispatcher')
 
@@ -375,7 +375,7 @@ export async function dispatcherStep(dispatchId: string): Promise<DispatcherStep
   }
   if (dispatch.status === 'cancelled' || dispatch.status === 'complete') return 'done'
 
-  const { getTableById } = await import('./service')
+  const { getTableById } = await import('@/lib/table/service')
   const table = await getTableById(dispatch.tableId)
   if (!table) {
     logger.warn(`[${dispatchId}] table ${dispatch.tableId} missing — completing dispatch`)

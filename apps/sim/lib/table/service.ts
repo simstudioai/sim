@@ -15,15 +15,20 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
-import { generateColumnId, getColumnId, withGeneratedColumnIds } from './column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from './constants'
-import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from './jobs/service'
-import { nKeysBetween } from './order-key'
-import type { DbTransaction } from './planner'
-import { setTableTxTimeouts } from './tx'
-import type { CreateTableData, TableDefinition, TableMetadata, TableSchema } from './types'
-import { validateTableName, validateTableSchema } from './validation'
-import { stripGroupDeps } from './workflow-columns'
+import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
+import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
+import { nKeysBetween } from '@/lib/table/order-key'
+import type { DbTransaction } from '@/lib/table/planner'
+import { setTableTxTimeouts } from '@/lib/table/tx'
+import type {
+  CreateTableData,
+  TableDefinition,
+  TableMetadata,
+  TableSchema,
+} from '@/lib/table/types'
+import { validateTableName, validateTableSchema } from '@/lib/table/validation'
+import { stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableService')
 
@@ -70,12 +75,6 @@ export async function withLockedTable<T>(
 }
 
 /**
- * Gets a table by ID with full details.
- *
- * @param tableId - Table ID to fetch
- * @returns Table definition or null if not found
- */
-/**
  * Returns `schema` with `columns` sorted by `metadata.columnOrder` (the user-
  * editable visible order). Columns missing from `columnOrder` are appended at
  * the end in their original (schema-creation) order — covers tables created
@@ -106,6 +105,12 @@ function applyColumnOrderToSchema(
   return { ...schema, columns: ordered }
 }
 
+/**
+ * Gets a table by ID with full details.
+ *
+ * @param tableId - Table ID to fetch
+ * @returns Table definition or null if not found
+ */
 export async function getTableById(
   tableId: string,
   options?: { includeArchived?: boolean; tx?: DbOrTx }

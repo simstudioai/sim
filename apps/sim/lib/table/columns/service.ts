@@ -13,11 +13,11 @@ import { db } from '@sim/db'
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, eq, sql } from 'drizzle-orm'
+import { columnMatchesRef, generateColumnId, getColumnId } from '@/lib/table/column-keys'
+import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
+import { stripGroupExecutions } from '@/lib/table/rows/executions'
 import { withLockedTable } from '@/lib/table/service'
-import { columnMatchesRef, generateColumnId, getColumnId } from '../column-keys'
-import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '../constants'
-import { stripGroupExecutions } from '../rows/executions'
-import { scaledStatementTimeoutMs, setTableTxTimeouts } from '../tx'
+import { scaledStatementTimeoutMs, setTableTxTimeouts } from '@/lib/table/tx'
 import type {
   DeleteColumnData,
   RenameColumnData,
@@ -27,8 +27,8 @@ import type {
   TableSchema,
   UpdateColumnConstraintsData,
   UpdateColumnTypeData,
-} from '../types'
-import { assertValidSchema, stripGroupDeps } from '../workflow-columns'
+} from '@/lib/table/types'
+import { assertValidSchema, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableColumnService')
 

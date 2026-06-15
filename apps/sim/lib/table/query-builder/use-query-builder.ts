@@ -4,14 +4,14 @@
 
 import { useCallback } from 'react'
 import { generateShortId } from '@sim/utils/id'
-import type { ColumnOption } from '../types'
 import {
   COMPARISON_OPERATORS,
   type FilterRule,
   LOGICAL_OPERATORS,
   SORT_DIRECTIONS,
   type SortRule,
-} from './constants'
+} from '@/lib/table/query-builder/constants'
+import type { ColumnOption } from '@/lib/table/types'
 
 const comparisonOptions: ColumnOption[] = COMPARISON_OPERATORS.map((op) => ({
   value: op.value,
