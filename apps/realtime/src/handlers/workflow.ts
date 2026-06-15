@@ -160,6 +160,7 @@ export function setupWorkflowHandlers(socket: AuthenticatedSocket, roomManager: 
         joinedAt: Date.now(),
         lastActivity: Date.now(),
         role: userRole,
+        roleCheckedAt: Date.now(),
         avatarUrl,
       }
 

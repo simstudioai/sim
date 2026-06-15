@@ -73,6 +73,11 @@ vi.mock('@/middleware/permissions', () => ({
   checkRolePermission: vi.fn().mockReturnValue({
     allowed: true,
   }),
+  authorizeSocketOperation: vi.fn().mockResolvedValue({
+    allowed: true,
+    role: 'admin',
+    accessRevoked: false,
+  }),
 }))
 
 vi.mock('@/database/operations', () => ({

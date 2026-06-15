@@ -6,8 +6,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'
 import { and, eq } from 'drizzle-orm'
+import { evictRevokedSocket } from '@/handlers/eviction'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { checkRolePermission } from '@/middleware/permissions'
+import { authorizeSocketOperation } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('SubblocksHandlers')
@@ -136,18 +137,44 @@ export function setupSubblocksHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
-      const permissionCheck = checkRolePermission(userPresence.role, SUBBLOCK_OPERATIONS.UPDATE)
-      if (!permissionCheck.allowed) {
+      const authorization = await authorizeSocketOperation({
+        roomManager,
+        workflowId,
+        socketId: socket.id,
+        userId: session.userId,
+        presence: userPresence,
+        operation: SUBBLOCK_OPERATIONS.UPDATE,
+      })
+
+      if (authorization.accessRevoked) {
         socket.emit('operation-forbidden', {
-          type: 'INSUFFICIENT_PERMISSIONS',
-          message: permissionCheck.reason || 'Insufficient permissions',
+          type: 'ACCESS_REVOKED',
+          message: authorization.reason || 'Access to this workflow has been revoked',
           operation: SUBBLOCK_OPERATIONS.UPDATE,
           target: 'subblock',
         })
         if (operationId) {
           socket.emit('operation-failed', {
             operationId,
-            error: permissionCheck.reason || 'Insufficient permissions',
+            error: authorization.reason || 'Access revoked',
+            retryable: false,
+          })
+        }
+        await evictRevokedSocket(roomManager, socket, workflowId)
+        return
+      }
+
+      if (!authorization.allowed) {
+        socket.emit('operation-forbidden', {
+          type: 'INSUFFICIENT_PERMISSIONS',
+          message: authorization.reason || 'Insufficient permissions',
+          operation: SUBBLOCK_OPERATIONS.UPDATE,
+          target: 'subblock',
+        })
+        if (operationId) {
+          socket.emit('operation-failed', {
+            operationId,
+            error: authorization.reason || 'Insufficient permissions',
             retryable: false,
           })
         }

@@ -12,6 +12,7 @@ import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { notifyWorkspaceAccessChanged } from '@/lib/workspaces/permissions/realtime'
 import { hasWorkspaceAdminAccess } from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -154,6 +155,10 @@ export const DELETE = withRouteHandler(
           return { ownershipTransferred: didTransferOwnership, workflowOwnershipReassignment }
         }
       )
+
+      // Evict the removed user from any active realtime workflow rooms so their
+      // live read/write access ends immediately, not just on the next REST call.
+      await notifyWorkspaceAccessChanged(workspaceId, userId)
 
       /**
        * Seats are tied to organization membership (one per member), so a
