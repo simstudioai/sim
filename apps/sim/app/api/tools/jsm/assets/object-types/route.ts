@@ -4,7 +4,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { jsmListObjectTypesContract } from '@/lib/api/contracts/selectors/jsm'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { validateJiraCloudId } from '@/lib/core/security/input-validation'
+import {
+  validateAssetsWorkspaceId,
+  validateJiraCloudId,
+} from '@/lib/core/security/input-validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseAtlassianErrorMessage } from '@/tools/jira/utils'
 import { getAssetsApiBaseUrl, getJsmHeaders, resolveAssetsContext } from '@/tools/jsm/utils'
@@ -42,6 +45,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const cloudIdValidation = validateJiraCloudId(cloudId, 'cloudId')
     if (!cloudIdValidation.isValid) {
       return NextResponse.json({ error: cloudIdValidation.error }, { status: 400 })
+    }
+
+    const workspaceIdValidation = validateAssetsWorkspaceId(workspaceId, 'workspaceId')
+    if (!workspaceIdValidation.isValid) {
+      return NextResponse.json({ error: workspaceIdValidation.error }, { status: 400 })
     }
 
     const query = new URLSearchParams()

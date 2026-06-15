@@ -628,6 +628,27 @@ export function validateJiraCloudId(
 }
 
 /**
+ * Validates an Atlassian Assets workspace ID (a UUID-shaped, hyphenated
+ * alphanumeric identifier) before it is interpolated into an API path.
+ *
+ * @param value - The Assets workspace ID to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateAssetsWorkspaceId(
+  value: string | null | undefined,
+  paramName = 'workspaceId'
+): ValidationResult {
+  return validatePathSegment(value, {
+    paramName,
+    allowHyphens: true,
+    allowUnderscores: false,
+    allowDots: false,
+    maxLength: 100,
+  })
+}
+
+/**
  * Validates Jira issue keys (format: PROJECT-123 or PROJECT-KEY-123)
  *
  * @param value - The Jira issue key to validate
