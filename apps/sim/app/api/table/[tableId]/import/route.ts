@@ -25,8 +25,6 @@ import {
   createCsvParser,
   dispatchAfterBatchInsert,
   generateColumnId,
-  importAppendRows,
-  importReplaceRows,
   inferColumnType,
   markTableJobRunning,
   releaseJobClaim,
@@ -35,6 +33,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
+import { importAppendRows, importReplaceRows } from '@/lib/table/import-data'
 import {
   accessError,
   checkAccess,

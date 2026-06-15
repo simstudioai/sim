@@ -41,6 +41,8 @@
     "trace-attribute-values-contract:check": "bun run scripts/sync-trace-attribute-values-contract.ts --check",
     "trace-events-contract:generate": "bun run scripts/sync-trace-events-contract.ts",
     "trace-events-contract:check": "bun run scripts/sync-trace-events-contract.ts --check",
+    "metrics-contract:generate": "bun run scripts/sync-metrics-contract.ts",
+    "metrics-contract:check": "bun run scripts/sync-metrics-contract.ts --check",
     "mship:generate": "bun run scripts/generate-mship-contracts.ts",
     "mship:check": "bun run scripts/generate-mship-contracts.ts --check",
     "prepare": "bun husky",

@@ -194,6 +194,44 @@ describe('workflow execute async route', () => {
     )
   })
 
+  it('rejects cross-site session requests before authorization work', async () => {
+    const req = createMockRequest(
+      'POST',
+      { input: { hello: 'world' } },
+      {
+        'Content-Type': 'application/json',
+        'Sec-Fetch-Site': 'cross-site',
+      }
+    )
+    const params = Promise.resolve({ id: 'workflow-1' })
+
+    const response = await POST(req, { params })
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toBe('Access denied')
+    expect(mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('allows same-site session requests (multi-subdomain Run, e.g. www.<domain>)', async () => {
+    const req = createMockRequest(
+      'POST',
+      { input: { hello: 'world' } },
+      {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+        'Sec-Fetch-Site': 'same-site',
+      }
+    )
+    const params = Promise.resolve({ id: 'workflow-1' })
+
+    const response = await POST(req, { params })
+
+    expect(response.status).toBe(202)
+    expect(mockEnqueue).toHaveBeenCalled()
+  })
+
   it('rejects oversized request bodies before authorization work', async () => {
     const req = createMockRequest(
       'POST',

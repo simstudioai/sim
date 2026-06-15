@@ -3,7 +3,8 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
-import { getTableById, listTables, queryRows } from '@/lib/table/service'
+import { queryRows } from '@/lib/table/rows/service'
+import { getTableById, listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
