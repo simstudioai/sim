@@ -11,7 +11,6 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { notifyWorkspaceAccessChanged } from '@/lib/workspaces/permissions/realtime'
 import {
   checkWorkspaceAccess,
   getUserEntityPermissions,
@@ -196,14 +195,6 @@ export const PATCH = withRouteHandler(
           actingUserId: session.user.id,
         })
       }
-
-      // Reconcile active realtime rooms so downgraded collaborators lose write
-      // access promptly instead of riding their cached role until disconnect.
-      await Promise.all(
-        body.updates
-          .filter((update) => permLookup.get(update.userId)?.permission !== update.permissions)
-          .map((update) => notifyWorkspaceAccessChanged(workspaceId, update.userId))
-      )
 
       const updatedUsers = await getUsersWithPermissions(workspaceId)
 

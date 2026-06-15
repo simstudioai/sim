@@ -13,16 +13,8 @@ import {
 } from '@sim/realtime-protocol/constants'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
-import type { IRoomManager, UserPresence } from '@/rooms/types'
 
 const logger = createLogger('SocketPermissions')
-
-/**
- * How long a cached role is trusted before it must be re-verified against the
- * live `permissions` table. Bounds the window in which a revoked or downgraded
- * collaborator can keep acting on a stale role on an already-connected socket.
- */
-const ROLE_REVALIDATION_TTL_MS = 15_000
 
 // Admin-only operations (require admin role)
 const ADMIN_ONLY_OPERATIONS: string[] = [BLOCKS_OPERATIONS.BATCH_TOGGLE_LOCKED]
@@ -89,63 +81,6 @@ export function checkRolePermission(
   }
 
   return { allowed: true }
-}
-
-/**
- * Authorizes a mutating socket operation against the caller's *current* role.
- *
- * The role cached in presence is trusted only for `ROLE_REVALIDATION_TTL_MS`;
- * once stale it is re-verified against the live `permissions` table and the
- * refreshed role is written back to presence. This bounds how long a revoked or
- * downgraded collaborator can keep mutating a workflow on an already-connected
- * socket, complementing the push-based eviction triggered by the main app.
- *
- * Transient database failures during re-validation fall back to the last known
- * role (without refreshing the timestamp, so the next operation retries) rather
- * than locking out legitimate users during a blip.
- */
-export async function authorizeSocketOperation(params: {
-  roomManager: IRoomManager
-  workflowId: string
-  socketId: string
-  userId: string
-  presence: UserPresence
-  operation: string
-}): Promise<{ allowed: boolean; role: string; reason?: string; accessRevoked: boolean }> {
-  const { roomManager, workflowId, socketId, userId, presence, operation } = params
-
-  let role = presence.role
-  const lastChecked = presence.roleCheckedAt ?? 0
-  const isStale = Date.now() - lastChecked >= ROLE_REVALIDATION_TTL_MS
-
-  if (isStale) {
-    try {
-      const access = await verifyWorkflowAccess(userId, workflowId)
-      if (!access.hasAccess) {
-        return {
-          allowed: false,
-          role,
-          reason: 'Access to this workflow has been revoked',
-          accessRevoked: true,
-        }
-      }
-      role = access.role || 'read'
-      await roomManager.updateUserRole(workflowId, socketId, role)
-    } catch (error) {
-      logger.warn(
-        `Failed to re-validate role for user ${userId} on workflow ${workflowId}; reusing cached role`,
-        error
-      )
-    }
-  }
-
-  const permissionCheck = checkRolePermission(role, operation)
-  return {
-    allowed: permissionCheck.allowed,
-    role,
-    reason: permissionCheck.reason,
-    accessRevoked: false,
-  }
 }
 
 /**
