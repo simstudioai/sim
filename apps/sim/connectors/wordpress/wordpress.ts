@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { WordpressIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import { DEFAULT_MAX_POSTS, wordpressConnectorMeta } from '@/connectors/wordpress/meta'
 
 const logger = createLogger('WordPressConnector')
 
@@ -18,7 +18,6 @@ function normalizeSiteUrl(raw: string): string {
 }
 
 const POSTS_PER_PAGE = 20
-const DEFAULT_MAX_POSTS = 100
 
 interface WordPressPost {
   ID: number
@@ -99,45 +98,7 @@ function resolvePostType(postType?: string): string {
 }
 
 export const wordpressConnector: ConnectorConfig = {
-  id: 'wordpress',
-  name: 'WordPress',
-  description:
-    'Sync posts and pages from a WordPress.com site. OAuth tokens expire after ~2 weeks (no refresh token).',
-  version: '1.0.0',
-  icon: WordpressIcon,
-
-  auth: { mode: 'oauth', provider: 'wordpress', requiredScopes: ['global'] },
-
-  configFields: [
-    {
-      id: 'siteUrl',
-      title: 'Site URL',
-      type: 'short-input',
-      placeholder: 'e.g. mysite.wordpress.com',
-      required: true,
-      description: 'WordPress site domain',
-    },
-    {
-      id: 'postType',
-      title: 'Post Type',
-      type: 'dropdown',
-      required: false,
-      description: 'Filter by content type',
-      options: [
-        { label: 'Both', id: 'Both' },
-        { label: 'Posts', id: 'Posts' },
-        { label: 'Pages', id: 'Pages' },
-      ],
-    },
-    {
-      id: 'maxPosts',
-      title: 'Max Posts',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 50 (default: ${DEFAULT_MAX_POSTS})`,
-      description: 'Maximum number of posts to sync',
-    },
-  ],
+  ...wordpressConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -280,14 +241,6 @@ export const wordpressConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'author', displayName: 'Author', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'postType', displayName: 'Post Type', fieldType: 'text' },
-    { id: 'categories', displayName: 'Categories', fieldType: 'text' },
-    { id: 'tags', displayName: 'Tags', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

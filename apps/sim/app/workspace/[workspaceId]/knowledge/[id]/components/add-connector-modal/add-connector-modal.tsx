@@ -36,14 +36,14 @@ import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/component
 import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { getBlock } from '@/blocks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
-import type { ConnectorConfig } from '@/connectors/types'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorMeta } from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useSubscriptionData } from '@/hooks/queries/subscription'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 
-const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_REGISTRY)
+const CONNECTOR_ENTRIES = Object.entries(CONNECTOR_META_REGISTRY)
 
 interface AddConnectorModalProps {
   open: boolean
@@ -81,7 +81,7 @@ export function AddConnectorModal({
   const subscriptionAccess = getSubscriptionAccessState(subscriptionResponse?.data)
   const hasMaxAccess = !isBillingEnabled || subscriptionAccess.hasUsableMaxAccess
 
-  const connectorConfig = selectedType ? CONNECTOR_REGISTRY[selectedType] : null
+  const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
   const connectorProviderId = useMemo(
     () =>
@@ -453,7 +453,7 @@ export function AddConnectorModal({
 
 interface ConnectorTypeCardProps {
   type: string
-  config: ConnectorConfig
+  config: ConnectorMeta
   onClick: () => void
 }
 

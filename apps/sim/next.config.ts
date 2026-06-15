@@ -95,13 +95,13 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     resolveAlias: {
-      // `dns/promises` has no browser shim. Server-only connector fetch logic
-      // (which imports `input-validation.server`) is statically reachable from
-      // the client bundle via the connector registry, but never runs there.
-      // Stub it for the browser only; the server keeps the real module so SSRF
-      // validation is unaffected.
       'dns/promises': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
       dns: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      'node:dns': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      net: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      'node:net': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      tls: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
+      'node:tls': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
     },
   },
   experimental: {
