@@ -19,7 +19,6 @@ import {
   MoveFileFolder,
   RenameFile,
   RenameFileFolder,
-  TouchPlan,
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -45,7 +44,6 @@ import {
   renameFileFolderServerTool,
 } from '@/lib/copilot/tools/server/files/file-folders'
 import { renameFileServerTool } from '@/lib/copilot/tools/server/files/rename-file'
-import { touchPlanServerTool } from '@/lib/copilot/tools/server/files/touch-plan'
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
@@ -60,7 +58,6 @@ import { getCredentialsServerTool } from '@/lib/copilot/tools/server/user/get-cr
 import { setEnvironmentVariablesServerTool } from '@/lib/copilot/tools/server/user/set-environment-variables'
 import { editWorkflowServerTool } from '@/lib/copilot/tools/server/workflow/edit-workflow'
 import { queryLogsServerTool } from '@/lib/copilot/tools/server/workflow/query-logs'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
 
 export type ExecuteResponseSuccess = z.output<typeof ExecuteResponseSuccessSchema>
 
@@ -113,7 +110,6 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [WorkspaceFile.id]: ['create', 'append', 'update', 'delete', 'rename', 'patch'],
   [editContentServerTool.name]: ['*'],
   [CreateFile.id]: ['*'],
-  [TouchPlan.id]: ['*'],
   [RenameFile.id]: ['*'],
   [DeleteFile.id]: ['*'],
   [MoveFile.id]: ['*'],
@@ -157,7 +153,6 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [workspaceFileServerTool.name]: workspaceFileServerTool,
   [editContentServerTool.name]: editContentServerTool,
   [createFileServerTool.name]: createFileServerTool,
-  [touchPlanServerTool.name]: touchPlanServerTool,
   [renameFileServerTool.name]: renameFileServerTool,
   [deleteFileServerTool.name]: deleteFileServerTool,
   [moveFileServerTool.name]: moveFileServerTool,
@@ -174,12 +169,7 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
 }
 
 function getServerToolRegistry(): Record<string, BaseServerTool> {
-  if (isMothershipBetaFeaturesEnabled) {
-    return baseServerToolRegistry
-  }
-  const registry = { ...baseServerToolRegistry }
-  delete registry[touchPlanServerTool.name]
-  return registry
+  return baseServerToolRegistry
 }
 
 export function getRegisteredServerToolNames(): string[] {
