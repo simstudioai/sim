@@ -5,6 +5,28 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Parse the Assets attributes input into the API payload array. Accepts either a
+ * JSON string (from the block input) or an already-parsed array (from a dynamic
+ * reference). Throws a clear error when the value is not a valid array.
+ */
+function parseAssetAttributes(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new Error('Attributes must be a valid JSON array')
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error('Attributes must be a JSON array')
+    }
+    return parsed
+  }
+  throw new Error('Attributes are required')
+}
+
 export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
   type: 'jira_service_management',
   name: 'Jira Service Management',
@@ -57,6 +79,15 @@ export const JiraServiceManagementBlock: BlockConfig<JsmResponse> = {
         { label: 'Externalise Form', id: 'externalise_form' },
         { label: 'Internalise Form', id: 'internalise_form' },
         { label: 'Copy Forms', id: 'copy_forms' },
+        { label: 'List Asset Schemas', id: 'list_object_schemas' },
+        { label: 'Get Asset Schema', id: 'get_object_schema' },
+        { label: 'List Asset Object Types', id: 'list_object_types' },
+        { label: 'Get Asset Object Type Attributes', id: 'get_object_type_attributes' },
+        { label: 'Search Assets (AQL)', id: 'search_objects_aql' },
+        { label: 'Get Asset Object', id: 'get_object' },
+        { label: 'Create Asset Object', id: 'create_object' },
+        { label: 'Update Asset Object', id: 'update_object' },
+        { label: 'Delete Asset Object', id: 'delete_object' },
       ],
       value: () => 'get_service_desks',
     },
@@ -564,6 +595,164 @@ Return ONLY the comment text - no explanations.`,
         ],
       },
     },
+    {
+      id: 'assetSchemaId',
+      title: 'Schema ID',
+      type: 'short-input',
+      placeholder: 'e.g., 1',
+      required: { field: 'operation', value: ['get_object_schema', 'list_object_types'] },
+      condition: { field: 'operation', value: ['get_object_schema', 'list_object_types'] },
+    },
+    {
+      id: 'assetObjectTypeId',
+      title: 'Object Type ID',
+      type: 'short-input',
+      placeholder: 'e.g., 23',
+      required: { field: 'operation', value: ['get_object_type_attributes', 'create_object'] },
+      condition: {
+        field: 'operation',
+        value: [
+          'get_object_type_attributes',
+          'create_object',
+          'update_object',
+          'search_objects_aql',
+        ],
+      },
+    },
+    {
+      id: 'assetObjectId',
+      title: 'Object ID',
+      type: 'short-input',
+      placeholder: 'e.g., 1234',
+      required: { field: 'operation', value: ['get_object', 'update_object', 'delete_object'] },
+      condition: { field: 'operation', value: ['get_object', 'update_object', 'delete_object'] },
+    },
+    {
+      id: 'assetQlQuery',
+      title: 'AQL Query',
+      type: 'long-input',
+      placeholder: 'objectType = "Host" AND "Operating System" = "Ubuntu"',
+      required: { field: 'operation', value: 'search_objects_aql' },
+      condition: { field: 'operation', value: 'search_objects_aql' },
+      wandConfig: {
+        enabled: true,
+        placeholder: 'Describe which assets to find',
+        prompt:
+          'Generate an Atlassian Assets AQL (Assets Query Language) query for the user request. Use attribute = "value" comparisons, AND/OR, IN, LIKE, and objectType filters. Example: objectType = "Host" AND Status = "Running". Return ONLY the AQL query - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'assetAttributes',
+      title: 'Attributes',
+      type: 'long-input',
+      placeholder:
+        '[{ "objectTypeAttributeId": "135", "objectAttributeValues": [{ "value": "Server-1" }] }]',
+      required: { field: 'operation', value: ['create_object', 'update_object'] },
+      condition: { field: 'operation', value: ['create_object', 'update_object'] },
+      wandConfig: {
+        enabled: true,
+        generationType: 'json-object',
+        placeholder: 'Describe the attribute values to set',
+        prompt:
+          'Generate a JSON array of Atlassian Assets object attributes. Each element is { "objectTypeAttributeId": "<id>", "objectAttributeValues": [{ "value": "<value>" }] }. Use objectTypeAttributeId values from the object type attribute definitions. Return ONLY the JSON array - no explanations, no extra text.',
+      },
+    },
+    {
+      id: 'assetStartAt',
+      title: 'Start At',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_object_schemas' },
+    },
+    {
+      id: 'assetMaxResults',
+      title: 'Max Results',
+      type: 'short-input',
+      placeholder: 'Maximum schemas to return (default: 25)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_object_schemas' },
+    },
+    {
+      id: 'assetIncludeCounts',
+      title: 'Include Counts',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_object_schemas' },
+    },
+    {
+      id: 'assetExcludeAbstract',
+      title: 'Exclude Abstract Types',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'list_object_types' },
+    },
+    {
+      id: 'assetOnlyValueEditable',
+      title: 'Only Editable Attributes',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_object_type_attributes' },
+    },
+    {
+      id: 'assetAttributeQuery',
+      title: 'Attribute Filter',
+      type: 'short-input',
+      placeholder: 'Filter attributes by name',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'get_object_type_attributes' },
+    },
+    {
+      id: 'assetPage',
+      title: 'Page',
+      type: 'short-input',
+      placeholder: 'Page number (default: 1)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search_objects_aql' },
+    },
+    {
+      id: 'assetResultsPerPage',
+      title: 'Results Per Page',
+      type: 'short-input',
+      placeholder: 'Results per page (default: 25)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search_objects_aql' },
+    },
+    {
+      id: 'assetIncludeAttributes',
+      title: 'Include Attributes',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search_objects_aql' },
+    },
+    {
+      id: 'assetObjectSchemaId',
+      title: 'Object Schema ID',
+      type: 'short-input',
+      placeholder: 'Scope the search to a schema ID',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'search_objects_aql' },
+    },
     ...getTrigger('jsm_request_created').subBlocks,
     ...getTrigger('jsm_request_updated').subBlocks,
     ...getTrigger('jsm_request_commented').subBlocks,
@@ -606,6 +795,15 @@ Return ONLY the comment text - no explanations.`,
       'jsm_externalise_form',
       'jsm_internalise_form',
       'jsm_copy_forms',
+      'jsm_list_object_schemas',
+      'jsm_get_object_schema',
+      'jsm_list_object_types',
+      'jsm_get_object_type_attributes',
+      'jsm_search_objects_aql',
+      'jsm_get_object',
+      'jsm_create_object',
+      'jsm_update_object',
+      'jsm_delete_object',
     ],
     config: {
       tool: (params) => {
@@ -678,6 +876,24 @@ Return ONLY the comment text - no explanations.`,
             return 'jsm_internalise_form'
           case 'copy_forms':
             return 'jsm_copy_forms'
+          case 'list_object_schemas':
+            return 'jsm_list_object_schemas'
+          case 'get_object_schema':
+            return 'jsm_get_object_schema'
+          case 'list_object_types':
+            return 'jsm_list_object_types'
+          case 'get_object_type_attributes':
+            return 'jsm_get_object_type_attributes'
+          case 'search_objects_aql':
+            return 'jsm_search_objects_aql'
+          case 'get_object':
+            return 'jsm_get_object'
+          case 'create_object':
+            return 'jsm_create_object'
+          case 'update_object':
+            return 'jsm_update_object'
+          case 'delete_object':
+            return 'jsm_delete_object'
           default:
             return 'jsm_get_service_desks'
         }
@@ -1109,6 +1325,83 @@ Return ONLY the comment text - no explanations.`,
                   })()
                 : undefined,
             }
+          case 'list_object_schemas':
+            return {
+              ...baseParams,
+              startAt: params.assetStartAt ? Number.parseInt(params.assetStartAt) : undefined,
+              maxResults: params.assetMaxResults
+                ? Number.parseInt(params.assetMaxResults)
+                : undefined,
+              includeCounts: params.assetIncludeCounts === 'true' ? true : undefined,
+            }
+          case 'get_object_schema':
+            if (!params.assetSchemaId) {
+              throw new Error('Schema ID is required')
+            }
+            return { ...baseParams, schemaId: params.assetSchemaId }
+          case 'list_object_types':
+            if (!params.assetSchemaId) {
+              throw new Error('Schema ID is required')
+            }
+            return {
+              ...baseParams,
+              schemaId: params.assetSchemaId,
+              excludeAbstract: params.assetExcludeAbstract === 'true' ? true : undefined,
+            }
+          case 'get_object_type_attributes':
+            if (!params.assetObjectTypeId) {
+              throw new Error('Object type ID is required')
+            }
+            return {
+              ...baseParams,
+              objectTypeId: params.assetObjectTypeId,
+              onlyValueEditable: params.assetOnlyValueEditable === 'true' ? true : undefined,
+              query: params.assetAttributeQuery || undefined,
+            }
+          case 'search_objects_aql':
+            if (!params.assetQlQuery) {
+              throw new Error('AQL query is required')
+            }
+            return {
+              ...baseParams,
+              qlQuery: params.assetQlQuery,
+              page: params.assetPage ? Number.parseInt(params.assetPage) : undefined,
+              resultsPerPage: params.assetResultsPerPage
+                ? Number.parseInt(params.assetResultsPerPage)
+                : undefined,
+              includeAttributes: params.assetIncludeAttributes === 'false' ? false : undefined,
+              objectTypeId: params.assetObjectTypeId || undefined,
+              objectSchemaId: params.assetObjectSchemaId || undefined,
+            }
+          case 'get_object':
+            if (!params.assetObjectId) {
+              throw new Error('Object ID is required')
+            }
+            return { ...baseParams, objectId: params.assetObjectId }
+          case 'create_object':
+            if (!params.assetObjectTypeId) {
+              throw new Error('Object type ID is required')
+            }
+            return {
+              ...baseParams,
+              objectTypeId: params.assetObjectTypeId,
+              attributes: parseAssetAttributes(params.assetAttributes),
+            }
+          case 'update_object':
+            if (!params.assetObjectId) {
+              throw new Error('Object ID is required')
+            }
+            return {
+              ...baseParams,
+              objectId: params.assetObjectId,
+              attributes: parseAssetAttributes(params.assetAttributes),
+              objectTypeId: params.assetObjectTypeId || undefined,
+            }
+          case 'delete_object':
+            if (!params.assetObjectId) {
+              throw new Error('Object ID is required')
+            }
+            return { ...baseParams, objectId: params.assetObjectId }
           default:
             return baseParams
         }
@@ -1167,6 +1460,21 @@ Return ONLY the comment text - no explanations.`,
     searchQuery: { type: 'string', description: 'Filter request types by name' },
     groupId: { type: 'string', description: 'Filter by request type group ID' },
     expand: { type: 'string', description: 'Comma-separated fields to expand' },
+    assetSchemaId: { type: 'string', description: 'Assets object schema ID' },
+    assetObjectTypeId: { type: 'string', description: 'Assets object type ID' },
+    assetObjectId: { type: 'string', description: 'Assets object ID' },
+    assetQlQuery: { type: 'string', description: 'AQL query string' },
+    assetAttributes: { type: 'string', description: 'JSON array of Assets object attributes' },
+    assetStartAt: { type: 'string', description: 'Schema pagination start index' },
+    assetMaxResults: { type: 'string', description: 'Maximum schemas to return' },
+    assetIncludeCounts: { type: 'string', description: 'Include object/type counts per schema' },
+    assetExcludeAbstract: { type: 'string', description: 'Exclude abstract object types' },
+    assetOnlyValueEditable: { type: 'string', description: 'Return only editable attributes' },
+    assetAttributeQuery: { type: 'string', description: 'Filter attributes by name' },
+    assetPage: { type: 'string', description: 'AQL search page number' },
+    assetResultsPerPage: { type: 'string', description: 'AQL search results per page' },
+    assetIncludeAttributes: { type: 'string', description: 'Include attribute values in results' },
+    assetObjectSchemaId: { type: 'string', description: 'Scope AQL search to a schema ID' },
   },
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
@@ -1250,6 +1558,30 @@ Return ONLY the comment text - no explanations.`,
     errors: { type: 'json', description: 'Array of errors from copy forms operation' },
     sourceIssueIdOrKey: { type: 'string', description: 'Source issue ID or key' },
     targetIssueIdOrKey: { type: 'string', description: 'Target issue ID or key' },
+    schemas: {
+      type: 'json',
+      description: 'Array of Assets object schemas (id, name, objectSchemaKey, status)',
+    },
+    schema: { type: 'json', description: 'Single Assets object schema' },
+    objectTypes: {
+      type: 'json',
+      description: 'Array of Assets object types (id, name, objectSchemaId, objectCount)',
+    },
+    attributes: {
+      type: 'json',
+      description:
+        'Array of object type attribute definitions (id, name, type, minimumCardinality)',
+    },
+    objects: {
+      type: 'json',
+      description: 'Array of Assets objects from an AQL search (id, label, objectKey, attributes)',
+    },
+    object: {
+      type: 'json',
+      description: 'Single Assets object (id, label, objectKey, objectType, attributes)',
+    },
+    objectId: { type: 'string', description: 'Assets object ID (delete operation)' },
+    isLast: { type: 'boolean', description: 'Whether this is the last page of schemas' },
   },
   triggers: {
     enabled: true,
