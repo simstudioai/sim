@@ -1,10 +1,9 @@
 'use client'
 
-import { Suspense, useEffect, useMemo } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useSession } from '@/lib/auth/auth-client'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { captureClientEvent } from '@/lib/posthog/client'
@@ -27,7 +26,7 @@ function SignupFormContent({
   isProduction,
 }: SignupFormProps) {
   const searchParams = useSearchParams()
-  useSession()
+  const invalidCallbackRef = useRef(false)
 
   useEffect(() => {
     captureClientEvent('signup_page_viewed', {})
@@ -35,7 +34,8 @@ function SignupFormContent({
 
   const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
   const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
-  if (rawRedirectUrl && !isValidRedirectUrl) {
+  if (rawRedirectUrl && !isValidRedirectUrl && !invalidCallbackRef.current) {
+    invalidCallbackRef.current = true
     logger.warn('Invalid callback URL detected and blocked:', { url: rawRedirectUrl })
   }
   const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
