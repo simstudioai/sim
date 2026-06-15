@@ -1120,6 +1120,7 @@ export const EnrichmentRun: ToolCatalogEntry = {
     },
     required: ['matched', 'result'],
   },
+  requiredPermission: 'write',
 }
 
 export const Ffmpeg: ToolCatalogEntry = {

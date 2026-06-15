@@ -122,6 +122,8 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [GenerateVideo.id]: ['generate'],
   [GenerateAudio.id]: ['generate'],
   [Ffmpeg.id]: ['*'],
+  // Paid external-provider lookups (hosted-key cost), like the media tools.
+  [enrichmentRunServerTool.name]: ['*'],
 }
 
 function isWritePermission(userPermission: string): boolean {

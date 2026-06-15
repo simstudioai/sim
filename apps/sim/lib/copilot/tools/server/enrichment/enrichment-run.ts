@@ -6,7 +6,7 @@ import { runEnrichment } from '@/enrichments/run'
 
 interface EnrichmentRunParams {
   enrichmentId: string
-  inputs?: Record<string, unknown>
+  inputs: Record<string, unknown>
 }
 
 interface EnrichmentRunResult {
