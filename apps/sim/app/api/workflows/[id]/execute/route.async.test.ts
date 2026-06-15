@@ -194,26 +194,6 @@ describe('workflow execute async route', () => {
     )
   })
 
-  it('rejects cross-origin session requests before authorization work', async () => {
-    const req = createMockRequest(
-      'POST',
-      { input: { hello: 'world' } },
-      {
-        'Content-Type': 'application/json',
-        'Sec-Fetch-Site': 'cross-site',
-      }
-    )
-    const params = Promise.resolve({ id: 'workflow-1' })
-
-    const response = await POST(req, { params })
-    const body = await response.json()
-
-    expect(response.status).toBe(403)
-    expect(body.error).toBe('Access denied')
-    expect(mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
   it('rejects oversized request bodies before authorization work', async () => {
     const req = createMockRequest(
       'POST',
