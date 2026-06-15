@@ -103,9 +103,11 @@ export function getAssetsApiBaseUrl(cloudId: string, workspaceId: string): strin
 /**
  * Resolve the Assets `workspaceId` for a Jira site.
  *
- * Calls the Service Desk discovery endpoint, which returns one workspace per
- * site. Requires the `read:servicedesk-request` scope (already granted by the
- * `jira` provider).
+ * Calls the Service Desk discovery endpoint and uses the first workspace.
+ * Atlassian provisions a single Assets workspace per site, so this is the
+ * canonical workspace; callers on a multi-workspace site can pass an explicit
+ * `workspaceId` to {@link resolveAssetsContext} to override it. Requires the
+ * `read:servicedesk-request` scope (already granted by the `jira` provider).
  * @param cloudId - The Jira Cloud ID
  * @param accessToken - The OAuth access token
  * @returns The Assets workspace ID for the site

@@ -763,6 +763,27 @@ Return ONLY the comment text - no explanations.`,
       mode: 'advanced',
       condition: { field: 'operation', value: 'search_objects_aql' },
     },
+    {
+      id: 'assetWorkspaceId',
+      title: 'Assets Workspace ID',
+      type: 'short-input',
+      placeholder: 'Override the auto-resolved Assets workspace',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: [
+          'list_object_schemas',
+          'get_object_schema',
+          'list_object_types',
+          'get_object_type_attributes',
+          'search_objects_aql',
+          'get_object',
+          'create_object',
+          'update_object',
+          'delete_object',
+        ],
+      },
+    },
     ...getTrigger('jsm_request_created').subBlocks,
     ...getTrigger('jsm_request_updated').subBlocks,
     ...getTrigger('jsm_request_commented').subBlocks,
@@ -912,6 +933,13 @@ Return ONLY the comment text - no explanations.`,
         const baseParams = {
           oauthCredential: params.oauthCredential,
           domain: params.domain,
+        }
+
+        // Assets tools accept an optional workspaceId override; when omitted the
+        // route resolves the site's single Assets workspace automatically.
+        const assetBaseParams = {
+          ...baseParams,
+          workspaceId: params.assetWorkspaceId || undefined,
         }
 
         switch (params.operation) {
@@ -1337,7 +1365,7 @@ Return ONLY the comment text - no explanations.`,
             }
           case 'list_object_schemas':
             return {
-              ...baseParams,
+              ...assetBaseParams,
               startAt: toOptionalInt(params.assetStartAt),
               maxResults: toOptionalInt(params.assetMaxResults),
               includeCounts: params.assetIncludeCounts === 'true' ? true : undefined,
@@ -1346,13 +1374,13 @@ Return ONLY the comment text - no explanations.`,
             if (!params.assetSchemaId) {
               throw new Error('Schema ID is required')
             }
-            return { ...baseParams, schemaId: params.assetSchemaId }
+            return { ...assetBaseParams, schemaId: params.assetSchemaId }
           case 'list_object_types':
             if (!params.assetSchemaId) {
               throw new Error('Schema ID is required')
             }
             return {
-              ...baseParams,
+              ...assetBaseParams,
               schemaId: params.assetSchemaId,
               excludeAbstract: params.assetExcludeAbstract === 'true' ? true : undefined,
             }
@@ -1361,7 +1389,7 @@ Return ONLY the comment text - no explanations.`,
               throw new Error('Object type ID is required')
             }
             return {
-              ...baseParams,
+              ...assetBaseParams,
               objectTypeId: params.assetObjectTypeId,
               onlyValueEditable: params.assetOnlyValueEditable === 'true' ? true : undefined,
               query: params.assetAttributeQuery || undefined,
@@ -1371,7 +1399,7 @@ Return ONLY the comment text - no explanations.`,
               throw new Error('AQL query is required')
             }
             return {
-              ...baseParams,
+              ...assetBaseParams,
               qlQuery: params.assetQlQuery,
               page: toOptionalInt(params.assetPage),
               resultsPerPage: toOptionalInt(params.assetResultsPerPage),
@@ -1383,13 +1411,13 @@ Return ONLY the comment text - no explanations.`,
             if (!params.assetObjectId) {
               throw new Error('Object ID is required')
             }
-            return { ...baseParams, objectId: params.assetObjectId }
+            return { ...assetBaseParams, objectId: params.assetObjectId }
           case 'create_object':
             if (!params.assetObjectTypeId) {
               throw new Error('Object type ID is required')
             }
             return {
-              ...baseParams,
+              ...assetBaseParams,
               objectTypeId: params.assetObjectTypeId,
               attributes: parseAssetAttributes(params.assetAttributes),
             }
@@ -1398,7 +1426,7 @@ Return ONLY the comment text - no explanations.`,
               throw new Error('Object ID is required')
             }
             return {
-              ...baseParams,
+              ...assetBaseParams,
               objectId: params.assetObjectId,
               attributes: parseAssetAttributes(params.assetAttributes),
               objectTypeId: params.assetObjectTypeId || undefined,
@@ -1407,7 +1435,7 @@ Return ONLY the comment text - no explanations.`,
             if (!params.assetObjectId) {
               throw new Error('Object ID is required')
             }
-            return { ...baseParams, objectId: params.assetObjectId }
+            return { ...assetBaseParams, objectId: params.assetObjectId }
           default:
             return baseParams
         }
@@ -1481,6 +1509,10 @@ Return ONLY the comment text - no explanations.`,
     assetResultsPerPage: { type: 'string', description: 'AQL search results per page' },
     assetIncludeAttributes: { type: 'string', description: 'Include attribute values in results' },
     assetObjectSchemaId: { type: 'string', description: 'Scope AQL search to a schema ID' },
+    assetWorkspaceId: {
+      type: 'string',
+      description: 'Override the auto-resolved Assets workspace ID',
+    },
   },
   outputs: {
     ts: { type: 'string', description: 'Timestamp of the operation' },
