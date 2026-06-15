@@ -65,10 +65,12 @@ import {
   isAuthDisabled,
   isBillingEnabled,
   isEmailPasswordEnabled,
+  isEmailSignupDisabled,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
+  isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
@@ -724,6 +726,15 @@ export const auth = betterAuth({
         ],
       },
     }),
+    ...(!isMicrosoftAuthDisabled &&
+      env.MICROSOFT_CLIENT_ID &&
+      env.MICROSOFT_CLIENT_SECRET && {
+        microsoft: {
+          clientId: env.MICROSOFT_CLIENT_ID,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET,
+          scope: ['openid', 'profile', 'email'],
+        },
+      }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,
@@ -873,6 +884,11 @@ export const auth = betterAuth({
             message: 'Email/password authentication is disabled. Please use SSO to sign in.',
           })
       }
+
+      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
+        throw new APIError('FORBIDDEN', {
+          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
+        })
 
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
