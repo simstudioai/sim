@@ -44,6 +44,10 @@ vi.mock('@/providers/anthropic/core', () => ({
   executeAnthropicProviderRequest: mockExecuteAnthropic,
 }))
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn(() => []),
   getProviderDefaultModel: vi.fn(() => 'azure-anthropic/claude'),
 }))

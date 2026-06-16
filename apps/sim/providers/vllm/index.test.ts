@@ -51,6 +51,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn(() => []),
   getProviderDefaultModel: vi.fn(() => 'vllm/generic'),
 }))
