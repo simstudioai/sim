@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
-import { getCachedAnthropicClient } from '@/providers/anthropic/client-cache'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -23,8 +23,8 @@ export const anthropicProvider: ProviderConfig = {
       providerId: 'anthropic',
       providerLabel: 'Anthropic',
       createClient: (apiKey, useNativeStructuredOutputs) => {
-        const cacheKey = `${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}`
-        return getCachedAnthropicClient(
+        const cacheKey = `anthropic::${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}`
+        return getCachedProviderClient(
           cacheKey,
           () =>
             new Anthropic({

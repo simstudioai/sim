@@ -3,8 +3,8 @@ import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
 import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
-import { getCachedAnthropicClient } from '@/providers/anthropic/client-cache'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -73,13 +73,14 @@ export const azureAnthropicProvider: ProviderConfig = {
         providerLabel: 'Azure Anthropic',
         createClient: (apiKey, useNativeStructuredOutputs) => {
           const cacheKey = [
+            'azure-anthropic',
             apiKey,
             baseURL,
             anthropicVersion,
             pinnedIP ?? 'no-pin',
             useNativeStructuredOutputs ? 'beta' : 'default',
           ].join('::')
-          return getCachedAnthropicClient(
+          return getCachedProviderClient(
             cacheKey,
             () =>
               new Anthropic({

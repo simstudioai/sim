@@ -24,6 +24,7 @@ import {
   generateToolUseId,
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
@@ -138,7 +139,14 @@ export const bedrockProvider: ProviderConfig = {
       }
     }
 
-    const client = new BedrockRuntimeClient(clientConfig)
+    // Memoized: each BedrockRuntimeClient owns its own connection pool (AWS SDK
+    // best practice is to reuse the client), so reusing it keeps connections warm
+    // across requests. Keyed by region + credential identity (a rotated key pair
+    // changes the access key id and so yields a fresh client).
+    const client = getCachedProviderClient(
+      `bedrock::${region}::${request.bedrockAccessKeyId ?? 'default-chain'}`,
+      () => new BedrockRuntimeClient(clientConfig)
+    )
 
     const messages: BedrockMessage[] = []
     const systemContent: SystemContentBlock[] = []
