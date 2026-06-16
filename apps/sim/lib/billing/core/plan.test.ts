@@ -127,7 +127,6 @@ describe('getHighestPrioritySubscription', () => {
 
     const result = await getHighestPrioritySubscription('user-1')
 
-    // Enterprise (org) always wins over Pro (personal).
     expect(result?.id).toBe('sub-org-enterprise')
   })
 
@@ -147,7 +146,7 @@ describe('getHighestPrioritySubscription', () => {
 
   it('returns the personal sub and skips org follow-ups when there are no memberships', async () => {
     queue('subscription', [personalPro('user-1')])
-    queue('member', []) // no org memberships
+    queue('member', [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -159,8 +158,8 @@ describe('getHighestPrioritySubscription', () => {
   })
 
   it('returns null when neither personal nor org subscriptions exist', async () => {
-    queue('subscription', []) // no personal subs
-    queue('member', []) // no memberships
+    queue('subscription', [])
+    queue('member', [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -168,9 +167,9 @@ describe('getHighestPrioritySubscription', () => {
   })
 
   it('excludes orphaned org memberships whose organization row no longer exists', async () => {
-    queue('subscription', []) // no personal subs
+    queue('subscription', [])
     queue('member', [{ organizationId: 'ghost-org' }]) // membership points at a deleted org
-    queue('organization', []) // org-existence returns nothing -> orphaned
+    queue('organization', [])
 
     const result = await getHighestPrioritySubscription('user-1')
 
@@ -184,7 +183,7 @@ describe('getHighestPrioritySubscription', () => {
   it('falls back to the personal sub when the only org is orphaned', async () => {
     queue('subscription', [personalPro('user-1')])
     queue('member', [{ organizationId: 'ghost-org' }])
-    queue('organization', []) // orphaned org
+    queue('organization', [])
 
     const result = await getHighestPrioritySubscription('user-1')
 

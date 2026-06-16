@@ -37,10 +37,8 @@ function nextRotationIndex(poolKey: string, poolSize: number): number {
  * creation order. A key that fails to decrypt is skipped in favor of the next
  * one in the pool.
  *
- * The key list is read fresh from the database on every call rather than
- * cached: BYOK lookups are not a hot database query, and reading fresh keeps
- * key revocation/rotation effective immediately across every ECS task with no
- * cross-instance cache-coherence concern.
+ * The key list is read fresh every call (not cached): BYOK is not a hot query,
+ * and reading fresh keeps revocation immediate across ECS tasks.
  */
 export async function getBYOKKey(
   workspaceId: string | undefined | null,

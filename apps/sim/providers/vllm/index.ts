@@ -135,9 +135,8 @@ export const vllmProvider: ProviderConfig = {
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
-    // Memoized: a pinned endpoint gets its own undici Agent per call, so reusing
-    // the client (keyed by the resolved IP) keeps its connections warm. DNS
-    // re-validation still runs every request; a new IP yields a new key/client.
+    // A pinned endpoint gets its own undici Agent, so reuse keeps connections
+    // warm. DNS re-validation still runs every request; a new IP rekeys.
     const vllm = getCachedProviderClient(
       `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
       () =>

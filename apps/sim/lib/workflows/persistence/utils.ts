@@ -100,39 +100,21 @@ export async function blockExistsInDeployment(
   }
 }
 
-/**
- * Each entry is keyed by an immutable `deploymentVersionId` and holds a
- * fully-migrated {@link DeployedWorkflowData} snapshot (tens of KB to ~1MB);
- * the bound keeps worst-case memory within a sane envelope.
- */
 const DEPLOYED_STATE_CACHE_MAX_ENTRIES = 500
 const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
 
 /**
- * Process-local cache of fully-loaded, post-migration deployed workflow state,
- * keyed by the immutable `deploymentVersionId`.
- *
- * The id is unique per deploy — a redeploy mints a new id and a rollback
- * reactivates an existing id — so the active-version lookup naturally selects a
- * different (or already-cached) key whenever the active deployment changes,
- * making the cache self-invalidating across redeploy/rollback.
- *
- * The TTL is absolute (not reset on read) on purpose: it bounds the one piece
- * of the cached state that is not strictly immutable — `applyBlockMigrations`
- * resolves legacy credential references via a live lookup — so a credential
- * change propagates across ECS tasks even for a continuously-running workflow.
+ * Caches post-migration deployed state by the immutable `deploymentVersionId`, so
+ * a redeploy/rollback (which changes the active id) self-invalidates. The TTL is
+ * absolute on purpose — it bounds the one non-immutable part, the live credential
+ * remap in `applyBlockMigrations` — so credential changes still propagate.
  */
 const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
   max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
   ttl: DEPLOYED_STATE_CACHE_TTL_MS,
 })
 
-/**
- * Drop cached deployed state. Pass a `deploymentVersionId` to evict a single
- * entry, or omit it to clear the entire cache. Explicit invalidation is not
- * required for correctness — redeploy/rollback change the active id and key the
- * cache anew — but the helper is exported for completeness and testing.
- */
+/** Evicts one deployed-state entry, or clears the cache when no id is given. */
 export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
   if (deploymentVersionId) {
     deployedStateCache.delete(deploymentVersionId)

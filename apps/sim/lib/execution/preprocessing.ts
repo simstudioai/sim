@@ -323,11 +323,9 @@ export async function preprocessExecution(
   }
 
   // ========== STEPS 3.5–6: Preflight Gates ==========
-  // The read-only gates run concurrently to cut latency: ban + subscription
-  // together, then usage (which needs the subscription). The rate-limit gate is
-  // stateful — it debits a token — so it runs sequentially only after ban and
-  // usage pass. Failures apply in fixed precedence (ban 403 → usage 402 → rate
-  // 429), and the sole write (the STEP 7 reservation) stays last.
+  // Read-only gates run concurrently (ban + subscription, then usage). The
+  // rate-limit gate debits a token, so it runs sequentially only after ban and
+  // usage pass. Failures apply in fixed precedence: ban 403 → usage 402 → rate 429.
 
   /**
    * A failing gate's deferred outcome: the response to return, plus an optional
