@@ -26,9 +26,10 @@ interface UseAutoScrollOptions {
  * Manages sticky auto-scroll for a streaming chat container.
  *
  * Stays pinned to the bottom while content streams in. Detaches immediately
- * on any upward user gesture (wheel, touch, scrollbar drag). Once detached,
- * the user must scroll back to within {@link REATTACH_THRESHOLD} of the
- * bottom to re-engage.
+ * on any upward user gesture (wheel, touch, scrollbar drag, keyboard). Once
+ * detached, the user must scroll back to within {@link REATTACH_THRESHOLD} of
+ * the bottom to re-engage. Each streaming start re-seeds stickiness from the
+ * current scroll position, so a user who scrolled up beforehand stays put.
  *
  * Returns `ref` (callback ref for the scroll container) and `scrollToBottom`
  * for imperative use after layout-changing events like panel expansion.
@@ -45,7 +46,17 @@ export function useAutoScroll(
   const touchStartYRef = useRef(0)
   const rafIdRef = useRef(0)
   const scrollOnMountRef = useRef(scrollOnMount)
+  /**
+   * Whether the user is actively dragging the scrollbar — a pointer press on the
+   * container itself rather than its content. Reset on teardown so a pointer held
+   * as one stream ends can't leak into the next session and authorize a detach.
+   */
   const pointerDownRef = useRef(false)
+  /**
+   * Timestamp of the last keyboard scroll, the only detach gesture that emits no
+   * wheel/touch/pointer signal. Gates {@link USER_GESTURE_WINDOW}; reset on teardown
+   * so a keypress near a stream's end can't carry into the next session.
+   */
   const lastUserGestureAtRef = useRef(Number.NEGATIVE_INFINITY)
 
   const scrollToBottom = useCallback(() => {
@@ -64,7 +75,6 @@ export function useAutoScroll(
     const el = containerRef.current
     if (!el) return
 
-    // Don't jump if the user scrolled up — keep their position.
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     const isNearBottom = distanceFromBottom <= STICK_THRESHOLD
     stickyRef.current = isNearBottom
@@ -90,8 +100,13 @@ export function useAutoScroll(
       if (e.touches[0].clientY > touchStartYRef.current) detach()
     }
 
-    const onPointerDown = () => {
-      pointerDownRef.current = true
+    /**
+     * A scrollbar press targets the scroll container itself; a press on message
+     * content targets a descendant. Only the former is a scroll gesture, so a
+     * text-selection drag on content can't authorize a detach.
+     */
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.target === el) pointerDownRef.current = true
     }
     const onPointerUp = () => {
       pointerDownRef.current = false
@@ -100,15 +115,17 @@ export function useAutoScroll(
       lastUserGestureAtRef.current = performance.now()
     }
 
+    /**
+     * Re-engages when the user returns near the bottom, and detaches on an upward
+     * scroll — but only a genuine user scroll qualifies: an active scrollbar drag
+     * (pointer held) or a recent keyboard scroll. A programmatic upward scroll, e.g.
+     * a virtualizer re-pinning content on a row-size shrink, has neither and must not
+     * be mistaken for the user scrolling away.
+     */
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const threshold = userDetachedRef.current ? REATTACH_THRESHOLD : STICK_THRESHOLD
-
-      // Only a genuine user scroll may detach via a scroll-position delta: an active
-      // scrollbar drag (pointer held) or a recent keyboard scroll. A programmatic
-      // upward scroll — e.g. a virtualizer re-pinning content on a row-size shrink —
-      // has neither and must not be mistaken for the user scrolling away.
       const userDriven =
         pointerDownRef.current ||
         performance.now() - lastUserGestureAtRef.current < USER_GESTURE_WINDOW
@@ -139,11 +156,12 @@ export function useAutoScroll(
       rafIdRef.current = requestAnimationFrame(guardedScroll)
     }
 
-    // CSS-driven height animations (e.g. Radix Collapsible expanding
-    // mid-stream) grow scrollHeight without triggering MutationObserver,
-    // so auto-scroll stops following. When any animation starts in the
-    // container, follow rAF for a short window so the container stays
-    // pinned to the bottom while the animation runs.
+    /**
+     * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
+     * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
+     * following. When any animation starts in the container, follow rAF for a short
+     * window so the container stays pinned to the bottom while the animation runs.
+     */
     const onAnimationStart = () => {
       if (!stickyRef.current) return
       const until = performance.now() + 500
@@ -180,10 +198,8 @@ export function useAutoScroll(
       window.removeEventListener('pointercancel', onPointerUp)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
-      // A pointer held through teardown (e.g. dragging the scrollbar as the stream
-      // finishes) would never see its window `pointerup`, leaving the ref stuck true
-      // into the next session and detaching on the first programmatic re-pin.
       pointerDownRef.current = false
+      lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
       if (stickyRef.current) scrollToBottom()
     }
   }, [isStreaming, scrollToBottom])
