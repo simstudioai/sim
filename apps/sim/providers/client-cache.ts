@@ -29,3 +29,8 @@ export function getCachedProviderClient<T extends object>(key: string, factory: 
   clientCache.set(key, client)
   return client
 }
+
+/** Clears the cache so tests asserting client construction start from a miss. */
+export function clearProviderClientCacheForTests(): void {
+  clientCache.clear()
+}
