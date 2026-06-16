@@ -63,7 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       getHeaders['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const getUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`
+    const getUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`
     const getValidation = await validateUrlWithDNS(getUrl, 'baseUrl')
     if (!getValidation.isValid || !getValidation.resolvedIP) {
       return NextResponse.json({
@@ -191,7 +191,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers['X-Disable-Provenance'] = 'true'
     }
 
-    const updateUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`
+    const updateUrl = `${baseUrl}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`
     const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
     if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return NextResponse.json({

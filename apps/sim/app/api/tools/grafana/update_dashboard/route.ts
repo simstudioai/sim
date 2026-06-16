@@ -62,7 +62,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       getHeaders['X-Grafana-Org-Id'] = params.organizationId
     }
 
-    const getUrl = `${baseUrl}/api/dashboards/uid/${params.dashboardUid}`
+    const getUrl = `${baseUrl}/api/dashboards/uid/${params.dashboardUid.trim()}`
     const getValidation = await validateUrlWithDNS(getUrl, 'baseUrl')
     if (!getValidation.isValid || !getValidation.resolvedIP) {
       return NextResponse.json({
