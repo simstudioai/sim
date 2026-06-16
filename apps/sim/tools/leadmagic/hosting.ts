@@ -10,13 +10,13 @@ export const LEADMAGIC_API_KEY_PREFIX = 'LEADMAGIC_API_KEY'
  * Dollar cost of a single LeadMagic credit.
  *
  * LeadMagic charges only when data is found (not_found results are free).
- * Per-credit rate varies by plan: Basic ≈ $0.0204, Essential ≈ $0.0165,
- * Growth ≈ $0.0104 ("from $0.007" at enterprise scale).
- * We use the Growth-tier rate as a conservative representative estimate.
+ * Based on the entry Basic plan ($49/month, 2,000 credits ≈ $0.0245/credit);
+ * per-credit drops at higher tiers (Essential/Growth). Email finder: 1 credit.
+ * Mobile finder: 5 credits. Company search: 1 credit.
  *
  * Source: https://leadmagic.io/pricing
  */
-export const LEADMAGIC_CREDIT_USD = 0.0104
+export const LEADMAGIC_CREDIT_USD = 0.0245
 
 /**
  * Build a LeadMagic `hosting` config. `getCredits` returns the number of

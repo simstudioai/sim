@@ -14,12 +14,13 @@ export const DATAGMA_API_KEY_PREFIX = 'DATAGMA_API_KEY'
 /**
  * Dollar cost of a single Datagma credit.
  *
- * Based on the Datagma Popular plan ($99/month, 7,500 credits ≈ $0.0132/credit).
+ * Based on the entry Regular plan ($49/month, 3,000 emails ≈ $0.0163/credit);
+ * per-credit drops at higher tiers (Popular/Expert) and on annual billing.
  * Email finder: 1 credit per verified email. Phone finder: 30 credits per mobile.
  * Enrichment: 2 credits per successful response.
  * Pricing source: https://datagma.com/pricing
  */
-export const DATAGMA_CREDIT_USD = 0.0132
+export const DATAGMA_CREDIT_USD = 0.0163
 
 /**
  * Build a Datagma `hosting` config. `getCredits` returns the number of Datagma
