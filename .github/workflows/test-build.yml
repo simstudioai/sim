@@ -118,6 +118,16 @@ jobs:
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
 
+      - name: Migration safety (zero-downtime) audit
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          else
+            BASE_REF="HEAD~1"
+          fi
+          bun run check:migrations "$BASE_REF"
+
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime
 
