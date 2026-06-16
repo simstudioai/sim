@@ -2,7 +2,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 import { zoomConnectorMeta } from '@/connectors/zoom/meta'
 
 const logger = createLogger('ZoomConnector')
@@ -208,6 +215,7 @@ function recordingToStub(
       duration: recording.duration,
       meetingDate: recording.start_time,
       topic: recording.topic,
+      fileSize: transcriptFile.file_size,
     },
   }
 }
@@ -309,7 +317,13 @@ export const zoomConnector: ConnectorConfig = {
       if (!meeting.uuid) continue
       const transcript = findTranscriptFile(meeting.recording_files)
       if (!transcript) continue
-      allDocuments.push(recordingToStub(meeting, transcript))
+      allDocuments.push(
+        stubOrSkipBySize(
+          recordingToStub(meeting, transcript),
+          transcript.file_size,
+          CONNECTOR_MAX_FILE_BYTES
+        )
+      )
     }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
@@ -386,7 +400,15 @@ export const zoomConnector: ConnectorConfig = {
         return null
       }
 
-      const vttText = await vttResponse.text()
+      const vttBuffer = await readBodyWithLimit(vttResponse, CONNECTOR_MAX_FILE_BYTES)
+      if (!vttBuffer) {
+        return markSkipped(
+          recordingToStub(recording, transcript),
+          sizeLimitSkipReason(CONNECTOR_MAX_FILE_BYTES)
+        )
+      }
+
+      const vttText = vttBuffer.toString('utf8')
       const transcriptText = parseVtt(vttText).trim()
       if (!transcriptText) return null
 
