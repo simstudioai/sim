@@ -1,21 +1,22 @@
 /**
  * @vitest-environment node
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { shouldCacheStaticPrefix } from '@/providers/prompt-cache'
 
 const LARGE = 'x'.repeat(8_000) // ~2,000 est. tokens, above the 1,024 gate
 const SMALL = 'x'.repeat(400) // ~100 est. tokens, below the gate
 
 describe('shouldCacheStaticPrefix', () => {
-  const original = process.env.PROMPT_CACHE_DISABLED
-
+  // vi.stubEnv cleanly sets/restores the kill switch without `delete` (which
+  // biome rewrites) or assigning `undefined` (which coerces to the string
+  // "undefined" and leaks to other tests in the worker).
   beforeEach(() => {
-    process.env.PROMPT_CACHE_DISABLED = undefined
+    vi.stubEnv('PROMPT_CACHE_DISABLED', '')
   })
 
   afterEach(() => {
-    process.env.PROMPT_CACHE_DISABLED = original
+    vi.unstubAllEnvs()
   })
 
   it('caches a large system prompt that has tools (agent loop)', () => {
@@ -52,7 +53,7 @@ describe('shouldCacheStaticPrefix', () => {
   })
 
   it('is disabled by the PROMPT_CACHE_DISABLED kill switch', () => {
-    process.env.PROMPT_CACHE_DISABLED = 'true'
+    vi.stubEnv('PROMPT_CACHE_DISABLED', 'true')
     expect(shouldCacheStaticPrefix({ systemPrompt: LARGE, hasTools: true })).toBe(false)
   })
 })

@@ -329,8 +329,12 @@ export async function executeAnthropicProviderRequest(
   // cache breakpoint so repeated calls (agent tool-loops, multi-turn) reuse it.
   // Must run after the structured-output block above, which assumes `system` is
   // still a string. Tools are tagged at their assignment below.
+  // Gate on the original request system prompt, not payload.system: when there
+  // are no context/chat messages the system text is relocated into a user
+  // message and payload.system is blanked (see above), but the prefix is still
+  // worth caching (the tools, at least).
   const cacheStaticPrefix = shouldCacheStaticPrefix({
-    systemPrompt: typeof payload.system === 'string' ? payload.system : '',
+    systemPrompt: request.systemPrompt,
     hasTools: !!anthropicTools?.length,
     toolsApproxChars: anthropicTools ? JSON.stringify(anthropicTools).length : 0,
   })
