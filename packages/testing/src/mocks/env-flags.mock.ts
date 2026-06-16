@@ -1,15 +1,15 @@
 import { vi } from 'vitest'
 
 /**
- * Static mock module for `@/lib/core/config/feature-flags`.
+ * Static mock module for `@/lib/core/config/env-flags`.
  * All boolean flags default to `false` for safe test isolation.
  *
  * @example
  * ```ts
- * vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+ * vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
  * ```
  */
-export const featureFlagsMock = {
+export const envFlagsMock = {
   isProd: false,
   isDev: false,
   isTest: true,

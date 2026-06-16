@@ -52,13 +52,13 @@ export {
 export { encryptionMock, encryptionMockFns } from './encryption.mock'
 // Env mocks
 export { createEnvMock, createMockGetEnv, defaultMockEnv, envMock } from './env.mock'
+// Env flag mocks
+export { envFlagsMock } from './env-flags.mock'
 // Execution preprocessing mocks (for @/lib/execution/preprocessing)
 export {
   executionPreprocessingMock,
   executionPreprocessingMockFns,
 } from './execution-preprocessing.mock'
-// Feature flag mocks
-export { featureFlagsMock } from './feature-flags.mock'
 // Executor mocks - use side-effect import: import '@sim/testing/mocks/executor'
 // Fetch mocks
 export {

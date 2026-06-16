@@ -9,7 +9,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, gte, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
-import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
+import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'

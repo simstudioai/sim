@@ -18,7 +18,7 @@ vi.mock('@sim/db', () => dbChainMock)
 
 // These suites assert flag-off position-shift semantics; pin the flag so they're
 // deterministic regardless of a local TABLES_FRACTIONAL_ORDERING env value.
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isTablesFractionalOrderingEnabled: false,
 }))
 

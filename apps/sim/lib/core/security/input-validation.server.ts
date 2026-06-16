@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
 import { Agent, type RequestInit as UndiciRequestInit, fetch as undiciFetch } from 'undici'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { type ValidationResult, validateExternalUrl } from '@/lib/core/security/input-validation'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 

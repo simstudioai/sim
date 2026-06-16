@@ -15,7 +15,7 @@ import type { TableDefinition } from '@/lib/table/types'
 
 vi.mock('@sim/db', () => dbChainMock)
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isTablesFractionalOrderingEnabled: false,
 }))
 

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { isEmailSignupDisabled, isRegistrationDisabled } from '@/lib/core/config/feature-flags'
+import { isEmailSignupDisabled, isRegistrationDisabled } from '@/lib/core/config/env-flags'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import SignupForm from '@/app/(auth)/signup/signup-form'
 

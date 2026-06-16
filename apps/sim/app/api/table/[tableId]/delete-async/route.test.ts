@@ -33,7 +33,7 @@ vi.mock('@/lib/table/jobs/service', () => ({
   releaseJobClaim: mockReleaseJobClaim,
 }))
 vi.mock('@/lib/table/delete-runner', () => ({ runTableDelete: mockRunTableDelete }))
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isTriggerDevEnabled() {
     return flags.triggerDev
   },

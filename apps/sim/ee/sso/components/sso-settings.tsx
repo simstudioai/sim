@@ -19,7 +19,7 @@ import {
 import type { SsoRegistrationBody } from '@/lib/api/contracts/auth'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getUserRole } from '@/lib/workspaces/organization/utils'

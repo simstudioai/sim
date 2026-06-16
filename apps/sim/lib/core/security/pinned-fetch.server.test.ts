@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { featureFlagsMock } from '@sim/testing'
+import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoisted(() => {
@@ -25,7 +25,7 @@ const { mockAgent, mockUndiciFetch, capturedAgentOptions, agentCloses } = vi.hoi
 })
 
 vi.mock('undici', () => ({ Agent: mockAgent, fetch: mockUndiciFetch }))
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import { createPinnedFetch } from '@/lib/core/security/input-validation.server'
 

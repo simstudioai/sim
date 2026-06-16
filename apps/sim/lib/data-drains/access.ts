@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
-import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 
 interface DrainAccessSession {
   user: {

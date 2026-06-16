@@ -14,7 +14,7 @@ import {
   getOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('OrgMemberUsageLimitAPI')

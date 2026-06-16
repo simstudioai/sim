@@ -40,7 +40,7 @@ const {
   mockGetOrCreateOauthRow: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({ isTest: false }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isTest: false }))
 vi.mock('@/lib/mcp/pubsub', () => ({
   mcpPubSub: {
     onToolsChanged: mockOnToolsChanged,
