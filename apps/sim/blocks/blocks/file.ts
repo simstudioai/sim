@@ -1107,19 +1107,26 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
 
           const fileIds = parseReadFileIds(decompressInput)
           if (fileIds) {
+            const ids = Array.isArray(fileIds) ? fileIds : [fileIds]
+            if (ids.length > 1) {
+              throw new Error('Decompress accepts a single .zip archive at a time')
+            }
             return {
-              fileId: Array.isArray(fileIds) ? fileIds[0] : fileIds,
+              fileId: ids[0],
               workspaceId: params._context?.workspaceId,
             }
           }
 
-          const normalized = normalizeFileInput(decompressInput, { single: true })
-          if (!normalized) {
+          const normalized = normalizeFileInput(decompressInput)
+          if (!normalized || normalized.length === 0) {
             throw new Error('File is required for decompress')
+          }
+          if (normalized.length > 1) {
+            throw new Error('Decompress accepts a single .zip archive at a time')
           }
 
           return {
-            fileInput: normalized,
+            fileInput: normalized[0],
             workspaceId: params._context?.workspaceId,
           }
         }

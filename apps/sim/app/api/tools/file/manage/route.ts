@@ -746,10 +746,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 413 }
           )
 
+        // Resolve which entries are safe to extract first, so unsafe entries
+        // (skipped below) never count toward the size caps.
+        const safeEntries: Array<{ entry: JSZip.JSZipObject; segments: string[] }> = []
+        let skippedCount = 0
+        for (const entry of entries) {
+          const segments = sanitizeArchiveEntryPath(entry.name)
+          if (!segments) {
+            skippedCount += 1
+            logger.warn('Skipping unsafe archive entry', { name: entry.name })
+            continue
+          }
+          safeEntries.push({ entry, segments })
+        }
+
         // Reject standard zip bombs up front using the declared uncompressed sizes,
         // before materializing any entry into memory.
         let declaredTotal = 0
-        for (const entry of entries) {
+        for (const { entry } of safeEntries) {
           const declaredSize = readEntryUncompressedSize(entry)
           if (declaredSize === undefined) continue
           if (declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
@@ -760,16 +774,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         // Read and validate every safe entry before writing anything, so a cap
         // breach never leaves partially-extracted files behind in the workspace.
         const pending: Array<{ segments: string[]; buffer: Buffer }> = []
-        let skippedCount = 0
         let totalBytes = 0
-        for (const entry of entries) {
-          const segments = sanitizeArchiveEntryPath(entry.name)
-          if (!segments) {
-            skippedCount += 1
-            logger.warn('Skipping unsafe archive entry', { name: entry.name })
-            continue
-          }
-
+        for (const { entry, segments } of safeEntries) {
           const buffer = await entry.async('nodebuffer')
           // Enforce the per-entry cap on the materialized size too, covering
           // entries that omit a declared uncompressed size.
