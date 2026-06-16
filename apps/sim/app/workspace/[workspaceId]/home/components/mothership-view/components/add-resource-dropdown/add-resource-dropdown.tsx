@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { truncate } from '@sim/utils/string'
 import {
   Button,
   DropdownMenu,
@@ -30,6 +31,7 @@ import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useLogsList } from '@/hooks/queries/logs'
 import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
 import { useTablesList } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
@@ -77,6 +79,7 @@ export function useAvailableResources(
   const { data: folders = [] } = useFolders(workspaceId)
   const { data: fileFolders = [] } = useWorkspaceFileFolders(workspaceId)
   const { data: tasks = [] } = useMothershipChats(workspaceId)
+  const { data: schedules = [] } = useWorkspaceSchedules(workspaceId)
   const { data: logsData } = useLogsList(workspaceId, LOG_DROPDOWN_FILTERS)
   const logs = useMemo(() => (logsData?.pages ?? []).flatMap((page) => page.logs), [logsData])
 
@@ -156,6 +159,16 @@ export function useAvailableResources(
         })),
       },
       {
+        type: 'scheduledtask' as const,
+        items: schedules
+          .filter((s) => s.sourceType === 'job')
+          .map((s) => ({
+            id: s.id,
+            name: s.jobTitle || truncate(s.prompt ?? '', 40) || 'Scheduled Task',
+            isOpen: existingKeys.has(`scheduledtask:${s.id}`),
+          })),
+      },
+      {
         type: 'log' as const,
         items: logs.map((log) => {
           const workflowName = log.workflow?.name ?? log.workflowId ?? 'Unknown'
@@ -179,6 +192,7 @@ export function useAvailableResources(
     files,
     knowledgeBases,
     tasks,
+    schedules,
     logs,
     existingKeys,
     excludeTypes,
