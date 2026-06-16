@@ -137,7 +137,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
 
   request: {
     url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`,
+      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`,
     method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
@@ -266,7 +266,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
       headers['X-Disable-Provenance'] = 'true'
     }
 
-    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid}`
+    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`
     const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
     if (!urlValidation.isValid || !urlValidation.resolvedIP) {
       return {
