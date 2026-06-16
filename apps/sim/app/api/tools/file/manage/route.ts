@@ -2,6 +2,7 @@ import { Buffer, isUtf8 } from 'buffer'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
@@ -132,6 +133,44 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
 const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 /** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
+
+/** Per-file download cap for the compress operation. */
+const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024
+/** Combined input cap for the compress operation to bound in-memory archiving. */
+const MAX_COMPRESS_TOTAL_BYTES = 100 * 1024 * 1024
+
+/** Ensure an archive name ends with a single `.zip` extension. */
+const ensureZipExtension = (name: string): string =>
+  name.toLowerCase().endsWith('.zip') ? name : `${name}.zip`
+
+/** Strip the trailing extension from a file name (e.g., "report.pdf" -> "report"). */
+const stripExtension = (name: string): string => {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+/**
+ * Return a zip entry name unique within `usedNames`, appending a numeric suffix
+ * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
+ */
+const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
+  if (!usedNames.has(name)) {
+    usedNames.add(name)
+    return name
+  }
+
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  let counter = 1
+  let candidate = `${base} (${counter})${ext}`
+  while (usedNames.has(candidate)) {
+    counter += 1
+    candidate = `${base} (${counter})${ext}`
+  }
+  usedNames.add(candidate)
+  return candidate
+}
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
@@ -461,6 +500,115 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         } finally {
           await releaseLock(lockKey, lockValue)
         }
+      }
+
+      case 'compress': {
+        const { fileId, fileInput, archiveName } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = Array.isArray(fileId)
+          ? fileId.map((id) => id.trim()).filter(Boolean)
+          : fileId
+            ? normalizeFileIdList(fileId)
+            : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const userFiles: UserFile[] = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)
+
+        if (userFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const zip = new JSZip()
+        const usedNames = new Set<string>()
+        let totalBytes = 0
+        for (const userFile of userFiles) {
+          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+          if (denied) return denied
+
+          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+            maxBytes: MAX_COMPRESS_FILE_BYTES,
+          })
+          totalBytes += buffer.length
+          if (totalBytes > MAX_COMPRESS_TOTAL_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Combined input is too large to compress. Maximum is ${
+                  MAX_COMPRESS_TOTAL_BYTES / (1024 * 1024)
+                } MB.`,
+              },
+              { status: 413 }
+            )
+          }
+          zip.file(uniqueZipEntryName(userFile.name, usedNames), buffer)
+        }
+
+        const zipBuffer = await zip.generateAsync({
+          type: 'nodebuffer',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        })
+
+        const requestedName = typeof archiveName === 'string' ? archiveName.trim() : ''
+        const targetName = ensureZipExtension(
+          requestedName || (userFiles.length === 1 ? stripExtension(userFiles[0].name) : 'archive')
+        )
+        const { folderSegments, leafName } = splitWorkspaceFilePath(targetName)
+        const folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: folderSegments,
+        })
+        const result = await uploadWorkspaceFile(
+          workspaceId,
+          userId,
+          zipBuffer,
+          leafName,
+          'application/zip',
+          { folderId }
+        )
+
+        const compressedFile: UserFile = {
+          ...result,
+          url: ensureAbsoluteUrl(result.url),
+          size: zipBuffer.length,
+        }
+
+        logger.info('Files compressed', {
+          fileId: result.id,
+          name: result.name,
+          fileCount: userFiles.length,
+          size: zipBuffer.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: compressedFile.id,
+            name: compressedFile.name,
+            size: compressedFile.size,
+            url: compressedFile.url,
+            file: compressedFile,
+            files: [compressedFile],
+          },
+        })
       }
     }
   } catch (error) {

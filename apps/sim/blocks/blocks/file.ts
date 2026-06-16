@@ -822,9 +822,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
   type: 'file_v5',
   name: 'File',
-  description: 'Read, get content, fetch, write, and append files',
+  description: 'Read, get content, fetch, write, append, and compress files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.',
+    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, or compress files into a .zip archive.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -833,6 +833,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one.
+  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "file"/"files" outputs, which is handy for getting large attachments under provider upload limits.
   `,
   subBlocks: [
     {
@@ -845,6 +846,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Fetch', id: 'file_fetch' },
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
+        { label: 'Compress', id: 'file_compress' },
       ],
       value: () => 'file_read',
     },
@@ -962,9 +964,45 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       condition: { field: 'operation', value: 'file_append' },
       required: { field: 'operation', value: 'file_append' },
     },
+    {
+      id: 'compressFile',
+      title: 'Files',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'compressInput',
+      acceptedTypes: '*',
+      placeholder: 'Select workspace files',
+      multiple: true,
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_compress' },
+      required: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'compressFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'compressInput',
+      placeholder: 'Workspace file ID or JSON array of IDs',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_compress' },
+      required: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'archiveName',
+      title: 'Archive Name',
+      type: 'short-input' as SubBlockType,
+      placeholder: 'archive.zip (auto-named from source if omitted)',
+      condition: { field: 'operation', value: 'file_compress' },
+    },
   ],
   tools: {
-    access: ['file_read', 'file_get_content', 'file_fetch', 'file_write', 'file_append'],
+    access: [
+      'file_read',
+      'file_get_content',
+      'file_fetch',
+      'file_write',
+      'file_append',
+      'file_compress',
+    ],
     config: {
       tool: (params) => params.operation || 'file_read',
       params: (params) => {
@@ -1001,6 +1039,38 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           return {
             fileName,
             content: params.appendContent,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_compress') {
+          const compressInput = params.compressInput
+          if (!compressInput) {
+            throw new Error('File is required for compress')
+          }
+
+          const archiveName =
+            typeof params.archiveName === 'string' && params.archiveName.trim()
+              ? params.archiveName.trim()
+              : undefined
+
+          const fileIds = parseReadFileIds(compressInput)
+          if (fileIds) {
+            return {
+              fileId: fileIds,
+              archiveName,
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          const normalized = normalizeFileInput(compressInput)
+          if (!normalized || normalized.length === 0) {
+            throw new Error('File is required for compress')
+          }
+
+          return {
+            fileInput: normalized,
+            archiveName,
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -1089,11 +1159,21 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     contentType: { type: 'string', description: 'MIME content type for write' },
     appendFileInput: { type: 'json', description: 'File to append to' },
     appendContent: { type: 'string', description: 'Content to append to file' },
+    compressInput: {
+      type: 'json',
+      description: 'Selected workspace files or canonical file IDs to compress',
+    },
+    archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
   },
   outputs: {
     files: {
       type: 'file[]',
-      description: 'Workspace file objects (read) or fetched file objects (fetch)',
+      description:
+        'Workspace file objects (read), fetched file objects (fetch), or the compressed archive (compress)',
+    },
+    file: {
+      type: 'file',
+      description: 'Compressed archive file object (compress)',
     },
     contents: {
       type: 'array',
