@@ -1,7 +1,7 @@
 import { DiscordIcon } from '@/components/icons'
 import type { ConnectorMeta } from '@/connectors/types'
 
-const DEFAULT_MAX_MESSAGES = 1000
+export const DEFAULT_MAX_MESSAGES = 1000
 
 export const discordConnectorMeta: ConnectorMeta = {
   id: 'discord',

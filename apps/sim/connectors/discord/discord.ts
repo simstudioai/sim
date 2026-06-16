@@ -1,14 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
-import { discordConnectorMeta } from '@/connectors/discord/meta'
+import { DEFAULT_MAX_MESSAGES, discordConnectorMeta } from '@/connectors/discord/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { computeContentHash, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('DiscordConnector')
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
-const DEFAULT_MAX_MESSAGES = 1000
 const MESSAGES_PER_PAGE = 100
 
 interface DiscordMessage {
