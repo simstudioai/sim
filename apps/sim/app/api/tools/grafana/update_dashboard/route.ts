@@ -77,6 +77,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headers: getHeaders,
     })
 
+    if (!getResponse.ok) {
+      const errorText = await getResponse.text()
+      return NextResponse.json({
+        success: false,
+        output: {},
+        error: `Failed to fetch existing dashboard: ${errorText}`,
+      })
+    }
+
     const existing = (await getResponse.json()) as any
     const existingDashboard = existing.dashboard
     const existingMeta = existing.meta
