@@ -17,6 +17,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import type { ChatResource, ResourceType } from '@/lib/copilot/resources/persistence'
+import { GENERIC_RESOURCE_TITLES } from '@/lib/copilot/resources/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('CopilotChatResourcesAPI')
@@ -30,15 +31,6 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'scheduledtask',
   'log',
   'integration',
-])
-const GENERIC_TITLES = new Set([
-  'Table',
-  'File',
-  'Workflow',
-  'Knowledge Base',
-  'Folder',
-  'Scheduled Task',
-  'Log',
 ])
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
@@ -85,7 +77,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     let merged: ChatResource[]
     if (prev) {
-      if (GENERIC_TITLES.has(prev.title) && !GENERIC_TITLES.has(resource.title)) {
+      if (GENERIC_RESOURCE_TITLES.has(prev.title) && !GENERIC_RESOURCE_TITLES.has(resource.title)) {
         merged = existing.map((r) =>
           `${r.type}:${r.id}` === key ? { ...r, title: resource.title } : r
         )
