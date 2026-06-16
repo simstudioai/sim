@@ -84,8 +84,8 @@ async function inviteAttendees(
   })
 
   if (!putResponse.ok) {
-    const errorData = await putResponse.json()
-    throw new Error(errorData.error?.message || 'Failed to invite attendees to calendar event')
+    const errorData = await putResponse.json().catch(() => null)
+    throw new Error(errorData?.error?.message || 'Failed to invite attendees to calendar event')
   }
 
   const data: GoogleCalendarApiEventResponse = await putResponse.json()

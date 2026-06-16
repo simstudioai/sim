@@ -271,6 +271,24 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
+    {
+      id: 'q',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'standup',
+      condition: { field: 'operation', value: 'list' },
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous response (nextPageToken)',
+      condition: {
+        field: 'operation',
+        value: ['list', 'instances', 'list_calendars', 'list_acl'],
+      },
+      mode: 'advanced',
+    },
 
     {
       id: 'eventId',
@@ -818,7 +836,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
     timeMin: { type: 'string', description: 'Start time filter' },
     timeMax: { type: 'string', description: 'End time filter' },
+    q: { type: 'string', description: 'Free-text search query' },
     maxResults: { type: 'string', description: 'Maximum number of results' },
+    pageToken: { type: 'string', description: 'Pagination token from a previous response' },
 
     calendarIds: { type: 'string', description: 'Comma-separated calendar IDs' },
 
