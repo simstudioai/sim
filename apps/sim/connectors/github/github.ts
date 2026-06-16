@@ -9,6 +9,7 @@ import {
   parseTagDate,
   sizeLimitSkipReason,
   stubOrSkipBySize,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 
 const logger = createLogger('GitHubConnector')
@@ -211,8 +212,17 @@ export const githubConnector: ConnectorConfig = {
         return true
       })
 
-      // Apply max files limit
-      capped = maxFiles > 0 ? filtered.slice(0, maxFiles) : filtered
+      // Apply the max-files limit to indexable files only; oversized files within
+      // the capped window are kept (and surfaced as skipped) but never consume the cap.
+      capped =
+        maxFiles > 0
+          ? takeIndexableWithinCap(
+              filtered,
+              (item) => Boolean(item.size && item.size > MAX_FILE_SIZE),
+              maxFiles,
+              0
+            ).documents
+          : filtered
       if (syncContext) syncContext.filteredTree = capped
     }
 

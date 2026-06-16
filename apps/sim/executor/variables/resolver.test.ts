@@ -1237,8 +1237,11 @@ describe('VariableResolver function context overflow offload', () => {
       __simLargeValueRef: true,
       id: 'lv_ABCDEFGHIJKL',
     })
-    // The bulky value must not be inlined into either the request data or display source.
+    // The bulky value must not be inlined into either the request data or display source,
+    // and the Input view shows a readable placeholder instead of the raw ref object.
     expect(result.displayInputs.code.length).toBeLessThan(1024)
+    expect(result.displayInputs.code).not.toContain('__simLargeValueRef')
+    expect(result.displayInputs.code).toContain('large string')
     // The route must be authorized to materialize the ref it is about to receive.
     expect(durableCtx.largeValueKeys).toContain(REF_KEY)
   })

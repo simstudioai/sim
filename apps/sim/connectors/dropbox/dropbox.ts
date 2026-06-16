@@ -7,11 +7,13 @@ import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   htmlToPlainText,
+  isSkippedDocument,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 
 const logger = createLogger('DropboxConnector')
@@ -188,20 +190,20 @@ export const dropboxConnector: ConnectorConfig = {
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    let documents = candidateFiles.map((entry) =>
+    const stubs = candidateFiles.map((entry) =>
       stubOrSkipBySize(fileToStub(entry), entry.size, MAX_FILE_SIZE)
     )
 
-    if (maxFiles > 0) {
-      const remaining = maxFiles - previouslyFetched
-      if (documents.length > remaining) {
-        documents = documents.slice(0, remaining)
-      }
-    }
+    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
+      stubs,
+      isSkippedDocument,
+      maxFiles,
+      previouslyFetched
+    )
 
-    const totalFetched = previouslyFetched + documents.length
+    const totalFetched = previouslyFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    const hitLimit = capReached
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
     return {

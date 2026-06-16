@@ -62,9 +62,11 @@ import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
 import {
   ConnectorFileTooLargeError,
+  isSkippedDocument,
   markSkipped,
   readBodyWithLimit,
   sizeLimitSkipReason,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 import { xConnector } from '@/connectors/x/x'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
@@ -1238,5 +1240,73 @@ describe('ConnectorFileTooLargeError', () => {
     expect(error).toBeInstanceOf(ConnectorFileTooLargeError)
     expect(error.limitBytes).toBe(100 * 1024 * 1024)
     expect(error.message).toContain('100MB')
+  })
+})
+
+describe('isSkippedDocument', () => {
+  const base: ExternalDocument = {
+    externalId: 'f1',
+    title: 'f1',
+    content: '',
+    contentDeferred: false,
+    mimeType: 'text/plain',
+    contentHash: 'h',
+    metadata: {},
+  }
+
+  it('is true only for a markSkipped stub', () => {
+    expect(isSkippedDocument(base)).toBe(false)
+    expect(isSkippedDocument(markSkipped(base, 'too big'))).toBe(true)
+  })
+})
+
+describe('takeIndexableWithinCap', () => {
+  const skip = (id: number) => ({ id, skip: true })
+  const file = (id: number) => ({ id, skip: false })
+  const isSkip = (i: { skip: boolean }) => i.skip
+
+  it('passes everything through when the cap is unlimited', () => {
+    const res = takeIndexableWithinCap([file(1), skip(2), file(3)], isSkip, 0, 0)
+    expect(res.documents).toHaveLength(3)
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(false)
+  })
+
+  it('does not count skipped items against the cap', () => {
+    const res = takeIndexableWithinCap([skip(1), skip(2), file(3), file(4), file(5)], isSkip, 2, 0)
+    // both skips + the first two files emitted; the third file is beyond the cap
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2, 3, 4])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('keeps emitting indexable docs even when oversized files crowd the front', () => {
+    // Regression guard: an oversized prefix must not starve the indexable budget.
+    const res = takeIndexableWithinCap([skip(1), skip(2), skip(3), file(4), file(5)], isSkip, 2, 0)
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2, 3, 4, 5])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('stops once the indexable quota is met, dropping trailing items', () => {
+    const res = takeIndexableWithinCap([file(1), file(2), file(3), file(4)], isSkip, 2, 0)
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('accounts for indexable docs already counted on previous pages', () => {
+    const res = takeIndexableWithinCap([file(1), file(2), file(3)], isSkip, 5, 4)
+    // only one indexable slot remains (5 - 4)
+    expect(res.documents.map((i) => i.id)).toEqual([1])
+    expect(res.indexableCount).toBe(1)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('emits nothing once the cap is already reached', () => {
+    const res = takeIndexableWithinCap([skip(1), file(2)], isSkip, 3, 3)
+    expect(res.documents).toHaveLength(0)
+    expect(res.indexableCount).toBe(0)
+    expect(res.capReached).toBe(true)
   })
 })

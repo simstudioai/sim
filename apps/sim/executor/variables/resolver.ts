@@ -5,6 +5,7 @@ import { mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import {
   containsLargeValueRef,
+  formatLargeValueSize,
   getLargeValueMaterializationError,
   isLargeValueRef,
   type LargeValueRef,
@@ -974,6 +975,16 @@ export class VariableResolver {
     template: string,
     matchIndex: number
   ): string {
+    // Offloaded large values carry only a storage ref (or array manifest), never the
+    // data itself. Render a concise placeholder for the Input view instead of leaking
+    // the internal ref object, which is unreadable and meaningless to a user.
+    if (isLargeValueRef(value)) {
+      return `/* large ${value.kind} · ${formatLargeValueSize(value.size)}, fetched at runtime */`
+    }
+    if (isLargeArrayManifest(value)) {
+      return `/* large array · ${value.totalCount} items · ${formatLargeValueSize(value.byteSize)}, fetched at runtime */`
+    }
+
     if (language === 'shell') {
       return this.formatShellDisplayValue(value, template, matchIndex)
     }

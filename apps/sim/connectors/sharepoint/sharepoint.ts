@@ -7,11 +7,13 @@ import {
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   htmlToPlainText,
+  isSkippedDocument,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 
 const logger = createLogger('SharePointConnector')
@@ -358,17 +360,23 @@ export const sharepointConnector: ConnectorConfig = {
     // Push subfolders onto the stack for depth-first traversal
     state.folderStack.push(...subfolders)
 
-    // Convert files to lightweight stubs (no content download)
+    // Convert files to lightweight stubs (no content download). Oversized files are
+    // kept as skipped stubs but do not consume the max-files cap.
     const previouslyFetched = totalFetched
-    for (const file of files) {
-      if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
-      documents.push(stubOrSkipBySize(itemToStub(file, siteName), file.size, MAX_DOWNLOAD_SIZE))
-    }
+    const stubs = files.map((file) =>
+      stubOrSkipBySize(itemToStub(file, siteName), file.size, MAX_DOWNLOAD_SIZE)
+    )
+    const {
+      documents: pageDocuments,
+      indexableCount,
+      capReached,
+    } = takeIndexableWithinCap(stubs, isSkippedDocument, maxFiles, previouslyFetched)
+    documents.push(...pageDocuments)
 
-    totalFetched += documents.length
+    totalFetched += indexableCount
 
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxFiles > 0 && totalFetched >= maxFiles
+    const hitLimit = capReached
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
     if (hitLimit) {

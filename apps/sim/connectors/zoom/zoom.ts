@@ -4,11 +4,13 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
   CONNECTOR_MAX_FILE_BYTES,
+  isSkippedDocument,
   markSkipped,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
   stubOrSkipBySize,
+  takeIndexableWithinCap,
 } from '@/connectors/utils'
 import { zoomConnectorMeta } from '@/connectors/zoom/meta'
 
@@ -327,17 +329,16 @@ export const zoomConnector: ConnectorConfig = {
     }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    let documents = allDocuments
-    if (maxRecordings > 0) {
-      const remaining = Math.max(0, maxRecordings - prevFetched)
-      if (allDocuments.length > remaining) {
-        documents = allDocuments.slice(0, remaining)
-      }
-    }
+    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
+      allDocuments,
+      isSkippedDocument,
+      maxRecordings,
+      prevFetched
+    )
 
-    const totalFetched = prevFetched + documents.length
+    const totalFetched = prevFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxRecordings > 0 && totalFetched >= maxRecordings
+    const hitLimit = capReached
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
     let nextCursor: string | undefined

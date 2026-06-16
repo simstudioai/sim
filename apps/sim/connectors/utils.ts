@@ -160,6 +160,55 @@ export function stubOrSkipBySize(
   return size && size > maxBytes ? markSkipped(stub, sizeLimitSkipReason(maxBytes)) : stub
 }
 
+/** True when a stub has been flagged as skipped (e.g. oversized) via `markSkipped`. */
+export function isSkippedDocument(doc: ExternalDocument): boolean {
+  return doc.skippedReason !== undefined
+}
+
+/**
+ * Applies a document cap (`maxFiles`/`maxObjects`/`maxRecordings`) to a page of
+ * listing items so that only **indexable** items consume the cap. Skipped
+ * (oversized) items still ride along and surface as failed rows, but they no longer
+ * count toward the budget — otherwise a run of oversized files at the front of a
+ * listing could exhaust the cap before any indexable file is listed, silently
+ * shrinking real sync coverage.
+ *
+ * Items are walked in listing order: every item (indexable or skipped) is emitted
+ * until the indexable quota is reached, then iteration stops. A cap of `0` (or less)
+ * means unlimited and all items pass through.
+ *
+ * @param items page items in listing order
+ * @param isSkipped predicate identifying non-indexable (skipped) items
+ * @param max configured cap; `0` or less means no cap
+ * @param alreadyIndexed indexable items already counted on previous pages
+ * @returns the emitted items, the number of indexable items emitted (the only ones
+ *   that count toward the cap), and whether the cap is now reached
+ */
+export function takeIndexableWithinCap<T>(
+  items: T[],
+  isSkipped: (item: T) => boolean,
+  max: number,
+  alreadyIndexed: number
+): { documents: T[]; indexableCount: number; capReached: boolean } {
+  if (max <= 0) {
+    let indexableCount = 0
+    for (const item of items) {
+      if (!isSkipped(item)) indexableCount += 1
+    }
+    return { documents: items, indexableCount, capReached: false }
+  }
+
+  const remaining = max - alreadyIndexed
+  const documents: T[] = []
+  let indexableCount = 0
+  for (const item of items) {
+    if (indexableCount >= remaining) break
+    documents.push(item)
+    if (!isSkipped(item)) indexableCount += 1
+  }
+  return { documents, indexableCount, capReached: alreadyIndexed + indexableCount >= max }
+}
+
 /**
  * Raised by a connector when a file exceeds its size cap mid-download — i.e. the
  * listing did not report a size, so the limit is only discovered while streaming.
