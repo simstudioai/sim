@@ -102,15 +102,15 @@ describe('work-email enrichment cascade', () => {
 
   describe('leadmagic', () => {
     const p = provider('leadmagic')
-    it('splits the name and requires a domain', () => {
+    it('passes full_name + domain and keeps mononym rows', () => {
       expect(p.toolId).toBe('leadmagic_find_email')
-      expect(p.buildParams(nameDomain)).toEqual({
-        first_name: 'John',
-        last_name: 'Doe',
+      expect(p.buildParams(nameDomain)).toEqual({ full_name: 'John Doe', domain: 'acme.com' })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      // single-token name still runs (no longer skipped)
+      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toEqual({
+        full_name: 'Cher',
         domain: 'acme.com',
       })
-      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
-      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toBeNull()
       expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
     })
   })
@@ -132,11 +132,16 @@ describe('work-email enrichment cascade', () => {
 
   describe('icypeas', () => {
     const p = provider('icypeas')
-    it('splits the name and requires a domain/company', () => {
+    it('splits the name when possible and keeps mononym rows', () => {
       expect(p.toolId).toBe('icypeas_find_email')
       expect(p.buildParams(nameDomain)).toEqual({
         firstname: 'John',
         lastname: 'Doe',
+        domainOrCompany: 'acme.com',
+      })
+      // single-token name runs with firstname alone (lastname is optional)
+      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toEqual({
+        firstname: 'Cher',
         domainOrCompany: 'acme.com',
       })
       expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()

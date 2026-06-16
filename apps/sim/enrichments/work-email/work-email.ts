@@ -154,10 +154,12 @@ export const workEmailEnrichment: EnrichmentConfig = {
       label: 'LeadMagic',
       toolId: 'leadmagic_find_email',
       buildParams: (inputs) => {
-        const name = splitName(inputs.fullName)
+        // LeadMagic accepts full_name + domain, so pass the whole name and let it
+        // split — this keeps single-token (mononym) rows in play.
+        const fullName = str(inputs.fullName)
         const domain = normalizeDomain(inputs.companyDomain)
-        if (!name || !domain) return null
-        return { first_name: name.firstName, last_name: name.lastName, domain }
+        if (!fullName || !domain) return null
+        return { full_name: fullName, domain }
       },
       mapOutput: (output) => {
         const email = str(output.email)
@@ -189,10 +191,15 @@ export const workEmailEnrichment: EnrichmentConfig = {
       label: 'Icypeas',
       toolId: 'icypeas_find_email',
       buildParams: (inputs) => {
-        const name = splitName(inputs.fullName)
+        // Icypeas only requires domainOrCompany; firstname/lastname are optional,
+        // so a mononym still runs with firstname alone rather than self-skipping.
+        const fullName = str(inputs.fullName)
         const domainOrCompany = normalizeDomain(inputs.companyDomain)
-        if (!name || !domainOrCompany) return null
-        return { firstname: name.firstName, lastname: name.lastName, domainOrCompany }
+        if (!fullName || !domainOrCompany) return null
+        const name = splitName(inputs.fullName)
+        return name
+          ? { firstname: name.firstName, lastname: name.lastName, domainOrCompany }
+          : { firstname: fullName, domainOrCompany }
       },
       mapOutput: (output) => {
         const email = str(output.email)

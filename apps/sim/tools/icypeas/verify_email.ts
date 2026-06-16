@@ -33,10 +33,12 @@ const MAX_POLL_TIME_MS = 120000
 /** Map a raw Icypeas item object to the verify-email output shape. */
 function mapItem(item: Record<string, unknown>): IcypeasVerifyEmailOutput {
   const status = (item.status as string | undefined) ?? null
-  // Results are nested under item.results; emails are in item.results.emails[0].email
+  // Verify payloads put the address on item.email; fall back to the nested
+  // results.emails[0].email shape that some responses use.
   const results = (item.results as Record<string, unknown> | undefined) ?? {}
   const emails = Array.isArray(results.emails) ? (results.emails as Record<string, unknown>[]) : []
-  const email = (emails[0]?.email as string | undefined) ?? null
+  const email =
+    (item.email as string | undefined) ?? (emails[0]?.email as string | undefined) ?? null
   const valid = status !== null ? VALID_STATUSES.has(status) : null
   return {
     searchId: (item._id as string | undefined) ?? null,
