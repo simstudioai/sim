@@ -4,6 +4,15 @@ import { useCallback, useEffect, useRef } from 'react'
 const STICK_THRESHOLD = 30
 /** User must scroll back to within this distance to re-engage auto-scroll. */
 const REATTACH_THRESHOLD = 5
+/**
+ * A scrollbar-drag detach is only honored if a real user gesture occurred within
+ * this window. Virtualizers (react-virtual) programmatically move `scrollTop` to
+ * keep content stable when a measured row's size changes — including
+ * the transient height *shrinks* a streaming markdown renderer emits as it re-parses
+ * each token. Without this guard, that upward programmatic scroll is misread as the
+ * user scrolling away and auto-scroll detaches mid-stream.
+ */
+const USER_GESTURE_WINDOW = 250
 
 interface UseAutoScrollOptions {
   scrollOnMount?: boolean
@@ -32,6 +41,8 @@ export function useAutoScroll(
   const touchStartYRef = useRef(0)
   const rafIdRef = useRef(0)
   const scrollOnMountRef = useRef(scrollOnMount)
+  const pointerDownRef = useRef(false)
+  const lastUserGestureAtRef = useRef(Number.NEGATIVE_INFINITY)
 
   const scrollToBottom = useCallback(() => {
     const el = containerRef.current
@@ -63,27 +74,52 @@ export function useAutoScroll(
       userDetachedRef.current = true
     }
 
+    const markGesture = () => {
+      lastUserGestureAtRef.current = performance.now()
+    }
+
     const onWheel = (e: WheelEvent) => {
+      markGesture()
       if (e.deltaY < 0) detach()
     }
 
     const onTouchStart = (e: TouchEvent) => {
+      markGesture()
       touchStartYRef.current = e.touches[0].clientY
     }
 
     const onTouchMove = (e: TouchEvent) => {
+      markGesture()
       if (e.touches[0].clientY > touchStartYRef.current) detach()
     }
+
+    const onPointerDown = () => {
+      pointerDownRef.current = true
+      markGesture()
+    }
+    const onPointerUp = () => {
+      pointerDownRef.current = false
+    }
+    const onKeyDown = markGesture
 
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const threshold = userDetachedRef.current ? REATTACH_THRESHOLD : STICK_THRESHOLD
 
+      // Only a genuine, recent user gesture (scrollbar drag, keyboard) may detach via
+      // a scroll-position delta. A programmatic upward scroll — e.g. a virtualizer
+      // re-pinning content on a row-size shrink — has no preceding gesture and must
+      // not be mistaken for the user scrolling away.
+      const userDriven =
+        pointerDownRef.current ||
+        performance.now() - lastUserGestureAtRef.current < USER_GESTURE_WINDOW
+
       if (distanceFromBottom <= threshold) {
         stickyRef.current = true
         userDetachedRef.current = false
       } else if (
+        userDriven &&
         scrollTop < prevScrollTopRef.current &&
         scrollHeight <= prevScrollHeightRef.current
       ) {
@@ -126,6 +162,10 @@ export function useAutoScroll(
     el.addEventListener('touchmove', onTouchMove, { passive: true })
     el.addEventListener('scroll', onScroll, { passive: true })
     el.addEventListener('animationstart', onAnimationStart)
+    el.addEventListener('pointerdown', onPointerDown, { passive: true })
+    el.addEventListener('keydown', onKeyDown, { passive: true })
+    window.addEventListener('pointerup', onPointerUp, { passive: true })
+    window.addEventListener('pointercancel', onPointerUp, { passive: true })
 
     const observer = new MutationObserver(onMutation)
     observer.observe(el, { childList: true, subtree: true, characterData: true })
@@ -136,6 +176,10 @@ export function useAutoScroll(
       el.removeEventListener('touchmove', onTouchMove)
       el.removeEventListener('scroll', onScroll)
       el.removeEventListener('animationstart', onAnimationStart)
+      el.removeEventListener('pointerdown', onPointerDown)
+      el.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
       if (stickyRef.current) scrollToBottom()
