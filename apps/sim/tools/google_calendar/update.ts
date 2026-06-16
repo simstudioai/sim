@@ -83,13 +83,14 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Time zone (e.g., America/Los_Angeles). Required if datetime does not include offset.',
+        'IANA time zone (e.g., America/Los_Angeles). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset.',
     },
     attendees: {
       type: 'array',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Array of attendee email addresses (replaces the existing attendee list)',
+      description:
+        'Array of attendee email addresses. When one or more emails are provided, they replace the existing attendee list. Leaving this empty keeps the current attendees unchanged (it does not clear them).',
     },
     recurrence: {
       type: 'string',
@@ -150,11 +151,11 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       }
 
       if (params.startDateTime !== undefined) {
-        updateData.start = buildEventDateTime(params.startDateTime, params.timeZone, isRecurring)
+        updateData.start = buildEventDateTime(params.startDateTime, params.timeZone)
       }
 
       if (params.endDateTime !== undefined) {
-        updateData.end = buildEventDateTime(params.endDateTime, params.timeZone, isRecurring)
+        updateData.end = buildEventDateTime(params.endDateTime, params.timeZone)
       }
 
       const attendees = normalizeAttendees(params.attendees)

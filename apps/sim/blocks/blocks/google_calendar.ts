@@ -220,6 +220,14 @@ Return ONLY the RRULE string - no explanations, no extra text.`,
       ],
       value: () => 'false',
     },
+    {
+      id: 'timeZone',
+      title: 'Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+    },
 
     {
       id: 'timeMin',

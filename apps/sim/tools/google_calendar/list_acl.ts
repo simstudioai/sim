@@ -45,7 +45,7 @@ export const listAclTool: ToolConfig<GoogleCalendarListAclParams, GoogleCalendar
     showDeleted: {
       type: 'boolean',
       required: false,
-      visibility: 'hidden',
+      visibility: 'user-only',
       description: 'Include deleted ACL rules (with role "none")',
     },
   },

@@ -10,16 +10,16 @@ const TZ_OFFSET_PATTERN = /([+-]\d{2}:?\d{2}|Z)$/
  * Build a Google Calendar event date/time object from a user-supplied value.
  *
  * A date-only value (e.g. `2025-06-03`) produces an all-day `{ date }` object.
- * A datetime value produces `{ dateTime, timeZone? }`. A timezone is attached when
- * one is explicitly provided, when the datetime carries no UTC offset (so the time
- * is unambiguous), or when `requireTimeZone` is set — the Calendar API requires a
- * timezone on the start/end of recurring events.
+ * A datetime value produces `{ dateTime, timeZone? }`. An explicitly provided
+ * timezone always wins. Otherwise a default zone is attached only for "naive"
+ * datetimes that carry no UTC offset — when an offset is present it is authoritative
+ * and is never overridden with a guessed zone, which would misalign the time.
+ *
+ * For recurring events the Calendar API requires a named `timeZone` on start/end;
+ * callers should pass the user's timezone explicitly (an RFC3339 offset alone is
+ * insufficient to expand a recurrence across DST).
  */
-export function buildEventDateTime(
-  value: string,
-  timeZone: string | undefined,
-  requireTimeZone = false
-): EventDateTime {
+export function buildEventDateTime(value: string, timeZone: string | undefined): EventDateTime {
   const isDateOnly = !value.includes('T')
   if (isDateOnly) {
     return { date: value }
@@ -29,7 +29,7 @@ export function buildEventDateTime(
   const result: EventDateTime = { dateTime: value }
   if (timeZone) {
     result.timeZone = timeZone
-  } else if (!hasOffset || requireTimeZone) {
+  } else if (!hasOffset) {
     result.timeZone = DEFAULT_TIME_ZONE
   }
   return result

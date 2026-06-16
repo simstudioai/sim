@@ -68,8 +68,8 @@ export const unshareCalendarTool: ToolConfig<
       }
     }
 
-    const errorData = await response.json()
-    throw new Error(errorData.error?.message || 'Failed to remove sharing rule')
+    const errorData = await response.json().catch(() => null)
+    throw new Error(errorData?.error?.message || 'Failed to remove sharing rule')
   },
 
   outputs: {
@@ -112,8 +112,8 @@ export const unshareCalendarV2Tool: ToolConfig<
       }
     }
 
-    const errorData = await response.json()
-    throw new Error(errorData.error?.message || 'Failed to remove sharing rule')
+    const errorData = await response.json().catch(() => null)
+    throw new Error(errorData?.error?.message || 'Failed to remove sharing rule')
   },
   outputs: {
     ruleId: { type: 'string', description: 'Removed ACL rule ID' },

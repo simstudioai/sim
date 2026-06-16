@@ -75,8 +75,7 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Time zone (e.g., America/Los_Angeles). Required if datetime does not include offset. Defaults to America/Los_Angeles if not provided.',
-      default: 'America/Los_Angeles',
+        'IANA time zone (e.g., America/Los_Angeles). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset (a naive datetime defaults to America/Los_Angeles).',
     },
     attendees: {
       type: 'array',
@@ -131,8 +130,8 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
 
       const eventData: GoogleCalendarEventRequestBody = {
         summary: params.summary,
-        start: buildEventDateTime(params.startDateTime, params.timeZone, isRecurring),
-        end: buildEventDateTime(params.endDateTime, params.timeZone, isRecurring),
+        start: buildEventDateTime(params.startDateTime, params.timeZone),
+        end: buildEventDateTime(params.endDateTime, params.timeZone),
       }
 
       if (params.description) {
