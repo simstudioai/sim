@@ -822,9 +822,9 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   ...FileV4Block,
   type: 'file_v5',
   name: 'File',
-  description: 'Read, get content, fetch, write, append, and compress files',
+  description: 'Read, get content, fetch, write, append, compress, and decompress files',
   longDescription:
-    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, or compress files into a .zip archive.',
+    'Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, or extract a .zip archive into the workspace.',
   hideFromToolbar: false,
   bestPractices: `
   - Read returns workspace file objects in the "files" output and does NOT include their text. Use it to pick files or pass file references downstream (e.g. as attachments).
@@ -833,7 +833,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one.
-  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "file"/"files" outputs, which is handy for getting large attachments under provider upload limits.
+  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "file"/"files" outputs.
+  - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
   subBlocks: [
     {
@@ -847,6 +848,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
         { label: 'Write', id: 'file_write' },
         { label: 'Append', id: 'file_append' },
         { label: 'Compress', id: 'file_compress' },
+        { label: 'Decompress', id: 'file_decompress' },
       ],
       value: () => 'file_read',
     },
@@ -993,6 +995,27 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       placeholder: 'archive.zip (auto-named from source if omitted)',
       condition: { field: 'operation', value: 'file_compress' },
     },
+    {
+      id: 'decompressFile',
+      title: 'Archive',
+      type: 'file-upload' as SubBlockType,
+      canonicalParamId: 'decompressInput',
+      acceptedTypes: '.zip',
+      placeholder: 'Select a .zip archive',
+      mode: 'basic',
+      condition: { field: 'operation', value: 'file_decompress' },
+      required: { field: 'operation', value: 'file_decompress' },
+    },
+    {
+      id: 'decompressFileId',
+      title: 'File ID',
+      type: 'short-input' as SubBlockType,
+      canonicalParamId: 'decompressInput',
+      placeholder: 'Workspace file ID of the .zip archive',
+      mode: 'advanced',
+      condition: { field: 'operation', value: 'file_decompress' },
+      required: { field: 'operation', value: 'file_decompress' },
+    },
   ],
   tools: {
     access: [
@@ -1002,6 +1025,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       'file_write',
       'file_append',
       'file_compress',
+      'file_decompress',
     ],
     config: {
       tool: (params) => params.operation || 'file_read',
@@ -1071,6 +1095,31 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           return {
             fileInput: normalized,
             archiveName,
+            workspaceId: params._context?.workspaceId,
+          }
+        }
+
+        if (operation === 'file_decompress') {
+          const decompressInput = params.decompressInput
+          if (!decompressInput) {
+            throw new Error('File is required for decompress')
+          }
+
+          const fileIds = parseReadFileIds(decompressInput)
+          if (fileIds) {
+            return {
+              fileId: Array.isArray(fileIds) ? fileIds[0] : fileIds,
+              workspaceId: params._context?.workspaceId,
+            }
+          }
+
+          const normalized = normalizeFileInput(decompressInput, { single: true })
+          if (!normalized) {
+            throw new Error('File is required for decompress')
+          }
+
+          return {
+            fileInput: normalized,
             workspaceId: params._context?.workspaceId,
           }
         }
@@ -1164,6 +1213,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       description: 'Selected workspace files or canonical file IDs to compress',
     },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
+    decompressInput: {
+      type: 'json',
+      description: 'Selected .zip archive or canonical file ID to extract',
+    },
   },
   outputs: {
     files: {

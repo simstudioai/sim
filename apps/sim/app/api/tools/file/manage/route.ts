@@ -172,6 +172,47 @@ const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
   return candidate
 }
 
+/** Input archive download cap for the decompress operation. */
+const MAX_DECOMPRESS_ARCHIVE_BYTES = 100 * 1024 * 1024
+/** Maximum number of entries extracted from a single archive. */
+const MAX_DECOMPRESS_ENTRIES = 1000
+/** Maximum uncompressed size for any single archive entry. */
+const MAX_DECOMPRESS_ENTRY_BYTES = 100 * 1024 * 1024
+/** Maximum total uncompressed size across all entries, to bound zip-bomb expansion. */
+const MAX_DECOMPRESS_TOTAL_BYTES = 200 * 1024 * 1024
+
+const S_IFMT = 0o170000
+const S_IFLNK = 0o120000
+
+/** Read a zip entry's declared uncompressed size without materializing it (zip-bomb pre-check). */
+const readEntryUncompressedSize = (entry: JSZip.JSZipObject): number | undefined => {
+  const data = (entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
+  const size = data?.uncompressedSize
+  return typeof size === 'number' && Number.isFinite(size) ? size : undefined
+}
+
+/** True when a zip entry's unix mode marks it as a symlink (never extracted). */
+const isSymlinkEntry = (entry: JSZip.JSZipObject): boolean => {
+  const mode = (entry as JSZip.JSZipObject & { unixPermissions?: number | null }).unixPermissions
+  return typeof mode === 'number' && (mode & S_IFMT) === S_IFLNK
+}
+
+/**
+ * Normalize a zip entry path into safe workspace folder segments, guarding against
+ * zip-slip. Returns null for traversal (`..`), so the entry is skipped rather than
+ * written outside its intended location.
+ */
+const sanitizeArchiveEntryPath = (rawPath: string): string[] | null => {
+  const segments = rawPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== '.')
+
+  if (segments.length === 0 || segments.includes('..')) return null
+  return segments
+}
+
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
 /**
@@ -607,6 +648,143 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             url: compressedFile.url,
             file: compressedFile,
             files: [compressedFile],
+          },
+        })
+      }
+
+      case 'decompress': {
+        const { fileId, fileInput } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = fileId ? [fileId] : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const archive = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)[0]
+
+        if (!archive) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const denied = await assertToolFileAccess(archive.key, userId, requestId, logger)
+        if (denied) return denied
+
+        const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
+          maxBytes: MAX_DECOMPRESS_ARCHIVE_BYTES,
+        })
+
+        let zip: JSZip
+        try {
+          zip = await JSZip.loadAsync(archiveBuffer)
+        } catch {
+          return NextResponse.json(
+            { success: false, error: `"${archive.name}" is not a valid .zip archive` },
+            { status: 400 }
+          )
+        }
+
+        const entries = Object.values(zip.files).filter(
+          (entry) => !entry.dir && !isSymlinkEntry(entry)
+        )
+        if (entries.length > MAX_DECOMPRESS_ENTRIES) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Archive has too many entries to extract. Maximum is ${MAX_DECOMPRESS_ENTRIES}.`,
+            },
+            { status: 413 }
+          )
+        }
+
+        const folderIdCache = new Map<string, string | null>()
+        const extractedFiles: UserFile[] = []
+        let totalBytes = 0
+
+        for (const entry of entries) {
+          const declaredSize = readEntryUncompressedSize(entry)
+          if (declaredSize !== undefined && declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Archive entry "${entry.name}" is too large to extract. Maximum is ${
+                  MAX_DECOMPRESS_ENTRY_BYTES / (1024 * 1024)
+                } MB per file.`,
+              },
+              { status: 413 }
+            )
+          }
+
+          const segments = sanitizeArchiveEntryPath(entry.name)
+          if (!segments) {
+            logger.warn('Skipping unsafe archive entry', { name: entry.name })
+            continue
+          }
+
+          const buffer = await entry.async('nodebuffer')
+          totalBytes += buffer.length
+          if (totalBytes > MAX_DECOMPRESS_TOTAL_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Archive expands to more than the ${
+                  MAX_DECOMPRESS_TOTAL_BYTES / (1024 * 1024)
+                } MB extraction limit.`,
+              },
+              { status: 413 }
+            )
+          }
+
+          const leafName = segments[segments.length - 1]
+          const folderSegments = segments.slice(0, -1)
+          const folderKey = folderSegments.join('/')
+          let folderId = folderIdCache.get(folderKey)
+          if (folderId === undefined) {
+            folderId = await ensureWorkspaceFileFolderPath({
+              workspaceId,
+              userId,
+              pathSegments: folderSegments,
+            })
+            folderIdCache.set(folderKey, folderId)
+          }
+
+          const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
+          const uploaded = await uploadWorkspaceFile(
+            workspaceId,
+            userId,
+            buffer,
+            leafName,
+            mimeType,
+            { folderId }
+          )
+          extractedFiles.push({ ...uploaded, url: ensureAbsoluteUrl(uploaded.url) })
+        }
+
+        logger.info('Archive decompressed', {
+          fileId: archive.id,
+          name: archive.name,
+          extractedCount: extractedFiles.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            file: extractedFiles[0],
+            files: extractedFiles,
           },
         })
       }

@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { fileCompressTool } from '@/tools/file/compress'
+import { fileCompressTool, fileDecompressTool } from '@/tools/file/compress'
 
 describe('fileCompressTool', () => {
   it('builds a compress request body from file IDs and archive name', () => {
@@ -72,6 +72,49 @@ describe('fileCompressTool', () => {
     expect(result).toMatchObject({
       success: false,
       error: 'Combined input is too large to compress.',
+      output: {},
+    })
+  })
+})
+
+describe('fileDecompressTool', () => {
+  it('builds a decompress request body from a file ID', () => {
+    const body = fileDecompressTool.request.body?.({
+      fileId: 'wf_zip',
+      _context: { workspaceId: 'ws_1' },
+    } as Parameters<NonNullable<typeof fileDecompressTool.request.body>>[0])
+
+    expect(body).toMatchObject({
+      operation: 'decompress',
+      fileId: 'wf_zip',
+      workspaceId: 'ws_1',
+    })
+  })
+
+  it('returns the extracted files on success', async () => {
+    const extracted = [
+      { id: 'wf_a', name: 'a.txt', url: 'https://example.com/a.txt', key: 'k/a.txt' },
+      { id: 'wf_b', name: 'b.txt', url: 'https://example.com/b.txt', key: 'k/b.txt' },
+    ]
+
+    const result = await fileDecompressTool.transformResponse?.(
+      Response.json({ success: true, data: { file: extracted[0], files: extracted } })
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      output: { file: extracted[0], files: extracted },
+    })
+  })
+
+  it('propagates route failures as tool failures', async () => {
+    const result = await fileDecompressTool.transformResponse?.(
+      Response.json({ success: false, error: '"data.txt" is not a valid .zip archive' })
+    )
+
+    expect(result).toMatchObject({
+      success: false,
+      error: '"data.txt" is not a valid .zip archive',
       output: {},
     })
   })

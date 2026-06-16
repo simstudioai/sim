@@ -70,3 +70,58 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
     },
   },
 }
+
+interface FileDecompressParams {
+  fileId?: string
+  fileInput?: unknown
+  workspaceId?: string
+  _context?: WorkflowToolExecutionContext
+}
+
+export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> = {
+  id: 'file_decompress',
+  name: 'File Decompress',
+  description:
+    'Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.',
+  version: '1.0.0',
+
+  params: {
+    fileId: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Canonical workspace file ID of the .zip archive to extract.',
+    },
+    fileInput: {
+      type: 'file',
+      required: false,
+      visibility: 'user-only',
+      description: 'Selected .zip archive file object.',
+    },
+  },
+
+  request: {
+    url: '/api/tools/file/manage',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      operation: 'decompress',
+      fileId: params.fileId,
+      fileInput: params.fileInput,
+      workspaceId: params.workspaceId || params._context?.workspaceId,
+    }),
+  },
+
+  transformResponse: async (response) => {
+    const data = await response.json()
+    if (!response.ok || !data.success) {
+      return { success: false, output: {}, error: data.error || 'Failed to decompress archive' }
+    }
+    return { success: true, output: data.data }
+  },
+
+  outputs: {
+    files: { type: 'file[]', description: 'Extracted workspace file objects' },
+    file: { type: 'file', description: 'First extracted workspace file object' },
+  },
+}
