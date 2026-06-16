@@ -11,6 +11,7 @@ import {
   deleteScheduleContract,
   disableScheduleContract,
   excludeOccurrenceContract,
+  getScheduleByIdContract,
   getScheduleContract,
   listWorkspaceSchedulesContract,
   reactivateScheduleContract,
@@ -31,6 +32,7 @@ export const scheduleKeys = {
   details: () => [...scheduleKeys.all, 'detail'] as const,
   schedule: (workflowId: string, blockId: string) =>
     [...scheduleKeys.details(), workflowId, blockId] as const,
+  byId: (scheduleId: string) => [...scheduleKeys.details(), scheduleId] as const,
 }
 
 export type ScheduleData = WorkflowScheduleRow
@@ -83,6 +85,30 @@ export function useWorkspaceSchedules(workspaceId?: string) {
       return data.schedules || []
     },
     enabled: Boolean(workspaceId),
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/**
+ * Fetch a single schedule (job) by id. Used by the mothership resource viewer so
+ * opening a scheduled-task artifact does a lightweight by-id read instead of the
+ * whole-workspace `useWorkspaceSchedules` fetch (which contended with the chat
+ * stream connection and stalled start/resume).
+ */
+export function useScheduleById(scheduleId?: string) {
+  return useQuery({
+    queryKey: scheduleKeys.byId(scheduleId ?? ''),
+    queryFn: async ({ signal }) => {
+      if (!scheduleId) throw new Error('Schedule ID required')
+
+      const data = await requestJson(getScheduleByIdContract, {
+        params: { id: scheduleId },
+        signal,
+      })
+      return data.schedule
+    },
+    enabled: Boolean(scheduleId),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
   })
