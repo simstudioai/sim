@@ -7,10 +7,10 @@ import type { EnrichmentConfig } from '@/enrichments/types'
  * Phone Number enrichment. Finds a contact's phone number from a full name plus
  * any available identifiers (company domain, LinkedIn URL) via a waterfall:
  * People Data Labs (name match) → Wiza reveal → Findymail (LinkedIn) → Prospeo
- * mobile → LeadMagic (LinkedIn) → Datagma (LinkedIn) → Dropcontact (name+company).
- * Each provider opportunistically uses whatever identifiers the row provides and
- * self-skips when it has none usable, so adding more inputs widens coverage
- * without reordering. First phone wins; all providers support hosted keys.
+ * mobile → LeadMagic (LinkedIn) → Datagma (LinkedIn). Each provider
+ * opportunistically uses whatever identifiers the row provides and self-skips
+ * when it has none usable, so adding more inputs widens coverage without
+ * reordering. First phone wins; all providers support hosted keys.
  */
 export const phoneNumberEnrichment: EnrichmentConfig = {
   id: 'phone-number',
@@ -134,26 +134,6 @@ export const phoneNumberEnrichment: EnrichmentConfig = {
       },
       mapOutput: (output) => {
         const phone = str(output.phone)
-        return phone ? { phone } : null
-      },
-    }),
-    toolProvider({
-      id: 'dropcontact',
-      label: 'Dropcontact',
-      toolId: 'dropcontact_enrich_contact',
-      buildParams: (inputs) => {
-        const fullName = str(inputs.fullName)
-        const website = normalizeDomain(inputs.companyDomain)
-        const linkedin = str(inputs.linkedinUrl)
-        if (!fullName || (!website && !linkedin)) return null
-        return filterUndefined({
-          full_name: fullName,
-          website: website || undefined,
-          linkedin: linkedin || undefined,
-        })
-      },
-      mapOutput: (output) => {
-        const phone = str(output.mobile_phone) || str(output.phone)
         return phone ? { phone } : null
       },
     }),

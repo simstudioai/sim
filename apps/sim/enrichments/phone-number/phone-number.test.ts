@@ -23,7 +23,6 @@ describe('phone-number enrichment cascade', () => {
       'prospeo',
       'leadmagic',
       'datagma',
-      'dropcontact',
     ])
   })
 
@@ -100,22 +99,6 @@ describe('phone-number enrichment cascade', () => {
       expect(p.buildParams(nameDomain)).toBeNull()
       expect(p.mapOutput({ phone: '+1555' })).toEqual({ phone: '+1555' })
       expect(p.mapOutput({ phone: null })).toBeNull()
-    })
-  })
-
-  describe('dropcontact', () => {
-    const p = provider('dropcontact')
-    it('enriches via name+company and prefers mobile_phone', () => {
-      expect(p.toolId).toBe('dropcontact_enrich_contact')
-      expect(p.buildParams(nameDomain)).toEqual({ full_name: 'John Doe', website: 'acme.com' })
-      expect(p.buildParams(linkedinOnly)).toEqual({
-        full_name: 'John Doe',
-        linkedin: 'https://linkedin.com/in/johndoe',
-      })
-      expect(p.buildParams({ companyDomain: 'acme.com' })).toBeNull()
-      expect(p.mapOutput({ mobile_phone: '+1555', phone: '+1999' })).toEqual({ phone: '+1555' })
-      expect(p.mapOutput({ phone: '+1999' })).toEqual({ phone: '+1999' })
-      expect(p.mapOutput({})).toBeNull()
     })
   })
 })
