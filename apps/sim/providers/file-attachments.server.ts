@@ -31,10 +31,11 @@ interface RemoteUrlContext {
 }
 
 /**
- * Mints a short-lived signed download URL for every attachment that exceeds the inline
- * threshold on a large-file-capable provider, storing it on `file.remoteUrl`. Providers
- * with a `remote-url` strategy use it directly; `files-api` providers upload from it later.
- * Requires cloud storage — without it large files fall back to the (capped) base64 path.
+ * Resolves every attachment that exceeds the inline threshold on a large-file-capable
+ * provider to a short-lived signed URL on `file.remoteUrl`. `remote-url` providers send it
+ * to the model directly; for `files-api` providers it marks the file for upload (the bytes
+ * are read from storage at upload time). Requires cloud storage — otherwise large files
+ * fall back to the (capped) base64 path.
  *
  * The server-only handle fields are first cleared on every file for every provider
  * (including inline) so a forged handle on untrusted input can never reach a builder.
