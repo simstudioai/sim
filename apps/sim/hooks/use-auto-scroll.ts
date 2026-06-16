@@ -24,6 +24,16 @@ const USER_GESTURE_WINDOW = 250
  * in the listener) is the other upward shortcut; plain `Space` pages down.
  */
 const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
+/** How long to keep chasing the bottom while a CSS height animation plays. */
+const ANIMATION_FOLLOW_WINDOW = 500
+/**
+ * How long to keep chasing the bottom after streaming stops. End-of-turn content
+ * mounts just after `isStreaming` flips false — the suggested-follow-up options,
+ * the actions row (gated on `!isStreaming`), and the virtualizer's re-measure of
+ * the grown row — so a single final scroll fires before it lays out and leaves it
+ * clipped behind the input. Following for a short window pulls it into view.
+ */
+const POST_STREAM_SETTLE_WINDOW = 300
 
 interface UseAutoScrollOptions {
   scrollOnMount?: boolean
@@ -147,7 +157,7 @@ export function useAutoScroll(
         scrollTop < prevScrollTopRef.current &&
         scrollHeight <= prevScrollHeightRef.current
       ) {
-        stickyRef.current = false
+        detach()
       }
 
       prevScrollTopRef.current = scrollTop
@@ -166,21 +176,37 @@ export function useAutoScroll(
     }
 
     /**
-     * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
-     * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
-     * following. When any animation starts in the container, follow rAF for a short
-     * window so the container stays pinned to the bottom while the animation runs.
+     * Chase the bottom every frame for `durationMs`. Catches height growth that
+     * arrives over several frames with no observed DOM mutation — a CSS height
+     * animation, or end-of-turn content and the virtualizer's re-measure settling
+     * after streaming stops.
+     *
+     * Self-interrupting: height growth leaves `scrollTop` exactly where we last
+     * put it, whereas a user scroll moves it up from there — so the moment
+     * `scrollTop` drops below our last write, we stop and never fight a real
+     * scroll, even with the gesture listeners already torn down.
      */
-    const onAnimationStart = () => {
+    const followToBottom = (durationMs: number) => {
       if (!stickyRef.current) return
-      const until = performance.now() + 500
+      const until = performance.now() + durationMs
+      let lastTop = -1
       const follow = () => {
         if (performance.now() > until || !stickyRef.current) return
+        if (lastTop >= 0 && el.scrollTop < lastTop - 1) return
         scrollToBottom()
+        lastTop = el.scrollTop
         requestAnimationFrame(follow)
       }
       requestAnimationFrame(follow)
     }
+
+    /**
+     * CSS-driven height animations (e.g. Radix Collapsible expanding mid-stream)
+     * grow scrollHeight without triggering MutationObserver, so auto-scroll stops
+     * following. Follow for a short window so the container stays pinned while the
+     * animation runs.
+     */
+    const onAnimationStart = () => followToBottom(ANIMATION_FOLLOW_WINDOW)
 
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
@@ -209,7 +235,7 @@ export function useAutoScroll(
       cancelAnimationFrame(rafIdRef.current)
       pointerDownRef.current = false
       lastUserGestureAtRef.current = Number.NEGATIVE_INFINITY
-      if (stickyRef.current) scrollToBottom()
+      followToBottom(POST_STREAM_SETTLE_WINDOW)
     }
   }, [isStreaming, scrollToBottom])
 
