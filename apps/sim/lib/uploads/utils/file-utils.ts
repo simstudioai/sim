@@ -701,7 +701,11 @@ function resolveInternalFileUrl(file: RawFileInput): string {
  * Provider large-file handles are populated by the server pipeline and must never be
  * accepted from untrusted file input (they drive server-side fetch/upload).
  */
-const PROVIDER_FILE_HANDLE_FIELDS = ['providerFileId', 'providerFileUri', 'remoteUrl'] as const
+const PROVIDER_FILE_HANDLE_FIELDS: Array<'providerFileId' | 'providerFileUri' | 'remoteUrl'> = [
+  'providerFileId',
+  'providerFileUri',
+  'remoteUrl',
+]
 
 /**
  * Core conversion logic from RawFileInput to UserFile
