@@ -1,8 +1,16 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
-import { isAbortError, isInternalFileUrl, isNetworkError } from '@/lib/uploads/utils/file-utils'
+import {
+  isAbortError,
+  isInternalFileUrl,
+  isNetworkError,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
+
+const logger = createLogger('FileUtilsTest')
 
 describe('isInternalFileUrl', () => {
   it('classifies relative serve paths as internal', () => {
@@ -70,5 +78,30 @@ describe('isNetworkError', () => {
     expect(isNetworkError(new Error('Validation failed: name is required'))).toBe(false)
     expect(isNetworkError('not an error')).toBe(false)
     expect(isNetworkError(null)).toBe(false)
+  })
+})
+
+describe('processSingleFileToUserFile', () => {
+  it('strips server-only provider file handles from untrusted input', () => {
+    const result = processSingleFileToUserFile(
+      {
+        id: 'file-1',
+        name: 'doc.pdf',
+        url: '/api/files/serve/workspace%2Fws-1%2Fdoc.pdf?context=workspace',
+        size: 1024,
+        type: 'application/pdf',
+        key: 'workspace/ws-1/doc.pdf',
+        providerFileId: 'file-injected',
+        providerFileUri: 'https://injected/uri',
+        remoteUrl: 'http://169.254.169.254/latest/meta-data',
+      } as never,
+      'req-1',
+      logger
+    )
+
+    expect(result.providerFileId).toBeUndefined()
+    expect(result.providerFileUri).toBeUndefined()
+    expect(result.remoteUrl).toBeUndefined()
+    expect(result.key).toBe('workspace/ws-1/doc.pdf')
   })
 })

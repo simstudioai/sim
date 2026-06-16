@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { featureFlagsMock, workflowsUtilsMock } from '@sim/testing'
+import { envFlagsMock, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateUserToolSchema, mockGetHighestPrioritySubscription } = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ vi.mock('@/lib/billing/plan-helpers', () => ({
   ),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/lib/mcp/utils', () => ({
   createMcpToolId: vi.fn(),

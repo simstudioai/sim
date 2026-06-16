@@ -27,7 +27,7 @@ import {
   isHosted,
   isInboxEnabled,
   isSsoEnabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('SubscriptionCore')

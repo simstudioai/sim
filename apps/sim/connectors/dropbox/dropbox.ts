@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { DropboxIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { dropboxConnectorMeta } from '@/connectors/dropbox/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
@@ -96,35 +96,7 @@ function fileToStub(entry: DropboxFileEntry): ExternalDocument {
 }
 
 export const dropboxConnector: ConnectorConfig = {
-  id: 'dropbox',
-  name: 'Dropbox',
-  description: 'Sync text files from Dropbox',
-  version: '1.0.0',
-  icon: DropboxIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'dropbox',
-    requiredScopes: ['files.metadata.read', 'files.content.read'],
-  },
-
-  configFields: [
-    {
-      id: 'folderPath',
-      title: 'Folder Path',
-      type: 'short-input',
-      placeholder: 'e.g. /Documents (default: entire Dropbox)',
-      required: false,
-      description: 'Leave empty to sync all supported files',
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...dropboxConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -297,12 +269,6 @@ export const dropboxConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'path', displayName: 'File Path', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'fileSize', displayName: 'File Size (bytes)', fieldType: 'number' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

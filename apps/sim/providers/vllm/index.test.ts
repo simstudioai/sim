@@ -51,6 +51,10 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn(() => []),
   getProviderDefaultModel: vi.fn(() => 'vllm/generic'),
 }))
@@ -155,7 +159,8 @@ describe('vllmProvider', () => {
 
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com',
-        'vLLM endpoint'
+        'vLLM endpoint',
+        { allowHttp: true }
       )
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')

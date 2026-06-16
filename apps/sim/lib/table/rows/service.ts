@@ -16,7 +16,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
-import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
@@ -250,13 +250,14 @@ export async function batchInsertRowsWithTx(
   })
 
   await acquireRowOrderLock(trx, data.tableId)
+  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
   // Undo restore passes exact saved keys; otherwise derive from positions/append.
   const orderKeys =
     data.orderKeys && data.orderKeys.length > 0
       ? data.orderKeys
       : await resolveBatchInsertOrderKeys(trx, data.tableId, data.rows.length, data.positions)
   let positions: number[]
-  if (isTablesFractionalOrderingEnabled) {
+  if (fractionalOrdering) {
     // order_key authoritative — best-effort append positions, no shift.
     const start = await nextRowPosition(trx, data.tableId)
     positions = Array.from({ length: data.rows.length }, (_, i) => start + i)
@@ -690,11 +691,10 @@ export async function upsertRow(
 function buildRowOrderBySql(
   sort: Sort | undefined,
   tableName: string,
-  columns: ColumnDefinition[]
+  columns: ColumnDefinition[],
+  fractionalOrderingEnabled: boolean
 ): SQL {
-  const primary = isTablesFractionalOrderingEnabled
-    ? `${tableName}.order_key`
-    : `${tableName}.position`
+  const primary = fractionalOrderingEnabled ? `${tableName}.order_key` : `${tableName}.position`
   const id = `${tableName}.id`
   if (sort && Object.keys(sort).length > 0) {
     const sortClause = buildSortClause(sort, tableName, columns)
@@ -759,7 +759,8 @@ export async function findRowMatches(
     if (filterClause) whereClause = and(baseConditions, filterClause)
   }
 
-  const orderBySql = buildRowOrderBySql(options.sort, tableName, columns)
+  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
+  const orderBySql = buildRowOrderBySql(options.sort, tableName, columns, fractionalOrdering)
   const pattern = `%${escapeLikePattern(options.q)}%`
 
   const result = await db.transaction(async (trx) => {
@@ -908,7 +909,10 @@ export async function queryRows(
 
   // Hide rows a running delete job is about to remove — both the page and the count below share
   // this clause, so totals stay consistent with the visible rows.
-  const deleteMask = await pendingDeleteMask(table)
+  const [deleteMask, fractionalOrdering] = await Promise.all([
+    pendingDeleteMask(table),
+    isFeatureEnabled('tables-fractional-ordering'),
+  ])
 
   const baseConditions = and(
     eq(userTableRows.tableId, table.id),
@@ -941,7 +945,7 @@ export async function queryRows(
       .select()
       .from(userTableRows)
       .where(pageWhere ?? baseConditions)
-      .orderBy(buildRowOrderBySql(sort, tableName, columns))
+      .orderBy(buildRowOrderBySql(sort, tableName, columns, fractionalOrdering))
     return after ? query.limit(limit) : query.limit(limit).offset(offset)
   }
 

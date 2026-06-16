@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
 import { env } from '@/lib/core/config/env'
-import { isTriggerDevEnabled } from '@/lib/core/config/feature-flags'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('LifecycleEmail')
 

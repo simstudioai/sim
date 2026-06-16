@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { executeInE2B, executeShellInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -53,7 +53,7 @@ export interface E2BDocFormat {
  * pptx/docx → node, pdf/xlsx → python. Only meaningful when the E2B doc sandbox
  * is enabled; callers gate on isE2BDocEnabled before using this.
  */
-export function getE2BDocFormat(fileName: string): E2BDocFormat | null {
+export async function getE2BDocFormat(fileName: string): Promise<E2BDocFormat | null> {
   const l = fileName.toLowerCase()
   if (l.endsWith('.pptx'))
     return {
@@ -79,10 +79,10 @@ export function getE2BDocFormat(fileName: string): E2BDocFormat | null {
       contentType: PDF_MIME,
       sourceMime: PYTHON_PDF_SOURCE_MIME,
     }
-  // xlsx is gated behind the mothership beta flag (like plans/changelog): the
+  // xlsx is gated behind the mothership-beta feature flag (like plans/changelog): the
   // skill + prompt are gated on the Go side, and this is the single Sim chokepoint
   // that keeps the compile/serve/check/recalc paths off for xlsx when beta is off.
-  if (l.endsWith('.xlsx') && isMothershipBetaFeaturesEnabled)
+  if (l.endsWith('.xlsx') && (await isFeatureEnabled('mothership-beta')))
     return {
       ext: 'xlsx',
       engine: 'python',
@@ -385,7 +385,7 @@ export async function compileDoc(
   args: CompileArgs
 ): Promise<{ buffer: Buffer; contentType: string }> {
   const { source, fileName, workspaceId } = args
-  const fmt = getE2BDocFormat(fileName)
+  const fmt = await getE2BDocFormat(fileName)
   if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
 
   const existing = await loadCompiledDoc(workspaceId, source, fmt.ext)
@@ -409,7 +409,7 @@ export async function loadCompiledDocByExt(
   source: string,
   ext: string
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
-  const fmt = getE2BDocFormat(`x.${ext}`)
+  const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
   return buffer ? { buffer, contentType: fmt.contentType } : null

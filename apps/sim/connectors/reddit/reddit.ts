@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { RedditIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { DEFAULT_MAX_POSTS, redditConnectorMeta } from '@/connectors/reddit/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
 
@@ -9,7 +9,6 @@ const logger = createLogger('RedditConnector')
 
 const REDDIT_API_BASE = 'https://oauth.reddit.com'
 const REDDIT_USER_AGENT = 'sim-studio:v1.0.0 (knowledge-connector)'
-const DEFAULT_MAX_POSTS = 200
 const POSTS_PER_PAGE = 100
 const COMMENTS_PER_POST = 15
 
@@ -243,63 +242,7 @@ function resolveSortConfig(sourceConfig: Record<string, unknown>): {
 }
 
 export const redditConnector: ConnectorConfig = {
-  id: 'reddit',
-  name: 'Reddit',
-  description: 'Sync subreddit posts and comments from Reddit',
-  version: '1.0.0',
-  icon: RedditIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'reddit',
-    requiredScopes: ['read'],
-  },
-
-  configFields: [
-    {
-      id: 'subreddit',
-      title: 'Subreddit',
-      type: 'short-input',
-      placeholder: 'e.g. machinelearning',
-      required: true,
-      description: 'Subreddit name to sync posts from (without r/ prefix)',
-    },
-    {
-      id: 'sort',
-      title: 'Sort',
-      type: 'dropdown',
-      required: false,
-      description: 'How to sort posts',
-      options: [
-        { label: 'Hot', id: 'hot' },
-        { label: 'New', id: 'new' },
-        { label: 'Top', id: 'top' },
-        { label: 'Rising', id: 'rising' },
-      ],
-    },
-    {
-      id: 'timeFilter',
-      title: 'Time Filter',
-      type: 'dropdown',
-      required: false,
-      description: 'Time range for top posts (only applies when sort is "Top")',
-      options: [
-        { label: 'Past Day', id: 'day' },
-        { label: 'Past Week', id: 'week' },
-        { label: 'Past Month', id: 'month' },
-        { label: 'Past Year', id: 'year' },
-        { label: 'All Time', id: 'all' },
-      ],
-    },
-    {
-      id: 'maxPosts',
-      title: 'Max Posts',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 100 (default: ${DEFAULT_MAX_POSTS})`,
-      description: 'Maximum number of posts to sync',
-    },
-  ],
+  ...redditConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -460,14 +403,6 @@ export const redditConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'author', displayName: 'Author', fieldType: 'text' },
-    { id: 'score', displayName: 'Score', fieldType: 'number' },
-    { id: 'commentCount', displayName: 'Comment Count', fieldType: 'number' },
-    { id: 'flair', displayName: 'Flair', fieldType: 'text' },
-    { id: 'postDate', displayName: 'Post Date', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

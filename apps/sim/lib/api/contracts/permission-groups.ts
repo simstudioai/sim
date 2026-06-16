@@ -43,6 +43,13 @@ export const permissionGroupDetailParamsSchema = z.object({
   groupId: z.string().min(1),
 })
 
+/** A workspace a permission group targets (id + display name). */
+export const permissionGroupWorkspaceRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+export type PermissionGroupWorkspaceRef = z.output<typeof permissionGroupWorkspaceRefSchema>
+
 export const permissionGroupSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -55,6 +62,10 @@ export const permissionGroupSchema = z.object({
   creatorEmail: z.string().nullable(),
   memberCount: z.number(),
   isDefault: z.boolean(),
+  /** When true the group governs every workspace; when false only `workspaces`. */
+  appliesToAllWorkspaces: z.boolean(),
+  /** Workspaces targeted when `appliesToAllWorkspaces` is false (empty otherwise). */
+  workspaces: z.array(permissionGroupWorkspaceRefSchema),
 })
 export type PermissionGroup = z.output<typeof permissionGroupSchema>
 
@@ -68,6 +79,9 @@ export const permissionGroupWriteSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   isDefault: z.boolean(),
+  appliesToAllWorkspaces: z.boolean(),
+  /** Ids of targeted workspaces when `appliesToAllWorkspaces` is false. */
+  workspaceIds: z.array(z.string()),
 })
 export type PermissionGroupWrite = z.output<typeof permissionGroupWriteSchema>
 
@@ -97,19 +111,73 @@ export const userPermissionConfigSchema = z.object({
 })
 export type UserPermissionConfig = z.output<typeof userPermissionConfigSchema>
 
-export const createPermissionGroupBodySchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  description: z.string().max(500).optional(),
-  config: permissionGroupConfigSchema.optional(),
-  isDefault: z.boolean().optional(),
-})
+/** Upper bound on how many workspaces a single group can explicitly target. */
+export const MAX_PERMISSION_GROUP_WORKSPACES = 500
 
-export const updatePermissionGroupBodySchema = z.object({
-  name: z.string().trim().min(1).max(100).optional(),
-  description: z.string().max(500).nullable().optional(),
-  config: permissionGroupConfigSchema.optional(),
-  isDefault: z.boolean().optional(),
-})
+const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_WORKSPACES)
+
+/**
+ * Enforce the workspace-scope invariants shared by create and update:
+ *  - a specific-scope group (`appliesToAllWorkspaces === false`) must name at
+ *    least one workspace,
+ *  - the organization default group must apply to all workspaces, and
+ *  - an all-workspaces or default group must not name specific workspaces
+ *    (otherwise `workspaceIds` would be silently dropped server-side).
+ */
+function refineWorkspaceScope(
+  body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[]; isDefault?: boolean },
+  ctx: z.RefinementCtx
+) {
+  // A default group is always org-wide, and an explicit all-workspaces group has
+  // no specific workspaces. Reject workspaceIds in either case rather than
+  // silently dropping them when the scope resolves to all-workspaces.
+  const allWorkspaces = body.isDefault === true || body.appliesToAllWorkspaces === true
+  if (allWorkspaces && body.workspaceIds && body.workspaceIds.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['workspaceIds'],
+      message: 'workspaceIds can only be set when the group targets specific workspaces',
+    })
+  }
+  if (body.appliesToAllWorkspaces === false) {
+    if (!body.workspaceIds || body.workspaceIds.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['workspaceIds'],
+        message: 'Select at least one workspace when the group targets specific workspaces',
+      })
+    }
+    if (body.isDefault === true) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['appliesToAllWorkspaces'],
+        message: 'The default group must apply to all workspaces',
+      })
+    }
+  }
+}
+
+export const createPermissionGroupBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100),
+    description: z.string().max(500).optional(),
+    config: permissionGroupConfigSchema.optional(),
+    isDefault: z.boolean().optional(),
+    appliesToAllWorkspaces: z.boolean().optional(),
+    workspaceIds: workspaceIdsSchema.optional(),
+  })
+  .superRefine(refineWorkspaceScope)
+
+export const updatePermissionGroupBodySchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).optional(),
+    description: z.string().max(500).nullable().optional(),
+    config: permissionGroupConfigSchema.optional(),
+    isDefault: z.boolean().optional(),
+    appliesToAllWorkspaces: z.boolean().optional(),
+    workspaceIds: workspaceIdsSchema.optional(),
+  })
+  .superRefine(refineWorkspaceScope)
 
 export const removePermissionGroupMemberQuerySchema = z.object({
   memberId: z.string().min(1),
@@ -234,7 +302,26 @@ export const bulkAddPermissionGroupMembersContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       added: z.number(),
-      moved: z.number(),
+      // Users not added because they were already in this group. A conflicting
+      // selection fails the whole request (409) rather than being skipped, so
+      // the add is all-or-nothing for conflicts.
+      skipped: z.number(),
+    }),
+  },
+})
+
+/**
+ * List the workspaces belonging to an organization, used to populate the
+ * workspace multi-select when scoping a permission group to specific workspaces.
+ */
+export const listOrganizationWorkspacesContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/organizations/[id]/workspaces',
+  params: permissionGroupParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      workspaces: z.array(permissionGroupWorkspaceRefSchema),
     }),
   },
 })

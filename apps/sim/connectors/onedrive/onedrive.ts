@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { onedriveConnectorMeta } from '@/connectors/onedrive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
@@ -134,30 +134,7 @@ function buildListUrl(folderPath?: string): string {
 }
 
 export const onedriveConnector: ConnectorConfig = {
-  id: 'onedrive',
-  name: 'OneDrive',
-  description: 'Sync documents from Microsoft OneDrive',
-  version: '1.0.0',
-  icon: MicrosoftOneDriveIcon,
-
-  auth: { mode: 'oauth', provider: 'onedrive', requiredScopes: ['Files.Read'] },
-
-  configFields: [
-    {
-      id: 'folderPath',
-      title: 'Folder Path',
-      type: 'short-input',
-      placeholder: 'e.g. Documents/Reports (optional, default: root)',
-      required: false,
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...onedriveConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -376,13 +353,6 @@ export const onedriveConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'path', displayName: 'Path', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'fileSize', displayName: 'File Size', fieldType: 'number' },
-    { id: 'createdBy', displayName: 'Created By', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

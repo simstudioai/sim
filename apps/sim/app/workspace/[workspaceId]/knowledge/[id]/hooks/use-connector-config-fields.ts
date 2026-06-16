@@ -2,13 +2,13 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { getDependsOnFields } from '@/blocks/utils'
-import type { ConnectorConfig, ConnectorConfigField } from '@/connectors/types'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
 export type ConfigFieldValue = string | string[]
 export type ConfigFieldMap = Record<string, ConfigFieldValue>
 
 export interface UseConnectorConfigFieldsOptions {
-  connectorConfig: ConnectorConfig | null
+  connectorConfig: ConnectorMeta | null
   initialSourceConfig?: ConfigFieldMap
   initialCanonicalModes?: Record<string, 'basic' | 'advanced'>
 }

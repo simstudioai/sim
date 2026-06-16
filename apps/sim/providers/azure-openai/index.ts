@@ -113,7 +113,7 @@ async function executeChatCompletionsRequest(
       const parts: ChatCompletionContentPart[] = []
       if (message.content) parts.push({ type: 'text', text: message.content })
       for (const a of attachments) {
-        parts.push({ type: 'image_url', image_url: { url: a.dataUrl } })
+        parts.push({ type: 'image_url', image_url: { url: a.remoteUrl ?? a.dataUrl ?? '' } })
       }
       const { files: _files, ...rest } = message
       allMessages.push({ ...rest, content: parts } as ChatCompletionMessageParam)

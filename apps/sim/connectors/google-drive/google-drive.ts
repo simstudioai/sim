@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GoogleDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -169,47 +169,7 @@ function fileToStub(file: DriveFile): ExternalDocument {
 }
 
 export const googleDriveConnector: ConnectorConfig = {
-  id: 'google_drive',
-  name: 'Google Drive',
-  description: 'Sync documents from Google Drive',
-  version: '1.0.0',
-  icon: GoogleDriveIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'google-drive',
-    requiredScopes: ['https://www.googleapis.com/auth/drive'],
-  },
-
-  configFields: [
-    {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
-      required: false,
-    },
-    {
-      id: 'fileType',
-      title: 'File Type',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'All supported files', id: 'all' },
-        { label: 'Google Docs only', id: 'documents' },
-        { label: 'Google Sheets only', id: 'spreadsheets' },
-        { label: 'Google Slides only', id: 'presentations' },
-        { label: 'Plain text files only', id: 'text' },
-      ],
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...googleDriveConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -399,13 +359,6 @@ export const googleDriveConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'owners', displayName: 'Owner', fieldType: 'text' },
-    { id: 'fileType', displayName: 'File Type', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'starred', displayName: 'Starred', fieldType: 'boolean' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

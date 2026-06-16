@@ -1,4 +1,5 @@
 import type { Logger } from '@sim/logger'
+import { omit } from '@sim/utils/object'
 import type { StorageContext } from '@/lib/uploads'
 import { ACCEPTED_FILE_TYPES, SUPPORTED_DOCUMENT_EXTENSIONS } from '@/lib/uploads/utils/validation'
 import { isUuid } from '@/executor/constants'
@@ -697,12 +698,22 @@ function resolveInternalFileUrl(file: RawFileInput): string {
 }
 
 /**
+ * Provider large-file handles are populated by the server pipeline and must never be
+ * accepted from untrusted file input (they drive server-side fetch/upload).
+ */
+const PROVIDER_FILE_HANDLE_FIELDS: Array<'providerFileId' | 'providerFileUri' | 'remoteUrl'> = [
+  'providerFileId',
+  'providerFileUri',
+  'remoteUrl',
+]
+
+/**
  * Core conversion logic from RawFileInput to UserFile
  */
 function convertToUserFile(file: RawFileInput, requestId: string, logger: Logger): UserFile | null {
   if (isCompleteUserFile(file)) {
     return {
-      ...file,
+      ...omit(file, PROVIDER_FILE_HANDLE_FIELDS),
       url: resolveInternalFileUrl(file) || file.url,
     }
   }

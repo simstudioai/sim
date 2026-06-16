@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { featureFlagsMock } from '@sim/testing'
+import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { normalizeConditionRouterIds } from './builders'
 
@@ -92,7 +92,7 @@ vi.mock('@/lib/copilot/validation/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@/providers/utils', () => ({
   getHostedModels: () => [],

@@ -949,7 +949,7 @@ export async function preValidateCredentialInputs(
   context: { userId: string; workspaceId?: string },
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
-  const { isHosted } = await import('@/lib/core/config/feature-flags')
+  const { isHosted } = await import('@/lib/core/config/env-flags')
   const { getHostedModels } = await import('@/providers/utils')
 
   const logger = createLogger('PreValidateCredentials')

@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { GoogleDocsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { googleDocsConnectorMeta } from '@/connectors/google-docs/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -161,34 +161,7 @@ function buildQuery(sourceConfig: Record<string, unknown>): string {
 }
 
 export const googleDocsConnector: ConnectorConfig = {
-  id: 'google_docs',
-  name: 'Google Docs',
-  description: 'Sync Google Docs documents',
-  version: '1.0.0',
-  icon: GoogleDocsIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'google-docs',
-    requiredScopes: ['https://www.googleapis.com/auth/drive'],
-  },
-
-  configFields: [
-    {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
-      required: false,
-    },
-    {
-      id: 'maxDocs',
-      title: 'Max Documents',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...googleDocsConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -383,11 +356,6 @@ export const googleDocsConnector: ConnectorConfig = {
       return { valid: false, error: toError(error).message || 'Failed to validate configuration' }
     }
   },
-
-  tagDefinitions: [
-    { id: 'owners', displayName: 'Owner', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

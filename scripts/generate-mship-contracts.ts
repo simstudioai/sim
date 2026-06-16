@@ -9,8 +9,7 @@
 // old per-script `--check`, but accounts for post-generate formatting.
 
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -103,9 +102,7 @@ function runCheck(): void {
   }
 
   if (stale.length > 0) {
-    console.error(
-      `Generated contracts are stale: ${stale.join(', ')}. Run: bun run mship:generate`,
-    )
+    console.error(`Generated contracts are stale: ${stale.join(', ')}. Run: bun run mship:generate`)
     process.exit(1)
   }
   console.log('All generated contracts up to date.')

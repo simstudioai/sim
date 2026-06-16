@@ -6,6 +6,7 @@ export const MothershipResourceType = {
   folder: 'folder',
   filefolder: 'filefolder',
   task: 'task',
+  scheduledtask: 'scheduledtask',
   log: 'log',
   integration: 'integration',
   generic: 'generic',
@@ -24,10 +25,22 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
   return resource.type === 'generic' || resource.id === 'streaming-file'
 }
 
+/** Placeholder resource titles that a more specific title may overwrite during dedup. */
+export const GENERIC_RESOURCE_TITLES = new Set<string>([
+  'Table',
+  'File',
+  'Workflow',
+  'Knowledge Base',
+  'Folder',
+  'Scheduled Task',
+  'Log',
+])
+
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',
+  jobs: 'scheduledtask',
 } as const
