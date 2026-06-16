@@ -40,6 +40,10 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 }))
 
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getHostedModels: vi.fn(() => []),
 }))
 

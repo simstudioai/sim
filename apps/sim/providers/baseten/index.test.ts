@@ -26,6 +26,10 @@ vi.mock('openai', () => ({
 vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 5 }))
 
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn().mockReturnValue([]),
   getProviderDefaultModel: vi.fn().mockReturnValue('openai/gpt-oss-120b'),
 }))
