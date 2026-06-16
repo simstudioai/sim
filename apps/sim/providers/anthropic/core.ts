@@ -325,10 +325,6 @@ export async function executeAnthropicProviderRequest(
     }
   }
 
-  // Prompt caching: mark the static prefix (system + tools) with an ephemeral
-  // cache breakpoint so repeated calls (agent tool-loops, multi-turn) reuse it.
-  // Runs after the structured-output block above, which assumes `system` is still
-  // a string. Mutates payload.system and the last tool in place.
   applyAnthropicPromptCache(payload, anthropicTools, request.systemPrompt)
 
   // Add extended thinking configuration if supported and requested

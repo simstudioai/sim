@@ -22,12 +22,19 @@ interface AnthropicCacheablePayload {
  * Marks the static request prefix (system prompt + tools) with an ephemeral
  * cache breakpoint when {@link shouldCacheStaticPrefix} deems it worthwhile, so
  * repeated calls reuse the cached prefix. Mutates `payload.system` (string → a
- * single cached text block) and the last entry of `tools` in place.
+ * single cached text block) and the last entry of `tools` in place; a no-op when
+ * the prefix is too small or not present. Call after any structured-output
+ * mutation of `payload.system`, since it may replace the string with a block array.
  *
- * `systemPrompt` is the ORIGINAL request system prompt, used only for the
- * worthiness gate: on the no-messages path the provider relocates the system
- * text into a user message and blanks `payload.system`, but the tools prefix is
- * still worth caching there.
+ * The worthiness gate is sized on the LARGER of the final `payload.system`
+ * (which may include appended structured-output schema text) and the original
+ * `systemPrompt` (non-empty even when the no-messages path relocates the system
+ * text into a user message and blanks `payload.system` — the tools prefix is
+ * still worth caching there).
+ *
+ * @param payload - Anthropic request payload; `system` is mutated in place.
+ * @param tools - Anthropic tool definitions; the last entry is mutated in place.
+ * @param systemPrompt - The original request system prompt, used only for sizing.
  */
 export function applyAnthropicPromptCache(
   payload: AnthropicCacheablePayload,
@@ -36,9 +43,6 @@ export function applyAnthropicPromptCache(
 ): void {
   const payloadSystem = typeof payload.system === 'string' ? payload.system : ''
 
-  // Size the gate on the LARGER of the final payload.system (which may include
-  // appended structured-output schema text) and the original request prompt
-  // (non-empty even when the no-messages path relocates it out of payload.system).
   const gateSystem =
     payloadSystem.length >= (systemPrompt?.length ?? 0) ? payloadSystem : systemPrompt
 

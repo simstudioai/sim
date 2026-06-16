@@ -40,8 +40,5 @@ export function shouldCacheStaticPrefix(params: {
     return false
   }
 
-  // Tools imply an agent loop (the prefix is re-read each iteration). Without
-  // tools, only cache when the system prompt alone is large enough to be worth
-  // the write on its own.
   return params.hasTools || systemTokens >= MIN_CACHEABLE_PREFIX_TOKENS
 }
