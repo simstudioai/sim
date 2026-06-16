@@ -673,6 +673,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         const selectedFileIds = fileId ? [fileId] : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+        if (selectedFileIds.length + selectedInputFiles.length > 1) {
+          return NextResponse.json(
+            { success: false, error: 'Decompress accepts a single .zip archive at a time' },
+            { status: 400 }
+          )
+        }
+
         const workspaceFiles = await Promise.all(
           selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
         )
