@@ -147,7 +147,7 @@ export function useAutoScroll(
         scrollTop < prevScrollTopRef.current &&
         scrollHeight <= prevScrollHeightRef.current
       ) {
-        stickyRef.current = false
+        detach()
       }
 
       prevScrollTopRef.current = scrollTop
