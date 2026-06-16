@@ -4,6 +4,7 @@
 import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
 import {
+  inferContextFromKey,
   isAbortError,
   isInternalFileUrl,
   isNetworkError,
@@ -44,6 +45,32 @@ describe('isInternalFileUrl', () => {
     expect(isInternalFileUrl('data:text/plain;base64,abc')).toBe(false)
     // @ts-expect-error verifying runtime guard
     expect(isInternalFileUrl(undefined)).toBe(false)
+  })
+})
+
+describe('inferContextFromKey', () => {
+  it('maps both kb/ and knowledge-base/ prefixes to knowledge-base', () => {
+    expect(inferContextFromKey('kb/1700000000000-doc.pdf')).toBe('knowledge-base')
+    // Direct/presigned uploads key as `${context}/...`, i.e. `knowledge-base/...`
+    expect(inferContextFromKey('knowledge-base/1781612506186-b2442e0dc045cb6c-doc.txt')).toBe(
+      'knowledge-base'
+    )
+  })
+
+  it('maps the remaining context prefixes', () => {
+    expect(inferContextFromKey('chat/x')).toBe('chat')
+    expect(inferContextFromKey('copilot/x')).toBe('copilot')
+    expect(inferContextFromKey('execution/ws/wf/ex/x')).toBe('execution')
+    expect(inferContextFromKey('workspace/ws/x')).toBe('workspace')
+    expect(inferContextFromKey('profile-pictures/x')).toBe('profile-pictures')
+    expect(inferContextFromKey('og-images/x')).toBe('og-images')
+    expect(inferContextFromKey('workspace-logos/x')).toBe('workspace-logos')
+    expect(inferContextFromKey('logs/x')).toBe('logs')
+  })
+
+  it('throws for empty or unrecognized keys', () => {
+    expect(() => inferContextFromKey('')).toThrow()
+    expect(() => inferContextFromKey('mystery/x')).toThrow()
   })
 })
 
