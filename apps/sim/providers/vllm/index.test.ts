@@ -155,7 +155,8 @@ describe('vllmProvider', () => {
 
       expect(mockValidateUrlWithDNS).toHaveBeenCalledWith(
         'https://my-vllm.example.com',
-        'vLLM endpoint'
+        'vLLM endpoint',
+        { allowHttp: true }
       )
       expect(mockCreatePinnedFetch).toHaveBeenCalledWith('203.0.113.10')
       expect(openAIArgs[0].baseURL).toBe('https://my-vllm.example.com/v1')

@@ -108,10 +108,16 @@ export const vllmProvider: ProviderConfig = {
      * central SSRF guard and pin the connection to the resolved IP to defeat DNS
      * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
      * unvalidated, mirroring the Azure providers.
+     *
+     * `allowHttp` is enabled because self-hosted vLLM is frequently served over
+     * plain HTTP; this only relaxes the protocol requirement — the private/reserved
+     * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
      */
     let pinnedFetch: typeof fetch | undefined
     if (userProvidedEndpoint) {
-      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint')
+      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
+        allowHttp: true,
+      })
       if (!validation.isValid) {
         logger.warn('Blocked SSRF attempt via vLLM endpoint', {
           endpoint: userProvidedEndpoint,
