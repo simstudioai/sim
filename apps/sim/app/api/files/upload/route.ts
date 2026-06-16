@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
+import { sanitizeFileName } from '@/executor/constants'
 import '@/lib/uploads/core/setup.server'
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import {
