@@ -901,33 +901,77 @@ Return ONLY the JSON object - no explanations, no markdown, no extra text.`,
       tool: (params) => params.operation,
       params: (params) => {
         const result: Record<string, unknown> = {}
-        if (params.alertTitle) result.title = params.alertTitle
-        if (params.folderTitle) result.title = params.folderTitle
-        if (params.updateFolderTitle) result.title = params.updateFolderTitle
-        if (params.folderUidNew) result.uid = params.folderUidNew
-        if (params.alertRuleUidNew) result.uid = params.alertRuleUidNew
-        if (params.parentUidNew) result.parentUid = params.parentUidNew
-        if (params.parentUidList) result.parentUid = params.parentUidList
-        if (params.manageFolderUid) result.folderUid = params.manageFolderUid
-        if (params.contactPointName) result.name = params.contactPointName
-        if (params.contactPointNameNew) result.name = params.contactPointNameNew
-        if (params.contactPointType) result.type = params.contactPointType
-        if (params.contactPointSettings) result.settings = params.contactPointSettings
-        if (params.annotationTags) result.tags = params.annotationTags
-        if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
-        if (params.annotationType) result.type = params.annotationType
-        if (params.panelId) result.panelId = Number(params.panelId)
-        if (params.annotationId) result.annotationId = Number(params.annotationId)
-        if (params.alertId) result.alertId = Number(params.alertId)
-        if (params.userId) result.userId = Number(params.userId)
-        if (params.time) result.time = Number(params.time)
-        if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
-        if (params.from) result.from = Number(params.from)
-        if (params.to) result.to = Number(params.to)
-        if (params.page) result.page = Number(params.page)
-        if (params.limit) result.limit = Number(params.limit)
-        if (params.missingSeriesEvalsToResolve) {
-          result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+        switch (params.operation) {
+          case 'grafana_list_dashboards':
+            if (params.page) result.page = Number(params.page)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_create_alert_rule':
+            if (params.alertTitle) result.title = params.alertTitle
+            if (params.alertRuleUidNew) result.uid = params.alertRuleUidNew
+            if (params.missingSeriesEvalsToResolve) {
+              result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+            }
+            break
+          case 'grafana_update_alert_rule':
+            if (params.alertTitle) result.title = params.alertTitle
+            if (params.missingSeriesEvalsToResolve) {
+              result.missingSeriesEvalsToResolve = Number(params.missingSeriesEvalsToResolve)
+            }
+            break
+          case 'grafana_list_contact_points':
+            if (params.contactPointName) result.name = params.contactPointName
+            break
+          case 'grafana_create_contact_point':
+            if (params.contactPointNameNew) result.name = params.contactPointNameNew
+            if (params.contactPointType) result.type = params.contactPointType
+            if (params.contactPointSettings) result.settings = params.contactPointSettings
+            break
+          case 'grafana_create_annotation':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
+            if (params.panelId) result.panelId = Number(params.panelId)
+            if (params.time) result.time = Number(params.time)
+            if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
+            break
+          case 'grafana_update_annotation':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationId) result.annotationId = Number(params.annotationId)
+            if (params.time) result.time = Number(params.time)
+            if (params.timeEnd) result.timeEnd = Number(params.timeEnd)
+            break
+          case 'grafana_delete_annotation':
+            if (params.annotationId) result.annotationId = Number(params.annotationId)
+            break
+          case 'grafana_list_annotations':
+            if (params.annotationTags) result.tags = params.annotationTags
+            if (params.annotationDashboardUid) result.dashboardUid = params.annotationDashboardUid
+            if (params.annotationType) result.type = params.annotationType
+            if (params.panelId) result.panelId = Number(params.panelId)
+            if (params.alertId) result.alertId = Number(params.alertId)
+            if (params.userId) result.userId = Number(params.userId)
+            if (params.from) result.from = Number(params.from)
+            if (params.to) result.to = Number(params.to)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_list_folders':
+            if (params.parentUidList) result.parentUid = params.parentUidList
+            if (params.page) result.page = Number(params.page)
+            if (params.limit) result.limit = Number(params.limit)
+            break
+          case 'grafana_create_folder':
+            if (params.folderTitle) result.title = params.folderTitle
+            if (params.folderUidNew) result.uid = params.folderUidNew
+            if (params.parentUidNew) result.parentUid = params.parentUidNew
+            break
+          case 'grafana_get_folder':
+          case 'grafana_delete_folder':
+            if (params.manageFolderUid) result.folderUid = params.manageFolderUid
+            break
+          case 'grafana_update_folder':
+            if (params.manageFolderUid) result.folderUid = params.manageFolderUid
+            if (params.updateFolderTitle) result.title = params.updateFolderTitle
+            break
         }
         return result
       },
