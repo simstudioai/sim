@@ -1,4 +1,4 @@
-import { createEnvMock, featureFlagsMock } from '@sim/testing'
+import { createEnvMock, envFlagsMock } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () =>
@@ -17,7 +17,7 @@ vi.mock('@/lib/core/config/env', () =>
   })
 )
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 import {
   addCSPSource,

@@ -9,7 +9,7 @@
 import { db } from '@sim/db'
 import { userTableRows } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, gte, inArray, lt, lte, type SQL, sql } from 'drizzle-orm'
-import { isTablesFractionalOrderingEnabled } from '@/lib/core/config/feature-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbOrTx } from '@/lib/db/types'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { keyBetween, nKeysBetween } from '@/lib/table/order-key'
@@ -193,9 +193,10 @@ export async function resolveInsertOrderKey(
   tableId: string,
   requestedPosition?: number
 ): Promise<string> {
+  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
   const orderKeyAtSlot = async (slot: number): Promise<string | null> => {
     if (slot < 0) return null
-    if (isTablesFractionalOrderingEnabled) {
+    if (fractionalOrdering) {
       const [r] = await trx
         .select({ orderKey: userTableRows.orderKey })
         .from(userTableRows)
@@ -248,7 +249,8 @@ export async function resolveInsertByNeighbor(
   // (key is authoritative) the adjacent-key lookup below can't work — fail
   // loudly rather than mint a wrong key. Flag off keeps `position` authoritative,
   // so a best-effort key here is fine (the backfill re-keys before the flip).
-  if (anchorKey === null && isTablesFractionalOrderingEnabled) {
+  const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
+  if (anchorKey === null && fractionalOrdering) {
     throw new Error(`Row ${anchorId} has no order_key yet (table not backfilled)`)
   }
 
@@ -312,7 +314,11 @@ export async function resolveBatchInsertOrderKeys(
   count: number,
   positions?: number[]
 ): Promise<string[]> {
-  if (!positions || positions.length === 0 || isTablesFractionalOrderingEnabled) {
+  if (
+    !positions ||
+    positions.length === 0 ||
+    (await isFeatureEnabled('tables-fractional-ordering'))
+  ) {
     return nKeysBetween(await maxOrderKey(trx, tableId), null, count)
   }
   const keys: string[] = []
@@ -354,6 +360,8 @@ export async function insertOrderedRow(params: {
     await setTableTxTimeouts(trx)
     await acquireRowOrderLock(trx, tableId)
 
+    const fractionalOrdering = await isFeatureEnabled('tables-fractional-ordering')
+
     // Resolve the order key (and a legacy slot position for the flag-off shift
     // path) from neighbor ids when given, else from the requested position.
     let orderKey: string
@@ -367,7 +375,7 @@ export async function insertOrderedRow(params: {
     }
 
     let targetPosition: number
-    if (isTablesFractionalOrderingEnabled) {
+    if (fractionalOrdering) {
       // order_key is authoritative — keep a best-effort, no-shift position.
       targetPosition = await nextRowPosition(trx, tableId)
     } else if (slotPosition !== undefined) {
@@ -432,7 +440,7 @@ export async function deleteOrderedRow(params: {
     if (!deleted) return false
     // Fractional ordering: deleting a row never changes another row's order_key,
     // so the O(N) position reshift is skipped entirely.
-    if (!isTablesFractionalOrderingEnabled) {
+    if (!(await isFeatureEnabled('tables-fractional-ordering'))) {
       await shiftRowsDownAfter(trx, tableId, deleted.position)
     }
     return true
@@ -470,7 +478,7 @@ export async function deleteOrderedRowsByIds(params: {
       deleted.push(...rows)
     }
     // Fractional ordering: deletes leave order_key untouched, so no recompaction.
-    if (!isTablesFractionalOrderingEnabled && deleted.length > 0) {
+    if (!(await isFeatureEnabled('tables-fractional-ordering')) && deleted.length > 0) {
       const minDeletedPos = deleted.reduce(
         (min, r) => (r.position < min ? r.position : min),
         deleted[0].position

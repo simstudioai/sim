@@ -21,10 +21,12 @@ When the user asks you to validate a connector:
 Read **every** file for the connector — do not skip any:
 
 ```
-apps/sim/connectors/{service}/{service}.ts   # Connector implementation
+apps/sim/connectors/{service}/meta.ts        # ConnectorMeta — client-safe metadata (icon, name, auth, configFields, tagDefinitions)
+apps/sim/connectors/{service}/{service}.ts   # Connector implementation — spreads the meta + runtime functions
 apps/sim/connectors/{service}/index.ts       # Barrel export
-apps/sim/connectors/registry.ts              # Connector registry entry
-apps/sim/connectors/types.ts                 # ConnectorConfig interface, ExternalDocument, etc.
+apps/sim/connectors/registry.server.ts       # Server-only full registry entry (CONNECTOR_REGISTRY; full connector)
+apps/sim/connectors/registry.ts              # Client-safe meta registry entry (CONNECTOR_META_REGISTRY)
+apps/sim/connectors/types.ts                 # ConnectorMeta / ConnectorConfig interfaces, ExternalDocument, etc.
 apps/sim/connectors/utils.ts                 # Shared utilities (computeContentHash, htmlToPlainText, etc.)
 apps/sim/lib/oauth/oauth.ts                  # OAUTH_PROVIDERS — single source of truth for scopes
 apps/sim/lib/oauth/utils.ts                  # getCanonicalScopesForProvider, getScopesForService, SCOPE_DESCRIPTIONS
@@ -262,10 +264,18 @@ Connectors where the list API already returns content inline (e.g., Slack messag
 - [ ] Logs sync progress at `info` level
 - [ ] Logs errors at `warn` or `error` level with context
 
+### Meta / Runtime Split
+- [ ] `connectors/{service}/meta.ts` exports `{service}ConnectorMeta: ConnectorMeta` (id, name, description, version, icon, auth, configFields, and any `tagDefinitions` / `supportsIncrementalSync`)
+- [ ] `meta.ts` imports ONLY the icon from `@/components/icons`, `ConnectorMeta` (type-only), and pure-data constants — NO server/runtime imports (`@/lib/knowledge/...`, `input-validation.server`, `fetchWithRetry`, etc.); any such import in `meta.ts` is **critical** (breaks the client bundle)
+- [ ] `connectors/{service}/{service}.ts` spreads `...{service}ConnectorMeta` as the first property and adds the runtime functions (`listDocuments`, `getDocument`, `validateConfig`, `mapTags?`)
+- [ ] Metadata fields (id, name, auth, configFields, etc.) live ONLY in `meta.ts`, not duplicated in `{service}.ts`
+
 ### Registry
 - [ ] Connector is exported from `connectors/{service}/index.ts`
-- [ ] Connector is registered in `connectors/registry.ts`
-- [ ] Registry key matches the connector's `id` field
+- [ ] Full connector is registered in `connectors/registry.server.ts` (server-only registry, `CONNECTOR_REGISTRY`)
+- [ ] Meta is registered in `connectors/registry.ts` (client-safe registry, `CONNECTOR_META_REGISTRY`), importing `@/connectors/{service}/meta`
+- [ ] Both registries use the same key and it matches the connector's `id` field
+- [ ] Both registries keep the same alphabetical-by-id ordering
 
 ## Step 11: Report and Fix
 
@@ -284,6 +294,8 @@ Group findings by severity:
 - Query/filter injection: user-controlled values interpolated into OData `$filter`, SOQL, or query strings without escaping
 - Per-document content download in `listDocuments` without `contentDeferred: true` — causes sync timeouts for large document sets
 - `contentHash` mismatch between `listDocuments` stub and `getDocument` return — causes unnecessary re-processing every sync
+- Server/runtime import in `meta.ts` (e.g. `@/lib/knowledge/...`, `input-validation.server`, `fetchWithRetry`) — pulls server-only code into the client bundle and breaks the build
+- Connector missing from `connectors/registry.ts` (the client-safe meta registry) — or its entry there imports the runtime module instead of `meta.ts` — the knowledge UI can't render it
 
 **Warning** (incorrect behavior, data quality issues, or convention violations):
 - HTML content not stripped via `htmlToPlainText`
@@ -323,7 +335,7 @@ After fixing, confirm:
 
 ## Checklist Summary
 
-- [ ] Read connector implementation, types, utils, registry, and OAuth config
+- [ ] Read connector meta.ts, implementation, types, utils, both registries, and OAuth config
 - [ ] Pulled and read official API documentation for the service
 - [ ] Validated every API endpoint URL, method, headers, and body against API docs
 - [ ] Validated input sanitization: no query/filter injection, URL fields normalized
@@ -342,7 +354,8 @@ After fixing, confirm:
 - [ ] Validated API efficiency: field selection used, no redundant calls, sequential fetches batched
 - [ ] Validated error handling: graceful failures, no unhandled rejections
 - [ ] Validated logging: createLogger, no console.log
-- [ ] Validated registry: correct export, correct key
+- [ ] Validated meta/runtime split: `meta.ts` holds metadata with no server/runtime imports, `{service}.ts` spreads the meta + adds runtime functions
+- [ ] Validated registry: exported from index.ts, full connector in `registry.server.ts`, meta in `registry.ts`, matching keys and alphabetical-by-id ordering in both
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues
 - [ ] Ran `bun run lint` after fixes

@@ -90,7 +90,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedIntegrationsFromEnv: mockGetAllowedIntegrationsFromEnv,
   isAccessControlEnabled: true,
   isHosted: true,

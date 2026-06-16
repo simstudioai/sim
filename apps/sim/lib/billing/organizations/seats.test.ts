@@ -52,7 +52,7 @@ vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return mockFeatureFlags.isBillingEnabled
   },
