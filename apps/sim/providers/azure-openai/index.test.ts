@@ -62,6 +62,10 @@ vi.mock('@/providers/azure-openai/utils', () => ({
   checkForForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
 }))
 vi.mock('@/providers/models', () => ({
+  getProviderFileAttachment: vi
+    .fn()
+    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
+  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
   getProviderModels: vi.fn(() => []),
   getProviderDefaultModel: vi.fn(() => 'azure/gpt-4o'),
 }))
