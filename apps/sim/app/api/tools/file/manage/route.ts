@@ -725,44 +725,74 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           )
         }
 
-        const folderIdCache = new Map<string, string | null>()
-        const extractedFiles: UserFile[] = []
-        let totalBytes = 0
+        const entryTooLargeResponse = (name: string) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive entry "${name}" is too large to extract. Maximum is ${
+                MAX_DECOMPRESS_ENTRY_BYTES / (1024 * 1024)
+              } MB per file.`,
+            },
+            { status: 413 }
+          )
+        const totalTooLargeResponse = () =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive expands to more than the ${
+                MAX_DECOMPRESS_TOTAL_BYTES / (1024 * 1024)
+              } MB extraction limit.`,
+            },
+            { status: 413 }
+          )
 
+        // Reject standard zip bombs up front using the declared uncompressed sizes,
+        // before materializing any entry into memory.
+        let declaredTotal = 0
         for (const entry of entries) {
           const declaredSize = readEntryUncompressedSize(entry)
-          if (declaredSize !== undefined && declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Archive entry "${entry.name}" is too large to extract. Maximum is ${
-                  MAX_DECOMPRESS_ENTRY_BYTES / (1024 * 1024)
-                } MB per file.`,
-              },
-              { status: 413 }
-            )
-          }
+          if (declaredSize === undefined) continue
+          if (declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
+          declaredTotal += declaredSize
+          if (declaredTotal > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
+        }
 
+        // Read and validate every safe entry before writing anything, so a cap
+        // breach never leaves partially-extracted files behind in the workspace.
+        const pending: Array<{ segments: string[]; buffer: Buffer }> = []
+        let skippedCount = 0
+        let totalBytes = 0
+        for (const entry of entries) {
           const segments = sanitizeArchiveEntryPath(entry.name)
           if (!segments) {
+            skippedCount += 1
             logger.warn('Skipping unsafe archive entry', { name: entry.name })
             continue
           }
 
           const buffer = await entry.async('nodebuffer')
+          // Enforce the per-entry cap on the materialized size too, covering
+          // entries that omit a declared uncompressed size.
+          if (buffer.length > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
           totalBytes += buffer.length
-          if (totalBytes > MAX_DECOMPRESS_TOTAL_BYTES) {
-            return NextResponse.json(
-              {
-                success: false,
-                error: `Archive expands to more than the ${
-                  MAX_DECOMPRESS_TOTAL_BYTES / (1024 * 1024)
-                } MB extraction limit.`,
-              },
-              { status: 413 }
-            )
-          }
+          if (totalBytes > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
 
+          pending.push({ segments, buffer })
+        }
+
+        if (pending.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `No files could be extracted from "${archive.name}".`,
+            },
+            { status: 422 }
+          )
+        }
+
+        const folderIdCache = new Map<string, string | null>()
+        const extractedFiles: UserFile[] = []
+        for (const { segments, buffer } of pending) {
           const leafName = segments[segments.length - 1]
           const folderSegments = segments.slice(0, -1)
           const folderKey = folderSegments.join('/')
@@ -792,6 +822,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           fileId: archive.id,
           name: archive.name,
           extractedCount: extractedFiles.length,
+          skippedCount,
         })
 
         return NextResponse.json({
