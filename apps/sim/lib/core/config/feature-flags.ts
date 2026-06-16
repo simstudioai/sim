@@ -1,5 +1,5 @@
 import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
-import { env } from '@/lib/core/config/env'
+import { env, isTruthy } from '@/lib/core/config/env'
 import { isAppConfigEnabled } from '@/lib/core/config/env-flags'
 
 /**
@@ -37,15 +37,26 @@ export interface FeatureFlagContext {
 }
 
 /**
- * Fallback flags used when AppConfig is not the source of truth (self-hosted/OSS,
- * local dev, or hosted without APPCONFIG_*). When AppConfig is enabled it fully
- * replaces this. Add/edit defaults here.
+ * Registry of known feature flags. Each maps to the secret consulted ONLY when
+ * AppConfig is not the source of truth (self-hosted/OSS, local dev, or hosted
+ * without APPCONFIG_*). A truthy secret turns the flag on globally.
+ *
+ * Gating by org/user/admin is available ONLY through the hosted AppConfig document
+ * — it deliberately cannot be expressed here, so no environment can grant (e.g.)
+ * admin access from a code literal. To add a flag, register its name and the secret
+ * to fall back on.
  */
-const DEFAULT_FEATURE_FLAGS: FeatureFlagsConfig = {
-  flags: {
-    // e.g. 'new-canvas': { admins: true },
-    // e.g. 'beta-export': { orgIds: ['org_123'], userIds: ['user_abc'] },
-  },
+const FEATURE_FLAG_FALLBACKS: Record<string, () => string | boolean | number | undefined> = {
+  // 'new-canvas': () => env.NEW_CANVAS_ENABLED,
+}
+
+/** Build the fallback document from each flag's secret. Truthy secret ⇒ enabled. */
+function fallbackFlags(): FeatureFlagsConfig {
+  const flags: Record<string, FeatureFlagRule> = {}
+  for (const [name, readSecret] of Object.entries(FEATURE_FLAG_FALLBACKS)) {
+    flags[name] = { enabled: isTruthy(readSecret()) }
+  }
+  return { flags }
 }
 
 function normalizeIds(values: unknown): string[] | undefined {
@@ -114,11 +125,11 @@ async function evaluate(
 
 /**
  * Resolve the full flag document. Reads from AWS AppConfig on hosted deployments
- * (cached, ~30s TTL, never blocks after the first fetch), otherwise returns the
- * in-file {@link DEFAULT_FEATURE_FLAGS}.
+ * (cached, ~30s TTL, never blocks after the first fetch), otherwise derives each
+ * flag's on/off state from its registered fallback secret ({@link fallbackFlags}).
  */
 export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
-  if (!isAppConfigEnabled) return DEFAULT_FEATURE_FLAGS
+  if (!isAppConfigEnabled) return fallbackFlags()
 
   const value = await fetchAppConfigProfile(
     {
@@ -129,7 +140,7 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
     parseConfig
   )
 
-  return value ?? DEFAULT_FEATURE_FLAGS
+  return value ?? fallbackFlags()
 }
 
 /** Resolve a single flag for a context. Admin status is resolved internally from `userId`. */

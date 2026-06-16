@@ -1,6 +1,6 @@
 # Add Feature Flag Skill
 
-You add a **runtime, gated feature flag** to Sim — one that can be turned on for specific orgs, users, or admins and changed on prod with no redeploy (AWS AppConfig), falling back to an in-file default everywhere else.
+You add a **runtime, gated feature flag** to Sim — one that can be turned on for specific orgs, users, or admins and changed on prod with no redeploy (AWS AppConfig). When AppConfig isn't the source of truth, the flag falls back to a single **secret** (on/off only).
 
 ## When to use this vs `env-flags.ts`
 
@@ -11,7 +11,7 @@ If the user wants a fixed per-deployment toggle, send them to `env-flags.ts` ins
 
 ## The flag model
 
-A flag is a named rule in `apps/sim/lib/core/config/feature-flags.ts`. It is ON for a context when **any** clause matches:
+A flag's **gating rule lives only in the hosted AppConfig document**. It is ON for a context when any clause matches:
 
 ```ts
 interface FeatureFlagRule {
@@ -22,19 +22,19 @@ interface FeatureFlagRule {
 }
 ```
 
+Critically, **none of this is expressible in code** — gating (especially `admins`) can only be set through AppConfig, so no environment can grant access from a code literal. Off-AppConfig (self-hosted/OSS/local), a flag is simply on or off, derived from its fallback secret.
+
 ## Steps
 
-1. **Define the default.** Add an entry to `DEFAULT_FEATURE_FLAGS` in `apps/sim/lib/core/config/feature-flags.ts`. This is the source of truth off-AppConfig (self-hosted/OSS, local dev) and documents the intended shape. Use a **kebab-case** key:
+1. **Register the flag.** Add an entry to `FEATURE_FLAG_FALLBACKS` in `apps/sim/lib/core/config/feature-flags.ts`, mapping the flag name (kebab-case) to the secret consulted when AppConfig isn't the source of truth. A truthy secret turns the flag on globally:
 
    ```ts
-   const DEFAULT_FEATURE_FLAGS: FeatureFlagsConfig = {
-     flags: {
-       '<flag-name>': { admins: true },
-     },
+   const FEATURE_FLAG_FALLBACKS = {
+     '<flag-name>': () => env.<FLAG_SECRET>,
    }
    ```
 
-   Default conservatively (usually `{ admins: true }` or empty `{}` so it's off for everyone until you roll out).
+   Add `<FLAG_SECRET>` to `apps/sim/lib/core/config/env.ts` (and the deployment's secret store). Do **not** add any org/user/admin defaults here — that gating exists only in AppConfig.
 
 2. **Gate the call site.** Call `isFeatureEnabled` with whatever ids you have — admin status is resolved internally, so callers never pass it:
 
@@ -50,14 +50,15 @@ interface FeatureFlagRule {
    - Admin routes that already know the caller is an admin may pass `{ userId, isAdmin: true }` to skip the role lookup.
    - **Client/UI flags:** resolve server-side (in a server component, route, or loader) and pass the boolean down as a prop. There is no client AppConfig.
 
-3. **(Prod) publish to AppConfig.** The infra `feature-flags` profile schema is permissive, so a new flag needs **no infra change**. Operators add the key under `flags` in the hosted `feature-flags` document and start a `sim-<env>-fast` deployment (see the AppConfig runbook in the infra README — same flow as `access-control`). Until then, prod uses whatever the document already contains; the in-file default applies only when AppConfig is disabled.
+3. **(Prod) configure in AppConfig.** The infra `feature-flags` profile schema is permissive, so a new flag needs **no infra change**. Operators add the flag under `flags` in the hosted `feature-flags` document — including any `orgIds`/`userIds`/`admins` gating — and start a `sim-<env>-fast` deployment (see the AppConfig runbook in the infra README — same flow as `access-control`). The fallback secret only applies when AppConfig is disabled.
 
-4. **Test.** Add a case to `apps/sim/lib/core/config/feature-flags.test.ts` covering the flag's gating (use the `withAppConfig({ flags: { ... } })` helper; mock `isPlatformAdmin` when the `admins` clause is involved).
+4. **Test.** Add a case to `apps/sim/lib/core/config/feature-flags.test.ts`: use `withAppConfig({ flags: { ... } })` to cover the gating rule (mock `isPlatformAdmin` for the `admins` clause), and toggle the fallback secret to cover the off-AppConfig path.
 
-5. **Clean up after rollout.** When the feature ships to everyone, delete the flag from `DEFAULT_FEATURE_FLAGS`, the AppConfig document, the call sites, and the test. Leaving dead flags around is the main failure mode of flag systems.
+5. **Clean up after rollout.** When the feature ships to everyone, delete the flag from `FEATURE_FLAG_FALLBACKS`, the `<FLAG_SECRET>` env entry, the AppConfig document, the call sites, and the test. Leaving dead flags around is the main failure mode of flag systems.
 
 ## Notes
 
-- Tool IDs / flag keys are `kebab-case`.
+- Flag keys are `kebab-case`.
 - Never read flags via raw `fetch` or a new AppConfig client — always go through `isFeatureEnabled` / `getFeatureFlags`.
+- Never bake gating into code. The fallback is a single boolean secret; org/user/admin scoping is AppConfig-only.
 - The admin check reads the DB **replica** (`dbReplica`) and is resolved lazily, so an admin-gated flag adds at most one cheap replica read, and only when `admins` is the deciding clause.

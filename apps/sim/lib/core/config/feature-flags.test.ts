@@ -48,7 +48,7 @@ describe('getFeatureFlags', () => {
     flagRef.isAppConfigEnabled = false
   })
 
-  it('returns the in-file default (empty) when AppConfig is disabled, without fetching', async () => {
+  it('derives flags from fallback secrets (empty registry → empty) when AppConfig is disabled, without fetching', async () => {
     expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
     expect(mockFetch).not.toHaveBeenCalled()
   })
@@ -72,7 +72,7 @@ describe('getFeatureFlags', () => {
     )
   })
 
-  it('falls back to the in-file default when the fetch yields null', async () => {
+  it('falls back to the secret-derived document when the fetch yields null', async () => {
     flagRef.isAppConfigEnabled = true
     mockFetch.mockResolvedValue(null)
     expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
