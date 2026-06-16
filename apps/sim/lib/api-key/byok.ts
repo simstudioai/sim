@@ -6,7 +6,6 @@ import { getRotatingApiKey } from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import { getHostedModels } from '@/providers/models'
 import { PROVIDER_PLACEHOLDER_KEY } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
@@ -37,6 +36,11 @@ function nextRotationIndex(poolKey: string, poolSize: number): number {
  * multiple keys stored for the provider, requests round-robin across them in
  * creation order. A key that fails to decrypt is skipped in favor of the next
  * one in the pool.
+ *
+ * The key list is read fresh from the database on every call rather than
+ * cached: BYOK lookups are not a hot database query, and reading fresh keeps
+ * key revocation/rotation effective immediately across every ECS task with no
+ * cross-instance cache-coherence concern.
  */
 export async function getBYOKKey(
   workspaceId: string | undefined | null,
@@ -47,11 +51,6 @@ export async function getBYOKKey(
   }
 
   try {
-    const activeWorkspace = await getWorkspaceById(workspaceId)
-    if (!activeWorkspace) {
-      return null
-    }
-
     const keys = await db
       .select({ id: workspaceBYOKKeys.id, encryptedApiKey: workspaceBYOKKeys.encryptedApiKey })
       .from(workspaceBYOKKeys)

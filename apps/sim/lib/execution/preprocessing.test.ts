@@ -176,7 +176,7 @@ describe('preprocessExecution ban gate', () => {
     } as any)
   })
 
-  it('blocks execution with 403 when the actor is banned, before any billing queries', async () => {
+  it('blocks execution with 403 when the actor is banned (ban wins over the parallel gates)', async () => {
     mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
 
     const loggingSession = {
@@ -194,8 +194,39 @@ describe('preprocessExecution ban gate', () => {
       error: { statusCode: 403, logCreated: true, message: 'Account suspended' },
     })
     expect(loggingSession.safeStart).toHaveBeenCalled()
-    expect(getHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(checkServerSideUsageLimits).not.toHaveBeenCalled()
+  })
+
+  it('returns 403 (ban precedence) when ban, usage, and rate limit all fail simultaneously', async () => {
+    mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
+    vi.mocked(checkServerSideUsageLimits).mockResolvedValue({
+      isExceeded: true,
+      currentUsage: 20,
+      limit: 10,
+      message: 'Usage limit exceeded. Please upgrade your plan to continue.',
+    } as any)
+    mockCheckRateLimit.mockResolvedValue({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date(),
+    })
+
+    const loggingSession = {
+      safeStart: vi.fn().mockResolvedValue(true),
+      safeCompleteWithError: vi.fn().mockResolvedValue(undefined),
+    }
+
+    const result = await preprocessExecution({
+      ...baseOptions,
+      checkRateLimit: true,
+      loggingSession: loggingSession as any,
+    })
+
+    // Ban (403) takes precedence over usage (402) and rate limit (429),
+    // independent of which parallel gate's promise settled first.
+    expect(result).toMatchObject({
+      success: false,
+      error: { statusCode: 403, logCreated: true, message: 'Account suspended' },
+    })
   })
 
   it('checks the billing actor, caller-provided userId, and workflow owner in one call', async () => {
@@ -234,6 +265,5 @@ describe('preprocessExecution ban gate', () => {
       success: false,
       error: { statusCode: 500, logCreated: true },
     })
-    expect(checkServerSideUsageLimits).not.toHaveBeenCalled()
   })
 })

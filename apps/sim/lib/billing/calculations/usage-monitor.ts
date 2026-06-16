@@ -467,6 +467,10 @@ export async function checkOrgMemberUsageLimit(
       return { isExceeded: false, currentUsage: 0, limit: null }
     }
 
+    // Resolve the member cap first and short-circuit when none is set — the
+    // common case. Computing usage is only worthwhile once a cap exists, so the
+    // two queries stay sequential rather than racing (parallelizing would add a
+    // usage query on every uncapped member's execution).
     const limit = await getOrgMemberUsageLimit(organizationId, userId)
     if (limit === null) {
       return { isExceeded: false, currentUsage: 0, limit: null }

@@ -322,85 +322,130 @@ export async function preprocessExecution(
     }
   }
 
-  // ========== STEP 3.5: Reject Banned Accounts ==========
-  // Blocks executions when the billing actor, the workflow owner, or the
-  // caller-provided userId (chat deployer, authenticated caller) has an
-  // active ban or a blocked email domain. The owner comes from the workflow
-  // record so schedules — which pass the 'unknown' sentinel — are covered.
-  const banCandidateIds = [actorUserId]
-  if (userId && userId !== 'unknown' && userId !== actorUserId) {
-    banCandidateIds.push(userId)
-  }
-  if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
-    banCandidateIds.push(workflowRecord.userId)
-  }
-  try {
-    const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)
-    if (bannedUserIds.length > 0) {
-      logger.warn(`[${requestId}] Execution blocked: banned account`, {
-        workflowId,
-        bannedUserIds,
-        triggerType,
-      })
+  // ========== STEPS 3.5–6: Parallel Read-Only Preflight Gates ==========
+  // All remaining gates before the STEP 7 write are read-only with no side
+  // effects, so they run concurrently to cut sequential latency. The ban check
+  // (STEP 3.5) and the subscription fetch (STEP 4) are mutually independent and
+  // start together. Once the subscription resolves, the usage gates (STEP 5a/5b)
+  // and the rate-limit gate (STEP 6) — all of which depend only on the
+  // subscription, actor, and workspace — start together.
+  //
+  // Each gate resolves to either `null` (passed/skipped) or a deferred outcome:
+  // the `PreprocessExecutionResult` to return plus the optional error-log write
+  // to perform. Because every gate completes regardless of which fails first,
+  // outcomes are evaluated IN A FIXED PRECEDENCE ORDER — ban (403) → usage (402)
+  // → rate limit (429) — to reproduce the sequential version's behavior exactly.
+  // Wasted work on a request that ends up rejected is acceptable here: the gates
+  // are read-only and the sole write (STEP 7) stays after every gate passes.
 
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: actorUserId,
-        workspaceId,
-        errorMessage: 'This account has been suspended. Workflow executions are blocked.',
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
+  /**
+   * A failing gate's deferred outcome: the response to return, plus an optional
+   * error-log write to flush before returning. Evaluated in precedence order.
+   */
+  interface GateFailure {
+    response: PreprocessExecutionResult
+    recordError?: Parameters<typeof recordPreprocessingError>[0]
+  }
+
+  /** Usage figures captured by STEP 5 and reused by the STEP 7 reservation. */
+  interface UsageSnapshot {
+    currentUsage: number
+    limit: number
+  }
+
+  const banCheck = (async (): Promise<GateFailure | null> => {
+    // Blocks executions when the billing actor, the workflow owner, or the
+    // caller-provided userId (chat deployer, authenticated caller) has an
+    // active ban or a blocked email domain. The owner comes from the workflow
+    // record so schedules — which pass the 'unknown' sentinel — are covered.
+    const banCandidateIds = [actorUserId]
+    if (userId && userId !== 'unknown' && userId !== actorUserId) {
+      banCandidateIds.push(userId)
+    }
+    if (workflowRecord.userId && !banCandidateIds.includes(workflowRecord.userId)) {
+      banCandidateIds.push(workflowRecord.userId)
+    }
+    try {
+      const bannedUserIds = await getActivelyBannedUserIds(banCandidateIds)
+      if (bannedUserIds.length > 0) {
+        logger.warn(`[${requestId}] Execution blocked: banned account`, {
+          workflowId,
+          bannedUserIds,
+          triggerType,
+        })
+
+        return {
+          response: {
+            success: false,
+            error: {
+              message: 'Account suspended',
+              statusCode: 403,
+              logCreated: true,
+            },
+          },
+          recordError: {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage: 'This account has been suspended. Workflow executions are blocked.',
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
+        }
+      }
+      return null
+    } catch (error) {
+      logger.error(`[${requestId}] Error checking account ban status`, { error, actorUserId })
 
       return {
-        success: false,
-        error: {
-          message: 'Account suspended',
-          statusCode: 403,
-          logCreated: true,
+        response: {
+          success: false,
+          error: {
+            message: 'Unable to verify account status. Execution blocked for security.',
+            statusCode: 500,
+            logCreated: true,
+            retryable: isRetryableInfrastructureError(error),
+            cause: describeRetryableInfrastructureError(error),
+          },
+        },
+        recordError: {
+          workflowId,
+          executionId,
+          triggerType,
+          requestId,
+          userId: actorUserId,
+          workspaceId,
+          errorMessage: 'Unable to verify account status. Execution blocked for security.',
+          loggingSession: providedLoggingSession,
+          triggerData,
         },
       }
     }
-  } catch (error) {
-    logger.error(`[${requestId}] Error checking account ban status`, { error, actorUserId })
-
-    await recordPreprocessingError({
-      workflowId,
-      executionId,
-      triggerType,
-      requestId,
-      userId: actorUserId,
-      workspaceId,
-      errorMessage: 'Unable to verify account status. Execution blocked for security.',
-      loggingSession: providedLoggingSession,
-      triggerData,
-    })
-
-    return {
-      success: false,
-      error: {
-        message: 'Unable to verify account status. Execution blocked for security.',
-        statusCode: 500,
-        logCreated: true,
-        retryable: isRetryableInfrastructureError(error),
-        cause: describeRetryableInfrastructureError(error),
-      },
-    }
-  }
+  })()
 
   // ========== STEP 4: Get Subscription ==========
-  const userSubscription = await getHighestPrioritySubscription(actorUserId)
+  const subscriptionFetch = getHighestPrioritySubscription(actorUserId)
 
-  // ========== STEP 5: Check Usage Limits ==========
-  // Snapshot reused by the STEP 7 admission reservation.
-  let usageSnapshot: { currentUsage: number; limit: number } | null = null
-  if (!skipUsageLimits) {
+  const [banFailure, userSubscription] = await Promise.all([banCheck, subscriptionFetch])
+
+  /**
+   * STEP 5: usage + per-member org usage gate. Returns the failure outcome (or
+   * `null` on pass/skip) plus the usage snapshot reused by the STEP 7 admission
+   * reservation. The snapshot is returned rather than written to an outer
+   * variable so concurrent gate tasks share no mutable state.
+   */
+  const usageCheckTask = (async (): Promise<{
+    failure: GateFailure | null
+    snapshot: UsageSnapshot | null
+  }> => {
+    if (skipUsageLimits) return { failure: null, snapshot: null }
+    let snapshot: UsageSnapshot | null = null
     try {
       const usageCheck = await checkServerSideUsageLimits(actorUserId, userSubscription)
-      usageSnapshot = { currentUsage: usageCheck.currentUsage, limit: usageCheck.limit }
+      snapshot = { currentUsage: usageCheck.currentUsage, limit: usageCheck.limit }
       if (usageCheck.isExceeded) {
         logger.warn(
           `[${requestId}] User ${actorUserId} has exceeded usage limits. Blocking execution.`,
@@ -412,28 +457,33 @@ export async function preprocessExecution(
           }
         )
 
-        await recordPreprocessingError({
-          workflowId,
-          executionId,
-          triggerType,
-          requestId,
-          userId: actorUserId,
-          workspaceId,
-          errorMessage:
-            usageCheck.message ||
-            `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
-          loggingSession: providedLoggingSession,
-          triggerData,
-        })
-
         return {
-          success: false,
-          error: {
-            message:
-              usageCheck.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
-            statusCode: 402,
-            logCreated: true,
+          failure: {
+            response: {
+              success: false,
+              error: {
+                message:
+                  usageCheck.message ||
+                  'Usage limit exceeded. Please upgrade your plan to continue.',
+                statusCode: 402,
+                logCreated: true,
+              },
+            },
+            recordError: {
+              workflowId,
+              executionId,
+              triggerType,
+              requestId,
+              userId: actorUserId,
+              workspaceId,
+              errorMessage:
+                usageCheck.message ||
+                `Usage limit exceeded: $${usageCheck.currentUsage?.toFixed(2)} used of $${usageCheck.limit?.toFixed(2)} limit. Please upgrade your plan to continue.`,
+              loggingSession: providedLoggingSession,
+              triggerData,
+            },
           },
+          snapshot,
         }
       }
 
@@ -457,126 +507,160 @@ export async function preprocessExecution(
           }
         )
 
-        await recordPreprocessingError({
-          workflowId,
-          executionId,
-          triggerType,
-          requestId,
-          userId: actorUserId,
-          workspaceId,
-          errorMessage: memberLimitMessage,
-          loggingSession: providedLoggingSession,
-          triggerData,
-        })
-
         return {
-          success: false,
-          error: {
-            message: memberLimitMessage,
-            statusCode: 402,
-            logCreated: true,
+          failure: {
+            response: {
+              success: false,
+              error: {
+                message: memberLimitMessage,
+                statusCode: 402,
+                logCreated: true,
+              },
+            },
+            recordError: {
+              workflowId,
+              executionId,
+              triggerType,
+              requestId,
+              userId: actorUserId,
+              workspaceId,
+              errorMessage: memberLimitMessage,
+              loggingSession: providedLoggingSession,
+              triggerData,
+            },
           },
+          snapshot,
         }
       }
+      return { failure: null, snapshot }
     } catch (error) {
       logger.error(`[${requestId}] Error checking usage limits`, {
         error,
         actorUserId,
       })
 
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: actorUserId,
-        workspaceId,
-        errorMessage:
-          'Unable to determine usage limits. Execution blocked for security. Please contact support.',
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
-
       return {
-        success: false,
-        error: {
-          message: 'Unable to determine usage limits. Execution blocked for security.',
-          statusCode: 500,
-          logCreated: true,
-          retryable: isRetryableInfrastructureError(error),
-          cause: describeRetryableInfrastructureError(error),
+        failure: {
+          response: {
+            success: false,
+            error: {
+              message: 'Unable to determine usage limits. Execution blocked for security.',
+              statusCode: 500,
+              logCreated: true,
+              retryable: isRetryableInfrastructureError(error),
+              cause: describeRetryableInfrastructureError(error),
+            },
+          },
+          recordError: {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage:
+              'Unable to determine usage limits. Execution blocked for security. Please contact support.',
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
         },
+        snapshot,
       }
     }
-  }
+  })()
 
   // ========== STEP 6: Check Rate Limits ==========
   let rateLimitInfo: { allowed: boolean; remaining: number; resetAt: Date } | undefined
 
-  if (checkRateLimit) {
+  /**
+   * STEP 6: rate-limit gate. Returns the failure outcome, or `null` on
+   * pass/skip. On a non-error outcome it populates `rateLimitInfo` for the
+   * success result, matching the sequential version.
+   */
+  const rateLimitTask = (async (): Promise<GateFailure | null> => {
+    if (!checkRateLimit) return null
     try {
       const rateLimiter = new RateLimiter()
-      rateLimitInfo = await rateLimiter.checkRateLimitWithSubscription(
+      const info = await rateLimiter.checkRateLimitWithSubscription(
         actorUserId,
         userSubscription,
         triggerType,
         false // not async
       )
+      rateLimitInfo = info
 
-      if (!rateLimitInfo.allowed) {
+      if (!info.allowed) {
         logger.warn(`[${requestId}] Rate limit exceeded for user ${actorUserId}`, {
           triggerType,
-          remaining: rateLimitInfo.remaining,
-          resetAt: rateLimitInfo.resetAt,
+          remaining: info.remaining,
+          resetAt: info.resetAt,
         })
 
-        await recordPreprocessingError({
+        return {
+          response: {
+            success: false,
+            error: {
+              message: `Rate limit exceeded. Please try again later.`,
+              statusCode: 429,
+              logCreated: true,
+            },
+          },
+          recordError: {
+            workflowId,
+            executionId,
+            triggerType,
+            requestId,
+            userId: actorUserId,
+            workspaceId,
+            errorMessage: `Rate limit exceeded. ${info.remaining} requests remaining. Resets at ${info.resetAt.toISOString()}.`,
+            loggingSession: providedLoggingSession,
+            triggerData,
+          },
+        }
+      }
+      return null
+    } catch (error) {
+      logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
+
+      return {
+        response: {
+          success: false,
+          error: {
+            message: 'Error checking rate limits',
+            statusCode: 500,
+            logCreated: true,
+            retryable: isRetryableInfrastructureError(error),
+            cause: describeRetryableInfrastructureError(error),
+          },
+        },
+        recordError: {
           workflowId,
           executionId,
           triggerType,
           requestId,
           userId: actorUserId,
           workspaceId,
-          errorMessage: `Rate limit exceeded. ${rateLimitInfo.remaining} requests remaining. Resets at ${rateLimitInfo.resetAt.toISOString()}.`,
+          errorMessage: 'Error checking rate limits. Execution blocked for safety.',
           loggingSession: providedLoggingSession,
           triggerData,
-        })
-
-        return {
-          success: false,
-          error: {
-            message: `Rate limit exceeded. Please try again later.`,
-            statusCode: 429,
-            logCreated: true,
-          },
-        }
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Error checking rate limits`, { error, actorUserId })
-
-      await recordPreprocessingError({
-        workflowId,
-        executionId,
-        triggerType,
-        requestId,
-        userId: actorUserId,
-        workspaceId,
-        errorMessage: 'Error checking rate limits. Execution blocked for safety.',
-        loggingSession: providedLoggingSession,
-        triggerData,
-      })
-
-      return {
-        success: false,
-        error: {
-          message: 'Error checking rate limits',
-          statusCode: 500,
-          logCreated: true,
-          retryable: isRetryableInfrastructureError(error),
-          cause: describeRetryableInfrastructureError(error),
         },
       }
     }
+  })()
+
+  const [usageResult, rateLimitFailure] = await Promise.all([usageCheckTask, rateLimitTask])
+  const usageFailure = usageResult.failure
+  const usageSnapshot = usageResult.snapshot
+
+  // Evaluate outcomes in fixed precedence order — ban (403) → usage (402) →
+  // rate limit (429) — so the response matches the sequential version exactly,
+  // independent of which gate's promise settled first.
+  const gateFailure = banFailure ?? usageFailure ?? rateLimitFailure
+  if (gateFailure) {
+    if (gateFailure.recordError) {
+      await recordPreprocessingError(gateFailure.recordError)
+    }
+    return gateFailure.response
   }
 
   /**

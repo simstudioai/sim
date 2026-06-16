@@ -99,6 +99,51 @@ export async function blockExistsInDeployment(
   }
 }
 
+/**
+ * Maximum number of deployed-state entries retained in the process-local cache.
+ * Each entry is keyed by an immutable `deploymentVersionId` and holds a
+ * fully-migrated {@link DeployedWorkflowData} snapshot (tens of KB to ~1MB),
+ * so the bound keeps worst-case memory within a sane envelope.
+ */
+const DEPLOYED_STATE_CACHE_MAX_ENTRIES = 500
+const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
+
+interface DeployedStateCacheEntry {
+  data: DeployedWorkflowData
+  expiresAt: number
+}
+
+/**
+ * Process-local cache of fully-loaded, post-migration deployed workflow state,
+ * keyed by the immutable `deploymentVersionId`.
+ *
+ * The id is unique per deploy — a redeploy mints a new id and a rollback
+ * reactivates an existing id — so the active-version lookup naturally selects a
+ * different (or already-cached) key whenever the active deployment changes,
+ * making the cache self-invalidating across redeploy/rollback. Insertion order
+ * is used for oldest-first (LRU-style) eviction once the bound is reached.
+ *
+ * A short TTL bounds the one piece of the cached state that is not strictly
+ * immutable: `applyBlockMigrations` resolves legacy credential references via a
+ * live lookup, so the TTL lets a credential change propagate across ECS tasks
+ * without waiting for redeploy or eviction.
+ */
+const deployedStateCache = new Map<string, DeployedStateCacheEntry>()
+
+/**
+ * Drop cached deployed state. Pass a `deploymentVersionId` to evict a single
+ * entry, or omit it to clear the entire cache. Explicit invalidation is not
+ * required for correctness — redeploy/rollback change the active id and key the
+ * cache anew — but the helper is exported for completeness and testing.
+ */
+export function invalidateDeployedStateCache(deploymentVersionId?: string): void {
+  if (deploymentVersionId) {
+    deployedStateCache.delete(deploymentVersionId)
+    return
+  }
+  deployedStateCache.clear()
+}
+
 export async function loadDeployedWorkflowState(
   workflowId: string,
   providedWorkspaceId?: string
@@ -124,6 +169,14 @@ export async function loadDeployedWorkflowState(
       throw new Error(`Workflow ${workflowId} has no active deployment`)
     }
 
+    const cached = deployedStateCache.get(active.id)
+    if (cached) {
+      if (cached.expiresAt > Date.now()) {
+        return structuredClone(cached.data)
+      }
+      deployedStateCache.delete(active.id)
+    }
+
     const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
 
     let resolvedWorkspaceId = providedWorkspaceId
@@ -141,7 +194,7 @@ export async function loadDeployedWorkflowState(
       resolvedWorkspaceId
     )
 
-    return {
+    const deployedState: DeployedWorkflowData = {
       blocks: migratedBlocks,
       edges: state.edges || [],
       loops: state.loops || {},
@@ -150,6 +203,19 @@ export async function loadDeployedWorkflowState(
       isFromNormalizedTables: false,
       deploymentVersionId: active.id,
     }
+
+    if (deployedStateCache.size >= DEPLOYED_STATE_CACHE_MAX_ENTRIES) {
+      const oldestKey = deployedStateCache.keys().next().value
+      if (oldestKey !== undefined) {
+        deployedStateCache.delete(oldestKey)
+      }
+    }
+    deployedStateCache.set(active.id, {
+      data: deployedState,
+      expiresAt: Date.now() + DEPLOYED_STATE_CACHE_TTL_MS,
+    })
+
+    return structuredClone(deployedState)
   } catch (error) {
     logger.error(`Error loading deployed workflow state ${workflowId}:`, error)
     throw error
