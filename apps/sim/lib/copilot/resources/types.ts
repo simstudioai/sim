@@ -42,4 +42,5 @@ export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   workflows: 'workflow',
   knowledgebases: 'knowledgebase',
   folders: 'folder',
+  jobs: 'scheduledtask',
 } as const
