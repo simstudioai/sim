@@ -27,10 +27,19 @@ const VALID_RESOURCE_TYPES = new Set<ResourceType>([
   'workflow',
   'knowledgebase',
   'folder',
+  'scheduledtask',
   'log',
   'integration',
 ])
-const GENERIC_TITLES = new Set(['Table', 'File', 'Workflow', 'Knowledge Base', 'Folder', 'Log'])
+const GENERIC_TITLES = new Set([
+  'Table',
+  'File',
+  'Workflow',
+  'Knowledge Base',
+  'Folder',
+  'Scheduled Task',
+  'Log',
+])
 
 export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
