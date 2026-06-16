@@ -1,8 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { LinearIcon } from '@/components/icons'
 import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { linearConnectorMeta } from '@/connectors/linear/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseMultiValue, parseTagDate } from '@/connectors/utils'
 
@@ -201,73 +201,7 @@ function buildIssuesQuery(
 }
 
 export const linearConnector: ConnectorConfig = {
-  id: 'linear',
-  name: 'Linear',
-  description: 'Sync issues from Linear',
-  version: '1.0.0',
-  icon: LinearIcon,
-
-  auth: { mode: 'oauth', provider: 'linear', requiredScopes: ['read'] },
-
-  configFields: [
-    {
-      id: 'teamSelector',
-      title: 'Teams',
-      type: 'selector',
-      selectorKey: 'linear.teams',
-      canonicalParamId: 'teamId',
-      mode: 'basic',
-      multi: true,
-      placeholder: 'Select one or more teams (optional)',
-      required: false,
-    },
-    {
-      id: 'teamId',
-      title: 'Team IDs',
-      type: 'short-input',
-      canonicalParamId: 'teamId',
-      mode: 'advanced',
-      multi: true,
-      placeholder: 'e.g. abc123, def456 (comma-separated for multiple)',
-      required: false,
-    },
-    {
-      id: 'projectSelector',
-      title: 'Projects',
-      type: 'selector',
-      selectorKey: 'linear.projects',
-      canonicalParamId: 'projectId',
-      mode: 'basic',
-      multi: true,
-      dependsOn: ['teamSelector'],
-      placeholder: 'Select one or more projects (optional)',
-      required: false,
-    },
-    {
-      id: 'projectId',
-      title: 'Project IDs',
-      type: 'short-input',
-      canonicalParamId: 'projectId',
-      mode: 'advanced',
-      multi: true,
-      placeholder: 'e.g. def456, ghi789 (comma-separated for multiple)',
-      required: false,
-    },
-    {
-      id: 'stateFilter',
-      title: 'State Filter',
-      type: 'short-input',
-      placeholder: 'e.g. In Progress, Todo',
-      required: false,
-    },
-    {
-      id: 'maxIssues',
-      title: 'Max Issues',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...linearConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -424,14 +358,6 @@ export const linearConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'labels', displayName: 'Labels', fieldType: 'text' },
-    { id: 'state', displayName: 'State', fieldType: 'text' },
-    { id: 'priority', displayName: 'Priority', fieldType: 'text' },
-    { id: 'assignee', displayName: 'Assignee', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

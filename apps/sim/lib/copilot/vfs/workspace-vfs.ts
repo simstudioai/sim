@@ -89,7 +89,8 @@ import {
   workspacePlanBackingPath,
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
-import { isE2BDocEnabled, isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,
@@ -122,7 +123,7 @@ import {
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
@@ -379,6 +380,7 @@ function getStaticComponentFiles(): Map<string, string> {
 export class WorkspaceVFS {
   private files: Map<string, string> = new Map()
   private _workspaceId = ''
+  private _betaEnabled = false
 
   get workspaceId(): string {
     return this._workspaceId
@@ -393,6 +395,7 @@ export class WorkspaceVFS {
     const start = Date.now()
     this.files = new Map()
     this._workspaceId = workspaceId
+    this._betaEnabled = await isFeatureEnabled('mothership-beta', { userId })
 
     // Per-phase wall-clock, stamped on the span so a slow materialize in a
     // trace names its bottleneck instead of showing up as unattributed dead
@@ -591,7 +594,7 @@ export class WorkspaceVFS {
     path: string,
     suffix: 'style' | 'compiled-check' | 'compiled' | 'render' | 'extract'
   ): Promise<WorkspaceFileRecord | null> {
-    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(path)) {
+    if (!this._betaEnabled && isWorkflowAliasBackingPath(path)) {
       return null
     }
     const canonicalMatch = path.match(new RegExp(`^files/(.+)/${suffix}$`))
@@ -642,7 +645,7 @@ export class WorkspaceVFS {
           totalLines: 1,
         }
       }
-      if (isE2BDocEnabled && getE2BDocFormat(record.name)) {
+      if (isE2BDocEnabled && (await getE2BDocFormat(record.name))) {
         bin = (
           await compileDoc({ source: code, fileName: record.name, workspaceId: this._workspaceId })
         ).buffer
@@ -695,7 +698,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
+        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         if (!e2bFmt && !taskId) return null
 
@@ -890,7 +893,7 @@ export class WorkspaceVFS {
         record = await this.resolveWorkspaceFileForDynamicRead(path, 'compiled-check')
         if (!record) return null
         const ext = record.name.split('.').pop()?.toLowerCase() ?? ''
-        const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(record.name) : null
+        const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(record.name) : null
         const taskId = BINARY_DOC_TASKS[ext]
         const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
         if (!e2bFmt && !taskId && !isMermaidFile) return null
@@ -978,7 +981,7 @@ export class WorkspaceVFS {
       .replace(/\/content$/, '')
       .replace(/^\/+/, '')
 
-    if (!isMothershipBetaFeaturesEnabled && isWorkflowAliasBackingPath(fileReference)) {
+    if (!this._betaEnabled && isWorkflowAliasBackingPath(fileReference)) {
       return null
     }
     if (fileReference.endsWith('/meta.json') || path.endsWith('/meta.json')) return null
@@ -988,7 +991,7 @@ export class WorkspaceVFS {
     try {
       const files = await listWorkspaceFiles(this._workspaceId, {
         scope,
-        includeReservedSystemFiles: isMothershipBetaFeaturesEnabled,
+        includeReservedSystemFiles: this._betaEnabled,
       })
       const record = findWorkspaceFileRecord(files, fileReference)
       if (!record) return null
@@ -1021,7 +1024,7 @@ export class WorkspaceVFS {
    * Returns a summary for WORKSPACE.md generation.
    */
   private async materializeWorkflows(workspaceId: string): Promise<WorkspaceMdData['workflows']> {
-    const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
+    const workflowArtifactsEnabled = this._betaEnabled
     const [workflowRows, folderRows] = await Promise.all([
       listWorkflows(workspaceId),
       listFolders(workspaceId),
@@ -1404,7 +1407,7 @@ export class WorkspaceVFS {
    */
   private async materializeFiles(workspaceId: string): Promise<WorkspaceMdData['files']> {
     try {
-      const workflowArtifactsEnabled = isMothershipBetaFeaturesEnabled
+      const workflowArtifactsEnabled = this._betaEnabled
       const folders = await listWorkspaceFileFolders(workspaceId, {
         includeReservedSystemFolders: true,
       })

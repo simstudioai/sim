@@ -10,7 +10,7 @@ const { mockGetHighestPrioritySubscription, mockGetWorkspaceBilledAccountUserId,
     billingState: { isBillingEnabled: true, isFreeApiDeploymentGateEnabled: true },
   }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return billingState.isBillingEnabled
   },

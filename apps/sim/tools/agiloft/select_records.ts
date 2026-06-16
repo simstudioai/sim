@@ -1,6 +1,4 @@
 import type { AgiloftSelectRecordsParams, AgiloftSelectResponse } from '@/tools/agiloft/types'
-import { buildSelectRecordsUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSelectRecordsTool: ToolConfig<
@@ -53,69 +51,26 @@ export const agiloftSelectRecordsTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/select_records',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      where: params.where,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftSelectResponse>(
-      params,
-      (base) => ({
-        url: buildSelectRecordsUrl(base, params),
-        method: 'GET',
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { recordIds: [], totalCount: 0 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const recordIds: string[] = []
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            const id = item.id ?? item.ID ?? item
-            recordIds.push(String(id))
-          }
-        } else if (typeof result === 'object' && result !== null) {
-          let i = 0
-          while (result[`id_${i}`] !== undefined || result[`EWREST_id_${i}`] !== undefined) {
-            const id = result[`id_${i}`] ?? result[`EWREST_id_${i}`]
-            recordIds.push(String(id))
-            i++
-          }
-          if (recordIds.length === 0 && result.id !== undefined) {
-            recordIds.push(String(result.id))
-          }
-        }
-
-        const totalCountRaw =
-          result.EWREST_id_length ??
-          result.totalCount ??
-          result.total ??
-          result.count ??
-          data.EWREST_id_length ??
-          data.totalCount ??
-          data.total ??
-          data.count ??
-          recordIds.length
-
-        return {
-          success: data.success !== false,
-          output: {
-            recordIds,
-            totalCount: Number(totalCountRaw),
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

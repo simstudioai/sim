@@ -10,7 +10,7 @@ import {
   getE2BDocFormat,
   loadCompiledDocByExt,
 } from '@/lib/copilot/tools/server/files/doc-compile'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
@@ -117,7 +117,7 @@ async function compileDocumentIfNeeded(
       return { buffer: stored.buffer, contentType: stored.contentType }
     }
 
-    if (isE2BDocEnabled && getE2BDocFormat(filename)) {
+    if (isE2BDocEnabled && (await getE2BDocFormat(filename))) {
       // Artifact not built yet (still generating, or the source didn't compile at
       // write time). Signal "not ready" without compiling — handled as 409.
       throw new DocCompileUserError('Document is still being generated')

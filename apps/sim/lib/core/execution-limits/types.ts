@@ -1,6 +1,6 @@
 import { getPlanTypeForLimits } from '@/lib/billing/plan-helpers'
 import { env } from '@/lib/core/config/env'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 
 interface ExecutionTimeoutConfig {

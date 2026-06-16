@@ -1,6 +1,4 @@
 import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
-import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftSavedSearchTool: ToolConfig<
@@ -46,57 +44,25 @@ export const agiloftSavedSearchTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/saved_search',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftSavedSearchResponse>(
-      params,
-      (base) => ({
-        url: buildSavedSearchUrl(base, params),
-        method: 'GET',
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: { searches: [] },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        const searches: Array<{
-          name: string
-          label: string
-          id: string | number
-          description: string | null
-        }> = []
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            searches.push({
-              name: (item.name as string) ?? '',
-              label: (item.label as string) ?? (item.name as string) ?? '',
-              id: (item.id as string | number) ?? (item.ID as string | number) ?? '',
-              description: (item.description as string | null) ?? null,
-            })
-          }
-        }
-
-        return {
-          success: data.success !== false,
-          output: {
-            searches,
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

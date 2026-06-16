@@ -19,7 +19,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
   isOrganizationOnEnterprisePlan: mockIsEnterprise,
 }))
 vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mockGetJobQueue }))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isBillingEnabled: true }))
+vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
 
 import { dispatchDueDrains, reapOrphanedRuns } from '@/lib/data-drains/dispatcher'
 

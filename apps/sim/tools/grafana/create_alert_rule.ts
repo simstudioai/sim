@@ -172,7 +172,7 @@ export const createAlertRuleTool: ToolConfig<
       if (params.organizationId) body.orgID = Number(params.organizationId)
 
       if (params.condition) body.condition = params.condition
-      if (params.uid) body.uid = params.uid
+      if (params.uid) body.uid = params.uid.trim()
       if (params.forDuration) body.for = params.forDuration
       if (params.noDataState) body.noDataState = params.noDataState
       if (params.execErrState) body.execErrState = params.execErrState

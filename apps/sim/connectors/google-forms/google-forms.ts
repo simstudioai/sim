@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GoogleFormsIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { googleFormsConnectorMeta, MAX_RESPONSES_PER_FORM } from '@/connectors/google-forms/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { joinTagArray, parseTagDate } from '@/connectors/utils'
 
@@ -11,12 +11,6 @@ const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 const FORMS_API_BASE = 'https://forms.googleapis.com/v1'
 const FORM_MIME_TYPE = 'application/vnd.google-apps.form'
 const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder'
-
-/**
- * Hard cap on the number of responses appended to a single form document.
- * Keeps individual documents within a reasonable size for embedding/indexing.
- */
-const MAX_RESPONSES_PER_FORM = 500
 
 /**
  * Drive API page size when listing forms. The Drive API caps pageSize at 100.
@@ -468,59 +462,7 @@ function buildDriveQuery(folderId?: string): string {
 }
 
 export const googleFormsConnector: ConnectorConfig = {
-  id: 'google_forms',
-  name: 'Google Forms',
-  description: 'Sync Google Forms questions and responses into your knowledge base',
-  version: '1.0.0',
-  icon: GoogleFormsIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'google-forms',
-    requiredScopes: [
-      'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/forms.body',
-      'https://www.googleapis.com/auth/forms.responses.readonly',
-    ],
-  },
-
-  configFields: [
-    {
-      id: 'folderId',
-      title: 'Folder ID',
-      type: 'short-input',
-      placeholder: 'e.g. 1aBcDeFgHiJkLmNoPqRsTuVwXyZ (optional)',
-      required: false,
-      description: 'Only sync forms inside this Drive folder. Leave blank to sync all forms.',
-    },
-    {
-      id: 'contentScope',
-      title: 'Content',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Questions & responses', id: 'both' },
-        { label: 'Questions only', id: 'structure' },
-      ],
-      description: 'Whether to index submitted responses alongside each form’s questions.',
-    },
-    {
-      id: 'maxForms',
-      title: 'Max Forms',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 100 (default: unlimited)',
-    },
-    {
-      id: 'maxResponsesPerForm',
-      title: 'Max Responses Per Form',
-      type: 'short-input',
-      required: false,
-      mode: 'advanced',
-      placeholder: `e.g. 100 (default: ${MAX_RESPONSES_PER_FORM})`,
-      description: 'Cap on responses indexed per form. Applies only when indexing responses.',
-    },
-  ],
+  ...googleFormsConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -790,13 +732,6 @@ export const googleFormsConnector: ConnectorConfig = {
       return { valid: false, error: getErrorMessage(error, 'Failed to validate configuration') }
     }
   },
-
-  tagDefinitions: [
-    { id: 'formTitle', displayName: 'Form Title', fieldType: 'text' },
-    { id: 'owners', displayName: 'Owner', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'lastResponse', displayName: 'Last Response', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

@@ -4,7 +4,7 @@ import {
   isGoogleAuthDisabled,
   isMicrosoftAuthDisabled,
   isProd,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 
 export async function getOAuthProviderStatus() {
   const githubAvailable =

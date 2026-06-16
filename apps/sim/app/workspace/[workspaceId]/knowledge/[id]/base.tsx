@@ -61,7 +61,7 @@ import {
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -926,7 +926,7 @@ export function KnowledgeBase({
     connectors.length > 0 ? (
       <>
         {connectors.map((connector) => {
-          const def = CONNECTOR_REGISTRY[connector.connectorType]
+          const def = CONNECTOR_META_REGISTRY[connector.connectorType]
           const ConnectorIcon = def?.icon
           return (
             <button
@@ -1005,7 +1005,9 @@ export function KnowledgeBase({
   const documentRows: ResourceRow[] = useMemo(
     () =>
       documents.map((doc) => {
-        const ConnectorIcon = doc.connectorType ? CONNECTOR_REGISTRY[doc.connectorType]?.icon : null
+        const ConnectorIcon = doc.connectorType
+          ? CONNECTOR_META_REGISTRY[doc.connectorType]?.icon
+          : null
         const DocIcon = ConnectorIcon || getDocumentIcon(doc.mimeType, doc.filename)
 
         const tags = getDocumentTags(doc, tagDefinitions)

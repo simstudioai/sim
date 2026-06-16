@@ -1,6 +1,6 @@
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isFreeApiDeploymentGateEnabled } from '@/lib/core/config/env-flags'
 import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 
 /** The programmatic-execution paywall is active only when billing is enforced AND the gate flag is on. */

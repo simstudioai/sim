@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { WebflowIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { webflowConnectorMeta } from '@/connectors/webflow/meta'
 
 const logger = createLogger('WebflowConnector')
 
@@ -80,50 +80,7 @@ function extractItemTitle(item: WebflowItem): string {
 }
 
 export const webflowConnector: ConnectorConfig = {
-  id: 'webflow',
-  name: 'Webflow',
-  description:
-    'Sync CMS collection items from a Webflow site. Note: Webflow OAuth tokens do not support refresh — you may need to reconnect periodically.',
-  version: '1.0.0',
-  icon: WebflowIcon,
-
-  auth: { mode: 'oauth', provider: 'webflow', requiredScopes: ['sites:read', 'cms:read'] },
-
-  configFields: [
-    {
-      id: 'siteSelector',
-      title: 'Site',
-      type: 'selector',
-      selectorKey: 'webflow.sites',
-      canonicalParamId: 'siteId',
-      mode: 'basic',
-      placeholder: 'Select a site',
-      required: true,
-    },
-    {
-      id: 'siteId',
-      title: 'Site ID',
-      type: 'short-input',
-      canonicalParamId: 'siteId',
-      mode: 'advanced',
-      placeholder: 'Your Webflow site ID',
-      required: true,
-    },
-    {
-      id: 'collectionId',
-      title: 'Collection ID',
-      type: 'short-input',
-      placeholder: 'Specific collection ID (default: all collections)',
-      required: false,
-    },
-    {
-      id: 'maxItems',
-      title: 'Max Items',
-      type: 'short-input',
-      placeholder: 'e.g. 500 (default: unlimited)',
-      required: false,
-    },
-  ],
+  ...webflowConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -346,12 +303,6 @@ export const webflowConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'collectionName', displayName: 'Collection Name', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'slug', displayName: 'Slug', fieldType: 'text' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

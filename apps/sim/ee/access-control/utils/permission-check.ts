@@ -9,7 +9,7 @@ import {
   isHosted,
   isInvitationsDisabled,
   isPublicApiDisabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import {
   DEFAULT_PERMISSION_GROUP_CONFIG,
