@@ -12,7 +12,7 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
   id: 'file_compress',
   name: 'File Compress',
   description:
-    'Compress one or more workspace files into a single .zip archive stored in the workspace. Useful for getting large attachments under provider upload limits.',
+    'Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store.',
   version: '1.0.0',
 
   params: {

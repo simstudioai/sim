@@ -52,7 +52,6 @@ describe('fileCompressTool', () => {
           name: archive.name,
           size: archive.size,
           url: archive.url,
-          file: archive,
           files: [archive],
         },
       })

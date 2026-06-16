@@ -833,7 +833,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
   - Get Content's "contents" can be large; it is persisted through the execution large-value system automatically, so prefer it over inlining file text any other way.
   - Use Fetch for external file URLs. Add headers for authenticated downloads, for example Slack private file URLs require an Authorization Bearer token.
   - Use Write to create a new workspace file and Append to add content to an existing one.
-  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "file"/"files" outputs.
+  - Use Compress to bundle one or more files into a single .zip archive stored in the workspace. The new archive is returned in the "files" output.
   - Use Decompress to extract a .zip archive back into the workspace; the extracted files are returned in the "files" output, ready to chain into Get Content or downstream blocks.
   `,
   subBlocks: [
