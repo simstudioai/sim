@@ -8,8 +8,14 @@ import type { ToolConfig } from '@/tools/types'
 
 const buildAclBody = (params: GoogleCalendarShareCalendarParams) => {
   const scope: { type: string; value?: string } = { type: params.scopeType }
-  if (params.scopeType !== 'default' && params.scopeValue) {
-    scope.value = params.scopeValue.trim()
+  if (params.scopeType !== 'default') {
+    const value = params.scopeValue?.trim()
+    if (!value) {
+      throw new Error(
+        `A grantee is required when scope type is "${params.scopeType}". Provide an email (user/group) or domain name in scopeValue.`
+      )
+    }
+    scope.value = value
   }
   return { role: params.role, scope }
 }
