@@ -81,6 +81,34 @@ export interface ProviderDefinition {
   isReseller?: boolean
   capabilities?: ModelCapabilities
   contextInformationAvailable?: boolean
+  /** Agent-block file attachment limit and large-file delivery for this provider. */
+  fileAttachment?: ProviderFileAttachment
+}
+
+/**
+ * How a provider accepts agent-block attachments larger than the inline base64 threshold:
+ * `files-api` uploads to the provider Files API, `remote-url` passes a signed URL the
+ * provider fetches itself, `inline` means base64-only (no large-file path).
+ */
+export type ProviderFileAttachmentStrategy = 'inline' | 'files-api' | 'remote-url'
+
+export interface ProviderFileAttachment {
+  /** Maximum attachment size the provider accepts, in bytes. */
+  maxBytes: number
+  strategy: ProviderFileAttachmentStrategy
+}
+
+/** Inline base64 attachment cap, also the fallback limit for providers without a large-file path. */
+export const INLINE_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+
+const DEFAULT_FILE_ATTACHMENT: ProviderFileAttachment = {
+  maxBytes: INLINE_ATTACHMENT_MAX_BYTES,
+  strategy: 'inline',
+}
+
+/** Provider-level attachment limit + strategy, keyed on the granular provider id. */
+export function getProviderFileAttachment(providerId: string): ProviderFileAttachment {
+  return PROVIDER_DEFINITIONS[providerId]?.fileAttachment ?? DEFAULT_FILE_ATTACHMENT
 }
 
 export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
@@ -102,6 +130,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   together: {
     id: 'together',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Together AI',
     description: 'Fast inference for open-source models via Together AI',
     defaultModel: '',
@@ -118,6 +147,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   baseten: {
     id: 'baseten',
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Baseten',
     description: 'Fast inference for open-source models via Baseten Model APIs',
     defaultModel: '',
@@ -134,6 +164,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openrouter: {
     id: 'openrouter',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'OpenRouter',
     description: 'Unified access to many models via OpenRouter',
     defaultModel: '',
@@ -164,6 +195,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   vllm: {
     id: 'vllm',
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'vLLM',
     icon: VllmIcon,
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
@@ -191,6 +223,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   openai: {
     id: 'openai',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'OpenAI',
     description: "OpenAI's models",
     defaultModel: 'gpt-4.1',
@@ -624,6 +657,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   anthropic: {
     id: 'anthropic',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
     defaultModel: 'claude-sonnet-4-6',
@@ -1285,6 +1319,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   google: {
     id: 'google',
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'Google',
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
@@ -1741,6 +1776,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   xai: {
     id: 'xai',
+    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'xAI',
     description: "xAI's Grok models",
     defaultModel: 'grok-4.3',
@@ -2013,6 +2049,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   groq: {
     id: 'groq',
+    fileAttachment: { maxBytes: 20 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Groq',
     description: "Groq's LLM models with high-performance inference",
     defaultModel: 'groq/llama-3.3-70b-versatile',
