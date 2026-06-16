@@ -1,14 +1,13 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { OutlookIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { DEFAULT_MAX_CONVERSATIONS, outlookConnectorMeta } from '@/connectors/outlook/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
 
 const logger = createLogger('OutlookConnector')
 
 const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0/me'
-const DEFAULT_MAX_CONVERSATIONS = 500
 const MESSAGES_PER_PAGE = 50
 /**
  * Fields requested when listing messages (no body — deferred to getDocument).
@@ -267,83 +266,7 @@ function formatConversation(
 }
 
 export const outlookConnector: ConnectorConfig = {
-  id: 'outlook',
-  name: 'Outlook',
-  description: 'Sync email conversations from Outlook',
-  version: '1.0.0',
-  icon: OutlookIcon,
-
-  auth: {
-    mode: 'oauth',
-    provider: 'outlook',
-    requiredScopes: ['Mail.Read'],
-  },
-
-  configFields: [
-    {
-      id: 'folderSelector',
-      title: 'Folder',
-      type: 'selector',
-      selectorKey: 'outlook.folders',
-      canonicalParamId: 'folder',
-      mode: 'basic',
-      placeholder: 'Select a folder',
-      required: false,
-    },
-    {
-      id: 'folder',
-      title: 'Folder',
-      type: 'dropdown',
-      canonicalParamId: 'folder',
-      mode: 'advanced',
-      required: false,
-      options: [
-        { label: 'Inbox', id: 'inbox' },
-        { label: 'All Mail', id: 'all' },
-        { label: 'Sent Items', id: 'sentitems' },
-        { label: 'Archive', id: 'archive' },
-      ],
-    },
-    {
-      id: 'dateRange',
-      title: 'Date Range',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Last 7 days', id: '7d' },
-        { label: 'Last 30 days', id: '30d' },
-        { label: 'Last 90 days', id: '90d' },
-        { label: 'Last 6 months', id: '6m' },
-        { label: 'Last year', id: '1y' },
-        { label: 'All time', id: 'all' },
-      ],
-    },
-    {
-      id: 'focusedOnly',
-      title: 'Focused Inbox Only',
-      type: 'dropdown',
-      required: false,
-      options: [
-        { label: 'Yes (recommended)', id: 'true' },
-        { label: 'No', id: 'false' },
-      ],
-    },
-    {
-      id: 'query',
-      title: 'Search Filter',
-      type: 'short-input',
-      placeholder: 'e.g. from:boss@company.com subject:report hasAttachment:true',
-      required: false,
-      description: 'Search filter using Outlook KQL syntax.',
-    },
-    {
-      id: 'maxConversations',
-      title: 'Max Conversations',
-      type: 'short-input',
-      required: false,
-      placeholder: `e.g. 200 (default: ${DEFAULT_MAX_CONVERSATIONS})`,
-    },
-  ],
+  ...outlookConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -632,14 +555,6 @@ export const outlookConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'from', displayName: 'From', fieldType: 'text' },
-    { id: 'categories', displayName: 'Categories', fieldType: 'text' },
-    { id: 'importance', displayName: 'Importance', fieldType: 'text' },
-    { id: 'messageCount', displayName: 'Messages in Conversation', fieldType: 'number' },
-    { id: 'lastMessageDate', displayName: 'Last Message', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

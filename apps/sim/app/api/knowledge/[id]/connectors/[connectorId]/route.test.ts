@@ -39,7 +39,7 @@ const mockCheckWriteAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseWrit
 vi.mock('@sim/db', () => ({ db: mockDbChain }))
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
-vi.mock('@/connectors/registry', () => ({
+vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     jira: { validateConfig: mockValidateConfig },
   },

@@ -25,7 +25,7 @@ import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { extractStorageKey } from '@/lib/uploads/utils/file-utils'
 import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { knowledgeConnectorSync } from '@/background/knowledge-connector-sync'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
 import type {
   ConnectorAuthConfig,
   DocumentTags,

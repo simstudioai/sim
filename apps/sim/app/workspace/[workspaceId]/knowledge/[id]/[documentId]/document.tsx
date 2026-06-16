@@ -35,7 +35,7 @@ import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/componen
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {
   useBulkChunkOperation,
@@ -278,7 +278,7 @@ export function Document({
   const knowledgeBaseCrumbLabel = knowledgeBase?.name || knowledgeBaseName || '…'
   const documentCrumbLabel = documentData?.filename || documentName || '…'
   const ConnectorIcon = documentData?.connectorType
-    ? CONNECTOR_REGISTRY[documentData.connectorType]?.icon
+    ? CONNECTOR_META_REGISTRY[documentData.connectorType]?.icon
     : null
   const DocumentIcon =
     ConnectorIcon || getDocumentIcon(documentData?.mimeType ?? '', effectiveDocumentName)

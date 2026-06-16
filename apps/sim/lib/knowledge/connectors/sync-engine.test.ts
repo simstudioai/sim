@@ -26,7 +26,7 @@ vi.mock('@/background/knowledge-connector-sync', () => ({
 
 const mockMapTags = vi.fn()
 
-vi.mock('@/connectors/registry', () => ({
+vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     jira: {
       mapTags: mockMapTags,
