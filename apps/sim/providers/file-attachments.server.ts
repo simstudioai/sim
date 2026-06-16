@@ -220,6 +220,10 @@ async function uploadGeminiFile(
   const blob = await downloadFileForUpload(file, maxBytes)
 
   let uploaded = await ai.files.upload({ file: blob, config: { mimeType, abortSignal: signal } })
+  if (!uploaded.name) {
+    throw new Error(`Gemini upload for "${file.name}" returned no file name`)
+  }
+  const uploadedName = uploaded.name
 
   const deadline = Date.now() + GEMINI_PROCESSING_TIMEOUT_MS
   while (uploaded.state === FileState.PROCESSING) {
@@ -227,7 +231,7 @@ async function uploadGeminiFile(
       throw new Error(`Gemini file processing timed out for "${file.name}"`)
     }
     await sleep(GEMINI_POLL_INTERVAL_MS)
-    uploaded = await ai.files.get({ name: uploaded.name as string })
+    uploaded = await ai.files.get({ name: uploadedName })
   }
 
   if (uploaded.state === FileState.FAILED || !uploaded.uri) {
