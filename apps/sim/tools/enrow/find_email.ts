@@ -47,8 +47,9 @@ export const enrowFindEmailTool: ToolConfig<EnrowFindEmailParams, EnrowFindEmail
   version: '1.0.0',
 
   hosting: enrowHosting<EnrowFindEmailParams>((_params, output) => {
-    // 1 credit charged only when a valid email is returned
-    return output.qualification === 'valid' ? 1 : 0
+    // 1 credit charged only when a valid email is returned. Compare
+    // case-insensitively so the API's qualifier casing can't zero out billing.
+    return String(output.qualification ?? '').toLowerCase() === 'valid' ? 1 : 0
   }),
 
   params: {

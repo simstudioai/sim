@@ -36,8 +36,11 @@ describe('Enrow hosted key config', () => {
 })
 
 describe('Enrow find_email pricing', () => {
-  it('charges 1 credit when qualification is valid', () => {
+  it('charges 1 credit when qualification is valid (case-insensitive)', () => {
     expect(cost(enrowFindEmailTool, {}, { qualification: 'valid' }).cost).toBeCloseTo(
+      1 * ENROW_CREDIT_USD
+    )
+    expect(cost(enrowFindEmailTool, {}, { qualification: 'VALID' }).cost).toBeCloseTo(
       1 * ENROW_CREDIT_USD
     )
   })
