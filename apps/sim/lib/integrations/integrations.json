@@ -5901,9 +5901,29 @@
         {
           "name": "Invite Attendees",
           "description": "Invite attendees to an existing Google Calendar event"
+        },
+        {
+          "name": "Check Free/Busy",
+          "description": "Query free/busy information for one or more Google Calendars"
+        },
+        {
+          "name": "Create Calendar",
+          "description": "Create a new secondary calendar"
+        },
+        {
+          "name": "Share Calendar",
+          "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "List Sharing",
+          "description": "List the access control rules (sharing) for a calendar"
+        },
+        {
+          "name": "Remove Sharing",
+          "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "google_calendar_poller",
