@@ -565,15 +565,19 @@ export function isInternalFileUrl(fileUrl: string): boolean {
 }
 
 /**
- * Infer storage context from file key using explicit prefixes
- * All files must use prefixed keys
+ * Infer storage context from a file key using its prefix.
+ *
+ * All stored files use prefixed keys. Knowledge-base objects carry one of two
+ * prefixes: `kb/` (server-side uploads) or `knowledge-base/` (direct/presigned
+ * uploads, whose default key is `${context}/...`). Both map to the same
+ * `knowledge-base` context.
  */
 export function inferContextFromKey(key: string): StorageContext {
   if (!key) {
     throw new Error('Cannot infer context from empty key')
   }
 
-  if (key.startsWith('kb/')) return 'knowledge-base'
+  if (key.startsWith('kb/') || key.startsWith('knowledge-base/')) return 'knowledge-base'
   if (key.startsWith('chat/')) return 'chat'
   if (key.startsWith('copilot/')) return 'copilot'
   if (key.startsWith('execution/')) return 'execution'
@@ -584,7 +588,7 @@ export function inferContextFromKey(key: string): StorageContext {
   if (key.startsWith('logs/')) return 'logs'
 
   throw new Error(
-    `File key must start with a context prefix (kb/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
+    `File key must start with a context prefix (kb/, knowledge-base/, chat/, copilot/, execution/, workspace/, profile-pictures/, og-images/, workspace-logos/, or logs/). Got: ${key}`
   )
 }
 
