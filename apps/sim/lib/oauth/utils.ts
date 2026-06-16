@@ -204,6 +204,12 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
+  'read:cmdb-object:jira': 'View Assets objects and run AQL searches',
+  'write:cmdb-object:jira': 'Create and update Assets objects',
+  'delete:cmdb-object:jira': 'Delete Assets objects',
+  'read:cmdb-schema:jira': 'View Assets object schemas',
+  'read:cmdb-type:jira': 'View Assets object types',
+  'read:cmdb-attribute:jira': 'View Assets object type attributes',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',

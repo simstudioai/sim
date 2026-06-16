@@ -248,6 +248,7 @@ export const env = createEnv({
     ADMISSION_GATE_MAX_INFLIGHT:           z.string().optional().default('500'),   // Max concurrent in-flight execution requests per pod
     API_MAX_JSON_BODY_BYTES:               z.string().optional().default('52428800'),// Default max JSON request body size for contract routes (50 MB)
     CHAT_MAX_REQUEST_BYTES:                z.string().optional().default('230686720'),// Max request body size for the public deployed-chat endpoint (220 MB; covers 15 base64 file attachments)
+    WEBHOOK_MAX_REQUEST_BYTES:             z.string().optional().default('10485760'),// Max request body size for public webhook receiver endpoints (10 MB; provider payloads rarely exceed a few MB)
 
     // Rate Limiting Configuration
     RATE_LIMIT_WINDOW_MS:                  z.string().optional().default('60000'), // Rate limit window duration in milliseconds (default: 1 minute)
@@ -317,6 +318,8 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET:                  z.string().optional(),                  // GitHub OAuth client secret
     DISABLE_GOOGLE_AUTH:                   z.boolean().optional(),                 // Disable Google OAuth login even when credentials are configured
     DISABLE_GITHUB_AUTH:                   z.boolean().optional(),                 // Disable GitHub OAuth login even when credentials are configured
+    DISABLE_MICROSOFT_AUTH:               z.boolean().optional(),                 // Disable Microsoft OAuth login even when credentials are configured
+    DISABLE_EMAIL_SIGNUP:                  z.boolean().optional(),                 // Block new email/password registrations while keeping email login working
 
     X_CLIENT_ID:                           z.string().optional(),                  // X (Twitter) OAuth client ID
     X_CLIENT_SECRET:                       z.string().optional(),                  // X (Twitter) OAuth client secret

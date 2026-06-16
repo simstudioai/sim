@@ -8445,9 +8445,45 @@
         {
           "name": "Copy Forms",
           "description": "Copy forms from one Jira issue to another"
+        },
+        {
+          "name": "List Asset Schemas",
+          "description": "List Assets (Insight/CMDB) object schemas in Jira Service Management"
+        },
+        {
+          "name": "Get Asset Schema",
+          "description": "Get a single Assets (Insight/CMDB) object schema by ID"
+        },
+        {
+          "name": "List Asset Object Types",
+          "description": "List object types within an Assets (Insight/CMDB) object schema"
+        },
+        {
+          "name": "Get Asset Object Type Attributes",
+          "description": "Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the returned attribute IDs to build create/update payloads or map columns."
+        },
+        {
+          "name": "Search Assets (AQL)",
+          "description": "Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = "
+        },
+        {
+          "name": "Get Asset Object",
+          "description": "Get a single Assets (Insight/CMDB) object by ID, including its attribute values"
+        },
+        {
+          "name": "Create Asset Object",
+          "description": "Create an Assets (Insight/CMDB) object of a given object type. Attributes use objectTypeAttributeId values from the object type definition."
+        },
+        {
+          "name": "Update Asset Object",
+          "description": "Update an existing Assets (Insight/CMDB) object. Provide the attributes to change using their objectTypeAttributeId values."
+        },
+        {
+          "name": "Delete Asset Object",
+          "description": "Delete an Assets (Insight/CMDB) object by ID"
         }
       ],
-      "operationCount": 34,
+      "operationCount": 43,
       "triggers": [
         {
           "id": "jsm_request_created",
