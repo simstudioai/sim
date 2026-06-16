@@ -3958,7 +3958,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           limit: {
             type: 'number',
-            description: 'Maximum rows to return or affect (optional, default 100)',
+            description:
+              'Maximum rows to return or affect (optional; default 100, max 1000). For delete_rows_by_filter and update_rows_by_filter, omitting it lets matches above 1000 run as a background job.',
           },
           mapping: {
             type: 'object',
@@ -4011,7 +4012,7 @@ export const UserTable: ToolCatalogEntry = {
           },
           offset: {
             type: 'number',
-            description: 'Number of rows to skip (optional for query_rows, default 0)',
+            description: 'Number of rows to skip for query_rows pagination (optional, default 0).',
           },
           outputColumnNames: {
             type: 'object',
