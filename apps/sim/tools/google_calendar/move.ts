@@ -121,7 +121,7 @@ export const moveTool: ToolConfig<GoogleCalendarMoveParams, GoogleCalendarMoveRe
     return {
       success: true,
       output: {
-        content: `Event "${data.summary}" moved successfully`,
+        content: `Event "${data.summary || 'Untitled'}" moved successfully`,
         metadata: {
           id: data.id,
           htmlLink: data.htmlLink,

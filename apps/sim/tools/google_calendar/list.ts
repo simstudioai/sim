@@ -43,11 +43,30 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
       visibility: 'user-or-llm',
       description: 'Upper bound for events (RFC3339 timestamp, e.g., 2025-06-04T00:00:00Z)',
     },
+    q: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Free-text search across event summary, description, location, attendees, and organizer',
+    },
+    maxResults: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum number of events to return (max 2500)',
+    },
+    pageToken: {
+      type: 'string',
+      required: false,
+      visibility: 'user-only',
+      description: 'Token for retrieving the next page of results',
+    },
     orderBy: {
       type: 'string',
       required: false,
       visibility: 'hidden',
-      description: 'Order of events returned (startTime or updated)',
+      description: 'Order of events returned (startTime or updated). Defaults to startTime.',
     },
     showDeleted: {
       type: 'boolean',
@@ -64,8 +83,11 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
 
       if (params.timeMin) queryParams.append('timeMin', params.timeMin)
       if (params.timeMax) queryParams.append('timeMax', params.timeMax)
+      if (params.q) queryParams.append('q', params.q)
+      if (params.maxResults) queryParams.append('maxResults', params.maxResults.toString())
+      if (params.pageToken) queryParams.append('pageToken', params.pageToken)
       queryParams.append('singleEvents', 'true')
-      if (params.orderBy) queryParams.append('orderBy', params.orderBy)
+      queryParams.append('orderBy', params.orderBy || 'startTime')
       if (params.showDeleted !== undefined)
         queryParams.append('showDeleted', params.showDeleted.toString())
 
@@ -119,12 +141,26 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
   },
 }
 
+interface GoogleCalendarListV2Event {
+  id: string
+  htmlLink: string
+  status: string
+  summary: string | null
+  description: string | null
+  location: string | null
+  start: GoogleCalendarApiEventResponse['start']
+  end: GoogleCalendarApiEventResponse['end']
+  attendees: GoogleCalendarApiEventResponse['attendees'] | null
+  creator: GoogleCalendarApiEventResponse['creator'] | null
+  organizer: GoogleCalendarApiEventResponse['organizer'] | null
+}
+
 interface GoogleCalendarListV2Response {
   success: boolean
   output: {
     nextPageToken: string | null
     timeZone: string | null
-    events: Array<Record<string, any>>
+    events: GoogleCalendarListV2Event[]
   }
 }
 
