@@ -150,6 +150,19 @@ const stripExtension = (name: string): string => {
 }
 
 /**
+ * Reduce an arbitrary name to a safe, flat file name: takes the final path
+ * segment, drops directory and traversal components, and falls back when the
+ * result would be empty or a dot segment. Used for zip entry names and the
+ * compress archive name so untrusted input cannot introduce nested or
+ * zip-slip-style paths.
+ */
+const toFlatFileName = (name: string, fallback: string): string => {
+  const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
+  if (!leaf || leaf === '.' || leaf === '..') return fallback
+  return leaf
+}
+
+/**
  * Return a zip entry name unique within `usedNames`, appending a numeric suffix
  * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
  */
@@ -554,6 +567,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             : extractFileIdsFromInput(fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
         const workspaceFiles = await Promise.all(
           selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
         )
@@ -571,10 +588,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             Boolean(file)
           )
           .concat(selectedInputFiles)
-
-        if (userFiles.length === 0) {
-          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
-        }
 
         const zip = new JSZip()
         const usedNames = new Set<string>()
@@ -598,7 +611,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 413 }
             )
           }
-          zip.file(uniqueZipEntryName(userFile.name, usedNames), buffer)
+          zip.file(uniqueZipEntryName(toFlatFileName(userFile.name, 'file'), usedNames), buffer)
         }
 
         const zipBuffer = await zip.generateAsync({
@@ -608,14 +621,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         })
 
         const requestedName = typeof archiveName === 'string' ? archiveName.trim() : ''
-        const targetName = ensureZipExtension(
-          requestedName || (userFiles.length === 1 ? stripExtension(userFiles[0].name) : 'archive')
-        )
-        const { folderSegments, leafName } = splitWorkspaceFilePath(targetName)
+        const baseName = requestedName
+          ? toFlatFileName(requestedName, 'archive')
+          : userFiles.length === 1
+            ? stripExtension(toFlatFileName(userFiles[0].name, 'archive'))
+            : 'archive'
+        const leafName = ensureZipExtension(baseName)
         const folderId = await ensureWorkspaceFileFolderPath({
           workspaceId,
           userId,
-          pathSegments: folderSegments,
+          pathSegments: [],
         })
         const result = await uploadWorkspaceFile(
           workspaceId,
