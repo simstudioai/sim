@@ -323,9 +323,8 @@ export async function preprocessExecution(
   }
 
   // ========== STEPS 3.5–6: Preflight Gates ==========
-  // Read-only gates run concurrently (ban + subscription, then usage). The
-  // rate-limit gate debits a token, so it runs sequentially only after ban and
-  // usage pass. Failures apply in fixed precedence: ban 403 → usage 402 → rate 429.
+  // Read-only gates (ban, subscription, usage) run concurrently; the stateful
+  // rate-limit gate runs after they pass. Precedence: ban 403 → usage 402 → rate 429.
 
   /**
    * A failing gate's deferred outcome: the response to return, plus an optional
@@ -643,7 +642,6 @@ export async function preprocessExecution(
   const usageResult = await usageCheckTask
   const usageSnapshot = usageResult.snapshot
 
-  // Precedence: ban (403) wins over usage (402).
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
     if (readGateFailure.recordError) {

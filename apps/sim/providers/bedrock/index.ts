@@ -139,8 +139,6 @@ export const bedrockProvider: ProviderConfig = {
       }
     }
 
-    // AWS SDK clients own a per-client connection pool and are meant to be reused.
-    // Keyed by region + credential identity (a rotated key pair yields a new key).
     const client = getCachedProviderClient(
       `bedrock::${region}::${request.bedrockAccessKeyId ?? 'default-chain'}`,
       () => new BedrockRuntimeClient(clientConfig)

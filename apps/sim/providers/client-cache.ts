@@ -3,8 +3,10 @@ import { LRUCache } from 'lru-cache'
 const CLIENT_CACHE_MAX_ENTRIES = 1_000
 const CLIENT_CACHE_TTL_MS = 30 * 60 * 1_000
 
-// updateAgeOnGet makes the TTL idle-based, so a continuously-used client keeps
-// its warm keep-alive connections while idle keys age out.
+/**
+ * `updateAgeOnGet` makes the TTL idle-based: a continuously-used client keeps its
+ * warm keep-alive connections, while idle keys age out.
+ */
 const clientCache = new LRUCache<string, object>({
   max: CLIENT_CACHE_MAX_ENTRIES,
   ttl: CLIENT_CACHE_TTL_MS,
