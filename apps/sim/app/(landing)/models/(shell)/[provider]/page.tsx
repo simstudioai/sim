@@ -13,6 +13,7 @@ import {
 import { ModelTimelineChart } from '@/app/(landing)/models/components/model-timeline-chart'
 import {
   buildProviderFaqs,
+  formatFileSize,
   formatPrice,
   formatTokenCount,
   getProviderBySlug,
@@ -204,9 +205,16 @@ export default async function ProviderModelsPage({
                 {provider.name} models
               </h1>
             </div>
-            <span className='shrink-0 font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
-              {provider.modelCount} models
-            </span>
+            <div className='flex shrink-0 flex-col items-end gap-1'>
+              <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
+                {provider.modelCount} models
+              </span>
+              {provider.maxFileAttachmentBytes ? (
+                <span className='font-martian-mono text-[var(--landing-text-subtle)] text-xs uppercase tracking-[0.1em]'>
+                  {formatFileSize(provider.maxFileAttachmentBytes)} file uploads
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
 

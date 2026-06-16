@@ -24,6 +24,8 @@ import {
   useWorkspaceFiles,
   workspaceFilesKeys,
 } from '@/hooks/queries/workspace-files'
+import { getProviderAttachmentMaxBytes } from '@/providers/attachments'
+import { getProviderFromModel } from '@/providers/models'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
@@ -167,6 +169,7 @@ export function FileUpload({
 }: FileUploadProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlockId)
+  const [modelValue] = useSubBlockValue(blockId, 'model')
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -190,6 +193,17 @@ export function FileUpload({
   const queryClient = useQueryClient()
 
   const value = isPreview ? previewValue : storeValue
+
+  const maxSizeInBytes = useMemo(() => {
+    const fallback = maxSize * 1024 * 1024
+    if (typeof modelValue !== 'string' || !modelValue) return fallback
+    try {
+      return Math.max(fallback, getProviderAttachmentMaxBytes(getProviderFromModel(modelValue)))
+    } catch {
+      return fallback
+    }
+  }, [modelValue, maxSize])
+  const maxSizeLabel = `${Math.round(maxSizeInBytes / (1024 * 1024))}MB`
 
   /**
    * Checks if a file's MIME type matches the accepted types
@@ -281,7 +295,6 @@ export function FileUpload({
     const existingFiles = Array.isArray(value) ? value : value ? [value] : []
     const existingTotalSize = existingFiles.reduce((sum, file) => sum + file.size, 0)
 
-    const maxSizeInBytes = maxSize * 1024 * 1024
     const validFiles: File[] = []
     let totalNewSize = 0
     let sizeExceededFile: string | null = null
@@ -289,7 +302,7 @@ export function FileUpload({
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
-        const errorMessage = `Adding ${file.name} would exceed the maximum size limit of ${maxSize}MB`
+        const errorMessage = `Adding ${file.name} would exceed the maximum size limit of ${maxSizeLabel}`
         logger.error(errorMessage, activeWorkflowId)
         if (!sizeExceededFile) {
           sizeExceededFile = errorMessage
