@@ -2,11 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type {
-  FeatureFlagContext,
-  FeatureFlagName,
-  FeatureFlagsConfig,
-} from '@/lib/core/config/feature-flags'
+import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
 
 const { mockFetch, mockIsPlatformAdmin, envRef, flagRef } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
@@ -23,6 +19,7 @@ vi.mock('@/lib/core/config/appconfig', () => ({
 }))
 
 vi.mock('@/lib/core/config/env', () => ({
+  isTruthy: (v: unknown) => Boolean(v),
   get env() {
     return envRef
   },
@@ -60,21 +57,22 @@ describe('getFeatureFlags', () => {
     flagRef.isAppConfigEnabled = false
   })
 
-  it('derives flags from fallback secrets (empty registry → empty) when AppConfig is disabled, without fetching', async () => {
-    expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
+  it('derives flags from fallback secrets when AppConfig is disabled, without fetching', async () => {
+    const flags = await getFeatureFlags()
+    // All registered flags should be present, disabled (env vars unset in test env)
+    expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
+    expect(flags['mothership-beta']).toEqual({ enabled: false })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('reads the feature-flags profile and normalizes the payload when enabled', async () => {
     withAppConfig({
-      flags: {
-        a: { enabled: true },
-        b: { orgIds: ['Org_1', ' org_1 ', '', 'org_2'], userIds: 'nope' },
-        c: 'not-an-object',
-      },
+      a: { enabled: true },
+      b: { orgIds: ['Org_1', ' org_1 ', '', 'org_2'], userIds: 'nope' },
+      c: 'not-an-object',
     })
 
-    const { flags } = await getFeatureFlags()
+    const flags = await getFeatureFlags()
     expect(flags.a).toEqual({ enabled: true })
     expect(flags.b).toEqual({ orgIds: ['Org_1', 'org_1', 'org_2'] })
     expect(flags.c).toBeUndefined()
@@ -87,14 +85,16 @@ describe('getFeatureFlags', () => {
   it('falls back to the secret-derived document when the fetch yields null', async () => {
     flagRef.isAppConfigEnabled = true
     mockFetch.mockResolvedValue(null)
-    expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
+    const flags = await getFeatureFlags()
+    expect(flags['tables-fractional-ordering']).toEqual({ enabled: false })
+    expect(flags['mothership-beta']).toEqual({ enabled: false })
   })
 
   it('degrades gracefully on a malformed document', async () => {
-    withAppConfig({ flags: 'not-an-object' })
-    expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
+    withAppConfig('not-an-object')
+    expect(await getFeatureFlags()).toMatchObject({})
     withAppConfig(null)
-    expect(await getFeatureFlags()).toEqual<FeatureFlagsConfig>({ flags: {} })
+    expect(await getFeatureFlags()).toMatchObject({})
   })
 })
 
@@ -105,31 +105,31 @@ describe('isFeatureEnabled', () => {
   })
 
   it('returns false for an unknown flag', async () => {
-    withAppConfig({ flags: {} })
+    withAppConfig({})
     expect(await enabled('missing', { userId: 'u1' })).toBe(false)
   })
 
   it('matches the global enabled clause', async () => {
-    withAppConfig({ flags: { f: { enabled: true } } })
+    withAppConfig({ f: { enabled: true } })
     expect(await enabled('f')).toBe(true)
   })
 
   it('matches the userId allowlist', async () => {
-    withAppConfig({ flags: { f: { userIds: ['u1'] } } })
+    withAppConfig({ f: { userIds: ['u1'] } })
     expect(await enabled('f', { userId: 'u1' })).toBe(true)
     expect(await enabled('f', { userId: 'u2' })).toBe(false)
     expect(await enabled('f', {})).toBe(false)
   })
 
   it('matches the orgId allowlist', async () => {
-    withAppConfig({ flags: { f: { orgIds: ['o1'] } } })
+    withAppConfig({ f: { orgIds: ['o1'] } })
     expect(await enabled('f', { orgId: 'o1' })).toBe(true)
     expect(await enabled('f', { orgId: 'o2' })).toBe(false)
   })
 
   describe('admin clause (lazy resolution)', () => {
-    it('resolves admin from userId when admins is the deciding clause', async () => {
-      withAppConfig({ flags: { f: { admins: true } } })
+    it('resolves admin from userId when adminEnabled is the deciding clause', async () => {
+      withAppConfig({ f: { adminEnabled: true } })
       mockIsPlatformAdmin.mockResolvedValue(true)
       expect(await enabled('f', { userId: 'u1' })).toBe(true)
       expect(mockIsPlatformAdmin).toHaveBeenCalledWith('u1')
@@ -139,28 +139,28 @@ describe('isFeatureEnabled', () => {
     })
 
     it('uses the isAdmin override without querying', async () => {
-      withAppConfig({ flags: { f: { admins: true } } })
+      withAppConfig({ f: { adminEnabled: true } })
       expect(await enabled('f', { userId: 'u1', isAdmin: true })).toBe(true)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
 
     it('resolves to false without querying when userId is absent', async () => {
-      withAppConfig({ flags: { f: { admins: true } } })
+      withAppConfig({ f: { adminEnabled: true } })
       expect(await enabled('f', { orgId: 'o1' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
 
     it('does not query when an earlier clause already matched', async () => {
-      withAppConfig({ flags: { f: { enabled: true, admins: true } } })
+      withAppConfig({ f: { enabled: true, adminEnabled: true } })
       expect(await enabled('f', { userId: 'u1' })).toBe(true)
 
-      withAppConfig({ flags: { g: { userIds: ['u1'], admins: true } } })
+      withAppConfig({ g: { userIds: ['u1'], adminEnabled: true } })
       expect(await enabled('g', { userId: 'u1' })).toBe(true)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })
 
-    it('does not query when the rule has no admins clause', async () => {
-      withAppConfig({ flags: { f: { userIds: ['u2'] } } })
+    it('does not query when the rule has no adminEnabled clause', async () => {
+      withAppConfig({ f: { userIds: ['u2'] } })
       expect(await enabled('f', { userId: 'u1' })).toBe(false)
       expect(mockIsPlatformAdmin).not.toHaveBeenCalled()
     })

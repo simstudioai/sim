@@ -57,7 +57,7 @@ export const GET = withRouteHandler(
     // In the E2B regime ALL four formats compile in the doc sandbox (Node for
     // pptx/docx, Python for pdf/xlsx). Gate on the flag (not the stored MIME) so
     // a stale file can't trigger an E2B compile when the sandbox is disabled.
-    const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileRecord.name) : null
+    const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileRecord.name) : null
     const taskId = BINARY_DOC_TASKS[ext]
     const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
     if (!e2bFmt && !taskId && !isMermaidFile) {

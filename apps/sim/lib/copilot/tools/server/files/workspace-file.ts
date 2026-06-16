@@ -203,13 +203,13 @@ export async function compileDocForWrite(args: {
 }): Promise<CompileForWriteResult> {
   const { source, fileName, workspaceId, ownerKey, signal, fallbackMime } = args
   const docInfo = getDocumentFormatInfo(fileName)
-  const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileName) : null
+  const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileName) : null
 
   if (!e2bFmt && fileName.toLowerCase().endsWith('.xlsx')) {
     return {
       ok: false,
       message: isE2BDocEnabled
-        ? 'Excel (.xlsx) generation is currently behind a beta flag (MOTHERSHIP_BETA_FEATURES) and is not available.'
+        ? 'Excel (.xlsx) generation is currently behind the mothership-beta feature flag and is not available.'
         : 'Excel (.xlsx) generation requires the E2B document sandbox, which is not enabled in this environment.',
     }
   }

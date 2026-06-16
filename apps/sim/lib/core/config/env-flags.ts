@@ -45,14 +45,6 @@ export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
 
 /**
- * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
- * legacy integer `position`. When off, behavior is unchanged. Keys are written
- * regardless of this flag; it only controls which column is authoritative for
- * reads/ordering and whether inserts/deletes reshift positions.
- */
-export const isTablesFractionalOrderingEnabled = isTruthy(env.TABLES_FRACTIONAL_ORDERING)
-
-/**
  * Is email verification enabled
  */
 export const isEmailVerificationEnabled = isTruthy(env.EMAIL_VERIFICATION_ENABLED)
@@ -172,20 +164,6 @@ export const isDataRetentionEnabled = isTruthy(env.DATA_RETENTION_ENABLED)
  * This bypasses hosted requirements for self-hosted deployments
  */
 export const isDataDrainsEnabled = isTruthy(env.DATA_DRAINS_ENABLED)
-
-/**
- * Are workflow output columns enabled in user tables.
- * Defaults to false; set NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED=true to show
- * the "Workflow" column type in the new-column dropdown.
- */
-export const isWorkflowColumnsEnabledClient = isTruthy(
-  getEnv('NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED')
-)
-
-/**
- * Enables beta Mothership plan/changelog artifact surfaces.
- */
-export const isMothershipBetaFeaturesEnabled = isTruthy(env.MOTHERSHIP_BETA_FEATURES)
 
 /**
  * Is E2B enabled for remote code execution

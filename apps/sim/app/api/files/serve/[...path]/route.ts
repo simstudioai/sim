@@ -117,7 +117,7 @@ async function compileDocumentIfNeeded(
       return { buffer: stored.buffer, contentType: stored.contentType }
     }
 
-    if (isE2BDocEnabled && getE2BDocFormat(filename)) {
+    if (isE2BDocEnabled && (await getE2BDocFormat(filename))) {
       // Artifact not built yet (still generating, or the source didn't compile at
       // write time). Signal "not ready" without compiling — handled as 409.
       throw new DocCompileUserError('Document is still being generated')

@@ -64,7 +64,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
     try {
       const { operation, fileRecord } = intent
       const docInfo = getDocumentFormatInfo(fileRecord.name)
-      const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileRecord.name) : null
+      const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileRecord.name) : null
 
       let finalContent: string
       switch (operation) {
