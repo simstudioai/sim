@@ -33,19 +33,26 @@ interface RemoteUrlContext {
  * threshold on a large-file-capable provider, storing it on `file.remoteUrl`. Providers
  * with a `remote-url` strategy use it directly; `files-api` providers upload from it later.
  * Requires cloud storage — without it large files fall back to the (capped) base64 path.
+ *
+ * The server-only handle fields are first cleared on every file for every provider
+ * (including inline) so a forged handle on untrusted input can never reach a builder.
  */
 export async function attachLargeFileRemoteUrls(
   files: UserFile[] | undefined,
   providerId: ProviderId | string,
   ctx: RemoteUrlContext
 ): Promise<void> {
-  if (!files?.length || getProviderFileStrategy(providerId) === 'inline') return
+  if (!files?.length) return
 
   for (const file of files) {
     file.providerFileId = undefined
     file.providerFileUri = undefined
     file.remoteUrl = undefined
+  }
 
+  if (getProviderFileStrategy(providerId) === 'inline') return
+
+  for (const file of files) {
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
     if (!StorageService.hasCloudStorage()) continue
 
