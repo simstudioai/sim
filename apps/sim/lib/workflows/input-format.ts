@@ -12,12 +12,11 @@ export interface WorkflowInputField {
 }
 
 /**
- * Stateful input-format field as stored in sub-block values.
- *
- * Extends the wire-level {@link InputFormatField} with the editor-only `id` and
- * `collapsed` fields maintained per row in the inputs editor.
+ * Stateful input-format field as stored in sub-block values: the editor's
+ * per-row shape, including the editor-only `id` and `collapsed` fields. Stricter
+ * than the wire-level {@link InputFormatField} (required `name`/`type`/`value`).
  */
-export interface InputFormatFieldState {
+interface InputFormatFieldState {
   id: string
   name: string
   type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'

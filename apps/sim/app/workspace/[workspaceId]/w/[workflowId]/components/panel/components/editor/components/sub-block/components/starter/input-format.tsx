@@ -75,11 +75,6 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
 ]
 
 /**
- * Creates a new field with default values
- */
-const createDefaultField = (): Field => createDefaultInputFormatField()
-
-/**
  * Validates and sanitizes field names by removing control characters and quotes
  */
 const validateFieldName = (name: string): string => name.replace(/[\x00-\x1F"\\]/g, '').trim()
@@ -127,7 +122,7 @@ export function FieldFormat({
    * the same id instead of a freshly generated one.
    */
   const fallbackFieldRef = useRef<Field | null>(null)
-  const fallbackField = (fallbackFieldRef.current ??= createDefaultField())
+  const fallbackField = (fallbackFieldRef.current ??= createDefaultInputFormatField())
 
   const value = isPreview ? previewValue : storeValue
   const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [fallbackField]
@@ -140,7 +135,7 @@ export function FieldFormat({
    */
   const addField = () => {
     if (isReadOnly) return
-    setStoreValue([...fields, createDefaultField()])
+    setStoreValue([...fields, createDefaultInputFormatField()])
   }
 
   /**
@@ -150,7 +145,7 @@ export function FieldFormat({
     if (isReadOnly) return
 
     if (fields.length === 1) {
-      setStoreValue([createDefaultField()])
+      setStoreValue([createDefaultInputFormatField()])
       return
     }
 
