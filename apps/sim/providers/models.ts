@@ -3047,6 +3047,48 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
+/**
+ * Reorders catalog model IDs so that, within each provider, newer models (by
+ * release date) come first, while preserving the existing provider grouping order.
+ *
+ * Models without a known release date keep their declaration order and sort after
+ * dated models within the same provider. IDs not found in the catalog (e.g.
+ * dynamically-discovered provider models) are left in their original order at the end.
+ */
+export function orderModelIdsByReleaseDate(modelIds: string[]): string[] {
+  const catalogIndex = new Map<
+    string,
+    { providerIndex: number; declIndex: number; releaseTime: number }
+  >()
+  Object.values(PROVIDER_DEFINITIONS).forEach((provider, providerIndex) => {
+    provider.models.forEach((model, declIndex) => {
+      const parsed = model.releaseDate ? Date.parse(model.releaseDate) : Number.NaN
+      catalogIndex.set(model.id.toLowerCase(), {
+        providerIndex,
+        declIndex,
+        releaseTime: Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed,
+      })
+    })
+  })
+
+  return modelIds
+    .map((id, inputIndex) => ({ id, inputIndex, meta: catalogIndex.get(id.toLowerCase()) }))
+    .sort((a, b) => {
+      if (!a.meta || !b.meta) {
+        if (!a.meta && !b.meta) return a.inputIndex - b.inputIndex
+        return a.meta ? -1 : 1
+      }
+      if (a.meta.providerIndex !== b.meta.providerIndex) {
+        return a.meta.providerIndex - b.meta.providerIndex
+      }
+      if (a.meta.releaseTime !== b.meta.releaseTime) {
+        return b.meta.releaseTime - a.meta.releaseTime
+      }
+      return a.meta.declIndex - b.meta.declIndex
+    })
+    .map((entry) => entry.id)
+}
+
 export const DYNAMIC_MODEL_PROVIDERS = [
   'ollama',
   'ollama-cloud',
