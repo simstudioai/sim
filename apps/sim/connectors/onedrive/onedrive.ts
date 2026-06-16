@@ -354,13 +354,6 @@ export const onedriveConnector: ConnectorConfig = {
     }
   },
 
-  tagDefinitions: [
-    { id: 'path', displayName: 'Path', fieldType: 'text' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-    { id: 'fileSize', displayName: 'File Size', fieldType: 'number' },
-    { id: 'createdBy', displayName: 'Created By', fieldType: 'text' },
-  ],
-
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}
 

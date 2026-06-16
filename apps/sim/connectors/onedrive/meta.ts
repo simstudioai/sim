@@ -26,4 +26,11 @@ export const onedriveConnectorMeta: ConnectorMeta = {
       placeholder: 'e.g. 500 (default: unlimited)',
     },
   ],
+
+  tagDefinitions: [
+    { id: 'path', displayName: 'Path', fieldType: 'text' },
+    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
+    { id: 'fileSize', displayName: 'File Size', fieldType: 'number' },
+    { id: 'createdBy', displayName: 'Created By', fieldType: 'text' },
+  ],
 }
