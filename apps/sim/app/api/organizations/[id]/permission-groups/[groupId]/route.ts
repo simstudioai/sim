@@ -128,6 +128,15 @@ export const PUT = withRouteHandler(
               ? false
               : group.appliesToAllWorkspaces
 
+      const effectiveIsDefault =
+        updates.isDefault !== undefined ? updates.isDefault : group.isDefault
+      if (effectiveIsDefault && !resolvedAppliesToAll) {
+        return NextResponse.json(
+          { error: 'The default group must apply to all workspaces' },
+          { status: 400 }
+        )
+      }
+
       // Resolve and validate explicitly-provided workspaceIds before the
       // transaction. When the request omits them for a specific-scope group
       // ("keep current"), they're read under the lock instead (see below) so the
