@@ -138,7 +138,7 @@ describe('Icypeas find-email postProcess poll', () => {
     expect((result.output as any).status).toBe('FOUND')
   })
 
-  it('returns success=false for NOT_FOUND terminal status', async () => {
+  it('returns success=true with a null email for NOT_FOUND terminal status', async () => {
     vi.useFakeTimers()
 
     const fetchMock = vi.fn().mockResolvedValue(
@@ -172,8 +172,9 @@ describe('Icypeas find-email postProcess poll', () => {
     await vi.advanceTimersByTimeAsync(3000)
     const result = await promise
 
-    expect(result.success).toBe(false)
+    expect(result.success).toBe(true)
     expect((result.output as any).status).toBe('NOT_FOUND')
+    expect((result.output as any).email).toBeNull()
   })
 })
 

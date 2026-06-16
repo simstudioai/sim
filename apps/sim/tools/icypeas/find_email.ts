@@ -162,8 +162,12 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
       const status = (item.status as string | undefined) ?? null
 
       if (status && TERMINAL_STATUSES.has(status)) {
+        // Any terminal status is a successful run — a clean no-match is not a
+        // failure. The enrichment cascade only calls mapOutput when success is
+        // true, so returning false would skip the verdict and inflate the
+        // runner's error count. A null email signals "not found" downstream.
         return {
-          success: FOUND_STATUSES.has(status),
+          success: true,
           output: mapItem(item),
         }
       }

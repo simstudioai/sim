@@ -55,14 +55,24 @@ describe('Datagma enrich person pricing', () => {
     ).toBeCloseTo(2 * DATAGMA_CREDIT_USD)
   })
 
-  it('charges 32 credits (2 + 30) when phone is also found', () => {
+  it('charges 32 credits (2 + 30) when a phone lookup was requested and found', () => {
+    expect(
+      cost(
+        enrichPersonTool,
+        { phoneFull: true },
+        { name: 'John Doe', email: 'john@stripe.com', phone: '+14155551234' }
+      ).cost
+    ).toBeCloseTo(32 * DATAGMA_CREDIT_USD)
+  })
+
+  it('does not charge the phone surcharge when phoneFull was not requested', () => {
     expect(
       cost(
         enrichPersonTool,
         {},
         { name: 'John Doe', email: 'john@stripe.com', phone: '+14155551234' }
       ).cost
-    ).toBeCloseTo(32 * DATAGMA_CREDIT_USD)
+    ).toBeCloseTo(2 * DATAGMA_CREDIT_USD)
   })
 
   it('charges 0 credits on no match', () => {

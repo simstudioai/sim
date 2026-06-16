@@ -3,6 +3,11 @@ import type { ToolHostingConfig } from '@/tools/types'
 /**
  * Env var prefix for Datagma hosted keys. Provide keys as
  * `DATAGMA_API_KEY_COUNT` plus `DATAGMA_API_KEY_1..N`.
+ *
+ * Note: Datagma authenticates via an `apiId` URL query parameter (its only
+ * documented scheme), so the key appears verbatim in every request URL and may
+ * be captured by Datagma's and any intermediary's access logs. Treat a leaked
+ * key accordingly and rotate via the env vars above.
  */
 export const DATAGMA_API_KEY_PREFIX = 'DATAGMA_API_KEY'
 

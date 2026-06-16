@@ -58,16 +58,14 @@ export const icypeasVerifyEmailTool: ToolConfig<
   version: '1.0.0',
 
   hosting: icypeasHosting<IcypeasVerifyEmailParams>((_params, output) => {
-    // 0.1 credit per verification attempt that was processed (FOUND, DEBITED,
-    // or DEBITED_NOT_FOUND — any status containing "DEBITED" means credits were
-    // consumed). BAD_INPUT / INSUFFICIENT_FUNDS / ABORTED / NOT_FOUND indicate
-    // the search was not processed or charged.
+    // 0.1 credit per verification that consumed credits: FOUND/DEBITED (verdict
+    // delivered) and DEBITED_NOT_FOUND (debited even though unresolved).
+    // BAD_INPUT / INSUFFICIENT_FUNDS / ABORTED / NOT_FOUND are never charged.
     const status = output.status as string | undefined
     if (!status) {
       throw new Error('Icypeas verify-email: cannot determine cost — status is missing')
     }
-    // Billable when the status name contains DEBITED (i.e. DEBITED or DEBITED_NOT_FOUND).
-    const billable = status.includes('DEBITED')
+    const billable = status === 'FOUND' || status.includes('DEBITED')
     // 0.1 credit; express as a fractional number so ICYPEAS_CREDIT_USD math works.
     return billable ? 0.1 : 0
   }),
@@ -155,8 +153,12 @@ export const icypeasVerifyEmailTool: ToolConfig<
       const status = (item.status as string | undefined) ?? null
 
       if (status && TERMINAL_STATUSES.has(status)) {
+        // Any terminal status is a successful run — NOT_FOUND/DEBITED_NOT_FOUND are
+        // definitive verdicts, not failures. The enrichment cascade only calls
+        // mapOutput when success is true, so returning false here would skip those
+        // verdicts and inflate the runner's error count. `valid` carries the result.
         return {
-          success: VALID_STATUSES.has(status),
+          success: true,
           output: mapItem(item),
         }
       }

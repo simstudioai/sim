@@ -22,7 +22,9 @@ export const enrichPersonTool: ToolConfig<DatagmaEnrichPersonParams, DatagmaEnri
       const name = output.name as string | null
       const email = output.email as string | null
       if (!name && !email) return 0
-      const phoneCredits = output.phone ? 30 : 0
+      // The 30-credit phone surcharge applies only when the caller requested a
+      // phone lookup (phoneFull); a phone that rides along otherwise isn't charged.
+      const phoneCredits = params.phoneFull && output.phone ? 30 : 0
       return 2 + phoneCredits
     }),
 
