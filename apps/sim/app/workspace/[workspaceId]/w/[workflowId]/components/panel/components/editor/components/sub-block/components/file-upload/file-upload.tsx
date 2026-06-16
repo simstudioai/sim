@@ -292,24 +292,19 @@ export function FileUpload({
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const existingFiles = Array.isArray(value) ? value : value ? [value] : []
-    const existingTotalSize = existingFiles.reduce((sum, file) => sum + file.size, 0)
-
     const validFiles: File[] = []
-    let totalNewSize = 0
     let sizeExceededFile: string | null = null
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
-      if (existingTotalSize + totalNewSize + file.size > maxSizeInBytes) {
-        const errorMessage = `Adding ${file.name} would exceed the maximum size limit of ${maxSizeLabel}`
+      if (file.size > maxSizeInBytes) {
+        const errorMessage = `${file.name} exceeds the maximum file size of ${maxSizeLabel}`
         logger.error(errorMessage, activeWorkflowId)
         if (!sizeExceededFile) {
           sizeExceededFile = errorMessage
         }
       } else {
         validFiles.push(file)
-        totalNewSize += file.size
       }
     }
 

@@ -3,12 +3,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import OpenAI, { toFile } from 'openai'
+import {
+  secureFetchWithPinnedIP,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
+import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import {
+  getProviderAttachmentMaxBytes,
   getProviderFileStrategy,
   inferAttachmentMimeType,
   shouldUseLargeFilePath,
@@ -54,6 +60,16 @@ export async function attachLargeFileRemoteUrls(
 
   for (const file of files) {
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
+
+    const maxBytes = getProviderAttachmentMaxBytes(providerId)
+    if (Number.isFinite(file.size) && file.size > maxBytes) {
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
+      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
+      throw new Error(
+        `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
+      )
+    }
+
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
         `[${ctx.requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable; it cannot be sent`
@@ -95,15 +111,16 @@ export async function uploadLargeFilesToProvider(
   const groups = groupUploadableFiles(request.messages)
   if (groups.length === 0) return
 
+  const maxBytes = getProviderAttachmentMaxBytes(providerId)
   const openai = providerId === 'openai' ? new OpenAI({ apiKey: request.apiKey }) : null
   const ai = providerId === 'google' ? new GoogleGenAI({ apiKey: request.apiKey }) : null
 
   for (const group of groups) {
     const [representative] = group
     if (openai) {
-      await uploadOpenAIFile(representative, openai, request.abortSignal)
+      await uploadOpenAIFile(representative, openai, maxBytes, request.abortSignal)
     } else if (ai) {
-      await uploadGeminiFile(representative, ai, request.abortSignal)
+      await uploadGeminiFile(representative, ai, maxBytes, request.abortSignal)
     }
     for (const file of group) {
       file.providerFileId = representative.providerFileId
@@ -130,21 +147,48 @@ function groupUploadableFiles(messages: Message[] | undefined): UserFile[][] {
   return [...groups.values()]
 }
 
-async function fetchRemoteFileBlob(file: UserFile, signal?: AbortSignal): Promise<Blob> {
-  const response = await fetch(file.remoteUrl as string, { signal })
+/**
+ * Downloads the file from its signed URL with DNS validation and IP pinning so a URL that
+ * somehow resolves to an internal address can never be fetched (SSRF defense for every
+ * caller, not just the agent path). Bounded by the provider's attachment ceiling.
+ */
+async function fetchRemoteFileBlob(
+  file: UserFile,
+  maxBytes: number,
+  signal?: AbortSignal
+): Promise<Blob> {
+  const url = file.remoteUrl as string
+  const validation = await validateUrlWithDNS(url, 'fileUrl')
+  if (!validation.isValid || !validation.resolvedIP) {
+    throw new Error(
+      `Cannot download "${file.name}" for upload: ${validation.error || 'invalid URL'}`
+    )
+  }
+
+  const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
+    maxResponseBytes: maxBytes,
+    signal,
+  })
   if (!response.ok) {
     throw new Error(`Failed to download "${file.name}" for upload (status ${response.status})`)
   }
-  return response.blob()
+
+  const buffer = await readResponseToBufferWithLimit(response, {
+    maxBytes,
+    label: 'provider file upload',
+    signal,
+  })
+  return new Blob([buffer], { type: file.type || inferAttachmentMimeType(file) })
 }
 
 async function uploadOpenAIFile(
   file: UserFile,
   client: OpenAI,
+  maxBytes: number,
   signal?: AbortSignal
 ): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
-  const blob = await fetchRemoteFileBlob(file, signal)
+  const blob = await fetchRemoteFileBlob(file, maxBytes, signal)
 
   const uploaded = await client.files.create(
     {
@@ -162,10 +206,11 @@ async function uploadOpenAIFile(
 async function uploadGeminiFile(
   file: UserFile,
   ai: GoogleGenAI,
+  maxBytes: number,
   signal?: AbortSignal
 ): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
-  const blob = await fetchRemoteFileBlob(file, signal)
+  const blob = await fetchRemoteFileBlob(file, maxBytes, signal)
 
   let uploaded = await ai.files.upload({ file: blob, config: { mimeType, abortSignal: signal } })
 

@@ -657,7 +657,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   anthropic: {
     id: 'anthropic',
-    fileAttachment: { maxBytes: 100 * 1024 * 1024, strategy: 'remote-url' },
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
     name: 'Anthropic',
     description: "Anthropic's Claude models",
     defaultModel: 'claude-sonnet-4-6',
