@@ -28,7 +28,11 @@ vi.mock('@/lib/core/execution-limits', () => ({
   getExecutionTimeout: vi.fn(() => 0),
 }))
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
-  RateLimiter: vi.fn(() => ({ checkRateLimitWithSubscription: mockCheckRateLimit })),
+  // Regular function (not an arrow) so `new RateLimiter()` is constructable under
+  // vitest 4.x, which rejects `new` on an arrow-implemented mock.
+  RateLimiter: vi.fn(function (this: unknown) {
+    return { checkRateLimitWithSubscription: mockCheckRateLimit }
+  }),
 }))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 vi.mock('@/lib/workspaces/utils', () => ({
@@ -44,10 +48,7 @@ vi.mock('@sim/workflow-authz', () => ({
   }),
 }))
 
-import {
-  checkOrgMemberUsageLimit,
-  checkServerSideUsageLimits,
-} from '@/lib/billing/calculations/usage-monitor'
+import { checkServerSideUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { preprocessExecution } from './preprocessing'
 
@@ -128,7 +129,6 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
       remaining: 100,
       resetAt: new Date(),
     })
-    vi.mocked(checkOrgMemberUsageLimit).mockResolvedValue({ isExceeded: false } as any)
   })
 
   it('suppresses preprocessing-error logging when logPreprocessingErrors is false', async () => {
@@ -178,7 +178,6 @@ describe('preprocessExecution ban gate', () => {
       currentUsage: 1,
       limit: 10,
     } as any)
-    vi.mocked(checkOrgMemberUsageLimit).mockResolvedValue({ isExceeded: false } as any)
   })
 
   it('blocks execution with 403 when the actor is banned (ban wins over the parallel gates)', async () => {
