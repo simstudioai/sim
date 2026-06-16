@@ -5,12 +5,16 @@ const STICK_THRESHOLD = 30
 /** User must scroll back to within this distance to re-engage auto-scroll. */
 const REATTACH_THRESHOLD = 5
 /**
- * A scrollbar-drag detach is only honored if a real user gesture occurred within
- * this window. Virtualizers (react-virtual) programmatically move `scrollTop` to
- * keep content stable when a measured row's size changes — including
- * the transient height *shrinks* a streaming markdown renderer emits as it re-parses
- * each token. Without this guard, that upward programmatic scroll is misread as the
- * user scrolling away and auto-scroll detaches mid-stream.
+ * A keyboard-driven scroll (PageUp, arrows) only emits `scroll` events, so its
+ * detach is honored when it lands within this window of a `keydown`. Wheel and
+ * touch detach directly via their own handlers, and scrollbar drags are tracked
+ * through {@link pointerDownRef}, so neither feeds this window.
+ *
+ * The guard exists because virtualizers (react-virtual) programmatically move
+ * `scrollTop` to keep content stable when a measured row's size changes —
+ * including the transient height *shrinks* a streaming markdown renderer emits as
+ * it re-parses each token. Without it, that upward programmatic scroll is misread
+ * as the user scrolling away and auto-scroll detaches mid-stream.
  */
 const USER_GESTURE_WINDOW = 250
 
@@ -74,43 +78,37 @@ export function useAutoScroll(
       userDetachedRef.current = true
     }
 
-    const markGesture = () => {
-      lastUserGestureAtRef.current = performance.now()
-    }
-
     const onWheel = (e: WheelEvent) => {
-      markGesture()
       if (e.deltaY < 0) detach()
     }
 
     const onTouchStart = (e: TouchEvent) => {
-      markGesture()
       touchStartYRef.current = e.touches[0].clientY
     }
 
     const onTouchMove = (e: TouchEvent) => {
-      markGesture()
       if (e.touches[0].clientY > touchStartYRef.current) detach()
     }
 
     const onPointerDown = () => {
       pointerDownRef.current = true
-      markGesture()
     }
     const onPointerUp = () => {
       pointerDownRef.current = false
     }
-    const onKeyDown = markGesture
+    const onKeyDown = () => {
+      lastUserGestureAtRef.current = performance.now()
+    }
 
     const onScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = el
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const threshold = userDetachedRef.current ? REATTACH_THRESHOLD : STICK_THRESHOLD
 
-      // Only a genuine, recent user gesture (scrollbar drag, keyboard) may detach via
-      // a scroll-position delta. A programmatic upward scroll — e.g. a virtualizer
-      // re-pinning content on a row-size shrink — has no preceding gesture and must
-      // not be mistaken for the user scrolling away.
+      // Only a genuine user scroll may detach via a scroll-position delta: an active
+      // scrollbar drag (pointer held) or a recent keyboard scroll. A programmatic
+      // upward scroll — e.g. a virtualizer re-pinning content on a row-size shrink —
+      // has neither and must not be mistaken for the user scrolling away.
       const userDriven =
         pointerDownRef.current ||
         performance.now() - lastUserGestureAtRef.current < USER_GESTURE_WINDOW
@@ -182,6 +180,10 @@ export function useAutoScroll(
       window.removeEventListener('pointercancel', onPointerUp)
       observer.disconnect()
       cancelAnimationFrame(rafIdRef.current)
+      // A pointer held through teardown (e.g. dragging the scrollbar as the stream
+      // finishes) would never see its window `pointerup`, leaving the ref stuck true
+      // into the next session and detaching on the first programmatic re-pin.
+      pointerDownRef.current = false
       if (stickyRef.current) scrollToBottom()
     }
   }, [isStreaming, scrollToBottom])
