@@ -361,6 +361,40 @@ describe('provider large-file capability', () => {
     ])
   })
 
+  it('rejects oversized non-PDF text documents on Anthropic (url source supports PDFs/images only)', () => {
+    expect(() =>
+      buildAnthropicMessageContent(
+        'Analyze',
+        [
+          {
+            ...markdownFile,
+            type: 'text/csv',
+            name: 'data.csv',
+            base64: undefined,
+            remoteUrl: 'https://signed/data.csv',
+          },
+        ],
+        'anthropic'
+      )
+    ).toThrow('Only PDFs and images are supported')
+  })
+
+  it('references large Anthropic PDFs via a url document source', () => {
+    const content = buildAnthropicMessageContent(
+      'Analyze',
+      [{ ...pdfFile, base64: undefined, remoteUrl: 'https://signed/doc.pdf' }],
+      'anthropic'
+    )
+    expect(content).toEqual([
+      { type: 'text', text: 'Analyze' },
+      {
+        type: 'document',
+        source: { type: 'url', url: 'https://signed/doc.pdf' },
+        title: 'example.pdf',
+      },
+    ])
+  })
+
   it('rejects files above the provider ceiling', () => {
     const huge = {
       ...imageFile,

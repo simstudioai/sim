@@ -484,6 +484,11 @@ export function buildAnthropicMessageContent(
             } satisfies Anthropic.Messages.Base64ImageSource),
       } satisfies Anthropic.Messages.ImageBlockParam)
     } else if (attachment.remoteUrl) {
+      if (attachment.mimeType !== PDF_MIME_TYPE) {
+        throw new Error(
+          `Document "${attachment.filename}" (${attachment.mimeType}) is too large to send to provider "${providerId}". Only PDFs and images are supported above the inline limit — convert it to PDF or reduce its size.`
+        )
+      }
       parts.push({
         type: 'document',
         source: { type: 'url', url: attachment.remoteUrl },

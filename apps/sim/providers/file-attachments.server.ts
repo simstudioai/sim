@@ -2,6 +2,7 @@ import { FileState, GoogleGenAI } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import OpenAI, { toFile } from 'openai'
 import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
@@ -16,7 +17,6 @@ import type { Message, ProviderId, ProviderRequest } from '@/providers/types'
 
 const logger = createLogger('ProviderFileAttachments')
 
-const OPENAI_FILES_ENDPOINT = 'https://api.openai.com/v1/files'
 const PRESIGNED_URL_EXPIRY_SECONDS = 60 * 60
 /** OpenAI auto-deletes uploaded files after this window — see the "rely on provider expiry" lifecycle. */
 const OPENAI_FILE_EXPIRY_SECONDS = 60 * 60
@@ -54,7 +54,12 @@ export async function attachLargeFileRemoteUrls(
 
   for (const file of files) {
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
-    if (!StorageService.hasCloudStorage()) continue
+    if (!StorageService.hasCloudStorage()) {
+      logger.warn(
+        `[${ctx.requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable; it cannot be sent`
+      )
+      continue
+    }
 
     if (!ctx.userId) {
       throw new Error(
@@ -90,12 +95,13 @@ export async function uploadLargeFilesToProvider(
   const groups = groupUploadableFiles(request.messages)
   if (groups.length === 0) return
 
+  const openai = providerId === 'openai' ? new OpenAI({ apiKey: request.apiKey }) : null
   const ai = providerId === 'google' ? new GoogleGenAI({ apiKey: request.apiKey }) : null
 
   for (const group of groups) {
     const [representative] = group
-    if (providerId === 'openai') {
-      await uploadOpenAIFile(representative, request.apiKey, request.abortSignal)
+    if (openai) {
+      await uploadOpenAIFile(representative, openai, request.abortSignal)
     } else if (ai) {
       await uploadGeminiFile(representative, ai, request.abortSignal)
     }
@@ -134,33 +140,21 @@ async function fetchRemoteFileBlob(file: UserFile, signal?: AbortSignal): Promis
 
 async function uploadOpenAIFile(
   file: UserFile,
-  apiKey: string | undefined,
+  client: OpenAI,
   signal?: AbortSignal
 ): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
   const blob = await fetchRemoteFileBlob(file, signal)
 
-  const form = new FormData()
-  form.append('purpose', mimeType.startsWith('image/') ? 'vision' : 'user_data')
-  form.append('expires_after[anchor]', 'created_at')
-  form.append('expires_after[seconds]', String(OPENAI_FILE_EXPIRY_SECONDS))
-  form.append('file', blob, file.name)
+  const uploaded = await client.files.create(
+    {
+      file: await toFile(blob, file.name, { type: mimeType }),
+      purpose: mimeType.startsWith('image/') ? 'vision' : 'user_data',
+      expires_after: { anchor: 'created_at', seconds: OPENAI_FILE_EXPIRY_SECONDS },
+    },
+    { signal }
+  )
 
-  const response = await fetch(OPENAI_FILES_ENDPOINT, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-    signal,
-  })
-  if (!response.ok) {
-    const detail = await response.text().catch(() => '')
-    throw new Error(`OpenAI file upload failed for "${file.name}" (${response.status}): ${detail}`)
-  }
-
-  const uploaded = (await response.json()) as { id?: string }
-  if (!uploaded.id) {
-    throw new Error(`OpenAI file upload for "${file.name}" returned no id`)
-  }
   file.providerFileId = uploaded.id
   logger.info(`Uploaded "${file.name}" to OpenAI Files API`, { fileId: uploaded.id })
 }
