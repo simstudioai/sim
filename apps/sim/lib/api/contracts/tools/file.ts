@@ -64,6 +64,29 @@ export const fileManageContentBodySchema = z
     message: 'Either fileId or fileInput is required for content operation',
   })
 
+export const fileManageCompressBodySchema = z
+  .object({
+    operation: z.literal('compress'),
+    workspaceId: z.string().min(1).optional(),
+    fileId: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]).optional(),
+    fileInput: z.unknown().optional(),
+    archiveName: z.string().min(1).max(255).optional(),
+  })
+  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
+    message: 'Either fileId or fileInput is required for compress operation',
+  })
+
+export const fileManageDecompressBodySchema = z
+  .object({
+    operation: z.literal('decompress'),
+    workspaceId: z.string().min(1).optional(),
+    fileId: z.string().min(1).optional(),
+    fileInput: z.unknown().optional(),
+  })
+  .refine((data) => data.fileId !== undefined || data.fileInput !== undefined, {
+    message: 'Either fileId or fileInput is required for decompress operation',
+  })
+
 export const fileManageBodySchema = z.union([
   fileManageWriteBodySchema,
   fileManageAppendBodySchema,
@@ -71,6 +94,8 @@ export const fileManageBodySchema = z.union([
   fileManageMoveBodySchema,
   fileManageReadBodySchema,
   fileManageContentBodySchema,
+  fileManageCompressBodySchema,
+  fileManageDecompressBodySchema,
 ])
 
 export const fileManageContract = defineRouteContract({
