@@ -21,6 +21,9 @@ const CLIENT_CACHE_TTL_MS = 30 * 60 * 1_000
 const clientCache = new LRUCache<string, Anthropic>({
   max: CLIENT_CACHE_MAX_ENTRIES,
   ttl: CLIENT_CACHE_TTL_MS,
+  // Idle expiry: the TTL resets on every hit so a continuously-used client
+  // (and its warm keep-alive connections) survives, while idle keys age out.
+  updateAgeOnGet: true,
 })
 
 /**

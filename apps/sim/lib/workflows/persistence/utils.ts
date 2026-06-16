@@ -13,6 +13,7 @@ import type { DbOrTx, NormalizedWorkflowData } from '@sim/workflow-persistence/t
 import type { BlockState, Loop, Parallel, WorkflowState } from '@sim/workflow-types/workflow'
 import type { InferSelectModel } from 'drizzle-orm'
 import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
+import { LRUCache } from 'lru-cache'
 import type { Edge } from 'reactflow'
 import { remapConditionBlockIds, remapConditionEdgeHandle } from '@/lib/workflows/condition-ids'
 import {
@@ -100,18 +101,12 @@ export async function blockExistsInDeployment(
 }
 
 /**
- * Maximum number of deployed-state entries retained in the process-local cache.
  * Each entry is keyed by an immutable `deploymentVersionId` and holds a
- * fully-migrated {@link DeployedWorkflowData} snapshot (tens of KB to ~1MB),
- * so the bound keeps worst-case memory within a sane envelope.
+ * fully-migrated {@link DeployedWorkflowData} snapshot (tens of KB to ~1MB);
+ * the bound keeps worst-case memory within a sane envelope.
  */
 const DEPLOYED_STATE_CACHE_MAX_ENTRIES = 500
 const DEPLOYED_STATE_CACHE_TTL_MS = 5 * 60 * 1000
-
-interface DeployedStateCacheEntry {
-  data: DeployedWorkflowData
-  expiresAt: number
-}
 
 /**
  * Process-local cache of fully-loaded, post-migration deployed workflow state,
@@ -120,15 +115,17 @@ interface DeployedStateCacheEntry {
  * The id is unique per deploy — a redeploy mints a new id and a rollback
  * reactivates an existing id — so the active-version lookup naturally selects a
  * different (or already-cached) key whenever the active deployment changes,
- * making the cache self-invalidating across redeploy/rollback. Insertion order
- * is used for oldest-first (LRU-style) eviction once the bound is reached.
+ * making the cache self-invalidating across redeploy/rollback.
  *
- * A short TTL bounds the one piece of the cached state that is not strictly
- * immutable: `applyBlockMigrations` resolves legacy credential references via a
- * live lookup, so the TTL lets a credential change propagate across ECS tasks
- * without waiting for redeploy or eviction.
+ * The TTL is absolute (not reset on read) on purpose: it bounds the one piece
+ * of the cached state that is not strictly immutable — `applyBlockMigrations`
+ * resolves legacy credential references via a live lookup — so a credential
+ * change propagates across ECS tasks even for a continuously-running workflow.
  */
-const deployedStateCache = new Map<string, DeployedStateCacheEntry>()
+const deployedStateCache = new LRUCache<string, DeployedWorkflowData>({
+  max: DEPLOYED_STATE_CACHE_MAX_ENTRIES,
+  ttl: DEPLOYED_STATE_CACHE_TTL_MS,
+})
 
 /**
  * Drop cached deployed state. Pass a `deploymentVersionId` to evict a single
@@ -171,10 +168,7 @@ export async function loadDeployedWorkflowState(
 
     const cached = deployedStateCache.get(active.id)
     if (cached) {
-      if (cached.expiresAt > Date.now()) {
-        return structuredClone(cached.data)
-      }
-      deployedStateCache.delete(active.id)
+      return structuredClone(cached)
     }
 
     const state = active.state as WorkflowState & { variables?: Record<string, unknown> }
@@ -204,16 +198,7 @@ export async function loadDeployedWorkflowState(
       deploymentVersionId: active.id,
     }
 
-    if (deployedStateCache.size >= DEPLOYED_STATE_CACHE_MAX_ENTRIES) {
-      const oldestKey = deployedStateCache.keys().next().value
-      if (oldestKey !== undefined) {
-        deployedStateCache.delete(oldestKey)
-      }
-    }
-    deployedStateCache.set(active.id, {
-      data: deployedState,
-      expiresAt: Date.now() + DEPLOYED_STATE_CACHE_TTL_MS,
-    })
+    deployedStateCache.set(active.id, deployedState)
 
     return structuredClone(deployedState)
   } catch (error) {
