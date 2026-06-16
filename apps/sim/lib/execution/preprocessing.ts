@@ -322,21 +322,12 @@ export async function preprocessExecution(
     }
   }
 
-  // ========== STEPS 3.5–6: Parallel Read-Only Preflight Gates ==========
-  // All remaining gates before the STEP 7 write are read-only with no side
-  // effects, so they run concurrently to cut sequential latency. The ban check
-  // (STEP 3.5) and the subscription fetch (STEP 4) are mutually independent and
-  // start together. Once the subscription resolves, the usage gates (STEP 5a/5b)
-  // and the rate-limit gate (STEP 6) — all of which depend only on the
-  // subscription, actor, and workspace — start together.
-  //
-  // Each gate resolves to either `null` (passed/skipped) or a deferred outcome:
-  // the `PreprocessExecutionResult` to return plus the optional error-log write
-  // to perform. Because every gate completes regardless of which fails first,
-  // outcomes are evaluated IN A FIXED PRECEDENCE ORDER — ban (403) → usage (402)
-  // → rate limit (429) — to reproduce the sequential version's behavior exactly.
-  // Wasted work on a request that ends up rejected is acceptable here: the gates
-  // are read-only and the sole write (STEP 7) stays after every gate passes.
+  // ========== STEPS 3.5–6: Preflight Gates ==========
+  // The read-only gates run concurrently to cut latency: ban + subscription
+  // together, then usage (which needs the subscription). The rate-limit gate is
+  // stateful — it debits a token — so it runs sequentially only after ban and
+  // usage pass. Failures apply in fixed precedence (ban 403 → usage 402 → rate
+  // 429), and the sole write (the STEP 7 reservation) stays last.
 
   /**
    * A failing gate's deferred outcome: the response to return, plus an optional
@@ -654,9 +645,7 @@ export async function preprocessExecution(
   const usageResult = await usageCheckTask
   const usageSnapshot = usageResult.snapshot
 
-  // The read-only gates (ban, subscription, usage) ran concurrently; evaluate
-  // them in fixed precedence order — ban (403) → usage (402) — so the response
-  // matches the sequential version regardless of which settled first.
+  // Precedence: ban (403) wins over usage (402).
   const readGateFailure = banFailure ?? usageResult.failure
   if (readGateFailure) {
     if (readGateFailure.recordError) {
@@ -665,9 +654,6 @@ export async function preprocessExecution(
     return readGateFailure.response
   }
 
-  // Rate limiting (429) runs only after ban and usage pass, because it debits a
-  // token — matching the original sequential order so rejected requests never
-  // consume quota.
   const rateLimitFailure = await runRateLimitGate()
   if (rateLimitFailure) {
     if (rateLimitFailure.recordError) {
