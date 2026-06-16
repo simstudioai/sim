@@ -72,8 +72,12 @@ export async function acquirePermissionGroupOrgLock(
 }
 
 /** Load a permission group only if it belongs to the given organization. */
-export async function loadGroupInOrganization(groupId: string, organizationId: string) {
-  const [group] = await db
+export async function loadGroupInOrganization(
+  groupId: string,
+  organizationId: string,
+  executor: DbOrTx = db
+) {
+  const [group] = await executor
     .select({
       id: permissionGroup.id,
       organizationId: permissionGroup.organizationId,

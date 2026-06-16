@@ -313,6 +313,7 @@ export const DELETE = withRouteHandler(
       }
 
       await db.transaction(async (tx) => {
+        await acquirePermissionGroupOrgLock(tx, organizationId)
         await tx
           .delete(permissionGroupMember)
           .where(eq(permissionGroupMember.permissionGroupId, id))
@@ -340,6 +341,13 @@ export const DELETE = withRouteHandler(
 
       return NextResponse.json({ success: true })
     } catch (error) {
+      // Advisory lock wait exceeded (lock_timeout) — transient contention.
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This group is being updated by another request. Please try again.' },
+          { status: 503 }
+        )
+      }
       logger.error('Error deleting permission group', error)
       return NextResponse.json({ error: 'Failed to delete permission group' }, { status: 500 })
     }
