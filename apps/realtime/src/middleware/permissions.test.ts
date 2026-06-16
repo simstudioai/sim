@@ -365,12 +365,52 @@ describe('checkWorkflowOperationPermission', () => {
     }
   })
 
-  it('falls back to the last known role on a transient DB error', async () => {
+  it('falls back to the join-time role on a transient DB error when nothing is cached yet', async () => {
     mockAuthorize.mockRejectedValue(new Error('db unavailable'))
 
     const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'write')
 
     expect(result.allowed).toBe(true)
     expect(result.role).toBe('write')
+  })
+
+  it('preserves a recorded revocation through a later transient DB error', async () => {
+    vi.useFakeTimers()
+    try {
+      // First check records the revocation (null) in the cache
+      mockAuthorize.mockResolvedValue({ allowed: false, workspacePermission: null })
+      const first = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'admin')
+      expect(first.allowed).toBe(false)
+      expect(first.role).toBeNull()
+
+      // TTL expires, then the DB blips on the next re-validation. The stale join-time
+      // role ('admin') must NOT resurrect access — the recorded revocation wins.
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockRejectedValue(new Error('db unavailable'))
+
+      const second = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'admin')
+      expect(second.allowed).toBe(false)
+      expect(second.role).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses the last cached role (not the join-time role) on a transient DB error', async () => {
+    vi.useFakeTimers()
+    try {
+      mockAuthorize.mockResolvedValue({ allowed: true, workspacePermission: 'write' })
+      await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+
+      vi.advanceTimersByTime(31_000)
+      mockAuthorize.mockRejectedValue(new Error('db unavailable'))
+
+      // fallbackRole is 'read', but the last recorded decision was 'write' — use that
+      const result = await checkWorkflowOperationPermission(userId, workflowId, 'update', 'read')
+      expect(result.allowed).toBe(true)
+      expect(result.role).toBe('write')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

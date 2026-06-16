@@ -122,8 +122,10 @@ function purgeExpiredRoles(now: number): void {
  * table at most once per {@link ROLE_REVALIDATION_TTL_MS} per pod.
  *
  * Returns `null` when the user genuinely has no access (removed/revoked). On a transient
- * DB failure it falls back to `fallbackRole` so a blip does not block legitimate editors
- * — the subsequent persist would fail on its own if the database is truly unavailable.
+ * DB failure it reuses the last recorded decision for this (user, workflow) — including a
+ * previously recorded revocation (`null`) — and only falls back to `fallbackRole` when no
+ * decision has been recorded yet, so a blip neither blocks legitimate editors nor
+ * resurrects already-revoked access.
  */
 export async function resolveCurrentWorkflowRole(
   userId: string,
@@ -154,7 +156,12 @@ export async function resolveCurrentWorkflowRole(
       `Failed to re-validate role for user ${userId} on workflow ${workflowId}; using last known role`,
       error
     )
-    return fallbackRole
+    // Prefer the last recorded decision — even if expired, and even if it is `null` for an
+    // already-revoked user — so a recorded revocation survives a transient DB failure
+    // instead of reverting to the stale join-time role. Only trust `fallbackRole` when
+    // nothing has been recorded for this (user, workflow) yet.
+    const lastKnown = roleCache.get(key)
+    return lastKnown !== undefined ? lastKnown.role : fallbackRole
   }
 }
 
