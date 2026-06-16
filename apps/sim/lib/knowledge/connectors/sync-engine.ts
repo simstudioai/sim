@@ -689,10 +689,19 @@ export async function executeSync(
                   contentHash: fullDoc.contentHash ?? op.extDoc.contentHash,
                   metadata: { ...op.extDoc.metadata, ...fullDoc.metadata },
                 })
+              } else if (op.type === 'update') {
+                // Already-indexed file is kept as last-known-good (not downgraded), so it
+                // counts as unchanged rather than slipping past every result counter.
+                result.docsUnchanged++
               }
               return null
             }
-            if (!fullDoc?.content.trim()) return null
+            if (!fullDoc?.content.trim()) {
+              // An empty re-fetch leaves an already-indexed update as last-known-good; count
+              // it as unchanged so the totals still reconcile with documents seen.
+              if (op.type === 'update') result.docsUnchanged++
+              return null
+            }
             const hydratedHash = fullDoc.contentHash ?? op.extDoc.contentHash
             if (
               op.type === 'update' &&
