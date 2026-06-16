@@ -46,14 +46,24 @@ export interface FeatureFlagContext {
  * admin access from a code literal. To add a flag, register its name and the secret
  * to fall back on.
  */
-const FEATURE_FLAG_FALLBACKS: Record<string, () => string | boolean | number | undefined> = {
+type FallbackSecret = () => string | boolean | number | undefined
+
+const FEATURE_FLAG_FALLBACKS = {
   // 'new-canvas': () => env.NEW_CANVAS_ENABLED,
-}
+} satisfies Record<string, FallbackSecret>
+
+/**
+ * The closed set of known feature flags. Derived from the fallback registry, so a
+ * flag cannot exist — or be checked — without a mandatory fallback secret.
+ */
+export type FeatureFlagName = keyof typeof FEATURE_FLAG_FALLBACKS
 
 /** Build the fallback document from each flag's secret. Truthy secret ⇒ enabled. */
 function fallbackFlags(): FeatureFlagsConfig {
   const flags: Record<string, FeatureFlagRule> = {}
-  for (const [name, readSecret] of Object.entries(FEATURE_FLAG_FALLBACKS)) {
+  for (const [name, readSecret] of Object.entries(FEATURE_FLAG_FALLBACKS) as Array<
+    [string, FallbackSecret]
+  >) {
     flags[name] = { enabled: isTruthy(readSecret()) }
   }
   return { flags }
@@ -145,7 +155,7 @@ export async function getFeatureFlags(): Promise<FeatureFlagsConfig> {
 
 /** Resolve a single flag for a context. Admin status is resolved internally from `userId`. */
 export async function isFeatureEnabled(
-  flag: string,
+  flag: FeatureFlagName,
   ctx: FeatureFlagContext = {}
 ): Promise<boolean> {
   const { flags } = await getFeatureFlags()
