@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from '@/components/emcn/icons'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 
 const MONTHS = [

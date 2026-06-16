@@ -1,9 +1,9 @@
 'use client'
 
 import { memo } from 'react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { Badge } from '@/components/emcn'
-import { Repeat, Split } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
 
@@ -42,7 +42,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   } = data
 
   const isLoop = kind === 'loop'
-  const BlockIcon = isLoop ? Repeat : Split
+  const BlockIcon = isLoop ? RepeatIcon : SplitIcon
   const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
   const blockName = name || (isLoop ? 'Loop' : 'Parallel')
 

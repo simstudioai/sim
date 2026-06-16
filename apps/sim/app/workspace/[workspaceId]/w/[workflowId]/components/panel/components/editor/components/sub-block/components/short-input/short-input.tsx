@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Wand2 } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { Input } from '@/components/emcn'
-import { Wand2 } from '@/components/emcn/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import {

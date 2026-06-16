@@ -2,10 +2,10 @@
 
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
+import { Search } from 'lucide-react'
 import Image from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, Library } from '@/components/emcn'
-import { Search } from '@/components/emcn/icons'
 import { AgentIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
@@ -20,7 +20,7 @@ const logger = createLogger('WorkflowCommandList')
 interface CommandItem {
   /** Display label for the command */
   label: string
-  /** Icon component from @/components/emcn/icons */
+  /** Icon component from lucide-react */
   icon: React.ComponentType<{ className?: string }>
   /** Keyboard shortcut keys (can be single or array for multiple keys) */
   shortcut: string | string[]

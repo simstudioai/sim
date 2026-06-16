@@ -4,8 +4,14 @@ import { type ComponentType, type CSSProperties, useMemo, useState } from 'react
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { ChevronDown, chipVariants, Expandable, ExpandableContent } from '@/components/emcn'
-import { ArrowRight2, Shuffle, Table } from '@/components/emcn/icons'
+import {
+  ArrowRight,
+  ChevronDown,
+  chipVariants,
+  Expandable,
+  ExpandableContent,
+} from '@/components/emcn'
+import { Shuffle, Table } from '@/components/emcn/icons'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -364,7 +370,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
           <span className='text-[var(--text-muted)] text-small'>Suggested actions</span>
           <ChevronDown
             className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
+              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />
@@ -407,7 +413,7 @@ export function SuggestedActions({ onSelectPrompt }: SuggestedActionsProps) {
                   <span className='flex-1 truncate text-[var(--text-body)] text-sm'>
                     {action.label}
                   </span>
-                  <ArrowRight2 className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+                  <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />
                 </button>
               )
             })}

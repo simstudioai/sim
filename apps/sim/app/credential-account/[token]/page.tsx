@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Mail } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { Mail } from '@/components/emcn/icons'
 import { GmailIcon, OutlookIcon } from '@/components/icons'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'

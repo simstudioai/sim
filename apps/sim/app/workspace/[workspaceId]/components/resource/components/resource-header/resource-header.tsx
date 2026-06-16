@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { ArrowUpLeft } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Chip,
@@ -28,7 +29,6 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@/components/emcn'
-import { ArrowUpLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { ChatSwitcher } from '@/app/workspace/[workspaceId]/components/chat-switcher'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'

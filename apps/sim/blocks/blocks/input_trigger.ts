@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { FormInput } from '@/components/emcn/icons'
+import { FormInput } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
 
 const InputTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(FormInput, props)

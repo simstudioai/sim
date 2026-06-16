@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Avatar,
@@ -23,7 +24,7 @@ import {
   Skeleton,
   Switch,
 } from '@/components/emcn'
-import { ArrowLeft, ArrowRight, ChevronDown, Plus } from '@/components/emcn/icons'
+import { ArrowLeft } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'

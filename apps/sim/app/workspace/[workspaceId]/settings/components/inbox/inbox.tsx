@@ -1,8 +1,8 @@
 'use client'
 
+import { ArrowRight } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Chip } from '@/components/emcn'
-import { ArrowRight } from '@/components/emcn/icons'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import {
   InboxEnableToggle,

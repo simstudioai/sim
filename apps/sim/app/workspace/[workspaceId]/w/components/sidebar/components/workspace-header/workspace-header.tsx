@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { MoreHorizontal } from 'lucide-react'
 import {
   ChevronDown,
   Chip,
@@ -15,7 +16,7 @@ import {
   Send,
   Skeleton,
 } from '@/components/emcn'
-import { ManageWorkspace, MoreHorizontal, PanelLeft } from '@/components/emcn/icons'
+import { ManageWorkspace, PanelLeft } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { isBillingEnabled } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -354,7 +355,7 @@ function WorkspaceHeaderImpl({
                   <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                     {activeWorkspace.name}
                   </span>
-                  <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                  <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
                 </>
               )}
             </button>
@@ -623,7 +624,7 @@ function WorkspaceHeaderImpl({
               <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>
                 {activeWorkspace.name}
               </span>
-              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
             </>
           )}
         </button>

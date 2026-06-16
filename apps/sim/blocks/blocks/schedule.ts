@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { Clock } from '@/components/emcn/icons'
+import { Clock } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
 
 const ScheduleIcon = (props: SVGProps<SVGSVGElement>) => createElement(Clock, props)

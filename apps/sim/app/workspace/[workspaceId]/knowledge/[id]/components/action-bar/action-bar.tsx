@@ -1,6 +1,6 @@
 import { domAnimation, LazyMotion, m } from 'framer-motion'
+import { Circle, CircleOff } from 'lucide-react'
 import { Button, Tooltip, Trash2 } from '@/components/emcn'
-import { Circle, CircleOff } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 

@@ -1,65 +1,30 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * DatabaseX icon (Hugeicons stroke-rounded: Database01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Database-X icon component - cylinder database with an X mark indicating a missing or deleted knowledge base
+ * @param props - SVG properties including className, fill, etc.
  */
-export function DatabaseX({ size = 24, width, height, ...props }: IconProps) {
+export function DatabaseX(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M3 12C3 7.75736 3 5.63604 4.31802 4.31802C5.63604 3 7.75736 3 12 3C16.2426 3 18.364 3 19.682 4.31802C21 5.63604 21 7.75736 21 12C21 16.2426 21 18.364 19.682 19.682C18.364 21 16.2426 21 12 21C7.75736 21 5.63604 21 4.31802 19.682C3 18.364 3 16.2426 3 12Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M3 12H21'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M11 7.5L17 7.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M7.125 7.5H7M7.25 7.5C7.25 7.63807 7.13807 7.75 7 7.75C6.86193 7.75 6.75 7.63807 6.75 7.5C6.75 7.36193 6.86193 7.25 7 7.25C7.13807 7.25 7.25 7.36193 7.25 7.5Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M11 16.5L17 16.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M7.125 16.5H7M7.25 16.5C7.25 16.6381 7.13807 16.75 7 16.75C6.86193 16.75 6.75 16.6381 6.75 16.5C6.75 16.3619 6.86193 16.25 7 16.25C7.13807 16.25 7.25 16.3619 7.25 16.5Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <ellipse cx='10.25' cy='3.75' rx='8.5' ry='3' />
+      <path d='M1.75 3.75V9.75C1.75 11.41 5.55 12.75 10.25 12.75C14.95 12.75 18.75 11.41 18.75 9.75V3.75' />
+      <path d='M1.75 9.75V12.5' />
+      <path d='M18.75 9.75V15.75C18.75 17.41 14.95 18.75 10.25 18.75C9 18.75 7.75 18.6 6.75 18.3' />
+      <path d='M1 16L5 20' />
+      <path d='M5 16L1 20' />
     </svg>
   )
 }

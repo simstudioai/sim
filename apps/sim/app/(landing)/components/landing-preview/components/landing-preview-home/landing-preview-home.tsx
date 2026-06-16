@@ -2,8 +2,9 @@
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'framer-motion'
+import { ArrowUp, Table } from 'lucide-react'
 import { Blimp, Checkbox, ChevronDown } from '@/components/emcn'
-import { ArrowUp, Table, TypeBoolean, TypeNumber, TypeText } from '@/components/emcn/icons'
+import { TypeBoolean, TypeNumber, TypeText } from '@/components/emcn/icons'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { useLandingSubmit } from '@/app/(landing)/components/landing-preview/components/landing-preview-panel/landing-preview-panel'
 import { EASE_OUT } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
@@ -220,7 +221,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         Mothership
                       </span>
                       <ChevronDown
-                        className='size-[14px] transition-transform duration-150'
+                        className='h-[7px] w-[9px] transition-transform duration-150'
                         style={{
                           color: C.TEXT_ICON,
                           transform: toolsExpanded ? 'rotate(0deg)' : 'rotate(-90deg)',

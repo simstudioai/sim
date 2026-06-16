@@ -3,13 +3,13 @@
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
 import { stripVersionSuffix } from '@sim/utils/string'
+import { Logs as LogsIcon } from 'lucide-react'
 import { Button, Skeleton, Tooltip } from '@/components/emcn'
 import {
   Connections,
   Download,
   FileX,
   Folder as FolderIcon,
-  Logs as LogsIcon,
   Workflow as WorkflowIcon,
   WorkflowX,
 } from '@/components/emcn/icons'

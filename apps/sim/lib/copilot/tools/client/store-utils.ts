@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
+import { FileText } from 'lucide-react'
 import { Loader } from '@/components/emcn'
-import { FileText } from '@/components/emcn/icons'
 import { Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'

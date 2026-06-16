@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { Scan } from 'lucide-react'
 import { useReactFlow } from 'reactflow'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -18,7 +19,6 @@ import {
   Tooltip,
   Undo,
 } from '@/components/emcn'
-import { Scan } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'

@@ -2,11 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { isEqual } from 'es-toolkit'
-import { useParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
-import { useShallow } from 'zustand/react/shallow'
-import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { Button, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import {
   BookOpen,
   Check,
@@ -16,7 +11,12 @@ import {
   Lock,
   Pencil,
   Unlock,
-} from '@/components/emcn/icons'
+} from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { usePostHog } from 'posthog-js/react'
+import { useShallow } from 'zustand/react/shallow'
+import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { Button, FieldDivider, Loader, Tooltip } from '@/components/emcn'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,

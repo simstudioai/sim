@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { generateId } from '@sim/utils/id'
+import { Plus } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -11,7 +12,6 @@ import {
   Label,
   Trash,
 } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'

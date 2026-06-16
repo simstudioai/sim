@@ -166,10 +166,7 @@ export function ChatHistoryList({
           </p>
         ) : (
           buckets.map((bucket) => (
-            /* gap-0.5 keeps adjacent row fills from touching — two flush
-               rounded surfaces read as one broken shape (matches the
-               workspace and +N dropdowns). */
-            <div key={bucket.key} className='mt-1.5 flex flex-col gap-0.5 first:mt-0'>
+            <div key={bucket.key} className='mt-1.5 first:mt-0'>
               <p className='px-2 py-1 font-medium text-[var(--text-muted)] text-caption'>
                 {bucket.label}
               </p>

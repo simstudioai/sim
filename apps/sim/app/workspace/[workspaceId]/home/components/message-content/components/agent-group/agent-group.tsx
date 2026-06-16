@@ -91,7 +91,7 @@ export function AgentGroup({
           <span className='text-[var(--text-body)] text-sm'>{agentLabel}</span>
           <ChevronDown
             className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
+              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />

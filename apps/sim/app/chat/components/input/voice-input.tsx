@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { Mic } from '@/components/emcn/icons'
+import { Mic } from 'lucide-react'
 
 interface VoiceInputProps {
   onVoiceStart: () => void

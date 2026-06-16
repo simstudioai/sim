@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { Play } from '@/components/emcn/icons'
+import { Play } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
 
 const ManualTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(Play, props)

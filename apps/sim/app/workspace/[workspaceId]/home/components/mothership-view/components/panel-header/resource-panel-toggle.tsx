@@ -1,7 +1,7 @@
 'use client'
 
+import { PanelRight } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
-import { PanelRight } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   PANEL_ICON_BUTTON_CLASS,

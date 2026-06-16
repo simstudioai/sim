@@ -1,34 +1,27 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Paperclip icon (Hugeicons stroke-rounded: Attachment01Icon, mirrored so the
- * clip leans bottom-left to top-right, pairing with the angled Slash icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Paperclip icon component - attachment clip
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Paperclip({ size = 24, width, height, ...props }: IconProps) {
+export function Paperclip(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M5.82338 12L4.27922 10.4558C2.57359 8.75022 2.57359 5.98485 4.27922 4.27922C5.98485 2.57359 8.75022 2.57359 10.4558 4.27922L19.7208 13.5442C21.4264 15.2498 21.4264 18.0152 19.7208 19.7208C18.0152 21.4264 15.2498 21.4264 13.5442 19.7208L10.0698 16.2464C9.00379 15.1804 9.00379 13.4521 10.0698 12.386C11.1358 11.32 12.8642 11.32 13.9302 12.386L15.8604 14.3162'
-        transform='translate(24 0) scale(-1 1)'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <g transform='rotate(-13.6501 10.25 10.25)'>
+        <path d='M18.25 9.75L10.4 17.6C8.46 19.54 5.31 19.54 3.37 17.6C1.43 15.66 1.43 12.51 3.37 10.57L11.22 2.72C12.51 1.43 14.61 1.43 15.9 2.72C17.19 4.01 17.19 6.11 15.9 7.4L8.05 15.25C7.4 15.9 6.35 15.9 5.7 15.25C5.05 14.6 5.05 13.55 5.7 12.9L12.9 5.7' />
+      </g>
     </svg>
   )
 }

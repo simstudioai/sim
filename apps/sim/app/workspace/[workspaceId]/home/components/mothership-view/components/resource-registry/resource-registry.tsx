@@ -2,14 +2,13 @@
 
 import type { ElementType, ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
+import { CalendarClock, Logs } from 'lucide-react'
 import {
-  CalendarClock,
   Database,
   File as FileIcon,
   Folder as FolderIcon,
   Integration,
   Layout,
-  Logs,
   Table as TableIcon,
   Task,
   TerminalWindow,

@@ -1,4 +1,4 @@
-import { Split } from '@/components/emcn/icons'
+import { SplitIcon } from 'lucide-react'
 
 /**
  * Parallel tool configuration for the toolbar.
@@ -7,7 +7,7 @@ import { Split } from '@/components/emcn/icons'
 export const ParallelTool = {
   type: 'parallel',
   name: 'Parallel',
-  icon: Split,
+  icon: SplitIcon,
   bgColor: '#FEE12B',
   docsLink: 'https://docs.sim.ai/workflows/blocks/parallel',
 } as const

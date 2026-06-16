@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 // import { useParams } from 'next/navigation'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
+import { Plus } from 'lucide-react'
 import {
   Chip,
   ChipConfirmModal,
@@ -18,7 +19,6 @@ import {
   SecretReveal,
   // Switch,
 } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
 // import { useMcpServers, useUpdateMcpServer } from '@/hooks/queries/mcp'
 import {
   type CopilotKey,

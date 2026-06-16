@@ -3,6 +3,16 @@
 import type React from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Clipboard,
+  Search,
+  X,
+} from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Badge,
@@ -19,16 +29,6 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clipboard,
-  Search,
-  X,
-} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { TraceSpan } from '@/lib/logs/types'
 import {

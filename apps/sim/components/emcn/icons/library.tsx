@@ -1,88 +1,28 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Library icon (Hugeicons stroke-rounded: Bookshelf01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Library icon component - displays stacked books/documents
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Library({ size = 24, width, height, ...props }: IconProps) {
+export function Library(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M5.5 20V22M19.5 20V22'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M3 11L21 11'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M3 14V8C3 5.17157 3 3.75736 3.93037 2.87868C4.86073 2 6.35814 2 9.35294 2H14.6471C17.6419 2 19.1393 2 20.0696 2.87868C21 3.75736 21 5.17157 21 8V14C21 16.8284 21 18.2426 20.0696 19.1213C19.1393 20 17.6419 20 14.6471 20H9.35294C6.35814 20 4.86073 20 3.93037 19.1213C3 18.2426 3 16.8284 3 14Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M13.5 11L11.5 6'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M7 11V6'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M8 19.5V15'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M12 20V15'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M17 11V6'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M16 20L17 15'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <path d='M0.75 4.75C0.75 3.35 0.75 2.65 1.02 2.12C1.26 1.64 1.64 1.26 2.12 1.02C2.65 0.75 3.35 0.75 4.75 0.75C6.15 0.75 6.85 0.75 7.38 1.02C7.86 1.26 8.24 1.64 8.48 2.12C8.75 2.65 8.75 3.35 8.75 4.75V14.75C8.75 16.15 8.75 16.85 8.48 17.385C8.24 17.86 7.86 18.24 7.38 18.48C6.85 18.75 6.15 18.75 4.75 18.75C3.35 18.75 2.65 18.75 2.12 18.48C1.64 18.24 1.26 17.86 1.02 17.385C0.75 16.85 0.75 16.15 0.75 14.75V4.75Z' />
+      <path d='M0.75 6.75H8.75' />
+      <path d='M10.2 6.02C9.84 4.69 9.67 4.02 9.79 3.45C9.9 2.94 10.16 2.48 10.55 2.13C10.98 1.74 11.64 1.56 12.97 1.2C14.29 0.84 14.96 0.67 15.53 0.79C16.04 0.9 16.49 1.16 16.84 1.55C17.23 1.99 17.41 2.65 17.77 3.98L20.3 13.48C20.66 14.81 20.83 15.48 20.71 16.054C20.604 16.56 20.34 17.02 19.95 17.37C19.52 17.76 18.86 17.94 17.53 18.3C16.21 18.66 15.54 18.83 14.97 18.71C14.46 18.6 14.01 18.34 13.66 17.95C13.27 17.51 13.09 16.85 12.73 15.52L10.2 6.02Z' />
+      <path d='M10.75 7.75L17.25 5.75' />
     </svg>
   )
 }

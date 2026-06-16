@@ -1,31 +1,27 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * ChevronDown icon (Hugeicons stroke-rounded: ChevronDownIcon)
- * @param props - SVG properties including className, size, fill, etc.
+ * ChevronDown icon component
+ * @param props - SVG properties including className, fill, etc.
  */
-export function ChevronDown({ size = 24, width, height, ...props }: IconProps) {
+export function ChevronDown(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='10'
+      height='6'
+      viewBox='0 0 10 6'
       fill='none'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
       <path
-        d='M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9'
+        d='M1 1L5 5L9 1'
         stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
+        strokeWidth='1.2'
+        strokeLinecap='square'
+        strokeLinejoin='miter'
+        fill='none'
       />
     </svg>
   )

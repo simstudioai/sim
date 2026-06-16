@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { Button, Tooltip } from '@/components/emcn'
-import { ArrowLeft } from '@/components/emcn/icons'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { cn } from '@/lib/core/utils/cn'
 import { PreviewEditor } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor'

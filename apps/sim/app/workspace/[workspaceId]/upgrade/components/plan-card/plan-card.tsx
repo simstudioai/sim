@@ -1,6 +1,7 @@
 'use client'
 
-import { Check, ChipTag, Credit, chipVariants, Info, RefreshCw } from '@/components/emcn'
+import { Info } from 'lucide-react'
+import { Check, ChipTag, Credit, chipVariants, RefreshCw } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 
 /**

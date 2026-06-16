@@ -1,37 +1,26 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Task icon (Hugeicons stroke-rounded: CheckmarkSquare01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Task icon component - inbox tray representing incoming tasks
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Task({ size = 24, width, height, ...props }: IconProps) {
+export function Task(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
       xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
+      width='24'
+      height='24'
       viewBox='0 0 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M2.5 12C2.5 7.52166 2.5 5.28249 3.89124 3.89124C5.28249 2.5 7.52166 2.5 12 2.5C16.4783 2.5 18.7175 2.5 20.1088 3.89124C21.5 5.28249 21.5 7.52166 21.5 12C21.5 16.4783 21.5 18.7175 20.1088 20.1088C18.7175 21.5 16.4783 21.5 12 21.5C7.52166 21.5 5.28249 21.5 3.89124 20.1088C2.5 18.7175 2.5 16.4783 2.5 12Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M8 13.75C8 13.75 9.6 14.6625 10.4 16C10.4 16 12.8 10.75 16 9'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <polyline points='22 12 16 12 14 15 10 15 8 12 2 12' />
+      <path d='M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z' />
     </svg>
   )
 }

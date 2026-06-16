@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { formatDateTime } from '@sim/utils/formatting'
+import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import {
   Button,
   Input,
@@ -12,7 +13,6 @@ import {
   Skeleton,
   Tooltip,
 } from '@/components/emcn'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'

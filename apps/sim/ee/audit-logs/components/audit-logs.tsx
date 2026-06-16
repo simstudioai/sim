@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
+import { ChevronDown } from 'lucide-react'
 import {
   Badge,
   Button,
@@ -13,7 +14,6 @@ import {
   RefreshCw,
   Search,
 } from '@/components/emcn'
-import { ChevronDown } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/filters'
 import type { EnterpriseAuditLogEntry } from '@/app/api/v1/audit-logs/format'

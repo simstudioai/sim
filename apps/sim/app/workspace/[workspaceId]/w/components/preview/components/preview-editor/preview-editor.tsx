@@ -2,6 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown as ChevronDownIcon,
+  ChevronUp,
+  Clipboard,
+  ExternalLink,
+  Maximize2,
+  RepeatIcon,
+  Search,
+  SplitIcon,
+  X,
+} from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import {
@@ -15,20 +29,6 @@ import {
   Label,
   Tooltip,
 } from '@/components/emcn'
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ChevronDown as ChevronDownIcon,
-  ChevronUp,
-  Clipboard,
-  Expand,
-  ExternalLink,
-  Repeat,
-  Search,
-  Split,
-  X,
-} from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
@@ -1105,7 +1105,7 @@ function PreviewEditorContent({
 
   if (isSubflow) {
     const isLoop = block.type === 'loop'
-    const SubflowIcon = isLoop ? Repeat : Split
+    const SubflowIcon = isLoop ? RepeatIcon : SplitIcon
     const subflowBgColor = isLoop ? '#2FB3FF' : '#FEE12B'
     const subflowName = block.name || (isLoop ? 'Loop' : 'Parallel')
 
@@ -1439,7 +1439,7 @@ function PreviewEditorContent({
                               className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                             >
                               {isExecutionMode && onDrillDown ? (
-                                <Expand className='size-[12px]' />
+                                <Maximize2 className='size-[12px]' />
                               ) : (
                                 <ExternalLink className='size-[12px]' />
                               )}

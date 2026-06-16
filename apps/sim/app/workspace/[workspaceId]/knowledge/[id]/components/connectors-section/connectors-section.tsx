@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format, formatDistanceToNow, isPast } from 'date-fns'
+import { XCircle } from 'lucide-react'
 import { Badge, Button, Checkbox, ChipConfirmModal, Loader, Tooltip } from '@/components/emcn'
 import {
   ChevronDown,
@@ -14,7 +15,6 @@ import {
   Settings,
   Trash,
   TriangleAlert,
-  XCircle,
 } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'

@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
+import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -26,7 +27,7 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import { CircleAlert, Database, DatabaseX, Pencil, Plus, TagIcon, X } from '@/components/emcn/icons'
+import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
 import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
@@ -142,7 +143,7 @@ const getStatusBadge = (doc: DocumentData) => {
       )
     case 'failed':
       return doc.processingError ? (
-        <Badge variant='red' size='sm' icon={CircleAlert}>
+        <Badge variant='red' size='sm' icon={AlertCircle}>
           Failed
         </Badge>
       ) : (
@@ -852,7 +853,7 @@ export function KnowledgeBase({
               },
               {
                 label: 'Tags',
-                icon: TagIcon,
+                icon: Tag,
                 disabled: !userPermissions.canEdit,
                 onClick: () => setShowTagsModal(true),
               },
@@ -1588,7 +1589,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
 }
 
 /**
- * TagIcon filter section rendered inside the combined filter popover.
+ * Tag filter section rendered inside the combined filter popover.
  */
 function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectionProps) {
   const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length

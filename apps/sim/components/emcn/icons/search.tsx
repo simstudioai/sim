@@ -1,39 +1,26 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Search icon (Hugeicons stroke-rounded: Search01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Search icon component (magnifying glass)
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Search({ size = 24, width, height, ...props }: IconProps) {
+export function Search(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M17 17L21 21'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11C3 15.4183 6.58172 19 11 19C15.4183 19 19 15.4183 19 11Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <circle cx='8.5' cy='8.5' r='7.5' />
+      <path d='M14 14L18 18' />
     </svg>
   )
 }

@@ -1,5 +1,5 @@
 import { filterUndefined } from '@sim/utils/object'
-import { Building2 } from '@/components/emcn/icons'
+import { Building2 } from 'lucide-react'
 import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 

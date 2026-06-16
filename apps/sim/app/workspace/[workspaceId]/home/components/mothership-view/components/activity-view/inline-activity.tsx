@@ -116,7 +116,7 @@ const InlineAgentGroup = memo(function InlineAgentGroup({
         {visible.length > 0 && (
           <ChevronDown
             className={cn(
-              'size-[14px] text-[var(--text-icon)] transition-transform duration-150',
+              'h-[7px] w-[9px] text-[var(--text-icon)] transition-transform duration-150',
               !expanded && '-rotate-90'
             )}
           />

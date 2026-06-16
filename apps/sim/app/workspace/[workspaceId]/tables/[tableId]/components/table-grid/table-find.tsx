@@ -1,8 +1,9 @@
 'use client'
 
 import type React from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { Button, Input } from '@/components/emcn'
-import { ChevronDown, ChevronUp, Loader, X } from '@/components/emcn/icons'
+import { Loader, X } from '@/components/emcn/icons'
 
 export interface TableFindProps {
   query: string

@@ -271,7 +271,7 @@ export function Integrations() {
                       ? selectedCategory
                       : formatIntegrationType(selectedCategory)}
                   </span>
-                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+                  <ChevronDown className='h-[7px] w-[9px] text-[var(--text-icon)]' />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='min-w-[160px]'>

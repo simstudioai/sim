@@ -946,7 +946,7 @@ function MockFullTable({ revealedRows }: { revealedRows: number }) {
                   <div className='flex items-center gap-1.5'>
                     <ColumnTypeIcon />
                     <span className='font-medium text-[#1C1C1C] text-[13px]'>{col}</span>
-                    <ChevronDown className='ml-auto size-[14px] shrink-0 text-[#CCC]' />
+                    <ChevronDown className='ml-auto h-[7px] w-[9px] shrink-0 text-[#CCC]' />
                   </div>
                 </th>
               ))}

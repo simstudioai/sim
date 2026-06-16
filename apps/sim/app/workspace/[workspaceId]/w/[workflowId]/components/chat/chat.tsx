@@ -3,6 +3,7 @@
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { AlertCircle, ArrowUp, MoreVertical, Paperclip, Square, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Badge,
@@ -16,15 +17,7 @@ import {
   Tooltip,
   Trash,
 } from '@/components/emcn'
-import {
-  ArrowUp2,
-  CircleAlert,
-  Download,
-  MoreVertical,
-  Paperclip,
-  Square,
-  X,
-} from '@/components/emcn/icons'
+import { Download } from '@/components/emcn/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { cn } from '@/lib/core/utils/cn'
 import {
@@ -1040,7 +1033,7 @@ export function Chat() {
             <div>
               <div className='rounded-lg border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'>
                 <div className='flex items-start gap-2'>
-                  <CircleAlert className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
+                  <AlertCircle className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
                   <div className='flex-1'>
                     <div className='mb-1 font-medium text-[var(--text-error)] text-caption'>
                       File upload error
@@ -1171,7 +1164,7 @@ export function Chat() {
                         : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
-                    <ArrowUp2
+                    <ArrowUp
                       className='h-3.5 w-3.5 text-white dark:text-black'
                       strokeWidth={2.25}
                     />

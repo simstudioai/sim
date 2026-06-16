@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
+import { Logs as LogsIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -21,7 +22,7 @@ import {
   RefreshCw,
   toast,
 } from '@/components/emcn'
-import { Download, Logs as LogsIcon, Workflow } from '@/components/emcn/icons'
+import { Download, Workflow } from '@/components/emcn/icons'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,

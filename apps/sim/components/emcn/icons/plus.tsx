@@ -1,39 +1,26 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Plus icon (Hugeicons stroke-rounded: Add01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Plus icon component
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Plus({ size = 24, width, height, ...props }: IconProps) {
+export function Plus(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M12.001 5.00003V19.002'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M19.002 12.002L4.99998 12.002'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <path d='M10.25 3V17.5' />
+      <path d='M3 10.25H17.5' />
     </svg>
   )
 }

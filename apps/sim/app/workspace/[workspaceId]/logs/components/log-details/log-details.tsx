@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDuration } from '@sim/utils/formatting'
+import { ArrowDown, ArrowUp, Check, ChevronUp, Clipboard, Search, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import {
   Button,
@@ -19,16 +20,7 @@ import {
   Search as SearchIcon,
   Tooltip,
 } from '@/components/emcn'
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ChevronUp,
-  Clipboard,
-  Search,
-  Workflow,
-  X,
-} from '@/components/emcn/icons'
+import { Workflow } from '@/components/emcn/icons'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'

@@ -1,8 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Button } from '@/components/emcn'
-import { ArrowUp2 } from '@/components/emcn/icons'
+import { ArrowUp, Button } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import {
   SEND_BUTTON_ACTIVE,
@@ -48,7 +47,7 @@ export const SendButton = React.memo(function SendButton({
       disabled={!canSubmit}
       className={cn(SEND_BUTTON_BASE, canSubmit ? SEND_BUTTON_ACTIVE : SEND_BUTTON_DISABLED)}
     >
-      <ArrowUp2 className='block h-[16px] w-[16px] text-white dark:text-black' />
+      <ArrowUp className='block h-[16px] w-[16px] text-white dark:text-black' />
     </Button>
   )
 })

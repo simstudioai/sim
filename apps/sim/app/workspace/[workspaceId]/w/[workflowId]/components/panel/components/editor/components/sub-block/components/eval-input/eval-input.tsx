@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
+import { Plus } from 'lucide-react'
 import { Button, Input, Label, Textarea, Tooltip } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

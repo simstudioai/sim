@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { MoreHorizontal } from 'lucide-react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import {
@@ -14,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   FolderPlus,
+  Library,
   Loader,
   Skeleton,
   Tooltip,
@@ -21,14 +23,12 @@ import {
 } from '@/components/emcn'
 import {
   BookOpen,
-  BubbleChatSpark,
-  CalendarClock,
+  Clock,
   Database,
-  File,
+  Files,
   HelpCircle,
   Integration,
-  Logs,
-  MoreHorizontal,
+  MessageCircle,
   Plus,
   Search,
   Settings,
@@ -433,7 +433,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'home',
           label: 'New chat',
-          icon: BubbleChatSpark,
+          icon: MessageCircle,
           href: `/workspace/${workspaceId}/home`,
         },
         {
@@ -486,7 +486,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'files',
           label: 'Files',
-          icon: File,
+          icon: Files,
           href: `/workspace/${workspaceId}/files`,
           onClick: () => handleWorkspacePageNav('files', `/workspace/${workspaceId}/files`),
           hidden: permissionConfig.hideFilesTab,
@@ -502,7 +502,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'scheduled-tasks',
           label: 'Scheduled tasks',
-          icon: CalendarClock,
+          icon: Clock,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
           onClick: () =>
             handleWorkspacePageNav('scheduled-tasks', `/workspace/${workspaceId}/scheduled-tasks`),
@@ -510,7 +510,7 @@ export const Sidebar = memo(function Sidebar({ variant = 'docked' }: SidebarProp
         {
           id: 'logs',
           label: 'Logs',
-          icon: Logs,
+          icon: Library,
           href: `/workspace/${workspaceId}/logs`,
           onClick: () => handleWorkspacePageNav('logs', `/workspace/${workspaceId}/logs`),
         },

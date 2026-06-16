@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useEffect, useRef, useState } from 'react'
+import { GitBranch } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Check,
@@ -15,7 +16,6 @@ import {
   Tooltip,
   toast,
 } from '@/components/emcn'
-import { GitBranch } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'

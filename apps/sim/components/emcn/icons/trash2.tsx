@@ -1,43 +1,23 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Trash2 icon (Hugeicons stroke-rounded: Delete02Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Trash2 icon component
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Trash2({ size = 24, width, height, ...props }: IconProps) {
+export function Trash2(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='14'
+      height='15'
+      viewBox='0 0 14 15'
       fill='none'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
       <path
-        d='M19.5 5.5L18.8803 15.5251C18.7219 18.0864 18.6428 19.3671 18.0008 20.2879C17.6833 20.7431 17.2747 21.1273 16.8007 21.416C15.8421 22 14.559 22 11.9927 22C9.42312 22 8.1383 22 7.17905 21.4149C6.7048 21.1257 6.296 20.7408 5.97868 20.2848C5.33688 19.3626 5.25945 18.0801 5.10461 15.5152L4.5 5.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M3 5.5H21M16.0557 5.5L15.3731 4.09173C14.9196 3.15626 14.6928 2.68852 14.3017 2.39681C14.215 2.3321 14.1231 2.27454 14.027 2.2247C13.5939 2 13.0741 2 12.0345 2C10.9688 2 10.436 2 9.99568 2.23412C9.8981 2.28601 9.80498 2.3459 9.71729 2.41317C9.32164 2.7167 9.10063 3.20155 8.65861 4.17126L8.05292 5.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeWidth='1.5'
-      />
-      <path d='M9.5 16.5L9.5 10.5' stroke='currentColor' strokeLinecap='round' strokeWidth='1.5' />
-      <path
-        d='M14.5 16.5L14.5 10.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeWidth='1.5'
+        d='M6.67 0C7.01 0 7.31 0 7.57 0.02C7.942 0.06 8.3 0.17 8.6 0.4C8.82 0.57 8.98 0.77 9.11 0.99C9.24 1.2 9.36 1.46 9.5 1.75L9.79 2.33H12.667C13.035 2.33 13.33 2.63 13.334 3C13.334 3.37 13.04 3.67 12.667 3.67H12.085L11.72 9.6C11.67 10.44 11.63 11.1 11.55 11.63C11.46 12.176 11.32 12.63 11.05 13.02C10.8 13.39 10.48 13.69 10.11 13.92C9.7 14.172 9.24 14.28 8.7 14.33H4.62C4.08 14.28 3.62 14.17 3.21 13.92C2.84 13.69 2.52 13.38 2.27 13.02C1.99 12.63 1.86 12.172 1.77 11.63C1.69 11.1 1.65 10.43 1.6 9.6L1.25 3.67H0.67C0.3 3.67 0 3.37 0 3C0 2.63 0.3 2.33 0.67 2.33H3.61L3.84 1.81C3.98 1.51 4.1 1.25 4.22 1.03C4.36 0.8 4.51 0.59 4.74 0.41C5.05 0.18 5.41 0.06 5.79 0.02C6.08 0 6.38 0 6.67 0ZM5 6.14C4.72 6.14 4.5 6.37 4.5 6.64V10.641C4.5 10.92 4.72 11.14 5 11.141C5.28 11.141 5.5 10.917 5.5 10.641V6.64C5.5 6.365 5.28 6.14 5 6.14ZM8.33 6.14C8.06 6.14 7.83 6.365 7.83 6.64V10.641C7.83 10.917 8.06 11.141 8.33 11.141C8.61 11.14 8.83 10.92 8.83 10.641V6.64C8.83 6.37 8.61 6.14 8.33 6.14ZM6.69 1.33C6.32 1.33 6.09 1.33 5.91 1.35C5.66 1.37 5.51 1.47 5.38 1.69C5.3 1.84 5.21 2.03 5.07 2.33H8.31C8.16 2.02 8.06 1.82 7.97 1.68C7.84 1.47 7.69 1.37 7.45 1.35C7.27 1.33 7.05 1.33 6.69 1.33Z'
+        fill='currentColor'
       />
     </svg>
   )

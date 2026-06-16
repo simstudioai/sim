@@ -1,5 +1,5 @@
+import { Plus } from 'lucide-react'
 import { Badge, Button, Combobox, type ComboboxOption, Label, Trash } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import type { SortRule } from '@/lib/table/query-builder/constants'

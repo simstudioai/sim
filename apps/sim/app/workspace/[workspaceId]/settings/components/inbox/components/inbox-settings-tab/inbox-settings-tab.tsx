@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { Check, Clipboard, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -15,7 +16,6 @@ import {
   ChipModalHeader,
   Tooltip,
 } from '@/components/emcn'
-import { Check, Clipboard, Pencil, Plus, Trash2 } from '@/components/emcn/icons'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useAddInboxSender,

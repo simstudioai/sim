@@ -1,9 +1,10 @@
 'use client'
 
+import { Compass } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, buttonVariants } from '@/components/emcn'
-import { ArrowLeft, Compass, Home } from '@/components/emcn/icons'
+import { ArrowLeft, Home } from '@/components/emcn/icons'
 import { ErrorShell } from '@/app/workspace/[workspaceId]/components'
 
 export default function WorkspaceNotFound() {

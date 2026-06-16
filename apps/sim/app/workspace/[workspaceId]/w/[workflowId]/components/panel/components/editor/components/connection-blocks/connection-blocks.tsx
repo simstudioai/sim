@@ -3,9 +3,9 @@
 import { useCallback, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { ChevronDown } from '@/components/emcn'
-import { Repeat, Split } from '@/components/emcn/icons'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import {
   FieldItem,
@@ -117,10 +117,10 @@ function ConnectionItem({
 
   if (!blockConfig) {
     if (connection.type === 'loop') {
-      Icon = Repeat as typeof Icon
+      Icon = RepeatIcon as typeof Icon
       bgColor = '#2FB3FF'
     } else if (connection.type === 'parallel') {
-      Icon = Split as typeof Icon
+      Icon = SplitIcon as typeof Icon
       bgColor = '#FEE12B'
     }
   }

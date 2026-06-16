@@ -12,9 +12,9 @@ import {
   useState,
 } from 'react'
 import clsx from 'clsx'
+import { ChevronDown, Info, Search } from 'lucide-react'
 import { usePostHog } from 'posthog-js/react'
-import { Button, chipVariants, Expandable, ExpandableContent, Info } from '@/components/emcn'
-import { ChevronDown, Search } from '@/components/emcn/icons'
+import { Button, chipVariants, Expandable, ExpandableContent } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { captureEvent } from '@/lib/posthog/client'

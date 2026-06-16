@@ -8,8 +8,8 @@ import {
   useState,
 } from 'react'
 import { createLogger } from '@sim/logger'
+import { ChevronsUpDown, Wand2 } from 'lucide-react'
 import { Textarea } from '@/components/emcn'
-import { ChevronsUpDown, Wand2 } from '@/components/emcn/icons'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/core/utils/cn'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

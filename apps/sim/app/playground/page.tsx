@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
+import { ArrowLeft, Folder, Moon, Sun } from 'lucide-react'
 import { notFound, useRouter } from 'next/navigation'
 import {
   Avatar,
@@ -87,7 +88,6 @@ import {
   ZoomIn,
   ZoomOut,
 } from '@/components/emcn'
-import { ArrowLeft, Folder, Moon, Sun } from '@/components/emcn/icons'
 import { env, isTruthy } from '@/lib/core/config/env'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {

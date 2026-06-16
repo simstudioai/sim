@@ -1,4 +1,4 @@
-import { Globe } from '@/components/emcn/icons'
+import { Globe } from 'lucide-react'
 import { normalizeDomain, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
 

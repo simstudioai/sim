@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Info } from '@/components/emcn/icons'
+import { Info } from 'lucide-react'
 
 interface InfoNoteProps {
   children: ReactNode

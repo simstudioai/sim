@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
+import { X } from 'lucide-react'
 import { Loader, Tooltip } from '@/components/emcn'
-import { X } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 

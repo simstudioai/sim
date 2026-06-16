@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { AlertCircle, ArrowUp } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
   Badge,
@@ -20,7 +21,6 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { ArrowUp, CircleAlert } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import {
   checkEnvVarTrigger,
@@ -854,7 +854,7 @@ try {
                   <Label htmlFor='json-schema'>JSON Schema</Label>
                   {schemaError && (
                     <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                      <CircleAlert className='size-3 flex-shrink-0' />
+                      <AlertCircle className='size-3 flex-shrink-0' />
                       <span className='truncate'>{schemaError}</span>
                     </div>
                   )}
@@ -946,7 +946,7 @@ try {
                   <Label htmlFor='function-code'>Code</Label>
                   {codeError && !codeGeneration.isStreaming && (
                     <div className='ml-2 flex min-w-0 items-center gap-1 text-[var(--text-error)] text-caption'>
-                      <CircleAlert className='size-3 flex-shrink-0' />
+                      <AlertCircle className='size-3 flex-shrink-0' />
                       <span className='truncate'>{codeError}</span>
                     </div>
                   )}

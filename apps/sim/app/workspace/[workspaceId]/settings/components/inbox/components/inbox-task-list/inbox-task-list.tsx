@@ -2,9 +2,9 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { formatRelativeTime } from '@sim/utils/formatting'
+import { ArrowRight, Paperclip } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { Badge, ChipInput, ChipSelect, Search } from '@/components/emcn'
-import { ArrowRight, Paperclip } from '@/components/emcn/icons'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 

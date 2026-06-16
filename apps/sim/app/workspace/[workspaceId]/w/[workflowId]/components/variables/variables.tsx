@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Plus, X } from 'lucide-react'
 import Editor from 'react-simple-code-editor'
 import { useShallow } from 'zustand/react/shallow'
 import {
@@ -16,7 +17,6 @@ import {
   Label,
   languages,
 } from '@/components/emcn'
-import { Plus, X } from '@/components/emcn/icons'
 import { Trash } from '@/components/emcn/icons/trash'
 import { cn } from '@/lib/core/utils/cn'
 import { validateName } from '@/lib/core/utils/validation'

@@ -1,41 +1,26 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Clipboard icon (Hugeicons stroke-rounded: ClipboardIcon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Clipboard icon component
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Clipboard({ size = 24, width, height, ...props }: IconProps) {
+export function Clipboard(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.75'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M17.0235 3.03358L16.0689 2.77924C13.369 2.05986 12.019 1.70018 10.9555 2.31074C9.89196 2.9213 9.53023 4.26367 8.80678 6.94841L7.78366 10.7452C7.0602 13.4299 6.69848 14.7723 7.3125 15.8298C7.92652 16.8874 9.27651 17.247 11.9765 17.9664L12.9311 18.2208C15.631 18.9401 16.981 19.2998 18.0445 18.6893C19.108 18.0787 19.4698 16.7363 20.1932 14.0516L21.2163 10.2548C21.9398 7.57005 22.3015 6.22768 21.6875 5.17016C21.0735 4.11264 19.7235 3.75295 17.0235 3.03358Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M16.8538 7.43306C16.8538 8.24714 16.1901 8.90709 15.3714 8.90709C14.5527 8.90709 13.889 8.24714 13.889 7.43306C13.889 6.61898 14.5527 5.95904 15.3714 5.95904C16.1901 5.95904 16.8538 6.61898 16.8538 7.43306Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <path
-        d='M12 20.9463L11.0477 21.2056C8.35403 21.9391 7.00722 22.3059 5.94619 21.6833C4.88517 21.0608 4.52429 19.6921 3.80253 16.9547L2.78182 13.0834C2.06006 10.346 1.69918 8.97731 2.31177 7.89904C2.84167 6.96631 4 7.00027 5.5 7.00015'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeWidth='1.5'
-      />
+      <path d='M3.75 4.25C3.75 2.87 4.87 1.75 6.25 1.75H14.25C15.63 1.75 16.75 2.87 16.75 4.25V17.25C16.75 18.63 15.63 19.75 14.25 19.75H6.25C4.87 19.75 3.75 18.63 3.75 17.25V4.25Z' />
+      <path d='M7.75 0.75H12.75V3.25C12.75 3.8 12.3 4.25 11.75 4.25H8.75C8.2 4.25 7.75 3.8 7.75 3.25V0.75Z' />
     </svg>
   )
 }

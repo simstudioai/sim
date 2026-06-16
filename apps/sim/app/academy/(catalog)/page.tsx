@@ -1,5 +1,5 @@
+import { BookOpen, Clock } from 'lucide-react'
 import Link from 'next/link'
-import { BookOpen, Clock } from '@/components/emcn/icons'
 import { COURSES } from '@/lib/academy/content'
 
 export default function AcademyCatalogPage() {

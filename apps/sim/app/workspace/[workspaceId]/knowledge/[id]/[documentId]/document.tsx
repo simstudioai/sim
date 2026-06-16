@@ -2,18 +2,10 @@
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { ChevronUp, FileText } from 'lucide-react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Badge, ChipCombobox, ChipConfirmModal } from '@/components/emcn'
-import {
-  ChevronDown,
-  ChevronUp,
-  Database,
-  FileText,
-  Pencil,
-  Plus,
-  TagIcon,
-  Trash,
-} from '@/components/emcn/icons'
+import { ChevronDown, Database, Pencil, Plus, TagIcon, Trash } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'

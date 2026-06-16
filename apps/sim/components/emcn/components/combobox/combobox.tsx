@@ -15,7 +15,7 @@ import {
   useState,
 } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { Check, ChevronDown, Search } from '@/components/emcn/icons'
+import { Check, ChevronDown, Search } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
 import { Loader } from '../../icons'
 import { Input } from '../input/input'

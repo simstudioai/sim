@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { Input, Label, Loader } from '@/components/emcn'
-import { Eye, EyeOff } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { AUTH_SUBMIT_BTN } from '@/app/(auth)/components/auth-button-classes'
 

@@ -1,9 +1,9 @@
 'use client'
 
 import { useMemo, useSyncExternalStore } from 'react'
+import { CheckCircle2, Circle, ExternalLink, GraduationCap } from 'lucide-react'
 import Link from 'next/link'
 import { Loader } from '@/components/emcn'
-import { Circle, CircleCheck, ExternalLink, GraduationCap } from '@/components/emcn/icons'
 import {
   getCompletedLessonsFromSnapshot,
   getCompletedLessonsSnapshot,
@@ -77,7 +77,7 @@ export function CourseProgress({ course, courseSlug }: CourseProgressProps) {
                     className='flex items-center gap-3 rounded-[8px] border border-[#2A2A2A] bg-[#222] px-4 py-3 text-[14px] transition-colors hover:border-[#3A3A3A] hover:bg-[#272727]'
                   >
                     {completedIds.has(lesson.id) ? (
-                      <CircleCheck className='size-4 flex-shrink-0 text-[#4CAF50]' />
+                      <CheckCircle2 className='size-4 flex-shrink-0 text-[#4CAF50]' />
                     ) : (
                       <Circle className='size-4 flex-shrink-0 text-[#444]' />
                     )}

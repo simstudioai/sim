@@ -446,7 +446,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
           <span className='select-none text-[var(--text-icon)] text-sm'>/</span>
           <span className='inline-flex items-center px-2 py-1 font-medium text-[var(--text-body)] text-sm'>
             {tableName}
-            <ChevronDown className='ml-2 size-[14px] shrink-0 text-[var(--text-muted)]' />
+            <ChevronDown className='ml-2 h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
           </span>
         </div>
       </div>
@@ -472,7 +472,7 @@ function SpreadsheetView({ tableId, tableName, onBack }: SpreadsheetViewProps) {
                       <span className='ml-1.5 min-w-0 overflow-clip text-ellipsis whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
                         {col.label}
                       </span>
-                      <ChevronDown className='ml-auto size-[14px] shrink-0 text-[var(--text-muted)]' />
+                      <ChevronDown className='ml-auto h-[7px] w-[9px] shrink-0 text-[var(--text-muted)]' />
                     </div>
                   </th>
                 )

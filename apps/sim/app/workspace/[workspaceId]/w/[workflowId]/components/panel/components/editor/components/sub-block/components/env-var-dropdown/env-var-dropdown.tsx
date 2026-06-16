@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Plus } from 'lucide-react'
 import {
   Popover,
   PopoverAnchor,
@@ -7,7 +8,6 @@ import {
   PopoverScrollArea,
   PopoverSection,
 } from '@/components/emcn'
-import { Plus } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'

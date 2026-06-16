@@ -1,32 +1,25 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Check icon (Hugeicons stroke-rounded: Tick02Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Check icon component - checkmark
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Check({ size = 24, width, height, ...props }: IconProps) {
+export function Check(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M5 14L8.5 17.5L19 6.5'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <path d='M18.25 2.75L7.25 15.75L1.75 10.25' />
     </svg>
   )
 }

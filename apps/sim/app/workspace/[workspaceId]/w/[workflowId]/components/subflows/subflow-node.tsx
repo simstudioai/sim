@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react'
+import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position, useReactFlow } from 'reactflow'
 import { Badge } from '@/components/emcn'
-import { Repeat, Split } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { HANDLE_POSITIONS } from '@/lib/workflows/blocks/block-dimensions'
@@ -112,7 +112,7 @@ export const SubflowNodeComponent = memo(({ data, id, selected }: NodeProps<Subf
 
   const startHandleId = data.kind === 'loop' ? 'loop-start-source' : 'parallel-start-source'
   const endHandleId = data.kind === 'loop' ? 'loop-end-source' : 'parallel-end-source'
-  const BlockIcon = data.kind === 'loop' ? Repeat : Split
+  const BlockIcon = data.kind === 'loop' ? RepeatIcon : SplitIcon
   const blockIconBg = data.kind === 'loop' ? '#2FB3FF' : '#FEE12B'
   const blockName = data.name || (data.kind === 'loop' ? 'Loop' : 'Parallel')
 

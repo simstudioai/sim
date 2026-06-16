@@ -1,7 +1,7 @@
 'use client'
 
+import { ArrowLeftRight, Info } from 'lucide-react'
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@/components/emcn'
-import { ArrowLeftRight, Info } from '@/components/emcn/icons'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
 import type {
   ConfigFieldMap,

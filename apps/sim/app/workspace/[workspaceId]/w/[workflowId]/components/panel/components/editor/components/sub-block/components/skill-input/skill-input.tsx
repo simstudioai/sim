@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Plus, XIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { Combobox, type ComboboxOptionGroup } from '@/components/emcn'
-import { Plus, X } from '@/components/emcn/icons'
 import { AgentSkillsIcon } from '@/components/icons'
 import { SkillModal } from '@/app/workspace/[workspaceId]/skills/components/skill-modal'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
@@ -176,7 +176,7 @@ export function SkillInput({
                         className='flex items-center justify-center text-[var(--text-tertiary)] transition-colors hover-hover:text-[var(--text-primary)]'
                         aria-label='Remove skill'
                       >
-                        <X className='size-[13px]' />
+                        <XIcon className='size-[13px]' />
                       </button>
                     )}
                   </div>

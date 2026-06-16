@@ -1,39 +1,29 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Palette icon (Hugeicons stroke-rounded: PaintBoardIcon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Palette icon component - artist's color palette
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Palette({ size = 24, width, height, ...props }: IconProps) {
+export function Palette(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C12.8417 22 14 22.1163 14 21C14 20.391 13.6832 19.9212 13.3686 19.4544C12.9082 18.7715 12.4523 18.0953 13 17C13.6667 15.6667 14.7778 15.6667 16.4815 15.6667C17.3334 15.6667 18.3334 15.6667 19.5 15.5C21.601 15.1999 22 13.9084 22 12Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <circle cx='9.5' cy='8.5' r='1.5' stroke='currentColor' strokeWidth='1.5' />
-      <circle cx='16.5' cy='9.5' r='1.5' stroke='currentColor' strokeWidth='1.5' />
-      <path
-        d='M7.125 15H7M7.25 15C7.25 15.1381 7.13807 15.25 7 15.25C6.86193 15.25 6.75 15.1381 6.75 15C6.75 14.8619 6.86193 14.75 7 14.75C7.13807 14.75 7.25 14.8619 7.25 15Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <path d='M10.25 0.75C5.56 0.75 0.75 4.25 0.75 9.75C0.75 14.97 5.03 18.75 10.25 18.75C11.08 18.75 11.75 18.08 11.75 17.25C11.75 16.87 11.6 16.52 11.35 16.26C11.1 15.99 10.95 15.64 10.95 15.25C10.95 14.42 11.62 13.75 12.45 13.75H14.25C17.01 13.75 19.75 11.51 19.75 8.75C19.75 4.47 15.45 0.75 10.25 0.75Z' />
+      <circle cx='5.75' cy='7.25' r='1' />
+      <circle cx='9.25' cy='4.5' r='1' />
+      <circle cx='13.5' cy='5' r='1' />
+      <circle cx='6.25' cy='11.5' r='1' />
     </svg>
   )
 }

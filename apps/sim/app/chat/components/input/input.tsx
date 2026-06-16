@@ -4,8 +4,8 @@ import type React from 'react'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { ArrowUp, Mic, Paperclip, X } from 'lucide-react'
 import { Badge, Tooltip } from '@/components/emcn'
-import { ArrowUp2, Mic, Paperclip, X } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -351,7 +351,7 @@ export const ChatInput: React.FC<{
                         : 'bg-[#808080] dark:bg-[#808080]'
                     )}
                   >
-                    <ArrowUp2
+                    <ArrowUp
                       className='block size-[16px] text-white dark:text-black'
                       strokeWidth={2.25}
                     />

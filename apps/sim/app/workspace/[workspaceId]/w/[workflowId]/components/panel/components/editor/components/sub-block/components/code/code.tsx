@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Check, Wand2 } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import { Check, Wand2 } from '@/components/emcn/icons'
 import 'prismjs/components/prism-python'
 import { createLogger } from '@sim/logger'
 import Editor from 'react-simple-code-editor'

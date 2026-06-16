@@ -1,38 +1,33 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Undo icon (Hugeicons stroke-rounded: ArrowTurnBackwardIcon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Undo icon component
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Undo({ size = 24, width, height, ...props }: IconProps) {
+export function Undo(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='12'
+      height='12'
+      viewBox='0 0 12 12'
       fill='none'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
       <path
-        d='M11 6H15.5C17.9853 6 20 8.01472 20 10.5C20 12.9853 17.9853 15 15.5 15H4'
+        d='M2.5 4.5H8C9.38 4.5 10.5 5.62 10.5 7C10.5 8.38 9.38 9.5 8 9.5H5'
         stroke='currentColor'
+        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
-        strokeWidth='1.5'
       />
       <path
-        d='M6.99998 12C6.99998 12 4.00001 14.2095 4 15C3.99999 15.7906 7 18 7 18'
+        d='M4 2.5L2 4.5L4 6.5'
         stroke='currentColor'
+        strokeWidth='0.85'
         strokeLinecap='round'
         strokeLinejoin='round'
-        strokeWidth='1.5'
       />
     </svg>
   )

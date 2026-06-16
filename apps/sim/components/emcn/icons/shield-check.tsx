@@ -1,32 +1,26 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * ShieldCheck icon (Hugeicons stroke-rounded: Shield01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * ShieldCheck icon component - shield with checkmark
+ * @param props - SVG properties including className, fill, etc.
  */
-export function ShieldCheck({ size = 24, width, height, ...props }: IconProps) {
+export function ShieldCheck(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M18.7088 3.49534C16.8165 2.55382 14.5009 2 12 2C9.4991 2 7.1835 2.55382 5.29116 3.49534C4.36318 3.95706 3.89919 4.18792 3.4496 4.91378C3 5.63965 3 6.34248 3 7.74814V11.2371C3 16.9205 7.54236 20.0804 10.173 21.4338C10.9067 21.8113 11.2735 22 12 22C12.7265 22 13.0933 21.8113 13.8269 21.4338C16.4576 20.0804 21 16.9205 21 11.2371L21 7.74814C21 6.34249 21 5.63966 20.5504 4.91378C20.1008 4.18791 19.6368 3.95706 18.7088 3.49534Z'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-        strokeWidth='1.5'
-      />
+      <path d='M10.25 1.25L2.25 5.25V10.25C2.25 15.25 5.65 19.85 10.25 20.75C14.85 19.85 18.25 15.25 18.25 10.25V5.25L10.25 1.25Z' />
+      <path d='M7.25 10.75L9.25 12.75L13.25 8.75' />
     </svg>
   )
 }

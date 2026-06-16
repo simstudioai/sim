@@ -1,37 +1,27 @@
 import type { SVGProps } from 'react'
 
-interface IconProps extends SVGProps<SVGSVGElement> {
-  /** Square size in px applied to width and height; overridden by explicit width/height or a className size. */
-  size?: number | string
-}
-
 /**
- * Mic icon (Hugeicons stroke-rounded: Mic01Icon)
- * @param props - SVG properties including className, size, fill, etc.
+ * Mic icon component - microphone with stand for voice input
+ * @param props - SVG properties including className, fill, etc.
  */
-export function Mic({ size = 24, width, height, ...props }: IconProps) {
+export function Mic(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
-      xmlns='http://www.w3.org/2000/svg'
-      width={width ?? size}
-      height={height ?? size}
-      viewBox='0 0 24 24'
+      width='24'
+      height='24'
+      viewBox='-1 -2 24 24'
       fill='none'
+      stroke='currentColor'
+      strokeWidth='1.55'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      xmlns='http://www.w3.org/2000/svg'
       aria-hidden='true'
       {...props}
     >
-      <path
-        d='M17 7V11C17 13.7614 14.7614 16 12 16C9.23858 16 7 13.7614 7 11V7C7 4.23858 9.23858 2 12 2C14.7614 2 17 4.23858 17 7Z'
-        stroke='currentColor'
-        strokeWidth='1.5'
-      />
-      <path d='M17 7H14M17 11H14' stroke='currentColor' strokeLinecap='round' strokeWidth='1.5' />
-      <path
-        d='M20 11C20 15.4183 16.4183 19 12 19M12 19C7.58172 19 4 15.4183 4 11M12 19V22M12 22H15M12 22H9'
-        stroke='currentColor'
-        strokeLinecap='round'
-        strokeWidth='1.5'
-      />
+      <rect x='7.25' y='0.75' width='6' height='12' rx='3' />
+      <path d='M3.75 9.25V10.25C3.75 13.8399 6.66015 16.75 10.25 16.75C13.8399 16.75 16.75 13.8399 16.75 10.25V9.25' />
+      <path d='M10.25 16.75V19.25' />
     </svg>
   )
 }

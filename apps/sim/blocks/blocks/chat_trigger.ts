@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react'
 import { createElement } from 'react'
-import { MessageCircle } from '@/components/emcn/icons'
+import { MessageCircle } from 'lucide-react'
 import type { BlockConfig } from '@/blocks/types'
 
 const ChatTriggerIcon = (props: SVGProps<SVGSVGElement>) => createElement(MessageCircle, props)
