@@ -37,8 +37,8 @@ function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFi
  * Resolves every attachment that exceeds the inline threshold on a large-file-capable
  * provider to a short-lived signed URL on `file.remoteUrl`. `remote-url` providers send it
  * to the model directly; for `files-api` providers it marks the file for upload (the bytes
- * are read from storage at upload time). Requires cloud storage — otherwise large files
- * fall back to the (capped) base64 path.
+ * are read from storage at upload time). Requires cloud storage — a large file (already past
+ * the inline base64 cap) cannot be sent without it, so the request fails with a clear error.
  *
  * Runs for every request in {@link executeProviderRequest} (after the API key resolves), so
  * the server-only handle fields are first cleared on every file for every provider — a forged
@@ -72,9 +72,11 @@ export async function attachLargeFileRemoteUrls(
 
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
-        `[${requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable; it cannot be sent`
+        `[${requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable`
       )
-      continue
+      throw new Error(
+        `File "${file.name}" exceeds the inline attachment limit and requires cloud file storage, which is not configured`
+      )
     }
 
     if (!request.userId) {
