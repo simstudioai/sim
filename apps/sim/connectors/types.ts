@@ -28,6 +28,13 @@ export interface ExternalDocument {
   contentHash: string
   /** When true, content is empty and will be fetched via getDocument for new/changed docs only */
   contentDeferred?: boolean
+  /**
+   * When set, the document was intentionally not indexed (e.g. it exceeds the
+   * connector's size limit). The sync engine records it as a `failed` document
+   * carrying this reason so it is visible in the knowledge base UI instead of
+   * being silently dropped.
+   */
+  skippedReason?: string
   /** Additional source-specific metadata */
   metadata?: Record<string, unknown>
 }

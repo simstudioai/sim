@@ -3,14 +3,20 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  markSkipped,
+  parseTagDate,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 
 const logger = createLogger('GitHubConnector')
 
 const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 30
 const GIT_SHA_PREFIX = 'git-sha:'
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 const BINARY_SNIFF_BYTES = 8000
 
 /**
@@ -245,11 +251,11 @@ export const githubConnector: ConnectorConfig = {
     } else {
       const tree = await fetchTree(accessToken, owner, repo, branch)
 
-      // Filter by path prefix, extensions, and size
+      // Filter by path prefix and extensions. Oversized files are kept here and
+      // surfaced as skipped (failed) documents at stub time so they stay visible.
       const filtered = tree.filter((item) => {
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
-        if (typeof item.size === 'number' && item.size > MAX_FILE_SIZE) return false
         return true
       })
 
@@ -271,7 +277,9 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
-    const documents = batch.map((item) => treeItemToStub(owner, repo, branch, item))
+    const documents = batch.map((item) =>
+      stubOrSkipBySize(treeItemToStub(owner, repo, branch, item), item.size, MAX_FILE_SIZE)
+    )
 
     const nextOffset = offset + BATCH_SIZE
     const hasMore = nextOffset < capped.length
@@ -329,7 +337,24 @@ export const githubConnector: ConnectorConfig = {
           size,
           limit: MAX_FILE_SIZE,
         })
-        return null
+        return markSkipped(
+          {
+            externalId,
+            title: path.split('/').pop() || path,
+            content: '',
+            mimeType: 'text/plain',
+            sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${path.split('/').map(encodeURIComponent).join('/')}`,
+            contentHash: `${GIT_SHA_PREFIX}${data.sha as string}`,
+            metadata: {
+              path,
+              sha: data.sha as string,
+              size,
+              branch,
+              repository: `${owner}/${repo}`,
+            },
+          },
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
 
       const rawContent = (data.content as string) || ''

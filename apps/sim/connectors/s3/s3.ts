@@ -6,13 +6,20 @@ import { isHosted } from '@/lib/core/config/feature-flags'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate, readBodyWithLimit } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 import { encodeS3PathComponent, getSignatureKey } from '@/tools/s3/utils'
 
 const logger = createLogger('S3Connector')
 
 /** Maximum object size to sync. Larger objects are skipped during listing. */
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 /** Number of objects requested per ListObjectsV2 page (S3 caps at 1000). */
 const LIST_MAX_KEYS = 1000
@@ -581,9 +588,8 @@ export const s3Connector: ConnectorConfig = {
     )
 
     let documents = objects
-      .filter((entry) => isSupportedKey(entry.key, allowedExtensions))
-      .filter((entry) => entry.size > 0 && entry.size <= MAX_FILE_SIZE)
-      .map((entry) => objectToStub(ctx, entry))
+      .filter((entry) => isSupportedKey(entry.key, allowedExtensions) && entry.size > 0)
+      .map((entry) => stubOrSkipBySize(objectToStub(ctx, entry), entry.size, MAX_FILE_SIZE))
 
     let slicedSome = false
     if (maxObjects > 0) {
@@ -634,13 +640,24 @@ export const s3Connector: ConnectorConfig = {
 
       if (declaredLength > MAX_FILE_SIZE) {
         logger.warn('Skipping oversized S3 object', { key, size: declaredLength })
-        return null
+        return markSkipped(
+          objectToStub(ctx, { key, etag, lastModified, size: declaredLength }),
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
 
       const body = await readBodyWithLimit(response, MAX_FILE_SIZE)
       if (body === null) {
         logger.warn('Skipping oversized S3 object (size cap exceeded while streaming)', { key })
-        return null
+        return markSkipped(
+          objectToStub(ctx, {
+            key,
+            etag,
+            lastModified,
+            size: Number.isFinite(declaredLength) ? declaredLength : 0,
+          }),
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
       const content = body.toString('utf-8')
       if (!content.trim()) return null

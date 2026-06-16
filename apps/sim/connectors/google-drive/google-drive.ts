@@ -3,7 +3,16 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { GoogleDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
+  htmlToPlainText,
+  joinTagArray,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleDriveConnector')
 
@@ -22,7 +31,9 @@ const SUPPORTED_TEXT_MIME_TYPES = [
   'application/xml',
 ]
 
-const MAX_EXPORT_SIZE = 10 * 1024 * 1024 // 10 MB (Google export limit)
+// Google Drive's `files.export` API rejects exports over 10 MB (exportSizeLimitExceeded),
+// so this is a hard external limit for Google Workspace docs — not the connector cap.
+const MAX_EXPORT_SIZE = 10 * 1024 * 1024
 
 function isGoogleWorkspaceFile(mimeType: string): boolean {
   return mimeType in GOOGLE_WORKSPACE_MIME_TYPES
@@ -50,10 +61,22 @@ async function exportGoogleWorkspaceFile(
   })
 
   if (!response.ok) {
+    // Google rejects exports over its 10 MB limit with a 403 exportSizeLimitExceeded
+    // before streaming any bytes — surface that as an oversize skip, not a hard error.
+    if (response.status === 403) {
+      const body = await response.text().catch(() => '')
+      if (body.includes('exportSizeLimitExceeded')) {
+        throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
+      }
+    }
     throw new Error(`Failed to export file ${fileId}: ${response.status}`)
   }
 
-  return response.text()
+  const buffer = await readBodyWithLimit(response, MAX_EXPORT_SIZE)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(MAX_EXPORT_SIZE)
+  }
+  return buffer.toString('utf8')
 }
 
 async function downloadTextFile(accessToken: string, fileId: string): Promise<string> {
@@ -68,15 +91,14 @@ async function downloadTextFile(accessToken: string, fileId: string): Promise<st
     throw new Error(`Failed to download file ${fileId}: ${response.status}`)
   }
 
-  const text = await response.text()
-  if (Buffer.byteLength(text, 'utf8') > MAX_EXPORT_SIZE) {
-    logger.warn(`File exceeds ${MAX_EXPORT_SIZE} bytes, truncating`)
-    const buf = Buffer.from(text, 'utf8')
-    let end = MAX_EXPORT_SIZE
-    while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
-    return buf.subarray(0, end).toString('utf8')
+  // Stream with a hard byte cap so a file with missing/under-reported listing
+  // size metadata is never fully buffered into memory. Oversized files raise
+  // DriveFileTooLargeError so getDocument can surface them as skipped (failed) rows.
+  const buffer = await readBodyWithLimit(response, CONNECTOR_MAX_FILE_BYTES)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(CONNECTOR_MAX_FILE_BYTES)
   }
-  return text
+  return buffer.toString('utf8')
 }
 
 async function fetchFileContent(
@@ -327,6 +349,10 @@ export const googleDriveConnector: ConnectorConfig = {
       const stub = fileToStub(file)
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        logger.info('Skipping oversized Google Drive file', { fileId: file.id, name: file.name })
+        return markSkipped(fileToStub(file), sizeLimitSkipReason(error.limitBytes))
+      }
       logger.warn(`Failed to fetch content for file: ${file.name} (${file.id})`, {
         error: toError(error).message,
       })

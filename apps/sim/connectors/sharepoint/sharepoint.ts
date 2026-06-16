@@ -3,7 +3,16 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { MicrosoftSharepointIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
+  htmlToPlainText,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 
 const logger = createLogger('SharePointConnector')
 
@@ -24,7 +33,7 @@ const SUPPORTED_TEXT_EXTENSIONS = new Set([
   '.tsv',
 ])
 
-const MAX_DOWNLOAD_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_DOWNLOAD_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 /** Microsoft Graph drive item shape (subset of fields we use). */
 interface DriveItem {
@@ -133,15 +142,14 @@ async function downloadFileContent(
     throw new Error(`Failed to download file "${fileName}" (${itemId}): ${response.status}`)
   }
 
-  const text = await response.text()
-  if (Buffer.byteLength(text, 'utf8') > MAX_DOWNLOAD_SIZE) {
-    logger.warn(`File "${fileName}" exceeds ${MAX_DOWNLOAD_SIZE} bytes, truncating`)
-    const buf = Buffer.from(text, 'utf8')
-    let end = MAX_DOWNLOAD_SIZE
-    while (end > 0 && (buf[end] & 0xc0) === 0x80) end--
-    return buf.subarray(0, end).toString('utf8')
+  // Stream with a hard byte cap so a file with missing/under-reported listing
+  // size metadata is never fully buffered into memory. Oversized files are
+  // skipped (returned empty) rather than indexed as truncated partial content.
+  const buffer = await readBodyWithLimit(response, MAX_DOWNLOAD_SIZE)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(MAX_DOWNLOAD_SIZE)
   }
-  return text
+  return buffer.toString('utf8')
 }
 
 /**
@@ -371,11 +379,8 @@ export const sharepointConnector: ConnectorConfig = {
     for (const item of data.value) {
       if (item.folder) {
         subfolders.push(item.id)
-      } else if (
-        item.file &&
-        isSupportedTextFile(item.name) &&
-        (!item.size || item.size <= MAX_DOWNLOAD_SIZE)
-      ) {
+      } else if (item.file && isSupportedTextFile(item.name)) {
+        // Keep oversized files; they are surfaced as skipped (failed) docs below.
         files.push(item)
       }
     }
@@ -387,7 +392,7 @@ export const sharepointConnector: ConnectorConfig = {
     const previouslyFetched = totalFetched
     for (const file of files) {
       if (maxFiles > 0 && previouslyFetched + documents.length >= maxFiles) break
-      documents.push(itemToStub(file, siteName))
+      documents.push(stubOrSkipBySize(itemToStub(file, siteName), file.size, MAX_DOWNLOAD_SIZE))
     }
 
     totalFetched += documents.length
@@ -473,6 +478,13 @@ export const sharepointConnector: ConnectorConfig = {
       const stub = itemToStub(item, siteName ?? siteUrl)
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        logger.info('Skipping oversized SharePoint file', { fileId: item.id, name: item.name })
+        return markSkipped(
+          itemToStub(item, siteName ?? siteUrl),
+          sizeLimitSkipReason(error.limitBytes)
+        )
+      }
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
         error: toError(error).message,
       })

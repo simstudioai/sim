@@ -1,4 +1,18 @@
 import type { SecureFetchResponse } from '@/lib/core/security/input-validation.server'
+import { MAX_FILE_SIZE as KB_DOCUMENT_MAX_BYTES } from '@/lib/uploads/utils/validation'
+import type { ExternalDocument } from '@/connectors/types'
+
+/**
+ * Per-file size cap for knowledge base connector syncs. Aligned with the limit for
+ * manually uploaded KB documents (`MAX_FILE_SIZE` in `uploads/validation`) so a
+ * connector indexes the same files a user could add by hand — rather than the much
+ * lower proxy-derived 10 MB number that previously (and arbitrarily) applied here.
+ *
+ * Connector downloads are streamed against this cap via `readBodyWithLimit`, and
+ * files above it are surfaced as skipped (failed) documents instead of being dropped
+ * silently, so raising the limit stays memory-safe and visible.
+ */
+export const CONNECTOR_MAX_FILE_BYTES = KB_DOCUMENT_MAX_BYTES
 
 /**
  * Strips HTML tags from content and decodes common HTML entities.
@@ -112,4 +126,49 @@ export async function readBodyWithLimit(
     chunks.push(value)
   }
   return Buffer.concat(chunks)
+}
+
+/**
+ * Marks a listed document stub as intentionally skipped — for example because it
+ * exceeds the connector's size limit. The sync engine records these as `failed`
+ * documents carrying `skippedReason`, so oversized files stay visible in the
+ * knowledge base UI instead of vanishing from the index silently. Reuses the
+ * connector's own stub so the externalId, contentHash, sourceUrl, and metadata
+ * (including fileSize) are preserved.
+ */
+export function markSkipped(stub: ExternalDocument, reason: string): ExternalDocument {
+  return { ...stub, content: '', contentDeferred: false, skippedReason: reason }
+}
+
+/** Human-readable size-limit skip reason, e.g. "File exceeds the 10MB size limit". */
+export function sizeLimitSkipReason(maxBytes: number): string {
+  return `File exceeds the ${Math.round(maxBytes / (1024 * 1024))}MB size limit and was not indexed`
+}
+
+/**
+ * Returns the listing stub as-is, or a skipped marker when its size exceeds the cap.
+ * Lets each connector express the listing-time size decision once instead of
+ * repeating the `size > max ? markSkipped(...) : stub` ternary (and building the stub
+ * twice). A missing/zero size is treated as within the cap (oversize is then caught
+ * at fetch time via `ConnectorFileTooLargeError`).
+ */
+export function stubOrSkipBySize(
+  stub: ExternalDocument,
+  size: number | undefined,
+  maxBytes: number
+): ExternalDocument {
+  return size && size > maxBytes ? markSkipped(stub, sizeLimitSkipReason(maxBytes)) : stub
+}
+
+/**
+ * Raised by a connector when a file exceeds its size cap mid-download — i.e. the
+ * listing did not report a size, so the limit is only discovered while streaming.
+ * `getDocument` catches it and returns a `markSkipped` document so the file surfaces
+ * as a failed row instead of being dropped silently.
+ */
+export class ConnectorFileTooLargeError extends Error {
+  constructor(readonly limitBytes: number) {
+    super(`File exceeds the ${Math.round(limitBytes / (1024 * 1024))}MB size limit`)
+    this.name = 'ConnectorFileTooLargeError'
+  }
 }

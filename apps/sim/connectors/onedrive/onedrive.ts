@@ -3,7 +3,16 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { MicrosoftOneDriveIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  ConnectorFileTooLargeError,
+  htmlToPlainText,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+} from '@/connectors/utils'
 
 const logger = createLogger('OneDriveConnector')
 
@@ -22,7 +31,7 @@ const SUPPORTED_EXTENSIONS = new Set([
   '.tsv',
 ])
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0'
 
@@ -71,11 +80,11 @@ async function downloadFileContent(accessToken: string, fileId: string): Promise
     throw new Error(`Failed to download file ${fileId}: ${response.status}`)
   }
 
-  const text = await response.text()
-  if (Buffer.byteLength(text, 'utf8') > MAX_FILE_SIZE) {
-    return Buffer.from(text, 'utf8').subarray(0, MAX_FILE_SIZE).toString('utf8')
+  const buffer = await readBodyWithLimit(response, MAX_FILE_SIZE)
+  if (!buffer) {
+    throw new ConnectorFileTooLargeError(MAX_FILE_SIZE)
   }
-  return text
+  return buffer.toString('utf8')
 }
 
 /**
@@ -220,15 +229,16 @@ export const onedriveConnector: ConnectorConfig = {
       }
     }
 
-    const textFiles = items.filter(
-      (item) =>
-        item.file && isSupportedTextFile(item.name) && (!item.size || item.size <= MAX_FILE_SIZE)
-    )
+    // Keep oversized files and surface them as skipped (failed) documents instead
+    // of filtering them out silently.
+    const supportedFiles = items.filter((item) => item.file && isSupportedTextFile(item.name))
 
     const maxFiles = sourceConfig.maxFiles ? Number(sourceConfig.maxFiles) : 0
     const previouslyFetched = (syncContext?.totalDocsFetched as number) ?? 0
 
-    let documents = textFiles.map(fileToStub)
+    let documents = supportedFiles.map((item) =>
+      stubOrSkipBySize(fileToStub(item), item.size, MAX_FILE_SIZE)
+    )
 
     if (maxFiles > 0) {
       const remaining = maxFiles - previouslyFetched
@@ -298,6 +308,10 @@ export const onedriveConnector: ConnectorConfig = {
       const stub = fileToStub(item)
       return { ...stub, content, contentDeferred: false }
     } catch (error) {
+      if (error instanceof ConnectorFileTooLargeError) {
+        logger.info('Skipping oversized OneDrive file', { fileId: item.id, name: item.name })
+        return markSkipped(fileToStub(item), sizeLimitSkipReason(error.limitBytes))
+      }
       logger.warn(`Failed to fetch content for file: ${item.name} (${item.id})`, {
         error: toError(error).message,
       })
