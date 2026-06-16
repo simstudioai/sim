@@ -139,8 +139,14 @@ export const bedrockProvider: ProviderConfig = {
       }
     }
 
+    // Key on the full credential (access key id + secret) so a corrected secret
+    // under the same access key id yields a fresh client rather than a stale one.
+    const credentialKey =
+      request.bedrockAccessKeyId && request.bedrockSecretKey
+        ? `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`
+        : 'default-chain'
     const client = getCachedProviderClient(
-      `bedrock::${region}::${request.bedrockAccessKeyId ?? 'default-chain'}`,
+      `bedrock::${region}::${credentialKey}`,
       () => new BedrockRuntimeClient(clientConfig)
     )
 
