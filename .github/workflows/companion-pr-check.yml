@@ -1,0 +1,150 @@
+name: companion-pr-check
+
+# Soft, NON-BLOCKING warning: when a PR targeting staging/main declares a
+# cross-repo "Companion:" PR, surface whether that companion is merged yet, so
+# copilot and sim stay in lockstep (a change in one often needs the other).
+#
+# Declare in a PR description (repeatable; shorthand OR full URL both parse):
+#   Companion: simstudioai/sim#1234
+#   Companion: https://github.com/simstudioai/sim/pull/1234
+#
+# Requires a CROSS_REPO_TOKEN secret (fine-grained PAT with pull-requests:read on
+# BOTH repos) to read the other repo's PR state. Without it the check still
+# surfaces the declared link but reports "couldn't verify".
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [staging, main]
+  schedule:
+    # Refresh open staging/main PRs in case the companion merges AFTER this PR
+    # was opened (scheduled runs use the workflow from the default branch).
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  companion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          CROSS_REPO_TOKEN: ${{ secrets.CROSS_REPO_TOKEN }}
+        with:
+          script: |
+            const STICKY = '<!-- companion-pr-check -->';
+            // Two ways to declare a companion (either works; both feed this warning):
+            //   1) a trailer anywhere:  Companion: owner/repo#N   (or a full PR URL)
+            //   2) refs in a task list under a "## Companion..." heading — which ALSO
+            //      renders a native live badge + progress bar on the PR (the "both" path):
+            //        ## Companion PRs
+            //        - [ ] owner/repo#N
+            const TRAILER = /Companion:\s*(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/gi;
+            const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
+            const { owner, repo } = context.repo;
+            const crossToken = process.env.CROSS_REPO_TOKEN;
+            const cross = crossToken ? require('@actions/github').getOctokit(crossToken) : null;
+
+            function parseCompanions(body) {
+              body = body || '';
+              const out = [];
+              const seen = new Set();
+              const add = (o, r, n) => {
+                const ref = `${o}/${r}#${n}`;
+                if (seen.has(ref)) return;
+                seen.add(ref);
+                out.push({ owner: o, repo: r, number: Number(n), ref });
+              };
+              // (1) "Companion:" trailers anywhere in the body.
+              let m;
+              TRAILER.lastIndex = 0;
+              while ((m = TRAILER.exec(body)) !== null) add(m[1], m[2], m[3]);
+              // (2) refs in a task list under a "## Companion..." heading, until the next heading.
+              let inSection = false;
+              for (const line of body.split(/\r?\n/)) {
+                if (/^#{1,6}\s/.test(line)) { inSection = /^#{1,6}\s*companion/i.test(line); continue; }
+                if (!inSection) continue;
+                let mm;
+                REF.lastIndex = 0;
+                while ((mm = REF.exec(line)) !== null) add(mm[1], mm[2], mm[3]);
+              }
+              return out;
+            }
+
+            async function findSticky(prNumber) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: prNumber, per_page: 100,
+              });
+              return comments.find((c) => (c.body || '').includes(STICKY));
+            }
+            async function upsert(prNumber, body) {
+              const ex = await findSticky(prNumber);
+              if (ex) await github.rest.issues.updateComment({ owner, repo, comment_id: ex.id, body });
+              else await github.rest.issues.createComment({ owner, repo, issue_number: prNumber, body });
+            }
+            async function clear(prNumber) {
+              const ex = await findSticky(prNumber);
+              if (ex) await github.rest.issues.deleteComment({ owner, repo, comment_id: ex.id });
+            }
+            async function ensureLabel() {
+              try { await github.rest.issues.getLabel({ owner, repo, name: 'has-companion' }); }
+              catch {
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo, name: 'has-companion', color: '5319e7',
+                    description: 'Has a cross-repo companion PR (see companion-pr-check)',
+                  });
+                } catch {}
+              }
+            }
+
+            async function checkPR(pr) {
+              const companions = parseCompanions(pr.body);
+              if (companions.length === 0) { await clear(pr.number); return; }
+              await ensureLabel();
+              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['has-companion'] }); } catch {}
+
+              const base = pr.base.ref;
+              const lines = [];
+              let warn = false;
+              for (const c of companions) {
+                if (!cross) {
+                  lines.push(`- ❓ \`${c.ref}\` — set the **CROSS_REPO_TOKEN** secret to verify merge status`);
+                  warn = true;
+                  continue;
+                }
+                try {
+                  const { data: cp } = await cross.rest.pulls.get({ owner: c.owner, repo: c.repo, pull_number: c.number });
+                  const title = (cp.title || '').slice(0, 80);
+                  if (cp.merged) {
+                    const tierOk = cp.base.ref === base;
+                    lines.push(`- ${tierOk ? '✅' : '⚠️'} [\`${c.ref}\`](${cp.html_url}) — merged into \`${cp.base.ref}\`${tierOk ? '' : ` (this PR targets \`${base}\`)`} — ${title}`);
+                    if (!tierOk) warn = true;
+                  } else {
+                    lines.push(`- ❌ [\`${c.ref}\`](${cp.html_url}) — **${String(cp.state).toUpperCase()}, not merged** (targets \`${cp.base.ref}\`) — ${title}`);
+                    warn = true;
+                  }
+                } catch (e) {
+                  lines.push(`- ❓ \`${c.ref}\` — couldn't read (${e.status || e.message}); check CROSS_REPO_TOKEN scope`);
+                  warn = true;
+                }
+              }
+              const heading = warn ? '## ⚠️ Cross-repo companion check' : '## ✅ Cross-repo companion check';
+              const note = warn
+                ? `One or more companion PRs aren't merged into \`${base}\` yet. Merging this without them will leave copilot and sim out of sync — merge them in lockstep.`
+                : `All declared companion PRs are merged into \`${base}\`.`;
+              await upsert(pr.number, `${STICKY}\n${heading}\n\n${note}\n\n${lines.join('\n')}`);
+            }
+
+            if (context.eventName === 'pull_request') {
+              await checkPR(context.payload.pull_request);
+            } else {
+              for (const b of ['staging', 'main']) {
+                const prs = await github.paginate(github.rest.pulls.list, { owner, repo, base: b, state: 'open', per_page: 100 });
+                for (const pr of prs) await checkPR(pr);
+              }
+            }
