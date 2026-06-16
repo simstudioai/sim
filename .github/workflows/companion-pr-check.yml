@@ -47,7 +47,22 @@ jobs:
             const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
             const { owner, repo } = context.repo;
             const crossToken = process.env.CROSS_REPO_TOKEN;
-            const cross = crossToken ? require('@actions/github').getOctokit(crossToken) : null;
+            // Read the OTHER repo's PR via a plain REST fetch with the PAT in the
+            // header — keeps the PAT strictly READ-ONLY and avoids re-instantiating
+            // Octokit inside github-script (which can't require('@actions/github')).
+            // Commenting/labeling uses the default GITHUB_TOKEN via `github`.
+            async function crossGetPR(c) {
+              const res = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/pulls/${c.number}`, {
+                headers: {
+                  authorization: `Bearer ${crossToken}`,
+                  accept: 'application/vnd.github+json',
+                  'x-github-api-version': '2022-11-28',
+                  'user-agent': 'companion-pr-check',
+                },
+              });
+              if (!res.ok) { const e = new Error(`HTTP ${res.status}`); e.status = res.status; throw e; }
+              return res.json();
+            }
 
             function parseCompanions(body) {
               body = body || '';
@@ -147,13 +162,13 @@ jobs:
               const lines = [];
               let warn = false;
               for (const c of companions) {
-                if (!cross) {
+                if (!crossToken) {
                   lines.push(`- ❓ \`${c.ref}\` — set the **CROSS_REPO_TOKEN** secret to verify merge status`);
                   warn = true;
                   continue;
                 }
                 try {
-                  const { data: cp } = await cross.rest.pulls.get({ owner: c.owner, repo: c.repo, pull_number: c.number });
+                  const cp = await crossGetPR(c);
                   const title = (cp.title || '').slice(0, 80);
                   if (cp.merged) {
                     const tierOk = cp.base.ref === base;
