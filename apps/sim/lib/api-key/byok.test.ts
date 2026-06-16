@@ -3,9 +3,8 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockOrderBy, mockGetWorkspaceById, mockDecryptSecret } = vi.hoisted(() => ({
+const { mockOrderBy, mockDecryptSecret } = vi.hoisted(() => ({
   mockOrderBy: vi.fn(),
-  mockGetWorkspaceById: vi.fn(),
   mockDecryptSecret: vi.fn(),
 }))
 
@@ -17,10 +16,6 @@ vi.mock('@sim/db', () => ({
       })),
     })),
   },
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceById: mockGetWorkspaceById,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -70,7 +65,6 @@ const storedKey = (id: string) => ({ id, encryptedApiKey: `encrypted-${id}` })
 describe('getBYOKKey', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetWorkspaceById.mockResolvedValue({ id: 'workspace' })
     mockOrderBy.mockResolvedValue([])
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted: encrypted.replace('encrypted-', 'decrypted-'),
@@ -80,13 +74,6 @@ describe('getBYOKKey', () => {
   it('returns null when no workspaceId is provided', async () => {
     expect(await getBYOKKey(undefined, 'openai')).toBeNull()
     expect(await getBYOKKey(null, 'openai')).toBeNull()
-    expect(mockGetWorkspaceById).not.toHaveBeenCalled()
-  })
-
-  it('returns null when the workspace does not exist', async () => {
-    mockGetWorkspaceById.mockResolvedValue(null)
-
-    expect(await getBYOKKey(uniqueWorkspaceId(), 'openai')).toBeNull()
   })
 
   it('returns null when the workspace has no keys for the provider', async () => {
@@ -121,6 +108,17 @@ describe('getBYOKKey', () => {
       'decrypted-key-3',
       'decrypted-key-1',
     ])
+  })
+
+  it('reads the key list fresh from the database on every call', async () => {
+    const workspaceId = uniqueWorkspaceId()
+    mockOrderBy.mockResolvedValue([storedKey('key-1')])
+
+    await getBYOKKey(workspaceId, 'openai')
+    await getBYOKKey(workspaceId, 'openai')
+    await getBYOKKey(workspaceId, 'openai')
+
+    expect(mockOrderBy).toHaveBeenCalledTimes(3)
   })
 
   it('tracks rotation independently per provider within a workspace', async () => {
