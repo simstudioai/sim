@@ -3047,46 +3047,71 @@ export function getProviderModels(providerId: string): string[] {
   return PROVIDER_DEFINITIONS[providerId]?.models.map((m) => m.id) || []
 }
 
+interface ModelCatalogEntry {
+  providerId: string
+  declIndex: number
+  releaseTime: number
+}
+
 /**
- * Reorders catalog model IDs so that, within each provider, newer models (by
- * release date) come first, while preserving the existing provider grouping order.
+ * Lowercased model ID → catalog position metadata, built once from the static
+ * provider catalog. Dynamic providers contribute nothing here because their model
+ * lists are populated at runtime (not at module load), and only catalog models are
+ * ever reordered by release date.
+ */
+const MODEL_CATALOG_INDEX: Map<string, ModelCatalogEntry> = new Map(
+  Object.entries(PROVIDER_DEFINITIONS).flatMap(([providerId, provider]) =>
+    provider.models.map((model, declIndex): [string, ModelCatalogEntry] => {
+      const parsed = model.releaseDate ? Date.parse(model.releaseDate) : Number.NaN
+      return [
+        model.id.toLowerCase(),
+        {
+          providerId,
+          declIndex,
+          releaseTime: Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed,
+        },
+      ]
+    })
+  )
+)
+
+/**
+ * Reorders model IDs so that, within each provider, newer models (by release date)
+ * come first — while preserving the caller's existing provider grouping order. The
+ * relative order of providers is taken from the order they first appear in `modelIds`,
+ * so the cross-provider layout the user already sees is never reshuffled.
  *
  * Models without a known release date keep their declaration order and sort after
  * dated models within the same provider. IDs not found in the catalog (e.g.
  * dynamically-discovered provider models) are left in their original order at the end.
  */
 export function orderModelIdsByReleaseDate(modelIds: string[]): string[] {
-  const catalogIndex = new Map<
-    string,
-    { providerIndex: number; declIndex: number; releaseTime: number }
-  >()
-  Object.values(PROVIDER_DEFINITIONS).forEach((provider, providerIndex) => {
-    provider.models.forEach((model, declIndex) => {
-      const parsed = model.releaseDate ? Date.parse(model.releaseDate) : Number.NaN
-      catalogIndex.set(model.id.toLowerCase(), {
-        providerIndex,
-        declIndex,
-        releaseTime: Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed,
-      })
-    })
-  })
+  const groups = new Map<string, string[]>()
+  const unknown: string[] = []
 
-  return modelIds
-    .map((id, inputIndex) => ({ id, inputIndex, meta: catalogIndex.get(id.toLowerCase()) }))
-    .sort((a, b) => {
-      if (!a.meta || !b.meta) {
-        if (!a.meta && !b.meta) return a.inputIndex - b.inputIndex
-        return a.meta ? -1 : 1
-      }
-      if (a.meta.providerIndex !== b.meta.providerIndex) {
-        return a.meta.providerIndex - b.meta.providerIndex
-      }
-      if (a.meta.releaseTime !== b.meta.releaseTime) {
-        return b.meta.releaseTime - a.meta.releaseTime
-      }
-      return a.meta.declIndex - b.meta.declIndex
+  for (const id of modelIds) {
+    const meta = MODEL_CATALOG_INDEX.get(id.toLowerCase())
+    if (!meta) {
+      unknown.push(id)
+      continue
+    }
+    const bucket = groups.get(meta.providerId)
+    if (bucket) bucket.push(id)
+    else groups.set(meta.providerId, [id])
+  }
+
+  const ordered: string[] = []
+  for (const bucket of groups.values()) {
+    bucket.sort((a, b) => {
+      const ma = MODEL_CATALOG_INDEX.get(a.toLowerCase())!
+      const mb = MODEL_CATALOG_INDEX.get(b.toLowerCase())!
+      if (ma.releaseTime !== mb.releaseTime) return mb.releaseTime - ma.releaseTime
+      return ma.declIndex - mb.declIndex
     })
-    .map((entry) => entry.id)
+    ordered.push(...bucket)
+  }
+  ordered.push(...unknown)
+  return ordered
 }
 
 export const DYNAMIC_MODEL_PROVIDERS = [

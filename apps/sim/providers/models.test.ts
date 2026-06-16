@@ -56,6 +56,29 @@ describe('orderModelIdsByReleaseDate', () => {
     }
   })
 
+  it('preserves the cross-provider grouping order given in the input', () => {
+    // Pick the first model of two different providers and feed the second provider
+    // first; the helper must keep that provider's group ahead of the other.
+    const byProvider = new Map<number, string[]>()
+    for (const id of Object.keys(getBaseModelProviders())) {
+      const providerIndex = PROVIDER_INDEX_BY_MODEL.get(id.toLowerCase()) as number
+      const bucket = byProvider.get(providerIndex) ?? []
+      bucket.push(id)
+      byProvider.set(providerIndex, bucket)
+    }
+    const providerIndexes = [...byProvider.keys()]
+    expect(providerIndexes.length).toBeGreaterThanOrEqual(2)
+    const [firstProvider, secondProvider] = providerIndexes
+    const fromFirst = byProvider.get(firstProvider) as string[]
+    const fromSecond = byProvider.get(secondProvider) as string[]
+
+    // Input order intentionally leads with the second provider.
+    const input = [fromSecond[0], fromFirst[0]]
+    const ordered = orderModelIdsByReleaseDate(input)
+    expect(PROVIDER_INDEX_BY_MODEL.get(ordered[0].toLowerCase())).toBe(secondProvider)
+    expect(PROVIDER_INDEX_BY_MODEL.get(ordered[1].toLowerCase())).toBe(firstProvider)
+  })
+
   it('places unknown model IDs last, preserving their input order', () => {
     const known = Object.keys(getBaseModelProviders())[0]
     const ordered = orderModelIdsByReleaseDate(['mystery-a', known, 'mystery-b'])
