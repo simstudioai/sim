@@ -13,16 +13,13 @@ name: companion-pr-check
 # surfaces the declared link but reports "couldn't verify".
 
 on:
+  # PR-driven only: runs on the one PR being opened/edited/synced — no periodic
+  # bulk scan. We assume companions are declared on BOTH sides, so the per-PR
+  # trigger keeps each side's status fresh; to refresh after a companion merges,
+  # re-edit the PR (or run this workflow manually via the Actions tab).
   pull_request:
     types: [opened, edited, reopened, synchronize]
     branches: [staging, main]
-  schedule:
-    # Refresh open staging/main PRs in case the companion merges AFTER this PR was
-    # opened. CAVEAT: GitHub runs scheduled workflows ONLY from the DEFAULT branch's
-    # copy of this file — so this auto-refresh activates once the workflow lands on
-    # the default branch (via the normal promotion), not before. The pull_request
-    # triggers below always work; re-editing the PR re-runs the check meanwhile.
-    - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -114,16 +111,16 @@ jobs:
               const ex = await findSticky(prNumber);
               if (ex) await github.rest.issues.deleteComment({ owner, repo, comment_id: ex.id });
               // Drop the label too, so a PR edited to remove all companions doesn't
-              // keep a stale badge. 404 if not present → ignore.
-              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: LABEL }); } catch {}
+              // keep a stale badge. 404 (not present) is expected; surface anything else.
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: LABEL }); }
+              catch (e) { if (e.status !== 404) core.warning(`companion: removeLabel ${LABEL} on #${prNumber} failed (${e.status || e.message})`); }
             }
             async function ensureLabel() {
-              try { await github.rest.issues.getLabel({ owner, repo, name: LABEL }); }
-              catch {
-                try {
-                  await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'd93f0b', description: LABEL_DESC });
-                } catch {}
-              }
+              try { await github.rest.issues.getLabel({ owner, repo, name: LABEL }); return; }
+              catch (e) { if (e.status && e.status !== 404) { core.warning(`companion: getLabel ${LABEL} failed (${e.status})`); return; } }
+              // 404 → label doesn't exist yet, create it. 422 = another run beat us (fine).
+              try { await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'd93f0b', description: LABEL_DESC }); }
+              catch (e) { if (e.status !== 422) core.warning(`companion: createLabel ${LABEL} failed (${e.status || e.message})`); }
             }
 
             // staging PRs are a single feature → just this PR's body ("the one").
@@ -165,7 +162,8 @@ jobs:
               const companions = await collectCompanions(pr);
               if (companions.length === 0) { await clear(pr.number); return; }
               await ensureLabel();
-              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [LABEL] }); } catch {}
+              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [LABEL] }); }
+              catch (e) { core.warning(`companion: addLabels ${LABEL} on #${pr.number} failed (${e.status || e.message})`); }
 
               const base = pr.base.ref;
               const lines = [];
@@ -203,6 +201,7 @@ jobs:
             if (context.eventName === 'pull_request') {
               await checkPR(context.payload.pull_request);
             } else {
+              // workflow_dispatch only: manual full re-scan of open staging/main PRs.
               for (const b of ['staging', 'main']) {
                 const prs = await github.paginate(github.rest.pulls.list, { owner, repo, base: b, state: 'open', per_page: 100 });
                 for (const pr of prs) await checkPR(pr);
