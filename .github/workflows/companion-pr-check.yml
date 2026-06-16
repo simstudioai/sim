@@ -37,14 +37,6 @@ jobs:
         with:
           script: |
             const STICKY = '<!-- companion-pr-check -->';
-            // Two ways to declare a companion (either works; both feed this warning):
-            //   1) a trailer anywhere:  Companion: owner/repo#N   (or a full PR URL)
-            //   2) refs in a task list under a "## Companion..." heading — which ALSO
-            //      renders a native live badge + progress bar on the PR (the "both" path):
-            //        ## Companion PRs
-            //        - [ ] owner/repo#N
-            const TRAILER = /Companion:\s*(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/gi;
-            const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
             const { owner, repo } = context.repo;
             // Directional label: copilot/mothership PRs get "requires-sim-merge",
             // sim PRs get "requires-mothership-merge". Applied whenever the PR
@@ -70,8 +62,18 @@ jobs:
               return res.json();
             }
 
+            // Two ways to declare a companion (either works; both feed this warning):
+            //   1) a trailer anywhere:  Companion: owner/repo#N   (or a full PR URL)
+            //   2) refs in a task list under a "## Companion..." heading — which ALSO
+            //      renders a native live badge + progress bar on the PR (the "both" path):
+            //        ## Companion PRs
+            //        - [ ] owner/repo#N
+            // Regexes are local + matchAll, so there's no shared lastIndex state to leak
+            // between calls (stateless by construction).
             function parseCompanions(body) {
               body = body || '';
+              const TRAILER = /Companion:\s*(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/gi;
+              const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
               const out = [];
               const seen = new Set();
               const add = (o, r, n) => {
@@ -81,17 +83,13 @@ jobs:
                 out.push({ owner: o, repo: r, number: Number(n), ref });
               };
               // (1) "Companion:" trailers anywhere in the body.
-              let m;
-              TRAILER.lastIndex = 0;
-              while ((m = TRAILER.exec(body)) !== null) add(m[1], m[2], m[3]);
+              for (const m of body.matchAll(TRAILER)) add(m[1], m[2], m[3]);
               // (2) refs in a task list under a "## Companion..." heading, until the next heading.
               let inSection = false;
               for (const line of body.split(/\r?\n/)) {
                 if (/^#{1,6}\s/.test(line)) { inSection = /^#{1,6}\s*companion/i.test(line); continue; }
                 if (!inSection) continue;
-                let mm;
-                REF.lastIndex = 0;
-                while ((mm = REF.exec(line)) !== null) add(mm[1], mm[2], mm[3]);
+                for (const mm of line.matchAll(REF)) add(mm[1], mm[2], mm[3]);
               }
               return out;
             }
