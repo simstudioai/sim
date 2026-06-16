@@ -1,16 +1,16 @@
 import type {
-  GrafanaDeleteAlertRuleParams,
-  GrafanaDeleteAlertRuleResponse,
+  GrafanaDataSourceHealthParams,
+  GrafanaDataSourceHealthResponse,
 } from '@/tools/grafana/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const deleteAlertRuleTool: ToolConfig<
-  GrafanaDeleteAlertRuleParams,
-  GrafanaDeleteAlertRuleResponse
+export const checkDataSourceHealthTool: ToolConfig<
+  GrafanaDataSourceHealthParams,
+  GrafanaDataSourceHealthResponse
 > = {
-  id: 'grafana_delete_alert_rule',
-  name: 'Grafana Delete Alert Rule',
-  description: 'Delete an alert rule by its UID',
+  id: 'grafana_check_data_source_health',
+  name: 'Grafana Check Data Source Health',
+  description: 'Test connectivity to a data source by its UID',
   version: '1.0.0',
 
   params: {
@@ -32,18 +32,18 @@ export const deleteAlertRuleTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
-    alertRuleUid: {
+    dataSourceUid: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'The UID of the alert rule to delete',
+      description: 'The UID of the data source to health-check (e.g., P1234AB5678)',
     },
   },
 
   request: {
     url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`,
-    method: 'DELETE',
+      `${params.baseUrl.replace(/\/$/, '')}/api/datasources/uid/${params.dataSourceUid.trim()}/health`,
+    method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -56,19 +56,20 @@ export const deleteAlertRuleTool: ToolConfig<
     },
   },
 
-  transformResponse: async () => {
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
     return {
       success: true,
       output: {
-        message: 'Alert rule deleted successfully',
+        status: (data.status as string) ?? 'UNKNOWN',
+        message: (data.message as string) ?? '',
       },
     }
   },
 
   outputs: {
-    message: {
-      type: 'string',
-      description: 'Confirmation message',
-    },
+    status: { type: 'string', description: 'Health status of the data source (e.g., OK)' },
+    message: { type: 'string', description: 'Detailed health message from the data source' },
   },
 }

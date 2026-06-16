@@ -90,7 +90,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
 
   request: {
     url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid}`,
+      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid.trim()}`,
     method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
