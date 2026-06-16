@@ -229,6 +229,40 @@ describe('preprocessExecution ban gate', () => {
     })
   })
 
+  it('does not debit rate-limit quota when the ban gate rejects', async () => {
+    // The rate-limit gate consumes a token, so it must not run for a request
+    // an earlier gate (ban) already rejects.
+    mockGetActivelyBannedUserIds.mockResolvedValue(['billed-account-1'])
+
+    const result = await preprocessExecution({ ...baseOptions, checkRateLimit: true })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 403 } })
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
+  })
+
+  it('does not debit rate-limit quota when the usage gate rejects', async () => {
+    vi.mocked(checkServerSideUsageLimits).mockResolvedValue({
+      isExceeded: true,
+      currentUsage: 20,
+      limit: 10,
+      message: 'Usage limit exceeded. Please upgrade your plan to continue.',
+    } as any)
+
+    const result = await preprocessExecution({ ...baseOptions, checkRateLimit: true })
+
+    expect(result).toMatchObject({ success: false, error: { statusCode: 402 } })
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
+  })
+
+  it('consumes the rate-limit gate exactly once when the ban and usage gates pass', async () => {
+    mockCheckRateLimit.mockResolvedValue({ allowed: true, remaining: 5, resetAt: new Date() })
+
+    const result = await preprocessExecution({ ...baseOptions, checkRateLimit: true })
+
+    expect(result.success).toBe(true)
+    expect(mockCheckRateLimit).toHaveBeenCalledTimes(1)
+  })
+
   it('checks the billing actor, caller-provided userId, and workflow owner in one call', async () => {
     const result = await preprocessExecution(baseOptions)
 

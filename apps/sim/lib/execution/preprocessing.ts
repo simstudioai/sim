@@ -573,11 +573,14 @@ export async function preprocessExecution(
   let rateLimitInfo: { allowed: boolean; remaining: number; resetAt: Date } | undefined
 
   /**
-   * STEP 6: rate-limit gate. Returns the failure outcome, or `null` on
-   * pass/skip. On a non-error outcome it populates `rateLimitInfo` for the
-   * success result, matching the sequential version.
+   * STEP 6: rate-limit gate. Unlike the other gates this one is NOT read-only —
+   * `checkRateLimitWithSubscription` consumes a token — so it is invoked
+   * sequentially only after the ban and usage gates pass, matching the original
+   * order. Running it eagerly or in parallel would debit rate-limit quota for
+   * requests that ban or usage rejects. Returns the failure outcome, or `null`
+   * on pass/skip; on a non-error outcome it populates `rateLimitInfo`.
    */
-  const rateLimitTask = (async (): Promise<GateFailure | null> => {
+  const runRateLimitGate = async (): Promise<GateFailure | null> => {
     if (!checkRateLimit) return null
     try {
       const rateLimiter = new RateLimiter()
@@ -646,21 +649,31 @@ export async function preprocessExecution(
         },
       }
     }
-  })()
+  }
 
-  const [usageResult, rateLimitFailure] = await Promise.all([usageCheckTask, rateLimitTask])
-  const usageFailure = usageResult.failure
+  const usageResult = await usageCheckTask
   const usageSnapshot = usageResult.snapshot
 
-  // Evaluate outcomes in fixed precedence order — ban (403) → usage (402) →
-  // rate limit (429) — so the response matches the sequential version exactly,
-  // independent of which gate's promise settled first.
-  const gateFailure = banFailure ?? usageFailure ?? rateLimitFailure
-  if (gateFailure) {
-    if (gateFailure.recordError) {
-      await recordPreprocessingError(gateFailure.recordError)
+  // The read-only gates (ban, subscription, usage) ran concurrently; evaluate
+  // them in fixed precedence order — ban (403) → usage (402) — so the response
+  // matches the sequential version regardless of which settled first.
+  const readGateFailure = banFailure ?? usageResult.failure
+  if (readGateFailure) {
+    if (readGateFailure.recordError) {
+      await recordPreprocessingError(readGateFailure.recordError)
     }
-    return gateFailure.response
+    return readGateFailure.response
+  }
+
+  // Rate limiting (429) runs only after ban and usage pass, because it debits a
+  // token — matching the original sequential order so rejected requests never
+  // consume quota.
+  const rateLimitFailure = await runRateLimitGate()
+  if (rateLimitFailure) {
+    if (rateLimitFailure.recordError) {
+      await recordPreprocessingError(rateLimitFailure.recordError)
+    }
+    return rateLimitFailure.response
   }
 
   /**
