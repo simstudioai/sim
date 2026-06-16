@@ -116,7 +116,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (params.panels) {
       try {
         updatedDashboard.panels = JSON.parse(params.panels)
-      } catch {}
+      } catch {
+        return NextResponse.json({
+          success: false,
+          output: {},
+          error: 'Invalid JSON for panels parameter',
+        })
+      }
     }
 
     if (existingDashboard.version) {
