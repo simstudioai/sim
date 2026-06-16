@@ -3,7 +3,10 @@ import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { StreamingExecution } from '@/executor/types'
-import { uploadLargeFilesToProvider } from '@/providers/file-attachments.server'
+import {
+  attachLargeFileRemoteUrls,
+  uploadLargeFilesToProvider,
+} from '@/providers/file-attachments.server'
 import { getProviderExecutor } from '@/providers/registry'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
@@ -191,6 +194,7 @@ export async function executeProviderRequest(
     }
   }
 
+  await attachLargeFileRemoteUrls(sanitizedRequest, providerId)
   await uploadLargeFilesToProvider(sanitizedRequest, providerId)
 
   const response = await provider.executeRequest(sanitizedRequest)

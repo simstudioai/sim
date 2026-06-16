@@ -25,9 +25,12 @@ const OPENAI_FILE_EXPIRY_SECONDS = 60 * 60
 const GEMINI_POLL_INTERVAL_MS = 1000
 const GEMINI_PROCESSING_TIMEOUT_MS = 5 * 60_000
 
-interface RemoteUrlContext {
-  requestId: string
-  userId?: string
+function* iterateRequestFiles(messages: Message[] | undefined): Generator<UserFile> {
+  for (const message of messages ?? []) {
+    for (const file of message.files ?? []) {
+      yield file
+    }
+  }
 }
 
 /**
@@ -37,17 +40,15 @@ interface RemoteUrlContext {
  * are read from storage at upload time). Requires cloud storage — otherwise large files
  * fall back to the (capped) base64 path.
  *
- * The server-only handle fields are first cleared on every file for every provider
- * (including inline) so a forged handle on untrusted input can never reach a builder.
+ * Runs for every request in {@link executeProviderRequest} (after the API key resolves), so
+ * the server-only handle fields are first cleared on every file for every provider — a forged
+ * handle on an untrusted request body can never survive to a builder or trigger a fetch.
  */
 export async function attachLargeFileRemoteUrls(
-  files: UserFile[] | undefined,
-  providerId: ProviderId | string,
-  ctx: RemoteUrlContext
+  request: ProviderRequest,
+  providerId: ProviderId | string
 ): Promise<void> {
-  if (!files?.length) return
-
-  for (const file of files) {
+  for (const file of iterateRequestFiles(request.messages)) {
     file.providerFileId = undefined
     file.providerFileUri = undefined
     file.remoteUrl = undefined
@@ -55,10 +56,12 @@ export async function attachLargeFileRemoteUrls(
 
   if (getProviderFileStrategy(providerId) === 'inline') return
 
-  for (const file of files) {
+  const requestId = request.workflowId ?? 'provider-request'
+  const maxBytes = getProviderAttachmentMaxBytes(providerId)
+
+  for (const file of iterateRequestFiles(request.messages)) {
     if (!file.key || !shouldUseLargeFilePath(file, providerId)) continue
 
-    const maxBytes = getProviderAttachmentMaxBytes(providerId)
     if (Number.isFinite(file.size) && file.size > maxBytes) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
       const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
@@ -69,19 +72,19 @@ export async function attachLargeFileRemoteUrls(
 
     if (!StorageService.hasCloudStorage()) {
       logger.warn(
-        `[${ctx.requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable; it cannot be sent`
+        `[${requestId}] "${file.name}" exceeds the inline limit for "${providerId}" but cloud storage is unavailable; it cannot be sent`
       )
       continue
     }
 
-    if (!ctx.userId) {
+    if (!request.userId) {
       throw new Error(
         `File "${file.name}" requires an authenticated user for provider "${providerId}"`
       )
     }
 
     const context = (file.context as StorageContext) || inferContextFromKey(file.key)
-    const hasAccess = await verifyFileAccess(file.key, ctx.userId, undefined, context, false)
+    const hasAccess = await verifyFileAccess(file.key, request.userId, undefined, context, false)
     if (!hasAccess) {
       throw new Error(`File "${file.name}" is not accessible for provider "${providerId}"`)
     }
@@ -96,25 +99,15 @@ export async function attachLargeFileRemoteUrls(
 
 /**
  * For `files-api` providers, uploads each large attachment (already carrying a signed
- * `remoteUrl`) to the provider Files API and records the returned handle on the file.
- * Runs after the request's API key is resolved so hosted and BYOK keys both work.
- *
- * Any `providerFileId`/`providerFileUri` present on input is cleared first — legitimate ids
- * are only assigned by the upload below, so a forged id (which could otherwise reference an
- * arbitrary file in a shared hosted provider account) can never reach a message builder.
+ * `remoteUrl` from {@link attachLargeFileRemoteUrls}) to the provider Files API and records
+ * the returned handle on the file. Runs after the request's API key is resolved so hosted
+ * and BYOK keys both work.
  */
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
   providerId: ProviderId | string
 ): Promise<void> {
   if (getProviderFileStrategy(providerId) !== 'files-api') return
-
-  for (const message of request.messages ?? []) {
-    for (const file of message.files ?? []) {
-      file.providerFileId = undefined
-      file.providerFileUri = undefined
-    }
-  }
 
   const groups = groupUploadableFiles(request.messages)
   if (groups.length === 0) return

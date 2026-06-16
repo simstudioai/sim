@@ -39,8 +39,11 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
-import { INLINE_ATTACHMENT_THRESHOLD_BYTES, supportsFileAttachments } from '@/providers/attachments'
-import { attachLargeFileRemoteUrls } from '@/providers/file-attachments.server'
+import {
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  shouldUseLargeFilePath,
+  supportsFileAttachments,
+} from '@/providers/attachments'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
 import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
@@ -764,9 +767,9 @@ export class AgentBlockHandler implements BlockHandler {
         maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
       })
 
-      await attachLargeFileRemoteUrls(hydratedFiles, providerId, { requestId, userId: ctx.userId })
-
-      const missingFile = hydratedFiles.find((file) => !file.base64 && !file.remoteUrl)
+      const missingFile = hydratedFiles.find(
+        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+      )
       if (missingFile) {
         throw new Error(
           `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
