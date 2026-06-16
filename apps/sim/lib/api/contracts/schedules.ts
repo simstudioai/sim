@@ -217,6 +217,23 @@ export const listWorkspaceSchedulesContract = defineRouteContract({
 })
 
 /**
+ * Single-schedule read by id. Used by the mothership resource viewer so opening
+ * a scheduled-task artifact does a lightweight by-id fetch instead of pulling
+ * the entire workspace schedule list (which contended with the chat stream).
+ */
+export const getScheduleByIdContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/schedules/[id]',
+  params: scheduleIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({
+      schedule: workflowScheduleRowSchema,
+    }),
+  },
+})
+
+/**
  * Newly-created job schedules emit a partial summary with the canonical fields
  * the route synthesizes server-side; everything else is filled in on
  * subsequent reads.

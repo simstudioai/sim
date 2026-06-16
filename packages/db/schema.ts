@@ -2940,6 +2940,7 @@ export const permissionGroup = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     isDefault: boolean('is_default').notNull().default(false),
+    appliesToAllWorkspaces: boolean('applies_to_all_workspaces').notNull().default(true),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
@@ -2950,6 +2951,38 @@ export const permissionGroup = pgTable(
     defaultGroupUnique: uniqueIndex('permission_group_organization_default_unique')
       .on(table.organizationId)
       .where(sql`is_default = true`),
+  })
+)
+
+/**
+ * Workspaces a `permission_group` targets when `applies_to_all_workspaces` is
+ * false. Rows are absent for organization-wide groups. A group with zero rows
+ * while `applies_to_all_workspaces = false` governs no workspace.
+ */
+export const permissionGroupWorkspace = pgTable(
+  'permission_group_workspace',
+  {
+    id: text('id').primaryKey(),
+    permissionGroupId: text('permission_group_id')
+      .notNull()
+      .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    permissionGroupIdIdx: index('permission_group_workspace_group_id_idx').on(
+      table.permissionGroupId
+    ),
+    workspaceIdIdx: index('permission_group_workspace_workspace_id_idx').on(table.workspaceId),
+    groupWorkspaceUnique: uniqueIndex('permission_group_workspace_group_workspace_unique').on(
+      table.permissionGroupId,
+      table.workspaceId
+    ),
   })
 )
 
@@ -2975,7 +3008,7 @@ export const permissionGroupMember = pgTable(
       table.permissionGroupId,
       table.userId
     ),
-    organizationUserUnique: uniqueIndex('permission_group_member_organization_user_unique').on(
+    organizationUserIdx: index('permission_group_member_organization_user_idx').on(
       table.organizationId,
       table.userId
     ),

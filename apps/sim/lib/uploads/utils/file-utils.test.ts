@@ -1,8 +1,17 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { describe, expect, it } from 'vitest'
-import { isAbortError, isInternalFileUrl, isNetworkError } from '@/lib/uploads/utils/file-utils'
+import {
+  inferContextFromKey,
+  isAbortError,
+  isInternalFileUrl,
+  isNetworkError,
+  processSingleFileToUserFile,
+} from '@/lib/uploads/utils/file-utils'
+
+const logger = createLogger('FileUtilsTest')
 
 describe('isInternalFileUrl', () => {
   it('classifies relative serve paths as internal', () => {
@@ -39,6 +48,32 @@ describe('isInternalFileUrl', () => {
   })
 })
 
+describe('inferContextFromKey', () => {
+  it('maps both kb/ and knowledge-base/ prefixes to knowledge-base', () => {
+    expect(inferContextFromKey('kb/1700000000000-doc.pdf')).toBe('knowledge-base')
+    // Direct/presigned uploads key as `${context}/...`, i.e. `knowledge-base/...`
+    expect(inferContextFromKey('knowledge-base/1781612506186-b2442e0dc045cb6c-doc.txt')).toBe(
+      'knowledge-base'
+    )
+  })
+
+  it('maps the remaining context prefixes', () => {
+    expect(inferContextFromKey('chat/x')).toBe('chat')
+    expect(inferContextFromKey('copilot/x')).toBe('copilot')
+    expect(inferContextFromKey('execution/ws/wf/ex/x')).toBe('execution')
+    expect(inferContextFromKey('workspace/ws/x')).toBe('workspace')
+    expect(inferContextFromKey('profile-pictures/x')).toBe('profile-pictures')
+    expect(inferContextFromKey('og-images/x')).toBe('og-images')
+    expect(inferContextFromKey('workspace-logos/x')).toBe('workspace-logos')
+    expect(inferContextFromKey('logs/x')).toBe('logs')
+  })
+
+  it('throws for empty or unrecognized keys', () => {
+    expect(() => inferContextFromKey('')).toThrow()
+    expect(() => inferContextFromKey('mystery/x')).toThrow()
+  })
+})
+
 describe('isAbortError', () => {
   it('returns true for AbortError-named errors', () => {
     const err = new Error('aborted')
@@ -70,5 +105,30 @@ describe('isNetworkError', () => {
     expect(isNetworkError(new Error('Validation failed: name is required'))).toBe(false)
     expect(isNetworkError('not an error')).toBe(false)
     expect(isNetworkError(null)).toBe(false)
+  })
+})
+
+describe('processSingleFileToUserFile', () => {
+  it('strips server-only provider file handles from untrusted input', () => {
+    const result = processSingleFileToUserFile(
+      {
+        id: 'file-1',
+        name: 'doc.pdf',
+        url: '/api/files/serve/workspace%2Fws-1%2Fdoc.pdf?context=workspace',
+        size: 1024,
+        type: 'application/pdf',
+        key: 'workspace/ws-1/doc.pdf',
+        providerFileId: 'file-injected',
+        providerFileUri: 'https://injected/uri',
+        remoteUrl: 'http://169.254.169.254/latest/meta-data',
+      } as never,
+      'req-1',
+      logger
+    )
+
+    expect(result.providerFileId).toBeUndefined()
+    expect(result.providerFileUri).toBeUndefined()
+    expect(result.remoteUrl).toBeUndefined()
+    expect(result.key).toBe('workspace/ws-1/doc.pdf')
   })
 })

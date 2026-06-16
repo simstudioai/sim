@@ -11,6 +11,11 @@ import {
   MODEL_SUPPORTED_IMAGE_MIME_TYPES,
 } from '@/lib/uploads/utils/file-utils'
 import type { UserFile } from '@/executor/types'
+import {
+  getProviderFileAttachment,
+  INLINE_ATTACHMENT_MAX_BYTES,
+  type ProviderFileAttachmentStrategy,
+} from '@/providers/models'
 import type { ProviderId } from '@/providers/types'
 
 export type AttachmentProvider =
@@ -36,11 +41,19 @@ export interface PreparedProviderAttachment {
   filename: string
   mimeType: string
   providerMimeType: string
-  base64: string
-  dataUrl: string
+  /** Base64 payload — present only for inlined files (≤ inline threshold). Absent for large uploaded files. */
+  base64?: string
+  /** `data:` URL — present only for inlined files. Absent for large uploaded files. */
+  dataUrl?: string
   text?: string
   extension: string
   contentType: 'image' | 'document' | 'audio' | 'video'
+  /** Provider Files API id (OpenAI/Anthropic) when the file was uploaded instead of inlined. */
+  providerFileId?: string
+  /** Provider File API uri (Gemini) when the file was uploaded instead of inlined. */
+  providerFileUri?: string
+  /** Short-lived signed HTTPS URL for providers that fetch attachments by remote URL. */
+  remoteUrl?: string
 }
 
 type ProviderMessageInput = {
@@ -56,7 +69,29 @@ type ProviderFormattedMessage = {
   [key: string]: unknown
 }
 
-export const AGENT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024
+/**
+ * Files at or below this size are inlined as base64, exactly as before. Larger files take
+ * the provider's large-file path. Keeping the threshold at the legacy 10 MB cap guarantees
+ * identical behaviour for existing attachments.
+ */
+export const INLINE_ATTACHMENT_THRESHOLD_BYTES = INLINE_ATTACHMENT_MAX_BYTES
+
+export type ProviderFileStrategy = ProviderFileAttachmentStrategy
+
+/** Large-file delivery strategy for a provider, sourced from its `models.ts` definition. */
+export function getProviderFileStrategy(providerId: ProviderId | string): ProviderFileStrategy {
+  return getProviderFileAttachment(providerId).strategy
+}
+
+/** True when a file exceeds the inline threshold and the provider has a large-file path. */
+export function shouldUseLargeFilePath(
+  file: Pick<UserFile, 'size'>,
+  providerId: ProviderId | string
+): boolean {
+  if (getProviderFileAttachment(providerId).strategy === 'inline') return false
+  return Number.isFinite(file.size) && file.size > INLINE_ATTACHMENT_THRESHOLD_BYTES
+}
+
 const PDF_MIME_TYPE = 'application/pdf'
 
 const DOCUMENT_MIME_TYPES = new Set(
@@ -129,8 +164,13 @@ export function supportsFileAttachments(providerId: ProviderId | string): boolea
   return Boolean(provider && !UNSUPPORTED_FILE_PROVIDERS.has(provider))
 }
 
-export function getProviderAttachmentMaxBytes(_providerId: ProviderId | string): number {
-  return AGENT_ATTACHMENT_MAX_BYTES
+/**
+ * Real maximum attachment size for a provider — its native ceiling when it has a large-file
+ * path, else the inline base64 threshold. Used for UI limits and validation, never as the
+ * base64 hydration cap (which stays at {@link INLINE_ATTACHMENT_THRESHOLD_BYTES}).
+ */
+export function getProviderAttachmentMaxBytes(providerId: ProviderId | string): number {
+  return getProviderFileAttachment(providerId).maxBytes
 }
 
 export function inferAttachmentMimeType(file: UserFile): string {
@@ -315,20 +355,27 @@ export function prepareProviderAttachments(
       )
     }
 
-    if (Number.isFinite(file.size) && file.size > AGENT_ATTACHMENT_MAX_BYTES) {
+    const maxBytes = getProviderAttachmentMaxBytes(providerId)
+    if (Number.isFinite(file.size) && file.size > maxBytes) {
       const sizeMB = (file.size / (1024 * 1024)).toFixed(2)
-      const maxMB = (AGENT_ATTACHMENT_MAX_BYTES / (1024 * 1024)).toFixed(0)
+      const maxMB = (maxBytes / (1024 * 1024)).toFixed(0)
       throw new Error(
         `File "${file.name}" (${sizeMB}MB) exceeds the ${maxMB}MB agent attachment limit for provider "${providerId}"`
       )
     }
 
-    if (!file.base64) {
+    const providerFileId = file.providerFileId
+    const providerFileUri = file.providerFileUri
+    const remoteUrl = file.remoteUrl
+    const hasHandle = Boolean(providerFileId || providerFileUri || remoteUrl)
+
+    if (!file.base64 && !hasHandle) {
       throw new Error(`File "${file.name}" could not be read for provider "${providerId}"`)
     }
 
-    const sniffedImageMimeType = contentType === 'image' ? sniffImageMimeType(file.base64) : ''
-    if (contentType === 'image' && !sniffedImageMimeType) {
+    const sniffedImageMimeType =
+      contentType === 'image' && file.base64 ? sniffImageMimeType(file.base64) : ''
+    if (contentType === 'image' && file.base64 && !sniffedImageMimeType) {
       throw new Error(
         `Image bytes in "${file.name}" are not a supported model image format (declared MIME type "${declaredMimeType}"). Supported image formats: image/jpeg, image/png, image/gif, image/webp.`
       )
@@ -351,10 +398,14 @@ export function prepareProviderAttachments(
     return {
       ...attachment,
       providerMimeType,
-      dataUrl: toDataUrl(providerMimeType, file.base64),
-      ...(isTextDocumentMimeType(mimeType) && {
-        text: decodeBase64Text(file.base64, file.name),
-      }),
+      providerFileId,
+      providerFileUri,
+      remoteUrl,
+      ...(file.base64 && { dataUrl: toDataUrl(providerMimeType, file.base64) }),
+      ...(file.base64 &&
+        isTextDocumentMimeType(mimeType) && {
+          text: decodeBase64Text(file.base64, file.name),
+        }),
     }
   })
 }
@@ -378,17 +429,32 @@ export function buildOpenAIMessageContent(
 
   for (const attachment of attachments) {
     if (attachment.contentType === 'image') {
-      parts.push({
-        type: 'input_image',
-        image_url: attachment.dataUrl,
-        detail: 'auto',
-      } satisfies OpenAI.Responses.ResponseInputImage)
+      parts.push(
+        attachment.providerFileId
+          ? ({
+              type: 'input_image',
+              file_id: attachment.providerFileId,
+              detail: 'auto',
+            } satisfies OpenAI.Responses.ResponseInputImage)
+          : ({
+              type: 'input_image',
+              image_url: attachment.dataUrl,
+              detail: 'auto',
+            } satisfies OpenAI.Responses.ResponseInputImage)
+      )
     } else {
-      parts.push({
-        type: 'input_file',
-        filename: attachment.filename,
-        file_data: attachment.dataUrl,
-      } satisfies OpenAI.Responses.ResponseInputFile)
+      parts.push(
+        attachment.providerFileId
+          ? ({
+              type: 'input_file',
+              file_id: attachment.providerFileId,
+            } satisfies OpenAI.Responses.ResponseInputFile)
+          : ({
+              type: 'input_file',
+              filename: attachment.filename,
+              file_data: attachment.dataUrl,
+            } satisfies OpenAI.Responses.ResponseInputFile)
+      )
     }
   }
 
@@ -409,12 +475,25 @@ export function buildAnthropicMessageContent(
     if (attachment.contentType === 'image') {
       parts.push({
         type: 'image',
-        source: {
-          type: 'base64',
-          media_type: attachment.providerMimeType as AnthropicImageMediaType,
-          data: attachment.base64,
-        },
+        source: attachment.remoteUrl
+          ? ({ type: 'url', url: attachment.remoteUrl } satisfies Anthropic.Messages.URLImageSource)
+          : ({
+              type: 'base64',
+              media_type: attachment.providerMimeType as AnthropicImageMediaType,
+              data: attachment.base64 ?? '',
+            } satisfies Anthropic.Messages.Base64ImageSource),
       } satisfies Anthropic.Messages.ImageBlockParam)
+    } else if (attachment.remoteUrl) {
+      if (attachment.mimeType !== PDF_MIME_TYPE) {
+        throw new Error(
+          `Document "${attachment.filename}" (${attachment.mimeType}) is too large to send to provider "${providerId}". Only PDFs and images are supported above the inline limit — convert it to PDF or reduce its size.`
+        )
+      }
+      parts.push({
+        type: 'document',
+        source: { type: 'url', url: attachment.remoteUrl },
+        title: attachment.filename,
+      } satisfies Anthropic.Messages.DocumentBlockParam)
     } else if (attachment.text) {
       parts.push({
         type: 'document',
@@ -431,7 +510,7 @@ export function buildAnthropicMessageContent(
         source: {
           type: 'base64',
           media_type: 'application/pdf',
-          data: attachment.base64,
+          data: attachment.base64 ?? '',
         },
         title: attachment.filename,
       } satisfies Anthropic.Messages.DocumentBlockParam)
@@ -452,12 +531,21 @@ export function buildGeminiMessageParts(
   }
 
   for (const attachment of prepareProviderAttachments(files, providerId)) {
-    parts.push({
-      inlineData: {
-        mimeType: attachment.providerMimeType,
-        data: attachment.base64,
-      },
-    } satisfies Part)
+    parts.push(
+      attachment.providerFileUri
+        ? ({
+            fileData: {
+              fileUri: attachment.providerFileUri,
+              mimeType: attachment.providerMimeType,
+            },
+          } satisfies Part)
+        : ({
+            inlineData: {
+              mimeType: attachment.providerMimeType,
+              data: attachment.base64 ?? '',
+            },
+          } satisfies Part)
+    )
   }
 
   return parts
@@ -483,7 +571,7 @@ export function buildOpenAICompatibleChatContent(
     parts.push({
       type: 'image_url',
       image_url: {
-        url: attachment.dataUrl,
+        url: attachment.remoteUrl ?? attachment.dataUrl ?? '',
       },
     } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartImage)
   }
@@ -511,14 +599,14 @@ export function buildOpenRouterMessageContent(
     if (attachment.contentType === 'image') {
       parts.push({
         type: 'image_url',
-        image_url: { url: attachment.dataUrl },
+        image_url: { url: attachment.remoteUrl ?? attachment.dataUrl ?? '' },
       } satisfies OpenAI.Chat.Completions.ChatCompletionContentPartImage)
     } else {
       parts.push({
         type: 'file',
         file: {
           filename: attachment.filename,
-          file_data: attachment.dataUrl,
+          file_data: attachment.remoteUrl ?? attachment.dataUrl ?? '',
         },
       } satisfies OpenAI.Chat.Completions.ChatCompletionContentPart.File)
     }
@@ -554,7 +642,7 @@ export function buildBedrockMessageContent(
   }
 
   for (const attachment of prepareProviderAttachments(files, providerId)) {
-    const bytes = Buffer.from(attachment.base64, 'base64')
+    const bytes = Buffer.from(attachment.base64 ?? '', 'base64')
     if (attachment.contentType === 'image') {
       parts.push({
         image: {

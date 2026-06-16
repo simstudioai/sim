@@ -70,7 +70,6 @@ export const deleteTool: ToolConfig<GoogleCalendarDeleteParams, GoogleCalendarDe
   },
 
   transformResponse: async (response: Response, params) => {
-    // DELETE returns 204 No Content on success
     if (response.status === 204 || response.ok) {
       return {
         success: true,

@@ -6,7 +6,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
 import { eq } from 'drizzle-orm'
 import type { AuthenticatedSocket } from '@/middleware/auth'
-import { checkRolePermission } from '@/middleware/permissions'
+import { checkWorkflowOperationPermission } from '@/middleware/permissions'
 import type { IRoomManager } from '@/rooms'
 
 const logger = createLogger('VariablesHandlers')
@@ -124,7 +124,12 @@ export function setupVariablesHandlers(socket: AuthenticatedSocket, roomManager:
         return
       }
 
-      const permissionCheck = checkRolePermission(userPresence.role, VARIABLE_OPERATIONS.UPDATE)
+      const permissionCheck = await checkWorkflowOperationPermission(
+        session.userId,
+        workflowId,
+        VARIABLE_OPERATIONS.UPDATE,
+        userPresence.role
+      )
       if (!permissionCheck.allowed) {
         socket.emit('operation-forbidden', {
           type: 'INSUFFICIENT_PERMISSIONS',

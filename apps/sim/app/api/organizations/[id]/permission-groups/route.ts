@@ -1,6 +1,11 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
+import {
+  permissionGroup,
+  permissionGroupMember,
+  permissionGroupWorkspace,
+  user,
+} from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -16,7 +21,11 @@ import {
   type PermissionGroupConfig,
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
-import { authorizeOrgAccessControl } from '@/app/api/organizations/[id]/permission-groups/utils'
+import {
+  authorizeOrgAccessControl,
+  findWorkspacesNotInOrganization,
+  getWorkspacesForGroups,
+} from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroups')
 
@@ -42,6 +51,7 @@ export const GET = withRouteHandler(
         createdAt: permissionGroup.createdAt,
         updatedAt: permissionGroup.updatedAt,
         isDefault: permissionGroup.isDefault,
+        appliesToAllWorkspaces: permissionGroup.appliesToAllWorkspaces,
         creatorName: user.name,
         creatorEmail: user.email,
       })
@@ -62,11 +72,13 @@ export const GET = withRouteHandler(
           .groupBy(permissionGroupMember.permissionGroupId)
       : []
     const countByGroupId = new Map(memberCounts.map((row) => [row.permissionGroupId, row.count]))
+    const workspacesByGroupId = await getWorkspacesForGroups(groupIds)
 
     const groupsWithCounts = groups.map((group) => ({
       ...group,
       config: parsePermissionGroupConfig(group.config),
       memberCount: countByGroupId.get(group.id) ?? 0,
+      workspaces: workspacesByGroupId.get(group.id) ?? [],
     }))
 
     return NextResponse.json({ permissionGroups: groupsWithCounts })
@@ -92,6 +104,28 @@ export const POST = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
       const { name, description, config, isDefault } = parsed.data.body
+
+      // Resolve scope the same way the update route does: the default group is
+      // always organization-wide; otherwise an explicit `appliesToAllWorkspaces`
+      // wins, and supplying `workspaceIds` alone implies a specific scope (so
+      // those ids are never silently dropped).
+      const requestedWorkspaceIds = parsed.data.body.workspaceIds ?? []
+      const appliesToAllWorkspaces = isDefault
+        ? true
+        : parsed.data.body.appliesToAllWorkspaces !== undefined
+          ? parsed.data.body.appliesToAllWorkspaces
+          : requestedWorkspaceIds.length === 0
+      const workspaceIds = appliesToAllWorkspaces ? [] : Array.from(new Set(requestedWorkspaceIds))
+
+      if (!appliesToAllWorkspaces) {
+        const invalid = await findWorkspacesNotInOrganization(workspaceIds, organizationId)
+        if (invalid.length > 0) {
+          return NextResponse.json(
+            { error: 'One or more selected workspaces do not belong to this organization' },
+            { status: 400 }
+          )
+        }
+      }
 
       const existingGroup = await db
         .select({ id: permissionGroup.id })
@@ -124,6 +158,7 @@ export const POST = withRouteHandler(
         createdAt: now,
         updatedAt: now,
         isDefault: isDefault || false,
+        appliesToAllWorkspaces,
       }
 
       await db.transaction(async (tx) => {
@@ -139,12 +174,25 @@ export const POST = withRouteHandler(
             )
         }
         await tx.insert(permissionGroup).values(newGroup)
+        if (workspaceIds.length > 0) {
+          await tx.insert(permissionGroupWorkspace).values(
+            workspaceIds.map((workspaceId) => ({
+              id: generateId(),
+              permissionGroupId: newGroup.id,
+              workspaceId,
+              organizationId,
+              createdAt: now,
+            }))
+          )
+        }
       })
 
       logger.info('Created permission group', {
         permissionGroupId: newGroup.id,
         organizationId,
         userId: session.user.id,
+        appliesToAllWorkspaces,
+        workspaceCount: workspaceIds.length,
       })
 
       recordAudit({
@@ -156,11 +204,16 @@ export const POST = withRouteHandler(
         actorEmail: session.user.email ?? undefined,
         resourceName: name,
         description: `Created permission group "${name}"`,
-        metadata: { organizationId, isDefault: isDefault || false },
+        metadata: {
+          organizationId,
+          isDefault: isDefault || false,
+          appliesToAllWorkspaces,
+          workspaceCount: workspaceIds.length,
+        },
         request: req,
       })
 
-      return NextResponse.json({ permissionGroup: newGroup }, { status: 201 })
+      return NextResponse.json({ permissionGroup: { ...newGroup, workspaceIds } }, { status: 201 })
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
         const constraint = getPostgresConstraintName(error)
