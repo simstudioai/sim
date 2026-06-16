@@ -37,12 +37,12 @@ Critically, **none of this is expressible in code** — gating (especially `admi
    const FEATURE_FLAGS = {
      '<flag-name>': {
        description: '<what this gates>',
-       fallback: () => env.<FLAG_SECRET>,
+       fallback: '<FLAG_SECRET>',
      },
    }
    ```
 
-   Add `<FLAG_SECRET>` to `apps/sim/lib/core/config/env.ts` (and the deployment's secret store). Do **not** add org/user/admin defaults here — that gating exists only in AppConfig. Adding the entry makes `<flag-name>` a valid `FeatureFlagName`.
+   `fallback` is the env/secret key (typed as `keyof typeof env`), so add `<FLAG_SECRET>` to `apps/sim/lib/core/config/env.ts` first (and the deployment's secret store) — it won't typecheck otherwise. Do **not** add org/user/admin defaults here — that gating exists only in AppConfig. Adding the entry makes `<flag-name>` a valid `FeatureFlagName`.
 
 2. **Gate the call site.** Call `isFeatureEnabled` with whatever ids you have — admin status is resolved internally, so callers never pass it:
 

@@ -58,14 +58,15 @@ export interface FeatureFlagContext {
  */
 interface FeatureFlagDefinition {
   description: string
-  fallback: () => string | boolean | number | undefined
+  /** Env/secret key consulted when AppConfig isn't the source of truth. Truthy ⇒ on. */
+  fallback: keyof typeof env
 }
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
   // 'new-canvas': {
   //   description: 'New canvas renderer',
-  //   fallback: () => env.NEW_CANVAS_ENABLED,
+  //   fallback: 'NEW_CANVAS_ENABLED',
   // },
 } satisfies Record<string, FeatureFlagDefinition>
 
@@ -81,7 +82,7 @@ function fallbackFlags(): FeatureFlagsConfig {
   for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
     [string, FeatureFlagDefinition]
   >) {
-    flags[name] = { enabled: isTruthy(def.fallback()) }
+    flags[name] = { enabled: isTruthy(env[def.fallback]) }
   }
   return { flags }
 }
