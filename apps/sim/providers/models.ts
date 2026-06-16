@@ -195,7 +195,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   vllm: {
     id: 'vllm',
-    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'remote-url' },
+    fileAttachment: { maxBytes: 25 * 1024 * 1024, strategy: 'remote-url' },
     name: 'vLLM',
     icon: VllmIcon,
     description: 'Self-hosted vLLM with an OpenAI-compatible API',
@@ -1319,7 +1319,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
   },
   google: {
     id: 'google',
-    fileAttachment: { maxBytes: 100 * 1024 * 1024, strategy: 'files-api' },
+    fileAttachment: { maxBytes: 50 * 1024 * 1024, strategy: 'files-api' },
     name: 'Google',
     description: "Google's Gemini models",
     defaultModel: 'gemini-2.5-pro',
