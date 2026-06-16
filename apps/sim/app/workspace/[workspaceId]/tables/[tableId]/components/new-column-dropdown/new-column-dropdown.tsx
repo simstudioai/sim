@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
   Plus,
 } from '@/components/emcn'
-import { isWorkflowColumnsEnabledClient } from '@/lib/core/config/feature-flags'
+import { isWorkflowColumnsEnabledClient } from '@/lib/core/config/env-flags'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 

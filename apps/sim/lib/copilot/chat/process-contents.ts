@@ -16,7 +16,7 @@ import {
   encodeVfsPathSegments,
   encodeVfsSegment,
 } from '@/lib/copilot/vfs/path-utils'
-import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/feature-flags'
+import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { getTableById } from '@/lib/table/service'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'

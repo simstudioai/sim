@@ -5,7 +5,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getE2BDocFormat } from './doc-compile'
 import { consumeLatestFileIntent } from './file-intent-store'

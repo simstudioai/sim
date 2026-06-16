@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/env-flags'
 import { executeInE2B, executeShellInE2B, type SandboxFile } from '@/lib/execution/e2b'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {

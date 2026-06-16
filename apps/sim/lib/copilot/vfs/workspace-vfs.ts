@@ -89,7 +89,7 @@ import {
   workspacePlanBackingPath,
   workspacePlansBackingFolderPath,
 } from '@/lib/copilot/vfs/workflow-aliases'
-import { isE2BDocEnabled, isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isMothershipBetaFeaturesEnabled } from '@/lib/core/config/env-flags'
 import {
   getAccessibleEnvCredentials,
   getAccessibleOAuthCredentials,

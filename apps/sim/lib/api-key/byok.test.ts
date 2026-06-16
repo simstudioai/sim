@@ -35,7 +35,7 @@ vi.mock('@/lib/core/config/env', () => ({
   env: {},
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isHosted: false,
 }))
 

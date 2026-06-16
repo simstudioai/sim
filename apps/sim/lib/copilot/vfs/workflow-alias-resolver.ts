@@ -8,7 +8,7 @@ import {
   resolveWorkspacePlanAliasPath,
   type WorkflowAliasTarget,
 } from '@/lib/copilot/vfs/workflow-aliases'
-import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/feature-flags'
+import { isMothershipBetaFeaturesEnabled } from '@/lib/core/config/env-flags'
 import { canonicalizeVfsPath } from './path-utils'
 
 export async function resolveWorkflowAliasForWorkspace(args: {

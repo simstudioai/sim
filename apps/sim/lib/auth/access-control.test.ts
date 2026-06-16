@@ -28,7 +28,7 @@ vi.mock('@/lib/core/config/env', () => ({
   },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isAppConfigEnabled() {
     return flagRef.isAppConfigEnabled
   },

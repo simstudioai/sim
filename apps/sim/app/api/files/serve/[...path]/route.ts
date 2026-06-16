@@ -10,7 +10,7 @@ import {
   getE2BDocFormat,
   loadCompiledDocByExt,
 } from '@/lib/copilot/tools/server/files/doc-compile'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'

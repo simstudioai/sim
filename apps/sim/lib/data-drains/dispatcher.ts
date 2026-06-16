@@ -5,7 +5,7 @@ import { toError } from '@sim/utils/errors'
 import { and, eq, isNull, lt, or } from 'drizzle-orm'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getJobQueue } from '@/lib/core/async-jobs'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('DataDrainsDispatcher')
 

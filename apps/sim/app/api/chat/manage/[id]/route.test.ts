@@ -33,7 +33,7 @@ const mockNotifySocketDeploymentChanged =
   workflowsOrchestrationMockFns.mockNotifySocketDeploymentChanged
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isDev: true,
   isHosted: false,
   isProd: false,
