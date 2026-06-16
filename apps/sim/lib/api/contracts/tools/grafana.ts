@@ -84,6 +84,38 @@ export const grafanaUpdateAlertRuleResponseSchema = z.object({
   error: z.string().optional(),
 })
 
+const grafanaUpdateFolderBodySchema = z.object({
+  apiKey: z.string().min(1, 'Grafana Service Account Token is required'),
+  baseUrl: z.string().min(1, 'Grafana instance URL is required'),
+  organizationId: z.string().optional(),
+  folderUid: z.string().min(1, 'Folder UID is required'),
+  title: z.string().min(1, 'Folder title is required'),
+})
+
+const grafanaUpdateFolderOutputSchema = z.object({
+  id: z.number().nullable(),
+  uid: z.string().nullable(),
+  title: z.string().nullable(),
+  url: z.string().nullable(),
+  parentUid: z.string().nullable(),
+  parents: z.array(z.object({ uid: z.string(), title: z.string(), url: z.string() })),
+  hasAcl: z.boolean().nullable(),
+  canSave: z.boolean().nullable(),
+  canEdit: z.boolean().nullable(),
+  canAdmin: z.boolean().nullable(),
+  createdBy: z.string().nullable(),
+  created: z.string().nullable(),
+  updatedBy: z.string().nullable(),
+  updated: z.string().nullable(),
+  version: z.number().nullable(),
+})
+
+export const grafanaUpdateFolderResponseSchema = z.object({
+  success: z.boolean(),
+  output: z.union([grafanaUpdateFolderOutputSchema, z.object({})]),
+  error: z.string().optional(),
+})
+
 export const grafanaUpdateDashboardContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/grafana/update_dashboard',
@@ -98,11 +130,20 @@ export const grafanaUpdateAlertRuleContract = defineRouteContract({
   response: { mode: 'json', schema: grafanaUpdateAlertRuleResponseSchema },
 })
 
+export const grafanaUpdateFolderContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/grafana/update_folder',
+  body: grafanaUpdateFolderBodySchema,
+  response: { mode: 'json', schema: grafanaUpdateFolderResponseSchema },
+})
+
 export {
   grafanaUpdateDashboardBodySchema,
   grafanaUpdateDashboardOutputSchema,
   grafanaUpdateAlertRuleBodySchema,
   grafanaUpdateAlertRuleOutputSchema,
+  grafanaUpdateFolderBodySchema,
+  grafanaUpdateFolderOutputSchema,
 }
 
 export type GrafanaUpdateDashboardBody = ContractBody<typeof grafanaUpdateDashboardContract>
@@ -113,3 +154,5 @@ export type GrafanaUpdateAlertRuleBody = ContractBody<typeof grafanaUpdateAlertR
 export type GrafanaUpdateAlertRuleResponse = ContractJsonResponse<
   typeof grafanaUpdateAlertRuleContract
 >
+export type GrafanaUpdateFolderBody = ContractBody<typeof grafanaUpdateFolderContract>
+export type GrafanaUpdateFolderResponse = ContractJsonResponse<typeof grafanaUpdateFolderContract>

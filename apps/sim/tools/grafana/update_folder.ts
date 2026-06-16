@@ -1,7 +1,3 @@
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateFolderParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -45,90 +41,23 @@ export const updateFolderTool: ToolConfig<GrafanaUpdateFolderParams, ToolRespons
   },
 
   request: {
-    url: (params) => `${params.baseUrl.replace(/\/$/, '')}/api/folders/${params.folderUid.trim()}`,
-    method: 'GET',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-      if (params.organizationId) {
-        headers['X-Grafana-Org-Id'] = params.organizationId
-      }
-      return headers
-    },
+    url: () => '/api/tools/grafana/update_folder',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      apiKey: params.apiKey,
+      baseUrl: params.baseUrl,
+      organizationId: params.organizationId,
+      folderUid: params.folderUid,
+      title: params.title,
+    }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
     return {
       success: true,
-      output: { _existingFolder: data },
-    }
-  },
-
-  postProcess: async (result, params) => {
-    const existingFolder = result.output._existingFolder
-
-    if (!existingFolder || !existingFolder.uid) {
-      return { success: false, output: {}, error: 'Failed to fetch existing folder' }
-    }
-
-    const body: Record<string, unknown> = {
-      title: params.title ?? existingFolder.title,
-      version: existingFolder.version,
-      overwrite: true,
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }
-    if (params.organizationId) {
-      headers['X-Grafana-Org-Id'] = params.organizationId
-    }
-
-    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/folders/${params.folderUid.trim()}`
-    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
-    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-      return {
-        success: false,
-        output: {},
-        error: `Invalid Grafana baseUrl: ${urlValidation.error}`,
-      }
-    }
-
-    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
-      method: 'PUT',
-      headers,
-      body: JSON.stringify(body),
-    })
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      return { success: false, output: {}, error: `Failed to update folder: ${errorText}` }
-    }
-
-    const data = (await updateResponse.json()) as Record<string, unknown>
-    return {
-      success: true,
-      output: {
-        id: (data.id as number) ?? null,
-        uid: (data.uid as string) ?? null,
-        title: (data.title as string) ?? null,
-        url: (data.url as string) ?? null,
-        parentUid: (data.parentUid as string) ?? null,
-        parents: (data.parents as { uid: string; title: string; url: string }[]) ?? [],
-        hasAcl: (data.hasAcl as boolean) ?? null,
-        canSave: (data.canSave as boolean) ?? null,
-        canEdit: (data.canEdit as boolean) ?? null,
-        canAdmin: (data.canAdmin as boolean) ?? null,
-        createdBy: (data.createdBy as string) ?? null,
-        created: (data.created as string) ?? null,
-        updatedBy: (data.updatedBy as string) ?? null,
-        updated: (data.updated as string) ?? null,
-        version: (data.version as number) ?? null,
-      },
+      output: data.output,
     }
   },
 
