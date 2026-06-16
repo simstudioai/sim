@@ -56,8 +56,9 @@ export const updateFolderTool: ToolConfig<GrafanaUpdateFolderParams, ToolRespons
   transformResponse: async (response: Response) => {
     const data = await response.json()
     return {
-      success: true,
-      output: data.output,
+      success: data.success ?? true,
+      output: data.output ?? {},
+      ...(data.error ? { error: data.error } : {}),
     }
   },
 
