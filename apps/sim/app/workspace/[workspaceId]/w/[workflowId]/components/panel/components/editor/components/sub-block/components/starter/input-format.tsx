@@ -1,5 +1,4 @@
 import { useCallback, useRef } from 'react'
-import { generateId } from '@sim/utils/id'
 import { Plus } from 'lucide-react'
 import { Trash } from '@/components/emcn/icons/trash'
 import 'prismjs/components/prism-json'
@@ -21,6 +20,7 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { handleKeyboardActivation } from '@/lib/core/utils/keyboard'
+import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -77,14 +77,7 @@ const BOOLEAN_OPTIONS: ComboboxOption[] = [
 /**
  * Creates a new field with default values
  */
-const createDefaultField = (): Field => ({
-  id: generateId(),
-  name: '',
-  type: 'string',
-  value: '',
-  description: '',
-  collapsed: false,
-})
+const createDefaultField = (): Field => createDefaultInputFormatField()
 
 /**
  * Validates and sanitizes field names by removing control characters and quotes
