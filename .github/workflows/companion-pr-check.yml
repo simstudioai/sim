@@ -102,8 +102,43 @@ jobs:
               }
             }
 
-            async function checkPR(pr) {
+            // staging PRs are a single feature → just this PR's body ("the one").
+            // main (prod) release PRs bundle MANY feature PRs → aggregate the
+            // companions declared on each squashed feature PR too, so "does any
+            // commit in this release have a companion?" is answered.
+            async function collectCompanions(pr) {
               const companions = parseCompanions(pr.body);
+              const seen = new Set(companions.map((c) => c.ref));
+              if (pr.base.ref === 'main') {
+                let commits = [];
+                try {
+                  commits = await github.paginate(github.rest.pulls.listCommits, {
+                    owner, repo, pull_number: pr.number, per_page: 100,
+                  });
+                } catch {}
+                const featurePRs = new Set();
+                const SQUASH = /\(#(\d+)\)/g; // squash-merge refs like "...(#306)"
+                for (const c of commits) {
+                  const msg = (c.commit && c.commit.message) || '';
+                  let m;
+                  SQUASH.lastIndex = 0;
+                  while ((m = SQUASH.exec(msg)) !== null) featurePRs.add(Number(m[1]));
+                }
+                for (const n of featurePRs) {
+                  if (n === pr.number) continue;
+                  try {
+                    const { data: fpr } = await github.rest.pulls.get({ owner, repo, pull_number: n });
+                    for (const c of parseCompanions(fpr.body)) {
+                      if (!seen.has(c.ref)) { seen.add(c.ref); companions.push(c); }
+                    }
+                  } catch {}
+                }
+              }
+              return companions;
+            }
+
+            async function checkPR(pr) {
+              const companions = await collectCompanions(pr);
               if (companions.length === 0) { await clear(pr.number); return; }
               await ensureLabel();
               try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['has-companion'] }); } catch {}
@@ -134,9 +169,10 @@ jobs:
                 }
               }
               const heading = warn ? '## ⚠️ Cross-repo companion check' : '## ✅ Cross-repo companion check';
+              const scope = base === 'main' ? ' (aggregated across the feature PRs in this release)' : '';
               const note = warn
-                ? `One or more companion PRs aren't merged into \`${base}\` yet. Merging this without them will leave copilot and sim out of sync — merge them in lockstep.`
-                : `All declared companion PRs are merged into \`${base}\`.`;
+                ? `One or more companion PRs aren't merged into \`${base}\` yet${scope}. Merging this without them will leave copilot and sim out of sync — merge them in lockstep.`
+                : `All declared companion PRs are merged into \`${base}\`${scope}.`;
               await upsert(pr.number, `${STICKY}\n${heading}\n\n${note}\n\n${lines.join('\n')}`);
             }
 
