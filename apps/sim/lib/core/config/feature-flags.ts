@@ -71,10 +71,6 @@ const FEATURE_FLAGS = {
       'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler',
     fallback: 'MOTHERSHIP_BETA_FEATURES',
   },
-  'workflow-columns': {
-    description: 'Workflow column type and enrichments in the table new-column dropdown',
-    fallback: 'NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED',
-  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**

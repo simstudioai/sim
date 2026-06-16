@@ -27,7 +27,6 @@ interface NewColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
-  workflowColumnsEnabled: boolean
 }
 
 /**
@@ -41,12 +40,7 @@ export function NewColumnDropdown({
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
-  workflowColumnsEnabled,
 }: NewColumnDropdownProps) {
-  const visibleColumnTypeOptions = workflowColumnsEnabled
-    ? COLUMN_TYPE_OPTIONS
-    : COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')
-
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -68,16 +62,14 @@ export function NewColumnDropdown({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {workflowColumnsEnabled && (
-          <>
-            <DropdownMenuItem onSelect={onPickEnrichment}>
-              <Sparkles className='size-[14px] text-[var(--text-icon)]' />
-              Enrichments
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {visibleColumnTypeOptions.map((option) => {
+        <>
+          <DropdownMenuItem onSelect={onPickEnrichment}>
+            <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+            Enrichments
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+        {COLUMN_TYPE_OPTIONS.map((option) => {
           const Icon = option.icon
           const onSelect =
             option.type === 'workflow'
