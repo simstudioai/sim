@@ -456,10 +456,18 @@ export async function runStreamLoop(
           }
         }
 
-        if (handleSubagentRouting(streamEvent, context)) {
-          const handler = subAgentHandlers[streamEvent.type]
-          if (handler) {
-            await handler(streamEvent, context, execContext, options)
+        // Subagent-lane events are routed ONLY by their own scope. A valid one
+        // (has parentToolCallId) goes to the subagent handler; a malformed one
+        // (missing parentToolCallId — Go always stamps it, so this is defensive)
+        // is DROPPED rather than falling through to the main handler, which would
+        // merge foreign subagent text/tools into the durable main assistant
+        // message and mis-attribute it.
+        if (streamEvent.scope?.lane === 'subagent') {
+          if (handleSubagentRouting(streamEvent, context)) {
+            const handler = subAgentHandlers[streamEvent.type]
+            if (handler) {
+              await handler(streamEvent, context, execContext, options)
+            }
           }
           return context.streamComplete || undefined
         }

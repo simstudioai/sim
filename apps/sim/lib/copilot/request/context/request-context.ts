@@ -18,7 +18,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     toolCalls: new Map(),
     pendingToolPromises: new Map(),
     currentThinkingBlock: null,
-    currentSubagentThinkingBlock: null,
+    subagentThinkingBlocks: new Map(),
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
     subAgentParentStack: [],
@@ -28,7 +28,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     streamComplete: false,
     wasAborted: false,
     errors: [],
-    activeFileIntent: null,
+    activeFileIntents: new Map(),
     trace: new TraceCollector(),
     ...overrides,
   }

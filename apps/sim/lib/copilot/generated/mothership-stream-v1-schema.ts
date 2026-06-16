@@ -50,6 +50,9 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
     MothershipStreamV1CheckpointPauseFrame: {
       additionalProperties: false,
       properties: {
+        checkpointId: {
+          type: 'string',
+        },
         parentToolCallId: {
           type: 'string',
         },

@@ -94,7 +94,7 @@ function createStreamingContext(): StreamingContext {
     toolCalls: new Map(),
     pendingToolPromises: new Map(),
     currentThinkingBlock: null,
-    currentSubagentThinkingBlock: null,
+    subagentThinkingBlocks: new Map(),
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
     subAgentParentStack: [],
@@ -104,7 +104,7 @@ function createStreamingContext(): StreamingContext {
     streamComplete: false,
     wasAborted: false,
     errors: [],
-    activeFileIntent: null,
+    activeFileIntents: new Map(),
     trace: new TraceCollector(),
   }
 }

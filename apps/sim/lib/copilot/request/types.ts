@@ -28,6 +28,14 @@ export interface ToolCallState {
   error?: string
   startTime?: number
   endTime?: number
+  /**
+   * For a subagent-scoped tool call, the invoking subagent's channel id (its
+   * outer tool_use id, = event.scope.parentToolCallId). Captured at dispatch so
+   * the executor can thread it into the server tool context and scope the
+   * workspace_file -> edit_content intent handoff per file subagent. Undefined
+   * for main-lane tool calls.
+   */
+  parentToolCallId?: string
 }
 
 export type ToolCallResult<T = unknown> = ToolExecutionResult & {
@@ -67,6 +75,15 @@ export interface ContentBlock {
   parentSpanId?: string
 }
 
+export interface ActiveFileIntent {
+  toolCallId: string
+  operation: string
+  target: { kind: string; fileId?: string; fileName?: string; path?: string }
+  title?: string
+  contentType?: string
+  edit?: Record<string, unknown>
+}
+
 export interface StreamingContext {
   chatId?: string
   requestId?: string
@@ -88,11 +105,28 @@ export interface StreamingContext {
       parentToolCallId: string
       parentToolName: string
       pendingToolIds: string[]
+      // Per-subagent checkpoint model: this frame's OWN checkpoint chain. When
+      // set, the resume loop must POST /api/tools/resume with THIS id (not the
+      // top-level checkpointId) carrying only this frame's leaf results, and may
+      // drive the N frames concurrently. Empty under the bundled-frame model.
+      checkpointId?: string
     }>
   }
   currentThinkingBlock: ContentBlock | null
-  currentSubagentThinkingBlock: ContentBlock | null
+  /**
+   * Open subagent "thinking" blocks, keyed by parentToolCallId (one lane per
+   * concurrent subagent). Was a single slot, which collided when two subagents
+   * streamed thinking concurrently — interleaved chunks flushed each other's
+   * block. Per-lane keying keeps each subagent's reasoning intact.
+   */
+  subagentThinkingBlocks: Map<string, ContentBlock>
   isInThinkingBlock: boolean
+  /**
+   * @deprecated Legacy single "current subagent" pointer. Attribution is now
+   * scope-only (every subagent event carries its own parentToolCallId/spanId),
+   * so this is no longer read for routing. Retained as a write-only field for
+   * back-compat with the span-stack bookkeeping in go/stream.ts.
+   */
   subAgentParentToolCallId?: string
   subAgentParentStack: string[]
   subAgentContent: Record<string, string>
@@ -104,14 +138,14 @@ export interface StreamingContext {
   errors: string[]
   usage?: { prompt: number; completion: number }
   cost?: { input: number; output: number; total: number }
-  activeFileIntent?: {
-    toolCallId: string
-    operation: string
-    target: { kind: string; fileId?: string; fileName?: string; path?: string }
-    title?: string
-    contentType?: string
-    edit?: Record<string, unknown>
-  } | null
+  /**
+   * In-flight file-write intents keyed by the file subagent's channel id
+   * (event.scope.parentToolCallId). Was a single slot, which cross-attributed
+   * streamed content when two file subagents wrote concurrently; per-channel
+   * keying isolates each agent's preview. The empty-string key holds the
+   * main-lane / no-scope intent (file writes there are always sequential).
+   */
+  activeFileIntents: Map<string, ActiveFileIntent>
   trace: TraceCollector
   subAgentTraceSpans?: Map<string, RequestTraceV1Span>
 }

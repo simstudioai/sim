@@ -94,6 +94,56 @@ describe('parseBlocks span-identity tree', () => {
     expect(withContent[0].isDelegating).toBe(false)
   })
 
+  it('keeps two concurrently-open subagent lanes separate with interleaved text', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('research', 'A', 'main'),
+      subagentStart('research', 'B', 'main'),
+      { type: 'subagent_text', content: 'A1 ', spanId: 'A', subagent: 'research', timestamp: 2 },
+      { type: 'subagent_text', content: 'B1 ', spanId: 'B', subagent: 'research', timestamp: 2 },
+      { type: 'subagent_text', content: 'A2', spanId: 'A', subagent: 'research', timestamp: 3 },
+    ]
+
+    const segments = parseBlocks(blocks)
+    const groups = segments.filter((s) => s.type === 'agent_group')
+    expect(groups).toHaveLength(2)
+
+    const textOf = (g: (typeof groups)[number]): string => {
+      if (g.type !== 'agent_group') return ''
+      return g.items
+        .filter((i) => i.type === 'text')
+        .map((i) => (i.type === 'text' ? i.content : ''))
+        .join('')
+    }
+    // Group A (spanId A) created first, group B second. Interleaved chunks stay
+    // in their own lane and in order — no cross-contamination.
+    expect(textOf(groups[0])).toBe('A1 A2')
+    expect(textOf(groups[1])).toBe('B1 ')
+  })
+
+  it('renders a persisted subagent lane as closed when only endedAt is set (no subagent_end)', () => {
+    // The Sim backend stamps endedAt on the subagent block but does not emit a
+    // separate subagent_end block; a reloaded transcript must still show the
+    // lane closed (no stuck delegating spinner).
+    const blocks: ContentBlock[] = [
+      {
+        type: 'subagent',
+        content: 'research',
+        spanId: 'S1',
+        parentSpanId: 'main',
+        timestamp: 1,
+        endedAt: 5,
+      },
+      { type: 'subagent_text', content: 'done', spanId: 'S1', subagent: 'research', timestamp: 2 },
+    ]
+
+    const segments = parseBlocks(blocks)
+    const group = segments.find((s) => s.type === 'agent_group')
+    expect(group).toBeDefined()
+    if (!group || group.type !== 'agent_group') throw new Error('expected research group')
+    expect(group.isOpen).toBe(false)
+    expect(group.isDelegating).toBe(false)
+  })
+
   it('prunes an empty nested subagent that started and ended without output', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),

@@ -23,6 +23,7 @@ function makeContext(): StreamingContext {
     pendingToolPromises: new Map(),
     awaitingAsyncContinuation: undefined,
     currentThinkingBlock: null,
+    subagentThinkingBlocks: new Map(),
     isInThinkingBlock: false,
     subAgentParentToolCallId: undefined,
     subAgentParentStack: [],

@@ -223,7 +223,23 @@ describe('createStreamLoopContext', () => {
       expect(Number.isFinite(ms)).toBe(true)
     })
 
-    it('resolveScopedSubagent prefers agentId, then spanId, then parentToolCallId, then active', () => {
+    it('stampBlockEnd never closes a subagent header (prevents concurrent-lane flicker)', () => {
+      const ctx = createStreamLoopContext(makeStreamLoopDeps())
+
+      // A subagent header must stay open when a generic block boundary fires
+      // (e.g. the next sibling subagent starts, or this lane's first content
+      // arrives). endedAt is set only by the real span-end handler.
+      const header: ContentBlock = { type: 'subagent', content: 'research', spanId: 's1' }
+      ctx.ops.stampBlockEnd(header)
+      expect(header.endedAt).toBeUndefined()
+
+      // Other block types still get their endedAt stamped as before.
+      const text: ContentBlock = { type: 'text', content: 'hi' }
+      ctx.ops.stampBlockEnd(text)
+      expect(text.endedAt).toBeTypeOf('number')
+    })
+
+    it('resolveScopedSubagent prefers agentId, then spanId, then parentToolCallId (scope-only, no active fallback)', () => {
       const ctx = createStreamLoopContext(makeStreamLoopDeps())
       ctx.state.subagentBySpanId.set('s1', 'spanAgent')
       ctx.state.subagentByParentToolCallId.set('p1', 'parentAgent')
@@ -231,7 +247,28 @@ describe('createStreamLoopContext', () => {
       expect(ctx.ops.resolveScopedSubagent('explicit', 'p1', 's1')).toBe('explicit')
       expect(ctx.ops.resolveScopedSubagent(undefined, 'p1', 's1')).toBe('spanAgent')
       expect(ctx.ops.resolveScopedSubagent(undefined, 'p1', undefined)).toBe('parentAgent')
-      expect(ctx.ops.resolveScopedSubagent(undefined, undefined, undefined)).toBe('activeAgent')
+      // No scope match → undefined (the legacy activeSubagent fallback was
+      // removed so a concurrent sibling can never be mis-attributed).
+      expect(ctx.ops.resolveScopedSubagent(undefined, undefined, undefined)).toBeUndefined()
+    })
+
+    it('rebuilds every open subagent lane on reconnect, skipping closed ones', () => {
+      const blocks: ContentBlock[] = [
+        { type: 'subagent', content: 'research', spanId: 'span-a', parentToolCallId: 'tc-a' },
+        { type: 'subagent', content: 'deploy', spanId: 'span-b', parentToolCallId: 'tc-b' },
+        // span-b closed via marker; span-a stays open.
+        { type: 'subagent_end', spanId: 'span-b', parentToolCallId: 'tc-b' },
+      ]
+      const ctx = createStreamLoopContext(
+        makeStreamLoopDeps({
+          options: { preserveExistingState: true },
+          streamingBlocksRef: ref<ContentBlock[]>(blocks),
+        })
+      )
+      expect(ctx.state.subagentBySpanId.get('span-a')).toBe('research')
+      expect(ctx.state.subagentBySpanId.has('span-b')).toBe(false)
+      expect(ctx.state.subagentByParentToolCallId.get('tc-a')).toBe('research')
+      expect(ctx.state.subagentByParentToolCallId.has('tc-b')).toBe(false)
     })
 
     it('buildInlineErrorTag includes the message, code and provider', () => {

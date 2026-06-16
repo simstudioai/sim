@@ -428,6 +428,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord: existingFile,
             existingContent: currentBuffer.toString('utf-8'),
             contentType: normalized.contentType,
@@ -456,6 +457,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             contentType: normalized.contentType,
             title: normalized.title,
@@ -601,6 +603,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             userId: context.userId,
             chatId: context.chatId,
             messageId: context.messageId,
+            channelId: context.parentToolCallId,
             fileRecord,
             existingContent,
             edit: {

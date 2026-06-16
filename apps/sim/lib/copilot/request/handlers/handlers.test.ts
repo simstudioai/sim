@@ -91,6 +91,7 @@ describe('sse-handlers tool lifecycle', () => {
       toolCalls: new Map(),
       pendingToolPromises: new Map(),
       currentThinkingBlock: null,
+      subagentThinkingBlocks: new Map(),
       isInThinkingBlock: false,
       subAgentParentToolCallId: undefined,
       subAgentParentStack: [],
@@ -601,6 +602,65 @@ describe('sse-handlers tool lifecycle', () => {
     await sleep(0)
 
     expect(context.subAgentToolCalls['parent-1']?.[0]?.id).toBe('sub-tool-scope-1')
+  })
+
+  it('keeps two concurrent subagent lanes separate for text and thinking', async () => {
+    const send = (parent: string, channel: MothershipStreamV1TextChannel, text: string) =>
+      subAgentHandlers.text(
+        {
+          type: MothershipStreamV1EventType.text,
+          scope: {
+            lane: 'subagent',
+            parentToolCallId: parent,
+            spanId: `span-${parent}`,
+            agentId: 'research',
+          },
+          payload: { channel, text },
+        } satisfies StreamEvent,
+        context,
+        execContext,
+        { interactive: false, timeout: 1000 }
+      )
+
+    // Interleaved thinking across two concurrent lanes.
+    await send('A', MothershipStreamV1TextChannel.thinking, 'A-think-1 ')
+    await send('B', MothershipStreamV1TextChannel.thinking, 'B-think-1 ')
+    await send('A', MothershipStreamV1TextChannel.thinking, 'A-think-2')
+
+    // Each lane accumulates its own thinking block — no cross-contamination.
+    expect(context.subagentThinkingBlocks.get('A')?.content).toBe('A-think-1 A-think-2')
+    expect(context.subagentThinkingBlocks.get('B')?.content).toBe('B-think-1 ')
+
+    // Interleaved assistant text across the two lanes.
+    await send('A', MothershipStreamV1TextChannel.assistant, 'A-text')
+    await send('B', MothershipStreamV1TextChannel.assistant, 'B-text')
+
+    expect(context.subAgentContent.A).toBe('A-text')
+    expect(context.subAgentContent.B).toBe('B-text')
+
+    // Assistant text flushed each lane's thinking into contentBlocks, attributed
+    // to the correct parent (not whichever subagent streamed most recently).
+    const thinking = context.contentBlocks.filter((b) => b.type === 'subagent_thinking')
+    expect(thinking.find((b) => b.parentToolCallId === 'A')?.content).toBe('A-think-1 A-think-2')
+    expect(thinking.find((b) => b.parentToolCallId === 'B')?.content).toBe('B-think-1 ')
+  })
+
+  it('drops a subagent text event that is missing its parent tool call id', async () => {
+    const before = context.contentBlocks.length
+    await subAgentHandlers.text(
+      {
+        type: MothershipStreamV1EventType.text,
+        scope: { lane: 'subagent', agentId: 'research' },
+        payload: { channel: MothershipStreamV1TextChannel.assistant, text: 'orphan' },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    // No lane to attribute to — nothing is added rather than mis-attributed.
+    expect(context.contentBlocks.length).toBe(before)
+    expect(Object.keys(context.subAgentContent)).not.toContain('undefined')
   })
 
   it('skips duplicate tool_call after result', async () => {

@@ -315,6 +315,16 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
       const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId, i)
+      if (block.endedAt !== undefined) {
+        // Persisted backend path: the lane was stamped closed (endedAt) without
+        // a separate subagent_end block (the Sim backend stamps endedAt only;
+        // only the live browser path pushes subagent_end). Honor endedAt so a
+        // reloaded transcript shows the subagent closed instead of a stuck
+        // delegating spinner.
+        g.isOpen = false
+        g.isDelegating = false
+        continue
+      }
       // Show the working/delegating spinner from span open until the agent
       // emits its first content or tool (or ends). The legacy path derived this
       // from the dispatch tool_call, which the span path absorbs, so we set it

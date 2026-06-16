@@ -106,11 +106,12 @@ export function handleSpanEvent(
         deps.setActiveResourceId(lastFileResource.id)
       }
     }
-    if (
-      !parentToolCallId ||
-      parentToolCallId === state.activeSubagentParentToolCallId ||
-      name === state.activeSubagent
-    ) {
+    // Clear the legacy single pointer only when THIS ending lane is the active
+    // one (matched by parent tool call id, or an unscoped end). Never clear by
+    // agent name alone — a concurrent same-name subagent that is still open must
+    // not be torn down by a sibling's end. Per-lane state lives in the
+    // subagentBySpanId / subagentByParentToolCallId maps cleared above.
+    if (!parentToolCallId || parentToolCallId === state.activeSubagentParentToolCallId) {
       state.activeSubagent = undefined
       state.activeSubagentParentToolCallId = undefined
     }

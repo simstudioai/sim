@@ -218,20 +218,31 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
         if (tc.params) state.toolArgsMap.set(tc.id, tc.params)
       }
     }
+    // Rebuild ALL open subagent lanes (not just the most recent one) so that a
+    // reconnect mid-flight with multiple concurrent subagents rehydrates every
+    // lane. A lane is closed when its `subagent` start block has an endedAt OR a
+    // matching `subagent_end` marker exists (the live path stamps endedAt and
+    // pushes subagent_end; the persisted backend path stamps endedAt only).
+    const endedSpanIds = new Set<string>()
+    const endedParents = new Set<string>()
     for (const block of state.blocks) {
-      if (block.type === 'subagent' && block.spanId && block.content) {
-        state.subagentBySpanId.set(block.spanId, block.content)
+      if (block.type === 'subagent_end') {
+        if (block.spanId) endedSpanIds.add(block.spanId)
+        if (block.parentToolCallId) endedParents.add(block.parentToolCallId)
       }
     }
-    for (let i = state.blocks.length - 1; i >= 0; i--) {
-      if (state.blocks[i].type === 'subagent' && state.blocks[i].content) {
-        state.activeSubagent = state.blocks[i].content
-        state.activeSubagentParentToolCallId = state.blocks[i].parentToolCallId
-        break
+    for (const block of state.blocks) {
+      if (block.type !== 'subagent' || !block.content || block.endedAt !== undefined) continue
+      if (block.spanId && endedSpanIds.has(block.spanId)) continue
+      if (block.parentToolCallId && endedParents.has(block.parentToolCallId)) continue
+      if (block.spanId) state.subagentBySpanId.set(block.spanId, block.content)
+      if (block.parentToolCallId) {
+        state.subagentByParentToolCallId.set(block.parentToolCallId, block.content)
       }
-      if (state.blocks[i].type === 'subagent_end') {
-        break
-      }
+      // Keep a best-effort single pointer for legacy (no-spanId) dedup only;
+      // routing no longer depends on it.
+      state.activeSubagent = block.content
+      state.activeSubagentParentToolCallId = block.parentToolCallId
     }
   } else if (!isStale()) {
     deps.streamingContentRef.current = ''
@@ -247,7 +258,15 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
   }
 
   const stampBlockEnd = (block: ContentBlock | undefined, ts?: string) => {
-    if (block && block.endedAt === undefined) block.endedAt = toEventMs(ts)
+    // Never stamp a subagent header here. Its endedAt is the renderer's
+    // "group closed" signal (parseBlocksWithSpanTree), set explicitly only when
+    // the subagent's span actually ends (the span-end handler and the backend
+    // both set it directly). Stamping it as a generic block boundary — when the
+    // next sibling subagent starts, or when this lane's first content arrives —
+    // would close + prune concurrent subagents mid-stream, making them all flash
+    // in, vanish to one, then reappear one-by-one as content trickles in.
+    if (!block || block.type === 'subagent') return
+    if (block.endedAt === undefined) block.endedAt = toEventMs(ts)
   }
 
   const ensureTextBlock = (
@@ -306,6 +325,12 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
     parentToolCallId: string | undefined,
     spanId?: string
   ): string | undefined => {
+    // Scope-only: resolve by the event's own identity. The legacy
+    // `state.activeSubagent` fallback was removed — with concurrent subagents it
+    // points at whichever started most recently and would mis-attribute an
+    // interleaved event from a different lane. Well-formed subagent events carry
+    // agentId (and spanId), so this resolves deterministically; anything else is
+    // treated as main-lane rather than guessed.
     if (agentId) return agentId
     if (spanId) {
       const scoped = state.subagentBySpanId.get(spanId)
@@ -315,20 +340,18 @@ export function createStreamLoopContext(deps: StreamLoopDeps): StreamLoopContext
       const scoped = state.subagentByParentToolCallId.get(parentToolCallId)
       if (scoped) return scoped
     }
-    return state.activeSubagent
+    return undefined
   }
 
   const resolveParentForSubagentBlock = (
     subagent: string | undefined,
     scopedParent: string | undefined
   ): string | undefined => {
+    // Scope-only: a subagent block's parent comes from the event's own scope.
+    // The previous "first parent whose name matches" scan was ambiguous when two
+    // concurrent subagents share an agent name, so it was removed.
     if (!subagent) return undefined
-    if (scopedParent) return scopedParent
-    if (state.activeSubagent === subagent) return state.activeSubagentParentToolCallId
-    for (const [parent, name] of state.subagentByParentToolCallId) {
-      if (name === subagent) return parent
-    }
-    return undefined
+    return scopedParent
   }
 
   const flush = () => {
