@@ -694,7 +694,7 @@ interface EmbeddedScheduledTaskProps {
 }
 
 function EmbeddedScheduledTask({ workspaceId, scheduleId }: EmbeddedScheduledTaskProps) {
-  const { data: schedules = [], isLoading } = useWorkspaceSchedules(workspaceId)
+  const { data: schedules = [], isLoading, isError } = useWorkspaceSchedules(workspaceId)
   const schedule = useMemo(
     () => schedules.find((s) => s.id === scheduleId),
     [schedules, scheduleId]
@@ -703,16 +703,18 @@ function EmbeddedScheduledTask({ workspaceId, scheduleId }: EmbeddedScheduledTas
   if (isLoading && !schedule) return LOADING_SKELETON
 
   if (!schedule) {
+    // A failed list query also yields no schedule; keep that distinct from a
+    // genuinely missing task so we don't tell the user it was deleted.
+    const heading = isError ? "Couldn't load scheduled task" : 'Scheduled task not found'
+    const detail = isError
+      ? 'Something went wrong loading this scheduled task. Try again.'
+      : 'This scheduled task may have been deleted'
     return (
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Calendar className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>
-            Scheduled task not found
-          </h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This scheduled task may have been deleted
-          </p>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{heading}</h2>
+          <p className='text-[var(--text-body)] text-small'>{detail}</p>
         </div>
       </div>
     )
@@ -749,9 +751,9 @@ function EmbeddedScheduledTask({ workspaceId, scheduleId }: EmbeddedScheduledTas
         <div className='flex flex-col gap-2'>
           <span className='text-[var(--text-muted)] text-caption'>Recent runs</span>
           <div className='flex flex-col gap-2'>
-            {schedule.jobHistory.slice(0, 5).map((run) => (
+            {schedule.jobHistory.slice(0, 5).map((run, index) => (
               <div
-                key={run.timestamp}
+                key={`${run.timestamp}-${index}`}
                 className='flex flex-col gap-1 rounded-[6px] bg-[var(--surface-4)] px-3 py-2'
               >
                 <span className='text-[var(--text-tertiary)] text-caption'>
