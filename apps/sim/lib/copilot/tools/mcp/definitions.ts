@@ -240,7 +240,7 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         lifecycle: {
           type: 'string',
           description:
-            '"persistent" (default, runs indefinitely) or "until_complete" (runs until complete_job is called).',
+            '"persistent" (default, runs indefinitely) or "until_complete" (runs until complete_scheduled_task is called).',
         },
         successCondition: {
           type: 'string',
@@ -443,9 +443,9 @@ Supports full and partial execution:
   },
   {
     name: 'sim_job',
-    agentId: 'job',
+    agentId: 'scheduled_task',
     description:
-      'Manage scheduled background jobs. Supports creating, listing, updating, pausing, resuming, and deleting jobs that run prompts against Sim on a schedule or at a specific time.',
+      'Manage scheduled tasks. Supports creating, listing, updating, pausing, resuming, and deleting scheduled tasks that run prompts against Sim on a schedule or at a specific time.',
     inputSchema: {
       type: 'object',
       properties: {

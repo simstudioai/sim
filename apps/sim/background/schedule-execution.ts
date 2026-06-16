@@ -1036,17 +1036,17 @@ function buildJobPrompt(jobRecord: {
     }
     parts.push('')
     parts.push(
-      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_job_history to record what you did.'
+      'Use this history to avoid duplicate work. After completing meaningful work this run, call update_scheduled_task_history to record what you did.'
     )
   } else if (jobRecord.runCount > 0) {
     parts.push('')
     parts.push(
-      'No previous run history recorded. After completing meaningful work, call update_job_history to record what you did for future runs.'
+      'No previous run history recorded. After completing meaningful work, call update_scheduled_task_history to record what you did for future runs.'
     )
   } else {
     parts.push('')
     parts.push(
-      'This is the first run. After completing meaningful work, call update_job_history to record what you did so future runs have context.'
+      'This is the first run. After completing meaningful work, call update_scheduled_task_history to record what you did so future runs have context.'
     )
   }
 
@@ -1055,7 +1055,7 @@ function buildJobPrompt(jobRecord: {
     parts.push('COMPLETION PROTOCOL:')
     parts.push('This is a poll-until-done job. After executing the task above:')
     parts.push(
-      `- If the success condition is met, take the required action, then call complete_job(jobId: "${jobRecord.id}") to stop the job.`
+      `- If the success condition is met, take the required action, then call complete_scheduled_task(jobId: "${jobRecord.id}") to stop the scheduled task.`
     )
     parts.push(
       '- If the success condition is NOT met, do nothing extra. The job will run again on schedule.'
@@ -1285,7 +1285,7 @@ export async function executeJobInline(payload: JobExecutionPayload) {
       try {
         responseBody = await response.json()
         const toolCalls = responseBody?.toolCalls as Array<{ name?: string }> | undefined
-        wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_job') ?? false
+        wasCompletedByTool = toolCalls?.some((tc) => tc.name === 'complete_scheduled_task') ?? false
       } catch {
         if (timeoutController.isTimedOut()) {
           throw new Error(getTimeoutErrorMessage(null, timeoutController.timeoutMs))
