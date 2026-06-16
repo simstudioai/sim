@@ -636,6 +636,13 @@ import {
   datadogSubmitMetricsTool,
 } from '@/tools/datadog'
 import {
+  datagmaEnrichCompanyTool,
+  datagmaEnrichPersonTool,
+  datagmaFindEmailTool,
+  datagmaFindPhoneTool,
+  datagmaGetCreditsTool,
+} from '@/tools/datagma'
+import {
   daytonaCreateSandboxTool,
   daytonaDeleteSandboxTool,
   daytonaDownloadFileTool,
@@ -728,6 +735,7 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
+import { dropcontactEnrichContactTool } from '@/tools/dropcontact'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import {
   dubBulkCreateLinksTool,
@@ -820,6 +828,7 @@ import {
   enrichVerifyEmailTool,
 } from '@/tools/enrich'
 import { enrichmentRunTool } from '@/tools/enrichment'
+import { enrowFindEmailTool, enrowVerifyEmailTool } from '@/tools/enrow'
 import {
   evernoteCopyNoteTool,
   evernoteCreateNotebookTool,
@@ -1521,6 +1530,7 @@ import {
   iamRemoveUserFromGroupTool,
   iamSimulatePrincipalPolicyTool,
 } from '@/tools/iam'
+import { icypeasFindEmailTool, icypeasVerifyEmailTool } from '@/tools/icypeas'
 import {
   identityCenterCheckAssignmentDeletionStatusTool,
   identityCenterCheckAssignmentStatusTool,
@@ -1818,6 +1828,17 @@ import {
   launchDarklyToggleFlagTool,
   launchDarklyUpdateFlagTool,
 } from '@/tools/launchdarkly'
+import {
+  leadmagicCompanySearchTool,
+  leadmagicEmailToProfileTool,
+  leadmagicFindEmailTool,
+  leadmagicFindMobileTool,
+  leadmagicGetCreditsTool,
+  leadmagicProfileSearchTool,
+  leadmagicProfileToEmailTool,
+  leadmagicRoleFinderTool,
+  leadmagicValidateEmailTool,
+} from '@/tools/leadmagic'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
@@ -6494,6 +6515,25 @@ export const tools: Record<string, ToolConfig> = {
   prospeo_search_person: prospeoSearchPersonTool,
   prospeo_search_company: prospeoSearchCompanyTool,
   prospeo_search_suggestions: prospeoSearchSuggestionsTool,
+  datagma_find_email: datagmaFindEmailTool,
+  datagma_find_phone: datagmaFindPhoneTool,
+  datagma_enrich_person: datagmaEnrichPersonTool,
+  datagma_enrich_company: datagmaEnrichCompanyTool,
+  datagma_get_credits: datagmaGetCreditsTool,
+  dropcontact_enrich_contact: dropcontactEnrichContactTool,
+  leadmagic_validate_email: leadmagicValidateEmailTool,
+  leadmagic_find_email: leadmagicFindEmailTool,
+  leadmagic_find_mobile: leadmagicFindMobileTool,
+  leadmagic_profile_search: leadmagicProfileSearchTool,
+  leadmagic_profile_to_email: leadmagicProfileToEmailTool,
+  leadmagic_email_to_profile: leadmagicEmailToProfileTool,
+  leadmagic_company_search: leadmagicCompanySearchTool,
+  leadmagic_role_finder: leadmagicRoleFinderTool,
+  leadmagic_get_credits: leadmagicGetCreditsTool,
+  icypeas_find_email: icypeasFindEmailTool,
+  icypeas_verify_email: icypeasVerifyEmailTool,
+  enrow_find_email: enrowFindEmailTool,
+  enrow_verify_email: enrowVerifyEmailTool,
   iam_list_users: iamListUsersTool,
   iam_get_user: iamGetUserTool,
   iam_create_user: iamCreateUserTool,

@@ -1,0 +1,43 @@
+import type { ToolHostingConfig } from '@/tools/types'
+
+/**
+ * Env var prefix for Datagma hosted keys. Provide keys as
+ * `DATAGMA_API_KEY_COUNT` plus `DATAGMA_API_KEY_1..N`.
+ */
+export const DATAGMA_API_KEY_PREFIX = 'DATAGMA_API_KEY'
+
+/**
+ * Dollar cost of a single Datagma credit.
+ *
+ * Based on the Datagma Popular plan ($99/month, 7,500 credits ≈ $0.0132/credit).
+ * Email finder: 1 credit per verified email. Phone finder: 30 credits per mobile.
+ * Enrichment: 2 credits per successful response.
+ * Pricing source: https://datagma.com/pricing
+ */
+export const DATAGMA_CREDIT_USD = 0.0132
+
+/**
+ * Build a Datagma `hosting` config. `getCredits` returns the number of Datagma
+ * credits the call consumed, derived from the tool's output (per the documented
+ * per-endpoint credit model at https://datagmaapi.readme.io/reference/getting-started-with-your-api).
+ */
+export function datagmaHosting<P>(
+  getCredits: (params: P, output: Record<string, unknown>) => number
+): ToolHostingConfig<P> {
+  return {
+    envKeyPrefix: DATAGMA_API_KEY_PREFIX,
+    apiKeyParam: 'apiKey',
+    byokProviderId: 'datagma',
+    pricing: {
+      type: 'custom',
+      getCost: (params, output) => {
+        const credits = getCredits(params, output)
+        return { cost: credits * DATAGMA_CREDIT_USD, metadata: { credits } }
+      },
+    },
+    rateLimit: {
+      mode: 'per_request',
+      requestsPerMinute: 60,
+    },
+  }
+}

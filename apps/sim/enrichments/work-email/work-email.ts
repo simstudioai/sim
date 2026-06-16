@@ -8,7 +8,8 @@ import type { EnrichmentConfig } from '@/enrichments/types'
  * available identifiers (company domain, LinkedIn URL) via a provider waterfall:
  * deterministic finders first (Hunter, Findymail by name then by LinkedIn), then
  * enrichment/reveal providers (Prospeo, Wiza), then People Data Labs as a broad
- * record-match fallback. Each provider opportunistically uses whatever
+ * record-match fallback, then Datagma, LeadMagic, Dropcontact, Icypeas, and Enrow
+ * as additional finders. Each provider opportunistically uses whatever
  * identifiers the row provides and self-skips when it has none usable, so adding
  * more inputs widens coverage. First email wins; all providers support hosted keys.
  */
@@ -130,6 +131,86 @@ export const workEmailEnrichment: EnrichmentConfig = {
       mapOutput: (output) => {
         const person = output.person as Record<string, unknown> | undefined
         const email = str(person?.work_email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'datagma',
+      label: 'Datagma',
+      toolId: 'datagma_find_email',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const company = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !company) return null
+        return { fullName, company }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'leadmagic',
+      label: 'LeadMagic',
+      toolId: 'leadmagic_find_email',
+      buildParams: (inputs) => {
+        const name = splitName(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        if (!name || !domain) return null
+        return { first_name: name.firstName, last_name: name.lastName, domain }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'dropcontact',
+      label: 'Dropcontact',
+      toolId: 'dropcontact_enrich_contact',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const website = normalizeDomain(inputs.companyDomain)
+        const linkedin = str(inputs.linkedinUrl)
+        if (!fullName || (!website && !linkedin)) return null
+        return filterUndefined({
+          full_name: fullName,
+          website: website || undefined,
+          linkedin: linkedin || undefined,
+        })
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'icypeas',
+      label: 'Icypeas',
+      toolId: 'icypeas_find_email',
+      buildParams: (inputs) => {
+        const name = splitName(inputs.fullName)
+        const domainOrCompany = normalizeDomain(inputs.companyDomain)
+        if (!name || !domainOrCompany) return null
+        return { firstname: name.firstName, lastname: name.lastName, domainOrCompany }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'enrow',
+      label: 'Enrow',
+      toolId: 'enrow_find_email',
+      buildParams: (inputs) => {
+        const fullname = str(inputs.fullName)
+        const company_domain = normalizeDomain(inputs.companyDomain)
+        if (!fullname || !company_domain) return null
+        return { fullname, company_domain }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
         return email ? { email } : null
       },
     }),
