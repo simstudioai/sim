@@ -1,10 +1,10 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
+import { permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { addPermissionGroupMemberContract } from '@/lib/api/contracts/permission-groups'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -13,8 +13,13 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { PERMISSION_GROUP_MEMBER_CONSTRAINTS } from '@/lib/permission-groups/types'
 import { isOrganizationMember } from '@/lib/workspaces/permissions/utils'
 import {
+  acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
+  findScopeConflicts,
+  formatScopeConflictError,
+  getGroupWorkspaces,
   loadGroupInOrganization,
+  type ScopeConflict,
 } from '@/app/api/organizations/[id]/permission-groups/utils'
 
 const logger = createLogger('OrganizationPermissionGroupMembers')
@@ -62,6 +67,10 @@ export const POST = withRouteHandler(
 
     const { id: organizationId, groupId: id } = await context.params
 
+    // Populated inside the transaction when a scope conflict is detected, so the
+    // catch can format the 409 after the rollback.
+    let scopeConflicts: ScopeConflict[] = []
+
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
       if (denied) return denied
@@ -87,34 +96,55 @@ export const POST = withRouteHandler(
       }
 
       const newMember = await db.transaction(async (tx) => {
-        const existingInOrganization = await tx
-          .select({
-            id: permissionGroupMember.id,
-            permissionGroupId: permissionGroupMember.permissionGroupId,
-          })
+        // Serialize all permission-group writes for this org so the conflict
+        // check and insert are atomic. Without it, two concurrent adds (or a
+        // concurrent scope change) could both pass findScopeConflicts and place
+        // the user in two groups that overlap on a workspace.
+        await acquirePermissionGroupOrgLock(tx, organizationId)
+
+        // Re-read the group's scope under the lock: a concurrent scope change may
+        // have flipped all-vs-specific (and cleared its workspaces) since the
+        // pre-transaction load, so the conflict check must use one consistent
+        // snapshot of appliesToAllWorkspaces + workspaces.
+        const lockedGroup = await loadGroupInOrganization(id, organizationId, tx)
+        if (!lockedGroup) {
+          throw new Error('GROUP_NOT_FOUND')
+        }
+
+        const [existingInGroup] = await tx
+          .select({ id: permissionGroupMember.id })
           .from(permissionGroupMember)
-          .innerJoin(
-            permissionGroup,
-            eq(permissionGroupMember.permissionGroupId, permissionGroup.id)
-          )
           .where(
             and(
-              eq(permissionGroupMember.userId, userId),
-              eq(permissionGroup.organizationId, organizationId)
+              eq(permissionGroupMember.permissionGroupId, id),
+              eq(permissionGroupMember.userId, userId)
             )
           )
+          .limit(1)
 
-        if (existingInOrganization.some((row) => row.permissionGroupId === id)) {
+        if (existingInGroup) {
           throw new Error('ALREADY_IN_GROUP')
         }
 
-        if (existingInOrganization.length > 0) {
-          await tx.delete(permissionGroupMember).where(
-            inArray(
-              permissionGroupMember.id,
-              existingInOrganization.map((row) => row.id)
-            )
-          )
+        // A user may belong to multiple groups, but only one may govern any given
+        // workspace. Reject when this group's scope would overlap a group the user
+        // is already in (all-vs-all, or specific groups sharing a workspace).
+        const groupWorkspaceIds = lockedGroup.appliesToAllWorkspaces
+          ? []
+          : (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+        const conflicts = await findScopeConflicts(
+          {
+            organizationId,
+            excludeGroupId: id,
+            appliesToAllWorkspaces: lockedGroup.appliesToAllWorkspaces,
+            workspaceIds: groupWorkspaceIds,
+            candidateUserIds: [userId],
+          },
+          tx
+        )
+        if (conflicts.length > 0) {
+          scopeConflicts = conflicts
+          throw new Error('SCOPE_CONFLICT')
         }
 
         const memberData = {
@@ -156,29 +186,36 @@ export const POST = withRouteHandler(
 
       return NextResponse.json({ member: newMember }, { status: 201 })
     } catch (error) {
+      if (error instanceof Error && error.message === 'GROUP_NOT_FOUND') {
+        return NextResponse.json({ error: 'Permission group not found' }, { status: 404 })
+      }
       if (error instanceof Error && error.message === 'ALREADY_IN_GROUP') {
         return NextResponse.json(
           { error: 'User is already in this permission group' },
           { status: 409 }
         )
       }
-      if (getPostgresErrorCode(error) === '23505') {
-        const constraint = getPostgresConstraintName(error)
-        if (constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.organizationUser) {
-          return NextResponse.json(
-            {
-              error:
-                'User was concurrently added to another group in this organization. Please refresh and try again.',
-            },
-            { status: 409 }
-          )
-        }
-        if (constraint === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser) {
-          return NextResponse.json(
-            { error: 'User is already in this permission group' },
-            { status: 409 }
-          )
-        }
+      if (error instanceof Error && error.message === 'SCOPE_CONFLICT') {
+        return NextResponse.json(
+          { error: formatScopeConflictError(scopeConflicts) },
+          { status: 409 }
+        )
+      }
+      if (
+        getPostgresErrorCode(error) === '23505' &&
+        getPostgresConstraintName(error) === PERMISSION_GROUP_MEMBER_CONSTRAINTS.groupUser
+      ) {
+        return NextResponse.json(
+          { error: 'User is already in this permission group' },
+          { status: 409 }
+        )
+      }
+      // Advisory lock wait exceeded (lock_timeout) — transient contention.
+      if (getPostgresErrorCode(error) === '55P03') {
+        return NextResponse.json(
+          { error: 'This group is being updated by another request. Please try again.' },
+          { status: 503 }
+        )
       }
       logger.error('Error adding member to permission group', error)
       return NextResponse.json({ error: 'Failed to add member' }, { status: 500 })
