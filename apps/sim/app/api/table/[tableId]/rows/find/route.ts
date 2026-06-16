@@ -6,7 +6,7 @@ import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { Sort } from '@/lib/table'
-import { findRowMatches } from '@/lib/table/service'
+import { findRowMatches } from '@/lib/table/rows/service'
 import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 

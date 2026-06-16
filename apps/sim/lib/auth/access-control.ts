@@ -1,7 +1,7 @@
 import { normalizeEmail } from '@sim/utils/string'
 import { fetchAppConfigProfile } from '@/lib/core/config/appconfig'
 import { env } from '@/lib/core/config/env'
-import { isAppConfigEnabled } from '@/lib/core/config/feature-flags'
+import { isAppConfigEnabled } from '@/lib/core/config/env-flags'
 
 /**
  * Name of the AppConfig configuration profile holding the signup/login gating

@@ -16,7 +16,7 @@ import { eq } from 'drizzle-orm'
 import { getPlanTypeForLimits, isEnterprise, isFree } from '@/lib/billing/plan-helpers'
 import { isOrgScopedSubscription } from '@/lib/billing/subscriptions/utils'
 import { getEnv } from '@/lib/core/config/env'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('StorageLimits')
 

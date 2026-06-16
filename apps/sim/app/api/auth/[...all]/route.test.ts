@@ -31,7 +31,7 @@ vi.mock('@/lib/auth/anonymous', () => ({
   createAnonymousSession: handlerMocks.createAnonymousSession,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isAuthDisabled() {
     return handlerMocks.isAuthDisabled
   },

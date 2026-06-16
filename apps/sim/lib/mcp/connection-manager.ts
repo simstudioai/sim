@@ -12,7 +12,7 @@
 
 import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
-import { isTest } from '@/lib/core/config/feature-flags'
+import { isTest } from '@/lib/core/config/env-flags'
 import { McpClient } from '@/lib/mcp/client'
 import { getOrCreateOauthRow, loadPreregisteredClient, SimMcpOauthProvider } from '@/lib/mcp/oauth'
 import { mcpPubSub } from '@/lib/mcp/pubsub'

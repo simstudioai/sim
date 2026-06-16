@@ -37,7 +37,7 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
   getEffectiveSeats: vi.fn().mockReturnValue(10),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return mockFeatureFlags.isBillingEnabled
   },

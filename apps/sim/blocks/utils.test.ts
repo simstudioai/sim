@@ -34,7 +34,7 @@ const { mockProviders } = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockIsHosted.value
   },

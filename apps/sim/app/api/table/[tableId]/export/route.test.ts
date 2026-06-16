@@ -20,7 +20,7 @@ vi.mock('@/app/api/table/utils', async () => {
   }
 })
 
-vi.mock('@/lib/table/service', () => ({
+vi.mock('@/lib/table/rows/service', () => ({
   queryRows: mockQueryRows,
 }))
 

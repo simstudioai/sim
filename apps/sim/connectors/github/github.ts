@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { githubConnectorMeta } from '@/connectors/github/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate } from '@/connectors/utils'
 
@@ -177,55 +177,7 @@ function treeItemToStub(
 }
 
 export const githubConnector: ConnectorConfig = {
-  id: 'github',
-  name: 'GitHub',
-  description: 'Sync files from a GitHub repository',
-  version: '1.0.0',
-  icon: GithubIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Personal Access Token',
-    placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-  },
-
-  configFields: [
-    {
-      id: 'repository',
-      title: 'Repository',
-      type: 'short-input',
-      placeholder: 'owner/repo',
-      required: true,
-    },
-    {
-      id: 'branch',
-      title: 'Branch',
-      type: 'short-input',
-      placeholder: 'main (default)',
-      required: false,
-    },
-    {
-      id: 'pathPrefix',
-      title: 'Path Filter',
-      type: 'short-input',
-      placeholder: 'e.g. docs/, src/components/',
-      required: false,
-    },
-    {
-      id: 'extensions',
-      title: 'File Extensions',
-      type: 'short-input',
-      placeholder: 'e.g. .md, .txt, .mdx',
-      required: false,
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...githubConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -440,14 +392,6 @@ export const githubConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'path', displayName: 'File Path', fieldType: 'text' },
-    { id: 'repository', displayName: 'Repository', fieldType: 'text' },
-    { id: 'branch', displayName: 'Branch', fieldType: 'text' },
-    { id: 'size', displayName: 'File Size', fieldType: 'number' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

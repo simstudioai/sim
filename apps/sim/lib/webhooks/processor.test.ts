@@ -4,9 +4,9 @@
 
 import {
   createMockRequest,
+  envFlagsMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
-  featureFlagsMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,7 +67,7 @@ vi.mock('@/lib/core/async-jobs', () => ({
   shouldExecuteInline: mockShouldExecuteInline,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),

@@ -1,7 +1,3 @@
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
 import type { GrafanaUpdateDashboardParams } from '@/tools/grafana/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
@@ -89,136 +85,31 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
   },
 
   request: {
-    url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid}`,
-    method: 'GET',
-    headers: (params) => {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      }
-      if (params.organizationId) {
-        headers['X-Grafana-Org-Id'] = params.organizationId
-      }
-      return headers
-    },
+    url: () => '/api/tools/grafana/update_dashboard',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      apiKey: params.apiKey,
+      baseUrl: params.baseUrl,
+      organizationId: params.organizationId,
+      dashboardUid: params.dashboardUid,
+      title: params.title,
+      folderUid: params.folderUid,
+      tags: params.tags,
+      timezone: params.timezone,
+      refresh: params.refresh,
+      panels: params.panels,
+      overwrite: params.overwrite,
+      message: params.message,
+    }),
   },
 
   transformResponse: async (response: Response) => {
     const data = await response.json()
     return {
-      success: true,
-      output: {
-        _existingDashboard: data.dashboard,
-        _existingMeta: data.meta,
-      },
-    }
-  },
-
-  postProcess: async (result, params) => {
-    const existingDashboard = result.output._existingDashboard
-    const existingMeta = result.output._existingMeta
-
-    if (!existingDashboard || !existingDashboard.uid) {
-      return {
-        success: false,
-        output: {},
-        error: 'Failed to fetch existing dashboard',
-      }
-    }
-
-    const updatedDashboard: Record<string, any> = {
-      ...existingDashboard,
-    }
-
-    if (params.title) updatedDashboard.title = params.title
-    if (params.timezone) updatedDashboard.timezone = params.timezone
-    if (params.refresh) updatedDashboard.refresh = params.refresh
-
-    if (params.tags) {
-      updatedDashboard.tags = params.tags
-        .split(',')
-        .map((t) => t.trim())
-        .filter((t) => t)
-    }
-
-    if (params.panels) {
-      try {
-        updatedDashboard.panels = JSON.parse(params.panels)
-      } catch {}
-    }
-
-    if (existingDashboard.version) {
-      updatedDashboard.version = existingDashboard.version
-    }
-
-    const body: Record<string, any> = {
-      dashboard: updatedDashboard,
-      overwrite: params.overwrite === true,
-    }
-
-    if (params.folderUid) {
-      body.folderUid = params.folderUid
-    } else if (existingMeta?.folderUid) {
-      body.folderUid = existingMeta.folderUid
-    }
-
-    if (params.message) {
-      body.message = params.message
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-    }
-    if (params.organizationId) {
-      headers['X-Grafana-Org-Id'] = params.organizationId
-    }
-
-    const updateUrl = `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/db`
-    const urlValidation = await validateUrlWithDNS(updateUrl, 'baseUrl')
-    if (!urlValidation.isValid || !urlValidation.resolvedIP) {
-      return {
-        success: false,
-        output: {},
-        error: `Invalid Grafana baseUrl: ${urlValidation.error}`,
-      }
-    }
-
-    const updateResponse = await secureFetchWithPinnedIP(updateUrl, urlValidation.resolvedIP, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-    })
-
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text()
-      return {
-        success: false,
-        output: {},
-        error: `Failed to update dashboard: ${errorText}`,
-      }
-    }
-
-    const data = (await updateResponse.json()) as {
-      id?: number
-      uid?: string
-      url?: string
-      status?: string
-      version?: number
-      slug?: string
-    }
-
-    return {
-      success: true,
-      output: {
-        id: data.id,
-        uid: data.uid,
-        url: data.url,
-        status: data.status,
-        version: data.version,
-        slug: data.slug,
-      },
+      success: data.success ?? true,
+      output: data.output ?? {},
+      ...(data.error ? { error: data.error } : {}),
     }
   },
 

@@ -19,7 +19,7 @@ vi.mock('@/lib/core/config/env', () => ({
   getEnv: vi.fn(),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isProd: false,
 }))
 

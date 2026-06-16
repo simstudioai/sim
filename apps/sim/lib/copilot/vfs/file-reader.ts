@@ -9,6 +9,7 @@ import {
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceEvent } from '@/lib/copilot/generated/trace-events-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import { recordFileRead } from '@/lib/copilot/request/metrics'
 import { markSpanForError } from '@/lib/copilot/request/otel'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { fetchWorkspaceFileBuffer } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
@@ -284,7 +285,8 @@ export interface FileReadResult {
  * nests underneath for the image-resize path.
  */
 export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileReadResult | null> {
-  return getVfsTracer().startActiveSpan(
+  const startedAt = Date.now()
+  const result = await getVfsTracer().startActiveSpan(
     TraceSpan.CopilotVfsReadFile,
     {
       attributes: {
@@ -414,4 +416,9 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
       }
     }
   )
+  // Durable read duration + size by coarse outcome (the fine-grained outcome —
+  // ImageTooLarge / ParseFailed / etc. — stays on the Tempo span). readFileRecord
+  // returns null on failure rather than throwing.
+  recordFileRead(result ? 'success' : 'read_failed', Date.now() - startedAt, record.size ?? 0)
+  return result
 }

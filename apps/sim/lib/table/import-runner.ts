@@ -23,14 +23,11 @@ import {
   addImportColumns,
   bulkInsertImportBatch,
   deleteAllTableRows,
-  getTableById,
-  markJobFailed,
-  markJobReady,
-  nextImportStartOrderKey,
-  nextImportStartPosition,
   setTableSchemaForImport,
-  updateJobProgress,
-} from '@/lib/table/service'
+} from '@/lib/table/import-data'
+import { markJobFailed, markJobReady, updateJobProgress } from '@/lib/table/jobs/service'
+import { nextImportStartOrderKey, nextImportStartPosition } from '@/lib/table/rows/ordering'
+import { getTableById } from '@/lib/table/service'
 import { deleteFile, downloadFileStream, headObject } from '@/lib/uploads/core/storage-service'
 import { normalizeColumn } from '@/app/api/table/utils'
 

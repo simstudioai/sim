@@ -55,12 +55,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Validate feature flags
+      - name: Validate env flags
         run: |
-          FILE="apps/sim/lib/core/config/feature-flags.ts"
+          FILE="apps/sim/lib/core/config/env-flags.ts"
           ERRORS=""
 
-          echo "Checking for hardcoded boolean feature flags..."
+          echo "Checking for hardcoded boolean env flags..."
 
           # Use perl for multiline matching to catch both:
           #   export const isHosted = true
@@ -69,17 +69,17 @@ jobs:
           HARDCODED=$(perl -0777 -ne 'while (/export const (is[A-Za-z]+)\s*=\s*\n?\s*(true|false)\b/g) { print "  $1 = $2\n" }' "$FILE")
 
           if [ -n "$HARDCODED" ]; then
-            ERRORS="${ERRORS}\n❌ Feature flags must not be hardcoded to boolean literals!\n\nFound hardcoded flags:\n${HARDCODED}\n\nFeature flags should derive their values from environment variables.\n"
+            ERRORS="${ERRORS}\n❌ Env flags must not be hardcoded to boolean literals!\n\nFound hardcoded flags:\n${HARDCODED}\n\nEnv flags should derive their values from environment variables.\n"
           fi
 
-          echo "Checking feature flag naming conventions..."
+          echo "Checking env flag naming conventions..."
 
           # Check that all export const (except functions) start with 'is'
           # This finds exports like "export const someFlag" that don't start with "is" or "get"
           BAD_NAMES=$(grep -E "^export const [a-z]" "$FILE" | grep -vE "^export const (is|get)" | sed 's/export const \([a-zA-Z]*\).*/  \1/')
 
           if [ -n "$BAD_NAMES" ]; then
-            ERRORS="${ERRORS}\n❌ Feature flags must use 'is' prefix for boolean flags!\n\nFound incorrectly named flags:\n${BAD_NAMES}\n\nExample: 'hostedMode' should be 'isHostedMode'\n"
+            ERRORS="${ERRORS}\n❌ Env flags must use 'is' prefix for boolean flags!\n\nFound incorrectly named flags:\n${BAD_NAMES}\n\nExample: 'hostedMode' should be 'isHostedMode'\n"
           fi
 
           if [ -n "$ERRORS" ]; then
@@ -88,7 +88,7 @@ jobs:
             exit 1
           fi
 
-          echo "✅ All feature flags are properly configured"
+          echo "✅ All env flags are properly configured"
 
       - name: Check block registry invariants
         run: |
@@ -117,6 +117,16 @@ jobs:
 
       - name: Verify realtime prune graph
         run: bun run check:realtime-prune
+
+      - name: Migration safety (zero-downtime) audit
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+            git fetch --depth=1 origin "${{ github.base_ref }}" 2>/dev/null || true
+          else
+            BASE_REF="HEAD~1"
+          fi
+          bun run check:migrations "$BASE_REF"
 
       - name: Type-check realtime server
         run: bunx turbo run type-check --filter=@sim/realtime

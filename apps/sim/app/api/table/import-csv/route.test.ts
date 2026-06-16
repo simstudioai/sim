@@ -22,8 +22,11 @@ vi.mock('@sim/utils/id', () => ({
 // streaming multipart + CSV pipeline is exercised end-to-end.
 vi.mock('@/lib/table/service', () => ({
   createTable: mockCreateTable,
-  batchInsertRows: mockBatchInsertRows,
   deleteTable: mockDeleteTable,
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  batchInsertRows: mockBatchInsertRows,
 }))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/app/api/table/utils', async () => {

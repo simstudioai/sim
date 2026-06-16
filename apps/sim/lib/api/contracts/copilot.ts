@@ -92,6 +92,7 @@ const copilotResourceTypeSchema = z.enum([
   'workflow',
   'knowledgebase',
   'folder',
+  'scheduledtask',
   'log',
 ])
 

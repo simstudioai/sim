@@ -43,6 +43,7 @@ import {
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { publishToolConfirmation } from '@/lib/copilot/persistence/tool-confirm'
+import { recordSimToolMetric } from '@/lib/copilot/request/metrics'
 import { withCopilotToolSpan } from '@/lib/copilot/request/otel'
 import { markToolResultSeen } from '@/lib/copilot/request/sse-utils'
 import {
@@ -397,15 +398,32 @@ export async function executeToolAndReport(
       argsPreview: argsPayload?.slice(0, 200),
     },
     async (otelSpan) => {
-      const completion = await executeToolAndReportInner(toolCall, context, execContext, options)
-      otelSpan.setAttribute(TraceAttr.ToolOutcome, completion.status)
-      if (completion.message) {
-        otelSpan.setAttribute(
-          TraceAttr.ToolOutcomeMessage,
-          String(completion.message).slice(0, 500)
-        )
+      const startedAt = Date.now()
+      try {
+        const completion = await executeToolAndReportInner(toolCall, context, execContext, options)
+        const durationMs = Date.now() - startedAt
+        otelSpan.setAttribute(TraceAttr.ToolOutcome, completion.status)
+        otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
+        if (completion.message) {
+          otelSpan.setAttribute(
+            TraceAttr.ToolOutcomeMessage,
+            String(completion.message).slice(0, 500)
+          )
+        }
+        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
+        // pairs with the Go executor-boundary metric (U15) as one series set.
+        recordSimToolMetric(toolCall.name, completion.status, durationMs)
+        return completion
+      } catch (err) {
+        // executeToolAndReportInner threw (infra/unexpected error, not a normal
+        // 'error' completion). Still stamp the span + record the dispatch so
+        // copilot.tool.* isn't silently biased toward successful calls.
+        const durationMs = Date.now() - startedAt
+        otelSpan.setAttribute(TraceAttr.ToolOutcome, 'error')
+        otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
+        recordSimToolMetric(toolCall.name, 'error', durationMs)
+        throw err
       }
-      return completion
     }
   )
 }

@@ -10,7 +10,7 @@ const { mockGetAllowedMcpDomainsFromEnv, mockDnsLookup, hostedFlag } = vi.hoiste
   hostedFlag: { value: false },
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   getAllowedMcpDomainsFromEnv: mockGetAllowedMcpDomainsFromEnv,
   get isHosted() {
     return hostedFlag.value

@@ -11,7 +11,7 @@ const { mockFlags, mockDbLimit, mockGetOrgMemberUsageLimit, mockGetOrgMemberWork
     mockGetOrgMemberWorkspaceUsage: vi.fn(),
   }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockFlags.isHosted
   },

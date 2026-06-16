@@ -138,7 +138,7 @@ export class FileToolProcessor {
       }
 
       if (!buffer && data.url) {
-        buffer = await downloadFileFromUrl(data.url)
+        buffer = await downloadFileFromUrl(data.url, { userId: context.userId })
       }
 
       if (buffer) {
