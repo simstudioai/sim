@@ -1,16 +1,13 @@
-import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
-import { and, asc, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { userPermissionConfigQuerySchema } from '@/lib/api/contracts/permission-groups'
 import { getSession } from '@/lib/auth'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { parsePermissionGroupConfig } from '@/lib/permission-groups/types'
 import {
   checkWorkspaceAccess,
   isOrganizationAdminOrOwner,
 } from '@/lib/workspaces/permissions/utils'
+import { resolveWorkspaceGroup } from '@/ee/access-control/utils/permission-check'
 
 export const GET = withRouteHandler(async (req: Request) => {
   const session = await getSession()
@@ -65,54 +62,14 @@ export const GET = withRouteHandler(async (req: Request) => {
     })
   }
 
-  const [explicit] = await db
-    .select({
-      permissionGroupId: permissionGroupMember.permissionGroupId,
-      config: permissionGroup.config,
-      groupName: permissionGroup.name,
-    })
-    .from(permissionGroupMember)
-    .innerJoin(permissionGroup, eq(permissionGroupMember.permissionGroupId, permissionGroup.id))
-    .where(
-      and(
-        eq(permissionGroupMember.userId, session.user.id),
-        eq(permissionGroup.organizationId, organizationId)
-      )
-    )
-    .orderBy(asc(permissionGroup.createdAt), asc(permissionGroup.id))
-    .limit(1)
-
-  let resolved = explicit
-  if (!resolved) {
-    const [defaultGroup] = await db
-      .select({
-        permissionGroupId: permissionGroup.id,
-        config: permissionGroup.config,
-        groupName: permissionGroup.name,
-      })
-      .from(permissionGroup)
-      .where(
-        and(eq(permissionGroup.organizationId, organizationId), eq(permissionGroup.isDefault, true))
-      )
-      .limit(1)
-    resolved = defaultGroup
-  }
-
-  if (!resolved) {
-    return NextResponse.json({
-      permissionGroupId: null,
-      groupName: null,
-      config: null,
-      entitled: true,
-      organizationId,
-      isOrgAdmin,
-    })
-  }
+  // Single source of truth: specific-scope group covering this workspace ->
+  // the user's all-workspaces group -> org default -> none.
+  const resolved = await resolveWorkspaceGroup(session.user.id, organizationId, workspaceId)
 
   return NextResponse.json({
-    permissionGroupId: resolved.permissionGroupId,
-    groupName: resolved.groupName,
-    config: parsePermissionGroupConfig(resolved.config),
+    permissionGroupId: resolved?.permissionGroupId ?? null,
+    groupName: resolved?.groupName ?? null,
+    config: resolved?.config ?? null,
     entitled: true,
     organizationId,
     isOrgAdmin,

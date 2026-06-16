@@ -7,17 +7,24 @@ import {
   createPermissionGroupContract,
   deletePermissionGroupContract,
   getUserPermissionConfigContract,
+  listOrganizationWorkspacesContract,
   listPermissionGroupMembersContract,
   listPermissionGroupsContract,
   type PermissionGroup,
   type PermissionGroupMember,
+  type PermissionGroupWorkspaceRef,
   removePermissionGroupMemberContract,
   type UserPermissionConfig,
   updatePermissionGroupContract,
 } from '@/lib/api/contracts'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 
-export type { PermissionGroup, PermissionGroupMember, UserPermissionConfig }
+export type {
+  PermissionGroup,
+  PermissionGroupMember,
+  PermissionGroupWorkspaceRef,
+  UserPermissionConfig,
+}
 
 export const permissionGroupKeys = {
   all: ['permissionGroups'] as const,
@@ -31,6 +38,8 @@ export const permissionGroupKeys = {
     [...permissionGroupKeys.detail(organizationId, id), 'members'] as const,
   userConfig: (workspaceId?: string) =>
     [...permissionGroupKeys.all, 'userConfig', workspaceId ?? ''] as const,
+  orgWorkspaces: (organizationId?: string) =>
+    [...permissionGroupKeys.all, 'orgWorkspaces', organizationId ?? ''] as const,
 }
 
 export function usePermissionGroups(organizationId?: string, enabled = true) {
@@ -65,6 +74,22 @@ export function usePermissionGroupMembers(organizationId?: string, permissionGro
   })
 }
 
+export function useOrganizationWorkspaces(organizationId?: string, enabled = true) {
+  return useQuery<PermissionGroupWorkspaceRef[]>({
+    queryKey: permissionGroupKeys.orgWorkspaces(organizationId),
+    queryFn: async ({ signal }) => {
+      if (!organizationId) return []
+      const data = await requestJson(listOrganizationWorkspacesContract, {
+        params: { id: organizationId },
+        signal,
+      })
+      return data.workspaces
+    },
+    enabled: Boolean(organizationId) && enabled,
+    staleTime: 60 * 1000,
+  })
+}
+
 export function useUserPermissionConfig(workspaceId?: string) {
   return useQuery<UserPermissionConfig>({
     queryKey: permissionGroupKeys.userConfig(workspaceId),
@@ -86,6 +111,8 @@ export interface CreatePermissionGroupData {
   description?: string
   config?: Partial<PermissionGroupConfig>
   isDefault?: boolean
+  appliesToAllWorkspaces?: boolean
+  workspaceIds?: string[]
 }
 
 export function useCreatePermissionGroup() {
@@ -113,6 +140,8 @@ export interface UpdatePermissionGroupData {
   description?: string | null
   config?: Partial<PermissionGroupConfig>
   isDefault?: boolean
+  appliesToAllWorkspaces?: boolean
+  workspaceIds?: string[]
 }
 
 export function useUpdatePermissionGroup() {
