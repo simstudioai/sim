@@ -5,7 +5,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/workflow-authz'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, ne } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import {
   buildVfsFolderPathMap,
@@ -744,7 +744,11 @@ async function resolveScheduledTaskResource(
         eq(workflowSchedule.id, scheduleId),
         eq(workflowSchedule.sourceWorkspaceId, workspaceId),
         eq(workflowSchedule.sourceType, 'job'),
-        isNull(workflowSchedule.archivedAt)
+        isNull(workflowSchedule.archivedAt),
+        // Mirror the VFS materializer (workspace-vfs `materializeJobs`), which
+        // excludes completed jobs — otherwise we'd point at a meta.json it never
+        // wrote and the agent's read would dangle.
+        ne(workflowSchedule.status, 'completed')
       )
     )
     .limit(1)

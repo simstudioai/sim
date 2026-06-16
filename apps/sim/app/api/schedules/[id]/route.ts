@@ -27,16 +27,7 @@ const logger = createLogger('ScheduleAPI')
 
 export const dynamic = 'force-dynamic'
 
-type ScheduleRow = {
-  id: string
-  workflowId: string | null
-  status: string
-  cronExpression: string | null
-  timezone: string | null
-  sourceType: string | null
-  sourceWorkspaceId: string | null
-  jobTitle: string | null
-}
+type ScheduleRow = typeof workflowSchedule.$inferSelect
 
 async function fetchAndAuthorize(
   requestId: string,
@@ -45,16 +36,7 @@ async function fetchAndAuthorize(
   action: 'read' | 'write'
 ): Promise<{ schedule: ScheduleRow; workspaceId: string | null } | NextResponse> {
   const [schedule] = await db
-    .select({
-      id: workflowSchedule.id,
-      workflowId: workflowSchedule.workflowId,
-      status: workflowSchedule.status,
-      cronExpression: workflowSchedule.cronExpression,
-      timezone: workflowSchedule.timezone,
-      sourceType: workflowSchedule.sourceType,
-      sourceWorkspaceId: workflowSchedule.sourceWorkspaceId,
-      jobTitle: workflowSchedule.jobTitle,
-    })
+    .select()
     .from(workflowSchedule)
     .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
     .limit(1)
@@ -121,20 +103,12 @@ export const GET = withRouteHandler(
 
       const { id: scheduleId } = parsed.data.params
 
+      // fetchAndAuthorize already loads the full row (and 404s if missing), so
+      // return it directly — no second query.
       const authResult = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'read')
       if (authResult instanceof NextResponse) return authResult
 
-      const [row] = await db
-        .select()
-        .from(workflowSchedule)
-        .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
-        .limit(1)
-
-      if (!row) {
-        return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
-      }
-
-      return NextResponse.json({ schedule: row })
+      return NextResponse.json({ schedule: authResult.schedule })
     } catch (error) {
       logger.error(`[${requestId}] Failed to get schedule`, { error })
       return NextResponse.json({ error: 'Failed to get schedule' }, { status: 500 })
