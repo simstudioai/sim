@@ -217,8 +217,12 @@ export const workEmailEnrichment: EnrichmentConfig = {
         return { fullname, company_domain }
       },
       mapOutput: (output) => {
+        // Enrow qualifies each found email valid/invalid; only accept verified-valid
+        // results so the cell isn't filled with an address Enrow itself rejected
+        // (and which hosted billing correctly charges zero for).
         const email = str(output.email)
-        return email ? { email } : null
+        const qualification = str(output.qualification).toLowerCase()
+        return email && qualification === 'valid' ? { email } : null
       },
     }),
   ],

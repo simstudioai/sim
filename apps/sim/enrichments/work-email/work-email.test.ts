@@ -158,7 +158,12 @@ describe('work-email enrichment cascade', () => {
         company_domain: 'acme.com',
       })
       expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
-      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+      // only a valid-qualified email fills the cell
+      expect(p.mapOutput({ email: 'j@acme.com', qualification: 'valid' })).toEqual({
+        email: 'j@acme.com',
+      })
+      expect(p.mapOutput({ email: 'j@acme.com', qualification: 'invalid' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toBeNull()
       expect(p.mapOutput({})).toBeNull()
     })
   })
