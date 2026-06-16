@@ -3,14 +3,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import OpenAI, { toFile } from 'openai'
-import {
-  secureFetchWithPinnedIP,
-  validateUrlWithDNS,
-} from '@/lib/core/security/input-validation.server'
-import { readResponseToBufferWithLimit } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads'
 import { StorageService } from '@/lib/uploads'
 import { inferContextFromKey } from '@/lib/uploads/utils/file-utils'
+import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
 import {
@@ -148,36 +144,12 @@ function groupUploadableFiles(messages: Message[] | undefined): UserFile[][] {
 }
 
 /**
- * Downloads the file from its signed URL with DNS validation and IP pinning so a URL that
- * somehow resolves to an internal address can never be fetched (SSRF defense for every
- * caller, not just the agent path). Bounded by the provider's attachment ceiling.
+ * Reads the file bytes straight from storage via the storage SDK (not by HTTP-fetching the
+ * signed URL), so there is no server-side URL fetch to be an SSRF vector and internal
+ * object storage works. Bounded by the provider's attachment ceiling.
  */
-async function fetchRemoteFileBlob(
-  file: UserFile,
-  maxBytes: number,
-  signal?: AbortSignal
-): Promise<Blob> {
-  const url = file.remoteUrl as string
-  const validation = await validateUrlWithDNS(url, 'fileUrl')
-  if (!validation.isValid || !validation.resolvedIP) {
-    throw new Error(
-      `Cannot download "${file.name}" for upload: ${validation.error || 'invalid URL'}`
-    )
-  }
-
-  const response = await secureFetchWithPinnedIP(url, validation.resolvedIP, {
-    maxResponseBytes: maxBytes,
-    signal,
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to download "${file.name}" for upload (status ${response.status})`)
-  }
-
-  const buffer = await readResponseToBufferWithLimit(response, {
-    maxBytes,
-    label: 'provider file upload',
-    signal,
-  })
+async function downloadFileForUpload(file: UserFile, maxBytes: number): Promise<Blob> {
+  const buffer = await downloadFileFromStorage(file, 'provider-file-upload', logger, { maxBytes })
   return new Blob([buffer], { type: file.type || inferAttachmentMimeType(file) })
 }
 
@@ -188,7 +160,7 @@ async function uploadOpenAIFile(
   signal?: AbortSignal
 ): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
-  const blob = await fetchRemoteFileBlob(file, maxBytes, signal)
+  const blob = await downloadFileForUpload(file, maxBytes)
 
   const uploaded = await client.files.create(
     {
@@ -210,7 +182,7 @@ async function uploadGeminiFile(
   signal?: AbortSignal
 ): Promise<void> {
   const mimeType = inferAttachmentMimeType(file)
-  const blob = await fetchRemoteFileBlob(file, maxBytes, signal)
+  const blob = await downloadFileForUpload(file, maxBytes)
 
   let uploaded = await ai.files.upload({ file: blob, config: { mimeType, abortSignal: signal } })
 
