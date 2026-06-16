@@ -12,7 +12,7 @@ import type {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import * as ipaddr from 'ipaddr.js'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import {
   isPrivateOrReservedIP,
   secureFetchWithPinnedIP,

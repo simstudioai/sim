@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { and, eq, inArray, isNotNull, like, or, sql } from 'drizzle-orm'
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { USABLE_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
-import { isBillingEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled } from '@/lib/core/config/env-flags'
 
 const logger = createLogger('SeatDriftSweep')
 

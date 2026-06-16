@@ -50,7 +50,7 @@ export async function executeResumeJob(payload: ResumeExecutionPayload) {
     // philosophy). Aborting here also stops the wasted compute the guard alone
     // can't prevent. Read the cell's current exec and bail if cancelled.
     if (cellContext) {
-      const { getRowById } = await import('@/lib/table/service')
+      const { getRowById } = await import('@/lib/table/rows/service')
       const cellRow = await getRowById(
         cellContext.tableId,
         cellContext.rowId,
@@ -323,7 +323,8 @@ async function continueCascadeAfterResume(cellContext: {
   workspaceId: string
   groupId: string
 }): Promise<void> {
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
   const { runRowCascadeLoop } = await import('@/background/workflow-column-execution')
 

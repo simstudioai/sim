@@ -7,7 +7,10 @@ export const PERMISSION_GROUP_CONSTRAINTS = {
 
 export const PERMISSION_GROUP_MEMBER_CONSTRAINTS = {
   groupUser: 'permission_group_member_group_user_unique',
-  organizationUser: 'permission_group_member_organization_user_unique',
+} as const
+
+export const PERMISSION_GROUP_WORKSPACE_CONSTRAINTS = {
+  groupWorkspace: 'permission_group_workspace_group_workspace_unique',
 } as const
 
 export const permissionGroupConfigSchema = z.object({

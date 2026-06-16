@@ -12,7 +12,7 @@ import type {
 } from 'openai/resources/chat/completions'
 import type { ReasoningEffort } from 'openai/resources/shared'
 import { env } from '@/lib/core/config/env'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { prepareProviderAttachments } from '@/providers/attachments'
@@ -56,7 +56,8 @@ async function executeChatCompletionsRequest(
   request: ProviderRequest,
   azureEndpoint: string,
   azureApiVersion: string,
-  deploymentName: string
+  deploymentName: string,
+  pinnedFetch?: typeof fetch
 ): Promise<ProviderResponse | StreamingExecution> {
   logger.info('Using Azure OpenAI Chat Completions API', {
     model: request.model,
@@ -75,6 +76,7 @@ async function executeChatCompletionsRequest(
     apiKey: request.apiKey!,
     apiVersion: azureApiVersion,
     endpoint: azureEndpoint,
+    ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
   })
 
   const allMessages: ChatCompletionMessageParam[] = []
@@ -606,6 +608,7 @@ export const azureOpenAIProvider: ProviderConfig = {
       )
     }
 
+    let pinnedFetch: typeof fetch | undefined
     if (userProvidedEndpoint) {
       const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
       if (!validation.isValid) {
@@ -615,6 +618,10 @@ export const azureOpenAIProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure OpenAI endpoint: ${validation.error}`)
       }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid Azure OpenAI endpoint: could not resolve a pinnable IP address')
+      }
+      pinnedFetch = createPinnedFetch(validation.resolvedIP)
     }
 
     const apiKey = request.apiKey
@@ -652,7 +659,8 @@ export const azureOpenAIProvider: ProviderConfig = {
         { ...request, apiKey },
         baseUrl,
         azureApiVersion,
-        deploymentName
+        deploymentName,
+        pinnedFetch
       )
     }
 
@@ -676,6 +684,7 @@ export const azureOpenAIProvider: ProviderConfig = {
             'api-key': apiKey,
           },
           logger,
+          fetch: pinnedFetch,
         }
       )
     }
@@ -700,6 +709,7 @@ export const azureOpenAIProvider: ProviderConfig = {
           'api-key': apiKey,
         },
         logger,
+        fetch: pinnedFetch,
       }
     )
   },

@@ -1,6 +1,4 @@
 import type { AgiloftLockRecordParams, AgiloftLockResponse } from '@/tools/agiloft/types'
-import { buildLockRecordUrl, getLockHttpMethod } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftLockResponse> = {
@@ -55,52 +53,27 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'GET',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/lock_record',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      recordId: params.recordId,
+      lockAction: params.lockAction,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftLockResponse>(
-      params,
-      (base) => ({
-        url: buildLockRecordUrl(base, params),
-        method: getLockHttpMethod(params.lockAction),
-      }),
-      async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
-          return {
-            success: false,
-            output: {
-              id: params.recordId?.trim() ?? '',
-              lockStatus: 'UNKNOWN',
-              lockedBy: null,
-              lockExpiresInMinutes: null,
-            },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        return {
-          success: data.success !== false,
-          output: {
-            id: String(result.id ?? params.recordId?.trim() ?? ''),
-            lockStatus:
-              (result.lock_status as string) ?? (result.lockStatus as string) ?? 'UNKNOWN',
-            lockedBy:
-              (result.locked_by as string | null) ?? (result.lockedBy as string | null) ?? null,
-            lockExpiresInMinutes:
-              (result.lock_expires_in_minutes as number | null) ??
-              (result.lockExpiresInMinutes as number | null) ??
-              null,
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

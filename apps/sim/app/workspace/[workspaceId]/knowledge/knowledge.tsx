@@ -33,7 +33,7 @@ import {
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { CONNECTOR_REGISTRY } from '@/connectors/registry'
+import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 import { useDeleteKnowledgeBase, useUpdateKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -78,9 +78,10 @@ function connectorCell(connectorTypes?: string[]): ResourceCell {
   }
 
   const entries = connectorTypes
-    .map((type) => ({ type, def: CONNECTOR_REGISTRY[type] }))
-    .filter((e): e is { type: string; def: NonNullable<(typeof CONNECTOR_REGISTRY)[string]> } =>
-      Boolean(e.def?.icon)
+    .map((type) => ({ type, def: CONNECTOR_META_REGISTRY[type] }))
+    .filter(
+      (e): e is { type: string; def: NonNullable<(typeof CONNECTOR_META_REGISTRY)[string]> } =>
+        Boolean(e.def?.icon)
     )
 
   if (entries.length === 0) return { label: EMPTY_CELL_PLACEHOLDER }

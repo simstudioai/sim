@@ -75,10 +75,18 @@ const validateEmailField = (emailValue: string): string[] => {
 interface SignupFormProps {
   githubAvailable: boolean
   googleAvailable: boolean
+  microsoftAvailable: boolean
   isProduction: boolean
+  emailSignupEnabled: boolean
 }
 
-function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: SignupFormProps) {
+function SignupFormContent({
+  githubAvailable,
+  googleAvailable,
+  microsoftAvailable,
+  isProduction,
+  emailSignupEnabled,
+}: SignupFormProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { refetch: refetchSession } = useSession()
@@ -346,6 +354,14 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
     }
   }
 
+  const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
+  const emailEnabled =
+    !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && emailSignupEnabled
+  const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
+  const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
+  const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
+  const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
+
   return (
     <>
       <div className='space-y-1 text-center'>
@@ -357,21 +373,13 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         </p>
       </div>
 
-      {/* SSO Login Button (primary top-only when it is the only method) */}
-      {(() => {
-        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-        const hasSocial = githubAvailable || googleAvailable
-        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
-        return hasOnlySSO
-      })() && (
+      {hasOnlySSO && (
         <div className='mt-8'>
           <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='primary' />
         </div>
       )}
 
-      {/* Email/Password Form - show unless explicitly disabled */}
-      {!isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) && (
+      {emailEnabled && (
         <form onSubmit={onSubmit} className='mt-8 space-y-10'>
           <div className='space-y-6'>
             <div className='space-y-2'>
@@ -540,16 +548,7 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         </form>
       )}
 
-      {/* Divider - show when we have multiple auth methods */}
-      {(() => {
-        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-        const hasSocial = githubAvailable || googleAvailable
-        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
-        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
-        const showDivider = (emailEnabled || hasOnlySSO) && showBottomSection
-        return showDivider
-      })() && (
+      {showDivider && (
         <div className='relative my-6 font-light'>
           <div className='absolute inset-0 flex items-center'>
             <div className='w-full border-[var(--landing-bg-elevated)] border-t' />
@@ -562,26 +561,16 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
         </div>
       )}
 
-      {(() => {
-        const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
-        const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-        const hasSocial = githubAvailable || googleAvailable
-        const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
-        const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
-        return showBottomSection
-      })() && (
-        <div
-          className={cn(
-            isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED')) ? 'mt-8' : undefined
-          )}
-        >
+      {showBottomSection && (
+        <div className={cn(!emailEnabled ? 'mt-8' : undefined)}>
           <SocialLoginButtons
             githubAvailable={githubAvailable}
             googleAvailable={googleAvailable}
+            microsoftAvailable={microsoftAvailable}
             callbackURL={redirectUrl || '/workspace'}
             isProduction={isProduction}
           >
-            {isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) && (
+            {ssoEnabled && !hasOnlySSO && (
               <SSOLoginButton callbackURL={redirectUrl || '/workspace'} variant='outline' />
             )}
           </SocialLoginButtons>
@@ -625,14 +614,18 @@ function SignupFormContent({ githubAvailable, googleAvailable, isProduction }: S
 export default function SignupPage({
   githubAvailable,
   googleAvailable,
+  microsoftAvailable,
   isProduction,
+  emailSignupEnabled,
 }: SignupFormProps) {
   return (
     <Suspense fallback={<div className='flex h-screen items-center justify-center'>Loading…</div>}>
       <SignupFormContent
         githubAvailable={githubAvailable}
         googleAvailable={googleAvailable}
+        microsoftAvailable={microsoftAvailable}
         isProduction={isProduction}
+        emailSignupEnabled={emailSignupEnabled}
       />
     </Suspense>
   )

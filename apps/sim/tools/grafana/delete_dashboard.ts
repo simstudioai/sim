@@ -42,7 +42,7 @@ export const deleteDashboardTool: ToolConfig<
 
   request: {
     url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid}`,
+      `${params.baseUrl.replace(/\/$/, '')}/api/dashboards/uid/${params.dashboardUid.trim()}`,
     method: 'DELETE',
     headers: (params) => {
       const headers: Record<string, string> = {

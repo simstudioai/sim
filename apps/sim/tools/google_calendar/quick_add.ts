@@ -79,7 +79,6 @@ export const quickAddTool: ToolConfig<
   transformResponse: async (response: Response, params) => {
     const data = await response.json()
 
-    // Handle attendees if provided
     let finalEventData = data
     if (params?.attendees) {
       let attendeeList: string[] = []
@@ -88,7 +87,6 @@ export const quickAddTool: ToolConfig<
       if (Array.isArray(attendees)) {
         attendeeList = attendees.filter((email: string) => email && email.trim().length > 0)
       } else if (typeof attendees === 'string' && attendees.trim().length > 0) {
-        // Convert comma-separated string to array
         attendeeList = attendees
           .split(',')
           .map((email: string) => email.trim())
@@ -97,16 +95,13 @@ export const quickAddTool: ToolConfig<
 
       if (attendeeList.length > 0) {
         try {
-          // Update the event with attendees
           const calendarId = params.calendarId || 'primary'
           const eventId = data.id
 
-          // Prepare update data
           const updateData = {
             attendees: attendeeList.map((email: string) => ({ email })),
           }
 
-          // Build update URL with sendUpdates if specified
           const updateQueryParams = new URLSearchParams()
           if (params.sendUpdates !== undefined) {
             updateQueryParams.append('sendUpdates', params.sendUpdates)
@@ -114,7 +109,6 @@ export const quickAddTool: ToolConfig<
 
           const updateUrl = `${CALENDAR_API_BASE}/calendars/${encodeURIComponent(calendarId)}/events/${eventId}${updateQueryParams.toString() ? `?${updateQueryParams.toString()}` : ''}`
 
-          // Make the update request
           const updateResponse = await fetch(updateUrl, {
             method: 'PATCH',
             headers: {
@@ -127,13 +121,11 @@ export const quickAddTool: ToolConfig<
           if (updateResponse.ok) {
             finalEventData = await updateResponse.json()
           } else {
-            // If update fails, we still return the original event but log the error
             logger.warn('Failed to add attendees to quick-added event', {
               error: await updateResponse.text(),
             })
           }
         } catch (error) {
-          // If attendee update fails, we still return the original event
           logger.warn('Error adding attendees to quick-added event', { error })
         }
       }

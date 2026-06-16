@@ -3,6 +3,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
+import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
@@ -95,15 +96,46 @@ export const vllmProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    const baseUrl = (request.azureEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const userProvidedEndpoint = request.azureEndpoint
+
+    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
     if (!baseUrl) {
       throw new Error('VLLM_BASE_URL is required for vLLM provider')
+    }
+
+    /**
+     * A user-supplied endpoint is attacker-controlled: validate it against the
+     * central SSRF guard and pin the connection to the resolved IP to defeat DNS
+     * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
+     * unvalidated, mirroring the Azure providers.
+     *
+     * `allowHttp` is enabled because self-hosted vLLM is frequently served over
+     * plain HTTP; this only relaxes the protocol requirement — the private/reserved
+     * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
+     */
+    let pinnedFetch: typeof fetch | undefined
+    if (userProvidedEndpoint) {
+      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
+        allowHttp: true,
+      })
+      if (!validation.isValid) {
+        logger.warn('Blocked SSRF attempt via vLLM endpoint', {
+          endpoint: userProvidedEndpoint,
+          error: validation.error,
+        })
+        throw new Error(`Invalid vLLM endpoint: ${validation.error}`)
+      }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
+      }
+      pinnedFetch = createPinnedFetch(validation.resolvedIP)
     }
 
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
     const vllm = new OpenAI({
       apiKey,
       baseURL: `${baseUrl}/v1`,
+      ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
     })
 
     const allMessages: Message[] = []

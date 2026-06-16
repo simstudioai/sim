@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-15",
+  "updatedAt": "2026-06-16",
   "integrations": [
     {
       "type": "onepassword",
@@ -5901,9 +5901,29 @@
         {
           "name": "Invite Attendees",
           "description": "Invite attendees to an existing Google Calendar event"
+        },
+        {
+          "name": "Check Free/Busy",
+          "description": "Query free/busy information for one or more Google Calendars"
+        },
+        {
+          "name": "Create Calendar",
+          "description": "Create a new secondary calendar"
+        },
+        {
+          "name": "Share Calendar",
+          "description": "Grant a user, group, or domain access to a calendar by creating an ACL rule"
+        },
+        {
+          "name": "List Sharing",
+          "description": "List the access control rules (sharing) for a calendar"
+        },
+        {
+          "name": "Remove Sharing",
+          "description": "Revoke an access control rule (sharing) from a calendar"
         }
       ],
-      "operationCount": 10,
+      "operationCount": 15,
       "triggers": [
         {
           "id": "google_calendar_poller",
@@ -6812,7 +6832,7 @@
       "name": "Grafana",
       "description": "Interact with Grafana dashboards, alerts, and annotations",
       "longDescription": "Integrate Grafana into workflows. Manage dashboards, alerts, annotations, data sources, folders, and monitor health status.",
-      "bgColor": "#FFFFFF",
+      "bgColor": "#F46800",
       "iconName": "GrafanaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/grafana",
       "operations": [
@@ -6861,6 +6881,10 @@
           "description": "List all alert notification contact points"
         },
         {
+          "name": "Create Contact Point",
+          "description": "Create a notification contact point (e.g., Slack, email, PagerDuty)"
+        },
+        {
           "name": "Create Annotation",
           "description": "Create an annotation on a dashboard or as a global annotation"
         },
@@ -6885,15 +6909,35 @@
           "description": "Get a data source by its ID or UID"
         },
         {
+          "name": "Check Data Source Health",
+          "description": "Test connectivity to a data source by its UID"
+        },
+        {
           "name": "List Folders",
           "description": "List all folders in Grafana"
         },
         {
           "name": "Create Folder",
           "description": "Create a new folder in Grafana"
+        },
+        {
+          "name": "Get Folder",
+          "description": "Get a folder by its UID"
+        },
+        {
+          "name": "Update Folder",
+          "description": "Update (rename) a folder. Fetches the current folder and merges your changes."
+        },
+        {
+          "name": "Delete Folder",
+          "description": "Delete a folder by its UID"
+        },
+        {
+          "name": "Get Health",
+          "description": "Check the health of the Grafana instance (version, database status)"
         }
       ],
-      "operationCount": 19,
+      "operationCount": 25,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8445,9 +8489,45 @@
         {
           "name": "Copy Forms",
           "description": "Copy forms from one Jira issue to another"
+        },
+        {
+          "name": "List Asset Schemas",
+          "description": "List Assets (Insight/CMDB) object schemas in Jira Service Management"
+        },
+        {
+          "name": "Get Asset Schema",
+          "description": "Get a single Assets (Insight/CMDB) object schema by ID"
+        },
+        {
+          "name": "List Asset Object Types",
+          "description": "List object types within an Assets (Insight/CMDB) object schema"
+        },
+        {
+          "name": "Get Asset Object Type Attributes",
+          "description": "Get the attribute definitions for an Assets (Insight/CMDB) object type. Use the returned attribute IDs to build create/update payloads or map columns."
+        },
+        {
+          "name": "Search Assets (AQL)",
+          "description": "Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = "
+        },
+        {
+          "name": "Get Asset Object",
+          "description": "Get a single Assets (Insight/CMDB) object by ID, including its attribute values"
+        },
+        {
+          "name": "Create Asset Object",
+          "description": "Create an Assets (Insight/CMDB) object of a given object type. Attributes use objectTypeAttributeId values from the object type definition."
+        },
+        {
+          "name": "Update Asset Object",
+          "description": "Update an existing Assets (Insight/CMDB) object. Provide the attributes to change using their objectTypeAttributeId values."
+        },
+        {
+          "name": "Delete Asset Object",
+          "description": "Delete an Assets (Insight/CMDB) object by ID"
         }
       ],
-      "operationCount": 34,
+      "operationCount": 43,
       "triggers": [
         {
           "id": "jsm_request_created",

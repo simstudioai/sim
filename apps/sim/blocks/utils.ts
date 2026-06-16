@@ -4,7 +4,7 @@ import {
   isCohereConfigured,
   isHosted,
   isOllamaConfigured,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'

@@ -3,15 +3,14 @@
  */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
   batchInsertRows,
-  deleteColumn,
   insertRow,
-  renameColumn,
   replaceTableRows,
   updateRow,
   upsertRow,
-} from '@/lib/table/service'
+} from '@/lib/table/rows/service'
 import type { TableDefinition } from '@/lib/table/types'
 import { getUniqueColumns } from '@/lib/table/validation'
 
@@ -20,7 +19,7 @@ vi.mock('@sim/db', () => dbChainMock)
 // These suites assert flag-off position-shift semantics; pin the flag so they're
 // deterministic regardless of a local TABLES_FRACTIONAL_ORDERING env value.
 vi.mock('@/lib/core/config/feature-flags', () => ({
-  isTablesFractionalOrderingEnabled: false,
+  isFeatureEnabled: vi.fn().mockResolvedValue(false),
 }))
 
 vi.mock('@/lib/table/validation', () => ({

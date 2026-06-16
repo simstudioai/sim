@@ -78,10 +78,12 @@ const validatePassword = (passwordValue: string): string[] => {
 export default function LoginPage({
   githubAvailable,
   googleAvailable,
+  microsoftAvailable,
   isProduction,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
+  microsoftAvailable: boolean
   isProduction: boolean
 }) {
   const router = useRouter()
@@ -335,7 +337,7 @@ export default function LoginPage({
 
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED'))
   const emailEnabled = !isFalsy(getEnv('NEXT_PUBLIC_EMAIL_PASSWORD_SIGNUP_ENABLED'))
-  const hasSocial = githubAvailable || googleAvailable
+  const hasSocial = githubAvailable || googleAvailable || microsoftAvailable
   const hasOnlySSO = ssoEnabled && !emailEnabled && !hasSocial
   const showTopSSO = hasOnlySSO
   const showBottomSection = hasSocial || (ssoEnabled && !hasOnlySSO)
@@ -483,6 +485,7 @@ export default function LoginPage({
         <div className={cn(!emailEnabled ? 'mt-8' : undefined)}>
           <SocialLoginButtons
             googleAvailable={googleAvailable}
+            microsoftAvailable={microsoftAvailable}
             githubAvailable={githubAvailable}
             isProduction={isProduction}
             callbackURL={callbackUrl}

@@ -7,7 +7,7 @@ import { getExposedIntegrationTools } from '@/lib/copilot/integration-tools'
 import { getToolEntry } from '@/lib/copilot/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
-import { isE2BDocEnabled, isHosted } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled, isHosted } from '@/lib/core/config/env-flags'
 import { buildUserSkillTool } from '@/lib/mothership/skills'
 import { trackChatUpload } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { stripVersionSuffix } from '@/tools/utils'
@@ -37,6 +37,7 @@ interface BuildPayloadParams {
   userTimezone?: string
   userMetadata?: {
     name?: string
+    email?: string
     timezone?: string
   }
   includeMothershipTools?: boolean
@@ -367,7 +368,8 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
-    ...(params.userMetadata && (params.userMetadata.name || params.userMetadata.timezone)
+    ...(params.userMetadata &&
+    (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)
       ? { userMetadata: params.userMetadata }
       : {}),
     // Tell the copilot file subagent which document toolchain to write. Emitted

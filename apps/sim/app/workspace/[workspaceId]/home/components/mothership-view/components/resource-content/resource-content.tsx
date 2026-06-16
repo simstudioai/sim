@@ -2,9 +2,11 @@
 
 import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
 import { Button, PlayOutline, Skeleton, Tooltip } from '@/components/emcn'
 import {
+  Calendar,
   Download,
   FileX,
   Folder as FolderIcon,
@@ -24,6 +26,7 @@ import {
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
+import { parseCronToHumanReadable } from '@/lib/workflows/schedules/utils'
 import {
   FileViewer,
   type PreviewMode,
@@ -50,6 +53,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
+import { useScheduleById } from '@/hooks/queries/schedules'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -182,6 +186,15 @@ export const ResourceContent = memo(function ResourceContent({
     case 'folder':
       return <EmbeddedFolder key={resource.id} workspaceId={workspaceId} folderId={resource.id} />
 
+    case 'scheduledtask':
+      return (
+        <EmbeddedScheduledTask
+          key={resource.id}
+          workspaceId={workspaceId}
+          scheduleId={resource.id}
+        />
+      )
+
     case 'log':
       return (
         <EmbeddedLog
@@ -233,6 +246,8 @@ export function ResourceActions({ workspaceId, resource }: ResourceActionsProps)
       )
     case 'log':
       return <EmbeddedLogActions workspaceId={workspaceId} logId={resource.id} />
+    case 'scheduledtask':
+      return <EmbeddedScheduledTaskActions workspaceId={workspaceId} />
     case 'folder':
     case 'generic':
       return null
@@ -644,6 +659,137 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
         </div>
       )}
     </div>
+  )
+}
+
+const SCHEDULE_STATUS_LABEL: Record<string, string> = {
+  active: 'Active',
+  disabled: 'Paused',
+  completed: 'Completed',
+}
+
+function formatScheduleInstant(iso: string | null): string {
+  if (!iso) return '—'
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime()) ? '—' : format(date, "EEE, MMM d 'at' h:mm a")
+}
+
+interface ScheduledTaskFieldProps {
+  title: string
+  value: string
+}
+
+function ScheduledTaskField({ title, value }: ScheduledTaskFieldProps) {
+  return (
+    <div className='flex flex-col gap-1'>
+      <span className='text-[var(--text-muted)] text-caption'>{title}</span>
+      <span className='text-[var(--text-body)] text-small'>{value}</span>
+    </div>
+  )
+}
+
+interface EmbeddedScheduledTaskProps {
+  workspaceId: string
+  scheduleId: string
+}
+
+function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
+  const { data: schedule, isLoading, isError } = useScheduleById(scheduleId)
+
+  if (isLoading && !schedule) return LOADING_SKELETON
+
+  if (!schedule) {
+    const heading = isError ? "Couldn't load scheduled task" : 'Scheduled task not found'
+    const detail = isError
+      ? 'Something went wrong loading this scheduled task. Try again.'
+      : 'This scheduled task may have been deleted'
+    return (
+      <div className='flex h-full flex-col items-center justify-center gap-3'>
+        <Calendar className='size-[32px] text-[var(--text-icon)]' />
+        <div className='flex flex-col items-center gap-1'>
+          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>{heading}</h2>
+          <p className='text-[var(--text-body)] text-small'>{detail}</p>
+        </div>
+      </div>
+    )
+  }
+
+  const title = schedule.jobTitle || schedule.prompt || 'Scheduled task'
+  const timing = schedule.cronExpression
+    ? parseCronToHumanReadable(schedule.cronExpression, schedule.timezone)
+    : 'Runs once'
+  const status = SCHEDULE_STATUS_LABEL[schedule.status] ?? schedule.status
+
+  return (
+    <div className='flex h-full flex-col gap-6 overflow-y-auto p-6'>
+      <div className='flex items-center gap-2'>
+        <Calendar className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
+        <h2 className='truncate font-medium text-[16px] text-[var(--text-primary)]'>{title}</h2>
+      </div>
+
+      <div className='grid grid-cols-2 gap-4'>
+        <ScheduledTaskField title='Status' value={status} />
+        <ScheduledTaskField title='Schedule' value={timing} />
+        <ScheduledTaskField title='Next run' value={formatScheduleInstant(schedule.nextRunAt)} />
+        <ScheduledTaskField title='Last run' value={formatScheduleInstant(schedule.lastRanAt)} />
+      </div>
+
+      <div className='flex flex-col gap-1'>
+        <span className='text-[var(--text-muted)] text-caption'>Prompt</span>
+        <p className='whitespace-pre-wrap text-[var(--text-body)] text-small'>
+          {schedule.prompt || '—'}
+        </p>
+      </div>
+
+      {schedule.jobHistory && schedule.jobHistory.length > 0 && (
+        <div className='flex flex-col gap-2'>
+          <span className='text-[var(--text-muted)] text-caption'>Recent runs</span>
+          <div className='flex flex-col gap-2'>
+            {schedule.jobHistory.slice(0, 5).map((run, index) => (
+              <div
+                key={`${run.timestamp}-${index}`}
+                className='flex flex-col gap-1 rounded-[6px] bg-[var(--surface-4)] px-3 py-2'
+              >
+                <span className='text-[var(--text-tertiary)] text-caption'>
+                  {formatScheduleInstant(run.timestamp)}
+                </span>
+                <span className='text-[var(--text-body)] text-small'>{run.summary}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface EmbeddedScheduledTaskActionsProps {
+  workspaceId: string
+}
+
+function EmbeddedScheduledTaskActions({ workspaceId }: EmbeddedScheduledTaskActionsProps) {
+  const router = useRouter()
+
+  const handleOpenScheduledTasks = () => {
+    router.push(`/workspace/${workspaceId}/scheduled-tasks`)
+  }
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <Button
+          variant='subtle'
+          onClick={handleOpenScheduledTasks}
+          className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+          aria-label='Open in scheduled tasks'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </Button>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open in scheduled tasks</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 

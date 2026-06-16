@@ -18,10 +18,10 @@ import {
   ManageCredentialOperation,
   ManageCustomTool,
   ManageCustomToolOperation,
-  ManageJob,
-  ManageJobOperation,
   ManageMcpTool,
   ManageMcpToolOperation,
+  ManageScheduledTask,
+  ManageScheduledTaskOperation,
   ManageSkill,
   ManageSkillOperation,
   MoveFolder,
@@ -345,17 +345,17 @@ export function resolveToolDisplayTitle(
     )
   }
 
-  if (name === ManageJob.id) {
+  if (name === ManageScheduledTask.id) {
     return resolveOperationDisplayTitle(
       args.operation,
       {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
+        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
+        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
+        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
+        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
+        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
       },
-      'Job action'
+      'Scheduled task action'
     )
   }
 
@@ -496,17 +496,17 @@ export function resolveStreamingToolDisplayTitle(
     )
   }
 
-  if (name === ManageJob.id) {
+  if (name === ManageScheduledTask.id) {
     return resolveOperationDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
+        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
+        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
+        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
+        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
+        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
       },
-      'Job action'
+      'Scheduled task action'
     )
   }
 

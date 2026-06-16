@@ -1,10 +1,10 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { S3Icon } from '@/components/icons'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import { VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { s3ConnectorMeta } from '@/connectors/s3/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { parseTagDate, readBodyWithLimit } from '@/connectors/utils'
 import { encodeS3PathComponent, getSignatureKey } from '@/tools/s3/utils'
@@ -482,78 +482,7 @@ async function listObjectsPage(
 }
 
 export const s3Connector: ConnectorConfig = {
-  id: 's3',
-  name: 'Amazon S3',
-  description:
-    'Sync text-based objects from Amazon S3 or any S3-compatible store (Cloudflare R2, MinIO) into your knowledge base',
-  version: '1.1.0',
-  icon: S3Icon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Secret Access Key',
-    placeholder: 'Enter your AWS Secret Access Key',
-  },
-
-  configFields: [
-    {
-      id: 'accessKeyId',
-      title: 'Access Key ID',
-      type: 'short-input',
-      placeholder: 'e.g. AKIAIOSFODNN7EXAMPLE',
-      required: true,
-    },
-    {
-      id: 'region',
-      title: 'Region',
-      type: 'short-input',
-      placeholder: 'e.g. us-east-1 (use auto for Cloudflare R2)',
-      required: true,
-      description:
-        'AWS region for the bucket. For Cloudflare R2 use "auto"; for MinIO use the region the server is configured with (commonly us-east-1).',
-    },
-    {
-      id: 'bucket',
-      title: 'Bucket',
-      type: 'short-input',
-      placeholder: 'e.g. my-bucket',
-      required: true,
-    },
-    {
-      id: 'endpoint',
-      title: 'Custom Endpoint',
-      type: 'short-input',
-      placeholder: 'https://accountid.r2.cloudflarestorage.com (optional — leave empty for AWS S3)',
-      required: false,
-      description:
-        'S3-compatible endpoint for Cloudflare R2, MinIO, etc. Leave empty for AWS S3. Uses path-style addressing. Plain http:// is only allowed for localhost.',
-    },
-    {
-      id: 'prefix',
-      title: 'Prefix',
-      type: 'short-input',
-      placeholder: 'e.g. docs/ (optional)',
-      required: false,
-      description: 'Only sync objects whose key starts with this prefix',
-    },
-    {
-      id: 'extensions',
-      title: 'File Extensions',
-      type: 'short-input',
-      placeholder: 'e.g. txt, md, csv (optional)',
-      required: false,
-      description:
-        'Comma-separated list of file extensions to sync. Leave blank to use the built-in text formats.',
-    },
-    {
-      id: 'maxObjects',
-      title: 'Max Objects',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-      description: 'Stop syncing after this many objects',
-    },
-  ],
+  ...s3ConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -707,12 +636,6 @@ export const s3Connector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'prefix', displayName: 'Folder', fieldType: 'text' },
-    { id: 'fileSize', displayName: 'Size (bytes)', fieldType: 'number' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

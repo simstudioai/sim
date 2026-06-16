@@ -78,7 +78,7 @@ vi.mock('@/lib/core/security/deployment', () => ({
   isEmailAllowed: mockIsEmailAllowed,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   isDev: true,
   isProd: false,
   get isBillingEnabled() {

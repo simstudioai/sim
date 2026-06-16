@@ -30,32 +30,26 @@ import {
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
   addTableColumn,
-  addWorkflowGroup,
-  addWorkflowGroupOutput,
-  batchInsertRows,
-  batchUpdateRows,
-  createTable,
   deleteColumn,
   deleteColumns,
+  renameColumn,
+  updateColumnConstraints,
+  updateColumnType,
+} from '@/lib/table/columns/service'
+import {
+  batchInsertRows,
+  batchUpdateRows,
   deleteRow,
   deleteRowsByFilter,
   deleteRowsByIds,
-  deleteTable,
-  deleteWorkflowGroup,
-  deleteWorkflowGroupOutput,
   getRowById,
-  getTableById,
   insertRow,
   queryRows,
-  renameColumn,
-  renameTable,
   replaceTableRows,
-  updateColumnConstraints,
-  updateColumnType,
   updateRow,
   updateRowsByFilter,
-  updateWorkflowGroup,
-} from '@/lib/table/service'
+} from '@/lib/table/rows/service'
+import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   RowData,
@@ -67,6 +61,13 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table/types'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
+import {
+  addWorkflowGroup,
+  addWorkflowGroupOutput,
+  deleteWorkflowGroup,
+  deleteWorkflowGroupOutput,
+  updateWorkflowGroup,
+} from '@/lib/table/workflow-groups/service'
 import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,

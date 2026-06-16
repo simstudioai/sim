@@ -10,13 +10,13 @@
 import { userTableDefinitions } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { importAppendRows } from '@/lib/table/service'
+import { importAppendRows } from '@/lib/table/import-data'
 import type { TableDefinition } from '@/lib/table/types'
 
 vi.mock('@sim/db', () => dbChainMock)
 
 vi.mock('@/lib/core/config/feature-flags', () => ({
-  isTablesFractionalOrderingEnabled: false,
+  isFeatureEnabled: vi.fn().mockResolvedValue(false),
 }))
 
 vi.mock('@/lib/table/validation', () => ({

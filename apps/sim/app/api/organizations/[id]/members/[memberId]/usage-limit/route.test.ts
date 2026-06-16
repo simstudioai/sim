@@ -37,7 +37,7 @@ vi.mock('@/lib/billing/organizations/member-limits', () => ({
   setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isHosted() {
     return mockFlags.isHosted
   },

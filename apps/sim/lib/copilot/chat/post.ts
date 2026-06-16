@@ -75,6 +75,7 @@ const ResourceAttachmentSchema = z.object({
     'filefolder',
     'task',
     'log',
+    'scheduledtask',
     'generic',
   ]),
   id: z.string().min(1),
@@ -91,6 +92,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  scheduledtask: 'Scheduled Task',
   generic: 'Resource',
 }
 
@@ -108,6 +110,7 @@ const ChatContextSchema = z.object({
     'file',
     'folder',
     'filefolder',
+    'scheduledtask',
     'integration',
     'skill',
   ]),
@@ -123,6 +126,7 @@ const ChatContextSchema = z.object({
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
   skillId: z.string().optional(),
+  scheduleId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({
@@ -169,7 +173,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; timezone?: string }
+        userMetadata?: { name?: string; email?: string; timezone?: string }
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -204,7 +208,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; timezone?: string }
+        userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -722,6 +726,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const body = ChatMessageSchema.parse(await req.json())
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
+      ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
       ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
     }
     const normalizedContexts = normalizeContexts(body.contexts) ?? []

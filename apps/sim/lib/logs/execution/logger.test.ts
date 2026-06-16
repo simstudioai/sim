@@ -1,4 +1,4 @@
-import { featureFlagsMock } from '@sim/testing'
+import { envFlagsMock } from '@sim/testing'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
@@ -60,7 +60,7 @@ vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillOverageThreshold: vi.fn(() => Promise.resolve()),
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
+vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 
 // Mock security module
 vi.mock('@/lib/core/security/redaction', () => ({

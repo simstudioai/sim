@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { getApiKeyWithBYOK } from '@/lib/api-key/byok'
-import { getCostMultiplier } from '@/lib/core/config/feature-flags'
+import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import type { StreamingExecution } from '@/executor/types'
 import { getProviderExecutor } from '@/providers/registry'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
