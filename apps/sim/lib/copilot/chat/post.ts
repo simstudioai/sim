@@ -75,6 +75,7 @@ const ResourceAttachmentSchema = z.object({
     'filefolder',
     'task',
     'log',
+    'scheduledtask',
     'generic',
   ]),
   id: z.string().min(1),
@@ -91,6 +92,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   filefolder: 'File Folder',
   task: 'Task',
   log: 'Log',
+  scheduledtask: 'Scheduled Task',
   generic: 'Resource',
 }
 
@@ -108,6 +110,7 @@ const ChatContextSchema = z.object({
     'file',
     'folder',
     'filefolder',
+    'scheduledtask',
     'integration',
     'skill',
   ]),
@@ -123,6 +126,7 @@ const ChatContextSchema = z.object({
   folderId: z.string().optional(),
   fileFolderId: z.string().optional(),
   skillId: z.string().optional(),
+  scheduleId: z.string().optional(),
 })
 
 const ChatMessageSchema = z.object({

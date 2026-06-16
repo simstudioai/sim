@@ -9,7 +9,7 @@ import {
 } from '@sim/workflow-authz'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateScheduleContract } from '@/lib/api/contracts/schedules'
+import { getScheduleByIdContract, updateScheduleContract } from '@/lib/api/contracts/schedules'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -102,6 +102,45 @@ async function fetchAndAuthorize(
 
   return { schedule, workspaceId: authorization.workflow.workspaceId ?? null }
 }
+
+export const GET = withRouteHandler(
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
+    const requestId = generateRequestId()
+
+    try {
+      const session = await getSession()
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+
+      const parsed = await parseRequest(getScheduleByIdContract, request, context, {
+        validationErrorResponse: () =>
+          NextResponse.json({ error: 'Invalid request' }, { status: 400 }),
+      })
+      if (!parsed.success) return parsed.response
+
+      const { id: scheduleId } = parsed.data.params
+
+      const authResult = await fetchAndAuthorize(requestId, scheduleId, session.user.id, 'read')
+      if (authResult instanceof NextResponse) return authResult
+
+      const [row] = await db
+        .select()
+        .from(workflowSchedule)
+        .where(and(eq(workflowSchedule.id, scheduleId), isNull(workflowSchedule.archivedAt)))
+        .limit(1)
+
+      if (!row) {
+        return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
+      }
+
+      return NextResponse.json({ schedule: row })
+    } catch (error) {
+      logger.error(`[${requestId}] Failed to get schedule`, { error })
+      return NextResponse.json({ error: 'Failed to get schedule' }, { status: 500 })
+    }
+  }
+)
 
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {

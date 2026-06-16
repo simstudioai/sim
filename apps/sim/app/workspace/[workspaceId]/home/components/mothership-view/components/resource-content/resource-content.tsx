@@ -53,7 +53,7 @@ import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/com
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
-import { useWorkspaceSchedules } from '@/hooks/queries/schedules'
+import { useScheduleById } from '@/hooks/queries/schedules'
 import { downloadTableExport } from '@/hooks/queries/tables'
 import { useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
@@ -693,12 +693,8 @@ interface EmbeddedScheduledTaskProps {
   scheduleId: string
 }
 
-function EmbeddedScheduledTask({ workspaceId, scheduleId }: EmbeddedScheduledTaskProps) {
-  const { data: schedules = [], isLoading, isError } = useWorkspaceSchedules(workspaceId)
-  const schedule = useMemo(
-    () => schedules.find((s) => s.id === scheduleId),
-    [schedules, scheduleId]
-  )
+function EmbeddedScheduledTask({ scheduleId }: EmbeddedScheduledTaskProps) {
+  const { data: schedule, isLoading, isError } = useScheduleById(scheduleId)
 
   if (isLoading && !schedule) return LOADING_SKELETON
 
