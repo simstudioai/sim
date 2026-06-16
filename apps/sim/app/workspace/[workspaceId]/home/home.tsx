@@ -39,7 +39,6 @@ import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { useMothershipStageStore } from '@/stores/mothership-stage/store'
 import type { ChatContext } from '@/stores/panel'
 import {
-  ChatHistory,
   ChatSurfaceProvider,
   CreditsChip,
   MothershipChat,
@@ -203,7 +202,6 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
     sendMessage,
     stopGeneration,
     resolvedChatId,
-    adoptResolvedChatId,
     resources,
     addResource,
     removeResource,
@@ -376,18 +374,6 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
    * and rewrites the URL to /task/[id] via replaceState; flipping
    * `isInputEntering` plays the same slide-in morph as sending a new message.
    */
-  const handleOpenExistingChat = useCallback(
-    (selectedChatId: string) => {
-      captureEvent(posthogRef.current, 'task_opened_from_history', {
-        workspace_id: workspaceId,
-        chat_id: selectedChatId,
-      })
-      setIsInputEntering(true)
-      adoptResolvedChatId(selectedChatId, { replaceHomeHistory: true })
-    },
-    [adoptResolvedChatId, workspaceId]
-  )
-
   useEffect(() => {
     const handler = (e: Event) => {
       const message = (e as CustomEvent<MothershipSendMessageDetail>).detail?.message
@@ -549,32 +535,26 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           <CreditsChip />
         </div>
         <div className='relative flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
-          <div className='flex min-h-full flex-col items-center px-6 pt-[calc(24vh-44px)] pb-[2vh]'>
+          {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center — matching main */}
+          <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
             <h1 className='mb-7 max-w-[48rem] text-balance font-season text-[30px] text-[var(--text-primary)]'>
               What should we get done{firstName ? `, ${firstName}` : ''}?
             </h1>
-            <div ref={initialViewInputRef} className='w-full'>
-              {/* Stacked card (Figma node 1-3): grey tray sits behind the input
-                with a 1px frame on top/sides. The docked "All Chats" launcher
-                lives in the shelf below and animates the chat list open inside
-                the grey tray — growing downward as the input rides up. */}
-              <div className='mx-auto w-full max-w-[48rem] overflow-hidden rounded-[18px] bg-[var(--surface-3)] p-px'>
-                <ChatSurfaceProvider
-                  userId={userId}
-                  onContextAdd={handleContextAdd}
-                  onContextRemove={handleInitialContextRemove}
-                >
-                  <UserInput
-                    ref={initialViewUserInputRef}
-                    defaultValue={initialPrompt}
-                    draftScopeKey={draftScopeKey}
-                    onSubmit={handleSubmit}
-                    isSending={isSending}
-                    onStopGeneration={handleStopGeneration}
-                  />
-                </ChatSurfaceProvider>
-                <ChatHistory onSelectChat={handleOpenExistingChat} />
-              </div>
+            <div ref={initialViewInputRef} className='relative w-full max-w-[48rem]'>
+              <ChatSurfaceProvider
+                userId={userId}
+                onContextAdd={handleContextAdd}
+                onContextRemove={handleInitialContextRemove}
+              >
+                <UserInput
+                  ref={initialViewUserInputRef}
+                  defaultValue={initialPrompt}
+                  draftScopeKey={draftScopeKey}
+                  onSubmit={handleSubmit}
+                  isSending={isSending}
+                  onStopGeneration={handleStopGeneration}
+                />
+              </ChatSurfaceProvider>
               <SuggestedActions
                 onSelectPrompt={(prompt) => initialViewUserInputRef.current?.populatePrompt(prompt)}
               />

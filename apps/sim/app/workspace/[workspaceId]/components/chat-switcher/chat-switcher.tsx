@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
+  chipContentLabelClass,
   POPOVER_ANIMATION_CLASSES,
   Popover,
   PopoverAnchor,
@@ -168,9 +169,7 @@ export function ChatSwitcher({
               className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
             >
               {chipIcon}
-              <span className='min-w-0 max-w-[200px] truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                {title}
-              </span>
+              <span className={cn(chipContentLabelClass, 'max-w-[200px]')}>{title}</span>
             </button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
@@ -189,7 +188,7 @@ export function ChatSwitcher({
                 open && 'before:opacity-100'
               )}
             >
-              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
@@ -210,9 +209,7 @@ export function ChatSwitcher({
               className='before:-z-10 relative isolate flex min-w-0 items-center gap-1.5 rounded-l-lg pr-1 pl-2 before:absolute before:inset-0 before:rounded-l-lg before:bg-[var(--surface-active)] before:opacity-0 before:transition-opacity hover-hover:hover:before:opacity-100'
             >
               {chipIcon}
-              <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-                {title}
-              </span>
+              <span className={chipContentLabelClass}>{title}</span>
             </button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
@@ -231,7 +228,7 @@ export function ChatSwitcher({
                 open && 'before:opacity-100'
               )}
             >
-              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
@@ -254,9 +251,7 @@ export function ChatSwitcher({
           )}
         >
           {chipIcon}
-          <span className='min-w-0 truncate font-medium text-[14px] text-[var(--text-primary)]'>
-            {title}
-          </span>
+          <span className={chipContentLabelClass}>{title}</span>
         </button>
         <span aria-hidden='true' className='relative w-px self-stretch bg-[var(--bg)]' />
         <Tooltip.Root>
@@ -270,7 +265,7 @@ export function ChatSwitcher({
                 open && 'before:opacity-100'
               )}
             >
-              <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+              <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
             </button>
           </Tooltip.Trigger>
           <Tooltip.Content side='bottom'>
