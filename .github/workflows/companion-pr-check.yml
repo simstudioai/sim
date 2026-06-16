@@ -49,6 +49,12 @@ jobs:
             const TRAILER = /Companion:\s*(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/gi;
             const REF = /(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)(?:\/pull\/|#)(\d+)/g;
             const { owner, repo } = context.repo;
+            // Directional label: copilot/mothership PRs get "requires-sim-merge",
+            // sim PRs get "requires-mothership-merge". Applied whenever the PR
+            // declares a companion; removed when it declares none.
+            const otherSide = repo === 'sim' ? 'mothership/copilot' : 'sim';
+            const LABEL = repo === 'sim' ? 'requires-mothership-merge' : 'requires-sim-merge';
+            const LABEL_DESC = `Has a companion PR on the ${otherSide} side — merge in lockstep`;
             const crossToken = process.env.CROSS_REPO_TOKEN;
             // Read the OTHER repo's PR via a plain REST fetch with the PAT in the
             // header — keeps the PAT strictly READ-ONLY and avoids re-instantiating
@@ -108,17 +114,14 @@ jobs:
               const ex = await findSticky(prNumber);
               if (ex) await github.rest.issues.deleteComment({ owner, repo, comment_id: ex.id });
               // Drop the label too, so a PR edited to remove all companions doesn't
-              // keep a stale has-companion badge. 404 if not present → ignore.
-              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: 'has-companion' }); } catch {}
+              // keep a stale badge. 404 if not present → ignore.
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: prNumber, name: LABEL }); } catch {}
             }
             async function ensureLabel() {
-              try { await github.rest.issues.getLabel({ owner, repo, name: 'has-companion' }); }
+              try { await github.rest.issues.getLabel({ owner, repo, name: LABEL }); }
               catch {
                 try {
-                  await github.rest.issues.createLabel({
-                    owner, repo, name: 'has-companion', color: '5319e7',
-                    description: 'Has a cross-repo companion PR (see companion-pr-check)',
-                  });
+                  await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'd93f0b', description: LABEL_DESC });
                 } catch {}
               }
             }
@@ -162,7 +165,7 @@ jobs:
               const companions = await collectCompanions(pr);
               if (companions.length === 0) { await clear(pr.number); return; }
               await ensureLabel();
-              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: ['has-companion'] }); } catch {}
+              try { await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [LABEL] }); } catch {}
 
               const base = pr.base.ref;
               const lines = [];
