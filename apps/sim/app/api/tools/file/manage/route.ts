@@ -646,7 +646,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             name: compressedFile.name,
             size: compressedFile.size,
             url: compressedFile.url,
-            file: compressedFile,
             files: [compressedFile],
           },
         })
@@ -783,7 +782,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         return NextResponse.json({
           success: true,
           data: {
-            file: extractedFiles[0],
             files: extractedFiles,
           },
         })

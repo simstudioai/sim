@@ -98,12 +98,12 @@ describe('fileDecompressTool', () => {
     ]
 
     const result = await fileDecompressTool.transformResponse?.(
-      Response.json({ success: true, data: { file: extracted[0], files: extracted } })
+      Response.json({ success: true, data: { files: extracted } })
     )
 
     expect(result).toMatchObject({
       success: true,
-      output: { file: extracted[0], files: extracted },
+      output: { files: extracted },
     })
   })
 

@@ -1222,11 +1222,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     files: {
       type: 'file[]',
       description:
-        'Workspace file objects (read), fetched file objects (fetch), or the compressed archive (compress)',
-    },
-    file: {
-      type: 'file',
-      description: 'Compressed archive file object (compress)',
+        'Workspace file objects (read), fetched file objects (fetch), the compressed archive (compress), or extracted files (decompress)',
     },
     contents: {
       type: 'array',

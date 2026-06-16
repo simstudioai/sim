@@ -63,7 +63,6 @@ export const fileCompressTool: ToolConfig<FileCompressParams, ToolResponse> = {
     name: { type: 'string', description: 'Compressed archive file name' },
     size: { type: 'number', description: 'Compressed archive size in bytes' },
     url: { type: 'string', description: 'URL to access the compressed archive', optional: true },
-    file: { type: 'file', description: 'Compressed archive file object' },
     files: {
       type: 'file[]',
       description: 'Compressed archive file object, as a single-item array',
@@ -122,6 +121,5 @@ export const fileDecompressTool: ToolConfig<FileDecompressParams, ToolResponse> 
 
   outputs: {
     files: { type: 'file[]', description: 'Extracted workspace file objects' },
-    file: { type: 'file', description: 'First extracted workspace file object' },
   },
 }
