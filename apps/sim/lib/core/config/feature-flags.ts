@@ -46,25 +46,42 @@ export interface FeatureFlagContext {
  * admin access from a code literal. To add a flag, register its name and the secret
  * to fall back on.
  */
-type FallbackSecret = () => string | boolean | number | undefined
+/**
+ * The single definition of a feature flag. Everything about a flag lives in one
+ * place: its name (the registry key), a human-readable `description`, and the
+ * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
+ * globally).
+ *
+ * Gating by org/user/admin is deliberately NOT part of a definition — it lives only
+ * in the hosted AppConfig document, so no environment can grant access from a code
+ * literal.
+ */
+interface FeatureFlagDefinition {
+  description: string
+  fallback: () => string | boolean | number | undefined
+}
 
-const FEATURE_FLAG_FALLBACKS = {
-  // 'new-canvas': () => env.NEW_CANVAS_ENABLED,
-} satisfies Record<string, FallbackSecret>
+/** The single registry of known flags. To add a flag, add one entry here. */
+const FEATURE_FLAGS = {
+  // 'new-canvas': {
+  //   description: 'New canvas renderer',
+  //   fallback: () => env.NEW_CANVAS_ENABLED,
+  // },
+} satisfies Record<string, FeatureFlagDefinition>
 
 /**
- * The closed set of known feature flags. Derived from the fallback registry, so a
- * flag cannot exist — or be checked — without a mandatory fallback secret.
+ * The closed set of known feature flags. Derived from the registry, so a flag
+ * cannot exist — or be checked — without a definition (and its mandatory fallback).
  */
-export type FeatureFlagName = keyof typeof FEATURE_FLAG_FALLBACKS
+export type FeatureFlagName = keyof typeof FEATURE_FLAGS
 
 /** Build the fallback document from each flag's secret. Truthy secret ⇒ enabled. */
 function fallbackFlags(): FeatureFlagsConfig {
   const flags: Record<string, FeatureFlagRule> = {}
-  for (const [name, readSecret] of Object.entries(FEATURE_FLAG_FALLBACKS) as Array<
-    [string, FallbackSecret]
+  for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
+    [string, FeatureFlagDefinition]
   >) {
-    flags[name] = { enabled: isTruthy(readSecret()) }
+    flags[name] = { enabled: isTruthy(def.fallback()) }
   }
   return { flags }
 }

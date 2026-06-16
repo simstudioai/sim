@@ -26,15 +26,18 @@ Critically, **none of this is expressible in code** — gating (especially `admi
 
 ## Steps
 
-1. **Register the flag.** Add an entry to `FEATURE_FLAG_FALLBACKS` in `apps/sim/lib/core/config/feature-flags.ts`, mapping the flag name (kebab-case) to the secret consulted when AppConfig isn't the source of truth. A truthy secret turns the flag on globally:
+1. **Define the flag.** Add one entry to the `FEATURE_FLAGS` registry in `apps/sim/lib/core/config/feature-flags.ts`. Each entry is the flag's whole definition — name (kebab-case key), `description`, and the `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on globally):
 
    ```ts
-   const FEATURE_FLAG_FALLBACKS = {
-     '<flag-name>': () => env.<FLAG_SECRET>,
+   const FEATURE_FLAGS = {
+     '<flag-name>': {
+       description: '<what this gates>',
+       fallback: () => env.<FLAG_SECRET>,
+     },
    }
    ```
 
-   Add `<FLAG_SECRET>` to `apps/sim/lib/core/config/env.ts` (and the deployment's secret store). Do **not** add any org/user/admin defaults here — that gating exists only in AppConfig.
+   Add `<FLAG_SECRET>` to `apps/sim/lib/core/config/env.ts` (and the deployment's secret store). Do **not** add org/user/admin defaults here — that gating exists only in AppConfig. Adding the entry makes `<flag-name>` a valid `FeatureFlagName`.
 
 2. **Gate the call site.** Call `isFeatureEnabled` with whatever ids you have — admin status is resolved internally, so callers never pass it:
 
@@ -54,7 +57,7 @@ Critically, **none of this is expressible in code** — gating (especially `admi
 
 4. **Test.** Add a case to `apps/sim/lib/core/config/feature-flags.test.ts`: use `withAppConfig({ flags: { ... } })` to cover the gating rule (mock `isPlatformAdmin` for the `admins` clause), and toggle the fallback secret to cover the off-AppConfig path.
 
-5. **Clean up after rollout.** When the feature ships to everyone, delete the flag from `FEATURE_FLAG_FALLBACKS`, the `<FLAG_SECRET>` env entry, the AppConfig document, the call sites, and the test. Leaving dead flags around is the main failure mode of flag systems.
+5. **Clean up after rollout.** When the feature ships to everyone, delete the flag's entry from `FEATURE_FLAGS`, the `<FLAG_SECRET>` env entry, the AppConfig document, the call sites, and the test. Leaving dead flags around is the main failure mode of flag systems.
 
 ## Notes
 
