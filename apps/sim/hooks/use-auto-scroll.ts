@@ -5,8 +5,8 @@ const STICK_THRESHOLD = 30
 /** User must scroll back to within this distance to re-engage auto-scroll. */
 const REATTACH_THRESHOLD = 5
 /**
- * A keyboard-driven scroll (PageUp, arrows) only emits `scroll` events, so its
- * detach is honored when it lands within this window of a `keydown`. Wheel and
+ * An upward keyboard scroll ({@link SCROLL_UP_KEYS}) only emits `scroll` events, so
+ * its detach is honored when it lands within this window of the `keydown`. Wheel and
  * touch detach directly via their own handlers, and scrollbar drags are tracked
  * through {@link pointerDownRef}, so neither feeds this window.
  *
@@ -17,6 +17,13 @@ const REATTACH_THRESHOLD = 5
  * as the user scrolling away and auto-scroll detaches mid-stream.
  */
 const USER_GESTURE_WINDOW = 250
+/**
+ * Keys that scroll the viewport upward. Only these authorize a keyboard detach,
+ * mirroring the wheel handler's upward-only ({@link WheelEvent.deltaY} < 0) rule,
+ * so an unrelated keypress can't open the detach window. `Shift`+`Space` (handled
+ * in the listener) is the other upward shortcut; plain `Space` pages down.
+ */
+const SCROLL_UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home'])
 
 interface UseAutoScrollOptions {
   scrollOnMount?: boolean
@@ -111,8 +118,10 @@ export function useAutoScroll(
     const onPointerUp = () => {
       pointerDownRef.current = false
     }
-    const onKeyDown = () => {
-      lastUserGestureAtRef.current = performance.now()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (SCROLL_UP_KEYS.has(e.key) || (e.key === ' ' && e.shiftKey)) {
+        lastUserGestureAtRef.current = performance.now()
+      }
     }
 
     /**
