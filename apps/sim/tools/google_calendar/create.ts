@@ -7,6 +7,7 @@ import {
   type GoogleCalendarEventRequestBody,
 } from '@/tools/google_calendar/types'
 import {
+  assertRecurringTimeZone,
   buildEventDateTime,
   buildGoogleMeetConferenceData,
   normalizeAttendees,
@@ -127,6 +128,10 @@ export const createTool: ToolConfig<GoogleCalendarCreateParams, GoogleCalendarCr
     body: (params: GoogleCalendarCreateParams): GoogleCalendarEventRequestBody => {
       const recurrence = normalizeRecurrence(params.recurrence)
       const isRecurring = recurrence.length > 0
+
+      if (isRecurring) {
+        assertRecurringTimeZone([params.startDateTime, params.endDateTime], params.timeZone)
+      }
 
       const eventData: GoogleCalendarEventRequestBody = {
         summary: params.summary,

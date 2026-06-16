@@ -7,6 +7,7 @@ import {
   type GoogleCalendarUpdateResponse,
 } from '@/tools/google_calendar/types'
 import {
+  assertRecurringTimeZone,
   buildEventDateTime,
   buildGoogleMeetConferenceData,
   normalizeAttendees,
@@ -97,7 +98,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Recurrence rule(s) in RFC 5545 format (e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR). Separate multiple rules with newlines.',
+        "Recurrence rule(s) in RFC 5545 format (e.g., RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR). Separate multiple rules with newlines. When provided, replaces the event's recurrence; leaving it empty keeps the existing recurrence unchanged. Requires a timeZone for timed events.",
     },
     addGoogleMeet: {
       type: 'boolean',
@@ -137,6 +138,10 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       const updateData: EventPatchBody = {}
       const recurrence = normalizeRecurrence(params.recurrence)
       const isRecurring = recurrence.length > 0
+
+      if (isRecurring) {
+        assertRecurringTimeZone([params.startDateTime, params.endDateTime], params.timeZone)
+      }
 
       if (params.summary !== undefined) {
         updateData.summary = params.summary

@@ -48,6 +48,26 @@ export function normalizeAttendees(
   return list.filter((email) => email.length > 0).map((email) => ({ email }))
 }
 
+/**
+ * Recurring events require a named `timeZone` on their timed start/end — the Calendar API
+ * rejects them otherwise, and an RFC3339 offset is not a substitute (an IANA zone cannot be
+ * derived from a fixed offset). Throws a clear error so we fail fast with guidance instead of
+ * silently guessing a zone (which would misalign the recurrence) or sending an invalid request.
+ * All-day recurring events (date-only values) do not need a timezone and are allowed.
+ */
+export function assertRecurringTimeZone(
+  dateTimes: Array<string | undefined>,
+  timeZone: string | undefined
+): void {
+  if (timeZone) return
+  const hasTimedValue = dateTimes.some((value) => value?.includes('T'))
+  if (hasTimedValue) {
+    throw new Error(
+      'Recurring events require a time zone. Provide the timeZone parameter (an IANA name, e.g. America/New_York).'
+    )
+  }
+}
+
 /** Normalize recurrence rules (single string, newline-separated string, or array) into an array. */
 export function normalizeRecurrence(recurrence: string | string[] | undefined): string[] {
   if (!recurrence) return []
