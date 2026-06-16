@@ -52,13 +52,18 @@ describe('Enrow find_email pricing', () => {
 })
 
 describe('Enrow verify_email pricing', () => {
-  it('charges 0.25 credits per verification regardless of result', () => {
+  it('charges 0.25 credits for a completed verification (valid or invalid)', () => {
     expect(cost(enrowVerifyEmailTool, {}, { qualification: 'valid' }).cost).toBeCloseTo(
       0.25 * ENROW_CREDIT_USD
     )
     expect(cost(enrowVerifyEmailTool, {}, { qualification: 'invalid' }).cost).toBeCloseTo(
       0.25 * ENROW_CREDIT_USD
     )
+  })
+
+  it('charges 0 credits when the job did not complete (no qualification)', () => {
+    expect(cost(enrowVerifyEmailTool, {}, { qualification: null }).cost).toBe(0)
+    expect(cost(enrowVerifyEmailTool, {}, {}).cost).toBe(0)
   })
 })
 
