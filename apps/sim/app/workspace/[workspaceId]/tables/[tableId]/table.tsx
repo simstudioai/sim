@@ -64,6 +64,8 @@ interface TableProps {
   /** Identifiers — only set in embedded mode. Page mode reads from `useParams()`. */
   workspaceId?: string
   tableId?: string
+  /** Resolved server-side from the workflow-columns feature flag. */
+  workflowColumnsEnabled?: boolean
 }
 
 /**
@@ -116,6 +118,7 @@ export function Table({
   embedded,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
+  workflowColumnsEnabled = false,
 }: TableProps = {}) {
   const params = useParams()
   const router = useRouter()
@@ -558,6 +561,7 @@ export function Table({
       onPickType={handleAddColumnOfType}
       onPickWorkflow={handleAddWorkflowColumn}
       onPickEnrichment={onOpenEnrichments}
+      workflowColumnsEnabled={workflowColumnsEnabled}
     />
   ) : null
 
@@ -691,6 +695,7 @@ export function Table({
         afterDeleteAllSinkRef={afterDeleteAllSinkRef}
         confirmDeleteColumnsSinkRef={confirmDeleteColumnsSinkRef}
         pushTableRenameUndoSinkRef={pushTableRenameUndoSinkRef}
+        workflowColumnsEnabled={workflowColumnsEnabled}
       />
       {userPermissions.canEdit && (
         <TableActionBar

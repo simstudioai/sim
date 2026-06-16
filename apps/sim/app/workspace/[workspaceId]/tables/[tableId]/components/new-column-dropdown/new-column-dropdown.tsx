@@ -13,13 +13,8 @@ import {
   DropdownMenuTrigger,
   Plus,
 } from '@/components/emcn'
-import { isWorkflowColumnsEnabledClient } from '@/lib/core/config/env-flags'
 import type { ColumnDefinition } from '@/lib/table'
 import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
-
-const VISIBLE_COLUMN_TYPE_OPTIONS = isWorkflowColumnsEnabledClient
-  ? COLUMN_TYPE_OPTIONS
-  : COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
@@ -32,6 +27,7 @@ interface NewColumnDropdownProps {
   onPickType: (type: ColumnDefinition['type']) => void
   onPickWorkflow: () => void
   onPickEnrichment: () => void
+  workflowColumnsEnabled: boolean
 }
 
 /**
@@ -45,7 +41,12 @@ export function NewColumnDropdown({
   onPickType,
   onPickWorkflow,
   onPickEnrichment,
+  workflowColumnsEnabled,
 }: NewColumnDropdownProps) {
+  const visibleColumnTypeOptions = workflowColumnsEnabled
+    ? COLUMN_TYPE_OPTIONS
+    : COLUMN_TYPE_OPTIONS.filter((o) => o.type !== 'workflow')
+
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -67,7 +68,7 @@ export function NewColumnDropdown({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align='start' side='bottom' sideOffset={4}>
-        {isWorkflowColumnsEnabledClient && (
+        {workflowColumnsEnabled && (
           <>
             <DropdownMenuItem onSelect={onPickEnrichment}>
               <Sparkles className='size-[14px] text-[var(--text-icon)]' />
@@ -76,7 +77,7 @@ export function NewColumnDropdown({
             <DropdownMenuSeparator />
           </>
         )}
-        {VISIBLE_COLUMN_TYPE_OPTIONS.map((option) => {
+        {visibleColumnTypeOptions.map((option) => {
           const Icon = option.icon
           const onSelect =
             option.type === 'workflow'

@@ -18,12 +18,10 @@ export interface FeatureFlagRule {
   enabled?: boolean
   orgIds?: string[]
   userIds?: string[]
-  admins?: boolean
+  adminEnabled?: boolean
 }
 
-export interface FeatureFlagsConfig {
-  flags: Record<string, FeatureFlagRule>
-}
+export type FeatureFlagsConfig = Record<string, FeatureFlagRule>
 
 /**
  * Per-request evaluation context. Pass only the ids you have — a missing id skips
@@ -64,10 +62,19 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
-  // 'new-canvas': {
-  //   description: 'New canvas renderer',
-  //   fallback: 'NEW_CANVAS_ENABLED',
-  // },
+  'tables-fractional-ordering': {
+    description: 'Order table rows by fractional order_key instead of legacy integer position',
+    fallback: 'TABLES_FRACTIONAL_ORDERING',
+  },
+  'mothership-beta': {
+    description:
+      'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler',
+    fallback: 'MOTHERSHIP_BETA_FEATURES',
+  },
+  'workflow-columns': {
+    description: 'Workflow column type and enrichments in the table new-column dropdown',
+    fallback: 'NEXT_PUBLIC_WORKFLOW_COLUMNS_ENABLED',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**
@@ -78,13 +85,13 @@ export type FeatureFlagName = keyof typeof FEATURE_FLAGS
 
 /** Build the fallback document from each flag's secret. Truthy secret ⇒ enabled. */
 function fallbackFlags(): FeatureFlagsConfig {
-  const flags: Record<string, FeatureFlagRule> = {}
+  const flags: FeatureFlagsConfig = {}
   for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
     [string, FeatureFlagDefinition]
   >) {
     flags[name] = { enabled: isTruthy(env[def.fallback]) }
   }
-  return { flags }
+  return flags
 }
 
 function normalizeIds(values: unknown): string[] | undefined {
@@ -98,7 +105,7 @@ function normalizeRule(value: unknown): FeatureFlagRule | null {
   const obj = value as Record<string, unknown>
   const rule: FeatureFlagRule = {}
   if (typeof obj.enabled === 'boolean') rule.enabled = obj.enabled
-  if (typeof obj.admins === 'boolean') rule.admins = obj.admins
+  if (typeof obj.adminEnabled === 'boolean') rule.adminEnabled = obj.adminEnabled
   const orgIds = normalizeIds(obj.orgIds)
   if (orgIds) rule.orgIds = orgIds
   const userIds = normalizeIds(obj.userIds)
@@ -109,16 +116,12 @@ function normalizeRule(value: unknown): FeatureFlagRule | null {
 /** Coerce an arbitrary AppConfig/JSON value into a config, dropping malformed entries. */
 function parseConfig(json: unknown): FeatureFlagsConfig {
   const obj = (json && typeof json === 'object' ? json : {}) as Record<string, unknown>
-  const rawFlags = (obj.flags && typeof obj.flags === 'object' ? obj.flags : {}) as Record<
-    string,
-    unknown
-  >
-  const flags: Record<string, FeatureFlagRule> = {}
-  for (const [name, value] of Object.entries(rawFlags)) {
+  const flags: FeatureFlagsConfig = {}
+  for (const [name, value] of Object.entries(obj)) {
     const rule = normalizeRule(value)
     if (rule) flags[name] = rule
   }
-  return { flags }
+  return flags
 }
 
 /**
@@ -144,7 +147,7 @@ async function evaluate(
   if (rule.enabled) return true
   if (ctx.userId && rule.userIds?.includes(ctx.userId)) return true
   if (ctx.orgId && rule.orgIds?.includes(ctx.orgId)) return true
-  if (rule.admins) {
+  if (rule.adminEnabled) {
     const admin = ctx.isAdmin ?? (ctx.userId ? await resolveAdmin(ctx.userId) : false)
     if (admin) return true
   }
@@ -176,6 +179,6 @@ export async function isFeatureEnabled(
   flag: FeatureFlagName,
   ctx: FeatureFlagContext = {}
 ): Promise<boolean> {
-  const { flags } = await getFeatureFlags()
+  const flags = await getFeatureFlags()
   return evaluate(flags[flag], ctx)
 }

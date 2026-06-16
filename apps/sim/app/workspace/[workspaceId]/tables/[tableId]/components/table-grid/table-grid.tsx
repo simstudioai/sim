@@ -230,6 +230,7 @@ interface TableGridProps {
   pushTableRenameUndoSinkRef: React.MutableRefObject<
     ((previousName: string, newName: string) => void) | null
   >
+  workflowColumnsEnabled: boolean
 }
 
 /** Serialize a cell value to its tab-separated clipboard representation. */
@@ -300,6 +301,7 @@ export function TableGrid({
   afterDeleteAllSinkRef,
   confirmDeleteColumnsSinkRef,
   pushTableRenameUndoSinkRef,
+  workflowColumnsEnabled,
 }: TableGridProps) {
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
@@ -3738,6 +3740,7 @@ export function TableGrid({
                           onPickType={handleAddColumnOfType}
                           onPickWorkflow={handleAddWorkflowColumn}
                           onPickEnrichment={onOpenEnrichments}
+                          workflowColumnsEnabled={workflowColumnsEnabled}
                         />
                       )}
                     </tr>
