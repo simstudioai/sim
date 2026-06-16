@@ -1,3 +1,5 @@
+import 'server-only'
+
 import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'

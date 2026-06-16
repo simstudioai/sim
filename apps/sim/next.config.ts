@@ -93,17 +93,6 @@ const nextConfig: NextConfig = {
       './lib/execution/sandbox/bundles/*.cjs',
     ],
   },
-  turbopack: {
-    resolveAlias: {
-      'dns/promises': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      dns: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      'node:dns': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      net: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      'node:net': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      tls: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      'node:tls': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-    },
-  },
   experimental: {
     optimizeCss: true,
     preloadEntriesOnStart: false,
