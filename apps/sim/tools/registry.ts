@@ -850,6 +850,8 @@ import {
 } from '@/tools/fathom'
 import {
   fileAppendTool,
+  fileCompressTool,
+  fileDecompressTool,
   fileFetchTool,
   fileGetContentTool,
   fileGetTool,
@@ -3958,6 +3960,8 @@ export const tools: Record<string, ToolConfig> = {
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
   file_append: fileAppendTool,
+  file_compress: fileCompressTool,
+  file_decompress: fileDecompressTool,
   file_fetch: fileFetchTool,
   file_get: fileGetTool,
   file_get_content: fileGetContentTool,
