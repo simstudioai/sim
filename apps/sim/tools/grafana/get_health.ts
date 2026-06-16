@@ -1,16 +1,10 @@
-import type {
-  GrafanaDeleteAlertRuleParams,
-  GrafanaDeleteAlertRuleResponse,
-} from '@/tools/grafana/types'
+import type { GrafanaHealthCheckParams, GrafanaHealthCheckResponse } from '@/tools/grafana/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const deleteAlertRuleTool: ToolConfig<
-  GrafanaDeleteAlertRuleParams,
-  GrafanaDeleteAlertRuleResponse
-> = {
-  id: 'grafana_delete_alert_rule',
-  name: 'Grafana Delete Alert Rule',
-  description: 'Delete an alert rule by its UID',
+export const getHealthTool: ToolConfig<GrafanaHealthCheckParams, GrafanaHealthCheckResponse> = {
+  id: 'grafana_get_health',
+  name: 'Grafana Get Health',
+  description: 'Check the health of the Grafana instance (version, database status)',
   version: '1.0.0',
 
   params: {
@@ -32,18 +26,11 @@ export const deleteAlertRuleTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Organization ID for multi-org Grafana instances (e.g., 1, 2)',
     },
-    alertRuleUid: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'The UID of the alert rule to delete',
-    },
   },
 
   request: {
-    url: (params) =>
-      `${params.baseUrl.replace(/\/$/, '')}/api/v1/provisioning/alert-rules/${params.alertRuleUid.trim()}`,
-    method: 'DELETE',
+    url: (params) => `${params.baseUrl.replace(/\/$/, '')}/api/health`,
+    method: 'GET',
     headers: (params) => {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -56,19 +43,22 @@ export const deleteAlertRuleTool: ToolConfig<
     },
   },
 
-  transformResponse: async () => {
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+
     return {
       success: true,
       output: {
-        message: 'Alert rule deleted successfully',
+        commit: (data.commit as string) ?? '',
+        database: (data.database as string) ?? '',
+        version: (data.version as string) ?? '',
       },
     }
   },
 
   outputs: {
-    message: {
-      type: 'string',
-      description: 'Confirmation message',
-    },
+    commit: { type: 'string', description: 'Git commit hash of the running Grafana build' },
+    database: { type: 'string', description: 'Database health status (e.g., ok)' },
+    version: { type: 'string', description: 'Grafana version' },
   },
 }

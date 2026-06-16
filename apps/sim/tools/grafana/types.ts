@@ -1,4 +1,3 @@
-// Common types for Grafana API tools
 import type { OutputProperty, ToolResponse } from '@/tools/types'
 
 /**
@@ -43,17 +42,15 @@ export const ALERT_RULE_OUTPUT_FIELDS: Record<string, OutputProperty> = {
   },
 }
 
-// Common parameters for all Grafana tools
 interface GrafanaBaseParams {
   apiKey: string
   baseUrl: string
   organizationId?: string
 }
 
-// Health Check types
-interface GrafanaHealthCheckParams extends GrafanaBaseParams {}
+export interface GrafanaHealthCheckParams extends GrafanaBaseParams {}
 
-interface GrafanaHealthCheckResponse extends ToolResponse {
+export interface GrafanaHealthCheckResponse extends ToolResponse {
   output: {
     commit: string
     database: string
@@ -61,18 +58,17 @@ interface GrafanaHealthCheckResponse extends ToolResponse {
   }
 }
 
-interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
-  dataSourceId: string
+export interface GrafanaDataSourceHealthParams extends GrafanaBaseParams {
+  dataSourceUid: string
 }
 
-interface GrafanaDataSourceHealthResponse extends ToolResponse {
+export interface GrafanaDataSourceHealthResponse extends ToolResponse {
   output: {
     status: string
     message: string
   }
 }
 
-// Dashboard types
 export interface GrafanaGetDashboardParams extends GrafanaBaseParams {
   dashboardUid: string
 }
@@ -164,7 +160,7 @@ export interface GrafanaCreateDashboardParams extends GrafanaBaseParams {
   tags?: string
   timezone?: string
   refresh?: string
-  panels?: string // JSON string of panels array
+  panels?: string
   overwrite?: boolean
   message?: string
 }
@@ -187,7 +183,7 @@ export interface GrafanaUpdateDashboardParams extends GrafanaBaseParams {
   tags?: string
   timezone?: string
   refresh?: string
-  panels?: string // JSON string of panels array
+  panels?: string
   overwrite?: boolean
   message?: string
 }
@@ -215,7 +211,6 @@ export interface GrafanaDeleteDashboardResponse extends ToolResponse {
   }
 }
 
-// Alert Rule types
 export interface GrafanaListAlertRulesParams extends GrafanaBaseParams {}
 
 interface GrafanaAlertRule {
@@ -260,18 +255,18 @@ export interface GrafanaCreateAlertRuleParams extends GrafanaBaseParams {
   folderUid: string
   ruleGroup: string
   condition?: string
-  data: string // JSON string of data array
+  data: string
   forDuration?: string
   noDataState?: string
   execErrState?: string
-  annotations?: string // JSON string
-  labels?: string // JSON string
+  annotations?: string
+  labels?: string
   uid?: string
   isPaused?: boolean
   keepFiringFor?: string
   missingSeriesEvalsToResolve?: number
-  notificationSettings?: string // JSON string
-  record?: string // JSON string
+  notificationSettings?: string
+  record?: string
   disableProvenance?: boolean
 }
 
@@ -285,17 +280,17 @@ export interface GrafanaUpdateAlertRuleParams extends GrafanaBaseParams {
   folderUid?: string
   ruleGroup?: string
   condition?: string
-  data?: string // JSON string of data array
+  data?: string
   forDuration?: string
   noDataState?: string
   execErrState?: string
-  annotations?: string // JSON string
-  labels?: string // JSON string
+  annotations?: string
+  labels?: string
   isPaused?: boolean
   keepFiringFor?: string
   missingSeriesEvalsToResolve?: number
-  notificationSettings?: string // JSON string
-  record?: string // JSON string
+  notificationSettings?: string
+  record?: string
   disableProvenance?: boolean
 }
 
@@ -313,14 +308,13 @@ export interface GrafanaDeleteAlertRuleResponse extends ToolResponse {
   }
 }
 
-// Annotation types
 export interface GrafanaCreateAnnotationParams extends GrafanaBaseParams {
   text: string
-  tags?: string // comma-separated
+  tags?: string
   dashboardUid?: string
   panelId?: number
-  time?: number // epoch ms
-  timeEnd?: number // epoch ms
+  time?: number
+  timeEnd?: number
 }
 
 interface GrafanaAnnotation {
@@ -356,7 +350,7 @@ export interface GrafanaListAnnotationsParams extends GrafanaBaseParams {
   panelId?: number
   alertId?: number
   userId?: number
-  tags?: string // comma-separated
+  tags?: string
   type?: string
   limit?: number
 }
@@ -370,7 +364,7 @@ export interface GrafanaListAnnotationsResponse extends ToolResponse {
 export interface GrafanaUpdateAnnotationParams extends GrafanaBaseParams {
   annotationId: number
   text?: string
-  tags?: string // comma-separated
+  tags?: string
   time?: number
   timeEnd?: number
 }
@@ -392,7 +386,6 @@ export interface GrafanaDeleteAnnotationResponse extends ToolResponse {
   }
 }
 
-// Data Source types
 export interface GrafanaListDataSourcesParams extends GrafanaBaseParams {}
 
 interface GrafanaDataSource {
@@ -430,7 +423,6 @@ export interface GrafanaGetDataSourceResponse extends ToolResponse {
   output: GrafanaDataSource
 }
 
-// Folder types
 export interface GrafanaListFoldersParams extends GrafanaBaseParams {
   limit?: number
   page?: number
@@ -477,7 +469,35 @@ export interface GrafanaCreateFolderResponse extends ToolResponse {
   output: GrafanaFolder
 }
 
-// Contact Points types
+export interface GrafanaGetFolderParams extends GrafanaBaseParams {
+  folderUid: string
+}
+
+export interface GrafanaGetFolderResponse extends ToolResponse {
+  output: GrafanaFolder
+}
+
+export interface GrafanaUpdateFolderParams extends GrafanaBaseParams {
+  folderUid: string
+  title?: string
+}
+
+export interface GrafanaUpdateFolderResponse extends ToolResponse {
+  output: GrafanaFolder
+}
+
+export interface GrafanaDeleteFolderParams extends GrafanaBaseParams {
+  folderUid: string
+  forceDeleteRules?: boolean
+}
+
+export interface GrafanaDeleteFolderResponse extends ToolResponse {
+  output: {
+    uid: string
+    message: string
+  }
+}
+
 export interface GrafanaListContactPointsParams extends GrafanaBaseParams {
   name?: string
 }
@@ -497,7 +517,25 @@ export interface GrafanaListContactPointsResponse extends ToolResponse {
   }
 }
 
-// Union type for all Grafana responses
+export interface GrafanaCreateContactPointParams extends GrafanaBaseParams {
+  name: string
+  type: string
+  settings: string
+  disableResolveMessage?: boolean
+  disableProvenance?: boolean
+}
+
+export interface GrafanaCreateContactPointResponse extends ToolResponse {
+  output: {
+    uid: string
+    name: string
+    type: string
+    settings: Record<string, unknown>
+    disableResolveMessage: boolean
+    provenance: string
+  }
+}
+
 export type GrafanaResponse =
   | GrafanaHealthCheckResponse
   | GrafanaDataSourceHealthResponse
@@ -519,4 +557,8 @@ export type GrafanaResponse =
   | GrafanaGetDataSourceResponse
   | GrafanaListFoldersResponse
   | GrafanaCreateFolderResponse
+  | GrafanaGetFolderResponse
+  | GrafanaUpdateFolderResponse
+  | GrafanaDeleteFolderResponse
   | GrafanaListContactPointsResponse
+  | GrafanaCreateContactPointResponse
