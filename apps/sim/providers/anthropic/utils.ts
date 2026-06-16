@@ -34,8 +34,16 @@ export function applyAnthropicPromptCache(
   tools: Tool[] | undefined,
   systemPrompt: string | null | undefined
 ): void {
+  const payloadSystem = typeof payload.system === 'string' ? payload.system : ''
+
+  // Size the gate on the LARGER of the final payload.system (which may include
+  // appended structured-output schema text) and the original request prompt
+  // (non-empty even when the no-messages path relocates it out of payload.system).
+  const gateSystem =
+    payloadSystem.length >= (systemPrompt?.length ?? 0) ? payloadSystem : systemPrompt
+
   const shouldCache = shouldCacheStaticPrefix({
-    systemPrompt,
+    systemPrompt: gateSystem,
     hasTools: !!tools?.length,
     toolsApproxChars: tools ? JSON.stringify(tools).length : 0,
   })
@@ -43,8 +51,8 @@ export function applyAnthropicPromptCache(
     return
   }
 
-  if (typeof payload.system === 'string' && payload.system.length > 0) {
-    payload.system = [{ type: 'text', text: payload.system, cache_control: { type: 'ephemeral' } }]
+  if (payloadSystem.length > 0) {
+    payload.system = [{ type: 'text', text: payloadSystem, cache_control: { type: 'ephemeral' } }]
   }
 
   if (tools?.length) {

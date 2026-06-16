@@ -56,6 +56,17 @@ describe('applyAnthropicPromptCache', () => {
     expect(tools[0].cache_control).toEqual({ type: 'ephemeral' })
   })
 
+  it('caches when payload.system is large from appended schema text even if the request prompt is small', () => {
+    // Prompt-based structured output appends a large schema to payload.system,
+    // so the cacheable system block is large even though request.systemPrompt is small.
+    const payload: { system?: string | TextBlockParam[] } = { system: LARGE }
+
+    applyAnthropicPromptCache(payload, undefined, SMALL)
+
+    expect(Array.isArray(payload.system)).toBe(true)
+    expect((payload.system as TextBlockParam[])[0].cache_control).toEqual({ type: 'ephemeral' })
+  })
+
   it('leaves a small, tool-less prefix untouched (no write surcharge on one-shot calls)', () => {
     const payload: { system?: string | TextBlockParam[] } = { system: SMALL }
 
