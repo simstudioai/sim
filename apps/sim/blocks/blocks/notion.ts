@@ -558,6 +558,7 @@ export const NotionV2Block: BlockConfig<any> = {
 
 export const NotionBlockMeta = {
   tags: ['note-taking', 'knowledge-base', 'content-management'],
+  url: 'https://www.notion.com',
   templates: [
     {
       icon: Send,
@@ -661,4 +662,5 @@ export const NotionBlockMeta = {
 
 export const NotionV2BlockMeta = {
   tags: ['note-taking', 'knowledge-base', 'content-management'],
+  url: 'https://www.notion.com',
 } as const satisfies BlockMeta

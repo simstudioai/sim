@@ -98,6 +98,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Fields to Return',
       type: 'short-input',
       placeholder: 'Comma-separated fields',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -115,6 +116,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Limit',
       type: 'short-input',
       placeholder: 'Max results (default: 100)',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -132,6 +134,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Order By',
       type: 'short-input',
       placeholder: 'Field and direction (e.g., "Name ASC")',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -158,8 +161,12 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
           'create_contact',
           'update_contact',
           'create_case',
+          'update_case',
+          'create_opportunity',
+          'update_opportunity',
         ],
       },
+      required: { field: 'operation', value: ['update_account', 'delete_account'] },
     },
     {
       id: 'name',
@@ -170,12 +177,14 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         field: 'operation',
         value: ['create_account', 'update_account', 'create_opportunity', 'update_opportunity'],
       },
+      required: { field: 'operation', value: ['create_account', 'create_opportunity'] },
     },
     {
       id: 'type',
       title: 'Type',
       type: 'short-input',
       placeholder: 'Type',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['create_account', 'update_account'] },
     },
     {
@@ -183,6 +192,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Industry',
       type: 'short-input',
       placeholder: 'Industry',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['create_account', 'update_account'] },
     },
     {
@@ -207,6 +217,63 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Website',
       type: 'short-input',
       placeholder: 'Website',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'billingStreet',
+      title: 'Billing Street',
+      type: 'short-input',
+      placeholder: 'Billing street address',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'billingCity',
+      title: 'Billing City',
+      type: 'short-input',
+      placeholder: 'Billing city',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'billingState',
+      title: 'Billing State',
+      type: 'short-input',
+      placeholder: 'Billing state/province',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'billingPostalCode',
+      title: 'Billing Postal Code',
+      type: 'short-input',
+      placeholder: 'Billing postal code',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'billingCountry',
+      title: 'Billing Country',
+      type: 'short-input',
+      placeholder: 'Billing country',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'annualRevenue',
+      title: 'Annual Revenue',
+      type: 'short-input',
+      placeholder: 'Annual revenue (number)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_account', 'update_account'] },
+    },
+    {
+      id: 'numberOfEmployees',
+      title: 'Number of Employees',
+      type: 'short-input',
+      placeholder: 'Employee count (integer)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['create_account', 'update_account'] },
     },
     // Contact fields
@@ -217,8 +284,9 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       placeholder: 'Contact ID',
       condition: {
         field: 'operation',
-        value: ['get_contacts', 'update_contact', 'delete_contact', 'create_case'],
+        value: ['get_contacts', 'update_contact', 'delete_contact', 'create_case', 'update_case'],
       },
+      required: { field: 'operation', value: ['update_contact', 'delete_contact'] },
     },
     {
       id: 'lastName',
@@ -229,6 +297,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         field: 'operation',
         value: ['create_contact', 'update_contact', 'create_lead', 'update_lead'],
       },
+      required: { field: 'operation', value: ['create_contact', 'create_lead'] },
     },
     {
       id: 'firstName',
@@ -260,6 +329,54 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         value: ['create_contact', 'update_contact', 'create_lead', 'update_lead'],
       },
     },
+    {
+      id: 'department',
+      title: 'Department',
+      type: 'short-input',
+      placeholder: 'Department',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
+    {
+      id: 'mailingStreet',
+      title: 'Mailing Street',
+      type: 'short-input',
+      placeholder: 'Mailing street address',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
+    {
+      id: 'mailingCity',
+      title: 'Mailing City',
+      type: 'short-input',
+      placeholder: 'Mailing city',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
+    {
+      id: 'mailingState',
+      title: 'Mailing State',
+      type: 'short-input',
+      placeholder: 'Mailing state/province',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
+    {
+      id: 'mailingPostalCode',
+      title: 'Mailing Postal Code',
+      type: 'short-input',
+      placeholder: 'Mailing postal code',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
+    {
+      id: 'mailingCountry',
+      title: 'Mailing Country',
+      type: 'short-input',
+      placeholder: 'Mailing country',
+      mode: 'advanced',
+      condition: { field: 'operation', value: ['create_contact', 'update_contact'] },
+    },
     // Lead fields
     {
       id: 'leadId',
@@ -267,6 +384,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'short-input',
       placeholder: 'Lead ID',
       condition: { field: 'operation', value: ['get_leads', 'update_lead', 'delete_lead'] },
+      required: { field: 'operation', value: ['update_lead', 'delete_lead'] },
     },
     {
       id: 'company',
@@ -274,6 +392,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'short-input',
       placeholder: 'Company name',
       condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
+      required: { field: 'operation', value: ['create_lead'] },
     },
     {
       id: 'status',
@@ -297,6 +416,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       title: 'Lead Source',
       type: 'short-input',
       placeholder: 'Lead source',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['create_lead', 'update_lead'] },
     },
     // Opportunity fields
@@ -309,6 +429,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
         field: 'operation',
         value: ['get_opportunities', 'update_opportunity', 'delete_opportunity'],
       },
+      required: { field: 'operation', value: ['update_opportunity', 'delete_opportunity'] },
     },
     {
       id: 'stageName',
@@ -316,6 +437,7 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
       type: 'short-input',
       placeholder: 'Stage name',
       condition: { field: 'operation', value: ['create_opportunity', 'update_opportunity'] },
+      required: { field: 'operation', value: ['create_opportunity'] },
     },
     {
       id: 'closeDate',
@@ -349,6 +471,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Probability',
       type: 'short-input',
       placeholder: 'Win probability (0-100)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['create_opportunity', 'update_opportunity'] },
     },
     // Case fields
@@ -358,6 +481,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Case ID',
       condition: { field: 'operation', value: ['get_cases', 'update_case', 'delete_case'] },
+      required: { field: 'operation', value: ['update_case', 'delete_case'] },
     },
     {
       id: 'subject',
@@ -368,6 +492,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
         field: 'operation',
         value: ['create_case', 'update_case', 'create_task', 'update_task'],
       },
+      required: { field: 'operation', value: ['create_case', 'create_task'] },
     },
     {
       id: 'priority',
@@ -384,7 +509,8 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Origin',
       type: 'short-input',
       placeholder: 'Origin (e.g., Phone, Email, Web)',
-      condition: { field: 'operation', value: ['create_case'] },
+      condition: { field: 'operation', value: ['create_case', 'update_case'] },
+      mode: 'advanced',
     },
     // Task fields
     {
@@ -393,6 +519,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       type: 'short-input',
       placeholder: 'Task ID',
       condition: { field: 'operation', value: ['get_tasks', 'update_task', 'delete_task'] },
+      required: { field: 'operation', value: ['update_task', 'delete_task'] },
     },
     {
       id: 'activityDate',
@@ -418,14 +545,16 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Related Contact/Lead ID',
       type: 'short-input',
       placeholder: 'Contact or Lead ID',
-      condition: { field: 'operation', value: ['create_task'] },
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      mode: 'advanced',
     },
     {
       id: 'whatId',
       title: 'Related Account/Opportunity ID',
       type: 'short-input',
       placeholder: 'Account or Opportunity ID',
-      condition: { field: 'operation', value: ['create_task'] },
+      condition: { field: 'operation', value: ['create_task', 'update_task'] },
+      mode: 'advanced',
     },
     // Report fields
     {
@@ -437,24 +566,23 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       required: true,
     },
     {
-      id: 'folderName',
-      title: 'Folder Name',
-      type: 'short-input',
-      placeholder: 'Filter by folder name',
-      condition: { field: 'operation', value: ['list_reports', 'list_dashboards'] },
-    },
-    {
       id: 'searchTerm',
       title: 'Search Term',
       type: 'short-input',
       placeholder: 'Search reports by name',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['list_reports'] },
     },
     {
       id: 'includeDetails',
       title: 'Include Details',
-      type: 'short-input',
-      placeholder: 'Include detail rows (true/false)',
+      type: 'dropdown',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['run_report'] },
     },
     {
@@ -462,6 +590,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Report Filters',
       type: 'long-input',
       placeholder: 'JSON array of report filters',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['run_report'] },
     },
     // Dashboard fields
@@ -504,6 +633,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
       title: 'Description',
       type: 'long-input',
       placeholder: 'Description',
+      mode: 'advanced',
       condition: {
         field: 'operation',
         value: [
@@ -662,12 +792,17 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
   },
   outputs: {
     success: { type: 'boolean', description: 'Operation success status' },
-    output: { type: 'json', description: 'Operation result data' },
+    output: {
+      type: 'json',
+      description:
+        'Operation result: sObject record(s) for get/create/update/delete ops (accounts, contacts, leads, opportunities, cases, tasks); report/dashboard payloads for analytics ops; records[] + paging for SOQL query ops; sObject schema for describe/list-objects ops',
+    },
   },
 }
 
 export const SalesforceBlockMeta = {
   tags: ['sales-engagement', 'customer-support'],
+  url: 'https://www.salesforce.com',
   templates: [
     {
       icon: SalesforceIcon,

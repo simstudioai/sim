@@ -757,7 +757,7 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
-                  Copilot
+                  Chat
                 </Button>
               )}
               <Button
@@ -932,19 +932,16 @@ export const Panel = memo(function Panel({ workspaceId: propWorkspaceId }: Panel
         onOpenChange={setIsDeleteModalOpen}
         srTitle='Delete Workflow'
         title='Delete Workflow'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {currentWorkflow?.name ?? 'this workflow'}
-            </span>
-            ?{' '}
-            <span className='text-[var(--text-error)]'>
-              All associated blocks, executions, and configuration will be removed.
-            </span>{' '}
-            You can restore it from Recently Deleted in Settings.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: currentWorkflow?.name ?? 'this workflow', bold: true },
+          '? ',
+          {
+            text: 'All associated blocks, executions, and configuration will be removed.',
+            error: true,
+          },
+          ' You can restore it from Recently Deleted in Settings.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteWorkflow,

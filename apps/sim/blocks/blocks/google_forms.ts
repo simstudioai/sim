@@ -471,6 +471,7 @@ Example for "Add a required multiple choice question about favorite color":
 
 export const GoogleFormsBlockMeta = {
   tags: ['google-workspace', 'forms', 'data-analytics'],
+  url: 'https://workspace.google.com/products/forms',
   templates: [
     {
       icon: GoogleFormsIcon,

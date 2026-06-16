@@ -241,6 +241,7 @@ export const InfisicalBlock: BlockConfig<InfisicalResponse> = {
 
 export const InfisicalBlockMeta = {
   tags: ['secrets-management'],
+  url: 'https://infisical.com',
   templates: [
     {
       icon: InfisicalIcon,

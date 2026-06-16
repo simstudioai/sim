@@ -15,9 +15,9 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, lte } from 'drizzle-orm'
 import { setActiveOrganizationForCurrentSession } from '@/lib/auth/active-organization'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrgMembershipLock,
@@ -28,7 +28,6 @@ import { ensureTeamOrganizationForAcceptance } from '@/lib/billing/organizations
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -204,10 +203,6 @@ export async function expireStalePendingInvitationsForWorkspaces(
       error,
     })
   }
-}
-
-export function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase()
 }
 
 export type AcceptInvitationFailure =
@@ -434,14 +429,6 @@ export async function acceptInvitation(
 
   const acceptedWorkspaceIds: string[] = []
 
-  // Resolved before the transaction: the entitlement check reads billing
-  // tables on the global pool, which must not run while the tx below holds a
-  // pooled connection and the org-membership advisory lock.
-  const autoAddEntitlementByWorkspace = new Map<string, boolean>()
-  for (const workspaceId of new Set(inv.grants.map((grant) => grant.workspaceId))) {
-    autoAddEntitlementByWorkspace.set(workspaceId, await isWorkspaceOnEnterprisePlan(workspaceId))
-  }
-
   try {
     await db.transaction(async (tx) => {
       /**
@@ -510,13 +497,6 @@ export async function acceptInvitation(
             updatedAt: new Date(),
           })
         }
-
-        await applyWorkspaceAutoAddGroup(
-          tx,
-          grant.workspaceId,
-          input.userId,
-          autoAddEntitlementByWorkspace.get(grant.workspaceId) ?? false
-        )
 
         acceptedWorkspaceIds.push(grant.workspaceId)
       }

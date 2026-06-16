@@ -21,7 +21,7 @@ export async function enableInbox(
 ): Promise<InboxConfig> {
   const inbox = await agentmail.createInbox({
     username: opts?.username,
-    displayName: `Sim Mothership`,
+    displayName: 'Sim',
   })
 
   logger.info('AgentMail createInbox response', { inbox: JSON.stringify(inbox) })

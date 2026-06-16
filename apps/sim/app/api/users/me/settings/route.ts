@@ -24,6 +24,7 @@ const defaultSettings = {
   errorNotificationsEnabled: true,
   snapToGridSize: 0,
   showActionBar: true,
+  timezone: null,
   lastActiveWorkspaceId: null,
 }
 
@@ -52,6 +53,7 @@ export const GET = withRouteHandler(async () => {
         errorNotificationsEnabled: settings.errorNotificationsEnabled,
         snapToGridSize: settings.snapToGridSize,
         showActionBar: settings.showActionBar,
+        timezone: settings.timezone,
         lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
       })
       .from(settings)
@@ -78,6 +80,7 @@ export const GET = withRouteHandler(async () => {
           errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
           snapToGridSize: userSettings.snapToGridSize ?? 0,
           showActionBar: userSettings.showActionBar ?? true,
+          timezone: userSettings.timezone ?? null,
           lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
         },
       },

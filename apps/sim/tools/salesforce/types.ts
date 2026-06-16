@@ -557,6 +557,7 @@ export const TASK_OUTPUT_PROPERTIES = {
     type: 'string',
     description:
       'Task status (e.g., Not Started, In Progress, Completed, Waiting on someone else, Deferred)',
+    optional: true,
   },
   Priority: {
     type: 'string',
@@ -705,33 +706,10 @@ export const REPORTS_OUTPUT: OutputProperty = {
 export const DASHBOARD_LIST_ITEM_OUTPUT_PROPERTIES = {
   id: { type: 'string', description: 'Dashboard ID' },
   name: { type: 'string', description: 'Dashboard name' },
-  url: { type: 'string', description: 'URL to access the dashboard', optional: true },
-  statusUrl: { type: 'string', description: 'URL to dashboard status', optional: true },
-  folderName: {
+  url: { type: 'string', description: 'URL to access the dashboard results', optional: true },
+  statusUrl: {
     type: 'string',
-    description: 'Name of the folder containing the dashboard',
-    optional: true,
-  },
-  folderId: {
-    type: 'string',
-    description: 'ID of the folder containing the dashboard',
-    optional: true,
-  },
-  description: { type: 'string', description: 'Dashboard description', optional: true },
-  runningUser: {
-    type: 'object',
-    description: 'User context for dashboard data',
-    optional: true,
-  },
-  type: { type: 'string', description: 'Dashboard type', optional: true },
-  lastRefreshedDate: {
-    type: 'string',
-    description: 'Date when dashboard was last refreshed',
-    optional: true,
-  },
-  canChangeRunningUser: {
-    type: 'boolean',
-    description: 'Whether running user can be changed',
+    description: 'URL to the dashboard status resource',
     optional: true,
   },
 } as const satisfies Record<string, OutputProperty>
@@ -1175,9 +1153,9 @@ export const DASHBOARD_OUTPUT_PROPERTIES = {
     description: 'Display name of the dashboard',
     optional: true,
   },
-  folderId: {
-    type: 'string',
-    description: 'ID of the folder containing the dashboard',
+  dashboardMetadata: {
+    type: 'object',
+    description: 'Structured dashboard metadata (attributes, component definitions, layout)',
     optional: true,
   },
   runningUser: {
@@ -1201,7 +1179,12 @@ export const REFRESH_DASHBOARD_OUTPUT_PROPERTIES = {
   },
   status: {
     type: 'object',
-    description: 'Dashboard refresh status information',
+    description: 'Dashboard refresh status (dashboardStatus), when returned by the refresh',
+    optional: true,
+  },
+  statusUrl: {
+    type: 'string',
+    description: 'URL of the status resource to poll for refresh completion',
     optional: true,
   },
   dashboardName: {
@@ -1209,9 +1192,9 @@ export const REFRESH_DASHBOARD_OUTPUT_PROPERTIES = {
     description: 'Display name of the dashboard',
     optional: true,
   },
-  refreshDate: {
-    type: 'string',
-    description: 'ISO 8601 timestamp when the dashboard was last refreshed',
+  dashboardMetadata: {
+    type: 'object',
+    description: 'Structured dashboard metadata (attributes, component definitions, layout)',
     optional: true,
   },
   success: { type: 'boolean', description: 'Salesforce operation success' },
@@ -1612,6 +1595,9 @@ export interface SalesforceUpdateCaseParams extends BaseSalesforceParams {
   subject?: string
   status?: string
   priority?: string
+  origin?: string
+  contactId?: string
+  accountId?: string
   description?: string
 }
 
@@ -1681,6 +1667,8 @@ export interface SalesforceUpdateTaskParams extends BaseSalesforceParams {
   status?: string
   priority?: string
   activityDate?: string
+  whoId?: string
+  whatId?: string
   description?: string
 }
 
@@ -1705,7 +1693,6 @@ export interface SalesforceDeleteTaskResponse {
 }
 
 export interface SalesforceListReportsParams extends BaseSalesforceParams {
-  folderName?: string
   searchTerm?: string
 }
 
@@ -1765,9 +1752,7 @@ export interface SalesforceListReportTypesResponse {
   }
 }
 
-export interface SalesforceListDashboardsParams extends BaseSalesforceParams {
-  folderName?: string
-}
+export type SalesforceListDashboardsParams = BaseSalesforceParams
 
 export interface SalesforceListDashboardsResponse {
   success: boolean
@@ -1789,7 +1774,7 @@ export interface SalesforceGetDashboardResponse {
     dashboardId: string
     components: any[]
     dashboardName?: string
-    folderId?: string
+    dashboardMetadata?: any
     runningUser?: any
     success: boolean
   }
@@ -1806,8 +1791,9 @@ export interface SalesforceRefreshDashboardResponse {
     dashboardId: string
     components: any[]
     status?: any
+    statusUrl?: string
     dashboardName?: string
-    refreshDate?: string
+    dashboardMetadata?: any
     success: boolean
   }
 }

@@ -64,18 +64,19 @@ export const salesforceQueryTool: ToolConfig<SalesforceQueryParams, SalesforceQu
     }
 
     const records = data.records || []
+    const done = data.done !== false
 
     return {
       success: true,
       output: {
         records,
         totalSize: data.totalSize || records.length,
-        done: data.done !== false,
+        done,
         nextRecordsUrl: data.nextRecordsUrl ?? null,
         query: params?.query || '',
         metadata: {
           totalReturned: records.length,
-          hasMore: !data.done,
+          hasMore: !done,
         },
         success: true,
       },

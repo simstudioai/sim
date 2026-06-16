@@ -105,6 +105,7 @@ export const AirweaveBlock: BlockConfig<AirweaveSearchResponse> = {
 
 export const AirweaveBlockMeta = {
   tags: ['vector-search', 'knowledge-base'],
+  url: 'https://airweave.ai',
   templates: [
     {
       icon: AirweaveIcon,

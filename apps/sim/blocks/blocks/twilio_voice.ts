@@ -416,6 +416,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const TwilioVoiceBlockMeta = {
   tags: ['messaging', 'text-to-speech'],
+  url: 'https://www.twilio.com',
   templates: [
     {
       icon: TwilioIcon,

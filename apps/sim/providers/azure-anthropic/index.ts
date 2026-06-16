@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
@@ -28,6 +28,7 @@ export const azureAnthropicProvider: ProviderConfig = {
       )
     }
 
+    let pinnedFetch: typeof fetch | undefined
     if (userProvidedEndpoint) {
       const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
       if (!validation.isValid) {
@@ -37,6 +38,10 @@ export const azureAnthropicProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
       }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid Azure Anthropic endpoint: could not resolve a pinnable IP address')
+      }
+      pinnedFetch = createPinnedFetch(validation.resolvedIP)
     }
 
     const apiKey = request.apiKey
@@ -67,6 +72,7 @@ export const azureAnthropicProvider: ProviderConfig = {
           new Anthropic({
             baseURL,
             apiKey,
+            ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
             defaultHeaders: {
               'api-key': apiKey,
               'anthropic-version': anthropicVersion,

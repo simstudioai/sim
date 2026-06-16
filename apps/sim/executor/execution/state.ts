@@ -1,24 +1,22 @@
 import type { BlockStateController } from '@/executor/execution/types'
 import type { BlockState, NormalizedBlockOutput } from '@/executor/types'
+import { SubflowNodeIdCodec } from '@/executor/utils/subflow-node-id-codec'
 import {
   buildOuterBranchScopedId,
   extractOuterBranchIndex,
   stripCloneSuffixes,
 } from '@/executor/utils/subflow-utils'
 
-const BRANCH_SUFFIX_PATTERN = /₍\d+₎/u
-const LOOP_SUFFIX_PATTERN = /_loop\d+/
-
 function normalizeLookupId(id: string): string {
-  return id.replace(/₍\d+₎/gu, '').replace(/_loop\d+/g, '')
+  return SubflowNodeIdCodec.normalizeLookupId(id)
 }
 
 function extractBranchSuffix(id: string): string {
-  return id.match(BRANCH_SUFFIX_PATTERN)?.[0] ?? ''
+  return SubflowNodeIdCodec.extractBranchSuffix(id)
 }
 
 function extractLoopSuffix(id: string): string {
-  return id.match(LOOP_SUFFIX_PATTERN)?.[0] ?? ''
+  return SubflowNodeIdCodec.extractLoopSuffix(id)
 }
 export interface LoopScope {
   iteration: number

@@ -101,7 +101,7 @@ export function useCreateA2AAgent() {
 
   return useMutation({
     mutationFn: createA2AAgent,
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.lists(),
       })
@@ -136,7 +136,7 @@ export function useUpdateA2AAgent() {
 
   return useMutation({
     mutationFn: updateA2AAgent,
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.lists(),
       })
@@ -167,7 +167,7 @@ export function useDeleteA2AAgent() {
 
   return useMutation({
     mutationFn: deleteA2AAgent,
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.lists(),
       })
@@ -211,7 +211,7 @@ export function usePublishA2AAgent() {
 
   return useMutation({
     mutationFn: publishA2AAgent,
-    onSuccess: (_data, variables) => {
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({
         queryKey: a2aAgentKeys.lists(),
       })

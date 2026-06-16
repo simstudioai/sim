@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { credentialSet, credentialSetInvitation, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, gt, isNull, or } from 'drizzle-orm'
+import { and, eq, gt } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -16,6 +16,9 @@ export const GET = withRouteHandler(async () => {
   }
 
   try {
+    // Scope to invitations addressed to the caller's own email only. Open-link
+    // (null-email) invites carry a bearer token redeemed via the out-of-band URL
+    // and must never be listed, or any user could accept another org's invite.
     const invitations = await db
       .select({
         invitationId: credentialSetInvitation.id,
@@ -37,10 +40,7 @@ export const GET = withRouteHandler(async () => {
       .leftJoin(user, eq(credentialSetInvitation.invitedBy, user.id))
       .where(
         and(
-          or(
-            eq(credentialSetInvitation.email, session.user.email),
-            isNull(credentialSetInvitation.email)
-          ),
+          eq(credentialSetInvitation.email, session.user.email),
           eq(credentialSetInvitation.status, 'pending'),
           gt(credentialSetInvitation.expiresAt, new Date())
         )

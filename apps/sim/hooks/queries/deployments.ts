@@ -388,7 +388,7 @@ export function useUpdateDeploymentVersion() {
         logger.error('Failed to update deployment version', { error })
       }
 
-      queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: deploymentKeys.versions(variables.workflowId),
       })
     },
@@ -599,7 +599,7 @@ export function useUpdatePublicApi() {
         logger.error('Failed to update public API setting', { error })
       }
 
-      queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: deploymentKeys.info(variables.workflowId),
       })
     },

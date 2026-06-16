@@ -632,6 +632,7 @@ export const PeopleDataLabsBlock: BlockConfig<PdlPersonEnrichResponse> = {
 
 export const PeopleDataLabsBlockMeta = {
   tags: ['enrichment'],
+  url: 'https://www.peopledatalabs.com',
   templates: [
     {
       icon: PeopleDataLabsIcon,

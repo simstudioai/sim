@@ -8,6 +8,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
@@ -17,7 +18,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { normalizeEmail } from '@/lib/invitations/core'
 import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 
 const logger = createLogger('CredentialSetInviteToken')

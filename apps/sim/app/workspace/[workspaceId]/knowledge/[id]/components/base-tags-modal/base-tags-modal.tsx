@@ -404,18 +404,16 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
         }}
         srTitle='Delete Tag'
         title='Delete Tag'
-        description={
-          <>
-            Are you sure you want to delete the &ldquo;
-            <span className='text-[var(--text-primary)]'>{selectedTag?.displayName}</span>&rdquo;
-            tag?{' '}
-            <span className='text-[var(--text-error)]'>
-              This will remove this tag from {selectedTagUsage?.documentCount || 0} document
-              {selectedTagUsage?.documentCount !== 1 ? 's' : ''}.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete the ',
+          { text: selectedTag?.displayName ?? 'selected', bold: true },
+          ' tag? ',
+          {
+            text: `This will remove this tag from ${selectedTagUsage?.documentCount || 0} document${selectedTagUsage?.documentCount !== 1 ? 's' : ''}.`,
+            error: true,
+          },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete Tag',
           onClick: confirmDeleteTag,

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { getErrorMessage } from '@sim/utils/errors'
 import { useMutation } from '@tanstack/react-query'
 import {
   ChipCombobox,
@@ -128,9 +129,7 @@ export function DemoRequestModal({ children, theme = 'dark' }: DemoRequestModalP
   }
 
   const submitError = demoMutation.isError
-    ? demoMutation.error instanceof Error
-      ? demoMutation.error.message
-      : 'Failed to submit demo request. Please try again.'
+    ? getErrorMessage(demoMutation.error, 'Failed to submit demo request. Please try again.')
     : null
 
   return (

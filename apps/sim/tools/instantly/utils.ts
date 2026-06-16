@@ -1,4 +1,4 @@
-import { filterUndefined } from '@sim/utils/object'
+import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import type {
   InstantlyCampaign,
   InstantlyEmail,
@@ -56,7 +56,7 @@ export async function parseInstantlyResponse(response: Response): Promise<unknow
 }
 
 export function asRecord(value: unknown): JsonRecord {
-  return isRecord(value) ? value : {}
+  return isRecordLike(value) ? value : {}
 }
 
 export function getItems(value: unknown): JsonRecord[] {
@@ -91,7 +91,7 @@ export function mapLead(value: unknown): InstantlyLead {
     email_reply_count: asNumber(lead.email_reply_count),
     email_click_count: asNumber(lead.email_click_count),
     company_domain: asString(lead.company_domain),
-    payload: isRecord(lead.payload) ? lead.payload : null,
+    payload: isRecordLike(lead.payload) ? lead.payload : null,
     lt_interest_status: asNumber(lead.lt_interest_status),
   }
 }
@@ -113,7 +113,7 @@ export function mapCampaign(value: unknown): InstantlyCampaign {
     open_tracking: asBoolean(campaign.open_tracking),
     stop_on_reply: asBoolean(campaign.stop_on_reply),
     sequences: Array.isArray(campaign.sequences) ? campaign.sequences : [],
-    campaign_schedule: isRecord(campaign.campaign_schedule) ? campaign.campaign_schedule : null,
+    campaign_schedule: isRecordLike(campaign.campaign_schedule) ? campaign.campaign_schedule : null,
   }
 }
 
@@ -333,10 +333,6 @@ export const leadListsListOutputs = {
   count: { type: 'number', description: 'Number of lead lists returned' },
   next_starting_after: { type: 'string', description: 'Cursor for the next page', optional: true },
 } satisfies ToolConfig['outputs']
-
-function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 async function parseJsonResponse(response: Response): Promise<unknown> {
   try {

@@ -628,6 +628,7 @@ function emptyToUndefined(value: unknown): unknown {
 
 export const EmailBisonBlockMeta = {
   tags: ['sales-engagement', 'email-marketing', 'automation'],
+  url: 'https://emailbison.com',
   templates: [
     {
       icon: EmailBisonIcon,

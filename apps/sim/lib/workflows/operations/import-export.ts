@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -21,18 +22,14 @@ import type { Variable, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('WorkflowImportExport')
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function unwrapWorkflowExportEnvelope(data: unknown): unknown {
-  if (!isRecord(data)) {
+  if (!isRecordLike(data)) {
     return data
   }
 
   const envelopeData = data.data
   if (
-    isRecord(envelopeData) &&
+    isRecordLike(envelopeData) &&
     (envelopeData.state || envelopeData.version || envelopeData.workflow)
   ) {
     return envelopeData
@@ -523,7 +520,7 @@ export function parseWorkflowJson(
 
     // Handle new export format (version/exportedAt/state) or old format (blocks/edges at root)
     let workflowData: any
-    if (isRecord(data.state)) {
+    if (isRecordLike(data.state)) {
       // Export/API envelope format with workflow state nested under `state`
       logger.info('Parsing workflow JSON with version', {
         version: data.version,

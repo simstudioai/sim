@@ -515,7 +515,6 @@ export async function processDocumentAsync(
     // KB config + workspace billing + doc tags in one JOIN (was 3 SELECTs).
     const contextRows = await db
       .select({
-        userId: knowledgeBase.userId,
         workspaceId: knowledgeBase.workspaceId,
         chunkingConfig: knowledgeBase.chunkingConfig,
         embeddingModel: knowledgeBase.embeddingModel,
@@ -644,7 +643,12 @@ export async function processDocumentAsync(
           kbConfig.maxSize,
           kbConfig.overlap,
           kbConfig.minSize,
-          ctx.userId,
+          // Authorize the source file (and run OCR/processing) as the billed
+          // actor — the uploader when known, else the workspace billed account —
+          // the same principal embeddings are billed to. Using the KB owner here
+          // would authorize an attacker-supplied internal fileUrl against the
+          // owner, letting a KB write-member ingest a file only the owner can read.
+          billingUserId,
           ctx.workspaceId,
           rawConfig?.strategy,
           rawConfig?.strategyOptions
@@ -1902,8 +1906,6 @@ export async function updateDocument(
   })
 
   await db.transaction(async (tx) => {
-    await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
-
     const hasTagUpdates = ALL_TAG_SLOTS.some((field) => typedUpdateData[field] !== undefined)
 
     if (hasTagUpdates) {
@@ -1921,6 +1923,8 @@ export async function updateDocument(
         .set(embeddingUpdateData)
         .where(eq(embedding.documentId, documentId))
     }
+
+    await tx.update(document).set(dbUpdateData).where(eq(document.id, documentId))
   })
 
   const updatedDocument = await db

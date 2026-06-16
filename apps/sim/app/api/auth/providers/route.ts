@@ -12,10 +12,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   const parsed = await parseRequest(getAuthProvidersContract, request, {})
   if (!parsed.success) return parsed.response
 
-  const { githubAvailable, googleAvailable } = await getOAuthProviderStatus()
+  const { githubAvailable, googleAvailable, microsoftAvailable } = await getOAuthProviderStatus()
   return NextResponse.json({
     githubAvailable,
     googleAvailable,
+    microsoftAvailable,
     registrationDisabled: isRegistrationDisabled,
   })
 })

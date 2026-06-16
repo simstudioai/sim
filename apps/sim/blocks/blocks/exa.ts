@@ -447,6 +447,7 @@ export const ExaBlock: BlockConfig<ExaResponse> = {
 
 export const ExaBlockMeta = {
   tags: ['web-scraping'],
+  url: 'https://exa.ai',
   templates: [
     {
       icon: ExaAIIcon,

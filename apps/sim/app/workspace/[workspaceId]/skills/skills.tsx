@@ -188,13 +188,11 @@ export function Skills() {
         onOpenChange={setShowDeleteDialog}
         srTitle='Delete Skill'
         title='Delete Skill'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{skillToDelete?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: skillToDelete?.name ?? 'this skill', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteSkill,

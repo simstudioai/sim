@@ -10,13 +10,13 @@ import {
   toCsvRow,
 } from '@/lib/table/export-format'
 import {
-  getTableById,
   markJobFailed,
   markJobReady,
   selectExportRowPage,
   setJobResultKey,
   updateJobProgress,
-} from '@/lib/table/service'
+} from '@/lib/table/jobs/service'
+import { getTableById } from '@/lib/table/service'
 import { deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const logger = createLogger('TableExportRunner')
@@ -92,6 +92,9 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
       if (page.length < EXPORT_BATCH_SIZE) break
     }
     if (format === 'json') chunks.push(']')
+
+    const ownsFinalize = await updateJobProgress(tableId, exported, jobId)
+    if (!ownsFinalize) throw new JobSupersededError()
 
     const fileName = `${sanitizeExportFilename(table.name)}.${format}`
     const key = `workspace/${workspaceId}/exports/${tableId}/${jobId}/${fileName}`

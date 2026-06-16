@@ -37,6 +37,7 @@ interface BuildPayloadParams {
   userTimezone?: string
   userMetadata?: {
     name?: string
+    email?: string
     timezone?: string
   }
   includeMothershipTools?: boolean
@@ -367,7 +368,8 @@ export async function buildCopilotRequestPayload(
     ...(params.workspaceContext ? { workspaceContext: params.workspaceContext } : {}),
     ...(params.userPermission ? { userPermission: params.userPermission } : {}),
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
-    ...(params.userMetadata && (params.userMetadata.name || params.userMetadata.timezone)
+    ...(params.userMetadata &&
+    (params.userMetadata.name || params.userMetadata.email || params.userMetadata.timezone)
       ? { userMetadata: params.userMetadata }
       : {}),
     // Tell the copilot file subagent which document toolchain to write. Emitted

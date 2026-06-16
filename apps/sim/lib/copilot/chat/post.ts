@@ -169,7 +169,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; timezone?: string }
+        userMetadata?: { name?: string; email?: string; timezone?: string }
         workflowId: string
         workflowName?: string
         workspaceId?: string
@@ -204,7 +204,7 @@ type UnifiedChatBranch =
         fileAttachments?: UnifiedChatRequest['fileAttachments']
         userPermission?: string
         userTimezone?: string
-        userMetadata?: { name?: string; timezone?: string }
+        userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
@@ -722,6 +722,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const body = ChatMessageSchema.parse(await req.json())
     const userMetadata = {
       ...(authenticatedUserName ? { name: authenticatedUserName } : {}),
+      ...(authenticatedUserEmail ? { email: authenticatedUserEmail } : {}),
       ...(body.userTimezone ? { timezone: body.userTimezone } : {}),
     }
     const normalizedContexts = normalizeContexts(body.contexts) ?? []

@@ -27,6 +27,8 @@ const {
 
 vi.mock('@/lib/table/service', () => ({
   getTableById: mockGetTableById,
+}))
+vi.mock('@/lib/table/jobs/service', () => ({
   selectExportRowPage: mockSelectExportRowPage,
   updateJobProgress: mockUpdateJobProgress,
   markJobReady: mockMarkJobReady,
@@ -99,6 +101,17 @@ describe('runTableExport', () => {
 
     await runTableExport(payload)
 
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockMarkJobReady).not.toHaveBeenCalled()
+    expect(mockMarkJobFailed).not.toHaveBeenCalled()
+  })
+
+  it('stops before the upload when ownership is lost at the finalize gate', async () => {
+    mockUpdateJobProgress.mockResolvedValueOnce(true).mockResolvedValue(false)
+
+    await runTableExport(payload)
+
+    expect(mockSelectExportRowPage).toHaveBeenCalledTimes(1)
     expect(mockUploadFile).not.toHaveBeenCalled()
     expect(mockMarkJobReady).not.toHaveBeenCalled()
     expect(mockMarkJobFailed).not.toHaveBeenCalled()

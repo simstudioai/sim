@@ -246,7 +246,7 @@ export default function PlaygroundPage() {
                     toast.error('Workflow Validation', {
                       description:
                         'Usage limit exceeded: $0.00 used of $5.00 limit. Please upgrade your plan to continue running this workflow.',
-                      action: { label: 'Fix in Copilot', onClick: () => {} },
+                      action: { label: 'Fix in Chat', onClick: () => {} },
                     })
                   }
                 >

@@ -488,6 +488,7 @@ Return ONLY the JSON object.`,
 
 export const RDSBlockMeta = {
   tags: ['cloud'],
+  url: 'https://aws.amazon.com/rds',
   templates: [
     {
       icon: RDSIcon,

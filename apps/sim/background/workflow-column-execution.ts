@@ -51,7 +51,8 @@ export async function executeWorkflowGroupCellJob(
   signal?: AbortSignal
 ) {
   const { tableId, rowId, workspaceId } = payload
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
 
   let currentPayload = payload
@@ -105,7 +106,8 @@ export async function runRowCascadeLoop(
   signal?: AbortSignal
 ): Promise<'blocked' | undefined> {
   const { tableId, rowId, workspaceId } = payload
-  const { getTableById, getRowById } = await import('@/lib/table/service')
+  const { getTableById } = await import('@/lib/table/service')
+  const { getRowById } = await import('@/lib/table/rows/service')
   const { pickNextEligibleGroupForRow } = await import('@/lib/table/workflow-columns')
 
   let currentGroupId = payload.groupId
@@ -175,7 +177,7 @@ async function runWorkflowAndWriteTerminal(
   const requestId = `wfgrp-${executionId}`
 
   return runWithRequestContext({ requestId }, async () => {
-    const { getRowById } = await import('@/lib/table/service')
+    const { getRowById } = await import('@/lib/table/rows/service')
     const { executeWorkflow } = await import('@/lib/workflows/executor/execute-workflow')
     const { loadWorkflowFromNormalizedTables, loadDeployedWorkflowState } = await import(
       '@/lib/workflows/persistence/utils'
@@ -258,7 +260,7 @@ async function runWorkflowAndWriteTerminal(
         logger.warn(
           `Usage limit reached — halting enrichment (table=${tableId} row=${rowId} group=${groupId})`
         )
-        const { updateRow } = await import('@/lib/table/service')
+        const { updateRow } = await import('@/lib/table/rows/service')
         await updateRow(
           { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
           table,
@@ -525,7 +527,7 @@ async function runWorkflowAndWriteTerminal(
           // cell's exec so it reverts to un-run (no error/cancelled badge —
           // matching "don't mark"; re-runnable after upgrade). Each blocked
           // cell clears its own.
-          const { updateRow } = await import('@/lib/table/service')
+          const { updateRow } = await import('@/lib/table/rows/service')
           await updateRow(
             { tableId, rowId, data: {}, workspaceId, executionsPatch: { [groupId]: null } },
             table,

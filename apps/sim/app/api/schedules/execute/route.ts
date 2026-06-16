@@ -426,7 +426,7 @@ async function recoverStaleDatabaseScheduleJobs(now: Date): Promise<void> {
 
   await db.transaction(async (tx) => {
     const [lock] = await tx.execute<{ acquired: boolean }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtext(${SCHEDULE_EXECUTION_QUEUE_NAME})) AS acquired`
+      sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${SCHEDULE_EXECUTION_QUEUE_NAME}, 0)) AS acquired`
     )
     if (!lock?.acquired) {
       logger.info(
@@ -527,7 +527,7 @@ async function tryStartDatabaseScheduleJob(jobId: string): Promise<DatabaseSched
 
   return db.transaction(async (tx) => {
     const [lock] = await tx.execute<{ acquired: boolean }>(
-      sql`SELECT pg_try_advisory_xact_lock(hashtext(${SCHEDULE_EXECUTION_QUEUE_NAME})) AS acquired`
+      sql`SELECT pg_try_advisory_xact_lock(hashtextextended(${SCHEDULE_EXECUTION_QUEUE_NAME}, 0)) AS acquired`
     )
     if (!lock?.acquired) return 'capacity_full'
 

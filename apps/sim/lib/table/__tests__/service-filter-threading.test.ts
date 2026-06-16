@@ -43,7 +43,7 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { deleteRowsByFilter, queryRows, updateRowsByFilter } from '@/lib/table/service'
+import { deleteRowsByFilter, queryRows, updateRowsByFilter } from '@/lib/table/rows/service'
 
 const COLUMNS: ColumnDefinition[] = [
   { name: 'name', type: 'string' },

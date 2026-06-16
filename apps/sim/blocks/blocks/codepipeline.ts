@@ -504,6 +504,7 @@ export const CodePipelineBlock: BlockConfig<
 
 export const CodePipelineBlockMeta = {
   tags: ['cloud', 'ci-cd'],
+  url: 'https://aws.amazon.com/codepipeline',
   templates: [
     {
       icon: CodePipelineIcon,

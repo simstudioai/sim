@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import type {
   VantaControl,
   VantaControlDetail,
@@ -70,16 +71,12 @@ export function createVantaTransformResponse<R extends { success: boolean; outpu
 
 type JsonRecord = Record<string, unknown>
 
-function isJsonRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /**
  * Coerces an unknown single-resource response body to a record so the
  * normalizers can run on it; non-object bodies normalize to all-null fields.
  */
 export function asVantaRecord(value: unknown): JsonRecord {
-  return isJsonRecord(value) ? value : {}
+  return isRecordLike(value) ? value : {}
 }
 
 function getString(value: unknown): string | null {
@@ -101,16 +98,16 @@ function getStringArray(value: unknown): string[] {
 
 function getRecordArray(value: unknown): JsonRecord[] {
   if (!Array.isArray(value)) return []
-  return value.filter(isJsonRecord)
+  return value.filter(isRecordLike)
 }
 
 /**
  * Extracts a human-readable error message from a Vanta API error body.
  */
 export function extractVantaError(data: unknown, fallback: string): string {
-  if (!isJsonRecord(data)) return fallback
+  if (!isRecordLike(data)) return fallback
 
-  if (isJsonRecord(data.error)) {
+  if (isRecordLike(data.error)) {
     const nested = getString(data.error.message) ?? getString(data.error.code)
     if (nested) return nested
   }
@@ -154,6 +151,13 @@ const vantaTokenExchanges = new Map<string, Promise<string>>()
 const VANTA_TOKEN_EXPIRY_BUFFER_MS = 10 * 60 * 1000
 
 /**
+ * Hard deadline on the token-endpoint exchange. The exchange promise is
+ * shared across concurrent callers, so a hung endpoint without this bound
+ * would wedge every joiner until the undici socket defaults (~5 min) gave up.
+ */
+const VANTA_TOKEN_EXCHANGE_TIMEOUT_MS = 15_000
+
+/**
  * Derives the cache key for a credential set. The client secret is included
  * only as a SHA-256 digest so plaintext secrets never persist in the
  * long-lived cache maps.
@@ -183,6 +187,7 @@ async function exchangeVantaToken(params: VantaTokenParams, cacheKey: string): P
       grant_type: 'client_credentials',
     }),
     cache: 'no-store',
+    signal: AbortSignal.timeout(VANTA_TOKEN_EXCHANGE_TIMEOUT_MS),
   })
 
   const data: unknown = await response.json().catch(() => null)
@@ -190,7 +195,7 @@ async function exchangeVantaToken(params: VantaTokenParams, cacheKey: string): P
     throw new Error(extractVantaError(data, 'Failed to authenticate with Vanta'))
   }
 
-  if (!isJsonRecord(data) || typeof data.access_token !== 'string') {
+  if (!isRecordLike(data) || typeof data.access_token !== 'string') {
     throw new Error('Vanta authentication did not return an access token')
   }
 
@@ -305,7 +310,7 @@ export function getVantaListResults(data: unknown): {
   data: JsonRecord[]
   pageInfo: VantaPageInfo | null
 } {
-  if (!isJsonRecord(data) || !isJsonRecord(data.results)) {
+  if (!isRecordLike(data) || !isRecordLike(data.results)) {
     return { data: [], pageInfo: null }
   }
   return {
@@ -315,7 +320,7 @@ export function getVantaListResults(data: unknown): {
 }
 
 export function normalizeVantaPageInfo(value: unknown): VantaPageInfo | null {
-  if (!isJsonRecord(value)) return null
+  if (!isRecordLike(value)) return null
   return {
     startCursor: getString(value.startCursor),
     endCursor: getString(value.endCursor),
@@ -325,7 +330,7 @@ export function normalizeVantaPageInfo(value: unknown): VantaPageInfo | null {
 }
 
 function normalizeVantaOwner(value: unknown): VantaOwner | null {
-  if (!isJsonRecord(value)) return null
+  if (!isRecordLike(value)) return null
   return {
     id: getString(value.id),
     displayName: getString(value.displayName),
@@ -425,17 +430,17 @@ export function normalizeVantaControlDetail(resource: JsonRecord): VantaControlD
 }
 
 export function normalizeVantaTest(resource: JsonRecord): VantaTest {
-  const version = isJsonRecord(resource.version)
+  const version = isRecordLike(resource.version)
     ? { major: getNumber(resource.version.major), minor: getNumber(resource.version.minor) }
     : null
-  const deactivatedStatusInfo = isJsonRecord(resource.deactivatedStatusInfo)
+  const deactivatedStatusInfo = isRecordLike(resource.deactivatedStatusInfo)
     ? {
         isDeactivated: getBoolean(resource.deactivatedStatusInfo.isDeactivated),
         deactivatedReason: getString(resource.deactivatedStatusInfo.deactivatedReason),
         lastUpdatedDate: getString(resource.deactivatedStatusInfo.lastUpdatedDate),
       }
     : null
-  const remediationStatusInfo = isJsonRecord(resource.remediationStatusInfo)
+  const remediationStatusInfo = isRecordLike(resource.remediationStatusInfo)
     ? {
         status: getString(resource.remediationStatusInfo.status),
         soonestRemediateByDate: getString(resource.remediationStatusInfo.soonestRemediateByDate),
@@ -488,7 +493,7 @@ export function normalizeVantaDocument(resource: JsonRecord): VantaDocument {
 }
 
 export function normalizeVantaDocumentDetail(resource: JsonRecord): VantaDocumentDetail {
-  const deactivatedStatus = isJsonRecord(resource.deactivatedStatus)
+  const deactivatedStatus = isRecordLike(resource.deactivatedStatus)
     ? {
         isDeactivated: getBoolean(resource.deactivatedStatus.isDeactivated),
         reason: getString(resource.deactivatedStatus.reason),
@@ -509,7 +514,7 @@ export function normalizeVantaDocumentDetail(resource: JsonRecord): VantaDocumen
 }
 
 export function normalizeVantaUploadedFile(resource: JsonRecord): VantaUploadedFile {
-  const uploadedBy = isJsonRecord(resource.uploadedBy)
+  const uploadedBy = isRecordLike(resource.uploadedBy)
     ? { id: getString(resource.uploadedBy.id), type: getString(resource.uploadedBy.type) }
     : null
 
@@ -529,14 +534,14 @@ export function normalizeVantaUploadedFile(resource: JsonRecord): VantaUploadedF
 }
 
 export function normalizeVantaPerson(resource: JsonRecord): VantaPerson {
-  const name = isJsonRecord(resource.name)
+  const name = isRecordLike(resource.name)
     ? {
         first: getString(resource.name.first),
         last: getString(resource.name.last),
         display: getString(resource.name.display),
       }
     : null
-  const employment = isJsonRecord(resource.employment)
+  const employment = isRecordLike(resource.employment)
     ? {
         status: getString(resource.employment.status),
         startDate: getString(resource.employment.startDate),
@@ -544,14 +549,14 @@ export function normalizeVantaPerson(resource: JsonRecord): VantaPerson {
         jobTitle: getString(resource.employment.jobTitle),
       }
     : null
-  const leaveInfo = isJsonRecord(resource.leaveInfo)
+  const leaveInfo = isRecordLike(resource.leaveInfo)
     ? {
         status: getString(resource.leaveInfo.status),
         startDate: getString(resource.leaveInfo.startDate),
         endDate: getString(resource.leaveInfo.endDate),
       }
     : null
-  const tasksSummary = isJsonRecord(resource.tasksSummary)
+  const tasksSummary = isRecordLike(resource.tasksSummary)
     ? {
         status: getString(resource.tasksSummary.status),
         dueDate: getString(resource.tasksSummary.dueDate),
@@ -580,7 +585,7 @@ function normalizeVantaPolicyDocument(resource: JsonRecord): VantaPolicyDocument
 }
 
 export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
-  const latestApprovedVersion = isJsonRecord(resource.latestApprovedVersion)
+  const latestApprovedVersion = isRecordLike(resource.latestApprovedVersion)
     ? {
         versionId: getString(resource.latestApprovedVersion.versionId),
         documents: getRecordArray(resource.latestApprovedVersion.documents).map(
@@ -595,7 +600,7 @@ export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
     description: getString(resource.description),
     status: getString(resource.status),
     approvedAtDate: getString(resource.approvedAtDate),
-    latestVersionStatus: isJsonRecord(resource.latestVersion)
+    latestVersionStatus: isRecordLike(resource.latestVersion)
       ? getString(resource.latestVersion.status)
       : null,
     latestApprovedVersion,
@@ -603,7 +608,7 @@ export function normalizeVantaPolicy(resource: JsonRecord): VantaPolicy {
 }
 
 export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
-  const authDetails = isJsonRecord(resource.authDetails)
+  const authDetails = isRecordLike(resource.authDetails)
     ? {
         method: getString(resource.authDetails.method),
         passwordMFA: getBoolean(resource.authDetails.passwordMFA),
@@ -612,19 +617,19 @@ export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
         passwordRequiresSymbol: getBoolean(resource.authDetails.passwordRequiresSymbol),
       }
     : null
-  const contractAmount = isJsonRecord(resource.contractAmount)
+  const contractAmount = isRecordLike(resource.contractAmount)
     ? {
         amount: getNumber(resource.contractAmount.amount),
         currency: getString(resource.contractAmount.currency),
       }
     : null
-  const latestDecision = isJsonRecord(resource.latestDecision)
+  const latestDecision = isRecordLike(resource.latestDecision)
     ? {
         status: getString(resource.latestDecision.status),
         lastUpdatedAt: getString(resource.latestDecision.lastUpdatedAt),
       }
     : null
-  const procurementRequest = isJsonRecord(resource.linkedTaskTrackerTaskProcurementRequest)
+  const procurementRequest = isRecordLike(resource.linkedTaskTrackerTaskProcurementRequest)
     ? {
         url: getString(resource.linkedTaskTrackerTaskProcurementRequest.url),
         service: getString(resource.linkedTaskTrackerTaskProcurementRequest.service),
@@ -636,7 +641,7 @@ export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
     name: getString(resource.name),
     status: getString(resource.status),
     websiteUrl: getString(resource.websiteUrl),
-    category: isJsonRecord(resource.category) ? getString(resource.category.displayName) : null,
+    category: isRecordLike(resource.category) ? getString(resource.category.displayName) : null,
     servicesProvided: getString(resource.servicesProvided),
     additionalNotes: getString(resource.additionalNotes),
     accountManagerName: getString(resource.accountManagerName),
@@ -663,11 +668,11 @@ export function normalizeVantaVendor(resource: JsonRecord): VantaVendor {
 }
 
 function getComputerStatusOutcome(value: unknown): string | null {
-  return isJsonRecord(value) ? getString(value.outcome) : null
+  return isRecordLike(value) ? getString(value.outcome) : null
 }
 
 export function normalizeVantaMonitoredComputer(resource: JsonRecord): VantaMonitoredComputer {
-  const operatingSystem = isJsonRecord(resource.operatingSystem)
+  const operatingSystem = isRecordLike(resource.operatingSystem)
     ? {
         type: getString(resource.operatingSystem.type),
         version: getString(resource.operatingSystem.version),
@@ -761,7 +766,7 @@ export function normalizeVantaVulnerableAsset(resource: JsonRecord): VantaVulner
 }
 
 export function normalizeVantaVulnerability(resource: JsonRecord): VantaVulnerability {
-  const deactivateMetadata = isJsonRecord(resource.deactivateMetadata)
+  const deactivateMetadata = isRecordLike(resource.deactivateMetadata)
     ? {
         isVulnDeactivatedIndefinitely: getBoolean(
           resource.deactivateMetadata.isVulnDeactivatedIndefinitely

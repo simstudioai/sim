@@ -18,13 +18,22 @@ import {
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnqueue, mockExecuteWorkflowCore, mockHandlePostExecutionPauseState } = vi.hoisted(
-  () => ({
-    mockEnqueue: vi.fn().mockResolvedValue('job-123'),
-    mockExecuteWorkflowCore: vi.fn(),
-    mockHandlePostExecutionPauseState: vi.fn(),
-  })
-)
+const {
+  mockEnqueue,
+  mockExecuteWorkflowCore,
+  mockHandlePostExecutionPauseState,
+  mockIsWorkspaceApiExecutionEntitled,
+} = vi.hoisted(() => ({
+  mockEnqueue: vi.fn().mockResolvedValue('job-123'),
+  mockExecuteWorkflowCore: vi.fn(),
+  mockHandlePostExecutionPauseState: vi.fn(),
+  mockIsWorkspaceApiExecutionEntitled: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/billing/core/api-access', () => ({
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE: 'paid plan required',
+  isWorkspaceApiExecutionEntitled: mockIsWorkspaceApiExecutionEntitled,
+}))
 
 const mockCheckHybridAuth = hybridAuthMockFns.mockCheckHybridAuth
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
@@ -183,6 +192,44 @@ describe('workflow execute async route', () => {
         }),
       })
     )
+  })
+
+  it('rejects cross-site session requests before authorization work', async () => {
+    const req = createMockRequest(
+      'POST',
+      { input: { hello: 'world' } },
+      {
+        'Content-Type': 'application/json',
+        'Sec-Fetch-Site': 'cross-site',
+      }
+    )
+    const params = Promise.resolve({ id: 'workflow-1' })
+
+    const response = await POST(req, { params })
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toBe('Access denied')
+    expect(mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
+    expect(mockEnqueue).not.toHaveBeenCalled()
+  })
+
+  it('allows same-site session requests (multi-subdomain Run, e.g. www.<domain>)', async () => {
+    const req = createMockRequest(
+      'POST',
+      { input: { hello: 'world' } },
+      {
+        'Content-Type': 'application/json',
+        'X-Execution-Mode': 'async',
+        'Sec-Fetch-Site': 'same-site',
+      }
+    )
+    const params = Promise.resolve({ id: 'workflow-1' })
+
+    const response = await POST(req, { params })
+
+    expect(response.status).toBe(202)
+    expect(mockEnqueue).toHaveBeenCalled()
   })
 
   it('rejects oversized request bodies before authorization work', async () => {

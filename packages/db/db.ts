@@ -31,7 +31,7 @@ export const db = drizzle(postgresClient, { schema })
 const replicaUrl = process.env.DATABASE_REPLICA_URL
 if (replicaUrl && !/^postgres(ql)?:\/\//.test(replicaUrl)) {
   throw new Error(
-    'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix or unset it (reads fall back to the primary when unset)'
+    'DATABASE_REPLICA_URL is set but is not a postgres:// DSN — fix the URL or unset the variable'
   )
 }
 

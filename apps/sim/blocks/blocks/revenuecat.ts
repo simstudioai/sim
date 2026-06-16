@@ -490,6 +490,7 @@ Return ONLY the numeric timestamp, no text.`,
 
 export const RevenueCatBlockMeta = {
   tags: ['payments', 'subscriptions'],
+  url: 'https://www.revenuecat.com',
   templates: [
     {
       icon: RevenueCatIcon,

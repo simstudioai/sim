@@ -8,6 +8,6 @@ export const workflowKeys = {
   deploymentVersions: () => [...workflowKeys.all, 'deploymentVersion'] as const,
   deploymentVersion: (workflowId: string | undefined, version: number | undefined) =>
     [...workflowKeys.deploymentVersions(), workflowId ?? '', version ?? 0] as const,
-  state: (workflowId: string | undefined) =>
-    [...workflowKeys.all, 'state', workflowId ?? ''] as const,
+  states: () => [...workflowKeys.all, 'state'] as const,
+  state: (workflowId: string | undefined) => [...workflowKeys.states(), workflowId ?? ''] as const,
 }

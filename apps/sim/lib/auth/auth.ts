@@ -21,7 +21,6 @@ import {
   organization,
 } from 'better-auth/plugins'
 import { emailHarmony } from 'better-auth-harmony'
-import { validateEmail as validateEmailWithMailchecker } from 'better-auth-harmony/email'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -66,10 +65,12 @@ import {
   isAuthDisabled,
   isBillingEnabled,
   isEmailPasswordEnabled,
+  isEmailSignupDisabled,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
+  isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
   isSignupEmailValidationEnabled,
@@ -79,7 +80,6 @@ import {
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
-import { isDisposableEmailDomain } from '@/lib/messaging/email/disposable-domains.server'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress, getPersonalEmailFrom } from '@/lib/messaging/email/utils'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -726,6 +726,15 @@ export const auth = betterAuth({
         ],
       },
     }),
+    ...(!isMicrosoftAuthDisabled &&
+      env.MICROSOFT_CLIENT_ID &&
+      env.MICROSOFT_CLIENT_SECRET && {
+        microsoft: {
+          clientId: env.MICROSOFT_CLIENT_ID,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET,
+          scope: ['openid', 'profile', 'email'],
+        },
+      }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,
@@ -876,6 +885,11 @@ export const auth = betterAuth({
           })
       }
 
+      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
+        throw new APIError('FORBIDDEN', {
+          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
+        })
+
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
 
@@ -932,14 +946,7 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    ...(isSignupEmailValidationEnabled
-      ? [
-          emailHarmony({
-            validator: async (email) =>
-              validateEmailWithMailchecker(email) && !(await isDisposableEmailDomain(email)),
-          }),
-        ]
-      : []),
+    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({

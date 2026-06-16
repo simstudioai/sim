@@ -9,6 +9,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { executeWorkflowBodySchema } from '@/lib/api/contracts/workflows'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
+import {
+  API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE,
+  isWorkspaceApiExecutionEntitled,
+} from '@/lib/billing/core/api-access'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { getJobQueue, shouldExecuteInline } from '@/lib/core/async-jobs'
 import {
@@ -16,6 +20,7 @@ import {
   getTimeoutErrorMessage,
   isTimeoutError,
 } from '@/lib/core/execution-limits'
+import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import {
@@ -389,6 +394,18 @@ async function handleExecutePost(
 
   try {
     const auth = await checkHybridAuth(req, { requireWorkflowId: false })
+
+    // CSRF guard: reject session-cookie execution that is provably cross-site
+    // (a different site driving the user's browser). same-origin and same-site
+    // are allowed so multi-subdomain deployments (e.g. www.<domain> calling
+    // <domain>) keep working. Scoped to session auth — API-key / public-API /
+    // internal-JWT callers don't use cookies. Not a defense against a non-browser
+    // client forging headers; that's covered by the credit/rate-limit gates.
+    if (auth.success && auth.authType === AuthType.SESSION && isCrossSiteSessionRequest(req)) {
+      reqLogger.warn('Rejected cross-site session-authenticated execute request')
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
+    }
+
     const isMcpBridgeRequest =
       auth.authType === AuthType.INTERNAL_JWT && req.headers.get(MCP_TOOL_BRIDGE_HEADER) === 'true'
     const useMcpBridgeAuthenticatedUserAsActor =
@@ -396,6 +413,7 @@ async function handleExecutePost(
 
     let userId: string
     let isPublicApiAccess = false
+    let gateWorkspaceId: string | undefined
 
     if (!auth.success || !auth.userId) {
       const hasExplicitCredentials =
@@ -430,8 +448,29 @@ async function handleExecutePost(
 
       userId = wf.userId
       isPublicApiAccess = true
+      gateWorkspaceId = wf.workspaceId
     } else {
       userId = auth.userId
+    }
+
+    // Programmatic execution (API key or public API) is gated on the workflow's
+    // workspace billed account — the same entity MCP/A2A/webhooks/chat gate on —
+    // so a paid workspace is never blocked because an individual is on free.
+    if (auth.authType === AuthType.API_KEY || isPublicApiAccess) {
+      if (!gateWorkspaceId) {
+        const [wfRow] = await db
+          .select({ workspaceId: workflowTable.workspaceId })
+          .from(workflowTable)
+          .where(eq(workflowTable.id, workflowId))
+          .limit(1)
+        gateWorkspaceId = wfRow?.workspaceId ?? undefined
+      }
+      if (!(await isWorkspaceApiExecutionEntitled(gateWorkspaceId))) {
+        return NextResponse.json(
+          { error: API_EXECUTION_REQUIRES_PAID_PLAN_MESSAGE },
+          { status: 402 }
+        )
+      }
     }
 
     let body: any = {}

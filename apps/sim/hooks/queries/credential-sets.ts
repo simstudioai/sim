@@ -130,8 +130,10 @@ export function useAcceptCredentialSetInvitation() {
       })
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() })
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() }),
+        queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() }),
+      ])
     },
   })
 }
@@ -144,7 +146,9 @@ export function useCreateCredentialSet() {
       return requestJson(createCredentialSetContract, { body: data })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.list(variables.organizationId) })
+      return queryClient.invalidateQueries({
+        queryKey: credentialSetKeys.list(variables.organizationId),
+      })
     },
   })
 }
@@ -164,10 +168,12 @@ export function useCreateCredentialSetInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
-      })
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() })
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
+        }),
+        queryClient.invalidateQueries({ queryKey: credentialSetKeys.invitations() }),
+      ])
     },
   })
 }
@@ -203,10 +209,12 @@ export function useRemoveCredentialSetMember() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialSetKeys.detailMembers(variables.credentialSetId),
-      })
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialSetKeys.detailMembers(variables.credentialSetId),
+        }),
+        queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() }),
+      ])
     },
   })
 }
@@ -221,7 +229,7 @@ export function useLeaveCredentialSet() {
       })
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
+      return queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
     },
   })
 }
@@ -241,13 +249,15 @@ export function useDeleteCredentialSet() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: credentialSetKeys.list(variables.organizationId),
-      })
-      queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() })
-      queryClient.invalidateQueries({
-        queryKey: credentialSetKeys.detail(variables.credentialSetId),
-      })
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: credentialSetKeys.list(variables.organizationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: credentialSetKeys.memberships() }),
+        queryClient.invalidateQueries({
+          queryKey: credentialSetKeys.detail(variables.credentialSetId),
+        }),
+      ])
     },
   })
 }
@@ -283,7 +293,7 @@ export function useCancelCredentialSetInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
     },
@@ -305,7 +315,7 @@ export function useResendCredentialSetInvitation() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
+      return queryClient.invalidateQueries({
         queryKey: credentialSetKeys.detailInvitations(variables.credentialSetId),
       })
     },

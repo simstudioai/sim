@@ -37,6 +37,14 @@ export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.a
 export const isBillingEnabled = isTruthy(env.BILLING_ENABLED)
 
 /**
+ * Block free-plan accounts from programmatic workflow execution (API key, public
+ * API, MCP server, A2A agent server, generic webhooks, cross-origin chat embeds).
+ * Gated behind {@link isBillingEnabled}; off by default so the paywall can ship
+ * dark and be enabled per-deployment once verified.
+ */
+export const isFreeApiDeploymentGateEnabled = isTruthy(env.FREE_API_DEPLOYMENT_GATE_ENABLED)
+
+/**
  * Order table rows by fractional `order_key` (O(1) insert/delete) instead of the
  * legacy integer `position`. When off, behavior is unchanged. Keys are written
  * regardless of this flag; it only controls which column is authoritative for
@@ -245,6 +253,19 @@ export const isGoogleAuthDisabled = isTruthy(env.DISABLE_GOOGLE_AUTH)
  * When true, the GitHub OAuth login button is hidden even when credentials are configured
  */
 export const isGithubAuthDisabled = isTruthy(env.DISABLE_GITHUB_AUTH)
+
+/**
+ * Is Microsoft OAuth login disabled
+ * When true, the Microsoft OAuth login button is hidden even when credentials are configured
+ */
+export const isMicrosoftAuthDisabled = isTruthy(env.DISABLE_MICROSOFT_AUTH)
+
+/**
+ * Is email/password signup disabled
+ * When true, new registrations via email/password are blocked at the server level.
+ * Existing users can still sign in with email/password.
+ */
+export const isEmailSignupDisabled = isTruthy(env.DISABLE_EMAIL_SIGNUP)
 
 /**
  * Is React Grab enabled for UI element debugging

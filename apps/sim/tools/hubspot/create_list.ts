@@ -72,7 +72,11 @@ export const hubspotCreateListTool: ToolConfig<HubSpotCreateListParams, HubSpotC
       }
       return {
         success: true,
-        output: { list: data, listId: data.listId ?? data.id, success: true },
+        output: {
+          list: data.list ?? data,
+          listId: data.list?.listId ?? data.listId ?? data.id,
+          success: true,
+        },
       }
     },
 

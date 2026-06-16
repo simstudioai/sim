@@ -5,7 +5,13 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type { RowData, RowExecutionMetadata, RowExecutions, TableRow, WorkflowGroup } from './types'
+import type {
+  RowData,
+  RowExecutionMetadata,
+  RowExecutions,
+  TableRow,
+  WorkflowGroup,
+} from '@/lib/table/types'
 
 const logger = createLogger('OptimisticCascade')
 

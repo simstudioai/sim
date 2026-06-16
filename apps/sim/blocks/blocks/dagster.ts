@@ -671,6 +671,7 @@ Return ONLY the comma-separated asset keys - no explanations, no extra text.`,
 
 export const DagsterBlockMeta = {
   tags: ['data-analytics', 'automation'],
+  url: 'https://dagster.io',
   templates: [
     {
       icon: DagsterIcon,

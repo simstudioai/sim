@@ -9,7 +9,7 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/service'
+import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { accessError, checkAccess } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportIntoAsync')

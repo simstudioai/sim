@@ -1133,11 +1133,9 @@ export default function Logs() {
             onRowClick={handleLogClick}
             onRowHover={handleLogHover}
             onRowContextMenu={handleLogContextMenu}
-            isLoading={!logsQuery.data}
             onLoadMore={loadMoreLogs}
             hasMore={logsQuery.hasNextPage ?? false}
             isLoadingMore={logsQuery.isFetchingNextPage}
-            emptyMessage='No logs found'
             overlay={sidebarOverlay}
           />
         )}

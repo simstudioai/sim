@@ -363,7 +363,7 @@ export function SettingsSidebar({
         onOpenChange={(open) => !open && handleCancelDiscard()}
         srTitle='Unsaved changes'
         title='Unsaved changes'
-        description='You have unsaved changes. Are you sure you want to discard them?'
+        text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{
           label: 'Discard changes',

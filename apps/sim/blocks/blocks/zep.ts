@@ -303,6 +303,7 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
 
 export const ZepBlockMeta = {
   tags: ['knowledge-base', 'agentic'],
+  url: 'https://www.getzep.com',
   templates: [
     {
       icon: ZepIcon,

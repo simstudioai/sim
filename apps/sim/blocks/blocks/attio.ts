@@ -1327,6 +1327,7 @@ workspace-member.created
 
 export const AttioBlockMeta = {
   tags: ['sales-engagement', 'enrichment'],
+  url: 'https://attio.com',
   templates: [
     {
       icon: AttioIcon,

@@ -115,10 +115,13 @@ let typescriptModulePromise: Promise<TypeScriptModule> | null = null
 
 async function loadTypeScriptModule(): Promise<TypeScriptModule> {
   if (!typescriptModulePromise) {
-    typescriptModulePromise = import('typescript').then((mod) => {
-      const tsModule = (mod?.default ?? mod) as TypeScriptModule
-      return tsModule
-    })
+    typescriptModulePromise = import('typescript').then(
+      (mod) => (mod?.default ?? mod) as TypeScriptModule,
+      (error) => {
+        typescriptModulePromise = null
+        throw error
+      }
+    )
   }
 
   return typescriptModulePromise
