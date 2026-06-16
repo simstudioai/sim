@@ -65,8 +65,9 @@ export const listTool: ToolConfig<GoogleCalendarListParams, GoogleCalendarListRe
     orderBy: {
       type: 'string',
       required: false,
-      visibility: 'hidden',
-      description: 'Order of events returned (startTime or updated). Defaults to startTime.',
+      visibility: 'user-or-llm',
+      description:
+        'Order of events: startTime (chronological, the default) or updated (last-modified). startTime is always valid here because singleEvents is set.',
     },
     showDeleted: {
       type: 'boolean',

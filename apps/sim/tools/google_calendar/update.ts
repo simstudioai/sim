@@ -83,7 +83,7 @@ export const updateTool: ToolConfig<GoogleCalendarUpdateParams, GoogleCalendarUp
       required: false,
       visibility: 'user-or-llm',
       description:
-        'IANA time zone (e.g., America/Los_Angeles). Used as-is when provided. For recurring events a time zone is required to expand the recurrence correctly; for one-off events it is only needed when the datetime omits a UTC offset.',
+        'IANA time zone (e.g., America/Los_Angeles) applied to the start/end times provided in this update. Provide a new start and/or end time to change the time zone; a time zone on its own is not applied. Required for recurring events to expand the recurrence correctly.',
     },
     attendees: {
       type: 'array',
