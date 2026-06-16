@@ -127,8 +127,17 @@ export function FieldFormat({
     disabled,
   })
 
+  /**
+   * Stable fallback field used while the store value is still empty (e.g. a
+   * newly added block). Caching it in a ref keeps the field id constant across
+   * renders, so the inputs don't remount on each keystroke and edits commit to
+   * the same id instead of a freshly generated one.
+   */
+  const fallbackFieldRef = useRef<Field | null>(null)
+  const fallbackField = (fallbackFieldRef.current ??= createDefaultField())
+
   const value = isPreview ? previewValue : storeValue
-  const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [createDefaultField()]
+  const fields: Field[] = Array.isArray(value) && value.length > 0 ? value : [fallbackField]
   const isReadOnly = isPreview || disabled
 
   const renderFieldLabel = (label: string) => <Label>{label}</Label>
@@ -155,8 +164,12 @@ export function FieldFormat({
     setStoreValue(fields.filter((field) => field.id !== id))
   }
 
-  const storeValueRef = useRef(storeValue)
-  storeValueRef.current = storeValue
+  /**
+   * Mirrors the rendered fields (store value or stable fallback) so updateField
+   * always commits against the same ids the UI is currently showing.
+   */
+  const fieldsRef = useRef(fields)
+  fieldsRef.current = fields
 
   const isReadOnlyRef = useRef(isReadOnly)
   isReadOnlyRef.current = isReadOnly
@@ -173,14 +186,8 @@ export function FieldFormat({
           ? validateFieldName(fieldValue)
           : fieldValue
 
-      const currentStoreValue = storeValueRef.current
-      const currentFields: Field[] =
-        Array.isArray(currentStoreValue) && currentStoreValue.length > 0
-          ? currentStoreValue
-          : [createDefaultField()]
-
       setStoreValueRef.current(
-        currentFields.map((f) => (f.id === id ? { ...f, [fieldKey]: updatedValue } : f))
+        fieldsRef.current.map((f) => (f.id === id ? { ...f, [fieldKey]: updatedValue } : f))
       )
     },
     []
