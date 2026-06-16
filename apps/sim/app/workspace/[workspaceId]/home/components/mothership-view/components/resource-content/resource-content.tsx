@@ -703,8 +703,6 @@ function EmbeddedScheduledTask({ workspaceId, scheduleId }: EmbeddedScheduledTas
   if (isLoading && !schedule) return LOADING_SKELETON
 
   if (!schedule) {
-    // A failed list query also yields no schedule; keep that distinct from a
-    // genuinely missing task so we don't tell the user it was deleted.
     const heading = isError ? "Couldn't load scheduled task" : 'Scheduled task not found'
     const detail = isError
       ? 'Something went wrong loading this scheduled task. Try again.'

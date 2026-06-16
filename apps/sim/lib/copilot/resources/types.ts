@@ -25,12 +25,7 @@ export function isEphemeralResource(resource: MothershipResource): boolean {
   return resource.type === 'generic' || resource.id === 'streaming-file'
 }
 
-/**
- * Placeholder resource titles emitted before a specific name is known. A more
- * specific title may overwrite one of these during dedup; a specific title is
- * never downgraded back to a placeholder. Shared by the chat-resource route and
- * the server-side persistence merge so the two stay in lockstep.
- */
+/** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
   'File',
