@@ -257,7 +257,13 @@ describe('preprocessExecution ban gate', () => {
   it('consumes the rate-limit gate exactly once when the ban and usage gates pass', async () => {
     mockCheckRateLimit.mockResolvedValue({ allowed: true, remaining: 5, resetAt: new Date() })
 
-    const result = await preprocessExecution({ ...baseOptions, checkRateLimit: true })
+    // skipConcurrencyReservation bypasses the STEP 7 admission reservation so the
+    // assertion isolates the rate gate and does not depend on Redis availability.
+    const result = await preprocessExecution({
+      ...baseOptions,
+      checkRateLimit: true,
+      skipConcurrencyReservation: true,
+    })
 
     expect(result.success).toBe(true)
     expect(mockCheckRateLimit).toHaveBeenCalledTimes(1)
