@@ -68,7 +68,10 @@ const FEATURE_FLAGS = {
   },
   'mothership-beta': {
     description:
-      'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler',
+      'Mothership beta plan/changelog artifact surfaces in the copilot VFS and doc compiler. ' +
+      'Note: userId/orgId targeting only works for WorkspaceVfs (resolved in materialize). ' +
+      'getE2BDocFormat, resolveInputFiles, and resolveWorkflowAliasForWorkspace evaluate without ' +
+      'user context — use enabled:true for global rollout rather than per-user targeting.',
     fallback: 'MOTHERSHIP_BETA_FEATURES',
   },
 } satisfies Record<string, FeatureFlagDefinition>
