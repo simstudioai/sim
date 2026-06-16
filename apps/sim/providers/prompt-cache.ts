@@ -1,5 +1,3 @@
-import { getEnv, isTruthy } from '@/lib/core/config/env'
-
 /**
  * Minimum estimated static-prefix size (system + tool definitions) before it is
  * worth marking a prompt-cache breakpoint. This is a rough lower bound across
@@ -23,18 +21,12 @@ function estimateTokens(text: string): number {
  * a large system prompt is typically reused across runs within the cache TTL.
  * A small, tool-less prompt is intentionally skipped so a one-shot call never
  * pays the cache-write surcharge for a prefix that is never read back.
- *
- * Set `PROMPT_CACHE_DISABLED=true` to turn this off globally (kill switch).
  */
 export function shouldCacheStaticPrefix(params: {
   systemPrompt: string | null | undefined
   hasTools: boolean
   toolsApproxChars?: number
 }): boolean {
-  if (isTruthy(getEnv('PROMPT_CACHE_DISABLED'))) {
-    return false
-  }
-
   const system = params.systemPrompt ?? ''
   if (!system) {
     return false

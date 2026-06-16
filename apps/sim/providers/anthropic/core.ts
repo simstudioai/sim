@@ -6,6 +6,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import type { BlockTokens, IterationToolCall, StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import {
+  applyAnthropicPromptCache,
   checkForForcedToolUsage,
   createReadableStreamFromAnthropicStream,
 } from '@/providers/anthropic/utils'
@@ -16,7 +17,6 @@ import {
   supportsNativeStructuredOutputs,
   supportsTemperature,
 } from '@/providers/models'
-import { shouldCacheStaticPrefix } from '@/providers/prompt-cache'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { adaptAnthropicToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
@@ -327,21 +327,9 @@ export async function executeAnthropicProviderRequest(
 
   // Prompt caching: mark the static prefix (system + tools) with an ephemeral
   // cache breakpoint so repeated calls (agent tool-loops, multi-turn) reuse it.
-  // Must run after the structured-output block above, which assumes `system` is
-  // still a string. Tools are tagged at their assignment below.
-  // Gate on the original request system prompt, not payload.system: when there
-  // are no context/chat messages the system text is relocated into a user
-  // message and payload.system is blanked (see above), but the prefix is still
-  // worth caching (the tools, at least).
-  const cacheStaticPrefix = shouldCacheStaticPrefix({
-    systemPrompt: request.systemPrompt,
-    hasTools: !!anthropicTools?.length,
-    toolsApproxChars: anthropicTools ? JSON.stringify(anthropicTools).length : 0,
-  })
-
-  if (cacheStaticPrefix && typeof payload.system === 'string' && payload.system.length > 0) {
-    payload.system = [{ type: 'text', text: payload.system, cache_control: { type: 'ephemeral' } }]
-  }
+  // Runs after the structured-output block above, which assumes `system` is still
+  // a string. Mutates payload.system and the last tool in place.
+  applyAnthropicPromptCache(payload, anthropicTools, request.systemPrompt)
 
   // Add extended thinking configuration if supported and requested
   // The 'none' sentinel means "disable thinking" — skip configuration entirely.
@@ -385,13 +373,6 @@ export async function executeAnthropicProviderRequest(
   }
 
   if (anthropicTools?.length) {
-    if (cacheStaticPrefix) {
-      const lastIndex = anthropicTools.length - 1
-      anthropicTools[lastIndex] = {
-        ...anthropicTools[lastIndex],
-        cache_control: { type: 'ephemeral' },
-      }
-    }
     payload.tools = anthropicTools
     // Per Anthropic docs: forced tool_choice (type: "tool" or "any") is incompatible with
     // thinking. Only auto and none are supported when thinking is enabled.

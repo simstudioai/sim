@@ -2,13 +2,56 @@ import type {
   RawMessageDeltaEvent,
   RawMessageStartEvent,
   RawMessageStreamEvent,
+  TextBlockParam,
+  Tool,
   Usage,
 } from '@anthropic-ai/sdk/resources'
 import { createLogger } from '@sim/logger'
 import { randomFloat } from '@sim/utils/random'
+import { shouldCacheStaticPrefix } from '@/providers/prompt-cache'
 import { trackForcedToolUsage } from '@/providers/utils'
 
 const logger = createLogger('AnthropicUtils')
+
+/** Mutable view of the parts of the Anthropic payload that carry cache breakpoints. */
+interface AnthropicCacheablePayload {
+  system?: string | Array<TextBlockParam>
+}
+
+/**
+ * Marks the static request prefix (system prompt + tools) with an ephemeral
+ * cache breakpoint when {@link shouldCacheStaticPrefix} deems it worthwhile, so
+ * repeated calls reuse the cached prefix. Mutates `payload.system` (string → a
+ * single cached text block) and the last entry of `tools` in place.
+ *
+ * `systemPrompt` is the ORIGINAL request system prompt, used only for the
+ * worthiness gate: on the no-messages path the provider relocates the system
+ * text into a user message and blanks `payload.system`, but the tools prefix is
+ * still worth caching there.
+ */
+export function applyAnthropicPromptCache(
+  payload: AnthropicCacheablePayload,
+  tools: Tool[] | undefined,
+  systemPrompt: string | null | undefined
+): void {
+  const shouldCache = shouldCacheStaticPrefix({
+    systemPrompt,
+    hasTools: !!tools?.length,
+    toolsApproxChars: tools ? JSON.stringify(tools).length : 0,
+  })
+  if (!shouldCache) {
+    return
+  }
+
+  if (typeof payload.system === 'string' && payload.system.length > 0) {
+    payload.system = [{ type: 'text', text: payload.system, cache_control: { type: 'ephemeral' } }]
+  }
+
+  if (tools?.length) {
+    const lastIndex = tools.length - 1
+    tools[lastIndex] = { ...tools[lastIndex], cache_control: { type: 'ephemeral' } }
+  }
+}
 
 export interface AnthropicStreamUsage {
   input_tokens: number
