@@ -119,13 +119,26 @@ const workspaceIdsSchema = z.array(z.string().min(1)).max(MAX_PERMISSION_GROUP_W
 /**
  * Enforce the workspace-scope invariants shared by create and update:
  *  - a specific-scope group (`appliesToAllWorkspaces === false`) must name at
- *    least one workspace, and
- *  - the organization default group must apply to all workspaces.
+ *    least one workspace,
+ *  - the organization default group must apply to all workspaces, and
+ *  - an all-workspaces or default group must not name specific workspaces
+ *    (otherwise `workspaceIds` would be silently dropped server-side).
  */
 function refineWorkspaceScope(
   body: { appliesToAllWorkspaces?: boolean; workspaceIds?: string[]; isDefault?: boolean },
   ctx: z.RefinementCtx
 ) {
+  // A default group is always org-wide, and an explicit all-workspaces group has
+  // no specific workspaces. Reject workspaceIds in either case rather than
+  // silently dropping them when the scope resolves to all-workspaces.
+  const allWorkspaces = body.isDefault === true || body.appliesToAllWorkspaces === true
+  if (allWorkspaces && body.workspaceIds && body.workspaceIds.length > 0) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['workspaceIds'],
+      message: 'workspaceIds can only be set when the group targets specific workspaces',
+    })
+  }
   if (body.appliesToAllWorkspaces === false) {
     if (!body.workspaceIds || body.workspaceIds.length === 0) {
       ctx.addIssue({

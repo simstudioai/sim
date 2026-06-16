@@ -57,6 +57,24 @@ describe('createPermissionGroupBodySchema', () => {
     })
     expect(result.success).toBe(true)
   })
+
+  it('rejects a default group with workspaceIds (appliesToAllWorkspaces omitted)', () => {
+    const result = createPermissionGroupBodySchema.safeParse({
+      name: 'Baseline',
+      isDefault: true,
+      workspaceIds: ['ws-1'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects an all-workspaces group that also names specific workspaces', () => {
+    const result = createPermissionGroupBodySchema.safeParse({
+      name: 'Engineering',
+      appliesToAllWorkspaces: true,
+      workspaceIds: ['ws-1'],
+    })
+    expect(result.success).toBe(false)
+  })
 })
 
 describe('updatePermissionGroupBodySchema', () => {
@@ -84,6 +102,22 @@ describe('updatePermissionGroupBodySchema', () => {
     const result = updatePermissionGroupBodySchema.safeParse({
       isDefault: true,
       appliesToAllWorkspaces: false,
+      workspaceIds: ['ws-1'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects workspaceIds when making the group the default', () => {
+    const result = updatePermissionGroupBodySchema.safeParse({
+      isDefault: true,
+      workspaceIds: ['ws-1'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects workspaceIds on an all-workspaces update', () => {
+    const result = updatePermissionGroupBodySchema.safeParse({
+      appliesToAllWorkspaces: true,
       workspaceIds: ['ws-1'],
     })
     expect(result.success).toBe(false)

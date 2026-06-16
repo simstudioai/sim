@@ -128,20 +128,20 @@ export const PUT = withRouteHandler(
               ? false
               : group.appliesToAllWorkspaces
 
-      let resolvedWorkspaceIds: string[] = []
-      if (!resolvedAppliesToAll) {
-        const provided =
-          updates.workspaceIds !== undefined
-            ? updates.workspaceIds
-            : (await getGroupWorkspaces(id)).map((ws) => ws.id)
-        resolvedWorkspaceIds = Array.from(new Set(provided))
-        if (resolvedWorkspaceIds.length === 0) {
+      // Resolve and validate explicitly-provided workspaceIds before the
+      // transaction. When the request omits them for a specific-scope group
+      // ("keep current"), they're read under the lock instead (see below) so the
+      // conflict check and the write share one consistent snapshot.
+      let providedWorkspaceIds: string[] | null = null
+      if (!resolvedAppliesToAll && updates.workspaceIds !== undefined) {
+        providedWorkspaceIds = Array.from(new Set(updates.workspaceIds))
+        if (providedWorkspaceIds.length === 0) {
           return NextResponse.json(
             { error: 'Select at least one workspace when the group targets specific workspaces' },
             { status: 400 }
           )
         }
-        const invalid = await findWorkspacesNotInOrganization(resolvedWorkspaceIds, organizationId)
+        const invalid = await findWorkspacesNotInOrganization(providedWorkspaceIds, organizationId)
         if (invalid.length > 0) {
           return NextResponse.json(
             { error: 'One or more selected workspaces do not belong to this organization' },
@@ -153,12 +153,27 @@ export const PUT = withRouteHandler(
       const now = new Date()
 
       await db.transaction(async (tx) => {
+        // For a specific-scope group the target workspaces are the request's
+        // explicit ids, or — when omitted ("keep current") — the group's current
+        // workspaces read under the lock so the conflict check and write share
+        // one snapshot.
+        let resolvedWorkspaceIds: string[] = []
+
         // When the scope changes, serialize against other permission-group writes
         // for this org and re-check membership conflicts atomically with the
         // write, so a concurrent member add (or scope change) can't slip a user
         // into two groups that overlap on a workspace.
         if (scopeProvided) {
           await acquirePermissionGroupOrgLock(tx, organizationId)
+
+          if (!resolvedAppliesToAll) {
+            resolvedWorkspaceIds =
+              providedWorkspaceIds ?? (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
+            if (resolvedWorkspaceIds.length === 0) {
+              throw new Error('NO_WORKSPACES')
+            }
+          }
+
           const members = await tx
             .select({ userId: permissionGroupMember.userId })
             .from(permissionGroupMember)
@@ -261,6 +276,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json(
           { error: formatScopeConflictError(scopeConflicts) },
           { status: 409 }
+        )
+      }
+      if (error instanceof Error && error.message === 'NO_WORKSPACES') {
+        return NextResponse.json(
+          { error: 'Select at least one workspace when the group targets specific workspaces' },
+          { status: 400 }
         )
       }
       if (getPostgresErrorCode(error) === '23505') {
