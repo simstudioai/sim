@@ -98,12 +98,23 @@ export async function attachLargeFileRemoteUrls(
  * For `files-api` providers, uploads each large attachment (already carrying a signed
  * `remoteUrl`) to the provider Files API and records the returned handle on the file.
  * Runs after the request's API key is resolved so hosted and BYOK keys both work.
+ *
+ * Any `providerFileId`/`providerFileUri` present on input is cleared first — legitimate ids
+ * are only assigned by the upload below, so a forged id (which could otherwise reference an
+ * arbitrary file in a shared hosted provider account) can never reach a message builder.
  */
 export async function uploadLargeFilesToProvider(
   request: ProviderRequest,
   providerId: ProviderId | string
 ): Promise<void> {
   if (getProviderFileStrategy(providerId) !== 'files-api') return
+
+  for (const message of request.messages ?? []) {
+    for (const file of message.files ?? []) {
+      file.providerFileId = undefined
+      file.providerFileUri = undefined
+    }
+  }
 
   const groups = groupUploadableFiles(request.messages)
   if (groups.length === 0) return
@@ -114,6 +125,7 @@ export async function uploadLargeFilesToProvider(
 
   for (const group of groups) {
     const [representative] = group
+    await assertFileAccessForUpload(representative, request.userId)
     if (openai) {
       await uploadOpenAIFile(representative, openai, maxBytes, request.abortSignal)
     } else if (ai) {
@@ -123,6 +135,28 @@ export async function uploadLargeFilesToProvider(
       file.providerFileId = representative.providerFileId
       file.providerFileUri = representative.providerFileUri
     }
+  }
+}
+
+/**
+ * Verifies the caller may read this file before its bytes are uploaded to a provider. Enforced
+ * for every caller of {@link uploadLargeFilesToProvider} (not just the agent path), so a forged
+ * storage key in a passthrough request cannot exfiltrate another user's file.
+ */
+async function assertFileAccessForUpload(
+  file: UserFile,
+  userId: string | undefined
+): Promise<void> {
+  if (!file.key) {
+    throw new Error(`File "${file.name}" has no storage key`)
+  }
+  if (!userId) {
+    throw new Error(`File "${file.name}" requires an authenticated user to upload`)
+  }
+  const context = (file.context as StorageContext) || inferContextFromKey(file.key)
+  const hasAccess = await verifyFileAccess(file.key, userId, undefined, context, false)
+  if (!hasAccess) {
+    throw new Error(`File "${file.name}" is not accessible`)
   }
 }
 
