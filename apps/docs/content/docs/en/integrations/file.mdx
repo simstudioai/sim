@@ -1,6 +1,6 @@
 ---
 title: File
-description: Read, get content, fetch, write, and append files
+description: Read, get content, fetch, write, append, compress, and decompress files
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, or append content to existing files.
+Read workspace file objects, extract the text content of files, fetch and parse files from URLs with optional headers, write new workspace files, append content to existing files, compress files into a .zip archive, or extract a .zip archive into the workspace.
 
 
 
@@ -29,7 +29,7 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
+| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
 | `contents` | array | Array of file text contents, one entry per file \(get content\) |
 | `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
 | `id` | string | File ID \(write and append\) |
@@ -48,7 +48,7 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
+| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
 | `contents` | array | Array of file text contents, one entry per file \(get content\) |
 | `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
 | `id` | string | File ID \(write and append\) |
@@ -67,7 +67,7 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\) or fetched file objects \(fetch\) |
+| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
 | `contents` | array | Array of file text contents, one entry per file \(get content\) |
 | `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
 | `id` | string | File ID \(write and append\) |
@@ -115,5 +115,46 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `name` | string | File name |
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
+
+### `file_compress`
+
+Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
+| `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Compressed archive file ID |
+| `name` | string | Compressed archive file name |
+| `size` | number | Compressed archive size in bytes |
+| `url` | string | URL to access the compressed archive |
+| `files` | file[] | Compressed archive file object, as a single-item array |
+
+### `file_decompress`
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
+| `contents` | array | Array of file text contents, one entry per file \(get content\) |
+| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
+| `id` | string | File ID \(write and append\) |
+| `name` | string | File name \(write and append\) |
+| `size` | number | File size in bytes \(write and append\) |
+| `url` | string | URL to access the file \(write and append\) |
 
 

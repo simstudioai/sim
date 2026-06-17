@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-16",
+  "updatedAt": "2026-06-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -3818,6 +3818,45 @@
       "tags": ["monitoring", "incident-management", "error-tracking"]
     },
     {
+      "type": "datagma",
+      "slug": "datagma",
+      "name": "Datagma",
+      "description": "Find verified B2B emails, mobile phones, and enrich person or company profiles",
+      "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DatagmaIcon",
+      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified work email from a person"
+        },
+        {
+          "name": "Enrich Person",
+          "description": "Enrich a person"
+        },
+        {
+          "name": "Enrich Company",
+          "description": "Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match."
+        },
+        {
+          "name": "Find Phone",
+          "description": "Find a mobile phone number from a person"
+        },
+        {
+          "name": "Get Remaining Credits",
+          "description": "Check remaining credit balance on a Datagma account. Free — no credits consumed."
+        }
+      ],
+      "operationCount": 5,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "daytona",
       "slug": "daytona",
       "name": "Daytona",
@@ -4217,6 +4256,29 @@
       "category": "tools",
       "integrationType": "documents",
       "tags": ["cloud", "document-processing"]
+    },
+    {
+      "type": "dropcontact",
+      "slug": "dropcontact",
+      "name": "Dropcontact",
+      "description": "Enrich B2B contacts with verified email, phone, and company data",
+      "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
+      "bgColor": "#0066FF",
+      "iconName": "DropcontactIcon",
+      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "operations": [
+        {
+          "name": "Enrich Contact",
+          "description": "Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL."
+        }
+      ],
+      "operationCount": 1,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "dspy",
@@ -4662,6 +4724,33 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment"]
+    },
+    {
+      "type": "enrow",
+      "slug": "enrow",
+      "name": "Enrow",
+      "description": "Find and verify B2B emails with triple-verified accuracy",
+      "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "EnrowIcon",
+      "docsUrl": "https://enrow.readme.io",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)"
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)"
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "evernote",
@@ -7534,6 +7623,33 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "icypeas",
+      "slug": "icypeas",
+      "name": "Icypeas",
+      "description": "Find and verify professional email addresses",
+      "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
+      "bgColor": "#0EA5E9",
+      "iconName": "IcypeasIcon",
+      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a professional email address from a first name, last name, and company domain or name. Submits the search and polls until a result is available. Costs 1 credit per found email (https://www.icypeas.com/pricing)."
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify whether an email address is valid and deliverable. Submits the verification and polls until a result is available. Costs 0.1 credit per verification (https://www.icypeas.com/pricing)."
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "incidentio",
       "slug": "incident-io",
       "name": "incident.io",
@@ -8836,6 +8952,61 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["feature-flags", "ci-cd"]
+    },
+    {
+      "type": "leadmagic",
+      "slug": "leadmagic",
+      "name": "LeadMagic",
+      "description": "Find and enrich B2B contacts, emails, mobile numbers, and company data",
+      "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "LeadMagicIcon",
+      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find someone"
+        },
+        {
+          "name": "Validate Email",
+          "description": "Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free."
+        },
+        {
+          "name": "Find Mobile",
+          "description": "Find a person"
+        },
+        {
+          "name": "Profile Search",
+          "description": "Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found."
+        },
+        {
+          "name": "Profile to Email",
+          "description": "Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result."
+        },
+        {
+          "name": "Email to Profile",
+          "description": "Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result."
+        },
+        {
+          "name": "Company Search",
+          "description": "Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result."
+        },
+        {
+          "name": "Role Finder",
+          "description": "Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result."
+        },
+        {
+          "name": "Get Credits",
+          "description": "Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits."
+        }
+      ],
+      "operationCount": 9,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "lemlist",
