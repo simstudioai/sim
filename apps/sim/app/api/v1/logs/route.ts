@@ -1,4 +1,4 @@
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
@@ -101,7 +101,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const conditions = buildLogFilters(filters)
     const orderBy = getOrderBy(params.order)
 
-    const baseQuery = db
+    const baseQuery = dbReplica
       .select({
         id: workflowExecutionLogs.id,
         workflowId: workflowExecutionLogs.workflowId,

@@ -1667,6 +1667,13 @@
       "when": 1781554278388,
       "tag": "0238_workspace_scoped_permission_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1781659761380,
+      "tag": "0239_wel_logs_desc_index_and_redundant_drops",
+      "breakpoints": true
     }
   ]
 }
