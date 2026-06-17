@@ -1122,6 +1122,17 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedFunctionHeaders = functionHeaders
         }
 
+        if (
+          parsedFunctionHeaders !== undefined &&
+          (typeof parsedFunctionHeaders !== 'object' ||
+            parsedFunctionHeaders === null ||
+            Array.isArray(parsedFunctionHeaders))
+        ) {
+          throw new Error(
+            'Edge Function headers must be a JSON object of header name to value (not an array).'
+          )
+        }
+
         let parsedAllowedMimeTypes
         if (allowedMimeTypes && typeof allowedMimeTypes === 'string' && allowedMimeTypes.trim()) {
           try {

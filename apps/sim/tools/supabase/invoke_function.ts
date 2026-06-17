@@ -87,7 +87,7 @@ export const invokeFunctionTool: ToolConfig<
         Authorization: `Bearer ${params.apiKey}`,
         'Content-Type': 'application/json',
       }
-      if (params.headers && typeof params.headers === 'object') {
+      if (params.headers && typeof params.headers === 'object' && !Array.isArray(params.headers)) {
         for (const [key, value] of Object.entries(params.headers)) {
           headers[key] = String(value)
         }
@@ -102,6 +102,11 @@ export const invokeFunctionTool: ToolConfig<
     },
   },
 
+  /**
+   * Only the success path is handled here — the tool executor throws on
+   * non-OK responses before `transformResponse` runs, surfacing the Edge
+   * Function's error body via the shared error extractor.
+   */
   transformResponse: async (response: Response) => {
     const contentType = response.headers.get('content-type') || ''
     let results: unknown
@@ -113,21 +118,6 @@ export const invokeFunctionTool: ToolConfig<
       }
     } else {
       results = await response.text()
-    }
-
-    if (!response.ok) {
-      const message =
-        typeof results === 'object' && results !== null && 'error' in results
-          ? String((results as { error: unknown }).error)
-          : `Edge Function returned status ${response.status}`
-      return {
-        success: false,
-        output: {
-          message,
-          results,
-        },
-        error: message,
-      }
     }
 
     return {
