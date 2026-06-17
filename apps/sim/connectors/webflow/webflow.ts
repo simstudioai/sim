@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
+import { htmlToPlainText, parseMultiValue, parseTagDate } from '@/connectors/utils'
 import { webflowConnectorMeta } from '@/connectors/webflow/meta'
 
 const logger = createLogger('WebflowConnector')
@@ -89,7 +89,7 @@ export const webflowConnector: ConnectorConfig = {
     syncContext?: Record<string, unknown>
   ): Promise<ExternalDocumentList> => {
     const siteId = sourceConfig.siteId as string
-    const collectionId = sourceConfig.collectionId as string | undefined
+    const collectionIds = parseMultiValue(sourceConfig.collectionId)
     const maxItems = sourceConfig.maxItems ? Number(sourceConfig.maxItems) : 0
 
     let cursorState: CursorState
@@ -97,7 +97,7 @@ export const webflowConnector: ConnectorConfig = {
     if (cursor) {
       cursorState = JSON.parse(cursor) as CursorState
     } else {
-      const collections = await fetchCollectionIds(accessToken, siteId, collectionId)
+      const collections = await fetchCollectionIds(accessToken, siteId, collectionIds)
       cursorState = { collectionIndex: 0, offset: 0, collections }
     }
 
@@ -172,6 +172,10 @@ export const webflowConnector: ConnectorConfig = {
     const hasMoreCollections = cursorState.collectionIndex < cursorState.collections.length - 1
     const hitMaxItems = maxItems > 0 && totalDocsFetched + documents.length >= maxItems
 
+    if (hitMaxItems && (hasMoreInCollection || hasMoreCollections) && syncContext) {
+      syncContext.listingCapped = true
+    }
+
     let nextCursor: string | undefined
     if (hitMaxItems) {
       nextCursor = undefined
@@ -236,7 +240,7 @@ export const webflowConnector: ConnectorConfig = {
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
     const siteId = sourceConfig.siteId as string
-    const collectionId = sourceConfig.collectionId as string | undefined
+    const collectionIds = parseMultiValue(sourceConfig.collectionId)
     const maxItems = sourceConfig.maxItems as string | undefined
 
     if (!siteId) {
@@ -272,7 +276,7 @@ export const webflowConnector: ConnectorConfig = {
         return { valid: false, error: `Webflow API error: ${siteResponse.status} - ${errorText}` }
       }
 
-      if (collectionId) {
+      for (const collectionId of collectionIds) {
         const collectionUrl = `${WEBFLOW_API}/collections/${collectionId}`
         const collectionResponse = await fetchWithRetry(
           collectionUrl,
@@ -357,10 +361,10 @@ function itemToDocument(
 async function fetchCollectionIds(
   accessToken: string,
   siteId: string,
-  collectionId?: string
+  collectionIds: string[]
 ): Promise<string[]> {
-  if (collectionId) {
-    return [collectionId]
+  if (collectionIds.length > 0) {
+    return collectionIds
   }
 
   const url = `${WEBFLOW_API}/sites/${siteId}/collections`

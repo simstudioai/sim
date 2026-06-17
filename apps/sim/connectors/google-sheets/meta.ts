@@ -16,9 +16,22 @@ export const googleSheetsConnectorMeta: ConnectorMeta = {
 
   configFields: [
     {
+      id: 'spreadsheetSelector',
+      title: 'Spreadsheet',
+      type: 'selector',
+      selectorKey: 'google.drive',
+      mimeType: 'application/vnd.google-apps.spreadsheet',
+      canonicalParamId: 'spreadsheetId',
+      mode: 'basic',
+      placeholder: 'Select a spreadsheet',
+      required: true,
+    },
+    {
       id: 'spreadsheetId',
       title: 'Spreadsheet ID',
       type: 'short-input',
+      canonicalParamId: 'spreadsheetId',
+      mode: 'advanced',
       placeholder: 'e.g. 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms',
       required: true,
       description: 'The ID from the spreadsheet URL: docs.google.com/spreadsheets/d/{ID}/edit',
