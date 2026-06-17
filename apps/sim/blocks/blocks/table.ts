@@ -58,6 +58,7 @@ interface TableBlockParams {
   sortBuilder?: unknown
   bulkFilterMode?: string
   bulkFilterBuilder?: unknown
+  conflictColumn?: string
 }
 
 /** Normalized params after parsing, ready for tool request body */
@@ -70,6 +71,7 @@ interface ParsedParams {
   sort?: unknown
   limit?: number
   offset?: number
+  conflictTarget?: string
 }
 
 /** Transforms raw block params into tool request params for each operation */
@@ -82,6 +84,7 @@ const paramTransformers: Record<string, (params: TableBlockParams) => ParsedPara
   upsert_row: (params) => ({
     tableId: params.tableId,
     data: parseJSON(params.data, 'Row Data'),
+    conflictTarget: params.conflictColumn || undefined,
   }),
 
   batch_insert_rows: (params) => ({
@@ -273,6 +276,16 @@ Table with columns: customer_id (string), total (number), status (string)
 Return ONLY the data JSON:`,
         generationType: 'table-schema',
       },
+    },
+
+    // Upsert - which unique column to match on (defaults to the first unique column)
+    {
+      id: 'conflictColumn',
+      title: 'Conflict Column',
+      type: 'short-input',
+      placeholder: 'Unique column to match on (defaults to the first unique column)',
+      dependsOn: ['tableId'],
+      condition: { field: 'operation', value: 'upsert_row' },
     },
 
     // Batch Insert - multiple rows
@@ -631,6 +644,10 @@ Return ONLY the sort JSON:`,
     sortBuilder: { type: 'json', description: 'Visual sort builder conditions' },
     sort: { type: 'json', description: 'Sort order (JSON)' },
     offset: { type: 'number', description: 'Query result offset' },
+    conflictColumn: {
+      type: 'string',
+      description: 'Unique column to match on for upsert (defaults to the first unique column)',
+    },
   },
 
   outputs: {

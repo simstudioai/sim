@@ -21,6 +21,10 @@ export function filterRulesToFilter(rules: FilterRule[]): Filter | null {
   let currentGroup: Filter = {}
 
   for (const rule of rules) {
+    // Skip incomplete rows (no column selected) so a blank builder row never
+    // serializes to a `{ '': ... }` predicate.
+    if (!rule.column) continue
+
     const isOr = rule.logicalOperator === 'or'
     const ruleValue = toRuleValue(rule.operator, rule.value)
 

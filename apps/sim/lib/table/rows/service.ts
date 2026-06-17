@@ -492,12 +492,9 @@ export async function upsertRow(
       )
     }
     targetColumnKey = getColumnId(col)
-  } else if (uniqueColumns.length === 1) {
-    targetColumnKey = getColumnId(uniqueColumns[0])
   } else {
-    throw new Error(
-      `Table has multiple unique columns (${uniqueColumns.map((c) => c.name).join(', ')}). Specify conflictTarget to indicate which column to match on.`
-    )
+    // No conflict target specified — default to the first unique column.
+    targetColumnKey = getColumnId(uniqueColumns[0])
   }
 
   // Validate row data
