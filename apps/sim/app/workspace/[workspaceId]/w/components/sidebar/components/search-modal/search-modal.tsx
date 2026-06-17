@@ -17,6 +17,7 @@ import {
   HelpCircle,
   Home,
   Integration,
+  Key,
   Play,
   Plus,
   Send,
@@ -165,6 +166,12 @@ export function SearchModal({
           icon: Library,
           href: `/workspace/${workspaceId}/logs`,
           shortcut: '⌘⇧L',
+        },
+        {
+          id: 'secrets',
+          name: 'Secrets',
+          icon: Key,
+          href: `/workspace/${workspaceId}/settings/secrets`,
         },
         {
           id: 'help',
