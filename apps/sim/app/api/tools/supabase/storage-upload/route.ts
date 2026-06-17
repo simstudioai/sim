@@ -174,6 +174,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       'Content-Type': uploadContentType,
     }
 
+    if (validatedData.cacheControl) {
+      headers['cache-control'] = validatedData.cacheControl
+    }
+
     if (validatedData.upsert) {
       headers['x-upsert'] = 'true'
     }
