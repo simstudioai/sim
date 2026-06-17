@@ -94,7 +94,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
-    await assertFolderMutable(parentId)
+    await assertFolderMutable(parentId ?? null)
 
     const result = await performCreateFolder({
       id: clientId,

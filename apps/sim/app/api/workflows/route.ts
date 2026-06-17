@@ -117,7 +117,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
-    await assertFolderMutable(folderId)
+    await assertFolderMutable(folderId ?? null)
 
     const result = await performCreateWorkflow({
       id: clientId,
