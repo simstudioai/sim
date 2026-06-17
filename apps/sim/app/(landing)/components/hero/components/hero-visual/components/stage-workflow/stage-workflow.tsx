@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { cn } from '@/lib/core/utils/cn'
+import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/components/stage-workflow/components/workflow-block'
 import styles from '@/app/(landing)/components/hero/components/hero-visual/hero-visual.module.css'
-import { WorkflowBlock } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   BLOCK_WIDTH,
   BLOCKS,

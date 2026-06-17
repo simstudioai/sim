@@ -1,6 +1,6 @@
-import { ChipLink } from '@/components/emcn'
-import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual/hero-visual'
-import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
+import { HeroVisual } from '@/app/(landing)/components/hero/components/hero-visual'
+import { HeroCta } from '@/app/(landing)/components/hero-cta'
+import { Logos } from '@/app/(landing)/components/logos'
 
 /**
  * Landing hero — the only `<h1>` on the page.
@@ -14,22 +14,9 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * navbar so the hero text starts on the same vertical line as the wordmark;
  * blocks are stacked a uniform 22px apart (`gap-[22px]`).
  *
- * The sign-up row places the email-capture bar and a "Sign up" button side by
- * side, `gap-2` apart, matched to the same 44px visual height. The bar is a
- * no-background input
- * shell — `rounded-lg` (the chip roundedness) and `border-[var(--border-1)]`
- * (the `UserInput` border) — wrapping a transparent 16px `<input>` and the
- * "Book a demo" action `gap-2` apart; its `pl-3` text gutter and tighter
- * `pr-[5px]` tuck that button evenly into the right corner.
- *
- * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
- * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`)
- * and horizontal padding in `em` so it stays proportional to the text —
- * `px-[0.571em]`, the chip's 8/14 ratio (≈9px at 16px). "Book a demo" sits
- * inside the bar and scales its height too (`h-[2.143em]`); the standalone
- * "Sign up" is the default chip with a `border border-[var(--border-1)]` (the
- * bar's border) at `h-[44px]` — both borders sit inside their border-box
- * height, so the two edges line up exactly.
+ * The sign-up row is the shared {@link HeroCta} — the single source of truth for
+ * the email-capture bar and the "Book a demo" / "Sign up" chips — reused
+ * verbatim by every platform hero so the primary CTA never drifts.
  *
  * The headline is split across two lines with a hard break; the reading-order
  * text content is unaffected.
@@ -51,7 +38,8 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * inset positions are unaffected; `overflow-hidden` clips the future video to
  * the radius.
  *
- * The {@link HeroLogos} grid sits in a bottom-anchored panel that mirrors the
+ * The shared {@link Logos} grid (the same logo set every platform page uses)
+ * sits in a bottom-anchored panel that mirrors the
  * visual panel on the left half (`left-16` → `right-1/2`, same `top-8 bottom-8`
  * frame). `flex flex-col justify-end` pins the grid to the bottom, then `pb-20`
  * lifts it 80px above the panel's bottom edge — the same 80px that separates the
@@ -90,31 +78,7 @@ export function Hero() {
         workflows.
       </p>
 
-      <div className='flex items-center gap-2'>
-        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[5px] pl-3'>
-          <input
-            type='email'
-            aria-label='Email address'
-            placeholder='Email address'
-            className='h-full min-w-0 flex-1 bg-transparent text-[16px] text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)]'
-          />
-          <ChipLink
-            variant='primary'
-            href='/contact'
-            flush
-            className='h-[2.143em] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
-          >
-            Book a demo
-          </ChipLink>
-        </div>
-        <ChipLink
-          href='/signup'
-          flush
-          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
-        >
-          Sign up
-        </ChipLink>
-      </div>
+      <HeroCta />
 
       <div
         aria-hidden='true'
@@ -124,7 +88,7 @@ export function Hero() {
       </div>
 
       <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-16 flex flex-col justify-end pb-20'>
-        <HeroLogos />
+        <Logos layout='grid' />
       </div>
     </section>
   )

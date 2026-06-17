@@ -1,6 +1,23 @@
-export { Features } from '@/app/(landing)/components/features/features'
-export { Footer } from '@/app/(landing)/components/footer/footer'
-export { Hero } from '@/app/(landing)/components/hero/hero'
-export { Lifecycle } from '@/app/(landing)/components/lifecycle/lifecycle'
-export { Navbar } from '@/app/(landing)/components/navbar/navbar'
-export { Testimonials } from '@/app/(landing)/components/testimonials/testimonials'
+export { Features } from './features'
+export { Footer } from './footer'
+export { Hero } from './hero'
+export { LandingShell } from './landing-shell'
+export { Lifecycle } from './lifecycle'
+export { Navbar } from './navbar'
+export type {
+  PlatformCardConfig,
+  PlatformCardRowConfig,
+  PlatformHeroConfig,
+  PlatformPageConfig,
+  PlatformPillCta,
+} from './platform-page'
+export { PlatformPage } from './platform-page'
+export type {
+  SolutionsCardConfig,
+  SolutionsCardRowConfig,
+  SolutionsHeroConfig,
+  SolutionsPageConfig,
+  SolutionsPillCta,
+} from './solutions-page'
+export { SolutionsPage } from './solutions-page'
+export { Testimonials } from './testimonials'

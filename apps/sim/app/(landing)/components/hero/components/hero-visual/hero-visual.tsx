@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/core/utils/cn'
-import styles from '@/app/(landing)/components/hero/components/hero-visual/hero-visual.module.css'
-import { StageHome } from '@/app/(landing)/components/hero/components/hero-visual/stage-home'
+import { StageHome } from '@/app/(landing)/components/hero/components/hero-visual/components/stage-home'
 import {
   type KbStage,
   StageKb,
-} from '@/app/(landing)/components/hero/components/hero-visual/stage-kb'
-import { StageWorkflow } from '@/app/(landing)/components/hero/components/hero-visual/stage-workflow'
+} from '@/app/(landing)/components/hero/components/hero-visual/components/stage-kb'
+import { StageWorkflow } from '@/app/(landing)/components/hero/components/hero-visual/components/stage-workflow'
+import styles from '@/app/(landing)/components/hero/components/hero-visual/hero-visual.module.css'
 import {
   PROMPT_ATOMS,
   TYPE_MS_PER_ATOM,

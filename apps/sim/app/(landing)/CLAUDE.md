@@ -64,23 +64,32 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
 
 ## Structure
 
+**Directory convention — mirror `app/workspace/[workspaceId]/<feature>`.** Every component lives in its own kebab-case folder holding `<name>.tsx` plus an `index.ts` barrel (relative re-export); a component's children nest under that folder's `components/` (each itself foldered, with its own `index.ts`). Non-component modules — `types.ts`, `constants.ts`, data files — sit at the relevant folder root. Never leave a bare `<name>.tsx` flat inside a `components/` directory.
+
 ```
 (landing)/
 ├── CLAUDE.md                            # this file
 ├── page.tsx                             # route entry: metadata + <Landing />
-├── landing.tsx                          # root composition: section order + server-side context
+├── landing.tsx                          # root composition: <main> section order
+├── workflows/                           # a platform route: page.tsx (metadata) + workflows.tsx (config + shell)
 └── components/
-    ├── index.ts                         # barrel
-    ├── navbar/navbar.tsx                # <header><nav>: wordmark, dropdowns, GitHub stars, auth chips
-    ├── hero/hero.tsx                    # h1, description, platform component, enterprise logos
-    ├── features/features.tsx            # two platform features + platform component
-    ├── testimonials/testimonials.tsx    # social proof
-    └── footer/footer.tsx                # CTA band + <footer>
+    ├── index.ts                         # top barrel
+    ├── navbar/{navbar.tsx, index.ts, components/<chip>/…}   # <header><nav>: wordmark, dropdowns, stars, auth chips
+    ├── hero/{hero.tsx, index.ts, components/hero-visual/…}  # h1, description, CTA, platform visual, logos
+    ├── lifecycle/, features/, footer/, testimonials/        # each: <name>.tsx + index.ts (+ components/)
+    ├── shared/                          # cross-page reused chrome (folder-per-component + barrel)
+    │   ├── landing-shell/               # light wrapper + skip link + Navbar(stars) + Footer; wraps every page
+    │   ├── hero-cta/                    # the one email-capture + Sign-up CTA (hero + every platform hero)
+    │   └── logos/                       # the one customer-logo set; layout='grid' (hero) | 'row' (platform)
+    └── platform-page/                   # the reusable platform-page layout (Workflows, Tables, Files, …)
+        ├── platform-page.tsx, index.ts, types.ts, constants.ts   # PlatformPage + the content contract + spacing
+        └── components/                  # platform-hero, platform-logos-row, platform-card-row (→ card, pill-cta),
+                                         #   platform-visual-frame, platform-structured-data
 ```
 
-Each section component's TSDoc carries its layout spec — read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); `landing.tsx` owns the order, the `<main>` wrapper, and all server-side context (e.g. GitHub stars via `@/lib/github/stars`, fetched at build/revalidate time — never client-fetched). Sub-components of a section go in `components/<section>/components/`.
+Each section component's TSDoc carries its layout spec — read it before implementing. Section components own their landmark (Navbar → `<header>`, Footer → `<footer>`, the rest → `<section>`); the shared `LandingShell` owns the page frame (light wrapper, skip link, navbar, footer, GitHub stars via `@/lib/github/stars` — fetched at build/revalidate time, never client-fetched), and the page's `<main>` owns the section order and rhythm. Platform routes consume `PlatformPage` with a single content `config` — see `platform-page/CLAUDE`-level TSDoc on `platform-page.tsx`. Sub-components of a section go in `components/<section>/components/`.
 
-Absolute imports only (`@/app/(landing)/components/...`). Props interfaces for every component. No `utils.ts` until two files share a helper.
+Absolute imports only in component code (`@/app/(landing)/components/...`); `index.ts` barrels use relative re-exports (`export { X } from './x'`), matching the workspace convention. Props interfaces for every component. No `utils.ts` until two files share a helper.
 
 ## Checklist for every section you add
 
