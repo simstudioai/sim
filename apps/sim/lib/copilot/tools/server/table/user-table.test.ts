@@ -692,15 +692,15 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('rejects limits above MAX_QUERY_LIMIT', async () => {
+  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
-    expect(result.success).toBe(false)
-    expect(result.message).toBe('Limit cannot exceed 1000')
-    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBe(1000)
   })
 
   it('queries without execution metadata and passes limit/offset through', async () => {
@@ -732,7 +732,7 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
   })
 
-  it('rejects limits above MAX_BULK_OPERATION_SIZE', async () => {
+  it('runs an explicit large limit inline without escalating (delete loads only ids)', async () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
@@ -741,9 +741,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
-    expect(result.success).toBe(false)
-    expect(result.message).toBe('Limit cannot exceed 1000')
-    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    // An explicit limit never counts/escalates — it deletes inline, bounded by the limit.
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
+    expect(mockDeleteRowsByFilter.mock.calls[0][1]).toMatchObject({ limit: 5000 })
   })
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
@@ -853,7 +855,14 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     mockQueryRows.mockResolvedValue({ rows: [], rowCount: 0, totalCount: 5, limit: 1, offset: 0 })
   })
 
-  it('rejects limits above MAX_BULK_OPERATION_SIZE', async () => {
+  it('escalates an explicit limit above the cap to a background update with maxRows', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
@@ -861,9 +870,16 @@ describe('userTableServerTool.update_rows_by_filter', () => {
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
-    expect(result.success).toBe(false)
-    expect(result.message).toBe('Limit cannot exceed 1000')
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
+    expect(result.data?.affectedCount).toBe(5000)
     expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(type).toBe('update')
+    expect(payload).toMatchObject({ affectedCount: 5000, maxRows: 5000 })
+    expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
   })
 
   it('updates inline when the unbounded match count is within the cap', async () => {
@@ -909,6 +925,8 @@ describe('userTableServerTool.update_rows_by_filter', () => {
       cutoff: expect.any(String),
       data: { age: 1 },
     })
+    // Unbounded match (no explicit limit) → the worker patches every match, no cap.
+    expect((payload as { maxRows?: number }).maxRows).toBeUndefined()
     expect(mockRunTableUpdate).toHaveBeenCalledTimes(1)
     expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({
       jobId,

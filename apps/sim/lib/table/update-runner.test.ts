@@ -163,6 +163,23 @@ describe('runTableUpdate', () => {
     expect(mockUpdatePageByIds).not.toHaveBeenCalled()
   })
 
+  it('stops once maxRows is reached and never over-fetches a page', async () => {
+    // budget 3 with page size 2: first page fills 2, second page is capped to the remaining 1.
+    mockSelectRowDataPage
+      .mockResolvedValueOnce([row('a'), row('b')])
+      .mockResolvedValueOnce([row('c')])
+
+    await runTableUpdate(basePayload({ maxRows: 3 }))
+
+    expect(mockSelectRowDataPage).toHaveBeenCalledTimes(2)
+    expect(mockSelectRowDataPage.mock.calls[0][0]).toMatchObject({ limit: 2 })
+    expect(mockSelectRowDataPage.mock.calls[1][0]).toMatchObject({ limit: 1 })
+    expect(mockUpdatePageByIds).toHaveBeenCalledTimes(2)
+    expect(mockAppendTableEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'ready', progress: 3 })
+    )
+  })
+
   it('passes the cutoff and filter clause through to the page query', async () => {
     mockSelectRowDataPage.mockResolvedValueOnce([])
 

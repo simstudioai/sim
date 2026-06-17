@@ -231,6 +231,8 @@ export interface TableUpdateJobPayload {
   /** ISO timestamp; rows created after it are not patched. */
   cutoff: string
   affectedCount?: number
+  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
+  maxRows?: number
 }
 
 /**

@@ -3687,7 +3687,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description:
-                'Maximum rows to return or affect (default 100, max 1000). For update_rows_by_filter / delete_rows_by_filter, omit to act on every match — large match sets run as a background job.',
+                'Maximum rows to return or affect (optional, default 100). Any value is allowed — large operations run in the background automatically. Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
             },
             mapping: {
               type: 'object',

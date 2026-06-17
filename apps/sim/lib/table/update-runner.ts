@@ -37,6 +37,8 @@ export interface TableUpdatePayload {
   data: RowData
   /** Only rows created at/before this instant are patched, so mid-job inserts are spared. */
   cutoff: Date
+  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
+  maxRows?: number
 }
 
 /**
@@ -57,8 +59,9 @@ export interface TableUpdatePayload {
  * failed via `markTableUpdateFailed`. A superseded run returns quietly.
  */
 export async function runTableUpdate(payload: TableUpdatePayload): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, data, cutoff } = payload
+  const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = payload
   const requestId = generateId().slice(0, 8)
+  const budget = maxRows ?? Number.POSITIVE_INFINITY
 
   try {
     const table = await getTableById(tableId, { includeArchived: true })
@@ -81,7 +84,7 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
     let lastReported = resumed
     let afterId: string | undefined
 
-    while (true) {
+    while (processed < budget) {
       const owns = await updateJobProgress(tableId, processed, jobId)
       if (!owns) throw new JobSupersededError()
 
@@ -91,7 +94,7 @@ export async function runTableUpdate(payload: TableUpdatePayload): Promise<void>
         cutoff,
         filterClause,
         afterId,
-        limit: TABLE_LIMITS.DELETE_PAGE_SIZE,
+        limit: Math.min(TABLE_LIMITS.DELETE_PAGE_SIZE, budget - processed),
         // Skip rows already carrying the patch so a retried run resumes without re-walking /
         // double-counting the rows an earlier attempt updated (updated rows still exist and may
         // still match the filter, unlike deletes).

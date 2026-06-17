@@ -200,8 +200,9 @@ async function dispatchUpdateJob(params: {
   filter: Filter
   data: RowData
   cutoff: Date
+  maxRows?: number
 }): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, data, cutoff } = params
+  const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = params
   if (isTriggerDevEnabled) {
     try {
       const [{ tableUpdateTask }, { tasks }] = await Promise.all([
@@ -210,7 +211,7 @@ async function dispatchUpdateJob(params: {
       ])
       await tasks.trigger<typeof tableUpdateTask>(
         'table-update',
-        { jobId, tableId, workspaceId, filter, data, cutoff: cutoff.toISOString() },
+        { jobId, tableId, workspaceId, filter, data, cutoff: cutoff.toISOString(), maxRows },
         { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
       )
     } catch (error) {
@@ -219,10 +220,12 @@ async function dispatchUpdateJob(params: {
     }
   } else {
     runDetached('table-update', () =>
-      runTableUpdate({ jobId, tableId, workspaceId, filter, data, cutoff }).catch(async (error) => {
-        await markTableUpdateFailed(tableId, jobId, error)
-        throw error
-      })
+      runTableUpdate({ jobId, tableId, workspaceId, filter, data, cutoff, maxRows }).catch(
+        async (error) => {
+          await markTableUpdateFailed(tableId, jobId, error)
+          throw error
+        }
+      )
     )
   }
 }
@@ -280,16 +283,15 @@ function parseDeploymentMode(value: unknown): WorkflowGroupDeploymentMode | unde
 }
 
 /**
- * Validates an optional row limit against the same bounds the HTTP contracts
- * enforce. Returns an error message, or `null` when the limit is acceptable.
+ * Validates an optional row limit. There's no upper bound the caller must respect — the model may
+ * ask for any number. `MAX_QUERY_LIMIT` / `MAX_BULK_OPERATION_SIZE` are applied internally instead
+ * (query_rows clamps the page; bulk ops above the bound run as a background job). Returns an error
+ * message, or `null` when the limit is acceptable.
  */
-function limitError(limit: unknown, max: number): string | null {
+function limitError(limit: unknown): string | null {
   if (limit === undefined) return null
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
     return 'Limit must be an integer of at least 1'
-  }
-  if (limit > max) {
-    return `Limit cannot exceed ${max}`
   }
   return null
 }
@@ -579,7 +581,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const queryLimitError = limitError(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
+          const queryLimitError = limitError(args.limit)
           if (queryLimitError) {
             return { success: false, message: queryLimitError }
           }
@@ -592,12 +594,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
           const nameById = buildNameById(table.schema)
+          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
+          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
+          // and the model pages with `offset`.
           const result = await queryRows(
             table,
             {
               filter: args.filter ? filterNamesToIds(args.filter, idByName) : undefined,
               sort: args.sort ? sortNamesToIds(args.sort, idByName) : undefined,
-              limit: args.limit,
+              limit:
+                args.limit !== undefined
+                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
+                  : undefined,
               offset: args.offset,
               withExecutions: false,
             },
@@ -700,7 +708,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
-          const updateLimitError = limitError(args.limit, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE)
+          const updateLimitError = limitError(args.limit)
           if (updateLimitError) {
             return { success: false, message: updateLimitError }
           }
@@ -715,29 +723,34 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const idFilter = filterNamesToIds(args.filter, idByName)
           const idData = rowDataNameToId(args.data, idByName)
 
-          // Unbounded "update everything matching": measure the blast radius first and hand
-          // anything past the inline cap to the background update worker — same escalation as
-          // delete_rows_by_filter, so a broad update on a huge table doesn't load every matching
-          // row into this request. A patch touching a unique column stays inline (the service
-          // rejects bulk-setting a unique value across multiple rows).
+          // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
+          // (an explicit limit above the cap, or unbounded "update everything matching") runs in the
+          // background worker so a broad update on a huge table doesn't load every matching row into
+          // this request. A small explicit limit is the fast path — no count needed. A patch
+          // touching a unique column always stays inline (the service rejects bulk-setting a unique
+          // value across multiple rows).
           const patchTouchesUnique = table.schema.columns.some(
             (c) => c.unique === true && (c.id ?? c.name) in idData
           )
-          if (args.limit === undefined && !patchTouchesUnique) {
+          const updateInlineEligible =
+            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+          if (!updateInlineEligible && !patchTouchesUnique) {
             const { totalCount } = await queryRows(
               table,
               { filter: idFilter, limit: 1, withExecutions: false },
               requestId
             )
             const matchCount = totalCount ?? 0
-            if (matchCount > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
+            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
               const cutoff = new Date()
               const jobId = generateId()
               const payload: TableUpdateJobPayload = {
                 filter: idFilter,
                 data: idData,
                 cutoff: cutoff.toISOString(),
-                affectedCount: matchCount,
+                affectedCount: target,
+                maxRows: args.limit,
               }
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'update', payload)
@@ -751,11 +764,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 filter: idFilter,
                 data: idData,
                 cutoff,
+                maxRows: args.limit,
               })
               return {
                 success: true,
-                message: `Started background update of ${matchCount} matching rows (job ${jobId}). Rows update in the background — query_rows to check progress. Note: background updates don't auto-recompute workflow/enrichment columns; use run_column afterward if needed.`,
-                data: { jobId, affectedCount: matchCount },
+                message: `Started background update of ${target} matching rows (job ${jobId}). Rows update in the background — query_rows to check progress. Note: background updates don't auto-recompute workflow/enrichment columns; use run_column afterward if needed.`,
+                data: { jobId, affectedCount: target },
               }
             }
           }
@@ -789,7 +803,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
-          const deleteLimitError = limitError(args.limit, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE)
+          const deleteLimitError = limitError(args.limit)
           if (deleteLimitError) {
             return { success: false, message: deleteLimitError }
           }
@@ -803,10 +817,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const idByName = buildIdByName(table.schema)
           const idFilter = filterNamesToIds(args.filter, idByName)
 
-          // Unbounded "delete everything matching": measure the blast radius
-          // first, and hand anything past the inline cap to the background
-          // delete worker (same path as the UI's select-all delete) instead of
-          // loading every matching row id into this request.
+          // An explicit limit runs inline (delete loads only row ids, so even a large bounded
+          // delete is light). Only an unbounded "delete everything matching" measures the blast
+          // radius and hands off to the background delete worker (same path as the UI's select-all
+          // delete) — the read-path mask hides exactly the all-matching set, which a bounded delete
+          // would over-hide.
           if (args.limit === undefined) {
             const { totalCount } = await queryRows(
               table,
