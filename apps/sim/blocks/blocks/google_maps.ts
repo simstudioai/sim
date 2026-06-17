@@ -400,7 +400,7 @@ export const GoogleMapsBlock: BlockConfig = {
         { label: 'Any', id: '' },
         { label: 'High', id: 'HIGH' },
         { label: 'Medium', id: 'MEDIUM' },
-        { label: 'Low', id: 'LOW' },
+        { label: 'Base', id: 'BASE' },
       ],
       condition: { field: 'operation', value: 'solar' },
       mode: 'advanced',

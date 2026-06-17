@@ -427,7 +427,7 @@ Get solar potential and panel insights for the building nearest a location
 | `apiKey` | string | Yes | Google Maps API key with Solar API enabled |
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
-| `requiredQuality` | string | No | Minimum imagery quality to accept \(HIGH, MEDIUM, or LOW\) |
+| `requiredQuality` | string | No | Minimum imagery quality to accept \(HIGH, MEDIUM, or BASE\) |
 | `pricing` | per_request | No | No description |
 | `rateLimit` | string | No | No description |
 
@@ -440,7 +440,7 @@ Get solar potential and panel insights for the building nearest a location
 |   ↳ `lat` | number | Latitude |
 |   ↳ `lng` | number | Longitude |
 | `imageryDate` | object | Date the underlying imagery was captured |
-| `imageryQuality` | string | Quality of the imagery used \(HIGH, MEDIUM, LOW\) |
+| `imageryQuality` | string | Quality of the imagery used \(HIGH, MEDIUM, BASE\) |
 | `regionCode` | string | Region code \(ISO 3166-1 alpha-2\) for the building |
 | `postalCode` | string | Postal code of the building |
 | `administrativeArea` | string | Administrative area \(e.g., state or province\) |

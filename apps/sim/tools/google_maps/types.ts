@@ -587,7 +587,7 @@ export interface GoogleMapsSolarParams {
   apiKey: string
   lat: number
   lng: number
-  requiredQuality?: 'HIGH' | 'MEDIUM' | 'LOW'
+  requiredQuality?: 'HIGH' | 'MEDIUM' | 'BASE'
 }
 
 export interface GoogleMapsSolarResponse extends ToolResponse {
