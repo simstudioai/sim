@@ -96,6 +96,26 @@ export function parseMultiValue(value: unknown): string[] {
 }
 
 /**
+ * Escapes a value for safe interpolation into a Google Drive `q` query string,
+ * neutralizing backslashes and single quotes to prevent query injection.
+ */
+export function escapeDriveQueryValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/**
+ * Builds a Drive `q` clause matching files parented by any of the given folder
+ * IDs — e.g. `('A' in parents or 'B' in parents)`. Returns null when no folder
+ * IDs are supplied so callers can omit the clause entirely. A single ID is
+ * emitted without wrapping parentheses to keep the query minimal.
+ */
+export function buildDriveParentsClause(folderIds: string[]): string | null {
+  if (folderIds.length === 0) return null
+  const clause = folderIds.map((id) => `'${escapeDriveQueryValue(id)}' in parents`).join(' or ')
+  return folderIds.length > 1 ? `(${clause})` : clause
+}
+
+/**
  * Reads a response body into a Buffer while enforcing a hard byte cap. The
  * declared `content-length` header cannot be trusted as the sole guard —
  * chunked transfer encoding may omit it entirely — so bytes are accumulated
