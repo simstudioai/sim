@@ -93,8 +93,6 @@ describe('sse-handlers tool lifecycle', () => {
       currentThinkingBlock: null,
       subagentThinkingBlocks: new Map(),
       isInThinkingBlock: false,
-      subAgentParentToolCallId: undefined,
-      subAgentParentStack: [],
       subAgentContent: {},
       subAgentToolCalls: {},
       pendingContent: '',
@@ -462,8 +460,6 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('updates stored params when a subagent generating event is followed by the final tool call', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    context.subAgentParentToolCallId = 'parent-1'
-    context.subAgentParentStack = ['parent-1']
     context.toolCalls.set('parent-1', {
       id: 'parent-1',
       name: 'workflow',
@@ -522,7 +518,6 @@ describe('sse-handlers tool lifecycle', () => {
   })
 
   it('routes subagent text using the event scope parent tool call id', async () => {
-    context.subAgentParentToolCallId = 'wrong-parent'
     context.subAgentContent['parent-1'] = ''
 
     await subAgentHandlers.text(
@@ -573,7 +568,6 @@ describe('sse-handlers tool lifecycle', () => {
 
   it('routes subagent tool calls using the event scope parent tool call id', async () => {
     executeTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
-    context.subAgentParentToolCallId = 'wrong-parent'
     context.toolCalls.set('parent-1', {
       id: 'parent-1',
       name: 'deploy',

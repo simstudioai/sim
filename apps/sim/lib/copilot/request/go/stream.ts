@@ -392,10 +392,6 @@ export async function runStreamLoop(
           flushThinkingBlock(context)
           if (spanEvt === MothershipStreamV1SpanLifecycleEvent.start) {
             if (toolCallId) {
-              if (!context.subAgentParentStack.includes(toolCallId)) {
-                context.subAgentParentStack.push(toolCallId)
-              }
-              context.subAgentParentToolCallId = toolCallId
               context.subAgentContent[toolCallId] ??= ''
               context.subAgentToolCalls[toolCallId] ??= []
             }
@@ -424,20 +420,9 @@ export async function runStreamLoop(
             if (isPendingPause) {
               return
             }
-            if (toolCallId) {
-              const idx = context.subAgentParentStack.lastIndexOf(toolCallId)
-              if (idx >= 0) {
-                context.subAgentParentStack.splice(idx, 1)
-              } else {
-                logger.warn('subagent end without matching start', { toolCallId })
-              }
-            } else {
+            if (!toolCallId) {
               logger.warn('subagent end missing toolCallId')
             }
-            context.subAgentParentToolCallId =
-              context.subAgentParentStack.length > 0
-                ? context.subAgentParentStack[context.subAgentParentStack.length - 1]
-                : undefined
             if (toolCallId) {
               for (let i = context.contentBlocks.length - 1; i >= 0; i--) {
                 const b = context.contentBlocks[i]

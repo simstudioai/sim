@@ -35,6 +35,8 @@ import type {
   ExecutionContext,
   OrchestratorOptions,
   OrchestratorResult,
+  ResumeContinuation,
+  ResumeFrame,
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
@@ -249,13 +251,16 @@ export async function runCopilotLifecycle(
 // (streamComplete, awaitingAsyncContinuation) and the join-leg scalars
 // (accumulatedContent/usage/cost) are isolated per leg and merged back.
 
-type AsyncContinuation = NonNullable<StreamingContext['awaitingAsyncContinuation']>
+type AsyncContinuation = ResumeContinuation
 
 function isPerSubagentContinuation(c: AsyncContinuation): boolean {
   return !!c.frames && c.frames.length > 0 && c.frames.every((f) => !!f.checkpointId)
 }
 
-function resumeRequestHeaders(): Record<string, string> {
+// Shared header set for every Sim -> Go mothership request (initial stream and
+// every resume leg), so the auth/source/version headers can't drift between the
+// sequential path and the concurrent per-subagent resume legs.
+function mothershipRequestHeaders(): Record<string, string> {
   return {
     'Content-Type': 'application/json',
     ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
@@ -264,37 +269,47 @@ function resumeRequestHeaders(): Record<string, string> {
   }
 }
 
-// makeResumeLegContext returns a context that SHARES the heavy accumulators with
-// `base` (so all concurrent legs build one merged chat) but isolates the stream
-// control flags so a finished leg can't stop its siblings' read loops.
-function makeResumeLegContext(base: StreamingContext): StreamingContext {
+// makeResumeLegContext / mergeResumeLegOutputs are a PAIR and must stay in
+// lockstep: every field reset here is folded back there, and nothing else on
+// StreamingContext is per-leg. Everything not listed is shared BY REFERENCE
+// across all concurrent legs (the one merged chat: contentBlocks, toolCalls,
+// pendingToolPromises, subagent maps, etc.). The per-leg ISOLATED set:
+//   - streamComplete / awaitingAsyncContinuation: stream-control flags, so a
+//     finished leg can't stop a sibling's read loop (reset only; not merged).
+//   - accumulatedContent / finalAssistantContent / usage / cost: join-leg
+//     scalars — only the join-carrying leg sets them; zeroing per leg keeps the
+//     `+=` merge from multiplying the orchestrator's pre-fanout content by the
+//     leg count, and keeps a child leg's stale usage/cost from clobbering the
+//     join leg's real totals on merge.
+//   - errors: a leg's transient retryable error (rolled back inside
+//     runResumeLegWithRetry) must not truncate a concurrent sibling's shared
+//     error array by index; each leg collects its own and merges the survivors.
+// When adding a per-leg field, update BOTH functions (and the contract test in
+// resume-leg-context.test.ts). Exported only for that test.
+export function makeResumeLegContext(base: StreamingContext): StreamingContext {
   return {
     ...base,
     streamComplete: false,
     awaitingAsyncContinuation: undefined,
-    // Isolate the join-leg scalars so each concurrent leg accumulates only its
-    // OWN output; mergeResumeLegOutputs folds them back exactly once. Without
-    // zeroing these, the spread seeds every leg with the orchestrator's
-    // pre-fanout content and the `+=` merge multiplies it by the leg count
-    // (and stale usage/cost from a child leg could clobber the join leg's real
-    // totals depending on merge order).
     accumulatedContent: '',
     finalAssistantContent: '',
     usage: undefined,
     cost: undefined,
+    errors: [],
   }
 }
 
 // mergeResumeLegOutputs folds a finished leg's isolated scalars back into the
-// shared context. Child (subagent-lane) legs leave these empty; only the
-// join-carrying leg (which streams the orchestrator continuation) sets them.
-function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingContext): void {
+// shared context. Child (subagent-lane) legs leave the join scalars empty; only
+// the join-carrying leg (which streams the orchestrator continuation) sets them.
+export function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingContext): void {
   if (leg.accumulatedContent) context.accumulatedContent += leg.accumulatedContent
   if (leg.finalAssistantContent) context.finalAssistantContent += leg.finalAssistantContent
   if (leg.usage) context.usage = leg.usage
   if (leg.cost) context.cost = leg.cost
   if (leg.sawMainToolCall) context.sawMainToolCall = true
   if (leg.wasAborted) context.wasAborted = true
+  if (leg.errors.length > 0) context.errors.push(...leg.errors)
 }
 
 async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
@@ -327,6 +342,54 @@ function collectResultsForToolIds(
   })
 }
 
+// runResumeLegWithRetry runs ONE resume POST with the same retryable-error +
+// bounded-backoff policy the sequential checkpoint loop uses, so a concurrent
+// child leg survives a transient Go 5xx (or network blip) instead of failing the
+// whole turn — Go releases the claim on such errors expecting a retry. The leg's
+// transient error is rolled back on its OWN (isolated) errors array so a
+// recovered retry isn't mis-finalized as `error`. An AbortError (a sibling
+// failure cancelling this leg, see driveSubagentChains) is non-retryable and
+// propagates immediately.
+async function runResumeLegWithRetry(
+  url: string,
+  body: Record<string, unknown>,
+  leg: StreamingContext,
+  execContext: ExecutionContext,
+  options: CopilotLifecycleOptions
+): Promise<void> {
+  let attempt = 0
+  for (;;) {
+    const errorsBeforeAttempt = leg.errors.length
+    const willRetryOnStreamError = attempt < MAX_RESUME_ATTEMPTS - 1
+    const legBody = willRetryOnStreamError ? { ...body, willRetryOnStreamError: true } : body
+    try {
+      await runStreamLoop(
+        url,
+        { method: 'POST', headers: mothershipRequestHeaders(), body: JSON.stringify(legBody) },
+        leg,
+        execContext,
+        options
+      )
+      return
+    } catch (error) {
+      if (isRetryableStreamError(error) && attempt < MAX_RESUME_ATTEMPTS - 1) {
+        leg.errors.length = errorsBeforeAttempt
+        attempt++
+        const backoff = RESUME_BACKOFF_MS[attempt - 1] ?? 1000
+        logger.warn('Child resume leg failed, retrying', {
+          attempt: attempt + 1,
+          maxAttempts: MAX_RESUME_ATTEMPTS,
+          backoffMs: backoff,
+          error: toError(error).message,
+        })
+        await sleepWithAbort(backoff, options.abortSignal)
+        continue
+      }
+      throw error
+    }
+  }
+}
+
 // driveOneChildChain resumes a single subagent's checkpoint chain to its end:
 // resume -> (re-pause -> resume)* -> fold into join. Returns the orchestrator's
 // follow-on continuation when THIS leg is the one the Go join woke (the last
@@ -334,7 +397,7 @@ function collectResultsForToolIds(
 // null. Re-pause vs follow-on is disambiguated by checkpoint id: a re-pause keeps
 // the same child id; the join continuation is a different (orchestrator) id.
 async function driveOneChildChain(
-  frame: NonNullable<AsyncContinuation['frames']>[number],
+  frame: ResumeFrame,
   context: StreamingContext,
   execContext: ExecutionContext,
   options: CopilotLifecycleOptions,
@@ -344,7 +407,11 @@ async function driveOneChildChain(
   // ParentToolCallID is the SAME subagent's stable identity across re-pauses;
   // the checkpoint id rotates each re-pause (the prior one is already claimed).
   const parentToolCallId = frame.parentToolCallId
-  let checkpointId = frame.checkpointId as string
+  // Guarded (not cast): a per-subagent frame always carries its own checkpointId
+  // (isPerSubagentContinuation requires it), but a local guard keeps this driver
+  // correct on its own terms rather than trusting a caller-side invariant.
+  if (!frame.checkpointId) return null
+  let checkpointId = frame.checkpointId
   let toolIds = frame.pendingToolIds
 
   for (;;) {
@@ -354,18 +421,14 @@ async function driveOneChildChain(
     const results = collectResultsForToolIds(context, toolIds, checkpointId)
 
     const leg = makeResumeLegContext(context)
-    await runStreamLoop(
+    await runResumeLegWithRetry(
       `${baseURL}/api/tools/resume`,
       {
-        method: 'POST',
-        headers: resumeRequestHeaders(),
-        body: JSON.stringify({
-          streamId: context.messageId,
-          checkpointId,
-          userId: options.userId,
-          ...(workspaceId ? { workspaceId } : {}),
-          results,
-        }),
+        streamId: context.messageId,
+        checkpointId,
+        userId: options.userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        results,
       },
       leg,
       execContext,
@@ -408,6 +471,14 @@ async function driveOneChildChain(
 // driveSubagentChains fans out one resume chain per child frame concurrently and
 // returns the single orchestrator follow-on continuation (if the orchestrator
 // re-paused after the join), or null when the turn completed.
+//
+// Failure isolation: the legs share a per-fanout AbortController so the FIRST leg
+// to fail cancels its siblings' in-flight resumes (otherwise a `Promise.all`
+// reject leaves the siblings running detached — still mutating shared context and
+// POSTing /resume after the turn has errored). The controller also chains off the
+// caller's abort signal so a user stop cancels every leg. Each leg's failure is
+// caught (so Promise.all can't reject before its siblings unwind); we then
+// rethrow the first REAL error, not the AbortErrors it triggered in the siblings.
 async function driveSubagentChains(
   continuation: AsyncContinuation,
   context: StreamingContext,
@@ -421,12 +492,37 @@ async function driveSubagentChains(
     childCount: frames.length,
     checkpointIds: frames.map((f) => f.checkpointId),
   })
-  const followOns = await Promise.all(
-    frames.map((frame) =>
-      driveOneChildChain(frame, context, execContext, options, baseURL, workspaceId)
+
+  const fanoutController = new AbortController()
+  const parentSignal = options.abortSignal
+  const onParentAbort = () => fanoutController.abort()
+  if (parentSignal) {
+    if (parentSignal.aborted) fanoutController.abort()
+    else parentSignal.addEventListener('abort', onParentAbort, { once: true })
+  }
+  const legOptions: CopilotLifecycleOptions = { ...options, abortSignal: fanoutController.signal }
+
+  let firstError: unknown
+  try {
+    const followOns = await Promise.all(
+      frames.map((frame) =>
+        driveOneChildChain(frame, context, execContext, legOptions, baseURL, workspaceId).catch(
+          (error) => {
+            // First real failure wins and cancels the siblings; their resulting
+            // AbortErrors arrive later and don't overwrite it. Swallow here so
+            // Promise.all doesn't reject before every leg has unwound.
+            if (firstError === undefined) firstError = error
+            fanoutController.abort()
+            return null
+          }
+        )
+      )
     )
-  )
-  return followOns.find((c): c is AsyncContinuation => !!c) ?? null
+    if (firstError !== undefined) throw firstError
+    return followOns.find((c): c is AsyncContinuation => !!c) ?? null
+  } finally {
+    parentSignal?.removeEventListener('abort', onParentAbort)
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -537,12 +633,7 @@ async function runCheckpointLoop(
         `${mothershipBaseURL}${route}`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-            ...getMothershipSourceEnvHeaders(),
-            'X-Client-Version': SIM_AGENT_VERSION,
-          },
+          headers: mothershipRequestHeaders(),
           body: JSON.stringify(legPayload),
         },
         context,

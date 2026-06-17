@@ -25,8 +25,6 @@ function makeContext(): StreamingContext {
     currentThinkingBlock: null,
     subagentThinkingBlocks: new Map(),
     isInThinkingBlock: false,
-    subAgentParentToolCallId: undefined,
-    subAgentParentStack: [],
     subAgentContent: {},
     subAgentToolCalls: {},
     pendingContent: '',

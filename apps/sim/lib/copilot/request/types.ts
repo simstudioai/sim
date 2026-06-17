@@ -84,6 +84,32 @@ export interface ActiveFileIntent {
   edit?: Record<string, unknown>
 }
 
+// One paused subagent frame in an async continuation. Mirrors the wire
+// MothershipStreamV1CheckpointPauseFrame the run handler maps from, but is the
+// internal shape the resume driver consumes (named once here so the lifecycle
+// driver and handlers reference the same type instead of re-declaring it inline).
+export interface ResumeFrame {
+  parentToolCallId: string
+  parentToolName: string
+  pendingToolIds: string[]
+  // Per-subagent checkpoint model: this frame's OWN checkpoint chain. When set,
+  // the resume loop must POST /api/tools/resume with THIS id (not the top-level
+  // checkpointId) carrying only this frame's leaf results, and may drive the N
+  // frames concurrently. Empty under the bundled-frame model.
+  checkpointId?: string
+}
+
+// The async-continuation state captured from a checkpoint_pause: what the resume
+// loop needs to drive the next /resume (the bundled top-level id + pending tools,
+// or per-subagent frames each carrying their own checkpointId).
+export interface ResumeContinuation {
+  checkpointId: string
+  executionId?: string
+  runId?: string
+  pendingToolCallIds: string[]
+  frames?: ResumeFrame[]
+}
+
 export interface StreamingContext {
   chatId?: string
   requestId?: string
@@ -96,22 +122,7 @@ export interface StreamingContext {
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
   pendingToolPromises: Map<string, Promise<AsyncCompletionSignal>>
-  awaitingAsyncContinuation?: {
-    checkpointId: string
-    executionId?: string
-    runId?: string
-    pendingToolCallIds: string[]
-    frames?: Array<{
-      parentToolCallId: string
-      parentToolName: string
-      pendingToolIds: string[]
-      // Per-subagent checkpoint model: this frame's OWN checkpoint chain. When
-      // set, the resume loop must POST /api/tools/resume with THIS id (not the
-      // top-level checkpointId) carrying only this frame's leaf results, and may
-      // drive the N frames concurrently. Empty under the bundled-frame model.
-      checkpointId?: string
-    }>
-  }
+  awaitingAsyncContinuation?: ResumeContinuation
   currentThinkingBlock: ContentBlock | null
   /**
    * Open subagent "thinking" blocks, keyed by parentToolCallId (one lane per
@@ -121,14 +132,6 @@ export interface StreamingContext {
    */
   subagentThinkingBlocks: Map<string, ContentBlock>
   isInThinkingBlock: boolean
-  /**
-   * @deprecated Legacy single "current subagent" pointer. Attribution is now
-   * scope-only (every subagent event carries its own parentToolCallId/spanId),
-   * so this is no longer read for routing. Retained as a write-only field for
-   * back-compat with the span-stack bookkeeping in go/stream.ts.
-   */
-  subAgentParentToolCallId?: string
-  subAgentParentStack: string[]
   subAgentContent: Record<string, string>
   subAgentToolCalls: Record<string, ToolCallState[]>
   openSubagentParents?: Set<string>
