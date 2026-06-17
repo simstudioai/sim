@@ -6408,9 +6408,17 @@
         {
           "name": "Air Quality",
           "description": "Get current air quality data for a location"
+        },
+        {
+          "name": "Pollen Forecast",
+          "description": "Get a daily pollen forecast (grass, tree, weed) for a location"
+        },
+        {
+          "name": "Solar Potential",
+          "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6551,9 +6559,21 @@
         {
           "name": "Copy Sheet",
           "description": "Copy a sheet from one spreadsheet to another"
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from a sheet in a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Sheet",
+          "description": "Delete a sheet/tab from a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Spreadsheet",
+          "description": "Permanently delete a Google Sheets spreadsheet using the Google Drive API"
         }
       ],
-      "operationCount": 11,
+      "operationCount": 14,
       "triggers": [
         {
           "id": "google_sheets_poller",
