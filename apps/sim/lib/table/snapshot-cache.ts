@@ -11,6 +11,7 @@
  * contain — and be addressed by — its owning tenant.
  */
 
+import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { userTableDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -52,19 +53,25 @@ export class TableSnapshotTooLargeError extends Error {
 }
 
 /**
- * Storage key for a table's snapshot at a given version.
- *
- * `projectionHash` is a forward seam: a future column-subset / filtered mount appends
- * `-{projectionHash}` so projections cache independently of the full snapshot.
+ * Fingerprint of the table's column shape (id + display name + order). `rows_version` only advances
+ * on row mutations (the trigger fires on `user_table_rows`), so without this a schema edit — rename,
+ * add, remove, or reorder a column — would change the CSV header/columns but keep the same key and
+ * serve a stale snapshot. Folding it into the key invalidates the cache on any schema change. This
+ * is also the seam for a future column-subset / filtered projection (mix it into the same hash).
  */
+function schemaFingerprint(table: TableDefinition): string {
+  const shape = table.schema.columns.map((c) => [getColumnId(c), c.name])
+  return createHash('sha1').update(JSON.stringify(shape)).digest('hex').slice(0, 12)
+}
+
+/** Storage key for a table's snapshot at a given row version + column shape. */
 function snapshotKey(
   workspaceId: string,
   tableId: string,
   version: number,
-  projectionHash?: string
+  shapeHash: string
 ): string {
-  const suffix = projectionHash ? `-${projectionHash}` : ''
-  return `table-snapshots/${workspaceId}/${tableId}/v${version}${suffix}.csv`
+  return `table-snapshots/${workspaceId}/${tableId}/v${version}-${shapeHash}.csv`
 }
 
 async function readRowsVersion(tableId: string): Promise<number> {
@@ -122,10 +129,14 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
 }
 
 /** Best-effort removal of the immediately-prior version (the common single-mutation case). */
-async function deletePreviousVersion(table: TableDefinition, version: number): Promise<void> {
+async function deletePreviousVersion(
+  table: TableDefinition,
+  version: number,
+  shapeHash: string
+): Promise<void> {
   if (version <= 0) return
   await deleteFile({
-    key: snapshotKey(table.workspaceId, table.id, version - 1),
+    key: snapshotKey(table.workspaceId, table.id, version - 1, shapeHash),
     context: SNAPSHOT_STORAGE_CONTEXT,
   }).catch(() => {})
 }
@@ -142,8 +153,9 @@ export async function getOrCreateTableSnapshot(
   table: TableDefinition,
   requestId: string
 ): Promise<TableSnapshotRef> {
+  const shapeHash = schemaFingerprint(table)
   const version = await readRowsVersion(table.id)
-  const key = snapshotKey(table.workspaceId, table.id, version)
+  const key = snapshotKey(table.workspaceId, table.id, version, shapeHash)
 
   const head = await headObject(key, SNAPSHOT_STORAGE_CONTEXT)
   if (head) {
@@ -163,14 +175,14 @@ export async function getOrCreateTableSnapshot(
       from: version,
       to: after,
     })
-    const newKey = snapshotKey(table.workspaceId, table.id, after)
+    const newKey = snapshotKey(table.workspaceId, table.id, after, shapeHash)
     const newHead = await headObject(newKey, SNAPSHOT_STORAGE_CONTEXT)
     const newSize = newHead ? newHead.size : await materialize(table, newKey)
     await deleteFile({ key, context: SNAPSHOT_STORAGE_CONTEXT }).catch(() => {})
-    void deletePreviousVersion(table, after)
+    void deletePreviousVersion(table, after, shapeHash)
     return { key: newKey, size: newSize, version: after }
   }
 
-  void deletePreviousVersion(table, version)
+  void deletePreviousVersion(table, version, shapeHash)
   return { key, size, version }
 }

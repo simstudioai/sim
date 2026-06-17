@@ -28,11 +28,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   deleteFile: mockDeleteFile,
 }))
 
-import {
-  getOrCreateTableSnapshot,
-  SNAPSHOT_MAX_BYTES,
-  TableSnapshotTooLargeError,
-} from '@/lib/table/snapshot-cache'
+import { getOrCreateTableSnapshot, TableSnapshotTooLargeError } from '@/lib/table/snapshot-cache'
 
 const table = {
   id: 'tbl_1',
@@ -86,7 +82,11 @@ describe('getOrCreateTableSnapshot', () => {
 
     const ref = await getOrCreateTableSnapshot(table, 'req')
 
-    expect(ref).toEqual({ key: 'table-snapshots/ws_1/tbl_1/v3.csv', size: 42, version: 3 })
+    expect(ref).toEqual({
+      key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
+      size: 42,
+      version: 3,
+    })
     expect(mockCreateMultipartUpload).not.toHaveBeenCalled()
     expect(mockSelectExportRowPage).not.toHaveBeenCalled()
   })
@@ -98,17 +98,23 @@ describe('getOrCreateTableSnapshot', () => {
     const ref = await getOrCreateTableSnapshot(table, 'req')
 
     expect(mockCreateMultipartUpload).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'table-snapshots/ws_1/tbl_1/v3.csv', context: 'execution' })
+      expect.objectContaining({
+        key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
+        context: 'execution',
+      })
     )
     expect(lastHandle?.content).toBe('name\nAda\n')
     expect(ref).toEqual({
-      key: 'table-snapshots/ws_1/tbl_1/v3.csv',
+      key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
       size: Buffer.byteLength('name\nAda\n'),
       version: 3,
     })
     // Best-effort prune of v2.
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'table-snapshots/ws_1/tbl_1/v2.csv', context: 'execution' })
+      expect.objectContaining({
+        key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v2-[0-9a-f]{12}\.csv$/),
+        context: 'execution',
+      })
     )
   })
 
@@ -116,7 +122,26 @@ describe('getOrCreateTableSnapshot', () => {
     versions(1)
     mockHeadObject.mockResolvedValue({ size: 1 })
     const ref = await getOrCreateTableSnapshot({ ...table, workspaceId: 'ws_2' }, 'req')
-    expect(ref.key).toBe('table-snapshots/ws_2/tbl_1/v1.csv')
+    expect(ref.key).toMatch(/^table-snapshots\/ws_2\/tbl_1\/v1-[0-9a-f]{12}\.csv$/)
+  })
+
+  it('changes the key when the column shape changes (schema edits invalidate the cache)', async () => {
+    versions(7, 7)
+    mockHeadObject.mockResolvedValue({ size: 1 })
+
+    const a = await getOrCreateTableSnapshot(table, 'req')
+    const b = await getOrCreateTableSnapshot(
+      {
+        ...table,
+        schema: { columns: [{ id: 'col_name', name: 'renamed', type: 'string' }] },
+      } as never,
+      'req'
+    )
+
+    // Same workspace/table/row-version, but a renamed column flips the shape hash → different key.
+    expect(a.key).not.toBe(b.key)
+    expect(a.key).toMatch(/\/v7-[0-9a-f]{12}\.csv$/)
+    expect(b.key).toMatch(/\/v7-[0-9a-f]{12}\.csv$/)
   })
 
   it('re-keys and rebuilds when rows_version advances mid-scan', async () => {
@@ -134,11 +159,13 @@ describe('getOrCreateTableSnapshot', () => {
     const ref = await getOrCreateTableSnapshot(table, 'req')
 
     expect(ref.version).toBe(4)
-    expect(ref.key).toBe('table-snapshots/ws_1/tbl_1/v4.csv')
+    expect(ref.key).toMatch(/^table-snapshots\/ws_1\/tbl_1\/v4-[0-9a-f]{12}\.csv$/)
     expect(mockCreateMultipartUpload).toHaveBeenCalledTimes(2)
     // the stale v3 object is dropped
     expect(mockDeleteFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'table-snapshots/ws_1/tbl_1/v3.csv' })
+      expect.objectContaining({
+        key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
+      })
     )
   })
 
@@ -146,9 +173,11 @@ describe('getOrCreateTableSnapshot', () => {
     versions(1)
     mockHeadObject.mockResolvedValue(null)
     mockSelectExportRowPage.mockReset()
-    mockSelectExportRowPage.mockResolvedValueOnce([
-      { id: 'r1', data: { col_name: 'x'.repeat(SNAPSHOT_MAX_BYTES + 10) }, position: 0 },
-    ])
+    // A full batch of wide rows on every page → the materialize loop keeps paging until the running
+    // byte count crosses the cap, then aborts. Peak memory stays at one page (~MBs), not the cap.
+    const wideRow = { id: 'r', data: { col_name: 'x'.repeat(1000) }, position: 0 }
+    const fullPage = Array.from({ length: 10000 }, () => wideRow)
+    mockSelectExportRowPage.mockResolvedValue(fullPage)
 
     await expect(getOrCreateTableSnapshot(table, 'req')).rejects.toBeInstanceOf(
       TableSnapshotTooLargeError
