@@ -1154,7 +1154,7 @@ export function KnowledgeBase({
           sort={sortConfig}
           filter={filterContent ? { content: filterContent } : undefined}
           filterTags={filterTags}
-          aside={connectorBadges}
+          leading={connectorBadges}
         />
         <Resource.Table
           columns={DOCUMENT_COLUMNS}

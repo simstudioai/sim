@@ -83,11 +83,18 @@ interface ResourceOptionsProps {
   filter?: FilterConfig
   filterTags?: FilterTag[]
   /**
+   * Lightweight control rendered immediately to the LEFT of the filter/sort
+   * cluster (still right-aligned after the search) — e.g. the knowledge view's
+   * connected-source badge, which reads as part of the control row. Use this for
+   * controls that belong alongside filter/sort; use {@link aside} for status
+   * widgets that should sit at the far right edge.
+   */
+  leading?: ReactNode
+  /**
    * Supplementary right-aligned slot (pushed opposite the left-aligned
    * filter/sort via `justify-between`) for lightweight status content — e.g.
-   * the knowledge list's connector badges or the table editor's run/stop
-   * control in embedded mode. Keep it to badges/status widgets; primary
-   * actions belong in the header's `actions`, not here.
+   * the table editor's run/stop control in embedded mode. Keep it to
+   * badges/status widgets; primary actions belong in the header's `actions`.
    */
   aside?: ReactNode
 }
@@ -97,6 +104,7 @@ export const ResourceOptions = memo(function ResourceOptions({
   sort,
   filter,
   filterTags,
+  leading,
   aside,
 }: ResourceOptionsProps) {
   /**
@@ -110,13 +118,15 @@ export const ResourceOptions = memo(function ResourceOptions({
   const isToggleFilter = filter?.mode === 'toggle'
   const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
 
-  const hasContent = search || sort || filter || aside || (filterTags && filterTags.length > 0)
+  const hasContent =
+    search || sort || filter || leading || aside || (filterTags && filterTags.length > 0)
   if (!hasContent) return null
 
   return (
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center justify-between'>
         {search && <SearchSection search={search} />}
+        {leading && <div className='flex shrink-0 items-center gap-1.5'>{leading}</div>}
         <div className='flex items-center'>
           {filterTags?.map((tag) => (
             <Chip key={tag.label} rightIcon={X} onClick={tag.onRemove}>
