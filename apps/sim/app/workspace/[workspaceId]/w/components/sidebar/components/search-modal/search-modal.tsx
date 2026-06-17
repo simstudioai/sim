@@ -19,10 +19,10 @@ import {
   Integration,
   Play,
   Plus,
+  Send,
   Settings,
   Table,
   Upload,
-  User,
 } from '@/components/emcn/icons'
 import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
@@ -267,7 +267,7 @@ export function SearchModal({
       id: 'invite-teammates',
       name: 'Invite teammates',
       keywords: 'members people add user organization',
-      icon: User,
+      icon: Send,
       context: 'global',
       run: () => navigateToSettings({ section: 'teammates' }),
     })
