@@ -105,12 +105,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       headerToColumn: Map<string, string>
     }
 
-    const insertRows = async (rows: Record<string, unknown>[], state: ImportState) => {
+    const insertRows = async (
+      rows: Record<string, unknown>[],
+      state: ImportState,
+      currentRowCount: number
+    ) => {
       if (rows.length === 0) return 0
       const coerced = coerceRowsForTable(rows, state.schema, state.headerToColumn)
       const result = await batchInsertRows(
         { tableId: state.table.id, rows: coerced, workspaceId, userId },
-        state.table,
+        // The created table's rowCount is frozen at 0; pass the running total so the
+        // per-batch capacity check sees cumulative rows, not an always-empty table.
+        { ...state.table, rowCount: currentRowCount },
         generateId().slice(0, 8)
       )
       return result.length
@@ -152,13 +158,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           sample.push(record)
           if (sample.length >= CSV_SCHEMA_SAMPLE_SIZE) {
             state = await buildTable(sample)
-            inserted += await insertRows(sample, state)
+            inserted += await insertRows(sample, state, inserted)
           }
           continue
         }
         batch.push(record)
         if (batch.length >= CSV_MAX_BATCH_SIZE) {
-          inserted += await insertRows(batch, state)
+          inserted += await insertRows(batch, state, inserted)
           batch = []
         }
       }
@@ -168,9 +174,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return NextResponse.json({ error: 'CSV file has no data rows' }, { status: 400 })
         }
         state = await buildTable(sample)
-        inserted += await insertRows(sample, state)
+        inserted += await insertRows(sample, state, inserted)
       } else {
-        inserted += await insertRows(batch, state)
+        inserted += await insertRows(batch, state, inserted)
       }
     } catch (streamError) {
       if (state) await deleteTable(state.table.id, requestId).catch(() => {})

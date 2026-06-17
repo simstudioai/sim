@@ -74,12 +74,18 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
 }
 
 function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
-  // Sweep expired entries before growing past the cap so workspaces queried once
-  // (never re-accessed, so never deleted on read) can't accumulate forever.
-  if (limitsCache.size >= LIMITS_CACHE_MAX_ENTRIES) {
+  // Keep the Map bounded for a new key: sweep expired entries, then (if a burst of
+  // all-fresh entries still sits at the cap) evict oldest-inserted ones. Map iteration
+  // is insertion order, so the first key is the oldest. Net: size never exceeds the cap.
+  if (limitsCache.size >= LIMITS_CACHE_MAX_ENTRIES && !limitsCache.has(workspaceId)) {
     const now = Date.now()
     for (const [key, entry] of limitsCache) {
       if (entry.expiresAt <= now) limitsCache.delete(key)
+    }
+    while (limitsCache.size >= LIMITS_CACHE_MAX_ENTRIES) {
+      const oldest = limitsCache.keys().next().value
+      if (oldest === undefined) break
+      limitsCache.delete(oldest)
     }
   }
   limitsCache.set(workspaceId, { limits, expiresAt: Date.now() + LIMITS_CACHE_TTL_MS })

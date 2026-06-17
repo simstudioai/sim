@@ -15,6 +15,7 @@ import { generateId } from '@sim/utils/id'
 import { and, count, eq, isNull, sql } from 'drizzle-orm'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
+import { assertRowCapacity } from '@/lib/table/billing'
 import { generateColumnId, getColumnId, withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { COLUMN_TYPES, NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { EMPTY_JOB_FIELDS, latestJobForTable, latestJobsForTables } from '@/lib/table/jobs/service'
@@ -281,6 +282,17 @@ export async function createTable(
       ? { id: data.jobId, type: data.jobType ?? 'import', startedAt: now }
       : null
 
+  // Starter rows count against the plan too. Checked before the tx (the lookup is a
+  // separate pool read) — a new table starts empty, so the footprint is just these.
+  const initialRowCount = data.initialRowCount ?? 0
+  if (initialRowCount > 0) {
+    await assertRowCapacity({
+      workspaceId: data.workspaceId,
+      currentRowCount: 0,
+      addedRows: initialRowCount,
+    })
+  }
+
   // Wrap count check, duplicate check, and insert in a transaction with FOR UPDATE
   // to prevent TOCTOU race on the table count limit
   try {
@@ -332,7 +344,6 @@ export async function createTable(
         })
       }
 
-      const initialRowCount = data.initialRowCount ?? 0
       if (initialRowCount > 0) {
         const orderKeys = nKeysBetween(null, null, initialRowCount)
         const rowsToInsert = Array.from({ length: initialRowCount }, (_, i) => ({

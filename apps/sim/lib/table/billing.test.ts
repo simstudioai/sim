@@ -80,6 +80,18 @@ describe('getWorkspaceTableLimits', () => {
     // The fallback is never cached, so the next call re-attempts and resolves the real plan.
     expect(await getWorkspaceTableLimits(ws)).toEqual(LIMITS.pro)
   })
+
+  it('stays bounded under a burst of distinct all-fresh workspaces', async () => {
+    // Far more distinct workspaces than the cap, all within one TTL window. The Map
+    // must not grow without limit; eviction keeps it at/under the ceiling.
+    for (let i = 0; i < 6_000; i++) {
+      await getWorkspaceTableLimits(`burst-${i}`)
+    }
+    // Re-resolving an early (evicted) workspace must re-hit the billing lookup.
+    mockGetWorkspaceBilledAccountUserId.mockClear()
+    await getWorkspaceTableLimits('burst-0')
+    expect(mockGetWorkspaceBilledAccountUserId).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('getMaxRowsPerTable', () => {
