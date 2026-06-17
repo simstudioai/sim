@@ -10,9 +10,44 @@
  * --pop-delay.
  */
 
+/* Whole-stage soft fade-in — layered under each view's own content motion so a
+   new view (workflow canvas, KB modal) eases in as one piece instead of
+   hard-cutting when the previous view unmounts. */
+.stageFade {
+  animation: stageFade 420ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes stageFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .block {
   opacity: 0;
   animation: blockRise 500ms cubic-bezier(0.16, 1, 0.3, 1) var(--rise-delay, 0ms) forwards;
+}
+
+/* First-block content reveal — a soft fade + settle (no big rise), used when the
+   chat card has just morphed into the first workflow block and its content
+   needs to land in place. */
+.blockReveal {
+  opacity: 0;
+  animation: blockReveal 460ms cubic-bezier(0.23, 1, 0.32, 1) 120ms both;
+}
+
+@keyframes blockReveal {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes blockRise {
@@ -132,6 +167,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .stageFade {
+    animation: none;
+  }
+  .blockReveal {
+    animation: none;
+    opacity: 1;
+  }
   .block,
   .fileRow,
   .embedNode,

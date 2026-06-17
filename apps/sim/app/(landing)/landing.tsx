@@ -1,12 +1,20 @@
-import { Features, Hero, LandingShell, Lifecycle } from '@/app/(landing)/components'
+import {
+  Cta,
+  Ethos,
+  Features,
+  Hero,
+  LandingShell,
+  Mothership,
+  Testimonials,
+} from '@/app/(landing)/components'
 
 /**
  * Landing page root — owns the section order and the `<main>` content region.
  *
- * The shared {@link LandingShell} wraps this in the `light` token-pinning
- * wrapper, the scroll port, the skip link, the navbar (with build/revalidate-time
- * GitHub stars), and the footer — the same chrome every platform page wears, so
- * the home page and the platform pages can never drift.
+ * The shared {@link LandingShell} wraps this in the `light` + brand token layer,
+ * the scroll port, the skip link, the navbar (with build/revalidate-time GitHub
+ * stars), the footer, and the bottom reveal — the same chrome every platform and
+ * solutions page wears, so the landing family can never drift.
  *
  * `<main>` is a `flex flex-col` whose `gap` is the single source of truth for
  * inter-section rhythm — sections carry no vertical margin/padding of their own,
@@ -18,9 +26,11 @@ export default function Landing() {
     <LandingShell>
       <main id='main-content' className='flex flex-col gap-[120px]'>
         <Hero />
-        <Lifecycle />
+        <Mothership />
         <Features />
-        {/* <Testimonials /> */}
+        <Testimonials />
+        <Ethos />
+        <Cta />
       </main>
     </LandingShell>
   )

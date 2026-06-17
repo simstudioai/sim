@@ -1,29 +1,86 @@
 /**
- * Inline "sim" text wordmark (no icon mark) — the paths from
- * `/logo/b&w/text/b&w.svg`, inlined so the fill inherits `currentColor`.
+ * Inline "sim" brand logotype (wordmark, no separate icon mark) — the paths
+ * from the v1.0 brand guide's `simLogotype--dark.svg`, inlined so the logo
+ * ships as zero-request server-rendered HTML.
  *
- * Colored to match the chip label (`--text-body`) and drawn at 18px —
- * the chip's 14px label text plus 2px above and below; the parent slot
- * centers it in a chip-height (30px) box. Nudged up 1.5px: the glyphs'
- * visual mass sits below the i-dot's headroom in the viewBox, so true
- * geometric centering reads low. Server-rendered with zero extra
- * requests.
+ * Unlike a flat `currentColor` wordmark, this carries the brand identity as
+ * authored: a radial grey gradient (`#4F4F4F` -> `#6F6F6F`) with a soft white
+ * inner glow. These are fixed brand values — not themeable UI chrome — so the
+ * hardcoded hex here is an intentional brand exception to the "tokens, never
+ * hex" rule (the landing is always light, so there is no theme to adapt to).
+ *
+ * The four source paths referenced four identical gradient defs; collapsed to
+ * one shared gradient. IDs are namespaced (`simWordmark*`) so multiple
+ * instances on a page can't collide.
+ *
+ * Drawn at 18px tall — the chip's 14px label plus 2px above/below; the parent
+ * slot centers it in a chip-height (30px) box. Nudged up 1.5px: the glyph mass
+ * sits below the i-dot's headroom, so true geometric centering reads low.
  */
 export function SimWordmark() {
   return (
     <svg
-      viewBox='0 0 58 29'
-      width={36}
+      viewBox='0 0 816 392'
+      width={37}
       height={18}
       fill='none'
       aria-hidden='true'
-      className='-translate-y-[1.5px] h-[18px] w-auto text-[var(--text-body)]'
+      className='-translate-y-[1.5px] h-[18px] w-auto'
     >
-      <g fill='currentColor'>
-        <path d='m0 21.9401h3.83372c0 1.0507.38338 1.8884 1.15012 2.5132.76675.5963 1.80327.8945 3.10958.8945 1.4199 0 2.51318-.2698 3.27998-.8093.7667-.568 1.1501-1.3205 1.1501-2.2577 0-.6815-.213-1.2495-.639-1.7038-.3975-.4544-1.1359-.8236-2.21499-1.1075l-3.66334-.852c-1.84587-.4544-3.22317-1.1501-4.13191-2.0872-.880332-.9372-1.3205-2.1725-1.3205-3.706 0-1.2779.326577-2.3854.97973-3.32253.68155-.93713 1.60448-1.66128 2.7688-2.17244 1.19271-.51117 2.55582-.76675 4.08931-.76675s2.854.26978 3.9615.80934c1.1359.53956 2.0163 1.29211 2.641 2.25764.6532.96554.994 2.11564 1.0223 3.45034h-3.8337c-.0284-1.0791-.3833-1.9169-1.0649-2.5132-.6816-.59637-1.63288-.89454-2.85399-.89454-1.24951 0-2.21505.26978-2.8966.80934-.68155.5396-1.02232 1.2779-1.02232 2.215 0 1.3915 1.02232 2.3429 3.06698 2.854l3.66333.8946c1.7607.3975 3.0812 1.0507 3.9615 1.9594.8804.8804 1.3205 2.0873 1.3205 3.6208 0 1.3063-.355 2.4564-1.0649 3.4503-.71.9655-1.6897 1.7181-2.9392 2.2577-1.2211.5111-2.6694.7667-4.34488.7667-2.44222 0-4.38748-.5964-5.83578-1.7891-1.448292-1.1927-2.17244-2.783-2.17244-4.7708z' />
-        <path d='m19.1766 27.9888v-20.82986c1.5966.57946 2.3006.57946 4.0041 0v20.82986zm1.9594-22.20678c-.7099 0-1.3347-.25558-1.8742-.76674-.5112-.53957-.7668-1.16432-.7668-1.87427 0-.73835.2556-1.3631.7668-1.87426.5395-.511168 1.1643-.76675 1.8742-.76675.7384 0 1.3631.255582 1.8743.76675.5112.51116.7667 1.13591.7667 1.87426 0 .70995-.2555 1.3347-.7667 1.87427-.5112.51116-1.1359.76674-1.8743.76674z' />
-        <path d='m30.2434 27.9888h-4.0041v-20.82986h3.5781v3.51456c.426-1.16431 1.2496-2.15146 2.3855-2.91821 1.1643-.79514 2.57-1.19271 4.2171-1.19271 1.8458 0 3.3793.49696 4.6004 1.49089 1.2212.99393 2.0163 2.31443 2.3855 3.96153h-.7242c.284-1.6471 1.0649-2.9676 2.3429-3.96153 1.2779-.99393 2.8539-1.49089 4.7282-1.49089 2.3854 0 4.2597.69575 5.6228 2.08725 1.3631 1.39147 2.0447 3.29417 2.0447 5.70797v13.631h-3.919v-12.6513c0-1.647-.4259-2.9107-1.2779-3.7911-.8235-.9087-1.9452-1.3631-3.3651-1.3631-.994 0-1.8743.2272-2.641.6816-.7384.4259-1.3205 1.0507-1.7465 1.8742-.426.8236-.639 1.7891-.639 2.8966v12.3531h-3.9615v-12.6938c0-1.6471-.4118-2.8966-1.2353-3.7486-.8235-.8803-1.9453-1.3205-3.3651-1.3205-.994 0-1.8743.2272-2.6411.6816-.7383.4259-1.3205 1.0507-1.7464 1.8742-.426.7952-.639 1.7465-.639 2.854z' />
+      <g filter='url(#simWordmarkInnerGlow)'>
+        <path
+          d='M0 297.507H54.6095C54.6095 312.642 60.0704 324.71 70.9923 333.709C81.9142 342.299 96.6789 346.594 115.287 346.594C135.512 346.594 151.086 342.707 162.008 334.936C172.93 326.754 178.391 315.915 178.391 302.415C178.391 292.598 175.357 284.417 169.289 277.871C163.627 271.326 153.109 266.009 137.737 261.918L85.5548 249.646C59.2614 243.101 39.6424 233.08 26.698 219.581C14.158 206.082 7.88803 188.287 7.88803 166.198C7.88803 147.79 12.5399 131.837 21.8438 118.338C31.5522 104.838 44.6988 94.4078 61.284 87.0447C78.2735 79.6816 97.6902 76 119.534 76C141.378 76 160.187 79.8861 175.964 87.6582C192.144 95.4304 204.684 106.271 213.584 120.179C222.888 134.086 227.742 150.654 228.146 169.88H173.536C173.132 154.335 168.076 142.267 158.368 133.678C148.659 125.087 135.108 120.792 117.714 120.792C99.9151 120.792 86.1615 124.678 76.4532 132.451C66.7449 140.223 61.8907 150.858 61.8907 164.357C61.8907 184.402 76.4532 198.105 105.579 205.468L157.76 218.354C182.841 224.08 201.651 233.489 214.191 246.579C226.73 259.26 233 276.644 233 298.734C233 317.55 227.943 334.118 217.831 348.435C207.718 362.343 193.762 373.183 175.964 380.955C158.57 388.318 137.939 392 114.073 392C79.2848 392 51.5756 383.409 30.9453 366.229C10.3151 349.048 0 326.141 0 297.507Z'
+          fill='url(#simWordmarkFill)'
+        />
+        <path
+          d='M430.759 392H374L374 92H424.721V143.095C430.76 126.357 442.433 112.167 458.535 101.145C475.039 89.715 494.966 84 518.314 84C544.48 84 566.217 91.1437 583.527 105.431C600.837 119.719 612.108 138.701 617.342 162.378H607.076C611.102 138.701 622.172 119.719 640.287 105.431C658.401 91.1437 680.743 84 707.311 84C741.126 84 767.694 94.0013 787.017 114.004C806.339 134.006 816 161.357 816 196.056V392H760.448V210.139C760.448 186.462 754.41 168.297 742.333 155.643C730.66 142.579 714.758 136.048 694.631 136.048C680.542 136.048 668.062 139.314 657.194 145.845C646.728 151.968 638.475 160.949 632.437 172.787C626.398 184.625 623.38 198.505 623.38 214.425V392H567.223V209.527C567.223 185.85 561.387 167.888 549.713 155.643C538.039 142.988 522.138 136.66 502.01 136.66C487.921 136.66 475.442 139.926 464.574 146.457C454.108 152.58 445.855 161.562 439.817 173.4C433.778 184.83 430.759 198.505 430.759 214.425V392Z'
+          fill='url(#simWordmarkFill)'
+        />
+        <path
+          d='M342 38C342 58.9868 324.987 76 304 76C283.013 76 266 58.9868 266 38C266 17.0132 283.013 0 304 0C324.987 0 342 17.0132 342 38Z'
+          fill='url(#simWordmarkFill)'
+        />
+        <path
+          d='M332 392H276V92C284.5 95.9881 293.99 98.2178 304 98.2178C314.01 98.2178 323.5 95.9881 332 92V392Z'
+          fill='url(#simWordmarkFill)'
+        />
       </g>
+      <defs>
+        <filter
+          id='simWordmarkInnerGlow'
+          x='0'
+          y='0'
+          width='816'
+          height='392'
+          filterUnits='userSpaceOnUse'
+          colorInterpolationFilters='sRGB'
+        >
+          <feFlood floodOpacity={0} result='BackgroundImageFix' />
+          <feBlend mode='normal' in='SourceGraphic' in2='BackgroundImageFix' result='shape' />
+          <feColorMatrix
+            in='SourceAlpha'
+            type='matrix'
+            values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0'
+            result='hardAlpha'
+          />
+          <feOffset />
+          <feGaussianBlur stdDeviation='3.5' />
+          <feComposite in2='hardAlpha' operator='arithmetic' k2='-1' k3='1' />
+          <feColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0' />
+          <feBlend mode='normal' in2='shape' result='effect1_innerShadow' />
+        </filter>
+        <radialGradient
+          id='simWordmarkFill'
+          cx='0'
+          cy='0'
+          r='1'
+          gradientUnits='userSpaceOnUse'
+          gradientTransform='translate(408 196) rotate(90) scale(196 408)'
+        >
+          <stop stopColor='#4F4F4F' />
+          <stop offset='1' stopColor='#6F6F6F' />
+        </radialGradient>
+      </defs>
     </svg>
   )
 }

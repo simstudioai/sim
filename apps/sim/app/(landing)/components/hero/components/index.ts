@@ -1,1 +1,1 @@
-export { HeroVisual } from './hero-visual'
+export { HeroVisual } from './hero-visual/hero-visual'

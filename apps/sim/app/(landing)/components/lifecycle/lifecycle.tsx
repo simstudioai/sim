@@ -16,8 +16,9 @@ import {
  * regardless of icon height. Icons inherit `--text-muted` via `currentColor`.
  *
  * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
- * this section carries no vertical padding. Horizontal padding (`px-16`) matches
- * the navbar and hero so the headline starts on the wordmark's line. First
+ * this section carries no vertical padding. Horizontal padding (`px-12`) matches
+ * the navbar and hero so the headline starts on the wordmark's line, and the
+ * section is capped and centered at the shared `max-w-[1446px]`. First
  * section after the hero, above {@link Features}.
  */
 
@@ -49,7 +50,11 @@ const AXES: Axis[] = [
 
 export function Lifecycle() {
   return (
-    <section id='lifecycle' aria-labelledby='lifecycle-heading' className='px-16'>
+    <section
+      id='lifecycle'
+      aria-labelledby='lifecycle-heading'
+      className='mx-auto w-full max-w-[1446px] px-12'
+    >
       <h2 id='lifecycle-heading' className='max-w-[1200px] text-balance text-[32px] leading-[1.3]'>
         <span className='text-[var(--text-primary)]'>From idea to production.</span>{' '}
         <span className='text-[var(--text-body)]'>

@@ -1,26 +1,29 @@
 import type { ReactNode } from 'react'
+import { cn } from '@/lib/core/utils/cn'
 import { getGitHubStars } from '@/lib/github/stars'
+import styles from '@/app/(landing)/brand-tokens.module.css'
 import { Footer } from '@/app/(landing)/components/footer/footer'
 import { Navbar } from '@/app/(landing)/components/navbar/navbar'
 
 /**
- * The shared chrome every landing-family page wears — the home page and every
- * platform page (Workflows, Tables, Files, Knowledge Base, Scheduled Tasks,
- * Logs). It is the single source of truth for the page frame, so each page is
- * just `<LandingShell>{content}</LandingShell>` and can never drift from the
- * others.
+ * The shared chrome every landing-family page wears — the home page, every
+ * platform page (Workflows, Tables, Files, …), and every solutions page (IT,
+ * Engineering, …). It is the single source of truth for the page frame, so each
+ * page is just `<LandingShell>{content}</LandingShell>` and can never drift.
  *
  * It owns:
  * - The `light` wrapper, which pins every `var(--*)` design token to its
  *   light-mode value regardless of the visitor's theme — the landing family is
- *   always light.
+ *   always light — plus the `brand` token layer (`brand-tokens.module.css`),
+ *   which remaps those tokens to the SIM brand palette for the whole subtree.
  * - The page's scroll port (`h-screen` + `overflow-y-auto` +
  *   `overscroll-y-none`): the document body no longer overflows, so the viewport
  *   can't rubber-band, and the container's own overscroll bounce is disabled —
  *   without this the sticky navbar gets dragged past the top/bottom edges.
  * - The skip link (targets `#main-content`), the {@link Navbar} (GitHub stars
- *   fetched here at build/revalidate time — never client-fetched), and the
- *   {@link Footer}.
+ *   fetched here at build/revalidate time — never client-fetched), the
+ *   {@link Footer}, and the bottom reveal (a soft white-fade + blur pinned to
+ *   the viewport's lower edge so content emerges into clarity as it scrolls up).
  *
  * The page supplies only the `<main id='main-content'>` content between the
  * navbar and footer. Async Server Component; pages render it with zero props.
@@ -35,7 +38,12 @@ export async function LandingShell({ children }: LandingShellProps) {
   const stars = await getGitHubStars()
 
   return (
-    <div className='light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div
+      className={cn(
+        'light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]',
+        styles.brand
+      )}
+    >
       <a
         href='#main-content'
         className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[var(--z-toast)] focus:rounded-md focus:bg-[var(--surface-2)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:text-sm'
@@ -45,6 +53,18 @@ export async function LandingShell({ children }: LandingShellProps) {
       <Navbar stars={stars} />
       {children}
       <Footer />
+
+      {/* Bottom reveal — a short, soft white-fade + blur pinned to the viewport's
+          lower edge so content emerges into clarity as it scrolls up. Two
+          decorative layers: the blur fades out via a mask, the white tints over it. */}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-x-0 bottom-0 z-40 h-16 backdrop-blur-[2px] [-webkit-mask-image:linear-gradient(to_top,black,transparent)] [mask-image:linear-gradient(to_top,black,transparent)]'
+      />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-x-0 bottom-0 z-40 h-16 bg-gradient-to-t from-[var(--bg)] to-transparent'
+      />
     </div>
   )
 }

@@ -6,11 +6,12 @@ import { ChipLink } from '@/components/emcn'
  * single source of truth for the CTA used by both the landing hero and every
  * platform hero, so the two never drift.
  *
- * The email bar is a no-background input shell — `rounded-lg` (the chip
- * roundedness) and `border-[var(--border-1)]` (the field border) — wrapping a
- * transparent 16px `<input>` and the "Book a demo" action `gap-2` apart; its
- * `pl-3` text gutter and tighter `pr-[5px]` tuck that button evenly into the
- * right corner.
+ * The email bar is a no-background input shell — `border-[var(--border-1)]` (the
+ * field border) — wrapping a transparent 16px `<input>` and the "Book a demo"
+ * action `gap-2` apart; its `pl-3` text gutter and tighter `pr-[5px]` tuck that
+ * button evenly into the right corner. Its radius is `rounded-[13px]` —
+ * concentric with the inset `rounded-lg` (8px) button: outer = inner + the ~5px
+ * inset, so the two corners nest cleanly instead of sharing one radius.
  *
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`) and
@@ -28,7 +29,7 @@ import { ChipLink } from '@/components/emcn'
 export function HeroCta() {
   return (
     <div className='flex items-center gap-2'>
-      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[5px] pl-3'>
+      <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3'>
         <input
           type='email'
           aria-label='Email address'
