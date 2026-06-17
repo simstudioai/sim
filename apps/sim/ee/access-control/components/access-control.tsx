@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { ArrowRight, ChevronDown, Plus } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import {
@@ -11,6 +12,7 @@ import {
   Checkbox,
   Chip,
   ChipConfirmModal,
+  ChipDropdown,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -19,22 +21,34 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  chipVariants,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Label,
+  MoreHorizontal,
   Search,
   Skeleton,
   Switch,
+  Tooltip,
+  toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getUserColor } from '@/lib/workspaces/colors'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getAllBlocks } from '@/blocks'
 import {
   type PermissionGroup,
   useBulkAddPermissionGroupMembers,
   useCreatePermissionGroup,
   useDeletePermissionGroup,
+  useOrganizationWorkspaces,
   usePermissionGroupMembers,
   usePermissionGroups,
   useRemovePermissionGroupMember,
@@ -42,8 +56,8 @@ import {
   useUserPermissionConfig,
 } from '@/ee/access-control/hooks/permission-groups'
 import { useBlacklistedProviders } from '@/hooks/queries/allowed-providers'
+import { useOrganizationRoster } from '@/hooks/queries/organization'
 import { useProviderModels } from '@/hooks/queries/providers'
-import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import {
   DYNAMIC_MODEL_PROVIDERS,
   getProviderModels,
@@ -55,7 +69,7 @@ import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('AccessControl')
 
-interface WorkspaceMemberOption {
+interface OrganizationMemberOption {
   userId: string
   user: {
     name: string | null
@@ -67,7 +81,7 @@ interface WorkspaceMemberOption {
 interface AddMembersModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  availableMembers: WorkspaceMemberOption[]
+  availableMembers: OrganizationMemberOption[]
   selectedMemberIds: Set<string>
   setSelectedMemberIds: React.Dispatch<React.SetStateAction<Set<string>>>
   onAddMembers: () => void
@@ -145,7 +159,7 @@ function AddMembersModal({
       <ChipModalBody>
         {availableMembers.length === 0 ? (
           <p className='px-2 text-[var(--text-muted)] text-sm'>
-            All workspace members are already in this group.
+            All organization members are already in this group.
           </p>
         ) : (
           <ChipModalField type='custom' title='Members'>
@@ -222,6 +236,49 @@ function AddMembersModal({
         }}
       />
     </ChipModal>
+  )
+}
+
+interface WorkspaceSelectProps {
+  /** Selected workspace ids; an empty array reads as "All workspaces". */
+  workspaceIds: string[]
+  onChange: (ids: string[]) => void
+  options: { value: string; label: string }[]
+  disabled?: boolean
+  isLoading?: boolean
+  fullWidth?: boolean
+  className?: string
+}
+
+/**
+ * Workspace scope picker: a single multi-select where an empty selection means
+ * "All workspaces" (via the built-in `allLabel` + reset row), so it owns the
+ * all-vs-specific choice without a separate toggle. Shared by the create modal
+ * and the inline scope control in a group's detail view.
+ */
+function WorkspaceSelect({
+  workspaceIds,
+  onChange,
+  options,
+  disabled = false,
+  isLoading = false,
+  fullWidth = false,
+  className,
+}: WorkspaceSelectProps) {
+  return (
+    <ChipDropdown
+      multiple
+      searchable
+      matchTriggerWidth={false}
+      options={options}
+      value={workspaceIds}
+      onChange={onChange}
+      disabled={disabled || isLoading}
+      allLabel={isLoading ? 'Loading workspaces…' : 'All workspaces'}
+      searchPlaceholder='Search workspaces…'
+      fullWidth={fullWidth}
+      className={className}
+    />
   )
 }
 
@@ -405,23 +462,33 @@ export function AccessControl() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : undefined
 
-  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
-    workspaceId,
-    !!workspaceId
-  )
-  const { data: workspacePermissionsData, isPending: permsLoading } = useWorkspacePermissionsQuery(
-    workspaceId ?? null
-  )
+  // Access control is governed by the workspace's OWNING organization, which may
+  // differ from the caller's active org (e.g. external members). Resolve the org
+  // id and the caller's admin status server-side from the workspace so gating is
+  // never keyed off the session's active org.
   const { data: userPermissionConfig, isPending: entitlementLoading } =
     useUserPermissionConfig(workspaceId)
+  const organizationId = userPermissionConfig?.organizationId ?? undefined
+  const currentUserIsOrgAdmin = userPermissionConfig?.isOrgAdmin ?? false
 
-  const currentUserIsWorkspaceAdmin = workspacePermissionsData?.viewer?.isAdmin ?? false
+  // Group + roster reads require org admin/owner on the host org; only fetch them
+  // for admins to avoid surfacing expected 403s for non-admins/external members.
+  const { data: permissionGroups = [], isPending: groupsLoading } = usePermissionGroups(
+    organizationId,
+    !!organizationId && currentUserIsOrgAdmin
+  )
+  const { data: roster } = useOrganizationRoster(currentUserIsOrgAdmin ? organizationId : undefined)
+  const { data: organizationWorkspaces = [], isPending: workspacesLoading } =
+    useOrganizationWorkspaces(organizationId, !!organizationId && currentUserIsOrgAdmin)
 
   const accessControlEnabledLocally = isTruthy(getEnv('NEXT_PUBLIC_ACCESS_CONTROL_ENABLED'))
   const isEntitled = accessControlEnabledLocally || !!userPermissionConfig?.entitled
-  const canManage = isEntitled && currentUserIsWorkspaceAdmin
+  const canManage = isEntitled && currentUserIsOrgAdmin && !!organizationId
 
-  const isLoading = !workspaceId || groupsLoading || permsLoading || entitlementLoading
+  const isLoading =
+    !workspaceId ||
+    entitlementLoading ||
+    (!!organizationId && currentUserIsOrgAdmin && groupsLoading)
 
   const createPermissionGroup = useCreatePermissionGroup()
   const updatePermissionGroup = useUpdatePermissionGroup()
@@ -431,15 +498,21 @@ export function AccessControl() {
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [viewingGroup, setViewingGroup] = useState<PermissionGroup | null>(null)
+  // Monotonic token for scope-affecting writes (workspace select + default
+  // toggle, which both set appliesToAllWorkspaces/workspaces). Only the most
+  // recent write may reconcile or revert the local viewingGroup, so rapid
+  // multi-select toggles can't settle on a stale, out-of-order response.
+  const scopeWriteSeqRef = useRef(0)
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDescription, setNewGroupDescription] = useState('')
-  const [newGroupAutoAdd, setNewGroupAutoAdd] = useState(false)
+  const [newGroupIsDefault, setNewGroupIsDefault] = useState(false)
+  const [newGroupWorkspaceIds, setNewGroupWorkspaceIds] = useState<string[]>([])
   const [createError, setCreateError] = useState<string | null>(null)
   const [deletingGroup, setDeletingGroup] = useState<{ id: string; name: string } | null>(null)
   const [deletingGroupIds, setDeletingGroupIds] = useState<Set<string>>(() => new Set())
 
   const { data: members = [], isPending: membersLoading } = usePermissionGroupMembers(
-    workspaceId,
+    organizationId,
     viewingGroup?.id
   )
   const removeMember = useRemovePermissionGroupMember()
@@ -471,7 +544,7 @@ export function AccessControl() {
       },
       {
         id: 'hide-copilot',
-        label: 'Copilot',
+        label: 'Chat',
         category: 'Workflow Panel',
         configKey: 'hideCopilot' as const,
       },
@@ -624,7 +697,7 @@ export function AccessControl() {
   }, [viewingGroup, editingConfig])
 
   const allBlocks = useMemo(() => {
-    const blocks = getAllBlocks().filter((b) => !b.hideFromToolbar && b.type !== 'start_trigger')
+    const blocks = getAllBlocks().filter((b) => !isBlockTypeAccessControlExempt(b.type))
     return blocks.sort((a, b) => {
       const categoryOrder = { triggers: 0, blocks: 1, tools: 2 }
       const catA = categoryOrder[a.category] ?? 3
@@ -664,17 +737,24 @@ export function AccessControl() {
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [filteredBlocks])
 
-  const workspaceMembers = useMemo<WorkspaceMemberOption[]>(() => {
-    if (!workspacePermissionsData) return []
-    return workspacePermissionsData.users.map((u) => ({
-      userId: u.userId,
-      user: {
-        name: u.name,
-        email: u.email,
-        image: u.image,
-      },
-    }))
-  }, [workspacePermissionsData])
+  const organizationMembers = useMemo<OrganizationMemberOption[]>(() => {
+    if (!roster?.members) return []
+    return roster.members
+      .filter((m) => m.role !== 'external')
+      .map((m) => ({
+        userId: m.userId,
+        user: {
+          name: m.name,
+          email: m.email,
+          image: m.image,
+        },
+      }))
+  }, [roster])
+
+  const workspaceOptions = useMemo(
+    () => organizationWorkspaces.map((ws) => ({ value: ws.id, label: ws.name })),
+    [organizationWorkspaces]
+  )
 
   const filteredGroups = useMemo(() => {
     if (!searchTerm.trim()) return permissionGroups
@@ -683,19 +763,25 @@ export function AccessControl() {
   }, [permissionGroups, searchTerm])
 
   const handleCreatePermissionGroup = useCallback(async () => {
-    if (!newGroupName.trim() || !workspaceId) return
+    if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
+    // An empty workspace selection means "all workspaces"; the default group is
+    // always organization-wide.
+    const appliesToAllWorkspaces = newGroupIsDefault || newGroupWorkspaceIds.length === 0
     try {
       await createPermissionGroup.mutateAsync({
-        workspaceId,
+        organizationId,
         name: newGroupName.trim(),
         description: newGroupDescription.trim() || undefined,
-        autoAddNewMembers: newGroupAutoAdd,
+        isDefault: newGroupIsDefault,
+        appliesToAllWorkspaces,
+        workspaceIds: appliesToAllWorkspaces ? undefined : newGroupWorkspaceIds,
       })
       setShowCreateModal(false)
       setNewGroupName('')
       setNewGroupDescription('')
-      setNewGroupAutoAdd(false)
+      setNewGroupIsDefault(false)
+      setNewGroupWorkspaceIds([])
     } catch (error) {
       logger.error('Failed to create permission group', error)
       if (error instanceof Error) {
@@ -704,13 +790,21 @@ export function AccessControl() {
         setCreateError('Failed to create permission group')
       }
     }
-  }, [newGroupName, newGroupDescription, newGroupAutoAdd, workspaceId, createPermissionGroup])
+  }, [
+    newGroupName,
+    newGroupDescription,
+    newGroupIsDefault,
+    newGroupWorkspaceIds,
+    organizationId,
+    createPermissionGroup,
+  ])
 
   const handleCloseCreateModal = useCallback(() => {
     setShowCreateModal(false)
     setNewGroupName('')
     setNewGroupDescription('')
-    setNewGroupAutoAdd(false)
+    setNewGroupIsDefault(false)
+    setNewGroupWorkspaceIds([])
     setCreateError(null)
   }, [])
 
@@ -723,12 +817,12 @@ export function AccessControl() {
   }, [])
 
   const confirmDelete = useCallback(async () => {
-    if (!deletingGroup || !workspaceId) return
+    if (!deletingGroup || !organizationId) return
     setDeletingGroupIds((prev) => new Set(prev).add(deletingGroup.id))
     try {
       await deletePermissionGroup.mutateAsync({
         permissionGroupId: deletingGroup.id,
-        workspaceId,
+        organizationId,
       })
       setDeletingGroup(null)
       if (viewingGroup?.id === deletingGroup.id) {
@@ -743,14 +837,14 @@ export function AccessControl() {
         return next
       })
     }
-  }, [deletingGroup, workspaceId, deletePermissionGroup, viewingGroup?.id])
+  }, [deletingGroup, organizationId, deletePermissionGroup, viewingGroup?.id])
 
   const handleRemoveMember = useCallback(
     async (memberId: string) => {
-      if (!viewingGroup || !workspaceId) return
+      if (!viewingGroup || !organizationId) return
       try {
         await removeMember.mutateAsync({
-          workspaceId,
+          organizationId,
           permissionGroupId: viewingGroup.id,
           memberId,
         })
@@ -758,7 +852,7 @@ export function AccessControl() {
         logger.error('Failed to remove member', error)
       }
     },
-    [viewingGroup, workspaceId, removeMember]
+    [viewingGroup, organizationId, removeMember]
   )
 
   const handleOpenConfigModal = useCallback(() => {
@@ -768,11 +862,11 @@ export function AccessControl() {
   }, [viewingGroup])
 
   const handleSaveConfig = useCallback(async () => {
-    if (!viewingGroup || !editingConfig || !workspaceId) return
+    if (!viewingGroup || !editingConfig || !organizationId) return
     try {
       await updatePermissionGroup.mutateAsync({
         id: viewingGroup.id,
-        workspaceId,
+        organizationId,
         config: editingConfig,
       })
       setShowConfigModal(false)
@@ -784,7 +878,7 @@ export function AccessControl() {
     } catch (error) {
       logger.error('Failed to update config', error)
     }
-  }, [viewingGroup, editingConfig, workspaceId, updatePermissionGroup])
+  }, [viewingGroup, editingConfig, organizationId, updatePermissionGroup])
 
   const handleCloseConfigModal = useCallback(() => {
     if (hasConfigChanges) {
@@ -818,11 +912,14 @@ export function AccessControl() {
   }, [])
 
   const handleAddSelectedMembers = useCallback(async () => {
-    if (!viewingGroup || !workspaceId || selectedMemberIds.size === 0) return
+    if (!viewingGroup || !organizationId || selectedMemberIds.size === 0) return
     setAddMembersError(null)
     try {
+      // Bulk add is all-or-nothing for conflicts: a conflicting selection
+      // returns a 409 (no one is added) and the named error is shown inline so
+      // the admin can adjust the selection.
       await bulkAddMembers.mutateAsync({
-        workspaceId,
+        organizationId,
         permissionGroupId: viewingGroup.id,
         userIds: Array.from(selectedMemberIds),
       })
@@ -830,27 +927,93 @@ export function AccessControl() {
       setSelectedMemberIds(new Set())
     } catch (error) {
       logger.error('Failed to add members', error)
-      setAddMembersError(
-        error instanceof Error && error.message ? error.message : 'Failed to add members'
-      )
+      setAddMembersError(getErrorMessage(error, 'Failed to add members'))
     }
-  }, [viewingGroup, workspaceId, selectedMemberIds, bulkAddMembers])
+  }, [viewingGroup, organizationId, selectedMemberIds, bulkAddMembers])
 
-  const handleToggleAutoAdd = useCallback(
-    async (enabled: boolean) => {
-      if (!viewingGroup || !workspaceId) return
+  const handleScopeChange = useCallback(
+    async (workspaceIds: string[]) => {
+      if (!viewingGroup || !organizationId) return
+      // An empty selection means "all workspaces".
+      const appliesToAllWorkspaces = workspaceIds.length === 0
+      const previous = viewingGroup
+      const seq = ++scopeWriteSeqRef.current
+
+      setViewingGroup((prev) =>
+        prev
+          ? {
+              ...prev,
+              appliesToAllWorkspaces,
+              workspaces: appliesToAllWorkspaces
+                ? []
+                : organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
+            }
+          : null
+      )
       try {
-        await updatePermissionGroup.mutateAsync({
+        const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
-          workspaceId,
-          autoAddNewMembers: enabled,
+          organizationId,
+          appliesToAllWorkspaces,
+          workspaceIds: appliesToAllWorkspaces ? undefined : workspaceIds,
         })
-        setViewingGroup((prev) => (prev ? { ...prev, autoAddNewMembers: enabled } : null))
+
+        if (seq !== scopeWriteSeqRef.current) return
+        setViewingGroup((prev) =>
+          prev
+            ? {
+                ...prev,
+                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
+                workspaces: organizationWorkspaces.filter((ws) =>
+                  result.permissionGroup.workspaceIds.includes(ws.id)
+                ),
+              }
+            : null
+        )
       } catch (error) {
-        logger.error('Failed to toggle auto-add', error)
+        logger.error('Failed to update workspace scope', error)
+        // Only the latest write may revert, so a failed earlier request can't
+        // clobber a newer (successful) selection.
+        if (seq !== scopeWriteSeqRef.current) return
+        setViewingGroup(previous)
+        toast.error("Couldn't update workspaces", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     },
-    [viewingGroup, workspaceId, updatePermissionGroup]
+    [viewingGroup, organizationId, organizationWorkspaces, updatePermissionGroup]
+  )
+
+  const handleToggleDefault = useCallback(
+    async (enabled: boolean) => {
+      if (!viewingGroup || !organizationId) return
+      const seq = ++scopeWriteSeqRef.current
+      try {
+        const result = await updatePermissionGroup.mutateAsync({
+          id: viewingGroup.id,
+          organizationId,
+          isDefault: enabled,
+        })
+
+        if (seq !== scopeWriteSeqRef.current) return
+        setViewingGroup((prev) =>
+          prev
+            ? {
+                ...prev,
+                isDefault: result.permissionGroup.isDefault,
+                appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
+                workspaces: result.permissionGroup.appliesToAllWorkspaces ? [] : prev.workspaces,
+              }
+            : null
+        )
+      } catch (error) {
+        logger.error('Failed to toggle default group', error)
+        toast.error("Couldn't update the default group", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
+      }
+    },
+    [viewingGroup, organizationId, updatePermissionGroup]
   )
 
   const toggleIntegration = useCallback(
@@ -984,8 +1147,8 @@ export function AccessControl() {
 
   const availableMembersToAdd = useMemo(() => {
     const existingMemberUserIds = new Set(members.map((m) => m.userId))
-    return workspaceMembers.filter((m) => !existingMemberUserIds.has(m.userId))
-  }, [workspaceMembers, members])
+    return organizationMembers.filter((m) => !existingMemberUserIds.has(m.userId))
+  }, [organizationMembers, members])
 
   if (isLoading) {
     return null
@@ -994,7 +1157,7 @@ export function AccessControl() {
   if (!canManage) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Only workspace admins on Enterprise plans can manage Access Control settings.
+        Only organization admins on Enterprise plans can manage Access Control settings.
       </div>
     )
   }
@@ -1020,106 +1183,134 @@ export function AccessControl() {
           </div>
 
           <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-            <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
+            <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
               <div className='flex flex-col gap-1'>
-                <h3 className='font-medium text-[14px] text-[var(--text-body)]'>
-                  {viewingGroup.name}
-                </h3>
+                <h1 className='font-medium text-[var(--text-body)] text-lg'>{viewingGroup.name}</h1>
                 {viewingGroup.description && (
-                  <p className='text-[var(--text-muted)] text-sm'>{viewingGroup.description}</p>
+                  <p className='text-[var(--text-muted)] text-md'>{viewingGroup.description}</p>
                 )}
               </div>
 
-              <div className='flex items-center justify-between'>
-                <div className='flex flex-col gap-0.5'>
-                  <span className='font-medium text-[var(--text-primary)] text-sm'>
-                    Auto-add new members
-                  </span>
+              <SettingsSection label='Default group'>
+                <div className='flex items-center justify-between gap-3'>
                   <span className='text-[var(--text-muted)] text-small'>
-                    Automatically add new workspace members to this group
+                    Applies to everyone in the organization not assigned to another group, including
+                    external workspace members
                   </span>
+                  <Switch
+                    checked={viewingGroup.isDefault}
+                    onCheckedChange={(checked) => handleToggleDefault(checked)}
+                    disabled={updatePermissionGroup.isPending}
+                  />
                 </div>
-                <Switch
-                  checked={viewingGroup.autoAddNewMembers}
-                  onCheckedChange={(checked) => handleToggleAutoAdd(checked)}
-                  disabled={updatePermissionGroup.isPending}
-                />
-              </div>
+              </SettingsSection>
 
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center justify-between'>
-                  <span className='font-medium text-[var(--text-secondary)] text-sm'>Members</span>
-                  <Chip variant='primary' leftIcon={Plus} onClick={handleOpenAddMembersModal}>
+              <SettingsSection label='Workspaces'>
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='min-w-0 text-[var(--text-muted)] text-small'>
+                    {viewingGroup.appliesToAllWorkspaces
+                      ? 'Governs every workspace in the organization'
+                      : viewingGroup.workspaces.length > 0
+                        ? `Governs ${viewingGroup.workspaces.length} workspace${
+                            viewingGroup.workspaces.length === 1 ? '' : 's'
+                          }: ${viewingGroup.workspaces.map((ws) => ws.name).join(', ')}`
+                        : 'No workspaces selected — this group governs nobody'}
+                  </span>
+                  {viewingGroup.isDefault ? (
+                    <Tooltip.Root>
+                      <Tooltip.Trigger asChild>
+                        <span className='inline-flex flex-shrink-0 cursor-not-allowed'>
+                          <WorkspaceSelect
+                            workspaceIds={[]}
+                            onChange={() => {}}
+                            options={workspaceOptions}
+                            disabled
+                            className='pointer-events-none'
+                          />
+                        </span>
+                      </Tooltip.Trigger>
+                      <Tooltip.Content>
+                        The default group always applies to all workspaces
+                      </Tooltip.Content>
+                    </Tooltip.Root>
+                  ) : (
+                    <WorkspaceSelect
+                      workspaceIds={
+                        viewingGroup.appliesToAllWorkspaces
+                          ? []
+                          : viewingGroup.workspaces.map((ws) => ws.id)
+                      }
+                      onChange={handleScopeChange}
+                      options={workspaceOptions}
+                      isLoading={workspacesLoading}
+                      className='flex-shrink-0'
+                    />
+                  )}
+                </div>
+              </SettingsSection>
+
+              <SettingsSection
+                label={`Members (${members.length})`}
+                headerAccessory={
+                  <Chip
+                    variant='primary'
+                    leftIcon={Plus}
+                    flush
+                    onClick={handleOpenAddMembersModal}
+                    className='ml-auto'
+                  >
                     Add
                   </Chip>
-                </div>
-
+                }
+              >
                 {membersLoading ? (
-                  <div className='flex flex-col gap-4.5'>
+                  <div className='-mx-2 flex flex-col gap-y-0.5'>
                     {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center justify-between'>
-                        <div className='flex items-center gap-3'>
-                          <Skeleton className='size-8 rounded-full' />
-                          <div className='flex flex-col gap-1'>
-                            <Skeleton className='h-[14px] w-[100px]' />
-                            <Skeleton className='h-[12px] w-[150px]' />
-                          </div>
-                        </div>
+                      <div key={i} className='flex items-center gap-2.5 p-2'>
+                        <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
+                        <Skeleton className='h-[14px] w-[180px]' />
                       </div>
                     ))}
                   </div>
                 ) : members.length === 0 ? (
-                  <p className='text-[var(--text-muted)] text-sm'>
+                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
                     No members yet. Click "Add" to get started.
-                  </p>
+                  </div>
                 ) : (
-                  <div className='flex flex-col gap-4.5'>
-                    {members.map((member) => {
-                      const name = member.userName || 'Unknown'
-                      const avatarInitial = name.charAt(0).toUpperCase()
-
-                      return (
-                        <div key={member.id} className='flex items-center justify-between'>
-                          <div className='flex flex-1 items-center gap-3'>
-                            <Avatar size='md'>
-                              {member.userImage && (
-                                <AvatarImage src={member.userImage} alt={name} />
-                              )}
-                              <AvatarFallback
-                                style={{
-                                  background: getUserColor(member.userId || member.userEmail || ''),
-                                }}
-                                className='border-0 text-white'
+                  <div className='-mx-2 flex flex-col gap-y-0.5'>
+                    {members.map((member) => (
+                      <MemberRow
+                        key={member.id}
+                        name={member.userName || member.userEmail || 'Unknown'}
+                        email={member.userEmail || member.userName || 'Unknown'}
+                        image={member.userImage}
+                        status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
+                        menu={
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type='button'
+                                aria-label='Member actions'
+                                className={chipVariants({ flush: true })}
                               >
-                                {avatarInitial}
-                              </AvatarFallback>
-                            </Avatar>
-
-                            <div className='min-w-0'>
-                              <div className='flex items-center gap-2'>
-                                <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>
-                                  {name}
-                                </span>
-                              </div>
-                              <div className='truncate text-[var(--text-muted)] text-small'>
-                                {member.userEmail}
-                              </div>
-                            </div>
-                          </div>
-
-                          <Chip
-                            onClick={() => handleRemoveMember(member.id)}
-                            disabled={removeMember.isPending}
-                            className='flex-shrink-0'
-                          >
-                            Remove
-                          </Chip>
-                        </div>
-                      )
-                    })}
+                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                className='text-[var(--text-error)]'
+                                onSelect={() => handleRemoveMember(member.id)}
+                              >
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        }
+                      />
+                    ))}
                   </div>
                 )}
-              </div>
+              </SettingsSection>
             </div>
           </div>
         </div>
@@ -1411,11 +1602,13 @@ export function AccessControl() {
           </ChipModalBody>
           <ChipModalFooter
             onCancel={() => setShowUnsavedChanges(false)}
-            secondaryAction={{
-              label: 'Discard Changes',
-              onClick: handleDiscardConfig,
-              variant: 'destructive',
-            }}
+            secondaryActions={[
+              {
+                label: 'Discard Changes',
+                onClick: handleDiscardConfig,
+                variant: 'destructive',
+              },
+            ]}
             primaryAction={{
               label: updatePermissionGroup.isPending ? 'Saving...' : 'Save Changes',
               onClick: handleSaveConfigFromUnsaved,
@@ -1454,51 +1647,68 @@ export function AccessControl() {
         </div>
 
         <div className='min-h-0 flex-1 overflow-y-auto px-6 [scrollbar-gutter:stable_both-edges]'>
-          <div className='mx-auto flex max-w-[48rem] flex-col gap-4.5 pt-4 pb-6'>
-            <ChipInput
-              icon={Search}
-              placeholder='Search permission groups...'
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className='mx-auto flex max-w-[48rem] flex-col gap-7 pb-3'>
+            <div className='flex flex-col gap-1'>
+              <h1 className='font-medium text-[var(--text-body)] text-lg'>Access Control</h1>
+              <p className='text-[var(--text-muted)] text-md'>
+                Manage permission groups across every workspace in your organization.
+              </p>
+            </div>
 
-            {filteredGroups.length === 0 && searchTerm.trim() ? (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                No results found matching "{searchTerm}"
-              </div>
-            ) : permissionGroups.length === 0 ? (
-              <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-                Click "Create Group" above to get started
-              </div>
-            ) : (
-              <div className='flex flex-col gap-1'>
-                {filteredGroups.map((group) => (
-                  <button
-                    key={group.id}
-                    type='button'
-                    onClick={() => setViewingGroup(group)}
-                    className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-                  >
-                    <div className='flex min-w-0 flex-1 flex-col'>
-                      <div className='flex items-center gap-2'>
-                        <span className='truncate text-[14px] text-[var(--text-body)]'>
-                          {group.name}
-                        </span>
-                        {group.autoAddNewMembers && (
-                          <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                            Auto-enrolls
+            <div className='flex items-center gap-2'>
+              <ChipInput
+                icon={Search}
+                placeholder='Search permission groups...'
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className='flex-1'
+              />
+            </div>
+
+            <SettingsSection label={`Permission groups (${permissionGroups.length})`}>
+              {permissionGroups.length === 0 ? (
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  No permission groups yet. Click "Create Group" to get started.
+                </div>
+              ) : filteredGroups.length === 0 ? (
+                <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  No groups found matching "{searchTerm}"
+                </div>
+              ) : (
+                <div className='-mx-2 flex flex-col gap-y-0.5'>
+                  {filteredGroups.map((group) => (
+                    <button
+                      key={group.id}
+                      type='button'
+                      onClick={() => setViewingGroup(group)}
+                      className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
+                    >
+                      <div className='flex min-w-0 flex-1 flex-col'>
+                        <div className='flex items-center gap-2'>
+                          <span className='truncate text-[14px] text-[var(--text-body)]'>
+                            {group.name}
                           </span>
-                        )}
+                          {group.isDefault && (
+                            <span className='flex-shrink-0 rounded-sm bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
+                              Default
+                            </span>
+                          )}
+                        </div>
+                        <span className='truncate text-[12px] text-[var(--text-muted)]'>
+                          {group.memberCount} member{group.memberCount !== 1 ? 's' : ''} ·{' '}
+                          {group.appliesToAllWorkspaces
+                            ? 'All workspaces'
+                            : `${group.workspaces.length} workspace${
+                                group.workspaces.length === 1 ? '' : 's'
+                              }`}
+                        </span>
                       </div>
-                      <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                        {group.memberCount} member{group.memberCount !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                  </button>
-                ))}
-              </div>
-            )}
+                      <ArrowRight className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
           </div>
         </div>
       </div>
@@ -1531,14 +1741,28 @@ export function AccessControl() {
           <ChipModalField type='custom' title='Membership'>
             <div className='flex items-center gap-2'>
               <Checkbox
-                id='auto-add-members'
-                checked={newGroupAutoAdd}
-                onCheckedChange={(checked) => setNewGroupAutoAdd(checked === true)}
+                id='default-group'
+                checked={newGroupIsDefault}
+                onCheckedChange={(checked) => {
+                  const isDefault = checked === true
+                  setNewGroupIsDefault(isDefault)
+                  if (isDefault) setNewGroupWorkspaceIds([])
+                }}
               />
-              <Label htmlFor='auto-add-members' className='cursor-pointer font-normal'>
-                Auto-add new workspace members
+              <Label htmlFor='default-group' className='cursor-pointer font-normal'>
+                Make this the organization default group
               </Label>
             </div>
+          </ChipModalField>
+          <ChipModalField type='custom' title='Workspaces'>
+            <WorkspaceSelect
+              workspaceIds={newGroupWorkspaceIds}
+              onChange={setNewGroupWorkspaceIds}
+              options={workspaceOptions}
+              disabled={newGroupIsDefault}
+              isLoading={workspacesLoading}
+              fullWidth
+            />
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
@@ -1557,16 +1781,13 @@ export function AccessControl() {
         onOpenChange={() => setDeletingGroup(null)}
         srTitle='Delete Permission Group'
         title='Delete Permission Group'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deletingGroup?.name}</span>?{' '}
-            <span className='text-[var(--text-error)]'>
-              All members will be removed from this group.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: deletingGroup?.name ?? 'this group', bold: true },
+          '? ',
+          { text: 'All members will be removed from this group.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: confirmDelete,

@@ -8,16 +8,17 @@ import { useWorkspaceCredential } from '@/hooks/queries/credentials'
 
 export const oauthCredentialKeys = {
   all: ['oauthCredentials'] as const,
+  lists: () => [...oauthCredentialKeys.all, 'list'] as const,
   list: (providerId?: string, workspaceId?: string, workflowId?: string) =>
     [
-      ...oauthCredentialKeys.all,
-      'list',
+      ...oauthCredentialKeys.lists(),
       providerId ?? 'none',
       workspaceId ?? 'none',
       workflowId ?? 'none',
     ] as const,
+  details: () => [...oauthCredentialKeys.all, 'detail'] as const,
   detail: (credentialId?: string, workflowId?: string) =>
-    [...oauthCredentialKeys.all, 'detail', credentialId ?? 'none', workflowId ?? 'none'] as const,
+    [...oauthCredentialKeys.details(), credentialId ?? 'none', workflowId ?? 'none'] as const,
 }
 
 interface FetchOAuthCredentialsParams {

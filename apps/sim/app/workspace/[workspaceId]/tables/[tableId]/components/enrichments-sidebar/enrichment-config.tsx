@@ -216,7 +216,7 @@ export function EnrichmentConfig({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
         <div className='flex min-w-0 items-center gap-1.5'>
           <Button
             variant='ghost'

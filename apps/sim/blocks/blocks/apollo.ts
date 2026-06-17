@@ -1375,6 +1375,7 @@ Return ONLY the timestamp string in ISO 8601 format - no explanations, no quotes
 
 export const ApolloBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.apollo.io',
   templates: [
     {
       icon: Users,

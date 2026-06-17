@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -48,10 +49,6 @@ type ApiCustomTool = Partial<CustomToolDefinition> & {
     }
   }
   code?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function normalizeCustomTool(tool: ApiCustomTool, workspaceId: string): CustomToolDefinition {
@@ -104,7 +101,7 @@ async function fetchCustomTools(
   const normalizedTools: CustomToolDefinition[] = []
 
   data.forEach((tool, index) => {
-    if (!isRecord(tool)) {
+    if (!isRecordLike(tool)) {
       logger.warn(`Skipping invalid tool at index ${index}: not an object`)
       return
     }
@@ -116,18 +113,18 @@ async function fetchCustomTools(
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid title`)
       return
     }
-    if (!isRecord(tool.schema)) {
+    if (!isRecordLike(tool.schema)) {
       logger.warn(`Skipping invalid tool at index ${index}: missing or invalid schema`)
       return
     }
-    if (!isRecord(tool.schema.function)) {
+    if (!isRecordLike(tool.schema.function)) {
       logger.warn(`Skipping invalid tool at index ${index}: missing function schema`)
       return
     }
 
     const functionSchema = tool.schema.function
-    const parameters = isRecord(functionSchema.parameters) ? functionSchema.parameters : {}
-    const properties = isRecord(parameters.properties) ? parameters.properties : {}
+    const parameters = isRecordLike(functionSchema.parameters) ? functionSchema.parameters : {}
+    const properties = isRecordLike(parameters.properties) ? parameters.properties : {}
     const required = Array.isArray(parameters.required)
       ? parameters.required.filter((value): value is string => typeof value === 'string')
       : undefined
@@ -217,8 +214,7 @@ export function useCreateCustomTool() {
       logger.info(`Created custom tool: ${tool.title}`)
       return data.data as CustomToolDefinition[]
     },
-    onSuccess: (_data, variables) => {
-      // Invalidate tools list for the workspace
+    onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: customToolsKeys.list(variables.workspaceId) })
     },
   })

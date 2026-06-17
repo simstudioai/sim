@@ -35,6 +35,11 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
         { label: 'List Calendars', id: 'list_calendars' },
         { label: 'Quick Add (Natural Language)', id: 'quick_add' },
         { label: 'Invite Attendees', id: 'invite' },
+        { label: 'Check Free/Busy', id: 'freebusy' },
+        { label: 'Create Calendar', id: 'create_calendar' },
+        { label: 'Share Calendar', id: 'share_calendar' },
+        { label: 'List Sharing', id: 'list_acl' },
+        { label: 'Remove Sharing', id: 'unshare_calendar' },
       ],
       value: () => 'create',
     },
@@ -59,7 +64,6 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       required: true,
     },
     ...SERVICE_ACCOUNT_SUBBLOCKS,
-    // Calendar selector (basic mode) - not needed for list_calendars
     {
       id: 'calendarId',
       title: 'Calendar',
@@ -71,9 +75,12 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Select calendar',
       dependsOn: ['credential'],
       mode: 'basic',
-      condition: { field: 'operation', value: 'list_calendars', not: true },
+      condition: {
+        field: 'operation',
+        value: ['list_calendars', 'create_calendar', 'freebusy'],
+        not: true,
+      },
     },
-    // Manual calendar ID input (advanced mode) - not needed for list_calendars
     {
       id: 'manualCalendarId',
       title: 'Calendar ID',
@@ -82,10 +89,13 @@ export const GoogleCalendarBlock: BlockConfig<GoogleCalendarResponse> = {
       placeholder: 'Enter calendar ID (e.g., primary or calendar@gmail.com)',
       dependsOn: ['credential'],
       mode: 'advanced',
-      condition: { field: 'operation', value: 'list_calendars', not: true },
+      condition: {
+        field: 'operation',
+        value: ['list_calendars', 'create_calendar', 'freebusy'],
+        not: true,
+      },
     },
 
-    // Create Event Fields
     {
       id: 'summary',
       title: 'Event Title',
@@ -178,7 +188,47 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'create' },
     },
 
-    // List Events Fields
+    {
+      id: 'recurrence',
+      title: 'Recurrence Rule',
+      type: 'long-input',
+      placeholder: 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an RFC 5545 recurrence rule (RRULE) for a Google Calendar event based on the user's description.
+Examples:
+- "every weekday" -> RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR
+- "every Monday" -> RRULE:FREQ=WEEKLY;BYDAY=MO
+- "monthly on the 1st" -> RRULE:FREQ=MONTHLY;BYMONTHDAY=1
+- "daily for 10 occurrences" -> RRULE:FREQ=DAILY;COUNT=10
+
+Return ONLY the RRULE string - no explanations, no extra text.`,
+        placeholder: 'Describe the recurrence (e.g., "every weekday", "monthly on the 1st")...',
+      },
+    },
+    {
+      id: 'addGoogleMeet',
+      title: 'Add Google Meet',
+      type: 'dropdown',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+    },
+    {
+      id: 'timeZone',
+      title: 'Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles',
+      condition: { field: 'operation', value: ['create', 'update'] },
+      mode: 'advanced',
+    },
+
     {
       id: 'timeMin',
       title: 'Start Time Filter',
@@ -221,8 +271,37 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
         generationType: 'timestamp',
       },
     },
+    {
+      id: 'q',
+      title: 'Search Query',
+      type: 'short-input',
+      placeholder: 'standup',
+      condition: { field: 'operation', value: 'list' },
+    },
+    {
+      id: 'orderBy',
+      title: 'Order By',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'list' },
+      mode: 'advanced',
+      options: [
+        { label: 'Start time', id: 'startTime' },
+        { label: 'Last updated', id: 'updated' },
+      ],
+      value: () => 'startTime',
+    },
+    {
+      id: 'pageToken',
+      title: 'Page Token',
+      type: 'short-input',
+      placeholder: 'Token from a previous response (nextPageToken)',
+      condition: {
+        field: 'operation',
+        value: ['list', 'instances', 'list_calendars', 'list_acl'],
+      },
+      mode: 'advanced',
+    },
 
-    // Get Event Fields
     {
       id: 'eventId',
       title: 'Event ID',
@@ -235,7 +314,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
     },
 
-    // Update Event Fields
     {
       id: 'summary',
       title: 'New Event Title',
@@ -325,7 +403,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       condition: { field: 'operation', value: 'update' },
     },
 
-    // Move Event Fields - Destination calendar selector (basic mode)
     {
       id: 'destinationCalendar',
       title: 'Destination Calendar',
@@ -340,7 +417,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       required: true,
       mode: 'basic',
     },
-    // Move Event Fields - Manual destination calendar ID (advanced mode)
     {
       id: 'manualDestinationCalendarId',
       title: 'Destination Calendar ID',
@@ -353,7 +429,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       mode: 'advanced',
     },
 
-    // Instances Fields
     {
       id: 'timeMin',
       title: 'Start Time Filter',
@@ -401,10 +476,9 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       title: 'Max Results',
       type: 'short-input',
       placeholder: '250',
-      condition: { field: 'operation', value: ['instances', 'list_calendars'] },
+      condition: { field: 'operation', value: ['list', 'instances', 'list_calendars', 'list_acl'] },
     },
 
-    // List Calendars Fields
     {
       id: 'minAccessRole',
       title: 'Minimum Access Role',
@@ -419,13 +493,13 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
     },
 
-    // Invite Attendees Fields
     {
       id: 'attendees',
       title: 'Attendees (comma-separated emails)',
       type: 'short-input',
       placeholder: 'john@example.com, jane@example.com',
       condition: { field: 'operation', value: 'invite' },
+      required: true,
     },
     {
       id: 'replaceExisting',
@@ -438,7 +512,6 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       ],
     },
 
-    // Quick Add Fields
     {
       id: 'text',
       title: 'Natural Language Event',
@@ -470,10 +543,149 @@ Return ONLY the natural language event text - no explanations.`,
       type: 'short-input',
       placeholder: 'john@example.com, jane@example.com',
       condition: { field: 'operation', value: 'quick_add' },
+    },
+
+    {
+      id: 'calendarIds',
+      title: 'Calendars (comma-separated IDs)',
+      type: 'short-input',
+      placeholder: 'primary, teammate@example.com',
+      condition: { field: 'operation', value: 'freebusy' },
+      required: true,
+    },
+    {
+      id: 'timeMin',
+      title: 'Start Time',
+      type: 'short-input',
+      placeholder: '2025-06-03T00:00:00Z',
+      condition: { field: 'operation', value: 'freebusy' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "today" -> Calculate today's date at 00:00:00Z
+- "next Monday" -> Calculate next Monday at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the start of the range (e.g., "today", "next Monday")...',
+        generationType: 'timestamp',
+      },
+    },
+    {
+      id: 'timeMax',
+      title: 'End Time',
+      type: 'short-input',
+      placeholder: '2025-06-04T00:00:00Z',
+      condition: { field: 'operation', value: 'freebusy' },
+      required: true,
+      wandConfig: {
+        enabled: true,
+        prompt: `Generate an ISO 8601 timestamp in UTC based on the user's description.
+The timestamp should be in the format: YYYY-MM-DDTHH:MM:SSZ (UTC timezone).
+Examples:
+- "end of today" -> Calculate today's date at 23:59:59Z
+- "next Friday" -> Calculate next Friday at 00:00:00Z
+
+Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
+        placeholder: 'Describe the end of the range (e.g., "end of today", "next Friday")...',
+        generationType: 'timestamp',
+      },
+    },
+
+    {
+      id: 'summary',
+      title: 'Calendar Name',
+      type: 'short-input',
+      placeholder: 'Team Calendar',
+      condition: { field: 'operation', value: 'create_calendar' },
+      required: true,
+    },
+    {
+      id: 'description',
+      title: 'Calendar Description',
+      type: 'long-input',
+      placeholder: 'Shared team events and milestones',
+      condition: { field: 'operation', value: 'create_calendar' },
+    },
+    {
+      id: 'location',
+      title: 'Calendar Location',
+      type: 'short-input',
+      placeholder: 'San Francisco, CA',
+      condition: { field: 'operation', value: 'create_calendar' },
+    },
+    {
+      id: 'timeZone',
+      title: 'Time Zone',
+      type: 'short-input',
+      placeholder: 'America/Los_Angeles',
+      condition: { field: 'operation', value: ['create_calendar', 'freebusy'] },
+    },
+
+    {
+      id: 'role',
+      title: 'Access Role',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'share_calendar' },
+      required: true,
+      options: [
+        { label: 'See free/busy only', id: 'freeBusyReader' },
+        { label: 'See all event details (Reader)', id: 'reader' },
+        { label: 'Make changes (Writer)', id: 'writer' },
+        { label: 'Make changes & manage sharing (Owner)', id: 'owner' },
+      ],
+      value: () => 'reader',
+    },
+    {
+      id: 'scopeType',
+      title: 'Grantee Type',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'share_calendar' },
+      required: true,
+      options: [
+        { label: 'User', id: 'user' },
+        { label: 'Group', id: 'group' },
+        { label: 'Domain', id: 'domain' },
+        { label: 'Public (anyone)', id: 'default' },
+      ],
+      value: () => 'user',
+    },
+    {
+      id: 'scopeValue',
+      title: 'Grantee (email or domain)',
+      type: 'short-input',
+      placeholder: 'person@example.com',
+      condition: {
+        field: 'operation',
+        value: 'share_calendar',
+        and: { field: 'scopeType', value: 'default', not: true },
+      },
+      required: true,
+    },
+    {
+      id: 'sendNotifications',
+      title: 'Send Notification Email',
+      type: 'dropdown',
+      condition: { field: 'operation', value: 'share_calendar' },
+      mode: 'advanced',
+      options: [
+        { label: 'Yes', id: 'true' },
+        { label: 'No', id: 'false' },
+      ],
+      value: () => 'true',
+    },
+
+    {
+      id: 'ruleId',
+      title: 'ACL Rule ID',
+      type: 'short-input',
+      placeholder: 'user:person@example.com',
+      condition: { field: 'operation', value: 'unshare_calendar' },
       required: true,
     },
 
-    // Notification setting (for create, update, delete, move, quick_add, invite)
     {
       id: 'sendUpdates',
       title: 'Send Email Notifications',
@@ -502,6 +714,11 @@ Return ONLY the natural language event text - no explanations.`,
       'google_calendar_list_calendars',
       'google_calendar_quick_add',
       'google_calendar_invite',
+      'google_calendar_freebusy',
+      'google_calendar_create_calendar',
+      'google_calendar_share_calendar',
+      'google_calendar_list_acl',
+      'google_calendar_unshare_calendar',
     ],
     config: {
       tool: (params) => {
@@ -526,6 +743,16 @@ Return ONLY the natural language event text - no explanations.`,
             return 'google_calendar_quick_add'
           case 'invite':
             return 'google_calendar_invite'
+          case 'freebusy':
+            return 'google_calendar_freebusy'
+          case 'create_calendar':
+            return 'google_calendar_create_calendar'
+          case 'share_calendar':
+            return 'google_calendar_share_calendar'
+          case 'list_acl':
+            return 'google_calendar_list_acl'
+          case 'unshare_calendar':
+            return 'google_calendar_unshare_calendar'
           default:
             throw new Error(`Invalid Google Calendar operation: ${params.operation}`)
         }
@@ -541,10 +768,8 @@ Return ONLY the natural language event text - no explanations.`,
           ...rest
         } = params
 
-        // Use canonical 'calendarId' param directly
         const effectiveCalendarId = calendarId ? String(calendarId).trim() : ''
 
-        // Use canonical 'destinationCalendarId' param directly
         const effectiveDestinationCalendarId = destinationCalendarId
           ? String(destinationCalendarId).trim()
           : ''
@@ -554,30 +779,36 @@ Return ONLY the natural language event text - no explanations.`,
           calendarId: effectiveCalendarId || 'primary',
         }
 
-        // Add destination calendar ID for move operation
         if (operation === 'move' && effectiveDestinationCalendarId) {
           processedParams.destinationCalendarId = effectiveDestinationCalendarId
         }
 
-        // Convert comma-separated attendees string to array, only if it has content
         if (attendees && typeof attendees === 'string' && attendees.trim().length > 0) {
           const attendeeList = attendees
             .split(',')
             .map((email) => email.trim())
             .filter((email) => email.length > 0)
 
-          // Only add attendees if we have valid entries
           if (attendeeList.length > 0) {
             processedParams.attendees = attendeeList
           }
         }
 
-        // Convert replaceExisting string to boolean for invite operation
         if (operation === 'invite' && replaceExisting !== undefined) {
           processedParams.replaceExisting = replaceExisting === 'true'
         }
 
-        // Set default sendUpdates to 'all' if not specified for operations that support it
+        if (processedParams.addGoogleMeet !== undefined) {
+          processedParams.addGoogleMeet =
+            processedParams.addGoogleMeet === 'true' || processedParams.addGoogleMeet === true
+        }
+
+        if (operation === 'share_calendar' && processedParams.sendNotifications !== undefined) {
+          processedParams.sendNotifications =
+            processedParams.sendNotifications === 'true' ||
+            processedParams.sendNotifications === true
+        }
+
         if (
           ['create', 'update', 'delete', 'move', 'quick_add', 'invite'].includes(operation) &&
           !processedParams.sendUpdates
@@ -585,12 +816,10 @@ Return ONLY the natural language event text - no explanations.`,
           processedParams.sendUpdates = 'all'
         }
 
-        // Convert maxResults to number if provided
         if (processedParams.maxResults && typeof processedParams.maxResults === 'string') {
           processedParams.maxResults = Number.parseInt(processedParams.maxResults, 10)
         }
 
-        // Remove empty minAccessRole
         if (processedParams.minAccessRole === '') {
           processedParams.minAccessRole = undefined
         }
@@ -607,38 +836,44 @@ Return ONLY the natural language event text - no explanations.`,
     oauthCredential: { type: 'string', description: 'Google Calendar access token' },
     calendarId: { type: 'string', description: 'Calendar identifier (canonical param)' },
 
-    // Create/Update operation inputs
     summary: { type: 'string', description: 'Event title' },
     description: { type: 'string', description: 'Event description' },
     location: { type: 'string', description: 'Event location' },
     startDateTime: { type: 'string', description: 'Event start time' },
     endDateTime: { type: 'string', description: 'Event end time' },
     attendees: { type: 'string', description: 'Attendee email list' },
+    recurrence: { type: 'string', description: 'Recurrence rule (RRULE)' },
+    addGoogleMeet: { type: 'boolean', description: 'Attach a Google Meet link' },
+    timeZone: { type: 'string', description: 'Time zone (IANA name)' },
 
-    // List/Instances operation inputs
     timeMin: { type: 'string', description: 'Start time filter' },
     timeMax: { type: 'string', description: 'End time filter' },
+    q: { type: 'string', description: 'Free-text search query' },
+    orderBy: { type: 'string', description: 'Event ordering (startTime or updated)' },
     maxResults: { type: 'string', description: 'Maximum number of results' },
+    pageToken: { type: 'string', description: 'Pagination token from a previous response' },
 
-    // Get/Update/Delete/Move/Instances/Invite operation inputs
+    calendarIds: { type: 'string', description: 'Comma-separated calendar IDs' },
+
+    role: { type: 'string', description: 'Access role to grant' },
+    scopeType: { type: 'string', description: 'Grantee type (user, group, domain, default)' },
+    scopeValue: { type: 'string', description: 'Grantee email or domain' },
+    sendNotifications: { type: 'boolean', description: 'Send sharing notification email' },
+    ruleId: { type: 'string', description: 'ACL rule ID to remove' },
+
     eventId: { type: 'string', description: 'Event identifier' },
 
-    // Move operation inputs
     destinationCalendarId: {
       type: 'string',
       description: 'Destination calendar ID (canonical param)',
     },
 
-    // List Calendars operation inputs
     minAccessRole: { type: 'string', description: 'Minimum access role filter' },
 
-    // Quick add inputs
     text: { type: 'string', description: 'Natural language event' },
 
-    // Invite specific inputs
     replaceExisting: { type: 'string', description: 'Replace existing attendees' },
 
-    // Common inputs
     sendUpdates: { type: 'string', description: 'Send email notifications' },
   },
   outputs: {
@@ -670,6 +905,11 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
       'google_calendar_list_calendars_v2',
       'google_calendar_quick_add_v2',
       'google_calendar_invite_v2',
+      'google_calendar_freebusy_v2',
+      'google_calendar_create_calendar_v2',
+      'google_calendar_share_calendar_v2',
+      'google_calendar_list_acl_v2',
+      'google_calendar_unshare_calendar_v2',
     ],
     config: {
       ...GoogleCalendarBlock.tools?.config,
@@ -682,28 +922,30 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
     },
   },
   outputs: {
-    // Event outputs (create, get, update, move, quick_add, invite)
-    id: { type: 'string', description: 'Event ID' },
+    id: { type: 'string', description: 'Event or calendar ID' },
     htmlLink: { type: 'string', description: 'Event link' },
+    hangoutLink: { type: 'string', description: 'Google Meet link' },
     status: { type: 'string', description: 'Event status' },
-    summary: { type: 'string', description: 'Event title' },
-    description: { type: 'string', description: 'Event description' },
-    location: { type: 'string', description: 'Event location' },
+    summary: { type: 'string', description: 'Event or calendar title' },
+    description: { type: 'string', description: 'Event or calendar description' },
+    location: { type: 'string', description: 'Event or calendar location' },
+    recurrence: { type: 'json', description: 'Recurrence rules (RRULE)' },
     start: { type: 'json', description: 'Event start' },
     end: { type: 'json', description: 'Event end' },
     attendees: { type: 'json', description: 'Event attendees' },
     creator: { type: 'json', description: 'Event creator' },
     organizer: { type: 'json', description: 'Event organizer' },
-    // List events outputs
     events: { type: 'json', description: 'List of events (list operation)' },
-    // Delete outputs
     eventId: { type: 'string', description: 'Deleted event ID' },
-    deleted: { type: 'boolean', description: 'Whether deletion was successful' },
-    // Instances outputs
+    deleted: { type: 'boolean', description: 'Whether deletion/removal was successful' },
     instances: { type: 'json', description: 'List of recurring event instances' },
-    // List calendars outputs
     calendars: { type: 'json', description: 'List of calendars' },
-    // Common outputs
+    timeMin: { type: 'string', description: 'Start of the queried free/busy range' },
+    timeMax: { type: 'string', description: 'End of the queried free/busy range' },
+    role: { type: 'string', description: 'Granted access role (share operation)' },
+    scope: { type: 'json', description: 'Grantee scope (share operation)' },
+    rules: { type: 'json', description: 'List of ACL sharing rules (list sharing operation)' },
+    ruleId: { type: 'string', description: 'Removed ACL rule ID (remove sharing operation)' },
     nextPageToken: { type: 'string', description: 'Next page token' },
     timeZone: { type: 'string', description: 'Calendar time zone' },
   },
@@ -711,6 +953,7 @@ export const GoogleCalendarV2Block: BlockConfig<GoogleCalendarResponse> = {
 
 export const GoogleCalendarBlockMeta = {
   tags: ['calendar', 'scheduling', 'google-workspace'],
+  url: 'https://workspace.google.com/products/calendar',
   templates: [
     {
       icon: GoogleCalendarIcon,
@@ -814,4 +1057,5 @@ export const GoogleCalendarBlockMeta = {
 
 export const GoogleCalendarV2BlockMeta = {
   tags: ['calendar', 'scheduling', 'google-workspace'],
+  url: 'https://workspace.google.com/products/calendar',
 } as const satisfies BlockMeta

@@ -15,6 +15,8 @@ import { organizationKeys } from '@/hooks/queries/organization'
 export const ssoKeys = {
   all: ['sso'] as const,
   providers: () => [...ssoKeys.all, 'providers'] as const,
+  providerList: (organizationId?: string) =>
+    [...ssoKeys.providers(), organizationId ?? ''] as const,
 }
 
 /**
@@ -37,7 +39,7 @@ interface UseSSOProvidersOptions {
 
 export function useSSOProviders({ enabled = true, organizationId }: UseSSOProvidersOptions = {}) {
   return useQuery({
-    queryKey: [...ssoKeys.providers(), organizationId ?? ''],
+    queryKey: ssoKeys.providerList(organizationId),
     queryFn: ({ signal }) => fetchSSOProviders(signal, organizationId),
     staleTime: 5 * 60 * 1000,
     placeholderData: keepPreviousData,

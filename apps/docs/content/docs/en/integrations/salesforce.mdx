@@ -276,7 +276,7 @@ Delete a contact from Salesforce CRM
 
 ### `salesforce_get_leads`
 
-Get lead(s) from Salesforce
+Retrieve lead(s) from Salesforce CRM
 
 #### Input
 
@@ -571,6 +571,9 @@ Update an existing case
 | `subject` | string | No | Case subject |
 | `status` | string | No | Status \(e.g., New, Working, Escalated, Closed\) |
 | `priority` | string | No | Priority \(e.g., Low, Medium, High\) |
+| `origin` | string | No | Origin \(e.g., Phone, Email, Web\) |
+| `contactId` | string | No | Salesforce Contact ID \(18-character string starting with 003\) |
+| `accountId` | string | No | Salesforce Account ID \(18-character string starting with 001\) |
 | `description` | string | No | Case description |
 
 #### Output
@@ -678,6 +681,8 @@ Update an existing task
 | `status` | string | No | Status \(e.g., Not Started, In Progress, Completed\) |
 | `priority` | string | No | Priority \(e.g., Low, Normal, High\) |
 | `activityDate` | string | No | Due date in YYYY-MM-DD format |
+| `whoId` | string | No | Related Contact ID \(003...\) or Lead ID \(00Q...\) |
+| `whatId` | string | No | Related Account ID \(001...\) or Opportunity ID \(006...\) |
 | `description` | string | No | Task description |
 
 #### Output
@@ -720,8 +725,7 @@ Get a list of reports accessible by the current user
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `folderName` | string | No | Filter reports by folder name \(case-insensitive partial match\) |
-| `searchTerm` | string | No | Search term to filter reports by name or description |
+| `searchTerm` | string | No | Filter reports by name \(case-insensitive partial match\) |
 
 #### Output
 
@@ -735,7 +739,7 @@ Get a list of reports accessible by the current user
 
 ### `salesforce_get_report`
 
-Get metadata and describe information for a specific report
+Get the describe (definition and metadata) for a specific report
 
 #### Input
 
@@ -818,7 +822,6 @@ Get a list of dashboards accessible by the current user
 | --------- | ---- | -------- | ----------- |
 | `idToken` | string | No | No description |
 | `instanceUrl` | string | No | No description |
-| `folderName` | string | No | Filter dashboards by folder name \(case-insensitive partial match\) |
 
 #### Output
 
@@ -852,7 +855,7 @@ Get details and results for a specific dashboard
 |   ↳ `dashboardId` | string | Dashboard ID |
 |   ↳ `components` | array | Array of dashboard component data with visualizations and filters |
 |   ↳ `dashboardName` | string | Display name of the dashboard |
-|   ↳ `folderId` | string | ID of the folder containing the dashboard |
+|   ↳ `dashboardMetadata` | object | Structured dashboard metadata \(attributes, component definitions, layout\) |
 |   ↳ `runningUser` | object | User context under which the dashboard data was retrieved |
 |   ↳ `success` | boolean | Salesforce operation success |
 
@@ -877,9 +880,10 @@ Refresh a dashboard to get the latest data
 |   ↳ `dashboard` | object | Full dashboard details object |
 |   ↳ `dashboardId` | string | Dashboard ID |
 |   ↳ `components` | array | Array of dashboard component data with fresh visualizations |
-|   ↳ `status` | object | Dashboard refresh status information |
+|   ↳ `status` | object | Dashboard refresh status \(dashboardStatus\), when returned by the refresh |
+|   ↳ `statusUrl` | string | URL of the status resource to poll for refresh completion |
 |   ↳ `dashboardName` | string | Display name of the dashboard |
-|   ↳ `refreshDate` | string | ISO 8601 timestamp when the dashboard was last refreshed |
+|   ↳ `dashboardMetadata` | object | Structured dashboard metadata \(attributes, component definitions, layout\) |
 |   ↳ `success` | boolean | Salesforce operation success |
 
 ### `salesforce_query`

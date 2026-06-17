@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { client, useSession } from '@/lib/auth/auth-client'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
@@ -100,7 +101,7 @@ export function useVerification({
     setErrorMessage('')
 
     try {
-      const normalizedEmail = email.trim().toLowerCase()
+      const normalizedEmail = normalizeEmail(email)
       const response = await client.emailOtp.verifyEmail({
         email: normalizedEmail,
         otp,
@@ -173,7 +174,7 @@ export function useVerification({
     setIsLoading(true)
     setErrorMessage('')
 
-    const normalizedEmail = email.trim().toLowerCase()
+    const normalizedEmail = normalizeEmail(email)
     client.emailOtp
       .sendVerificationOtp({
         email: normalizedEmail,

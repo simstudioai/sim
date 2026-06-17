@@ -499,6 +499,7 @@ export const SESBlock: BlockConfig<ToolResponse> = {
 
 export const SESBlockMeta = {
   tags: ['cloud', 'email-marketing', 'messaging'],
+  url: 'https://aws.amazon.com/ses',
   templates: [
     {
       icon: SESIcon,

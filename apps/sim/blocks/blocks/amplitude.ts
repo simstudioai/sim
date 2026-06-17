@@ -748,6 +748,7 @@ export const AmplitudeBlock: BlockConfig = {
 
 export const AmplitudeBlockMeta = {
   tags: ['data-analytics', 'marketing'],
+  url: 'https://amplitude.com',
   templates: [
     {
       icon: AmplitudeIcon,

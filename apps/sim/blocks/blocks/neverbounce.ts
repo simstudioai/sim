@@ -103,4 +103,5 @@ export const NeverBounceBlock: BlockConfig<NeverBounceResponse> = {
 
 export const NeverBounceBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.neverbounce.com',
 } as const satisfies BlockMeta

@@ -81,6 +81,11 @@ const tagInputVariants = cva(
 export interface TagItem {
   value: string
   isValid: boolean
+  /**
+   * Why the item is invalid. Shown in a tooltip on the invalid chip (and as
+   * screen-reader-only text inside it). Ignored when `isValid` is true.
+   */
+  error?: string
 }
 
 /**
@@ -162,7 +167,9 @@ const TagInputTag = React.memo(function TagInputTag({
     onRemove(item.value, index, item.isValid)
   }, [item.value, item.isValid, index, onRemove])
 
-  return (
+  const showError = !item.isValid && !!item.error
+
+  const tag = (
     <ChipTag
       variant='invite'
       invalid={!item.isValid}
@@ -174,8 +181,18 @@ const TagInputTag = React.memo(function TagInputTag({
       <span className='min-w-0 flex-1 translate-y-[0.5px] truncate font-medium font-sans text-sm leading-5'>
         {item.value}
       </span>
+      {showError && <span className='sr-only'>{item.error}</span>}
       {suffix}
     </ChipTag>
+  )
+
+  if (!showError) return tag
+
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{tag}</Tooltip.Trigger>
+      <Tooltip.Content>{item.error}</Tooltip.Content>
+    </Tooltip.Root>
   )
 })
 
@@ -317,26 +334,22 @@ const TagInput = React.forwardRef<HTMLInputElement, TagInputProps>(
       [inputValue, triggerKeys, onAdd, items, onRemove]
     )
 
+    /**
+     * Pasted values are committed through `onAdd` exactly like typing + Enter:
+     * consumers render rejected values as flagged invalid chips, so nothing is
+     * re-staged into the input afterwards — doing so would display the same
+     * value twice (the invalid chip plus the raw text in the typing buffer).
+     */
     const handlePaste = React.useCallback(
       (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault()
         const pastedText = e.clipboardData.getData('text')
         const pastedValues = pastedText.split(/[\s,;]+/).filter(Boolean)
-
-        let addedCount = 0
         pastedValues.forEach((value) => {
-          if (onAdd(value.trim())) {
-            addedCount++
-          }
+          onAdd(value.trim())
         })
-
-        if (addedCount === 0 && pastedValues.length === 1) {
-          const newValue = inputValue + pastedValues[0]
-          setInputValue(newValue)
-          onInputChange?.(newValue)
-        }
       },
-      [onAdd, inputValue, onInputChange]
+      [onAdd]
     )
 
     const handleBlur = React.useCallback(() => {

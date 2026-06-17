@@ -339,16 +339,13 @@ export function ApiKeys() {
         }}
         srTitle='Delete API key'
         title='Delete API key'
-        description={
-          <>
-            Deleting{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deleteKey?.name}</span>{' '}
-            <span className='text-[var(--text-error)]'>
-              will immediately revoke access for any integrations using it.
-            </span>{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Deleting ',
+          { text: deleteKey?.name ?? 'this key', bold: true },
+          ' ',
+          { text: 'will immediately revoke access for any integrations using it.', error: true },
+          ' This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleDeleteKey,

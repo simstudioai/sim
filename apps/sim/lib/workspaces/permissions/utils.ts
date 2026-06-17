@@ -371,17 +371,50 @@ export async function hasWorkspaceAdminAccess(
   return await isOrganizationAdminOrOwnerOfWorkspace(userId, ws)
 }
 
+/**
+ * Check whether a user is an owner or admin of a specific organization.
+ *
+ * @param userId - The ID of the user to check
+ * @param organizationId - The ID of the organization to check
+ * @returns Promise<boolean> - True when the user is the organization owner or an admin
+ */
+export async function isOrganizationAdminOrOwner(
+  userId: string,
+  organizationId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+    .limit(1)
+  return row?.role === 'owner' || row?.role === 'admin'
+}
+
+/**
+ * Check whether a user is a member (any role) of a specific organization.
+ *
+ * @param userId - The ID of the user to check
+ * @param organizationId - The ID of the organization to check
+ * @returns Promise<boolean> - True when the user has an organization membership row
+ */
+export async function isOrganizationMember(
+  userId: string,
+  organizationId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+    .limit(1)
+  return !!row
+}
+
 async function isOrganizationAdminOrOwnerOfWorkspace(
   userId: string,
   ws: Pick<WorkspaceWithOwner, 'organizationId'>
 ): Promise<boolean> {
   if (!ws.organizationId) return false
-  const [row] = await db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, ws.organizationId)))
-    .limit(1)
-  return row?.role === 'owner' || row?.role === 'admin'
+  return isOrganizationAdminOrOwner(userId, ws.organizationId)
 }
 
 /**

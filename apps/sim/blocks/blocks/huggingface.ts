@@ -123,6 +123,7 @@ export const HuggingFaceBlock: BlockConfig<HuggingFaceChatResponse> = {
 
 export const HuggingFaceBlockMeta = {
   tags: ['llm', 'agentic'],
+  url: 'https://huggingface.co',
   templates: [
     {
       icon: HuggingFaceIcon,

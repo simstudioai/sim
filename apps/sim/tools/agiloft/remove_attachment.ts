@@ -2,8 +2,6 @@ import type {
   AgiloftRemoveAttachmentParams,
   AgiloftRemoveAttachmentResponse,
 } from '@/tools/agiloft/types'
-import { buildRemoveAttachmentUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 import type { ToolConfig } from '@/tools/types'
 
 export const agiloftRemoveAttachmentTool: ToolConfig<
@@ -67,53 +65,28 @@ export const agiloftRemoveAttachmentTool: ToolConfig<
   },
 
   request: {
-    url: 'https://placeholder.agiloft.com',
-    method: 'DELETE',
-    headers: () => ({}),
+    url: () => '/api/tools/agiloft/remove_attachment',
+    method: 'POST',
+    headers: () => ({ 'Content-Type': 'application/json' }),
+    body: (params) => ({
+      instanceUrl: params.instanceUrl,
+      knowledgeBase: params.knowledgeBase,
+      login: params.login,
+      password: params.password,
+      table: params.table,
+      recordId: params.recordId,
+      fieldName: params.fieldName,
+      position: params.position,
+    }),
   },
 
-  directExecution: async (params) => {
-    return executeAgiloftRequest<AgiloftRemoveAttachmentResponse>(
-      params,
-      (base) => ({
-        url: buildRemoveAttachmentUrl(base, params),
-        method: 'DELETE',
-      }),
-      async (response) => {
-        const text = await response.text()
-
-        if (!response.ok) {
-          return {
-            success: false,
-            output: {
-              recordId: params.recordId?.trim() ?? '',
-              fieldName: params.fieldName?.trim() ?? '',
-              remainingAttachments: 0,
-            },
-            error: `Agiloft error: ${response.status} - ${text}`,
-          }
-        }
-
-        let remainingAttachments = 0
-        try {
-          const data = JSON.parse(text)
-          const result = data.result ?? data
-          remainingAttachments =
-            typeof result === 'number' ? result : (result.count ?? result.remaining ?? 0)
-        } catch {
-          remainingAttachments = Number(text) || 0
-        }
-
-        return {
-          success: true,
-          output: {
-            recordId: params.recordId?.trim() ?? '',
-            fieldName: params.fieldName?.trim() ?? '',
-            remainingAttachments,
-          },
-        }
-      }
-    )
+  transformResponse: async (response: Response) => {
+    const data = await response.json()
+    return {
+      success: data.success ?? true,
+      output: data.output,
+      ...(data.error ? { error: data.error } : {}),
+    }
   },
 
   outputs: {

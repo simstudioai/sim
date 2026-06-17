@@ -615,7 +615,7 @@ async function pruneWorkflowGroupOutputsIfStillActive(params: {
 
     if (!versionRow) return
 
-    const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/service')
+    const { pruneStaleWorkflowGroupOutputs } = await import('@/lib/table/workflow-groups/service')
     await pruneStaleWorkflowGroupOutputs({
       workflowId: params.workflowId,
       workspaceId: params.workspaceId,

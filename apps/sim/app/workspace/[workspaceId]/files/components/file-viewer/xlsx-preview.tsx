@@ -4,8 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
-import { Button } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
+import { Chip } from '@/components/emcn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
@@ -115,23 +114,17 @@ export const XlsxPreview = memo(function XlsxPreview({
 
   return (
     <div className='flex flex-1 flex-col overflow-hidden'>
-      <div className='flex shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)]'>
-        <div className='flex gap-0'>
+      <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1'>
+        <div className='flex items-center overflow-x-auto'>
           {sheetNames.map((name, i) => (
-            <Button
+            <Chip
               key={name}
-              variant='ghost'
-              size='sm'
+              active={i === activeSheet}
               onClick={() => setActiveSheet(i)}
-              className={cn(
-                'rounded-none px-3 py-1.5 text-[12px]',
-                i === activeSheet
-                  ? 'border-[var(--brand-secondary)] border-b-2 font-medium text-[var(--text-primary)]'
-                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-              )}
+              className='shrink-0'
             >
               {name}
-            </Button>
+            </Chip>
           ))}
         </div>
       </div>

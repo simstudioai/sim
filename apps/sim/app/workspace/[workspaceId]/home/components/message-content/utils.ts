@@ -51,6 +51,7 @@ const TOOL_ICONS: Record<string, IconComponent> = {
   knowledge: Database,
   knowledge_base: Database,
   table: TableIcon,
+  scheduled_task: Calendar,
   job: Calendar,
   agent: AgentIcon,
   custom_tool: Wrench,

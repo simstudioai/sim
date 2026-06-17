@@ -25,6 +25,15 @@ export type ServiceAccountProviderId =
   | typeof GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID
 
+/** Sim setup guides for each provider, docked bottom-left of each modal. */
+const GOOGLE_SERVICE_ACCOUNT_DOCS_URL = 'https://docs.sim.ai/integrations/google-service-account'
+const ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL =
+  'https://docs.sim.ai/integrations/atlassian-service-account'
+
+function openDocs(url: string): void {
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
 /**
  * Atlassian site domain hint — surfaced inline when the user types something
  * that doesn't look like `<tenant>.atlassian.net`.
@@ -278,6 +287,12 @@ function GoogleServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryActions={[
+          {
+            label: 'Setup guide',
+            onClick: () => openDocs(GOOGLE_SERVICE_ACCOUNT_DOCS_URL),
+          },
+        ]}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,
@@ -414,6 +429,12 @@ function AtlassianServiceAccountModal({
       </ChipModalBody>
       <ChipModalFooter
         onCancel={() => onOpenChange(false)}
+        secondaryActions={[
+          {
+            label: 'Setup guide',
+            onClick: () => openDocs(ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL),
+          },
+        ]}
         primaryAction={{
           label: isPending ? 'Adding...' : 'Add service account',
           onClick: handleSubmit,

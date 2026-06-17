@@ -7,7 +7,7 @@ import { ChevronDown, ChipConfirmModal, chipVariants } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { cn } from '@/lib/core/utils/cn'
 import { getUserRole } from '@/lib/workspaces/organization'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
@@ -363,7 +363,7 @@ export function SettingsSidebar({
         onOpenChange={(open) => !open && handleCancelDiscard()}
         srTitle='Unsaved changes'
         title='Unsaved changes'
-        description='You have unsaved changes. Are you sure you want to discard them?'
+        text='You have unsaved changes. Are you sure you want to discard them?'
         dismissLabel='Keep editing'
         confirm={{
           label: 'Discard changes',

@@ -483,6 +483,7 @@ export const MondayBlock: BlockConfig<MondayResponse> = {
 
 export const MondayBlockMeta = {
   tags: ['project-management', 'ticketing'],
+  url: 'https://monday.com',
   templates: [
     {
       icon: MondayIcon,

@@ -1604,6 +1604,7 @@ export const ConfluenceV2Block: BlockConfig<ConfluenceResponse> = {
 
 export const ConfluenceBlockMeta = {
   tags: ['knowledge-base', 'content-management', 'note-taking'],
+  url: 'https://www.atlassian.com/software/confluence',
   templates: [
     {
       icon: PagerDutyIcon,

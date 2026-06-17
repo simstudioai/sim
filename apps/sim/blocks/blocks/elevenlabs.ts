@@ -106,6 +106,7 @@ export const ElevenLabsBlock: BlockConfig<ElevenLabsBlockResponse> = {
 
 export const ElevenLabsBlockMeta = {
   tags: ['text-to-speech'],
+  url: 'https://elevenlabs.io',
   templates: [
     {
       icon: ElevenLabsIcon,

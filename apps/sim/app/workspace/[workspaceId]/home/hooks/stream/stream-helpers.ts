@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isRecordLike } from '@sim/utils/object'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import type { MothershipStreamV1ToolUI } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
@@ -17,10 +18,10 @@ import {
   ManageCredentialOperation,
   ManageCustomTool,
   ManageCustomToolOperation,
-  ManageJob,
-  ManageJobOperation,
   ManageMcpTool,
   ManageMcpToolOperation,
+  ManageScheduledTask,
+  ManageScheduledTaskOperation,
   ManageSkill,
   ManageSkillOperation,
   MoveFolder,
@@ -81,12 +82,8 @@ export type ToolResultPhasePayload = {
   success?: boolean
 }
 
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 export function asPayloadRecord(value: unknown): StreamPayload | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 export function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
@@ -348,17 +345,17 @@ export function resolveToolDisplayTitle(
     )
   }
 
-  if (name === ManageJob.id) {
+  if (name === ManageScheduledTask.id) {
     return resolveOperationDisplayTitle(
       args.operation,
       {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
+        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
+        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
+        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
+        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
+        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
       },
-      'Job action'
+      'Scheduled task action'
     )
   }
 
@@ -499,17 +496,17 @@ export function resolveStreamingToolDisplayTitle(
     )
   }
 
-  if (name === ManageJob.id) {
+  if (name === ManageScheduledTask.id) {
     return resolveOperationDisplayTitle(
       matchStreamingStringArg(streamingArgs, 'operation'),
       {
-        [ManageJobOperation.create]: 'Creating job',
-        [ManageJobOperation.get]: 'Getting job',
-        [ManageJobOperation.update]: 'Updating job',
-        [ManageJobOperation.delete]: 'Deleting job',
-        [ManageJobOperation.list]: 'Listing jobs',
+        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
+        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
+        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
+        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
+        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
       },
-      'Job action'
+      'Scheduled task action'
     )
   }
 

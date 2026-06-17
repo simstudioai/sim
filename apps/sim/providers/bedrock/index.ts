@@ -24,7 +24,9 @@ import {
   generateToolUseId,
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createStreamingExecution } from '@/providers/streaming-execution'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
@@ -137,7 +139,16 @@ export const bedrockProvider: ProviderConfig = {
       }
     }
 
-    const client = new BedrockRuntimeClient(clientConfig)
+    // Key on the full credential (access key id + secret) so a corrected secret
+    // under the same access key id yields a fresh client rather than a stale one.
+    const credentialKey =
+      request.bedrockAccessKeyId && request.bedrockSecretKey
+        ? `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`
+        : 'default-chain'
+    const client = getCachedProviderClient(
+      `bedrock::${region}::${credentialKey}`,
+      () => new BedrockRuntimeClient(clientConfig)
+    )
 
     const messages: BedrockMessage[] = []
     const systemContent: SystemContentBlock[] = []
@@ -360,76 +371,36 @@ export const bedrockProvider: ProviderConfig = {
         throw new Error('No stream returned from Bedrock')
       }
 
-      const streamingResult = {
-        stream: createReadableStreamFromBedrockStream(streamResponse.stream, (content, usage) => {
-          streamingResult.execution.output.content = content
-          streamingResult.execution.output.tokens = {
-            input: usage.inputTokens,
-            output: usage.outputTokens,
-            total: usage.inputTokens + usage.outputTokens,
-          }
-
-          const costResult = calculateCost(request.model, usage.inputTokens, usage.outputTokens)
-          streamingResult.execution.output.cost = {
-            input: costResult.input,
-            output: costResult.output,
-            total: costResult.total,
-          }
-
-          const streamEndTime = Date.now()
-          const streamEndTimeISO = new Date(streamEndTime).toISOString()
-
-          if (streamingResult.execution.output.providerTiming) {
-            streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-            streamingResult.execution.output.providerTiming.duration =
-              streamEndTime - providerStartTime
-
-            if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
-              streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
-                streamEndTime
-              streamingResult.execution.output.providerTiming.timeSegments[0].duration =
-                streamEndTime - providerStartTime
+      const bedrockStream = streamResponse.stream
+      const streamingResult = createStreamingExecution({
+        model: request.model,
+        providerStartTime,
+        providerStartTimeISO,
+        timing: { kind: 'simple', segmentName: request.model },
+        initialTokens: { input: 0, output: 0, total: 0 },
+        initialCost: { total: 0.0, input: 0.0, output: 0.0 },
+        isStreaming: true,
+        createStream: ({ output, finalizeTiming }) =>
+          createReadableStreamFromBedrockStream(bedrockStream, (content, usage) => {
+            output.content = content
+            output.tokens = {
+              input: usage.inputTokens,
+              output: usage.outputTokens,
+              total: usage.inputTokens + usage.outputTokens,
             }
-          }
-        }),
-        execution: {
-          success: true,
-          output: {
-            content: '',
-            model: request.model,
-            tokens: { input: 0, output: 0, total: 0 },
-            toolCalls: undefined,
-            providerTiming: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-              timeSegments: [
-                {
-                  type: 'model',
-                  name: request.model,
-                  startTime: providerStartTime,
-                  endTime: Date.now(),
-                  duration: Date.now() - providerStartTime,
-                },
-              ],
-            },
-            cost: {
-              total: 0.0,
-              input: 0.0,
-              output: 0.0,
-            },
-          },
-          logs: [],
-          metadata: {
-            startTime: providerStartTimeISO,
-            endTime: new Date().toISOString(),
-            duration: Date.now() - providerStartTime,
-          },
-          isStreaming: true,
-        },
-      }
 
-      return streamingResult as StreamingExecution
+            const costResult = calculateCost(request.model, usage.inputTokens, usage.outputTokens)
+            output.cost = {
+              input: costResult.input,
+              output: costResult.output,
+              total: costResult.total,
+            }
+
+            finalizeTiming()
+          }),
+      })
+
+      return streamingResult
     }
 
     const providerStartTime = Date.now()
@@ -884,12 +855,33 @@ export const bedrockProvider: ProviderConfig = {
           throw new Error('No stream returned from Bedrock')
         }
 
-        const streamingResult = {
-          stream: createReadableStreamFromBedrockStream(
-            streamResponse.stream,
-            (streamContent, usage) => {
-              streamingResult.execution.output.content = streamContent
-              streamingResult.execution.output.tokens = {
+        const bedrockStream = streamResponse.stream
+        const streamingResult = createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime,
+            toolsTime,
+            firstResponseTime,
+            iterations: iterationCount + 1,
+            timeSegments,
+          },
+          initialTokens: { input: tokens.input, output: tokens.output, total: tokens.total },
+          initialCost: {
+            input: cost.input,
+            output: cost.output,
+            toolCost: undefined as number | undefined,
+            total: cost.total,
+          },
+          toolCalls:
+            toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
+          isStreaming: true,
+          createStream: ({ output, finalizeTiming }) =>
+            createReadableStreamFromBedrockStream(bedrockStream, (streamContent, usage) => {
+              output.content = streamContent
+              output.tokens = {
                 input: tokens.input + usage.inputTokens,
                 output: tokens.output + usage.outputTokens,
                 total: tokens.total + usage.inputTokens + usage.outputTokens,
@@ -897,68 +889,18 @@ export const bedrockProvider: ProviderConfig = {
 
               const streamCost = calculateCost(request.model, usage.inputTokens, usage.outputTokens)
               const tc = sumToolCosts(toolResults)
-              streamingResult.execution.output.cost = {
+              output.cost = {
                 input: cost.input + streamCost.input,
                 output: cost.output + streamCost.output,
                 toolCost: tc || undefined,
                 total: cost.total + streamCost.total + tc,
               }
 
-              const streamEndTime = Date.now()
-              const streamEndTimeISO = new Date(streamEndTime).toISOString()
+              finalizeTiming()
+            }),
+        })
 
-              if (streamingResult.execution.output.providerTiming) {
-                streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-                streamingResult.execution.output.providerTiming.duration =
-                  streamEndTime - providerStartTime
-              }
-            }
-          ),
-          execution: {
-            success: true,
-            output: {
-              content: '',
-              model: request.model,
-              tokens: {
-                input: tokens.input,
-                output: tokens.output,
-                total: tokens.total,
-              },
-              toolCalls:
-                toolCalls.length > 0
-                  ? {
-                      list: toolCalls,
-                      count: toolCalls.length,
-                    }
-                  : undefined,
-              providerTiming: {
-                startTime: providerStartTimeISO,
-                endTime: new Date().toISOString(),
-                duration: Date.now() - providerStartTime,
-                modelTime,
-                toolsTime,
-                firstResponseTime,
-                iterations: iterationCount + 1,
-                timeSegments,
-              },
-              cost: {
-                input: cost.input,
-                output: cost.output,
-                toolCost: undefined as number | undefined,
-                total: cost.total,
-              },
-            },
-            logs: [],
-            metadata: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-            },
-            isStreaming: true,
-          },
-        }
-
-        return streamingResult as StreamingExecution
+        return streamingResult
       }
 
       return {

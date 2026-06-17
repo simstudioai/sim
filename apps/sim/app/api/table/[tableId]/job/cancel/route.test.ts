@@ -15,7 +15,7 @@ const { mockCheckAccess, mockMarkJobCanceled, mockGetTableJob, mockAppendTableEv
   })
 )
 
-vi.mock('@/lib/table/service', () => ({
+vi.mock('@/lib/table/jobs/service', () => ({
   markJobCanceled: mockMarkJobCanceled,
   getTableJob: mockGetTableJob,
 }))

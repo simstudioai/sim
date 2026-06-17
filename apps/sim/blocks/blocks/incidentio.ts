@@ -5,7 +5,7 @@ import type { IncidentioResponse } from '@/tools/incidentio/types'
 
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
-  name: 'incidentio',
+  name: 'incident.io',
   description: 'Manage incidents with incident.io',
   authMode: AuthMode.ApiKey,
   longDescription:
@@ -1227,6 +1227,7 @@ Return ONLY the JSON array - no explanations or markdown formatting.`,
 
 export const IncidentioBlockMeta = {
   tags: ['incident-management', 'monitoring'],
+  url: 'https://incident.io',
   templates: [
     {
       icon: IncidentioIcon,

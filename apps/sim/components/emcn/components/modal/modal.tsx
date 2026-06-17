@@ -57,6 +57,48 @@ function hasOpenFloatingLayer() {
 }
 
 /**
+ * Clears a stale `pointer-events: none` lock Radix can leave on `<body>` when
+ * this dialog closes while a nested modal popper (an open `ChipDropdown` /
+ * `Select`) is still open: both layers' body locks tear down in the same tick
+ * and the release is lost, freezing the page so nothing is clickable.
+ *
+ * Rendered INSIDE `DialogPrimitive.Content` so it unmounts exactly when the
+ * dialog closes (Radix `Presence`), unlike `ModalContent` which consumers keep
+ * mounted across open/close. The check is deferred a frame so it runs after
+ * Radix's own teardown, and only clears the lock when no other dialog remains
+ * open (nested modals keep theirs). Outside a dialog, EMCN poppers are
+ * non-modal and never lock the body, so a surviving lock is always stale.
+ */
+function ModalBodyLockReleaser() {
+  React.useEffect(() => {
+    return () => {
+      requestAnimationFrame(() => {
+        if (document.body.style.pointerEvents !== 'none') return
+        const anotherDialogOpen = document.querySelector(
+          '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+        )
+        if (!anotherDialogOpen) {
+          document.body.style.pointerEvents = ''
+        }
+      })
+    }
+  }, [])
+  return null
+}
+
+/**
+ * Whether the current subtree renders inside a `ModalContent`.
+ *
+ * Floating EMCN controls (e.g. `ChipDropdown`) read this to switch their
+ * Radix popper to modal behavior. A non-modal popper portaled to `body`
+ * underneath a modal dialog inherits the dialog's `pointer-events: none`
+ * body lock and its outside-scroll lock, leaving the popper unclickable and
+ * unscrollable; a modal popper pauses the dialog's focus trap and carries
+ * its own scroll allowance.
+ */
+const InsideModalContext = React.createContext(false)
+
+/**
  * Root modal component. Manages open state.
  */
 const Modal = DialogPrimitive.Root
@@ -241,10 +283,11 @@ const ModalContent = React.forwardRef<
             aria-describedby={ariaDescribedBy}
             {...props}
           >
+            <ModalBodyLockReleaser />
             {srTitle ? (
               <DialogPrimitive.Title className='sr-only'>{srTitle}</DialogPrimitive.Title>
             ) : null}
-            {children}
+            <InsideModalContext.Provider value={true}>{children}</InsideModalContext.Provider>
           </DialogPrimitive.Content>
         </div>
       </ModalPortal>
@@ -472,6 +515,7 @@ const ModalFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 ModalFooter.displayName = 'ModalFooter'
 
 export {
+  InsideModalContext,
   Modal,
   ModalTrigger,
   ModalContent,

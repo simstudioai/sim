@@ -277,6 +277,7 @@ export const ParallelBlock: BlockConfig<ToolResponse> = {
 
 export const ParallelBlockMeta = {
   tags: ['web-scraping', 'llm', 'agentic'],
+  url: 'https://parallel.ai',
   templates: [
     {
       icon: ParallelIcon,

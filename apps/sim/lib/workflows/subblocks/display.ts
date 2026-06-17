@@ -6,6 +6,7 @@
  * Every resolver takes plain data instead of hooks so both surfaces run the
  * exact same logic and cannot drift.
  */
+import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import type { FilterRule, SortRule } from '@/lib/table/types'
 import { DELETED_WORKFLOW_LABEL } from '@/app/workspace/[workspaceId]/logs/utils'
@@ -73,11 +74,6 @@ const isFieldFormatArray = (value: unknown): value is FieldFormat[] => {
     'name' in firstItem &&
     typeof firstItem.name === 'string'
   )
-}
-
-/** Checks if a value is a plain object (not array, not null). */
-const isPlainObject = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /** Type guard for variable assignments arrays (variables-input subblocks). */
@@ -269,7 +265,7 @@ export const getDisplayValue = (value: unknown): string => {
     return summarizeNames(names) ?? '-'
   }
 
-  if (isPlainObject(parsedValue)) {
+  if (isRecordLike(parsedValue)) {
     const entries = Object.entries(parsedValue).filter(
       ([, val]) => val !== null && val !== undefined && val !== ''
     )
@@ -339,7 +335,7 @@ export function resolveFilterFieldLabel(
   if (!isFilterField || !rawValue) return null
 
   const parsedValue = tryParseJson(rawValue)
-  if (!isPlainObject(parsedValue) && !Array.isArray(parsedValue)) return null
+  if (!isRecordLike(parsedValue) && !Array.isArray(parsedValue)) return null
 
   try {
     const jsonStr = JSON.stringify(parsedValue, null, 0)

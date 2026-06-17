@@ -554,6 +554,7 @@ export const ZoomInfoBlock: BlockConfig<ZoomInfoResponse> = {
 
 export const ZoomInfoBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.zoominfo.com',
   templates: [
     {
       icon: ZoomInfoIcon,

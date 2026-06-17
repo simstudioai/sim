@@ -15,8 +15,13 @@ export {
   chipFieldTextClass,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipPrimaryFillTokens,
 } from './chip/chip-chrome'
 export { ChipCombobox } from './chip-combobox/chip-combobox'
+export {
+  ChipCopyInput,
+  type ChipCopyInputProps,
+} from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
 export {
   ChipDropdown,
@@ -28,6 +33,8 @@ export {
   type ChipConfirmAction,
   ChipConfirmModal,
   type ChipConfirmModalProps,
+  type ChipConfirmText,
+  type ChipConfirmTextSegment,
   ChipModal,
   ChipModalBody,
   type ChipModalDropdownOption,
@@ -38,10 +45,15 @@ export {
   type ChipModalFieldProps,
   ChipModalFooter,
   type ChipModalFooterAction,
+  type ChipModalFooterCustomAction,
   type ChipModalFooterProps,
+  type ChipModalFooterSlotAction,
   ChipModalHeader,
   type ChipModalHeaderProps,
+  ChipModalPromptBody,
+  type ChipModalPromptBodyProps,
   type ChipModalProps,
+  ChipModalSeparator,
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
@@ -54,6 +66,7 @@ export {
 } from './chip-switch/chip-switch'
 export { ChipTag, type ChipTagProps, chipTagVariants } from './chip-tag/chip-tag'
 export { ChipTextarea, type ChipTextareaProps } from './chip-textarea/chip-textarea'
+export { ChipTimePicker, type ChipTimePickerProps } from './chip-time-picker/chip-time-picker'
 export {
   CODE_LINE_HEIGHT_PX,
   Code,
@@ -90,7 +103,7 @@ export {
   DropdownMenuTrigger,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { FieldDivider } from './field-divider/field-divider'
+export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
   InfoCard,

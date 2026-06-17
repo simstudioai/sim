@@ -265,38 +265,20 @@ Save a Reddit post or comment to your saved items
 
 ### `reddit_unsave`
 
+Remove a Reddit post or comment from your saved items
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to unsave \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the unsave was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_reply`
 
@@ -814,146 +796,76 @@ Hide one or more Reddit posts from your listings
 
 ### `reddit_unhide`
 
+Unhide one or more previously hidden Reddit posts
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Comma-separated list of post fullnames to unhide \(e.g., "t3_abc123,t3_def456"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the unhide was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_marknsfw`
 
+Mark a Reddit post as NSFW (not safe for work)
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Post fullname to mark as NSFW \(e.g., "t3_abc123"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the operation was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_unmarknsfw`
 
+Remove the NSFW (not safe for work) mark from a Reddit post
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Post fullname to unmark as NSFW \(e.g., "t3_abc123"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the operation was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_mark_read`
 
+Mark one or more private messages as read
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Comma-separated list of message fullnames to mark read \(e.g., "t4_abc123,t4_def456"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the operation was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_mark_all_read`
 
+Mark all private messages in the inbox as read
+
 #### Input
 
 | Parameter | Type | Required | Description |
@@ -963,29 +875,8 @@ Hide one or more Reddit posts from your listings
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the operation was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_mod_approve`
 
@@ -1043,73 +934,37 @@ Distinguish or un-distinguish a Reddit post or comment as a moderator
 
 ### `reddit_lock`
 
+Lock a Reddit post or comment to prevent further replies (moderator action)
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to lock \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the lock was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_unlock`
 
+Unlock a Reddit post or comment to allow replies again (moderator action)
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `id` | string | Yes | Thing fullname to unlock \(e.g., "t3_abc123" for post, "t1_def456" for comment\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `subreddit` | string | Subreddit name |
-| `posts` | json | \[\{id, name, title, author, url, permalink, score, num_comments, created_utc, is_self, selftext, thumbnail, subreddit\}\] |
-| `post` | json | Single post \(id, name, title, author, selftext, score, created_utc, permalink\) |
-| `comments` | json | \[\{id, name, author, body, score, created_utc, permalink, replies\}\] with nested replies |
-| `success` | boolean | Operation success status |
-| `message` | string | Result message |
-| `data` | json | Write-operation result \(id, name, url, permalink, body — varies by operation\) |
-| `after` | string | Pagination cursor \(next page\) |
-| `before` | string | Pagination cursor \(previous page\) |
-| `id` | string | Entity ID |
-| `name` | string | Entity fullname |
-| `messages` | json | \[\{id, name, author, dest, subject, body, created_utc, new, was_comment, context, distinguished\}\] |
-| `display_name` | string | Subreddit display name |
-| `subscribers` | number | Subscriber count |
-| `description` | string | Description text |
-| `link_karma` | number | Link karma |
-| `comment_karma` | number | Comment karma |
-| `total_karma` | number | Total karma |
-| `icon_img` | string | Icon image URL |
-| `subreddit_type` | string | Subreddit type \(public, private, restricted\) |
-| `subreddits` | json | \[\{id, name, display_name, title, public_description, subscribers, accounts_active, created_utc, over18, url, subreddit_type, icon_img\}\] |
-| `rules` | json | \[\{short_name, description, description_html, violation_reason, kind, created_utc, priority\}\] |
-| `site_rules` | json | Reddit site-wide rules \(string\[\]\) |
+| `success` | boolean | Whether the unlock was successful |
+| `message` | string | Success or error message |
 
 ### `reddit_mod_sticky`
 

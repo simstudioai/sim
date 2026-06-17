@@ -168,6 +168,9 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'delete:issue-link:jira': 'Delete links between Jira issues',
 
   // Jira Service Management scopes
+  'read:servicedesk-request': 'View service desk requests',
+  'write:servicedesk-request': 'Create and update service desk requests',
+  'manage:servicedesk-customer': 'Manage service desk customers and organizations',
   'read:servicedesk:jira-service-management': 'View service desks and their settings',
   'read:requesttype:jira-service-management': 'View request types available in service desks',
   'read:request:jira-service-management': 'View customer requests in service desks',
@@ -201,6 +204,12 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
     'Add and remove participants from customer requests',
   'read:request.approval:jira-service-management': 'View approvals on customer requests',
   'write:request.approval:jira-service-management': 'Approve or decline customer requests',
+  'read:cmdb-object:jira': 'View Assets objects and run AQL searches',
+  'write:cmdb-object:jira': 'Create and update Assets objects',
+  'delete:cmdb-object:jira': 'Delete Assets objects',
+  'read:cmdb-schema:jira': 'View Assets object schemas',
+  'read:cmdb-type:jira': 'View Assets object types',
+  'read:cmdb-attribute:jira': 'View Assets object type attributes',
 
   // Microsoft scopes
   'User.Read': 'Read Microsoft user',
@@ -311,6 +320,7 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'crm.objects.appointments.write': 'Create and update HubSpot appointments',
   'crm.objects.carts.read': 'Read HubSpot shopping carts',
   'crm.objects.carts.write': 'Create and update HubSpot shopping carts',
+  'sales-email-read': 'Read the content of HubSpot email engagements',
   'crm.import': 'Import data into HubSpot',
   'crm.lists.read': 'Read HubSpot lists',
   'crm.lists.write': 'Create and update HubSpot lists',
@@ -485,6 +495,18 @@ export function getProviderIdFromServiceId(serviceId: string): string {
 
   // Default fallback
   return serviceId
+}
+
+/**
+ * Looks up the OAuth service registered under the given service id (the key in
+ * a provider's `services` map). Returns `null` when no provider registers it.
+ */
+export function getServiceConfigByServiceId(serviceId: string): OAuthServiceConfig | null {
+  for (const provider of Object.values(OAUTH_PROVIDERS)) {
+    const service = provider.services[serviceId]
+    if (service) return service
+  }
+  return null
 }
 
 export function getServiceConfigByProviderId(providerId: string): OAuthServiceConfig | null {

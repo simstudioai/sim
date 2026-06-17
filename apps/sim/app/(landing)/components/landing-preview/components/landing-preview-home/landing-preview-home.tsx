@@ -218,7 +218,7 @@ export const LandingPreviewHome = memo(function LandingPreviewHome({
                         <Blimp className='h-[16px] w-[16px]' style={{ color: C.TEXT_ICON }} />
                       </div>
                       <span className='text-sm' style={{ color: C.TEXT_BODY }}>
-                        Mothership
+                        Sim
                       </span>
                       <ChevronDown
                         className='h-[7px] w-[9px] transition-transform duration-150'

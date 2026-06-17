@@ -4,6 +4,7 @@ import { account, webhook } from '@sim/db/schema'
 import { createLogger, runWithRequestContext } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { task } from '@trigger.dev/sdk'
 import { eq } from 'drizzle-orm'
 import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
@@ -37,12 +38,8 @@ const logger = createLogger('TriggerWebhookExecution')
 
 type WebhookAttachmentInput = Omit<WebhookAttachment, 'data'> & { data: unknown }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function isSerializedBuffer(value: unknown): value is { type: 'Buffer'; data: number[] } {
-  return isRecord(value) && value.type === 'Buffer' && Array.isArray(value.data)
+  return isRecordLike(value) && value.type === 'Buffer' && Array.isArray(value.data)
 }
 
 function hasSupportedAttachmentData(value: unknown): boolean {
@@ -90,7 +87,7 @@ function toAttachmentBuffer(data: unknown, name: string): Buffer {
 }
 
 function isWebhookAttachmentInput(value: unknown): value is WebhookAttachmentInput {
-  if (!isRecord(value)) {
+  if (!isRecordLike(value)) {
     return false
   }
 

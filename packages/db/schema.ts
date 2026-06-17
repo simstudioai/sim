@@ -372,6 +372,9 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    workspaceStartedAtIdDescIdx: index(
+      'workflow_execution_logs_workspace_started_at_id_desc_idx'
+    ).on(table.workspaceId, sql`${table.startedAt} DESC NULLS LAST`, sql`${table.id} DESC`),
     workspaceCostTotalIdx: index('workflow_execution_logs_workspace_cost_total_idx').on(
       table.workspaceId,
       table.costTotal
@@ -564,7 +567,6 @@ export const workspaceBYOKKeys = pgTable(
       table.workspaceId,
       table.providerId
     ),
-    workspaceIdx: index('workspace_byok_workspace_idx').on(table.workspaceId),
   })
 )
 
@@ -601,6 +603,8 @@ export const settings = pgTable('settings', {
   // Canvas preferences
   snapToGridSize: integer('snap_to_grid_size').notNull().default(0), // 0 = off, 10-50 = grid size
   showActionBar: boolean('show_action_bar').notNull().default(true),
+
+  timezone: text('timezone'),
 
   // Copilot preferences - maps model_id to enabled/disabled boolean
   copilotEnabledModels: jsonb('copilot_enabled_models').notNull().default('{}'),
@@ -648,6 +652,12 @@ export const workflowSchedule = pgTable(
       onDelete: 'cascade',
     }),
     jobHistory: jsonb('job_history').$type<Array<{ timestamp: string; summary: string }>>(),
+    /** `@`-mentioned resources / `/`-invoked skills captured with the prompt, resolved into the agent run at fire time. */
+    contexts: jsonb('contexts').$type<Array<Record<string, unknown>>>(),
+    /** ISO timestamps of recurring occurrences the user deleted individually (EXDATE); the executor skips them. */
+    excludedDates: jsonb('excluded_dates').$type<string[]>(),
+    /** Recurrence end boundary: the schedule completes once its next run would fall after this instant. */
+    endsAt: timestamp('ends_at'),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -2920,9 +2930,9 @@ export const permissionGroup = pgTable(
   'permission_group',
   {
     id: text('id').primaryKey(),
-    workspaceId: text('workspace_id')
+    organizationId: text('organization_id')
       .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+      .references(() => organization.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
     config: jsonb('config').notNull().default('{}'),
@@ -2931,17 +2941,47 @@ export const permissionGroup = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
-    autoAddNewMembers: boolean('auto_add_new_members').notNull().default(false),
+    isDefault: boolean('is_default').notNull().default(false),
+    appliesToAllWorkspaces: boolean('applies_to_all_workspaces').notNull().default(true),
   },
   (table) => ({
     createdByIdx: index('permission_group_created_by_idx').on(table.createdBy),
-    workspaceNameUnique: uniqueIndex('permission_group_workspace_name_unique').on(
-      table.workspaceId,
+    organizationNameUnique: uniqueIndex('permission_group_organization_name_unique').on(
+      table.organizationId,
       table.name
     ),
-    autoAddNewMembersUnique: uniqueIndex('permission_group_workspace_auto_add_unique')
-      .on(table.workspaceId)
-      .where(sql`auto_add_new_members = true`),
+    defaultGroupUnique: uniqueIndex('permission_group_organization_default_unique')
+      .on(table.organizationId)
+      .where(sql`is_default = true`),
+  })
+)
+
+/**
+ * Workspaces a `permission_group` targets when `applies_to_all_workspaces` is
+ * false. Rows are absent for organization-wide groups. A group with zero rows
+ * while `applies_to_all_workspaces = false` governs no workspace.
+ */
+export const permissionGroupWorkspace = pgTable(
+  'permission_group_workspace',
+  {
+    id: text('id').primaryKey(),
+    permissionGroupId: text('permission_group_id')
+      .notNull()
+      .references(() => permissionGroup.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    workspaceIdIdx: index('permission_group_workspace_workspace_id_idx').on(table.workspaceId),
+    groupWorkspaceUnique: uniqueIndex('permission_group_workspace_group_workspace_unique').on(
+      table.permissionGroupId,
+      table.workspaceId
+    ),
   })
 )
 
@@ -2952,9 +2992,9 @@ export const permissionGroupMember = pgTable(
     permissionGroupId: text('permission_group_id')
       .notNull()
       .references(() => permissionGroup.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id')
+    organizationId: text('organization_id')
       .notNull()
-      .references(() => workspace.id, { onDelete: 'cascade' }),
+      .references(() => organization.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -2967,8 +3007,8 @@ export const permissionGroupMember = pgTable(
       table.permissionGroupId,
       table.userId
     ),
-    workspaceUserUnique: uniqueIndex('permission_group_member_workspace_user_unique').on(
-      table.workspaceId,
+    organizationUserIdx: index('permission_group_member_organization_user_idx').on(
+      table.organizationId,
       table.userId
     ),
   })
@@ -3102,6 +3142,14 @@ export const userTableDefinitions = pgTable(
     metadata: jsonb('metadata'),
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
+    /**
+     * @remarks
+     * Monotonic counter bumped by a statement-level trigger on `user_table_rows`
+     * (INSERT/UPDATE/DELETE). Keys the versioned table-snapshot cache so a stored
+     * CSV under `v{rows_version}` is reused until the table mutates. Never written
+     * from application code — the trigger is the only writer (bypass-proof).
+     */
+    rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()
@@ -3152,7 +3200,6 @@ export const userTableRows = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (table) => ({
-    tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
     /**
      * Tenant-scoped containment index (requires the `btree_gin` extension,
      * created in migration 0232). A plain GIN on `data` matches `@>` candidates

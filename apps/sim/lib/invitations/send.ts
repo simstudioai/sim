@@ -9,6 +9,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { normalizeEmail } from '@sim/utils/string'
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import {
   getEmailSubject,
@@ -17,7 +18,7 @@ import {
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { computeInvitationExpiry, normalizeEmail } from '@/lib/invitations/core'
+import { computeInvitationExpiry } from '@/lib/invitations/core'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 
@@ -185,27 +186,33 @@ export async function sendInvitationEmail(
   const inviteUrl = `${getBaseUrl()}/invite/${input.invitationId}?token=${input.token}`
 
   if (input.kind === 'workspace') {
-    const primaryGrant = input.grants[0]
-    if (!primaryGrant) {
+    if (input.grants.length === 0) {
       return { success: false, error: 'Workspace invitation is missing a workspace grant' }
     }
 
-    const [workspaceRow] = await db
-      .select({ name: workspace.name })
+    const grantWorkspaceIds = input.grants.map((grant) => grant.workspaceId)
+    const workspaceRows = await db
+      .select({ id: workspace.id, name: workspace.name })
       .from(workspace)
-      .where(eq(workspace.id, primaryGrant.workspaceId))
-      .limit(1)
+      .where(inArray(workspace.id, grantWorkspaceIds))
+    const workspaceNames = grantWorkspaceIds.map(
+      (id) => workspaceRows.find((row) => row.id === id)?.name || 'a workspace'
+    )
 
-    const workspaceName = workspaceRow?.name || 'a workspace'
     const emailHtml = await renderWorkspaceInvitationEmail(
       input.inviterName,
-      workspaceName,
+      workspaceNames,
       inviteUrl
     )
 
+    const subject =
+      workspaceNames.length === 1
+        ? `You've been invited to join "${workspaceNames[0]}" on Sim`
+        : `You've been invited to join ${workspaceNames.length} workspaces on Sim`
+
     const result = await sendEmail({
       to: input.email,
-      subject: `You've been invited to join "${workspaceName}" on Sim`,
+      subject,
       html: emailHtml,
       from: getFromEmailAddress(),
       emailType: 'transactional',

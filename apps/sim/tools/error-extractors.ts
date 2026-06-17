@@ -177,6 +177,17 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     extract: (errorInfo) => errorInfo?.data?.errors?.[0]?.details,
   },
   {
+    id: 'square-errors',
+    description: 'Square API error format with errors[].detail and errors[].code',
+    examples: ['Square API'],
+    extract: (errorInfo) => {
+      const err = errorInfo?.data?.errors?.[0]
+      if (!err) return undefined
+      if (err.detail) return err.code ? `${err.detail} (${err.code})` : err.detail
+      return err.code
+    },
+  },
+  {
     id: 'errors-array-string',
     description: 'Errors array containing strings or objects with messages',
     examples: ['Various APIs with error arrays'],
@@ -302,6 +313,7 @@ export const ErrorExtractorId = {
   BATCH_VALIDATION_ERRORS: 'batch-validation-errors',
   NESTJS_VALIDATION_ERRORS: 'nestjs-validation-errors',
   HUNTER_ERRORS: 'hunter-errors',
+  SQUARE_ERRORS: 'square-errors',
   ERRORS_ARRAY_STRING: 'errors-array-string',
   TELEGRAM_DESCRIPTION: 'telegram-description',
   STANDARD_MESSAGE: 'standard-message',

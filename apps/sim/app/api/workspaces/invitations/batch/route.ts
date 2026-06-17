@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
+import { normalizeEmail } from '@sim/utils/string'
 import { type NextRequest, NextResponse } from 'next/server'
 import { batchWorkspaceInvitationsContract } from '@/lib/api/contracts/invitations'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { normalizeEmail } from '@/lib/invitations/core'
 import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,

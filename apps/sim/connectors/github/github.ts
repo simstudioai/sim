@@ -1,16 +1,23 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { GithubIcon } from '@/components/icons'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { githubConnectorMeta } from '@/connectors/github/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  markSkipped,
+  parseTagDate,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+  takeIndexableWithinCap,
+} from '@/connectors/utils'
 
 const logger = createLogger('GitHubConnector')
 
 const GITHUB_API_URL = 'https://api.github.com'
 const BATCH_SIZE = 30
 const GIT_SHA_PREFIX = 'git-sha:'
-const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+const MAX_FILE_SIZE = CONNECTOR_MAX_FILE_BYTES
 const BINARY_SNIFF_BYTES = 8000
 
 /**
@@ -177,55 +184,7 @@ function treeItemToStub(
 }
 
 export const githubConnector: ConnectorConfig = {
-  id: 'github',
-  name: 'GitHub',
-  description: 'Sync files from a GitHub repository',
-  version: '1.0.0',
-  icon: GithubIcon,
-
-  auth: {
-    mode: 'apiKey',
-    label: 'Personal Access Token',
-    placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
-  },
-
-  configFields: [
-    {
-      id: 'repository',
-      title: 'Repository',
-      type: 'short-input',
-      placeholder: 'owner/repo',
-      required: true,
-    },
-    {
-      id: 'branch',
-      title: 'Branch',
-      type: 'short-input',
-      placeholder: 'main (default)',
-      required: false,
-    },
-    {
-      id: 'pathPrefix',
-      title: 'Path Filter',
-      type: 'short-input',
-      placeholder: 'e.g. docs/, src/components/',
-      required: false,
-    },
-    {
-      id: 'extensions',
-      title: 'File Extensions',
-      type: 'short-input',
-      placeholder: 'e.g. .md, .txt, .mdx',
-      required: false,
-    },
-    {
-      id: 'maxFiles',
-      title: 'Max Files',
-      type: 'short-input',
-      required: false,
-      placeholder: 'e.g. 500 (default: unlimited)',
-    },
-  ],
+  ...githubConnectorMeta,
 
   listDocuments: async (
     accessToken: string,
@@ -245,16 +204,25 @@ export const githubConnector: ConnectorConfig = {
     } else {
       const tree = await fetchTree(accessToken, owner, repo, branch)
 
-      // Filter by path prefix, extensions, and size
+      // Filter by path prefix and extensions. Oversized files are kept here and
+      // surfaced as skipped (failed) documents at stub time so they stay visible.
       const filtered = tree.filter((item) => {
         if (pathPrefix && !item.path.startsWith(pathPrefix)) return false
         if (!matchesExtension(item.path, extSet)) return false
-        if (typeof item.size === 'number' && item.size > MAX_FILE_SIZE) return false
         return true
       })
 
-      // Apply max files limit
-      capped = maxFiles > 0 ? filtered.slice(0, maxFiles) : filtered
+      // Apply the max-files limit to indexable files only; oversized files within
+      // the capped window are kept (and surfaced as skipped) but never consume the cap.
+      capped =
+        maxFiles > 0
+          ? takeIndexableWithinCap(
+              filtered,
+              (item) => Boolean(item.size && item.size > MAX_FILE_SIZE),
+              maxFiles,
+              0
+            ).documents
+          : filtered
       if (syncContext) syncContext.filteredTree = capped
     }
 
@@ -271,7 +239,9 @@ export const githubConnector: ConnectorConfig = {
       batchSize: batch.length,
     })
 
-    const documents = batch.map((item) => treeItemToStub(owner, repo, branch, item))
+    const documents = batch.map((item) =>
+      stubOrSkipBySize(treeItemToStub(owner, repo, branch, item), item.size, MAX_FILE_SIZE)
+    )
 
     const nextOffset = offset + BATCH_SIZE
     const hasMore = nextOffset < capped.length
@@ -329,7 +299,24 @@ export const githubConnector: ConnectorConfig = {
           size,
           limit: MAX_FILE_SIZE,
         })
-        return null
+        return markSkipped(
+          {
+            externalId,
+            title: path.split('/').pop() || path,
+            content: '',
+            mimeType: 'text/plain',
+            sourceUrl: `https://github.com/${owner}/${repo}/blob/${branch.split('/').map(encodeURIComponent).join('/')}/${path.split('/').map(encodeURIComponent).join('/')}`,
+            contentHash: `${GIT_SHA_PREFIX}${data.sha as string}`,
+            metadata: {
+              path,
+              sha: data.sha as string,
+              size,
+              branch,
+              repository: `${owner}/${repo}`,
+            },
+          },
+          sizeLimitSkipReason(MAX_FILE_SIZE)
+        )
       }
 
       const rawContent = (data.content as string) || ''
@@ -440,14 +427,6 @@ export const githubConnector: ConnectorConfig = {
       return { valid: false, error: message }
     }
   },
-
-  tagDefinitions: [
-    { id: 'path', displayName: 'File Path', fieldType: 'text' },
-    { id: 'repository', displayName: 'Repository', fieldType: 'text' },
-    { id: 'branch', displayName: 'Branch', fieldType: 'text' },
-    { id: 'size', displayName: 'File Size', fieldType: 'number' },
-    { id: 'lastModified', displayName: 'Last Modified', fieldType: 'date' },
-  ],
 
   mapTags: (metadata: Record<string, unknown>): Record<string, unknown> => {
     const result: Record<string, unknown> = {}

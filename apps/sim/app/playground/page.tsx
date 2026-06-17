@@ -152,7 +152,7 @@ export default function PlaygroundPage() {
   const [dateRangeEnd, setDateRangeEnd] = useState('')
   const [tagItems, setTagItems] = useState<TagItem[]>([
     { value: 'user@example.com', isValid: true },
-    { value: 'invalid-email', isValid: false },
+    { value: 'invalid-email', isValid: false, error: 'Invalid email format' },
   ])
 
   const toggleDarkMode = () => {
@@ -246,7 +246,7 @@ export default function PlaygroundPage() {
                     toast.error('Workflow Validation', {
                       description:
                         'Usage limit exceeded: $0.00 used of $5.00 limit. Please upgrade your plan to continue running this workflow.',
-                      action: { label: 'Fix in Copilot', onClick: () => {} },
+                      action: { label: 'Fix in Chat', onClick: () => {} },
                     })
                   }
                 >

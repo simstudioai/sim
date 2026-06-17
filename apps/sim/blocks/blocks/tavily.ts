@@ -13,7 +13,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Search,
   docsLink: 'https://docs.sim.ai/integrations/tavily',
-  bgColor: '#0066FF',
+  bgColor: '#FFFFFF',
   icon: TavilyIcon,
   subBlocks: [
     {
@@ -41,6 +41,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Max Results',
       type: 'short-input',
       placeholder: '5',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -53,6 +54,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Finance', id: 'finance' },
       ],
       value: () => 'general',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -64,6 +66,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Advanced', id: 'advanced' },
       ],
       value: () => 'basic',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -76,6 +79,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Advanced', id: 'advanced' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -88,24 +92,28 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Text', id: 'text' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_image_descriptions',
       title: 'Include Image Descriptions',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -120,6 +128,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Year', id: 'y' },
       ],
       value: () => '',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -127,6 +136,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Include Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -134,13 +144,15 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Exclude Domains',
       type: 'long-input',
       placeholder: 'example.com, another.com (comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
       id: 'country',
       title: 'Country',
       type: 'short-input',
-      placeholder: 'US',
+      placeholder: 'united states',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_search' },
     },
     {
@@ -160,6 +172,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Advanced', id: 'advanced' },
       ],
       value: () => 'basic',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
@@ -171,18 +184,21 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Text', id: 'text' },
       ],
       value: () => 'markdown',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_extract' },
     },
     {
@@ -198,6 +214,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Instructions',
       type: 'long-input',
       placeholder: 'Natural language directions for the crawler...',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -205,6 +222,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Max Depth',
       type: 'short-input',
       placeholder: '1',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -212,6 +230,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Max Breadth',
       type: 'short-input',
       placeholder: '20',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -219,6 +238,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Limit',
       type: 'short-input',
       placeholder: '50',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -226,6 +246,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Select Paths',
       type: 'long-input',
       placeholder: '/docs/.*, /api/.* (regex patterns, comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -233,6 +254,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Select Domains',
       type: 'long-input',
       placeholder: '^docs\\.example\\.com$ (regex patterns, comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -240,6 +262,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Exclude Paths',
       type: 'long-input',
       placeholder: '/private/.*, /admin/.* (regex patterns, comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
@@ -247,18 +270,21 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
       title: 'Exclude Domains',
       type: 'long-input',
       placeholder: '^private\\.example\\.com$ (regex patterns, comma-separated)',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
       id: 'allow_external',
       title: 'Allow External Links',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: ['tavily_crawl', 'tavily_map'] },
     },
     {
       id: 'include_images',
       title: 'Include Images',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {
@@ -270,6 +296,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Advanced', id: 'advanced' },
       ],
       value: () => 'basic',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {
@@ -281,12 +308,14 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
         { label: 'Text', id: 'text' },
       ],
       value: () => 'markdown',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {
       id: 'include_favicon',
       title: 'Include Favicon',
       type: 'switch',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'tavily_crawl' },
     },
     {
@@ -370,6 +399,7 @@ export const TavilyBlock: BlockConfig<TavilyResponse> = {
 
 export const TavilyBlockMeta = {
   tags: ['web-scraping', 'enrichment'],
+  url: 'https://tavily.com',
   templates: [
     {
       icon: TavilyIcon,

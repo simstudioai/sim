@@ -26,7 +26,7 @@ export const ENTERPRISE_PLAN_CREDITS: PlanCredits = {
 
 export const PRO_PLAN_FEATURES: readonly string[] = [
   'Invite teammates',
-  'Higher rate limits',
+  'Deploy workflows as APIs',
   'Extended run timeouts',
   'More storage & tables',
 ]

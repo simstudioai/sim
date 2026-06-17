@@ -3,7 +3,7 @@ import type {
   SalesforceCreateTaskResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceCreateTaskTool: ToolConfig<
@@ -93,8 +93,8 @@ export const salesforceCreateTaskTool: ToolConfig<
       if (params.status) body.Status = params.status
       if (params.priority) body.Priority = params.priority
       if (params.activityDate) body.ActivityDate = params.activityDate
-      if (params.whoId) body.WhoId = params.whoId
-      if (params.whatId) body.WhatId = params.whatId
+      if (params.whoId) body.WhoId = params.whoId.trim()
+      if (params.whatId) body.WhatId = params.whatId.trim()
       if (params.description) body.Description = params.description
       return body
     },
@@ -102,13 +102,14 @@ export const salesforceCreateTaskTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok) throw new Error(data[0]?.message || data.message || 'Failed to create task')
+    if (!response.ok)
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to create task'))
     return {
       success: true,
       output: {
         id: data.id,
-        success: data.success,
-        created: true,
+        success: data.success === true,
+        created: data.success === true,
       },
     }
   },

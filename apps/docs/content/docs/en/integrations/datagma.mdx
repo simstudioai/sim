@@ -1,0 +1,163 @@
+---
+title: Datagma
+description: Find verified B2B emails, mobile phones, and enrich person or company profiles
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="datagma"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Datagma](https://datagma.com/) is a B2B data enrichment platform for finding verified work emails, direct mobile numbers, and detailed person and company profiles from minimal input such as a name, company domain, or LinkedIn URL.
+
+With Datagma, you can:
+
+- **Find verified work emails:** Resolve a verified professional email from a person's full name and their company name or domain.
+- **Enrich person profiles:** Pull job title, seniority, location, and social profiles from an email or LinkedIn URL.
+- **Enrich company data:** Retrieve firmographics such as size, industry, and location from a domain or company name.
+- **Find mobile phone numbers:** Look up direct dial mobile numbers from a LinkedIn profile.
+- **Check your credit balance:** Monitor remaining Datagma credits before running large enrichment jobs.
+
+In Sim, the Datagma integration lets your agents enrich contacts and companies, find and verify emails, and look up phone numbers directly inside a workflow — automating lead generation, CRM hygiene, and outreach prep without leaving Sim.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.
+
+
+
+## Actions
+
+### `datagma_find_email`
+
+Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `fullName` | string | Yes | Person's full name \(e.g., 'John Doe'\) |
+| `company` | string | Yes | Company name or domain \(e.g., 'Stripe' or 'stripe.com'\) |
+| `linkedInSlug` | string | No | LinkedIn company URL slug to improve match accuracy by 20%+ |
+| `findEmailV2Step` | number | No | Lookup depth: 3 = full email \(default\), 2 = domain only |
+| `findEmailV2Country` | string | No | User's location to improve accuracy \(e.g., 'General', 'Japan', 'France'\) |
+| `apiKey` | string | Yes | Datagma API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | Verified work email address |
+| `emailStatus` | string | Email verification status \(e.g., valid, invalid\) |
+| `emailDomain` | string | Email domain |
+| `mxfound` | boolean | Whether MX records were found |
+| `smtpCheck` | boolean | Whether SMTP validation succeeded |
+| `catchAll` | boolean | Whether the domain is catch-all |
+
+### `datagma_enrich_person`
+
+Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `data` | string | Yes | Email address, LinkedIn URL, or full name \(use companyKeyword when providing a name\) |
+| `companyKeyword` | string | No | Company name or keyword to disambiguate when data is a full name |
+| `countryCode` | string | No | Two-letter country code to improve match accuracy \(e.g., 'US', 'GB'\) |
+| `personFull` | boolean | No | Include education and work history in the response |
+| `phoneFull` | boolean | No | Attempt to find a mobile phone number \(costs 30 additional credits if found\) |
+| `apiKey` | string | Yes | Datagma API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Full name |
+| `firstName` | string | First name |
+| `lastName` | string | Last name |
+| `email` | string | Work email address |
+| `emailStatus` | string | Email verification status |
+| `jobTitle` | string | Current job title |
+| `company` | string | Current company name |
+| `linkedInUrl` | string | LinkedIn profile URL |
+| `location` | string | Location string |
+| `country` | string | Country |
+| `region` | string | Region/state |
+| `city` | string | City |
+| `extractedRole` | string | Extracted role category |
+| `extractedSeniority` | string | Extracted seniority level |
+| `twitter` | string | Twitter handle |
+| `phone` | string | Mobile phone number |
+| `personConfidenceScore` | number | Confidence score for the person match \(0–1\) |
+
+### `datagma_enrich_company`
+
+Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `data` | string | Yes | Company domain \(e.g., 'stripe.com'\), company name, or French SIREN number to enrich |
+| `companyPremium` | boolean | No | Include LinkedIn company data in the response |
+| `companyFull` | boolean | No | Include financial information in the response |
+| `apiKey` | string | Yes | Datagma API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Company name |
+| `website` | string | Company website |
+| `industries` | string | Industry classification |
+| `companySize` | string | Employee headcount range |
+| `type` | string | Company type \(e.g., Private, Public\) |
+| `founded` | string | Year founded |
+| `shortDescription` | string | Short company description |
+| `revenueRange` | string | Estimated annual revenue range |
+| `headquarters` | string | Headquarters location |
+
+### `datagma_find_phone`
+
+Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `username` | string | Yes | LinkedIn URL of the person \(e.g., 'https://linkedin.com/in/johndoe'\) |
+| `email` | string | No | Email address to improve phone match accuracy |
+| `minimumMatch` | number | No | Minimum match confidence threshold \(0–1; default 1 for highest precision\) |
+| `apiKey` | string | Yes | Datagma API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `phone` | string | Mobile phone number |
+| `countryCode` | string | Country code prefix \(e.g., +1\) |
+| `isWhatsapp` | boolean | Whether the number is linked to WhatsApp |
+
+### `datagma_get_credits`
+
+Check remaining credit balance on a Datagma account. Free — no credits consumed.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Datagma API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `credits` | number | Remaining Datagma credits |
+
+

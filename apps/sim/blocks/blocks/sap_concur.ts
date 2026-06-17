@@ -1901,6 +1901,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
 
 export const SapConcurBlockMeta = {
   tags: ['automation'],
+  url: 'https://www.concur.com',
   templates: [
     {
       icon: SapConcurIcon,

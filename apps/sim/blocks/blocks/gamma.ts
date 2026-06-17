@@ -342,6 +342,7 @@ Example: "folder_abc123, folder_def456"`,
 
 export const GammaBlockMeta = {
   tags: ['document-processing', 'content-management'],
+  url: 'https://gamma.app',
   templates: [
     {
       icon: GammaIcon,

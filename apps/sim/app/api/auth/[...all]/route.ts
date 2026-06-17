@@ -2,7 +2,7 @@ import { toNextJsHandler } from 'better-auth/next-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
-import { isAuthDisabled } from '@/lib/core/config/feature-flags'
+import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 export const dynamic = 'force-dynamic'

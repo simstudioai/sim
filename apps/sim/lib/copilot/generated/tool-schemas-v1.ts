@@ -48,13 +48,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  complete_job: {
+  complete_scheduled_task: {
     parameters: {
       type: 'object',
       properties: {
         jobId: {
           type: 'string',
-          description: 'The ID of the job to mark as completed.',
+          description: 'The ID of the scheduled task to mark as completed.',
         },
       },
       required: ['jobId'],
@@ -867,6 +867,50 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  enrichment_run: {
+    parameters: {
+      type: 'object',
+      properties: {
+        enrichmentId: {
+          type: 'string',
+          description:
+            "Which enrichment to run. Discover the full set and each one's inputs/outputs via user_table.list_enrichments.",
+          enum: [
+            'work-email',
+            'phone-number',
+            'company-domain',
+            'company-info',
+            'email-verification',
+          ],
+        },
+        inputs: {
+          type: 'object',
+          description:
+            'Map of the enrichment\'s input id → value, e.g. { "fullName": "Jane Doe", "companyDomain": "acme.com" }. Provide a value for every required input.',
+        },
+      },
+      required: ['enrichmentId', 'inputs'],
+    },
+    resultSchema: {
+      type: 'object',
+      properties: {
+        matched: {
+          type: 'boolean',
+          description: 'True when a provider returned a non-empty result.',
+        },
+        provider: {
+          type: 'string',
+          description:
+            'Internal label of the provider that produced the result (billing/diagnostics only — do NOT surface it to the user), or null on no match.',
+        },
+        result: {
+          type: 'object',
+          description: 'Mapped output values from the winning provider (empty object on no match).',
+        },
+      },
+      required: ['matched', 'result'],
+    },
+  },
   ffmpeg: {
     parameters: {
       type: 'object',
@@ -902,7 +946,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -922,7 +966,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1009,8 +1053,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1086,7 +1129,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1106,7 +1149,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1177,8 +1220,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1243,7 +1285,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1263,7 +1305,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1339,8 +1381,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1396,7 +1437,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1416,7 +1457,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1477,8 +1518,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1534,7 +1574,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS folder path, e.g. "files/Reports" or "workflows/My%20Workflow/.plans". By default this mounts at "/home/user/{path}". Workflow alias directories mount under "/home/user/workflows/...".',
+                      'Canonical VFS folder path, e.g. "files/Reports". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1554,7 +1594,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   path: {
                     type: 'string',
                     description:
-                      'Canonical VFS file path, e.g. "files/Reports/sales.csv" or "workflows/My%20Workflow/changelog.md". By default this mounts at "/home/user/{path}". Workflow alias paths mount under "/home/user/workflows/...".',
+                      'Canonical VFS file path, e.g. "files/Reports/sales.csv". By default this mounts at "/home/user/{path}".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1636,8 +1676,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                   },
                   path: {
                     type: 'string',
-                    description:
-                      'Canonical destination VFS path, e.g. "files/Reports/chart.png", "workflows/My%20Workflow/changelog.md", or "workflows/My%20Workflow/.plans/plan.md".',
+                    description: 'Canonical destination VFS path, e.g. "files/Reports/chart.png".',
                   },
                   sandboxPath: {
                     type: 'string',
@@ -1738,31 +1777,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  get_job_logs: {
-    parameters: {
-      type: 'object',
-      properties: {
-        executionId: {
-          type: 'string',
-          description: 'Optional execution ID for a specific run.',
-        },
-        includeDetails: {
-          type: 'boolean',
-          description: 'Include tool calls, outputs, and cost details.',
-        },
-        jobId: {
-          type: 'string',
-          description: 'The job (schedule) ID to get logs for.',
-        },
-        limit: {
-          type: 'number',
-          description: 'Max number of entries (default: 3, max: 5)',
-        },
-      },
-      required: ['jobId'],
-    },
-    resultSchema: undefined,
-  },
   get_page_contents: {
     parameters: {
       type: 'object',
@@ -1795,6 +1809,31 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     parameters: {
       type: 'object',
       properties: {},
+    },
+    resultSchema: undefined,
+  },
+  get_scheduled_task_logs: {
+    parameters: {
+      type: 'object',
+      properties: {
+        executionId: {
+          type: 'string',
+          description: 'Optional execution ID for a specific run.',
+        },
+        includeDetails: {
+          type: 'boolean',
+          description: 'Include tool calls, outputs, and cost details.',
+        },
+        jobId: {
+          type: 'string',
+          description: 'The scheduled task (schedule) ID to get logs for.',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max number of entries (default: 3, max: 5)',
+        },
+      },
+      required: ['jobId'],
     },
     resultSchema: undefined,
   },
@@ -1894,19 +1933,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
       },
       required: ['pattern', 'toolTitle'],
-    },
-    resultSchema: undefined,
-  },
-  job: {
-    parameters: {
-      properties: {
-        request: {
-          description: 'What job action is needed.',
-          type: 'string',
-        },
-      },
-      required: ['request'],
-      type: 'object',
     },
     resultSchema: undefined,
   },
@@ -2251,7 +2277,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         schema: {
@@ -2319,81 +2345,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  manage_job: {
-    parameters: {
-      type: 'object',
-      properties: {
-        args: {
-          type: 'object',
-          description:
-            'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
-          properties: {
-            cron: {
-              type: 'string',
-              description:
-                "Cron expression for a recurring job (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
-            },
-            jobId: {
-              type: 'string',
-              description: 'Job ID (required for get, update)',
-            },
-            jobIds: {
-              type: 'array',
-              description: 'Array of job IDs (for batch delete)',
-              items: {
-                type: 'string',
-              },
-            },
-            lifecycle: {
-              type: 'string',
-              description:
-                "'persistent' (default) or 'until_complete'. Until_complete jobs stop when complete_job is called.",
-              enum: ['persistent', 'until_complete'],
-            },
-            maxRuns: {
-              type: 'integer',
-              description: 'Max executions before auto-completing. Safety limit.',
-            },
-            prompt: {
-              type: 'string',
-              description: 'The prompt to execute when the job fires',
-            },
-            status: {
-              type: 'string',
-              description: 'Job status: active, paused',
-              enum: ['active', 'paused'],
-            },
-            successCondition: {
-              type: 'string',
-              description:
-                'What must happen for the job to be considered complete (until_complete lifecycle).',
-            },
-            time: {
-              type: 'string',
-              description:
-                "ISO 8601 datetime. One-time job -> set time and omit cron. May also anchor a recurring cron job's first-fire time.",
-            },
-            timezone: {
-              type: 'string',
-              description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
-            },
-            title: {
-              type: 'string',
-              description: "Short descriptive title for the job (e.g. 'Email Poller')",
-            },
-          },
-        },
-        operation: {
-          type: 'string',
-          description:
-            'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
-          enum: ['create', 'list', 'get', 'update', 'delete'],
-        },
-      },
-      required: ['operation'],
-    },
-    resultSchema: undefined,
-  },
   manage_mcp_tool: {
     parameters: {
       type: 'object',
@@ -2433,13 +2384,88 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         serverId: {
           type: 'string',
           description:
             "The MCP server's id — the `id` field inside the VFS file agent/mcp-servers/{name}.json (the {name} filename is the display name, not the id). Required for edit and delete; omit for add and list.",
+        },
+      },
+      required: ['operation'],
+    },
+    resultSchema: undefined,
+  },
+  manage_scheduled_task: {
+    parameters: {
+      type: 'object',
+      properties: {
+        args: {
+          type: 'object',
+          description:
+            'Operation-specific arguments. For create: {title, prompt, cron?, time?, timezone?, lifecycle?, successCondition?, maxRuns?}. For get/delete: {jobId}. For update: {jobId, title?, prompt?, cron?, timezone?, status?, lifecycle?, successCondition?, maxRuns?}. For list: no args needed.',
+          properties: {
+            cron: {
+              type: 'string',
+              description:
+                "Cron expression for a recurring scheduled task (e.g. '0 9 * * *'). Set exactly one of cron or time: recurring -> cron; one-time -> time.",
+            },
+            jobId: {
+              type: 'string',
+              description: 'Scheduled task ID (required for get, update)',
+            },
+            jobIds: {
+              type: 'array',
+              description: 'Array of scheduled task IDs (for batch delete)',
+              items: {
+                type: 'string',
+              },
+            },
+            lifecycle: {
+              type: 'string',
+              description:
+                "'persistent' (default) or 'until_complete'. Until_complete scheduled tasks stop when complete_scheduled_task is called.",
+              enum: ['persistent', 'until_complete'],
+            },
+            maxRuns: {
+              type: 'integer',
+              description: 'Max executions before auto-completing. Safety limit.',
+            },
+            prompt: {
+              type: 'string',
+              description: 'The prompt to execute when the scheduled task fires',
+            },
+            status: {
+              type: 'string',
+              description: 'Scheduled task status: active, paused',
+              enum: ['active', 'paused'],
+            },
+            successCondition: {
+              type: 'string',
+              description:
+                'What must happen for the scheduled task to be considered complete (until_complete lifecycle).',
+            },
+            time: {
+              type: 'string',
+              description:
+                "ISO 8601 datetime. One-time scheduled task -> set time and omit cron. May also anchor a recurring cron task's first-fire time.",
+            },
+            timezone: {
+              type: 'string',
+              description: 'IANA timezone (e.g. America/New_York). Defaults to UTC.',
+            },
+            title: {
+              type: 'string',
+              description: "Short descriptive title for the scheduled task (e.g. 'Email Poller')",
+            },
+          },
+        },
+        operation: {
+          type: 'string',
+          description:
+            'The operation to perform: create, list, get, update, delete. These verbs are tool-specific — the custom-tool/MCP/skill managers use add/edit instead of create/update.',
+          enum: ['create', 'list', 'get', 'update', 'delete'],
         },
       },
       required: ['operation'],
@@ -2466,7 +2492,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         operation: {
           type: 'string',
           description:
-            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_job uses create/update instead of add/edit.",
+            "The operation to perform: 'add', 'edit', 'list', or 'delete'. These verbs are tool-specific — manage_scheduled_task uses create/update instead of add/edit.",
           enum: ['add', 'edit', 'delete', 'list'],
         },
         skillId: {
@@ -2644,7 +2670,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               type: {
                 type: 'string',
                 description: 'The resource type.',
-                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log'],
+                enum: ['workflow', 'table', 'knowledgebase', 'file', 'log', 'scheduledtask'],
               },
             },
             required: ['type'],
@@ -3177,6 +3203,19 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
+  scheduled_task: {
+    parameters: {
+      properties: {
+        request: {
+          description: 'What scheduled task action is needed.',
+          type: 'string',
+        },
+      },
+      required: ['request'],
+      type: 'object',
+    },
+    resultSchema: undefined,
+  },
   scrape_page: {
     parameters: {
       type: 'object',
@@ -3422,53 +3461,6 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  touch_plan: {
-    parameters: {
-      type: 'object',
-      properties: {
-        name: {
-          type: 'string',
-          description:
-            'Plan file name or relative path under .plans, e.g. "implementation.md" or "phase-1/implementation.md". If no extension is supplied, ".md" is appended.',
-        },
-        scope: {
-          type: 'string',
-          description:
-            'Plan scope. Use "workspace" for root .plans/** main-agent plans. Use "workflow" for workflows/{workflow}/.plans/** subplans. If omitted with workflowPath, workflow scope is assumed; otherwise workspace scope is assumed.',
-          enum: ['workspace', 'workflow'],
-        },
-        title: {
-          type: 'string',
-          description: 'Optional short user-visible label for the plan creation.',
-        },
-        workflowPath: {
-          type: 'string',
-          description:
-            'Required for scope "workflow". Canonical workflow VFS path, e.g. "workflows/My%20Workflow" or "workflows/Folder/My%20Workflow". Copy paths verbatim from glob/read/grep output — they are percent-encoded per segment (spaces are %20, an in-name slash is %2F; parentheses and dots stay literal). Both the encoded path and the plain name resolve, so copy the returned path exactly rather than retyping or decoding it. Do not use workflow IDs.',
-        },
-      },
-      required: ['name'],
-    },
-    resultSchema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          description:
-            'Contains id, name, scope, vfsPath, backingVfsPath, and workflowId for workflow plans. Use vfsPath for follow-up workspace_file calls.',
-        },
-        message: {
-          type: 'string',
-          description: 'Human-readable outcome.',
-        },
-        success: {
-          type: 'boolean',
-          description: 'Whether the plan file was created.',
-        },
-      },
-      required: ['success', 'message'],
-    },
-  },
   update_deployment_version: {
     parameters: {
       type: 'object',
@@ -3498,13 +3490,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
     },
     resultSchema: undefined,
   },
-  update_job_history: {
+  update_scheduled_task_history: {
     parameters: {
       type: 'object',
       properties: {
         jobId: {
           type: 'string',
-          description: 'The job ID.',
+          description: 'The scheduled task ID.',
         },
         summary: {
           type: 'string',

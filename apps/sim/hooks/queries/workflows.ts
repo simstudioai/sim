@@ -578,18 +578,20 @@ export function useRevertToVersion() {
       })
     },
     onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workflowKeys.state(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.info(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.deployedState(variables.workflowId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: deploymentKeys.versions(variables.workflowId),
-      })
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workflowKeys.state(variables.workflowId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: deploymentKeys.info(variables.workflowId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: deploymentKeys.deployedState(variables.workflowId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: deploymentKeys.versions(variables.workflowId),
+        }),
+      ])
     },
   })
 }

@@ -8,7 +8,8 @@ import type { EnrichmentConfig } from '@/enrichments/types'
  * available identifiers (company domain, LinkedIn URL) via a provider waterfall:
  * deterministic finders first (Hunter, Findymail by name then by LinkedIn), then
  * enrichment/reveal providers (Prospeo, Wiza), then People Data Labs as a broad
- * record-match fallback. Each provider opportunistically uses whatever
+ * record-match fallback, then Datagma, LeadMagic, Dropcontact, Icypeas, and Enrow
+ * as additional finders. Each provider opportunistically uses whatever
  * identifiers the row provides and self-skips when it has none usable, so adding
  * more inputs widens coverage. First email wins; all providers support hosted keys.
  */
@@ -131,6 +132,97 @@ export const workEmailEnrichment: EnrichmentConfig = {
         const person = output.person as Record<string, unknown> | undefined
         const email = str(person?.work_email)
         return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'datagma',
+      label: 'Datagma',
+      toolId: 'datagma_find_email',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const company = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !company) return null
+        return { fullName, company }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'leadmagic',
+      label: 'LeadMagic',
+      toolId: 'leadmagic_find_email',
+      buildParams: (inputs) => {
+        // LeadMagic accepts full_name + domain, so pass the whole name and let it
+        // split — this keeps single-token (mononym) rows in play.
+        const fullName = str(inputs.fullName)
+        const domain = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !domain) return null
+        return { full_name: fullName, domain }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'dropcontact',
+      label: 'Dropcontact',
+      toolId: 'dropcontact_enrich_contact',
+      buildParams: (inputs) => {
+        const fullName = str(inputs.fullName)
+        const website = normalizeDomain(inputs.companyDomain)
+        const linkedin = str(inputs.linkedinUrl)
+        if (!fullName || (!website && !linkedin)) return null
+        return filterUndefined({
+          full_name: fullName,
+          website: website || undefined,
+          linkedin: linkedin || undefined,
+        })
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'icypeas',
+      label: 'Icypeas',
+      toolId: 'icypeas_find_email',
+      buildParams: (inputs) => {
+        // Icypeas only requires domainOrCompany; firstname/lastname are optional,
+        // so a mononym still runs with firstname alone rather than self-skipping.
+        const fullName = str(inputs.fullName)
+        const domainOrCompany = normalizeDomain(inputs.companyDomain)
+        if (!fullName || !domainOrCompany) return null
+        const name = splitName(inputs.fullName)
+        return name
+          ? { firstname: name.firstName, lastname: name.lastName, domainOrCompany }
+          : { firstname: fullName, domainOrCompany }
+      },
+      mapOutput: (output) => {
+        const email = str(output.email)
+        return email ? { email } : null
+      },
+    }),
+    toolProvider({
+      id: 'enrow',
+      label: 'Enrow',
+      toolId: 'enrow_find_email',
+      buildParams: (inputs) => {
+        const fullname = str(inputs.fullName)
+        const company_domain = normalizeDomain(inputs.companyDomain)
+        if (!fullname || !company_domain) return null
+        return { fullname, company_domain }
+      },
+      mapOutput: (output) => {
+        // Enrow qualifies each found email valid/invalid; only accept verified-valid
+        // results so the cell isn't filled with an address Enrow itself rejected
+        // (and which hosted billing correctly charges zero for).
+        const email = str(output.email)
+        const qualification = str(output.qualification).toLowerCase()
+        return email && qualification === 'valid' ? { email } : null
       },
     }),
   ],

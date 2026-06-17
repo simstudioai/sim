@@ -11,7 +11,6 @@ import {
   ChipModalHeader,
   Info,
 } from '@/components/emcn'
-import { CopyableValueField } from '@/app/workspace/[workspaceId]/components/credential-detail/components/copyable-value-field'
 import {
   useOrganizationMemberUsageLimit,
   useUpdateOrganizationMemberUsageLimit,
@@ -96,13 +95,12 @@ export function ManageCreditsModal({
         {member ? `Manage credits — ${member.name || member.email}` : 'Manage credits'}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Credits used'>
-          <CopyableValueField
-            id='member-credits-used'
-            value={isLoading ? 'Loading…' : creditsUsed}
-            copyLabel='Copy credits used'
-          />
-        </ChipModalField>
+        <ChipModalField
+          type='copy'
+          title='Credits used'
+          value={isLoading ? 'Loading…' : creditsUsed}
+          copyLabel='Copy credits used'
+        />
         <ChipModalField
           type='input'
           inputType='number'

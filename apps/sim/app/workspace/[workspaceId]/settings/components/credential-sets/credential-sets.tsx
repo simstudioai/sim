@@ -134,7 +134,14 @@ export function CredentialSets() {
         return false
       }
 
-      setEmailItems((prev) => [...prev, { value: normalized, isValid }])
+      setEmailItems((prev) => [
+        ...prev,
+        {
+          value: normalized,
+          isValid,
+          error: isValid ? undefined : (validation.reason ?? 'Invalid email format'),
+        },
+      ])
 
       if (isValid) {
         setEmailError(null)
@@ -799,15 +806,11 @@ export function CredentialSets() {
         }}
         srTitle='Leave Polling Group'
         title='Leave Polling Group'
-        description={
-          <>
-            Are you sure you want to leave{' '}
-            <span className='font-medium text-[var(--text-primary)]'>
-              {leavingMembership?.name}
-            </span>
-            ? Your email account will no longer be polled in workflows using this group.
-          </>
-        }
+        text={[
+          'Are you sure you want to leave ',
+          { text: leavingMembership?.name ?? 'this group', bold: true },
+          '? Your email account will no longer be polled in workflows using this group.',
+        ]}
         confirm={{
           label: 'Leave',
           onClick: confirmLeave,
@@ -823,13 +826,11 @@ export function CredentialSets() {
         }}
         srTitle='Delete Polling Group'
         title='Delete Polling Group'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{deletingSet?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: deletingSet?.name ?? 'this group', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: confirmDelete,

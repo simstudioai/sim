@@ -58,7 +58,7 @@ vi.mock('@/lib/billing/core/plan', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return mockFeatureFlags.isBillingEnabled
   },

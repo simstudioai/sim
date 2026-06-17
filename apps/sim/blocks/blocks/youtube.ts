@@ -551,6 +551,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const YouTubeBlockMeta = {
   tags: ['marketing', 'content-management'],
+  url: 'https://www.youtube.com',
   templates: [
     {
       icon: YouTubeIcon,

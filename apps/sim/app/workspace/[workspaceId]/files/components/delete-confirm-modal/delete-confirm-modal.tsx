@@ -39,17 +39,13 @@ export const DeleteConfirmModal = memo(function DeleteConfirmModal({
       onOpenChange={onOpenChange}
       srTitle={title}
       title={title}
-      description={
-        <>
-          Are you sure you want to delete{' '}
-          {fileName ? (
-            <span className='font-medium text-[var(--text-primary)]'>{fileName}</span>
-          ) : (
-            `${totalCount} item${totalCount === 1 ? '' : 's'}`
-          )}
-          ? {consequence}
-        </>
-      }
+      text={[
+        'Are you sure you want to delete ',
+        fileName
+          ? { text: fileName, bold: true }
+          : `${totalCount} item${totalCount === 1 ? '' : 's'}`,
+        `? ${consequence}`,
+      ]}
       confirm={{
         label: 'Delete',
         onClick: onDelete,

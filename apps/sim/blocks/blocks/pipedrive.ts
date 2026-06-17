@@ -841,6 +841,7 @@ Return ONLY the date string in YYYY-MM-DD format - no explanations, no quotes, n
 
 export const PipedriveBlockMeta = {
   tags: ['sales-engagement', 'project-management'],
+  url: 'https://www.pipedrive.com',
   templates: [
     {
       icon: PipedriveIcon,

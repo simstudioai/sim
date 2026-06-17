@@ -197,6 +197,7 @@ export const JinaBlock: BlockConfig<ReadUrlResponse | SearchResponse> = {
 
 export const JinaBlockMeta = {
   tags: ['web-scraping', 'knowledge-base'],
+  url: 'https://jina.ai',
   templates: [
     {
       icon: JinaAIIcon,

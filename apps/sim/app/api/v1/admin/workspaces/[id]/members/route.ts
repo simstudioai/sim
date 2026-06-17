@@ -31,13 +31,7 @@
  */
 
 import { db } from '@sim/db'
-import {
-  permissionGroupMember,
-  permissions,
-  user,
-  workspace,
-  workspaceEnvironment,
-} from '@sim/db/schema'
+import { permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq } from 'drizzle-orm'
@@ -47,11 +41,9 @@ import {
   adminV1ListWorkspaceMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { isWorkspaceOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { applyWorkspaceAutoAddGroup } from '@/lib/permission-groups/auto-add'
 import { getWorkspaceById } from '@/lib/workspaces/permissions/utils'
 import {
   reassignWorkflowOwnershipForWorkspaceMemberRemovalTx,
@@ -248,13 +240,6 @@ export const POST = withRouteHandler(
         updatedAt: now,
       })
 
-      await applyWorkspaceAutoAddGroup(
-        db,
-        workspaceId,
-        userId,
-        await isWorkspaceOnEnterprisePlan(workspaceId)
-      )
-
       logger.info(`Admin API: Added user ${userId} to workspace ${workspaceId}`, {
         permissions: permissionLevel,
         permissionId,
@@ -359,15 +344,6 @@ export const DELETE = withRouteHandler(
         await tx.delete(permissions).where(eq(permissions.id, existingPermission.id))
 
         await revokeWorkspaceCredentialMembershipsTx(tx, workspaceId, userId)
-
-        await tx
-          .delete(permissionGroupMember)
-          .where(
-            and(
-              eq(permissionGroupMember.userId, userId),
-              eq(permissionGroupMember.workspaceId, workspaceId)
-            )
-          )
       })
 
       logger.info(`Admin API: Removed user ${userId} from workspace ${workspaceId}`)

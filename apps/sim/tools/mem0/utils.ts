@@ -3,9 +3,6 @@ import type { Mem0Message } from '@/tools/mem0/types'
 
 export type JsonRecord = Record<string, unknown>
 
-export const isRecord = (value: unknown): value is JsonRecord =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-
 function isMem0Message(value: unknown): value is Mem0Message {
   return (
     value !== null &&

@@ -714,6 +714,7 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
 
 export const SentryBlockMeta = {
   tags: ['error-tracking', 'monitoring'],
+  url: 'https://sentry.io',
   templates: [
     {
       icon: Bug,

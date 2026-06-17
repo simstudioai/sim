@@ -657,15 +657,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
       </div>
 
       {/* Dashed Line Separator - matches SubflowEditor */}
-      <div className='px-0.5 pt-4 pb-2.5'>
-        <div
-          className='h-[1.25px]'
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(to right, var(--border) 0px, var(--border) 6px, transparent 6px, transparent 12px)',
-          }}
-        />
-      </div>
+      <FieldDivider className='pb-2.5' />
 
       {/* Configuration - matches SubflowEditor */}
       <div>

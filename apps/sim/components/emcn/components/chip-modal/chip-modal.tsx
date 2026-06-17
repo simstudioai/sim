@@ -7,10 +7,10 @@
  * / `ModalFooter` — drop your controls in as children.
  *
  * Body items are declared via the polymorphic `ChipModalField`. Each field
- * picks a `type` (`'input'`, `'email'`, `'textarea'`, `'dropdown'`, `'file'`,
- * `'emails'`, or `'custom'`) and the field owns all chrome internally —
- * consumers describe intent, never styling. Custom is the escape hatch for
- * arbitrary content (e.g. an `InfoCard`, a `TagInput`).
+ * picks a `type` (`'input'`, `'email'`, `'textarea'`, `'dropdown'`, `'copy'`,
+ * `'file'`, `'emails'`, or `'custom'`) and the field owns all chrome
+ * internally — consumers describe intent, never styling. Custom is the escape
+ * hatch for arbitrary content (e.g. an `InfoCard`, a `TagInput`).
  *
  * @example
  * ```tsx
@@ -43,6 +43,11 @@ import { X } from 'lucide-react'
 import { Button } from '@/components/emcn/components/button/button'
 import { Chip, type ChipProps } from '@/components/emcn/components/chip/chip'
 import {
+  chipContentIconClass,
+  chipContentLabelClass,
+} from '@/components/emcn/components/chip/chip-chrome'
+import { ChipCopyInput } from '@/components/emcn/components/chip-copy-input/chip-copy-input'
+import {
   ChipDropdown,
   type ChipDropdownOption,
 } from '@/components/emcn/components/chip-dropdown/chip-dropdown'
@@ -52,11 +57,17 @@ import { ChipTextarea } from '@/components/emcn/components/chip-textarea/chip-te
 import { Label } from '@/components/emcn/components/label/label'
 import { Modal, ModalContent } from '@/components/emcn/components/modal/modal'
 import { TagInput, type TagItem } from '@/components/emcn/components/tag-input/tag-input'
+import { Tooltip } from '@/components/emcn/components/tooltip/tooltip'
+import { Loader } from '@/components/emcn/icons'
 import { cn } from '@/lib/core/utils/cn'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 
-/** Shared inset separator used by the header and footer edges. */
-function ChipModalSeparator({ className }: { className?: string }) {
+/**
+ * The modal's hairline divider — used by the header and footer edges, and
+ * exported so body sections (e.g. a settings band below a prompt) can draw the
+ * same line instead of re-deriving the `h-px bg-[var(--border)]` string.
+ */
+export function ChipModalSeparator({ className }: { className?: string }) {
   return <div className={cn('h-px bg-[var(--border)]', className)} />
 }
 
@@ -144,8 +155,8 @@ const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
     <div ref={ref} className={cn('flex flex-col', className)} {...props}>
       <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
         <div className='flex min-w-0 items-center gap-2'>
-          {Icon ? <Icon className='size-[12px] flex-shrink-0 text-[var(--text-icon)]' /> : null}
-          <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{children}</span>
+          {Icon ? <Icon className={chipContentIconClass} /> : null}
+          <span className={chipContentLabelClass}>{children}</span>
         </div>
         <Button
           type='button'
@@ -250,6 +261,64 @@ const ChipModalBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 
 ChipModalBody.displayName = 'ChipModalBody'
 
+export interface ChipModalPromptBodyProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Minimum body height in pixels, so the prompt surface presents as an open
+   * canvas rather than collapsing to a single line.
+   * @default 140
+   */
+  minHeight?: number
+}
+
+/**
+ * Body variant whose ENTIRE content is a single borderless multi-line text
+ * surface — an Attio-style prompt modal. Compose it exactly like
+ * {@link ChipModalBody} (same header above, same footer below); only the body
+ * differs: instead of labeled `ChipModalField` rows, the one child is a
+ * full-bleed prompt editor (canonically the home `PromptEditor`, which brings
+ * `@`-mention and `/`-skill chips, caret-anchored menus, and the overlay chip
+ * rendering of the chat input).
+ *
+ * Gutter math: the editor's mirror field carries its own `px-1 py-1` text
+ * padding, so this container pads `px-3 pt-3 pb-3.5` — text lands at the same
+ * effective `px-4 pt-4 pb-4.5` as `ChipModalBody` + `ChipModalField`, aligned
+ * with the `px-4` header/footer. The first child (the editor) is stretched so
+ * the whole body acts as one clickable text surface; any trailing sibling
+ * (e.g. a `ChipModalError`) keeps its natural height.
+ *
+ * @example
+ * ```tsx
+ * const editor = usePromptEditor({ workspaceId })
+ * <ChipModal open={open} onOpenChange={setOpen} srTitle='New task'>
+ *   <ChipModalHeader icon={Calendar} onClose={close}>New task</ChipModalHeader>
+ *   <ChipModalPromptBody>
+ *     <PromptEditor editor={editor} placeholder='Describe the task...' autoFocus />
+ *   </ChipModalPromptBody>
+ *   <ChipModalFooter
+ *     onCancel={close}
+ *     primaryAction={{ label: 'Create', onClick: create, disabled: !editor.value.trim() }}
+ *   />
+ * </ChipModal>
+ * ```
+ */
+const ChipModalPromptBody = React.forwardRef<HTMLDivElement, ChipModalPromptBodyProps>(
+  ({ className, style, minHeight = 140, children, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        'flex flex-1 flex-col overflow-y-auto px-3 pt-3 pb-3.5 [&>:first-child]:flex-1',
+        className
+      )}
+      style={{ ...style, minHeight }}
+      {...props}
+    >
+      {children}
+    </div>
+  )
+)
+
+ChipModalPromptBody.displayName = 'ChipModalPromptBody'
+
 /**
  * Option entry for the `dropdown` branch of {@link ChipModalField}. Aliases the
  * canonical {@link ChipDropdownOption} so the modal dropdown stays in lockstep
@@ -325,10 +394,9 @@ interface ChipModalEmailFieldProps extends ChipModalFieldBaseProps {
   onSubmit?: () => void
 }
 
-interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
+interface ChipModalTextareaFieldBaseProps extends ChipModalFieldBaseProps {
   type: 'textarea'
   value: string
-  onChange: (value: string) => void
   placeholder?: string
   maxLength?: number
   rows?: number
@@ -347,6 +415,27 @@ interface ChipModalTextareaFieldProps extends ChipModalFieldBaseProps {
    * @default false
    */
   mono?: boolean
+}
+
+/**
+ * `viewOnly` renders the textarea as a view-only record: read-only at full
+ * opacity with the default cursor — the user can still read and select,
+ * unlike a greyed-out disabled control. The multi-line sibling of
+ * `type='copy'`. View-only fields take no `onChange`; editable fields
+ * require it.
+ */
+type ChipModalTextareaFieldProps = ChipModalTextareaFieldBaseProps &
+  ({ viewOnly?: false; onChange: (value: string) => void } | { viewOnly: true; onChange?: never })
+
+interface ChipModalCopyFieldProps extends ChipModalFieldBaseProps {
+  type: 'copy'
+  /** The read-only value displayed and copied. */
+  value: string
+  /**
+   * Accessible label and tooltip for the trailing copy button.
+   * @default 'Copy'
+   */
+  copyLabel?: string
 }
 
 interface ChipModalDropdownFieldProps extends ChipModalFieldBaseProps {
@@ -377,6 +466,14 @@ interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
    * for a single-line zone.
    */
   description?: React.ReactNode
+  /**
+   * Renders a spinner inside the drop zone and blocks further picks while an
+   * async import/upload is in flight. Use for slow selections (zip extraction,
+   * remote fetches) where the zone would otherwise look idle. Pair with a
+   * `label` such as `'Importing…'` for an explicit status line.
+   * @default false
+   */
+  loading?: boolean
 }
 
 export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
@@ -388,12 +485,14 @@ export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
   /**
    * Optional domain-level validator. Runs AFTER the field's internal format
    * check passes. Return an error message to reject the email (added as an
-   * invalid chip and surfaced in the inline banner); return `null` to accept.
+   * invalid chip whose reason shows in a tooltip on hover); return `null`
+   * to accept.
    */
   validate?: (email: string) => string | null
   /**
-   * External error (e.g. server-side submit failure). Takes precedence over
-   * the field's internal validation banner while present.
+   * External error (e.g. server-side submit failure), rendered in the inline
+   * banner below the field. Per-email rejection reasons are shown on the
+   * invalid chips themselves, not here.
    */
   error?: React.ReactNode
   /** Auto-focus the input when the field mounts. */
@@ -411,6 +510,7 @@ export type ChipModalFieldProps =
   | ChipModalInputFieldProps
   | ChipModalEmailFieldProps
   | ChipModalTextareaFieldProps
+  | ChipModalCopyFieldProps
   | ChipModalDropdownFieldProps
   | ChipModalFileFieldProps
   | ChipModalEmailsFieldProps
@@ -421,7 +521,9 @@ export type ChipModalFieldProps =
  * control renders, and the field owns all chrome internally — consumers
  * never pass `variant`, `className`, or `id` to the underlying control.
  *
- * Use `type='custom'` to wrap arbitrary JSX (e.g. an `InfoCard` for a
+ * Use `type='copy'` for view-only values — a read-only field at full opacity
+ * with a trailing copy button, never a `disabled` (greyed) input. Use
+ * `type='custom'` to wrap arbitrary JSX (e.g. an `InfoCard` for a
  * static permission list). For a multi-email chip-list input, prefer
  * `type='emails'` over a `type='custom'` `TagInput` wrapper — it internalizes
  * chip rendering, dedupe, format validation, paste, and Backspace handling.
@@ -435,6 +537,7 @@ function ChipModalField(props: ChipModalFieldProps) {
     props.type === 'input' ||
     props.type === 'email' ||
     props.type === 'textarea' ||
+    props.type === 'copy' ||
     props.type === 'emails'
 
   return (
@@ -515,14 +618,25 @@ function renderChipModalControl(
         <ChipTextarea
           id={id}
           value={props.value}
-          onChange={(event) => props.onChange(event.target.value)}
+          onChange={(event) => props.onChange?.(event.target.value)}
           placeholder={props.placeholder}
           maxLength={props.maxLength}
           rows={props.rows}
           disabled={props.disabled}
+          viewOnly={props.viewOnly}
           resizable={props.resizable}
           className={props.mono ? 'font-mono' : undefined}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
+          {...aria}
+        />
+      )
+    case 'copy':
+      return (
+        <ChipCopyInput
+          id={id}
+          value={props.value}
+          copyLabel={props.copyLabel}
+          disabled={props.disabled}
           {...aria}
         />
       )
@@ -561,8 +675,11 @@ function derivePlaceholderWithTags(placeholder: string): string {
 
 /**
  * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
- * chip lifecycle (valid + invalid items, dedupe, inline error banner) and
- * lifts only the valid email list up to the consumer via `onChange`.
+ * chip lifecycle (valid + invalid items, dedupe, per-chip error tooltips)
+ * and lifts only the valid email list up to the consumer via `onChange`.
+ * Each rejected entry carries its rejection reason on the chip itself,
+ * surfaced as a tooltip; the inline banner is reserved for the consumer's
+ * `error` (e.g. server-side submit failures).
  */
 function ChipModalEmailsControl({
   value,
@@ -576,7 +693,21 @@ function ChipModalEmailsControl({
   errorId,
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
   const [items, setItems] = React.useState<TagItem[]>([])
-  const [internalError, setInternalError] = React.useState<string | null>(null)
+
+  /**
+   * Synchronous mirror of `items`. Pasting multiple values calls `handleAdd`
+   * once per value within a single event, before React re-renders — reading
+   * the `items` state there would make every call see the same stale array
+   * and each add overwrite the previous one (only the last pasted email
+   * survives). All reads and writes go through the ref so consecutive adds
+   * compose; `commitItems` keeps state and ref in lockstep.
+   */
+  const itemsRef = React.useRef<TagItem[]>(items)
+
+  const commitItems = React.useCallback((next: TagItem[]) => {
+    itemsRef.current = next
+    setItems(next)
+  }, [])
 
   /**
    * Reconcile internal `items` with the consumer's `value` when the latter
@@ -585,61 +716,56 @@ function ChipModalEmailsControl({
    * `items` already match `value` and this is a no-op.
    */
   React.useEffect(() => {
-    setItems((prev) => {
-      const prevValid = prev.filter((item) => item.isValid).map((item) => item.value)
-      if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
-        return prev
-      }
-      return value.map((v) => ({ value: v, isValid: true }))
-    })
+    const prevValid = itemsRef.current.filter((item) => item.isValid).map((item) => item.value)
+    if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
+      return
+    }
+    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
+    setItems(itemsRef.current)
   }, [value])
 
   const handleAdd = React.useCallback(
     (raw: string): boolean => {
       const email = raw.trim().toLowerCase()
       if (!email) return false
-      if (items.some((item) => item.value === email)) return false
+      const current = itemsRef.current
+      if (current.some((item) => item.value === email)) return false
 
-      if (!quickValidateEmail(email).isValid) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(null)
+      const formatCheck = quickValidateEmail(email)
+      if (!formatCheck.isValid) {
+        commitItems([
+          ...current,
+          { value: email, isValid: false, error: formatCheck.reason ?? 'Invalid email format' },
+        ])
         return false
       }
 
       const reason = validate?.(email)
       if (reason) {
-        setItems((prev) => [...prev, { value: email, isValid: false }])
-        setInternalError(reason)
+        commitItems([...current, { value: email, isValid: false, error: reason }])
         return false
       }
 
-      const next = [...items, { value: email, isValid: true }]
-      setItems(next)
+      const next = [...current, { value: email, isValid: true }]
+      commitItems(next)
       onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      setInternalError(null)
       return true
     },
-    [items, validate, onChange]
+    [validate, onChange, commitItems]
   )
 
   const handleRemove = React.useCallback(
     (_removed: string, index: number) => {
-      const wasValid = items[index]?.isValid ?? false
-      const next = items.filter((_, i) => i !== index)
-      setItems(next)
+      const current = itemsRef.current
+      const wasValid = current[index]?.isValid ?? false
+      const next = current.filter((_, i) => i !== index)
+      commitItems(next)
       if (wasValid) {
         onChange(next.filter((item) => item.isValid).map((item) => item.value))
       }
-      setInternalError(null)
     },
-    [items, onChange]
+    [onChange, commitItems]
   )
-
-  const handleInputChange = React.useCallback(() => {
-    setInternalError(null)
-  }, [])
-
-  const banner = error ?? internalError
 
   return (
     <>
@@ -648,16 +774,15 @@ function ChipModalEmailsControl({
         items={items}
         onAdd={handleAdd}
         onRemove={handleRemove}
-        onInputChange={handleInputChange}
         placeholder={placeholder}
         placeholderWithTags={derivePlaceholderWithTags(placeholder)}
         disabled={disabled}
         autoFocus={autoFocus}
         id={id}
       />
-      {banner && (
+      {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
-          {banner}
+          {error}
         </p>
       )}
     </>
@@ -679,6 +804,7 @@ function ChipModalFileControl({
   multiple = false,
   label = 'Drop files here or click to browse',
   description,
+  loading = false,
   disabled,
   id,
   'aria-required': ariaRequired,
@@ -687,6 +813,7 @@ function ChipModalFileControl({
 }: ChipModalFileFieldProps & { id: string } & React.AriaAttributes) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = React.useState(false)
+  const isInteractive = !disabled && !loading
 
   const emitFiles = React.useCallback(
     (files: FileList | null) => {
@@ -700,7 +827,8 @@ function ChipModalFileControl({
     <button
       type='button'
       id={id}
-      disabled={disabled}
+      disabled={!isInteractive}
+      aria-busy={loading || undefined}
       aria-required={ariaRequired}
       aria-invalid={ariaInvalid}
       aria-describedby={ariaDescribedby}
@@ -708,7 +836,7 @@ function ChipModalFileControl({
       onDragEnter={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        if (!disabled) setIsDragging(true)
+        if (isInteractive) setIsDragging(true)
       }}
       onDragOver={(event) => {
         event.preventDefault()
@@ -723,7 +851,7 @@ function ChipModalFileControl({
         event.preventDefault()
         event.stopPropagation()
         setIsDragging(false)
-        if (!disabled) emitFiles(event.dataTransfer.files)
+        if (isInteractive) emitFiles(event.dataTransfer.files)
       }}
       className={cn(
         'flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border border-[var(--border-1)] border-dashed bg-[var(--surface-5)] px-2 py-2.5 text-center outline-none transition-colors hover-hover:border-[var(--surface-7)] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[var(--surface-4)]',
@@ -735,13 +863,14 @@ function ChipModalFileControl({
         type='file'
         accept={accept}
         multiple={multiple}
-        disabled={disabled}
+        disabled={!isInteractive}
         className='hidden'
         onChange={(event) => {
           emitFiles(event.target.files)
           event.target.value = ''
         }}
       />
+      {loading ? <Loader animate className='size-[14px] text-[var(--text-tertiary)]' /> : null}
       <span className='text-[var(--text-primary)] text-caption'>
         {isDragging ? 'Drop files here' : label}
       </span>
@@ -766,12 +895,35 @@ export interface ChipModalFooterAction {
   /** Disables the button. */
   disabled?: boolean
   /**
+   * Explains why the action is unavailable — shown in a tooltip on hover/focus
+   * while `disabled` is true. Ignored when the action is enabled. Honored on
+   * `primaryAction` only.
+   */
+  disabledTooltip?: string
+  /**
    * Chip variant, restricted to the footer-appropriate options so a
    * footer can never drift from the design system.
-   * @default 'primary' for `primaryAction`, the bare default chip for `secondaryAction`
+   * @default 'primary' for `primaryAction`, the bare default chip for `secondaryActions`
    */
   variant?: Extract<ChipProps['variant'], 'primary' | 'destructive'>
 }
+
+/**
+ * Escape hatch for the left-docked footer cluster: renders the given node in
+ * place of a declarative action Chip. Reserve it for chip-chrome controls
+ * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
+ * stays visually canonical — pass `flush` to the control so it sits on the
+ * cluster's `gap-2` rhythm like the footer's own Chips. The primary action
+ * stays declarative by design; only `secondaryActions` accepts custom
+ * controls.
+ */
+export interface ChipModalFooterCustomAction {
+  /** Chip-chrome control rendered verbatim in the slot. */
+  custom: React.ReactNode
+}
+
+/** One entry of the footer's left-docked `secondaryActions` cluster. */
+export type ChipModalFooterSlotAction = ChipModalFooterAction | ChipModalFooterCustomAction
 
 export interface ChipModalFooterProps {
   /**
@@ -791,10 +943,15 @@ export interface ChipModalFooterProps {
   /** Primary action, anchored bottom-right (e.g. Save, Create, Delete). */
   primaryAction: ChipModalFooterAction
   /**
-   * Optional auxiliary action docked to the far-left, opposite the
-   * Cancel/primary cluster — e.g. Delete in an edit flow or Back in a wizard.
+   * Auxiliary actions docked to the far-left, opposite the Cancel/primary
+   * cluster, rendered in order on the cluster's `gap-2` rhythm — e.g. Delete
+   * in an edit flow, Back in a wizard, or chip-chrome controls (a date + time
+   * picker pair in a scheduling footer) via
+   * {@link ChipModalFooterCustomAction}. Like a `Resource` header's actions,
+   * each entry is a constrained {@link ChipModalFooterSlotAction} — consumers
+   * describe intent, never chrome.
    */
-  secondaryAction?: ChipModalFooterAction
+  secondaryActions?: ChipModalFooterSlotAction[]
 }
 
 /**
@@ -816,22 +973,38 @@ function ChipModalFooterShell({
       <ChipModalSeparator />
       <div
         className={cn(
-          'flex items-center gap-2 bg-[var(--surface-3)] px-4 pt-2 pb-2',
+          'flex items-center gap-x-2 gap-y-1.5 bg-[var(--surface-3)] px-4 pt-2 pb-2',
           leftSlot ? 'justify-between' : 'justify-end'
         )}
       >
         {leftSlot ?? null}
-        <div className='flex gap-2'>{children}</div>
+        <div className='flex shrink-0 gap-2'>{children}</div>
       </div>
     </div>
   )
 }
 
 /**
+ * Renders a left-cluster footer slot: a declarative
+ * {@link ChipModalFooterAction} as the canonical {@link Chip}, or a
+ * {@link ChipModalFooterCustomAction}'s control verbatim.
+ */
+function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactNode {
+  if ('custom' in action) return action.custom
+  return (
+    <Chip variant={action.variant} flush onClick={action.onClick} disabled={action.disabled}>
+      {action.label}
+    </Chip>
+  )
+}
+
+/**
  * Footer row with a fixed, declarative shape: an optional far-left
- * `secondaryAction`, then the always-present Cancel and the right-anchored
- * `primaryAction`. Buttons are described via {@link ChipModalFooterAction} and
- * rendered as {@link Chip}s, so no footer can drift from the canonical layout.
+ * `secondaryActions` cluster, then the always-present Cancel and the
+ * right-anchored `primaryAction`. Buttons are described via
+ * {@link ChipModalFooterAction} and rendered as {@link Chip}s, so no footer
+ * can drift from the canonical layout; the secondary entries additionally
+ * accept a chip-chrome control via {@link ChipModalFooterCustomAction}.
  *
  * For "are you sure?" confirmations, reach for {@link ChipConfirmModal} instead
  * — a confirmation's dismiss button is a named decision ("Keep editing"), not
@@ -841,34 +1014,46 @@ function ChipModalFooter({
   onCancel,
   cancelDisabled,
   primaryAction,
-  secondaryAction,
+  secondaryActions,
 }: ChipModalFooterProps) {
+  const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
+  const primaryChip = (
+    <Chip
+      variant={primaryAction.variant ?? 'primary'}
+      flush
+      onClick={primaryAction.onClick}
+      disabled={primaryAction.disabled}
+      className={cn(showsDisabledTooltip && 'pointer-events-none')}
+    >
+      {primaryAction.label}
+    </Chip>
+  )
+
   return (
     <ChipModalFooterShell
       leftSlot={
-        secondaryAction ? (
-          <Chip
-            variant={secondaryAction.variant}
-            flush
-            onClick={secondaryAction.onClick}
-            disabled={secondaryAction.disabled}
-          >
-            {secondaryAction.label}
-          </Chip>
+        secondaryActions && secondaryActions.length > 0 ? (
+          <div className='flex min-w-0 flex-wrap items-center gap-2'>
+            {secondaryActions.map((action, index) => (
+              <React.Fragment key={index}>{renderFooterSlotAction(action)}</React.Fragment>
+            ))}
+          </div>
         ) : undefined
       }
     >
       <Chip flush onClick={onCancel} disabled={cancelDisabled}>
         Cancel
       </Chip>
-      <Chip
-        variant={primaryAction.variant ?? 'primary'}
-        flush
-        onClick={primaryAction.onClick}
-        disabled={primaryAction.disabled}
-      >
-        {primaryAction.label}
-      </Chip>
+      {showsDisabledTooltip ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>
+            <span className='inline-flex cursor-not-allowed'>{primaryChip}</span>
+          </Tooltip.Trigger>
+          <Tooltip.Content>{primaryAction.disabledTooltip}</Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        primaryChip
+      )}
     </ChipModalFooterShell>
   )
 }
@@ -905,6 +1090,83 @@ export interface ChipConfirmAction {
   disabled?: boolean
 }
 
+/**
+ * One run of confirmation copy in a {@link ChipConfirmModalProps.text} array.
+ *
+ * - A plain string renders in the base style.
+ * - `bold` emphasizes the run — use for the name of the thing being acted on.
+ * - `error` colors the run `--text-error` — use for the irreversible
+ *   consequence sentence.
+ * - Falsy entries (`false` / `null` / `undefined`) are skipped, so runs can be
+ *   included conditionally, mirroring `cn()`.
+ *
+ * Segments concatenate VERBATIM — nothing is inserted between them — so spaces
+ * live inside the strings (`'Deleting '`) and punctuation can sit flush
+ * against an emphasized name (`{ text: name, bold: true }, '?'`).
+ */
+export type ChipConfirmTextSegment =
+  | string
+  | {
+      /**
+       * Run copy. Must be a string — give interpolations a fallback
+       * (`target?.name ?? 'this key'`) rather than rendering a hole.
+       */
+      text: string
+      /** Emphasizes the run (a `font-medium` `<strong>`). */
+      bold?: boolean
+      /** Renders the run in `--text-error`. */
+      error?: boolean
+    }
+  | false
+  | null
+  | undefined
+
+/**
+ * Confirmation copy for {@link ChipConfirmModal}: a plain string for
+ * single-style sentences, or an ordered run of {@link ChipConfirmTextSegment}s
+ * when parts need emphasis or error coloring.
+ */
+export type ChipConfirmText = string | readonly ChipConfirmTextSegment[]
+
+/** True when `text` resolves to at least one non-empty run. */
+function hasChipConfirmText(text: ChipConfirmText | undefined): text is ChipConfirmText {
+  if (text === undefined) return false
+  if (typeof text === 'string') return text.length > 0
+  return text.some((segment) => {
+    if (!segment) return false
+    return typeof segment === 'string' ? segment.length > 0 : segment.text.length > 0
+  })
+}
+
+/** Renders confirmation copy runs; per-run chrome is fixed by the segment flags. */
+function renderChipConfirmText(text: ChipConfirmText): React.ReactNode {
+  if (typeof text === 'string') return text
+  return text.map((segment, index) => {
+    if (!segment) return null
+    if (typeof segment === 'string') {
+      return <React.Fragment key={index}>{segment}</React.Fragment>
+    }
+    if (segment.bold) {
+      return (
+        <strong
+          key={index}
+          className={cn('font-medium', segment.error && 'text-[var(--text-error)]')}
+        >
+          {segment.text}
+        </strong>
+      )
+    }
+    if (segment.error) {
+      return (
+        <span key={index} className='text-[var(--text-error)]'>
+          {segment.text}
+        </span>
+      )
+    }
+    return <React.Fragment key={index}>{segment.text}</React.Fragment>
+  })
+}
+
 export interface ChipConfirmModalProps {
   /** Controlled open state. */
   open: boolean
@@ -920,13 +1182,18 @@ export interface ChipConfirmModalProps {
   /** Optional leading header icon. */
   icon?: React.ComponentType<{ className?: string }> | null
   /**
-   * Confirmation copy. Rendered with the standard secondary body styling, so
-   * pass a plain string or inline `<>…<span className='…text-primary…'>name</span>…</>`
-   * for emphasis — no wrapping `<p>` needed.
+   * Confirmation copy. A plain string, or a segment array when parts of the
+   * sentence need emphasis (`bold`) or consequence coloring (`error`).
+   * Rendered in `--text-primary` at `text-sm`; the modal owns all chrome —
+   * there is no className passthrough.
+   *
+   * Segments concatenate verbatim (no separators): keep spaces inside the
+   * strings, and use a bare `' '` segment only between two adjacent styled
+   * runs. Falsy segments are skipped for conditional copy.
    */
-  description?: React.ReactNode
+  text?: ChipConfirmText
   /**
-   * Extra body content below `description` — e.g. a "type the name to confirm"
+   * Extra body content below `text` — e.g. a "type the name to confirm"
    * {@link ChipModalField}. Most confirmations omit this.
    */
   children?: React.ReactNode
@@ -965,7 +1232,12 @@ export interface ChipConfirmModalProps {
  *   open={open}
  *   onOpenChange={(next) => { if (!next) setTarget(null); setOpen(next) }}
  *   title='Delete API key'
- *   description={<>Deleting <strong>{target?.name}</strong> revokes access immediately.</>}
+ *   text={[
+ *     'Deleting ',
+ *     { text: target?.name ?? 'this key', bold: true },
+ *     { text: ' will immediately revoke access.', error: true },
+ *     ' This action cannot be undone.',
+ *   ]}
  *   confirm={{ label: 'Delete', onClick: handleDelete, pending: isDeleting, pendingLabel: 'Deleting...' }}
  * />
  * ```
@@ -975,7 +1247,7 @@ function ChipConfirmModal({
   onOpenChange,
   title,
   icon,
-  description,
+  text,
   children,
   confirm,
   dismissLabel = 'Cancel',
@@ -996,8 +1268,10 @@ function ChipConfirmModal({
         {title}
       </ChipModalHeader>
       <ChipModalBody>
-        {description ? (
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>{description}</p>
+        {hasChipConfirmText(text) ? (
+          <p className='break-words px-2 text-[var(--text-primary)] text-sm'>
+            {renderChipConfirmText(text)}
+          </p>
         ) : null}
         {children}
       </ChipModalBody>
@@ -1064,5 +1338,6 @@ export {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipModalPromptBody,
   ChipModalTabs,
 }

@@ -1,10 +1,13 @@
+import { createLogger } from '@sim/logger'
 import type {
   SalesforceCreateOpportunityParams,
   SalesforceCreateOpportunityResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_CREATE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
+
+const logger = createLogger('SalesforceCreateOpportunity')
 
 export const salesforceCreateOpportunityTool: ToolConfig<
   SalesforceCreateOpportunityParams,
@@ -82,7 +85,7 @@ export const salesforceCreateOpportunityTool: ToolConfig<
         StageName: params.stageName,
         CloseDate: params.closeDate,
       }
-      if (params.accountId) body.AccountId = params.accountId
+      if (params.accountId) body.AccountId = params.accountId.trim()
       if (params.amount) body.Amount = Number.parseFloat(params.amount)
       if (params.probability) body.Probability = Number.parseInt(params.probability)
       if (params.description) body.Description = params.description
@@ -92,14 +95,16 @@ export const salesforceCreateOpportunityTool: ToolConfig<
 
   transformResponse: async (response) => {
     const data = await response.json()
-    if (!response.ok)
-      throw new Error(data[0]?.message || data.message || 'Failed to create opportunity')
+    if (!response.ok) {
+      logger.error('Failed to create opportunity', { data, status: response.status })
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to create opportunity'))
+    }
     return {
       success: true,
       output: {
         id: data.id,
-        success: data.success,
-        created: true,
+        success: data.success === true,
+        created: data.success === true,
       },
     }
   },

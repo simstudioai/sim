@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike } from '@sim/utils/object'
 import { isEqual } from 'es-toolkit'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { ChipTag, Combobox, type ComboboxOption } from '@/components/emcn'
@@ -272,7 +273,7 @@ export const Dropdown = memo(function Dropdown({
       const normalizedJson = normalizeVariableReferences(jsonString)
       const parsed = JSON.parse(normalizedJson)
 
-      if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      if (isRecordLike(parsed)) {
         return Object.entries(parsed).map(([key, value]) => {
           const fieldType = inferType(value)
           const fieldValue =

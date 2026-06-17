@@ -1214,7 +1214,8 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId) })
+      // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
+      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }
@@ -1224,6 +1225,9 @@ interface CancelRunsParams {
   rowId?: string
   /** Scope-`all` only: cancel just the cells on rows matching this filter (filtered select-all Stop). */
   filter?: Filter
+  /** Active sort — with `filter` it identifies the exact rows query whose cells the optimistic
+   *  cancel may flip (other cached views contain rows the server won't touch). */
+  sort?: Sort | null
   /** Scope-`all` only: deselected rows whose cells keep running. */
   excludeRowIds?: string[]
 }
@@ -1246,39 +1250,57 @@ export function useCancelTableRuns({ workspaceId, tableId }: RowMutationContext)
         body: { workspaceId, scope, rowId, filter, excludeRowIds },
       })
     },
-    onMutate: async ({ scope, rowId, excludeRowIds }) => {
+    onMutate: async ({ scope, rowId, filter, sort, excludeRowIds }) => {
       const excludedRowIds =
         excludeRowIds && excludeRowIds.length > 0 ? new Set(excludeRowIds) : null
-      const snapshots = await snapshotAndMutateRows(queryClient, tableId, (r) => {
-        if (scope === 'row' && r.id !== rowId) return null
-        if (excludedRowIds?.has(r.id)) return null
-        const executions = (r.executions ?? {}) as RowExecutions
-        let rowTouched = false
-        const nextExecutions: RowExecutions = { ...executions }
-        for (const gid in executions) {
-          const exec = executions[gid]
-          if (!isExecInFlight(exec)) continue
-          if (exec.executionId == null) {
-            // Optimistic-only or dispatcher-pre-stamp pending — server has not
-            // claimed the cell yet, so no SSE will arrive to reconcile a
-            // `cancelled` stamp. Strip the entry instead and let the renderer
-            // fall through to the cell's prior state (value / empty / etc.).
-            delete nextExecutions[gid]
+      // A filtered stop only cancels matching rows server-side — flipping every cached view
+      // would show rows outside the filter as cancelled until refetch. Scope the optimistic
+      // flip to the active filtered view; onSettled's invalidation reconciles the rest.
+      const onlyKey = filter
+        ? tableKeys.infiniteRows(
+            tableId,
+            tableRowsParamsKey({
+              pageSize: TABLE_LIMITS.MAX_QUERY_LIMIT,
+              filter,
+              sort: sort ?? null,
+            })
+          )
+        : undefined
+      const snapshots = await snapshotAndMutateRows(
+        queryClient,
+        tableId,
+        (r) => {
+          if (scope === 'row' && r.id !== rowId) return null
+          if (excludedRowIds?.has(r.id)) return null
+          const executions = (r.executions ?? {}) as RowExecutions
+          let rowTouched = false
+          const nextExecutions: RowExecutions = { ...executions }
+          for (const gid in executions) {
+            const exec = executions[gid]
+            if (!isExecInFlight(exec)) continue
+            if (exec.executionId == null) {
+              // Optimistic-only or dispatcher-pre-stamp pending — server has not
+              // claimed the cell yet, so no SSE will arrive to reconcile a
+              // `cancelled` stamp. Strip the entry instead and let the renderer
+              // fall through to the cell's prior state (value / empty / etc.).
+              delete nextExecutions[gid]
+              rowTouched = true
+              continue
+            }
+            nextExecutions[gid] = {
+              status: 'cancelled',
+              executionId: exec.executionId,
+              jobId: null,
+              workflowId: exec.workflowId,
+              error: 'Cancelled',
+              ...(exec.blockErrors ? { blockErrors: exec.blockErrors } : {}),
+            }
             rowTouched = true
-            continue
           }
-          nextExecutions[gid] = {
-            status: 'cancelled',
-            executionId: exec.executionId,
-            jobId: null,
-            workflowId: exec.workflowId,
-            error: 'Cancelled',
-            ...(exec.blockErrors ? { blockErrors: exec.blockErrors } : {}),
-          }
-          rowTouched = true
-        }
-        return rowTouched ? { ...r, executions: nextExecutions } : null
-      })
+          return rowTouched ? { ...r, executions: nextExecutions } : null
+        },
+        { onlyKey }
+      )
       return { snapshots }
     },
     onError: (_err, _variables, context) => {
@@ -1794,14 +1816,20 @@ export async function snapshotAndMutateRows(
   queryClient: ReturnType<typeof useQueryClient>,
   tableId: string,
   transform: (row: TableRow) => TableRow | null,
-  options?: { cancelInFlight?: boolean }
-): Promise<RowsCacheSnapshots> {
-  if (options?.cancelInFlight !== false) {
-    await queryClient.cancelQueries({ queryKey: tableKeys.rowsRoot(tableId) })
+  options?: {
+    cancelInFlight?: boolean
+    /** Restrict the walk to one exact cached query (e.g. the active filtered
+     *  view) when the mutation's server effect doesn't cover other views. */
+    onlyKey?: readonly unknown[]
   }
-  const matching = queryClient.getQueriesData<RowsCacheEntry>({
-    queryKey: tableKeys.rowsRoot(tableId),
-  })
+): Promise<RowsCacheSnapshots> {
+  const scope = options?.onlyKey
+    ? ({ queryKey: options.onlyKey, exact: true } as const)
+    : ({ queryKey: tableKeys.rowsRoot(tableId) } as const)
+  if (options?.cancelInFlight !== false) {
+    await queryClient.cancelQueries(scope)
+  }
+  const matching = queryClient.getQueriesData<RowsCacheEntry>(scope)
   const snapshots: RowsCacheSnapshots = []
   for (const [key, data] of matching) {
     if (!data) continue

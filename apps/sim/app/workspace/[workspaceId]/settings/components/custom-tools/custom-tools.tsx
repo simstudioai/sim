@@ -186,13 +186,11 @@ export function CustomTools() {
         }}
         srTitle='Delete Custom Tool'
         title='Delete Custom Tool'
-        description={
-          <>
-            Are you sure you want to delete{' '}
-            <span className='font-medium text-[var(--text-primary)]'>{toolToDelete?.name}</span>?{' '}
-            This action cannot be undone.
-          </>
-        }
+        text={[
+          'Are you sure you want to delete ',
+          { text: toolToDelete?.name ?? 'this tool', bold: true },
+          '? This action cannot be undone.',
+        ]}
         confirm={{ label: 'Delete', onClick: handleDeleteTool }}
       />
     </>
