@@ -3,6 +3,7 @@ import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { assertFolderMutable, assertWorkflowMutable } from '@sim/workflow-authz'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { eq } from 'drizzle-orm'
 import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
@@ -353,6 +354,7 @@ export async function executeCreateWorkflow(
     const folderId = params?.folderId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await performCreateWorkflow({
@@ -422,6 +424,7 @@ export async function executeCreateFolder(
     const parentId = params?.parentId || null
 
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await assertFolderMutable(parentId)
     assertWorkflowMutationNotAborted(context)
 
     const result = await performCreateFolder({
@@ -512,6 +515,7 @@ export async function executeSetGlobalWorkflowVariables(
       context.userId,
       'write'
     )
+    await assertWorkflowMutable(workflowId)
 
     interface WorkflowVariable {
       id: string
@@ -633,9 +637,9 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
-    assertWorkflowMutationNotAborted(context)
     const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    await assertWorkflowMutable(workflowId)
+    assertWorkflowMutationNotAborted(context)
     if (!current.workspaceId) {
       return { success: false, error: 'Workflow workspace is required' }
     }
@@ -671,6 +675,8 @@ export async function executeMoveWorkflow(
     const moved: string[] = []
     const failed: string[] = []
 
+    await assertFolderMutable(folderId)
+
     for (const workflowId of workflowIds) {
       try {
         const { workspaceId, workflow } = await ensureWorkflowAccess(
@@ -688,6 +694,7 @@ export async function executeMoveWorkflow(
             continue
           }
         }
+        await assertWorkflowMutable(workflowId)
         assertWorkflowMutationNotAborted(context)
         const result = await performUpdateWorkflow({
           workflowId,
@@ -735,6 +742,8 @@ export async function executeMoveFolder(
       return { success: false, error: 'Parent folder not found' }
     }
 
+    await assertFolderMutable(folderId)
+    await assertFolderMutable(parentId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateFolder({
       folderId,
@@ -941,6 +950,7 @@ async function executeUpdateWorkflow(
     if (!current.workspaceId) {
       return { success: false, error: 'Workflow workspace is required' }
     }
+    await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateWorkflow({
       workflowId,
@@ -984,6 +994,7 @@ export async function executeSetBlockEnabled(
       context.userId,
       'write'
     )
+    await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
@@ -1114,6 +1125,7 @@ export async function executeDeleteWorkflow(
           context.userId,
           'write'
         )
+        await assertWorkflowMutable(workflowId)
         assertWorkflowMutationNotAborted(context)
 
         const result = await performDeleteWorkflow({ workflowId, userId: context.userId })
@@ -1162,16 +1174,22 @@ export async function executeDeleteFolder(
 
       assertWorkflowMutationNotAborted(context)
 
-      const result = await performDeleteFolder({
-        folderId,
-        workspaceId,
-        userId: context.userId,
-        folderName: folder.folderName,
-      })
+      try {
+        await assertFolderMutable(folderId)
 
-      if (result.success) {
-        deleted.push(folderId)
-      } else {
+        const result = await performDeleteFolder({
+          folderId,
+          workspaceId,
+          userId: context.userId,
+          folderName: folder.folderName,
+        })
+
+        if (result.success) {
+          deleted.push(folderId)
+        } else {
+          failed.push(folderId)
+        }
+      } catch {
         failed.push(folderId)
       }
     }
@@ -1206,6 +1224,7 @@ async function executeRenameFolder(
       return { success: false, error: 'Folder not found' }
     }
 
+    await assertFolderMutable(folderId)
     assertWorkflowMutationNotAborted(context)
     const result = await performUpdateFolder({
       folderId,
