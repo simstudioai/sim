@@ -110,11 +110,13 @@ export const searchTool: ToolConfig<GoogleSearchParams, GoogleSearchResponse> = 
       searchParams.append('cx', params.searchEngineId)
 
       // Add optional parameters
-      if (params.num) {
-        searchParams.append('num', params.num.toString())
+      const num = Math.trunc(Number(params.num))
+      if (Number.isFinite(num) && num > 0) {
+        searchParams.append('num', Math.min(num, 10).toString())
       }
-      if (params.start) {
-        searchParams.append('start', params.start.toString())
+      const start = Math.trunc(Number(params.start))
+      if (Number.isFinite(start) && start > 0) {
+        searchParams.append('start', start.toString())
       }
       if (params.dateRestrict) {
         searchParams.append('dateRestrict', params.dateRestrict)
