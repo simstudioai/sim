@@ -283,7 +283,7 @@ Return ONLY the data JSON:`,
       id: 'conflictColumn',
       title: 'Conflict Column',
       type: 'short-input',
-      placeholder: 'Unique column to match on (defaults to the first unique column)',
+      placeholder: 'Unique column to match on (required if the table has multiple unique columns)',
       dependsOn: ['tableId'],
       condition: { field: 'operation', value: 'upsert_row' },
     },
@@ -646,7 +646,8 @@ Return ONLY the sort JSON:`,
     offset: { type: 'number', description: 'Query result offset' },
     conflictColumn: {
       type: 'string',
-      description: 'Unique column to match on for upsert (defaults to the first unique column)',
+      description:
+        'Unique column to match on for upsert (required if the table has multiple unique columns)',
     },
   },
 
