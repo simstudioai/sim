@@ -237,12 +237,13 @@ export async function runCopilotLifecycle(
 // Per-subagent checkpoint resume (concurrent fan-out)
 // ---------------------------------------------------------------------------
 //
-// Under the subagent-checkpoints model each paused subagent is its OWN checkpoint
-// chain (frame.checkpointId) joined at the orchestrator. Instead of one bundled
-// /resume, Sim drives one resume chain per child CONCURRENTLY so a fast child
-// never waits on a slow sibling, and the Go join wakes the orchestrator on
-// whichever child finishes last. Gated by the Go `subagent-checkpoints` flag,
-// surfaced here purely by frames carrying their own checkpointId.
+// Under the per-subagent checkpoint model each paused subagent is its OWN
+// checkpoint chain (frame.checkpointId) joined at the orchestrator. Instead of
+// one bundled /resume, Sim drives one resume chain per child CONCURRENTLY so a
+// fast child never waits on a slow sibling, and the Go join wakes the
+// orchestrator on whichever child finishes last. Gated by the Go
+// `parallel-subagents` flag, surfaced here purely by frames carrying their own
+// checkpointId.
 //
 // IMPORTANT (concurrency): JS is single-threaded, so the legs interleave at await
 // points rather than running truly in parallel; shared accumulators
