@@ -30,6 +30,21 @@ describe('SupabaseBlock', () => {
     expect(params).not.toHaveProperty('headers')
   })
 
+  it('ignores stale invalid Edge Function fields on other operations', () => {
+    // Hidden Edge Function inputs left over from a prior selection must not be
+    // parsed/validated (and must never throw) for unrelated operations.
+    expect(() =>
+      buildParams({
+        operation: 'query',
+        projectId: 'proj',
+        apiKey: 'key',
+        table: 'users',
+        functionBody: '{not valid json',
+        functionHeaders: '["a","b"]',
+      })
+    ).not.toThrow()
+  })
+
   it('passes method, body, and headers through for invoke_function', () => {
     const params = buildParams({
       operation: 'invoke_function',

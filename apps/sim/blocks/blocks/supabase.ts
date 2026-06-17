@@ -1095,45 +1095,6 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           parsedPaths = paths
         }
 
-        let parsedFunctionBody
-        if (functionBody && typeof functionBody === 'string' && functionBody.trim()) {
-          try {
-            parsedFunctionBody = JSON.parse(functionBody)
-          } catch (parseError) {
-            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
-            throw new Error(
-              `Invalid Edge Function body format: ${errorMsg}. Please provide a valid JSON object.`
-            )
-          }
-        } else if (functionBody && typeof functionBody === 'object') {
-          parsedFunctionBody = functionBody
-        }
-
-        let parsedFunctionHeaders
-        if (functionHeaders && typeof functionHeaders === 'string' && functionHeaders.trim()) {
-          try {
-            parsedFunctionHeaders = JSON.parse(functionHeaders)
-          } catch (parseError) {
-            const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
-            throw new Error(
-              `Invalid Edge Function headers format: ${errorMsg}. Please provide a valid JSON object.`
-            )
-          }
-        } else if (functionHeaders && typeof functionHeaders === 'object') {
-          parsedFunctionHeaders = functionHeaders
-        }
-
-        if (
-          parsedFunctionHeaders !== undefined &&
-          (typeof parsedFunctionHeaders !== 'object' ||
-            parsedFunctionHeaders === null ||
-            Array.isArray(parsedFunctionHeaders))
-        ) {
-          throw new Error(
-            'Edge Function headers must be a JSON object of header name to value (not an array).'
-          )
-        }
-
         let parsedAllowedMimeTypes
         if (allowedMimeTypes && typeof allowedMimeTypes === 'string' && allowedMimeTypes.trim()) {
           try {
@@ -1174,11 +1135,47 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           if (method !== undefined) {
             result.method = method
           }
-          if (parsedFunctionBody !== undefined) {
-            result.body = parsedFunctionBody
+
+          if (functionBody && typeof functionBody === 'string' && functionBody.trim()) {
+            try {
+              result.body = JSON.parse(functionBody)
+            } catch (parseError) {
+              const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
+              throw new Error(
+                `Invalid Edge Function body format: ${errorMsg}. Please provide a valid JSON object.`
+              )
+            }
+          } else if (functionBody && typeof functionBody === 'object') {
+            result.body = functionBody
           }
-          if (parsedFunctionHeaders !== undefined) {
-            result.headers = parsedFunctionHeaders
+
+          if (functionHeaders) {
+            let parsedHeaders
+            if (typeof functionHeaders === 'string' && functionHeaders.trim()) {
+              try {
+                parsedHeaders = JSON.parse(functionHeaders)
+              } catch (parseError) {
+                const errorMsg = getErrorMessage(parseError, 'Unknown JSON error')
+                throw new Error(
+                  `Invalid Edge Function headers format: ${errorMsg}. Please provide a valid JSON object.`
+                )
+              }
+            } else if (typeof functionHeaders === 'object') {
+              parsedHeaders = functionHeaders
+            }
+
+            if (parsedHeaders !== undefined) {
+              if (
+                typeof parsedHeaders !== 'object' ||
+                parsedHeaders === null ||
+                Array.isArray(parsedHeaders)
+              ) {
+                throw new Error(
+                  'Edge Function headers must be a JSON object of header name to value (not an array).'
+                )
+              }
+              result.headers = parsedHeaders
+            }
           }
         }
 
