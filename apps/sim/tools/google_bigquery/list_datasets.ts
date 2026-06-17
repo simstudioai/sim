@@ -108,7 +108,11 @@ export const googleBigQueryListDatasetsTool: ToolConfig<
             description: 'Descriptive name for the dataset',
             optional: true,
           },
-          location: { type: 'string', description: 'Geographic location where the data resides' },
+          location: {
+            type: 'string',
+            description: 'Geographic location where the data resides',
+            optional: true,
+          },
         },
       },
     },
