@@ -10,6 +10,8 @@ const {
   mockQueryRows,
   mockGetOrCreateTableSnapshot,
   mockDownloadFile,
+  mockGeneratePresignedDownloadUrl,
+  mockHasCloudStorage,
   mockExecuteTool,
 } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
@@ -18,6 +20,8 @@ const {
   mockQueryRows: vi.fn(),
   mockGetOrCreateTableSnapshot: vi.fn(),
   mockDownloadFile: vi.fn(),
+  mockGeneratePresignedDownloadUrl: vi.fn(),
+  mockHasCloudStorage: vi.fn(),
   mockExecuteTool: vi.fn(),
 }))
 
@@ -29,8 +33,13 @@ vi.mock('@/lib/table/service', () => ({
 vi.mock('@/lib/table/rows/service', () => ({ queryRows: mockQueryRows }))
 vi.mock('@/lib/table/snapshot-cache', () => ({
   getOrCreateTableSnapshot: mockGetOrCreateTableSnapshot,
+  SNAPSHOT_MAX_BYTES: 500 * 1024 * 1024,
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  downloadFile: mockDownloadFile,
+  generatePresignedDownloadUrl: mockGeneratePresignedDownloadUrl,
+  hasCloudStorage: mockHasCloudStorage,
+}))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 // Workspace-file + VFS surfaces are unused on the tables-only path; stub to avoid heavy loads.
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -67,10 +76,12 @@ const context = { workspaceId: 'ws_1', userId: 'u1' }
 
 function mountedFiles() {
   const params = mockExecuteTool.mock.calls[0][1] as {
-    _sandboxFiles?: Array<{ path: string; content: string }>
+    _sandboxFiles?: Array<{ path: string; type?: string; content?: string; url?: string }>
   }
   return params._sandboxFiles ?? []
 }
+
+const snapshotCacheOn = (flag: string) => Promise.resolve(flag === 'table-snapshot-cache')
 
 describe('executeFunctionExecute table mounts', () => {
   beforeEach(() => {
@@ -79,6 +90,8 @@ describe('executeFunctionExecute table mounts', () => {
     mockGetTableById.mockResolvedValue(table)
     mockIsFeatureEnabled.mockResolvedValue(false)
     mockQueryRows.mockResolvedValue({ rows: [{ data: { name: 'Ada' } }] })
+    mockHasCloudStorage.mockReturnValue(true)
+    mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/presigned?sig=abc')
   })
 
   it('flag OFF: drains the table inline via queryRows (existing path)', async () => {
@@ -91,10 +104,34 @@ describe('executeFunctionExecute table mounts', () => {
     expect(files[0].content).toBe('name\nAda')
   })
 
-  it('flag ON + large table: mounts by reference from the snapshot, no row drain', async () => {
-    mockIsFeatureEnabled.mockImplementation((flag: string) =>
-      Promise.resolve(flag === 'table-snapshot-cache')
+  it('flag ON + cloud storage: mounts by presigned URL, no bytes through web', async () => {
+    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+    mockGetOrCreateTableSnapshot.mockResolvedValue({
+      key: 'table-snapshots/ws_1/tbl_1/v5.csv',
+      size: 9,
+      version: 5,
+    })
+
+    await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
+
+    expect(mockGetOrCreateTableSnapshot).toHaveBeenCalledTimes(1)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).toHaveBeenCalledWith(
+      'table-snapshots/ws_1/tbl_1/v5.csv',
+      'execution',
+      expect.any(Number)
     )
+    expect(mountedFiles()[0]).toEqual({
+      type: 'url',
+      path: '/home/user/tables/tbl_1.csv',
+      url: 'https://s3.example/presigned?sig=abc',
+    })
+  })
+
+  it('flag ON + local storage: falls back to a buffered content mount', async () => {
+    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+    mockHasCloudStorage.mockReturnValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 9,
@@ -104,20 +141,18 @@ describe('executeFunctionExecute table mounts', () => {
 
     await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
 
-    expect(mockGetOrCreateTableSnapshot).toHaveBeenCalledTimes(1)
-    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
     expect(mockDownloadFile).toHaveBeenCalledWith(
       expect.objectContaining({ key: 'table-snapshots/ws_1/tbl_1/v5.csv', context: 'execution' })
     )
-    const files = mountedFiles()
-    expect(files[0].path).toBe('/home/user/tables/tbl_1.csv')
-    expect(files[0].content).toBe('name\nAda\n')
+    const file = mountedFiles()[0]
+    expect(file.path).toBe('/home/user/tables/tbl_1.csv')
+    expect(file.content).toBe('name\nAda\n')
+    expect(file.type).toBeUndefined()
   })
 
   it('flag ON but small table stays on the inline path', async () => {
-    mockIsFeatureEnabled.mockImplementation((flag: string) =>
-      Promise.resolve(flag === 'table-snapshot-cache')
-    )
+    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
     mockGetTableById.mockResolvedValue({ ...table, rowCount: 10 })
 
     await executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
@@ -126,10 +161,23 @@ describe('executeFunctionExecute table mounts', () => {
     expect(mockQueryRows).toHaveBeenCalledTimes(1)
   })
 
-  it('flag ON: throws when the snapshot exceeds the per-file mount limit', async () => {
-    mockIsFeatureEnabled.mockImplementation((flag: string) =>
-      Promise.resolve(flag === 'table-snapshot-cache')
-    )
+  it('flag ON + cloud: throws when the snapshot exceeds the table mount limit', async () => {
+    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+    mockGetOrCreateTableSnapshot.mockResolvedValue({
+      key: 'table-snapshots/ws_1/tbl_1/v5.csv',
+      size: 600 * 1024 * 1024,
+      version: 5,
+    })
+
+    await expect(
+      executeFunctionExecute({ inputTables: ['tbl_1'] }, context as never)
+    ).rejects.toThrow(/table mount limit/)
+    expect(mockGeneratePresignedDownloadUrl).not.toHaveBeenCalled()
+  })
+
+  it('flag ON + local: throws when the snapshot exceeds the per-file mount limit', async () => {
+    mockIsFeatureEnabled.mockImplementation(snapshotCacheOn)
+    mockHasCloudStorage.mockReturnValue(false)
     mockGetOrCreateTableSnapshot.mockResolvedValue({
       key: 'table-snapshots/ws_1/tbl_1/v5.csv',
       size: 20 * 1024 * 1024,

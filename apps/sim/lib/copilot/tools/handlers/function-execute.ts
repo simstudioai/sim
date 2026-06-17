@@ -5,7 +5,7 @@ import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/wor
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
-import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
+import { getOrCreateTableSnapshot, SNAPSHOT_MAX_BYTES } from '@/lib/table/snapshot-cache'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -13,7 +13,11 @@ import {
   getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { downloadFile } from '@/lib/uploads/core/storage-service'
+import {
+  downloadFile,
+  generatePresignedDownloadUrl,
+  hasCloudStorage,
+} from '@/lib/uploads/core/storage-service'
 import { executeTool as executeAppTool } from '@/tools'
 import type { ToolExecutionContext, ToolExecutionResult } from '../../tool-executor/types'
 
@@ -30,11 +34,15 @@ const MAX_MOUNTED_FILES = 500
  */
 const SNAPSHOT_MIN_ROWS = 500
 
-interface SandboxFile {
-  path: string
-  content: string
-  encoding?: 'base64'
-}
+/**
+ * Lifetime of the presigned URL handed to the sandbox to fetch a snapshot. Long enough to download
+ * a large file at sandbox startup; the URL grants read to only that one version-pinned object.
+ */
+const SNAPSHOT_URL_TTL_SECONDS = 600
+
+type SandboxFile =
+  | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
+  | { type: 'url'; path: string; url: string }
 
 interface CanonicalFileInput {
   path: string
@@ -279,10 +287,30 @@ async function resolveInputFiles(
           : undefined
       const mountPath = sandboxPath || `/home/user/tables/${table.id}.csv`
 
-      // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage —
-      // size is known before bytes are pulled (like workspace files), bounding web-process memory.
+      // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
       if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
         const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
+
+        if (hasCloudStorage()) {
+          // Mount by reference: the sandbox fetches the snapshot straight from storage via a
+          // presigned URL, so the bytes never pass through the web process — the only ceiling is
+          // sandbox disk (enforced at materialization by SNAPSHOT_MAX_BYTES).
+          if (snapshot.size > SNAPSHOT_MAX_BYTES) {
+            throw new Error(
+              `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${SNAPSHOT_MAX_BYTES / 1024 / 1024}MB table mount limit.`
+            )
+          }
+          const url = await generatePresignedDownloadUrl(
+            snapshot.key,
+            'execution',
+            SNAPSHOT_URL_TTL_SECONDS
+          )
+          sandboxFiles.push({ type: 'url', path: mountPath, url })
+          continue
+        }
+
+        // Local storage: a presigned URL is an app-internal serve path a remote sandbox can't
+        // reach, so fall back to buffering the bytes through the web process (file-mount guards).
         if (snapshot.size > MAX_FILE_SIZE) {
           throw new Error(
             `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`

@@ -28,11 +28,12 @@ const SNAPSHOT_CONTENT_TYPE = 'text/csv; charset=utf-8'
 const SNAPSHOT_BATCH_SIZE = 5000
 
 /**
- * Upper bound on a materialized snapshot. A table whose CSV exceeds this is not mountable into a
- * sandbox (mounts are capped at `MAX_FILE_SIZE`), so we abort rather than waste a full scan + store
- * on a snapshot the mount would only reject.
+ * Upper bound on a materialized snapshot. The sandbox now fetches snapshots by presigned URL (bytes
+ * never pass through web heap), so this is no longer a RAM limit — it bounds the worst-case inline
+ * materialization on a cache miss (a synchronous full-table scan in the copilot request). 500MB
+ * covers most large tables at ~tens of seconds; truly unbounded sizes want a background materializer.
  */
-export const SNAPSHOT_MAX_BYTES = 10 * 1024 * 1024
+export const SNAPSHOT_MAX_BYTES = 500 * 1024 * 1024
 
 export interface TableSnapshotRef {
   key: string
