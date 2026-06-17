@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, isNull, lt, or, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { markMothershipChatReadContract } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
@@ -28,7 +28,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     await db
       .update(copilotChats)
       .set({ lastSeenAt: sql`GREATEST(${copilotChats.updatedAt}, NOW())` })
-      .where(and(eq(copilotChats.id, chatId), eq(copilotChats.userId, userId)))
+      .where(
+        and(
+          eq(copilotChats.id, chatId),
+          eq(copilotChats.userId, userId),
+          or(isNull(copilotChats.lastSeenAt), lt(copilotChats.lastSeenAt, copilotChats.updatedAt))
+        )
+      )
 
     return NextResponse.json({ success: true })
   } catch (error) {

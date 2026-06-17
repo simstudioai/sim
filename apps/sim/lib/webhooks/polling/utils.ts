@@ -157,16 +157,19 @@ export async function updateWebhookProviderConfig(
   logger: Logger
 ): Promise<void> {
   try {
-    const result = await db.select().from(webhook).where(eq(webhook.id, webhookId))
-    const existingConfig = (result[0]?.providerConfig as Record<string, unknown>) || {}
+    const defined: Record<string, unknown> = {}
+    const removedKeys: string[] = []
+    for (const [key, value] of Object.entries(configUpdates)) {
+      if (value === undefined) removedKeys.push(key)
+      else defined[key] = value
+    }
+
+    const merged = sql`COALESCE(${webhook.providerConfig}, '{}'::jsonb) || ${JSON.stringify(defined)}::jsonb`
 
     await db
       .update(webhook)
       .set({
-        providerConfig: {
-          ...existingConfig,
-          ...configUpdates,
-        } as Record<string, unknown>,
+        providerConfig: removedKeys.length > 0 ? sql`(${merged}) - ${removedKeys}::text[]` : merged,
         updatedAt: new Date(),
       })
       .where(eq(webhook.id, webhookId))
