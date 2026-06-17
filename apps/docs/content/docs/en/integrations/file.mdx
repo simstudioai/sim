@@ -24,56 +24,48 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `files` | file[] | Workspace file objects |
 
 ### `file_get_content`
 
+Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID, or an array of canonical workspace file IDs. |
+| `fileInput` | file | No | Selected workspace file object, or an array of file objects. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `contents` | array | Array of file text contents, one entry per file in input order |
 
 ### `file_fetch`
 
+Fetch and parse a file from a URL with optional custom headers.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `headers` | object | No | HTTP headers to include when fetching URL-based files. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `files` | file[] | Fetched files as UserFile objects |
+| `combinedContent` | string | Combined content of all fetched files |
 
 ### `file_write`
 
@@ -140,21 +132,19 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 
 ### `file_decompress`
 
+Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.
+
 #### Input
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `fileId` | string | No | Canonical workspace file ID of the .zip archive to extract. |
+| `fileInput` | file | No | Selected .zip archive file object. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `files` | file[] | Workspace file objects \(read\), fetched file objects \(fetch\), the compressed archive \(compress\), or extracted files \(decompress\) |
-| `contents` | array | Array of file text contents, one entry per file \(get content\) |
-| `combinedContent` | string | All fetched file contents merged into a single text string \(fetch\) |
-| `id` | string | File ID \(write and append\) |
-| `name` | string | File name \(write and append\) |
-| `size` | number | File size in bytes \(write and append\) |
-| `url` | string | URL to access the file \(write and append\) |
+| `files` | file[] | Extracted workspace file objects |
 
 

@@ -1787,10 +1787,13 @@ function extractToolInfo(
       }
     }
 
-    // Params are often inherited via spread, so search the full file for params
+    // Prefer the params block scoped to this specific tool so that files
+    // defining multiple tools (e.g. file_compress + file_decompress in
+    // compress.ts) don't all inherit the first tool's params. Fall back to the
+    // full file for tools that inherit params via spread from a base object.
     const toolConfigRegex =
       /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
-    const toolConfigMatch = fileContent.match(toolConfigRegex)
+    const toolConfigMatch = toolContent.match(toolConfigRegex) ?? fileContent.match(toolConfigRegex)
 
     // Description should come from the specific tool block if found
     // Only search before nested objects (params, outputs, request, etc.) to avoid matching
@@ -2572,6 +2575,7 @@ async function getToolInfo(toolName: string): Promise<{
 
     let toolFileContent = ''
     let foundFile = ''
+    let foundExactId = false
 
     // Try to find a file that contains the exact tool ID
     for (const location of possibleLocations) {
@@ -2583,6 +2587,7 @@ async function getToolInfo(toolName: string): Promise<{
         if (toolIdRegex.test(content)) {
           toolFileContent = content
           foundFile = location.path
+          foundExactId = true
           break
         }
 
@@ -2590,6 +2595,28 @@ async function getToolInfo(toolName: string): Promise<{
         if (location.priority === 'fallback' && !toolFileContent) {
           toolFileContent = content
           foundFile = location.path
+        }
+      }
+    }
+
+    // The named-file candidates above miss tools defined inside a sibling tool's
+    // file (e.g. file_decompress lives in compress.ts). Before accepting an
+    // arbitrary fallback file, scan the whole tool-prefix directory for the file
+    // that declares this exact tool ID.
+    if (!foundExactId) {
+      const prefixDir = path.join(rootDir, `apps/sim/tools/${toolPrefix}`)
+      if (fs.existsSync(prefixDir)) {
+        const dirFiles = await glob(`${prefixDir}/**/*.ts`)
+        const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
+        for (const dirFile of dirFiles) {
+          if (dirFile.endsWith('.test.ts')) continue
+          const content = fs.readFileSync(dirFile, 'utf-8')
+          if (toolIdRegex.test(content)) {
+            toolFileContent = content
+            foundFile = dirFile
+            foundExactId = true
+            break
+          }
         }
       }
     }
