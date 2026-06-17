@@ -855,6 +855,11 @@ export async function pendingDeleteMask(table: TableDefinition): Promise<SQL | u
   if (!job?.payload) return undefined
   const scope = job.payload as TableDeleteJobPayload
 
+  // A bounded delete (explicit limit) deletes only the first `maxRows` matches, so the filter-based
+  // mask — which hides every match — would over-hide the rows beyond the cap this job never touches.
+  // Leave those reads unmasked; the bounded delete is eventually consistent like a bounded update.
+  if (scope.maxRows !== undefined) return undefined
+
   const doomedParts: SQL[] = []
   if (scope.filter && Object.keys(scope.filter).length > 0) {
     try {
