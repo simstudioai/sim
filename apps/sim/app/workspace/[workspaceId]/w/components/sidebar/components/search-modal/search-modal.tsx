@@ -17,12 +17,13 @@ import {
   HelpCircle,
   Home,
   Integration,
+  Key,
   Play,
   Plus,
+  Send,
   Settings,
   Table,
   Upload,
-  User,
 } from '@/components/emcn/icons'
 import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
@@ -126,12 +127,6 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
-          id: 'home',
-          name: 'New chat',
-          icon: Home,
-          href: `/workspace/${workspaceId}/home`,
-        },
-        {
           id: 'integrations',
           name: 'Integrations',
           icon: Integration,
@@ -173,6 +168,12 @@ export function SearchModal({
           shortcut: '⌘⇧L',
         },
         {
+          id: 'secrets',
+          name: 'Secrets',
+          icon: Key,
+          href: `/workspace/${workspaceId}/settings/secrets`,
+        },
+        {
           id: 'help',
           name: 'Help',
           icon: HelpCircle,
@@ -211,6 +212,14 @@ export function SearchModal({
       shortcut: '⌘↵',
       context: 'workflow',
       run: () => invokeCommand('run-workflow'),
+    })
+    list.push({
+      id: 'new-chat',
+      name: 'New chat',
+      keywords: 'chat message ask sim assistant home',
+      icon: Home,
+      context: 'global',
+      run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
     })
     if (canEdit && onCreateWorkflow) {
       list.push({
@@ -267,12 +276,13 @@ export function SearchModal({
       id: 'invite-teammates',
       name: 'Invite teammates',
       keywords: 'members people add user organization',
-      icon: User,
+      icon: Send,
       context: 'global',
       run: () => navigateToSettings({ section: 'teammates' }),
     })
     return list
   }, [
+    workspaceId,
     canEdit,
     onCreateWorkflow,
     onCreateFolder,
