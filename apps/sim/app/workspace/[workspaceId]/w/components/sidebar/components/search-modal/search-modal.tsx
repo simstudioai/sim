@@ -126,12 +126,6 @@ export function SearchModal({
     (): PageItem[] =>
       [
         {
-          id: 'home',
-          name: 'New chat',
-          icon: Home,
-          href: `/workspace/${workspaceId}/home`,
-        },
-        {
           id: 'integrations',
           name: 'Integrations',
           icon: Integration,
@@ -212,6 +206,14 @@ export function SearchModal({
       context: 'workflow',
       run: () => invokeCommand('run-workflow'),
     })
+    list.push({
+      id: 'new-chat',
+      name: 'New chat',
+      keywords: 'chat message ask sim assistant home',
+      icon: Home,
+      context: 'global',
+      run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
+    })
     if (canEdit && onCreateWorkflow) {
       list.push({
         id: 'create-workflow',
@@ -273,6 +275,7 @@ export function SearchModal({
     })
     return list
   }, [
+    workspaceId,
     canEdit,
     onCreateWorkflow,
     onCreateFolder,
