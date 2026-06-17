@@ -551,10 +551,15 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
         // Stop before any params block so we don't pick up param-level values
         const paramsOffset = window.search(/\bparams\s*:\s*\{/)
         const searchWindow = paramsOffset > 0 ? window.substring(0, paramsOffset) : window
-        const descMatch = searchWindow.match(/\bdescription\s*:\s*['"]([^'"]{5,})['"]/)
-        const nameMatch = searchWindow.match(/\bname\s*:\s*['"]([^'"]+)['"]/)
-        if (descMatch) desc.set(toolId, descMatch[1])
-        if (nameMatch) name.set(toolId, nameMatch[1])
+        // Match against the actual opening quote so apostrophes inside a
+        // double-quoted description (e.g. "Find someone's email") are preserved
+        // rather than being treated as the closing quote and truncating the value.
+        const descMatch = searchWindow.match(
+          /\bdescription\s*:\s*(?:'([^']{5,})'|"([^"]{5,})"|`([^`]{5,})`)/
+        )
+        const nameMatch = searchWindow.match(/\bname\s*:\s*(?:'([^']+)'|"([^"]+)"|`([^`]+)`)/)
+        if (descMatch) desc.set(toolId, descMatch[1] ?? descMatch[2] ?? descMatch[3] ?? '')
+        if (nameMatch) name.set(toolId, nameMatch[1] ?? nameMatch[2] ?? nameMatch[3] ?? '')
       }
     }
   } catch {
@@ -1807,7 +1812,9 @@ function extractToolInfo(
     }
     descriptionSearchContent = toolContent.substring(0, cutoffIndex)
 
-    const descriptionRegex = /description\s*:\s*['"](.*?)['"].*/
+    // Match against the actual opening quote so apostrophes inside a double-quoted
+    // description (e.g. "Find someone's email") are not treated as the closing quote.
+    const descriptionRegex = /description\s*:\s*(?:'([^']*)'|"([^"]*)"|`([^`]*)`)/
     let descriptionMatch = descriptionSearchContent.match(descriptionRegex)
 
     // If description isn't found as a literal (might be inherited like description: baseTool.description),
@@ -1820,7 +1827,7 @@ function extractToolInfo(
         const baseTool = inheritedDescMatch[1]
         // Try to find the base tool's description in the file
         const baseToolDescRegex = new RegExp(
-          `export\\s+const\\s+${baseTool}Tool[^{]*\\{[\\s\\S]*?description\\s*:\\s*['"]([^'"]+)['"]`,
+          `export\\s+const\\s+${baseTool}Tool[^{]*\\{[\\s\\S]*?description\\s*:\\s*(?:'([^']+)'|"([^"]+)"|\`([^\`]+)\`)`,
           'i'
         )
         const baseToolMatch = fileContent.match(baseToolDescRegex)
@@ -1830,7 +1837,12 @@ function extractToolInfo(
       }
     }
 
-    const description = descriptionMatch ? descriptionMatch[1] : 'No description available'
+    const description = descriptionMatch
+      ? (descriptionMatch[1] ??
+        descriptionMatch[2] ??
+        descriptionMatch[3] ??
+        'No description available')
+      : 'No description available'
 
     const params: Array<{ name: string; type: string; required: boolean; description: string }> = []
 

@@ -35,7 +35,7 @@ Integrate Datagma to find verified work emails from a name and company, enrich p
 
 ### `datagma_find_email`
 
-Find a verified work email from a person
+Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found.
 
 #### Input
 
@@ -61,7 +61,7 @@ Find a verified work email from a person
 
 ### `datagma_enrich_person`
 
-Enrich a person
+Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found.
 
 #### Input
 
@@ -125,7 +125,7 @@ Enrich a company profile using a domain, company name, or SIREN number (France).
 
 ### `datagma_find_phone`
 
-Find a mobile phone number from a person
+Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found.
 
 #### Input
 
