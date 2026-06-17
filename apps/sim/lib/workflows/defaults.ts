@@ -1,5 +1,6 @@
 import { generateId } from '@sim/utils/id'
 import { getEffectiveBlockOutputs } from '@/lib/workflows/blocks/block-outputs'
+import { createDefaultInputFormatField } from '@/lib/workflows/input-format'
 import { getBlock } from '@/blocks'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { BlockState, SubBlockState, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -39,15 +40,7 @@ function resolveInitialValue(subBlock: SubBlockConfig): unknown {
   }
 
   if (subBlock.type === 'input-format') {
-    return [
-      {
-        id: generateId(),
-        name: '',
-        type: 'string',
-        value: '',
-        collapsed: false,
-      },
-    ]
+    return [createDefaultInputFormatField()]
   }
 
   if (subBlock.type === 'table') {

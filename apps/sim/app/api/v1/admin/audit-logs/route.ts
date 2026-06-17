@@ -18,7 +18,7 @@
  * Response: AdminListResponse<AdminAuditLog>
  */
 
-import { db } from '@sim/db'
+import { dbReplica } from '@sim/db'
 import { auditLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, count, desc } from 'drizzle-orm'
@@ -70,8 +70,8 @@ export const GET = withRouteHandler(
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined
 
       const [countResult, logs] = await Promise.all([
-        db.select({ total: count() }).from(auditLog).where(whereClause),
-        db
+        dbReplica.select({ total: count() }).from(auditLog).where(whereClause),
+        dbReplica
           .select()
           .from(auditLog)
           .where(whereClause)

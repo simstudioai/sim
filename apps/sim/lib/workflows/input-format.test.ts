@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  createDefaultInputFormatField,
   extractInputFieldsFromBlocks,
   normalizeInputFormatValue,
 } from '@/lib/workflows/input-format'
@@ -225,5 +226,30 @@ describe('normalizeInputFormatValue', () => {
       },
     ]
     expect(normalizeInputFormatValue(input)).toEqual(input)
+  })
+})
+
+describe('createDefaultInputFormatField', () => {
+  it.concurrent('creates an empty field with the canonical default shape', () => {
+    const field = createDefaultInputFormatField()
+    expect(field).toEqual({
+      id: expect.any(String),
+      name: '',
+      type: 'string',
+      value: '',
+      collapsed: false,
+    })
+    expect(field.id.length).toBeGreaterThan(0)
+  })
+
+  it.concurrent('omits description so it is not persisted by default', () => {
+    expect('description' in createDefaultInputFormatField()).toBe(false)
+  })
+
+  it.concurrent('returns a fresh id and a new object on each call', () => {
+    const first = createDefaultInputFormatField()
+    const second = createDefaultInputFormatField()
+    expect(first.id).not.toBe(second.id)
+    expect(first).not.toBe(second)
   })
 })
