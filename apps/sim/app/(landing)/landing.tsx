@@ -1,12 +1,4 @@
-import {
-  Cta,
-  Ethos,
-  Features,
-  Hero,
-  LandingShell,
-  Mothership,
-  Testimonials,
-} from '@/app/(landing)/components'
+import { Cta, Ethos, Features, Hero, LandingShell, Mothership } from '@/app/(landing)/components'
 
 /**
  * Landing page root — owns the section order and the `<main>` content region.
@@ -28,7 +20,6 @@ export default function Landing() {
         <Hero />
         <Mothership />
         <Features />
-        <Testimonials />
         <Ethos />
         <Cta />
       </main>
