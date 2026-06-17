@@ -3959,7 +3959,7 @@ export const UserTable: ToolCatalogEntry = {
           limit: {
             type: 'number',
             description:
-              'Maximum rows to return or affect (optional; default 100, max 1000). For delete_rows_by_filter and update_rows_by_filter, omitting it lets matches above 1000 run as a background job.',
+              'Maximum rows to return or affect (default 100, max 1000). For update_rows_by_filter / delete_rows_by_filter, omit to act on every match — large match sets run as a background job.',
           },
           mapping: {
             type: 'object',
