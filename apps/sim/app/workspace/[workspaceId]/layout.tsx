@@ -5,10 +5,7 @@ import { getSession } from '@/lib/auth'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
-import {
-  prefetchSidebarChats,
-  prefetchSidebarWorkflows,
-} from '@/app/workspace/[workspaceId]/prefetch'
+import { prefetchWorkspaceSidebar } from '@/app/workspace/[workspaceId]/prefetch'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -31,10 +28,7 @@ export default async function WorkspaceLayout({
 
   const { workspaceId } = await params
   const queryClient = getQueryClient()
-  const sidebarPrefetch = Promise.all([
-    prefetchSidebarWorkflows(queryClient, workspaceId),
-    prefetchSidebarChats(queryClient, workspaceId),
-  ])
+  const sidebarPrefetch = prefetchWorkspaceSidebar(queryClient, workspaceId, session.user.id)
 
   // The organization plugin is conditionally spread so TS can't infer activeOrganizationId on the base session type.
   const orgId = (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId

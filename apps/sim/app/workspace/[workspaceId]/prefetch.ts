@@ -1,57 +1,55 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { headers } from 'next/headers'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
+import { listWorkflowsForUser } from '@/lib/workflows/queries'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { mapChat, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
 
-/** Forwards incoming request cookies so server-side API fetches authenticate correctly. */
-async function getForwardedHeaders(): Promise<Record<string, string>> {
-  const h = await headers()
-  const cookie = h.get('cookie')
-  return cookie ? { cookie } : {}
+const CHAT_LIST_STALE_TIME = 60 * 1000
+
+/** Resolves whether the user may access the workspace, swallowing errors to a `false`. */
+async function userCanAccessWorkspace(workspaceId: string, userId: string): Promise<boolean> {
+  try {
+    const access = await checkWorkspaceAccess(workspaceId, userId)
+    return access.exists && access.hasAccess
+  } catch {
+    return false
+  }
 }
 
 /**
- * Prefetches the workspace's workflow list under the same key and mapping as the client
- * `useWorkflows`/`useWorkflowMap` hooks, so the dehydrated data hydrates the sidebar.
+ * Prefetches the sidebar's workflow + chat lists for a workspace and stores them
+ * under the same query keys + mappers the client hooks use, so the persistent
+ * sidebar paints populated on the first server render instead of flashing skeletons
+ * on a cold load (e.g. after the browser discards an idle tab). Calls the data layer
+ * directly — the same functions the API routes use — with no internal HTTP hop.
+ *
+ * Skips silently when the user can't access the workspace, leaving the client to
+ * fetch and surface the real error instead of caching an empty list.
  */
-export function prefetchSidebarWorkflows(queryClient: QueryClient, workspaceId: string) {
-  return queryClient.prefetchQuery({
-    queryKey: workflowKeys.list(workspaceId, 'active'),
-    queryFn: async () => {
-      const fwdHeaders = await getForwardedHeaders()
-      const baseUrl = getInternalApiBaseUrl()
-      const response = await fetch(
-        `${baseUrl}/api/workflows?workspaceId=${encodeURIComponent(workspaceId)}&scope=active`,
-        { headers: fwdHeaders }
-      )
-      if (!response.ok) throw new Error(`Workflows prefetch failed: ${response.status}`)
-      const { data } = await response.json()
-      return data.map(mapWorkflow)
-    },
-    staleTime: WORKFLOW_LIST_STALE_TIME,
-  })
-}
-
-/**
- * Prefetches the workspace's mothership chat list under the same key and mapping as the
- * client `useMothershipChats` hook, so the dehydrated data hydrates the sidebar.
- */
-export function prefetchSidebarChats(queryClient: QueryClient, workspaceId: string) {
-  return queryClient.prefetchQuery({
-    queryKey: mothershipChatKeys.list(workspaceId),
-    queryFn: async () => {
-      const fwdHeaders = await getForwardedHeaders()
-      const baseUrl = getInternalApiBaseUrl()
-      const response = await fetch(
-        `${baseUrl}/api/mothership/chats?workspaceId=${encodeURIComponent(workspaceId)}`,
-        { headers: fwdHeaders }
-      )
-      if (!response.ok) throw new Error(`Chats prefetch failed: ${response.status}`)
-      const { data } = await response.json()
-      return data.map(mapChat)
-    },
-    staleTime: 60 * 1000,
-  })
+export async function prefetchWorkspaceSidebar(
+  queryClient: QueryClient,
+  workspaceId: string,
+  userId: string
+): Promise<void> {
+  if (!(await userCanAccessWorkspace(workspaceId, userId))) return
+  await Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: workflowKeys.list(workspaceId, 'active'),
+      queryFn: async () => {
+        const rows = await listWorkflowsForUser({ userId, workspaceId, scope: 'active' })
+        return rows.map(mapWorkflow)
+      },
+      staleTime: WORKFLOW_LIST_STALE_TIME,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: mothershipChatKeys.list(workspaceId),
+      queryFn: async () => {
+        const data = await listMothershipChats(userId, workspaceId)
+        return data.map(mapChat)
+      },
+      staleTime: CHAT_LIST_STALE_TIME,
+    }),
+  ])
 }

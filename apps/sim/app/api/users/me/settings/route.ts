@@ -2,93 +2,26 @@ import { db } from '@sim/db'
 import { settings } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { defaultUserSettings, getUserSettings } from '@/lib/users/queries'
 
 const logger = createLogger('UserSettingsAPI')
-
-const defaultSettings = {
-  theme: 'system',
-  autoConnect: true,
-  telemetryEnabled: true,
-  emailPreferences: {},
-  billingUsageNotificationsEnabled: true,
-  showTrainingControls: false,
-  superUserModeEnabled: false,
-  mothershipEnvironment: 'default',
-  errorNotificationsEnabled: true,
-  snapToGridSize: 0,
-  showActionBar: true,
-  timezone: null,
-  lastActiveWorkspaceId: null,
-}
 
 export const GET = withRouteHandler(async () => {
   const requestId = generateRequestId()
 
   try {
     const session = await getSession()
-
-    if (!session?.user?.id) {
-      logger.info(`[${requestId}] Returning default settings for unauthenticated user`)
-      return NextResponse.json({ data: defaultSettings }, { status: 200 })
-    }
-
-    const userId = session.user.id
-    const result = await db
-      .select({
-        theme: settings.theme,
-        autoConnect: settings.autoConnect,
-        telemetryEnabled: settings.telemetryEnabled,
-        emailPreferences: settings.emailPreferences,
-        billingUsageNotificationsEnabled: settings.billingUsageNotificationsEnabled,
-        showTrainingControls: settings.showTrainingControls,
-        superUserModeEnabled: settings.superUserModeEnabled,
-        mothershipEnvironment: settings.mothershipEnvironment,
-        errorNotificationsEnabled: settings.errorNotificationsEnabled,
-        snapToGridSize: settings.snapToGridSize,
-        showActionBar: settings.showActionBar,
-        timezone: settings.timezone,
-        lastActiveWorkspaceId: settings.lastActiveWorkspaceId,
-      })
-      .from(settings)
-      .where(eq(settings.userId, userId))
-      .limit(1)
-
-    if (!result.length) {
-      return NextResponse.json({ data: defaultSettings }, { status: 200 })
-    }
-
-    const userSettings = result[0]
-
-    return NextResponse.json(
-      {
-        data: {
-          theme: userSettings.theme,
-          autoConnect: userSettings.autoConnect,
-          telemetryEnabled: userSettings.telemetryEnabled,
-          emailPreferences: userSettings.emailPreferences ?? {},
-          billingUsageNotificationsEnabled: userSettings.billingUsageNotificationsEnabled ?? true,
-          showTrainingControls: userSettings.showTrainingControls ?? false,
-          superUserModeEnabled: userSettings.superUserModeEnabled ?? false,
-          mothershipEnvironment: userSettings.mothershipEnvironment ?? 'default',
-          errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
-          snapToGridSize: userSettings.snapToGridSize ?? 0,
-          showActionBar: userSettings.showActionBar ?? true,
-          timezone: userSettings.timezone ?? null,
-          lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
-        },
-      },
-      { status: 200 }
-    )
+    const data = await getUserSettings(session?.user?.id ?? null)
+    return NextResponse.json({ data }, { status: 200 })
   } catch (error: any) {
     logger.error(`[${requestId}] Settings fetch error`, error)
-    return NextResponse.json({ data: defaultSettings }, { status: 200 })
+    return NextResponse.json({ data: defaultUserSettings }, { status: 200 })
   }
 })
 
