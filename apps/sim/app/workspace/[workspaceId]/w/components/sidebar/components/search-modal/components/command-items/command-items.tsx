@@ -16,7 +16,7 @@ interface Segment {
   hit: boolean
 }
 
-function buildSegments(text: string, positions: number[]): Segment[] {
+function buildSegments(text: string, positions: readonly number[]): Segment[] {
   const hits = new Set(positions)
   const segments: Segment[] = []
   for (let i = 0; i < text.length; i++) {

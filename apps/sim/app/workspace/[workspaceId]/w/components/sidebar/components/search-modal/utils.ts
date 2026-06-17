@@ -112,11 +112,16 @@ export interface FuzzyResult {
   matched: boolean
   /** Relative ranking score; higher sorts first. Only meaningful when matched. */
   score: number
-  /** Indices into the candidate string that matched, ascending. */
-  positions: number[]
+  /** Indices into the candidate string that matched, ascending. Read-only. */
+  positions: readonly number[]
 }
 
-const NO_MATCH: FuzzyResult = { matched: false, score: 0, positions: [] }
+/**
+ * Shared singleton for the no-match case. The frozen empty array makes the
+ * read-only contract explicit and guarantees the shared instance can never be
+ * mutated by a caller.
+ */
+const NO_MATCH: FuzzyResult = { matched: false, score: 0, positions: Object.freeze([]) }
 
 function isCamelBoundary(text: string, index: number): boolean {
   if (index === 0) return false

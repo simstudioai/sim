@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
 import { useParams, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
@@ -71,6 +72,8 @@ import type {
   WorkspaceItem,
 } from './utils'
 import { filterAndSort } from './utils'
+
+const logger = createLogger('SearchModal')
 
 export type { SearchModalProps } from './utils'
 
@@ -257,7 +260,9 @@ export function SearchModal({
       icon: Link,
       context: 'workflow',
       run: () => {
-        navigator.clipboard.writeText(window.location.href).catch(() => {})
+        navigator.clipboard.writeText(window.location.href).catch((error) => {
+          logger.error('Failed to copy workflow link to clipboard', { error })
+        })
       },
     })
     list.push({
