@@ -45,6 +45,14 @@ export interface BlockDef {
 /** Fixed block width, matching the real canvas (`BLOCK_DIMENSIONS.FIXED_WIDTH`). */
 export const BLOCK_WIDTH = 250
 
+/**
+ * Camera zoom while the workflow stage is focused on the first block. Chosen so
+ * the focused first block lands at the same on-screen width as the chat card
+ * (`BLOCK_WIDTH * SCALE ≈ 460`), so the chat card morphs straight into it with
+ * no jump. Shared by the chat stage (its morph target) and the workflow camera.
+ */
+export const WORKFLOW_FOCUS_SCALE = 1.25
+
 /** Handle vertical offset from a block's top edge (matches the real WorkflowBlock). */
 export const HANDLE_Y_OFFSET = 20
 
@@ -146,6 +154,61 @@ export const EDGES: EdgeDef[] = (
 })
 
 /**
+ * Unified hero scene geometry. The chat card is block 1 (GitHub), centered at
+ * the panel center; the rest of the workflow is placed relative to it, all at
+ * FOCUS scale (design × {@link WORKFLOW_FOCUS_SCALE}). The whole scene is then
+ * scaled/translated to the OVERVIEW to reveal the full workflow — so the SAME
+ * card element is continuously block 1 through the pull-out.
+ *
+ * Scene origin is the GitHub block's CENTER (which sits at the panel center).
+ */
+const GH_CENTER_X = BLOCK_WIDTH / 2
+/** GitHub block half-height in design space (its content is ~77px tall). */
+const GH_CENTER_Y = 38.5
+const toSceneX = (dx: number) => (dx - GH_CENTER_X) * WORKFLOW_FOCUS_SCALE
+const toSceneY = (dy: number) => (dy - GH_CENTER_Y) * WORKFLOW_FOCUS_SCALE
+
+/** A satellite block (everything past block 1) placed in scene space. */
+export interface SceneBlock {
+  block: BlockDef
+  /** Top-left in scene space (origin = panel center), at FOCUS scale. */
+  left: number
+  top: number
+}
+
+/** Blocks 2…N, positioned relative to the centered first block. */
+export const SCENE_SATELLITES: SceneBlock[] = BLOCKS.slice(1).map((block) => ({
+  block,
+  left: toSceneX(block.x),
+  top: toSceneY(block.y),
+}))
+
+/** Edge paths in scene space (same connections as {@link EDGES}). */
+export const SCENE_EDGES: EdgeDef[] = (
+  [
+    ['github', 'agent'],
+    ['agent', 'jira'],
+  ] as const
+).map(([from, to]) => {
+  const { sx, sy, tx, ty } = handlePoints(from, to)
+  return {
+    id: `${from}-${to}`,
+    d: smoothStep(toSceneX(sx), toSceneY(sy), toSceneX(tx), toSceneY(ty), 14),
+  }
+})
+
+/**
+ * Pull-out transform from FOCUS (block 1 centered, full size) to OVERVIEW (whole
+ * workflow centered, fit to panel). `SCALE` brings the FOCUS-scale scene down to
+ * the design overview (1.84 × 0.37 ≈ 0.68); the translate recenters the group —
+ * it matches the design overview's GitHub offset, so the framing is identical to
+ * the prior camera overview. Transform-origin is the panel center (block 1's
+ * center), so FOCUS is the identity transform (no measurement needed).
+ */
+export const SCENE_OVERVIEW_SCALE = 0.68 / WORKFLOW_FOCUS_SCALE
+export const SCENE_OVERVIEW_TRANSLATE = { x: -204, y: -43 } as const
+
+/**
  * The typed prompt, encoded as ordered atoms the typewriter reveals one at a
  * time. A `char` atom is a single character; a `mention` atom pops in
  * atomically as an inline icon-chip — exactly how the real input renders an
@@ -173,6 +236,17 @@ export const HOME_GREETING = 'What should we get done?'
 
 /** Total reveal cadence for the typewriter, in ms per atom. */
 export const TYPE_MS_PER_ATOM = 45
+
+/**
+ * The Mothership's reply, typed out after it "thinks" (the cycle loader). Keeps
+ * the world voice — it dispatches an agent — and previews the workflow it's
+ * about to build, so the chat answer morphs naturally into the canvas below.
+ */
+export const ANSWER_TEXT =
+  'On it — dispatching an agent to review every PR and open a Jira issue.'
+
+/** Reveal cadence for the answer typewriter (faster than a human; the AI types). */
+export const ANSWER_MS_PER_CHAR = 18
 
 /** Knowledge-base name shown pre-filled in the create modal. */
 export const KB_NAME = 'Product Docs'

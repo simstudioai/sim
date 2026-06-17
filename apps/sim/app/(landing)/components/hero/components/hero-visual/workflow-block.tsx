@@ -6,14 +6,14 @@ interface WorkflowBlockProps {
 }
 
 /**
- * A pure presentational workflow block card, faithful to the real WorkflowBlock:
- * a fixed-width card with an icon-tile header and optional label → value rows,
- * plus decorative handle nubs on its left and right edges. Stateless and
- * client-free — positioning and the rise animation are owned by the parent stage.
+ * The inner content of a workflow block — the icon-tile header and optional
+ * label → value rows — WITHOUT the card chrome or handle nubs. Split out so the
+ * chat card can host the exact same content while morphing into the first block
+ * (the card keeps its own continuous shell; only this content crossfades in).
  */
-export function WorkflowBlock({ block }: WorkflowBlockProps) {
+export function WorkflowBlockContent({ block }: WorkflowBlockProps) {
   return (
-    <div className='relative w-[250px] rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'>
+    <>
       <div
         className={cn(
           'flex items-center gap-2.5 p-2',
@@ -53,6 +53,20 @@ export function WorkflowBlock({ block }: WorkflowBlockProps) {
           ))}
         </div>
       )}
+    </>
+  )
+}
+
+/**
+ * A pure presentational workflow block card, faithful to the real WorkflowBlock:
+ * a fixed-width card with an icon-tile header and optional label → value rows,
+ * plus decorative handle nubs on its left and right edges. Stateless and
+ * client-free — positioning and the rise animation are owned by the parent stage.
+ */
+export function WorkflowBlock({ block }: WorkflowBlockProps) {
+  return (
+    <div className='relative w-[250px] rounded-[13px] border border-[var(--border-1)] bg-[var(--surface-2)] shadow-sm'>
+      <WorkflowBlockContent block={block} />
 
       {!block.isTrigger && (
         <span

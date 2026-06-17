@@ -9,18 +9,24 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * split the viewport down the middle — a visual panel on the right, a
  * customer-logo block on the left — over a left-aligned text column.
  *
+ * The section is capped and centered at the shared `max-w-[1446px]`
+ * (`mx-auto`) — 1350px content plus the two 48px gutters — so on wide screens
+ * the whole hero (text column and both absolute panels, which anchor to this
+ * box) stays contained and centered rather than stretching edge to edge.
+ *
  * Text column (top → bottom, left-aligned): 112px top padding, headline,
- * description, then the sign-up row. Horizontal padding (`px-16`) matches the
+ * description, then the sign-up row. Horizontal padding (`px-12`) matches the
  * navbar so the hero text starts on the same vertical line as the wordmark;
  * blocks are stacked a uniform 22px apart (`gap-[22px]`).
  *
  * The sign-up row places the email-capture bar and a "Sign up" button side by
  * side, `gap-2` apart, matched to the same 44px visual height. The bar is a
- * no-background input
- * shell — `rounded-lg` (the chip roundedness) and `border-[var(--border-1)]`
- * (the `UserInput` border) — wrapping a transparent 16px `<input>` and the
- * "Book a demo" action `gap-2` apart; its `pl-3` text gutter and tighter
- * `pr-[5px]` tuck that button evenly into the right corner.
+ * no-background input shell — `border-[var(--border-1)]` (the `UserInput`
+ * border) — wrapping a transparent 16px `<input>` and the "Book a demo" action
+ * `gap-2` apart; its `pl-3` text gutter and tighter `pr-[5px]` tuck that button
+ * evenly into the right corner. Its radius is `rounded-[13px]` — concentric
+ * with the inset `rounded-lg` (8px) button: outer = inner + the ~5px inset, so
+ * the two corners nest cleanly instead of sharing one radius at different insets.
  *
  * Both CTAs carry 16px labels via a single font-size knob (`text-[16px]` +
  * `[&>span]:[font-size:inherit]`, overriding the chip's hardcoded `text-sm`)
@@ -42,7 +48,7 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * `aria-hidden` product demo (home → typed prompt → GitHub→Agent→Jira workflow
  * with data flowing) and the page's only client island. It is absolutely
  * positioned against the section: its left edge sits at the screen center
- * (`left-1/2`), its right edge at the hero's right padding (`right-16`), and it
+ * (`left-1/2`), its right edge at the hero's right padding (`right-12`), and it
  * is inset a uniform 32px from the section's top and bottom (`top-8 bottom-8`,
  * the section box top being the navbar's bottom edge) — equal breathing room
  * above and below, never overflowing the fold. Chrome is `rounded-lg` (chip
@@ -52,7 +58,7 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * the radius.
  *
  * The {@link HeroLogos} grid sits in a bottom-anchored panel that mirrors the
- * visual panel on the left half (`left-16` → `right-1/2`, same `top-8 bottom-8`
+ * visual panel on the left half (`left-12` → `right-1/2`, same `top-8 bottom-8`
  * frame). `flex flex-col justify-end` pins the grid to the bottom, then `pb-20`
  * lifts it 80px above the panel's bottom edge — the same 80px that separates the
  * top of the visual panel (`top-8`, y=32) from the hero text (`pt-[112px]`,
@@ -67,7 +73,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative flex min-h-[calc(100vh-62px)] flex-col items-start gap-[22px] px-16 pt-[112px] text-left'
+      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -91,7 +97,7 @@ export function Hero() {
       </p>
 
       <div className='flex items-center gap-2'>
-        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-lg border border-[var(--border-1)] pr-[5px] pl-3'>
+        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3'>
           <input
             type='email'
             aria-label='Email address'
@@ -118,12 +124,12 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-8 right-16 bottom-8 left-1/2 overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--surface-2)]'
+        className='absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[#fafafa]'
       >
         <HeroVisual />
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-16 flex flex-col justify-end pb-20'>
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20'>
         <HeroLogos />
       </div>
     </section>

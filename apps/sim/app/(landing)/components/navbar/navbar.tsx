@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ChipLink } from '@/components/emcn'
 import { GitHubChip } from '@/app/(landing)/components/navbar/components/github-chip'
+import { LogoMark } from '@/app/(landing)/components/navbar/components/logo-mark'
 import { NavMenuChip } from '@/app/(landing)/components/navbar/components/nav-menu-chip'
 import { NavbarShell } from '@/app/(landing)/components/navbar/components/navbar-shell'
 import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wordmark'
@@ -17,9 +18,12 @@ import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wo
  * the chips' own `mx-0.5` margins yields 8px between pills; the nav's
  * `gap-3.5` (14px) plus the first chip's 2px margin puts exactly 16px —
  * twice the inter-chip gap — between the wordmark and the Platform chip.
- * Horizontal padding matches the home navbar's desktop padding (`px-16`)
- * with slightly taller vertical padding. Text weight is the platform
- * default (400).
+ * Horizontal padding (`px-12`, 48px) matches every section's edge gutter,
+ * and the bar content is capped and centered at the shared
+ * `max-w-[1446px]` (1350px content + the two 48px gutters) so the wordmark
+ * aligns with the contained section content on wide screens — the frosted
+ * `<header>` shell stays full-bleed. Slightly taller vertical padding. Text
+ * weight is the platform default (400).
  *
  * Layout (left → right): Sim wordmark (18px glyph centered in a
  * chip-height slot, chip-text color) → Platform / Resources / Solutions
@@ -39,13 +43,15 @@ export function Navbar({ stars }: NavbarProps) {
         aria-label='Primary navigation'
         itemScope
         itemType='https://schema.org/SiteNavigationElement'
-        className='flex items-center gap-3.5 px-16 py-4'
+        className='mx-auto flex w-full max-w-[1446px] items-center gap-3.5 px-12 py-4'
       >
         <Link href='/' aria-label='Sim home' itemProp='url' className='flex h-[30px] items-center'>
           <span itemProp='name' className='sr-only'>
             Sim
           </span>
-          <SimWordmark />
+          <LogoMark>
+            <SimWordmark />
+          </LogoMark>
         </Link>
 
         <div className='flex items-center gap-1'>

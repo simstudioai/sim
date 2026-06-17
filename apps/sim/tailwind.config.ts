@@ -1,7 +1,14 @@
 import type { Config } from 'tailwindcss'
 
 export default {
-  darkMode: ['class'],
+  // Nesting-aware dark variant: `dark:` utilities apply inside a `.dark` subtree
+  // UNLESS they sit inside a nested `.light` island. The landing page pins
+  // itself light (a `.light` wrapper) while the visitor's `<html>` may carry
+  // `.dark`; without this exclusion, `dark:` utilities on emcn components (e.g.
+  // the `primary` chip's `dark:bg-white`) would leak through and render
+  // white-on-white. `:where()` keeps specificity equal to base utilities so the
+  // normal (non-island) dark-mode cascade is unchanged.
+  darkMode: ['variant', '&:where(.dark, .dark *):not(:where(.light, .light *))'],
   content: [
     './pages/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',

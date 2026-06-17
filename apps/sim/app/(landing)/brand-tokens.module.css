@@ -1,0 +1,35 @@
+/*
+ * Landing brand palette — SIM Brand System v1.0 neutrals, scoped to the landing
+ * root only. Remaps the platform's light-mode tokens to the brand guide's
+ * neutral ramp so every (landing) component picks up brand color through the
+ * tokens it already reads (var(--text-primary), var(--surface-2), …) with no
+ * per-component edits.
+ *
+ * This is the landing's token-definition layer — the scoped analog of the
+ * `:root, .light` block in globals.css — so the literal brand hex lives HERE,
+ * never in component classNames. It is a CSS module (scoped, not a global
+ * stylesheet) so it honors the "never touch global styles" rule. The doubled
+ * `.brand.brand` selector raises specificity above the `.light` defaults so the
+ * remap wins regardless of stylesheet order. Brand assets (e.g. the wordmark
+ * gradient) keep their own hex; this governs UI neutrals only.
+ */
+.brand.brand {
+  --bg: #ffffff;
+  --surface-1: #f8f8f8;
+  --surface-2: #ffffff;
+  --surface-3: #f8f8f8;
+  --surface-4: #f8f8f8;
+  --surface-5: #f8f8f8;
+  --surface-6: #e6e6e6;
+  --surface-7: #c3c3c3;
+  --border: #e6e6e6;
+  --border-1: #e6e6e6;
+  --text-primary: #121212;
+  --text-secondary: #5f5f5f;
+  --text-body: #2c2c2c;
+  --text-muted: #5f5f5f;
+  --text-icon: #5f5f5f;
+  --text-inverse: #e6e6e6;
+  /* Alloy — the brand ramp's light grey, for de-emphasized / subtle text. */
+  --text-subtle: #b4b4b4;
+}

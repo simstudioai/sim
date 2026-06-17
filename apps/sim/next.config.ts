@@ -1,3 +1,4 @@
+import path from 'node:path'
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
 import { isDev } from './lib/core/config/feature-flags'
@@ -94,6 +95,7 @@ const nextConfig: NextConfig = {
     ],
   },
   turbopack: {
+    root: path.join(__dirname, '../..'),
     resolveAlias: {
       // `dns/promises` has no browser shim. Server-only connector fetch logic
       // (which imports `input-validation.server`) is statically reachable from
@@ -105,7 +107,8 @@ const nextConfig: NextConfig = {
     },
   },
   experimental: {
-    optimizeCss: true,
+    optimizeCss: !isDev,
+    turbopackFileSystemCacheForDev: false,
     preloadEntriesOnStart: false,
     optimizePackageImports: [
       'lodash',

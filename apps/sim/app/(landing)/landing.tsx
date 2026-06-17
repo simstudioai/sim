@@ -1,5 +1,16 @@
+import { cn } from '@/lib/core/utils/cn'
 import { getGitHubStars } from '@/lib/github/stars'
-import { Features, Footer, Hero, Lifecycle, Navbar } from '@/app/(landing)/components'
+import {
+  Cta,
+  Ethos,
+  Features,
+  Footer,
+  Hero,
+  Mothership,
+  Navbar,
+  Testimonials,
+} from '@/app/(landing)/components'
+import styles from '@/app/(landing)/brand-tokens.module.css'
 
 /**
  * Landing page root — owns section order and server-side context.
@@ -28,7 +39,12 @@ export default async function Landing() {
   const stars = await getGitHubStars()
 
   return (
-    <div className='light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]'>
+    <div
+      className={cn(
+        'light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]',
+        styles.brand
+      )}
+    >
       <a
         href='#main-content'
         className='sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[var(--z-toast)] focus:rounded-md focus:bg-[var(--surface-2)] focus:px-4 focus:py-2 focus:text-[var(--text-primary)] focus:text-sm'
@@ -38,11 +54,26 @@ export default async function Landing() {
       <Navbar stars={stars} />
       <main id='main-content' className='flex flex-col gap-[120px]'>
         <Hero />
-        <Lifecycle />
+        <Mothership />
         <Features />
-        {/* <Testimonials /> */}
+        <Testimonials />
+        <Ethos />
+        <Cta />
       </main>
       <Footer />
+
+      {/* Bottom reveal — a short, soft white-fade + blur pinned to the viewport's
+          lower edge so content emerges into clarity as it scrolls up. Two
+          decorative layers: the blur fades out via a mask, the white tints over
+          it. */}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-x-0 bottom-0 z-40 h-16 backdrop-blur-[2px] [-webkit-mask-image:linear-gradient(to_top,black,transparent)] [mask-image:linear-gradient(to_top,black,transparent)]'
+      />
+      <div
+        aria-hidden='true'
+        className='pointer-events-none fixed inset-x-0 bottom-0 z-40 h-16 bg-gradient-to-t from-[var(--bg)] to-transparent'
+      />
     </div>
   )
 }

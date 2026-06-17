@@ -1,0 +1,46 @@
+/**
+ * Stage-home intrinsic motion that Tailwind can't express. Owns the greeting's
+ * one-shot shimmer reveal — a light band sweeps across the headline as it fades
+ * in, used once the chat input has fully settled (after the boot zoom-out).
+ */
+
+.greeting {
+  /* Text painted from a gradient clipped to the glyphs, so a lighter band can
+     sweep across it. Resting position parks the band off the text, leaving the
+     headline at its solid primary color. */
+  background-image: linear-gradient(
+    90deg,
+    var(--text-primary) 40%,
+    #b4b4b4 50%,
+    var(--text-primary) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Slight delay so it reveals just after the input lands, not with it. */
+  animation: greetingReveal 1600ms cubic-bezier(0.23, 1, 0.32, 1) 220ms both;
+}
+
+@keyframes greetingReveal {
+  0% {
+    opacity: 0;
+    background-position: 0 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    background-position: 200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .greeting {
+    animation: none;
+    opacity: 1;
+    background-image: none;
+    color: var(--text-primary);
+  }
+}
