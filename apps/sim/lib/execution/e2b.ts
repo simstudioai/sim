@@ -65,6 +65,8 @@ async function writeSandboxInputs(
   opts: { sandboxId?: string; rootUser?: boolean }
 ): Promise<void> {
   if (!files?.length) return
+  const fetchedByUrl: string[] = []
+  const writtenInline: string[] = []
   for (const file of files) {
     if (file.type === 'url') {
       const dir = file.path.slice(0, file.path.lastIndexOf('/'))
@@ -76,6 +78,7 @@ async function writeSandboxInputs(
             ...(opts.rootUser ? { user: 'root' } : {}),
           }
         )
+        fetchedByUrl.push(file.path)
       } catch (error) {
         throw new Error(
           `Failed to fetch mounted file into sandbox at ${file.path}: ${getErrorMessage(error)}`
@@ -87,14 +90,20 @@ async function writeSandboxInputs(
         file.path,
         buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
       )
+      writtenInline.push(file.path)
     } else {
       await sandbox.files.write(file.path, file.content)
+      writtenInline.push(file.path)
     }
   }
-  logger.info('Wrote sandbox input files', {
+  // Split counts so it's visible whether a mount was fetched in-sandbox (by presigned URL, no bytes
+  // through the web process) or written inline.
+  logger.info('Materialized sandbox inputs', {
     sandboxId: opts.sandboxId,
-    fileCount: files.length,
-    paths: files.map((f) => f.path),
+    fetchedByUrlCount: fetchedByUrl.length,
+    writtenInlineCount: writtenInline.length,
+    fetchedByUrl,
+    writtenInline,
   })
 }
 
