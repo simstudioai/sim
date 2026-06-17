@@ -152,12 +152,13 @@ export const webflowConnector: ConnectorConfig = {
     }
 
     const items = data.items || []
-    let documents: ExternalDocument[] = items.map((item) =>
+    const pageDocuments: ExternalDocument[] = items.map((item) =>
       itemToDocument(item, currentCollectionId, collectionName)
     )
 
+    let documents = pageDocuments
     if (maxItems > 0) {
-      const remaining = maxItems - totalDocsFetched
+      const remaining = Math.max(0, maxItems - totalDocsFetched)
       if (documents.length > remaining) {
         documents = documents.slice(0, remaining)
       }
@@ -171,8 +172,20 @@ export const webflowConnector: ConnectorConfig = {
     const hasMoreInCollection = cursorState.offset + pagination.limit < pagination.total
     const hasMoreCollections = cursorState.collectionIndex < cursorState.collections.length - 1
     const hitMaxItems = maxItems > 0 && totalDocsFetched + documents.length >= maxItems
-
-    if (hitMaxItems && (hasMoreInCollection || hasMoreCollections) && syncContext) {
+    /**
+     * When the cap stops the sync, flag the listing as capped so the sync engine
+     * skips deletion reconciliation — otherwise still-existing documents that
+     * were never listed get hard-deleted. "More" means any of: items dropped
+     * from this page (`pageDocuments.length > documents.length`), more pages in
+     * this collection, or more collections still to visit. The within-page drop
+     * is the only signal when a collection fits in a single API response.
+     */
+    const droppedWithinPage = documents.length < pageDocuments.length
+    if (
+      syncContext &&
+      hitMaxItems &&
+      (droppedWithinPage || hasMoreInCollection || hasMoreCollections)
+    ) {
       syncContext.listingCapped = true
     }
 
