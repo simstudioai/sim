@@ -38,15 +38,15 @@ describe('createStableFlagController', () => {
   })
 
   it('suppresses a blip that heals before the delay (flash-on)', () => {
-    const { controller, states, active } = setup()
+    const probe = setup()
 
-    controller.setValue(true)
+    probe.controller.setValue(true)
     vi.advanceTimersByTime(DELAY_MS - 1)
-    controller.setValue(false)
+    probe.controller.setValue(false)
     vi.advanceTimersByTime(10_000)
 
-    expect(states).toEqual([])
-    expect(active).toBe(false)
+    expect(probe.states).toEqual([])
+    expect(probe.active).toBe(false)
   })
 
   it('does not turn on one tick before the delay boundary', () => {

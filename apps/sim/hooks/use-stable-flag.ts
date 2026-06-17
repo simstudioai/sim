@@ -106,6 +106,12 @@ export function useStableFlag(value: boolean, options: StableFlagOptions = {}): 
   const controllerRef = useRef<ReturnType<typeof createStableFlagController> | null>(null)
 
   useEffect(() => {
+    // Reset to the fresh controller's baseline. Without this, recreating the
+    // controller on an options change while `active` is true and `value` is
+    // already false would strand the React state at true — the new controller
+    // starts internally false, so its `setValue(false)` early-returns and never
+    // emits `onChange(false)`.
+    setActive(false)
     const controller = createStableFlagController(setActive, { delayMs, minVisibleMs })
     controllerRef.current = controller
     controller.setValue(valueRef.current)
