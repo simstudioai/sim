@@ -732,7 +732,15 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
   })
 
-  it('runs an explicit large limit inline without escalating (delete loads only ids)', async () => {
+  it('escalates an explicit limit above the cap to a background delete with maxRows (unmasked)', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
@@ -740,12 +748,19 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
+    await flushDetached()
 
     expect(result.success).toBe(true)
-    // An explicit limit never counts/escalates — it deletes inline, bounded by the limit.
-    expect(mockQueryRows).not.toHaveBeenCalled()
-    expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
-    expect(mockDeleteRowsByFilter.mock.calls[0][1]).toMatchObject({ limit: 5000 })
+    // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
+    expect(result.data?.doomedCount).toBe(5000)
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(type).toBe('delete')
+    // Bounded delete carries maxRows and omits doomedCount so the mask is skipped and the count
+    // isn't double-subtracted.
+    expect(payload).toMatchObject({ maxRows: 5000 })
+    expect((payload as { doomedCount?: number }).doomedCount).toBeUndefined()
+    expect(mockRunTableDelete.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
   })
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
@@ -801,6 +816,8 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     expect(tableId).toBe('tbl_1')
     expect(type).toBe('delete')
     expect(payload).toMatchObject({ doomedCount: 20000, cutoff: expect.any(String) })
+    // Unbounded delete masks the whole set — no maxRows cap.
+    expect((payload as { maxRows?: number }).maxRows).toBeUndefined()
     expect(mockRunTableDelete).toHaveBeenCalledTimes(1)
     expect(mockRunTableDelete.mock.calls[0][0]).toMatchObject({
       jobId,

@@ -161,8 +161,9 @@ async function dispatchDeleteJob(params: {
   workspaceId: string
   filter: Filter
   cutoff: Date
+  maxRows?: number
 }): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, cutoff } = params
+  const { jobId, tableId, workspaceId, filter, cutoff, maxRows } = params
   if (isTriggerDevEnabled) {
     try {
       const [{ tableDeleteTask }, { tasks }] = await Promise.all([
@@ -171,7 +172,7 @@ async function dispatchDeleteJob(params: {
       ])
       await tasks.trigger<typeof tableDeleteTask>(
         'table-delete',
-        { jobId, tableId, workspaceId, filter, cutoff: cutoff.toISOString() },
+        { jobId, tableId, workspaceId, filter, cutoff: cutoff.toISOString(), maxRows },
         { tags: [`tableId:${tableId}`, `jobId:${jobId}`] }
       )
     } catch (error) {
@@ -180,10 +181,12 @@ async function dispatchDeleteJob(params: {
     }
   } else {
     runDetached('table-delete', () =>
-      runTableDelete({ jobId, tableId, workspaceId, filter, cutoff }).catch(async (error) => {
-        await markTableDeleteFailed(tableId, jobId, error)
-        throw error
-      })
+      runTableDelete({ jobId, tableId, workspaceId, filter, cutoff, maxRows }).catch(
+        async (error) => {
+          await markTableDeleteFailed(tableId, jobId, error)
+          throw error
+        }
+      )
     )
   }
 }
@@ -817,27 +820,31 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const idByName = buildIdByName(table.schema)
           const idFilter = filterNamesToIds(args.filter, idByName)
 
-          // An explicit limit runs inline (delete loads only row ids, so even a large bounded
-          // delete is light). Only an unbounded "delete everything matching" measures the blast
-          // radius and hands off to the background delete worker (same path as the UI's select-all
-          // delete) — the read-path mask hides exactly the all-matching set, which a bounded delete
-          // would over-hide.
-          if (args.limit === undefined) {
+          // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
+          // above the cap, or unbounded "delete everything matching") hands off to the background
+          // delete worker so a broad delete on a huge table doesn't load every matching id into this
+          // request. A small explicit limit is the fast path.
+          const deleteInlineEligible =
+            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
+          if (!deleteInlineEligible) {
             const { totalCount } = await queryRows(
               table,
               { filter: idFilter, limit: 1, withExecutions: false },
               requestId
             )
             const matchCount = totalCount ?? 0
-            if (matchCount > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-              const doomedCount = Math.min(matchCount, table.rowCount)
+            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
+            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+              const doomedCount = Math.min(target, table.rowCount)
               const cutoff = new Date()
               const jobId = generateId()
-              const payload: TableDeleteJobPayload = {
-                filter: idFilter,
-                cutoff: cutoff.toISOString(),
-                doomedCount,
-              }
+              // Unbounded: mask the whole matching set (instant post-delete view), so `doomedCount`
+              // drives the count adjustment. Bounded (maxRows): no mask — `doomedCount` is omitted so
+              // the count isn't double-subtracted; rows disappear progressively as they're deleted.
+              const bounded = args.limit !== undefined
+              const payload: TableDeleteJobPayload = bounded
+                ? { filter: idFilter, cutoff: cutoff.toISOString(), maxRows: args.limit }
+                : { filter: idFilter, cutoff: cutoff.toISOString(), doomedCount }
               assertNotAborted()
               const claimed = await markTableJobRunning(table.id, jobId, 'delete', payload)
               if (!claimed) {
@@ -849,10 +856,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 workspaceId,
                 filter: idFilter,
                 cutoff,
+                maxRows: args.limit,
               })
               return {
                 success: true,
-                message: `Started background delete of ${doomedCount} matching rows (job ${jobId}). The rows are hidden from reads immediately — query_rows already reflects the post-delete view.`,
+                message: bounded
+                  ? `Started background delete of up to ${doomedCount} matching rows (job ${jobId}). Rows delete in the background — query_rows to check progress.`
+                  : `Started background delete of ${doomedCount} matching rows (job ${jobId}). The rows are hidden from reads immediately — query_rows already reflects the post-delete view.`,
                 data: { jobId, doomedCount },
               }
             }

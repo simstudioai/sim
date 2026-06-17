@@ -213,8 +213,16 @@ export interface TableDeleteJobPayload {
   /** ISO timestamp; rows created after it are spared. */
   cutoff: string
   /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
-   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. Set only for an
+   *  unbounded delete (the masked "delete everything matching" path); omitted when `maxRows` is set. */
   doomedCount?: number
+  /**
+   * Stop after deleting this many rows (an explicit caller-supplied limit above the inline cap).
+   * Omitted = delete every match. When set, reads are NOT masked: the delete is eventually
+   * consistent (rows disappear as they're deleted) like a bounded update, because the filter-based
+   * mask would over-hide the rows beyond the cap that this job never deletes.
+   */
+  maxRows?: number
 }
 
 /**
