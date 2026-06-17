@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { assertFolderMutable, FolderLockedError } from '@sim/workflow-authz'
 import { type NextRequest, NextResponse } from 'next/server'
 import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
@@ -116,6 +117,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       )
     }
 
+    await assertFolderMutable(folderId)
+
     const result = await performCreateWorkflow({
       id: clientId,
       name: requestedName,
@@ -180,6 +183,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       subBlockValues: createdWorkflow.subBlockValues,
     })
   } catch (error) {
+    if (error instanceof FolderLockedError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
     logger.error(`[${requestId}] Error creating workflow`, error)
     return NextResponse.json({ error: 'Failed to create workflow' }, { status: 500 })
   }
