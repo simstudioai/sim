@@ -183,7 +183,7 @@ function parseChatResourcesResponse(value: unknown): { resources: MothershipReso
   }
 }
 
-function mapChat(chat: MothershipChat): MothershipChatMetadata {
+export function mapChat(chat: MothershipChat): MothershipChatMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
