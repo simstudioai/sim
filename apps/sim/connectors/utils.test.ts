@@ -18,12 +18,12 @@ vi.mock('@/components/icons', () => ({
   JiraServiceManagementIcon: () => null,
   S3Icon: () => null,
   GoogleFormsIcon: () => null,
-  AzureDevOpsIcon: () => null,
   xIcon: () => null,
   GranolaIcon: () => null,
   GreenhouseIcon: () => null,
   FathomIcon: () => null,
   RootlyIcon: () => null,
+  AzureIcon: () => null,
 }))
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
