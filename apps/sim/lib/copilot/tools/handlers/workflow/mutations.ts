@@ -637,10 +637,9 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
     await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
-    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
     if (!current.workspaceId) {
       return { success: false, error: 'Workflow workspace is required' }
     }
