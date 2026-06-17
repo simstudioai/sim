@@ -913,6 +913,100 @@ const MarkdownPreview = memo(function MarkdownPreview({
     revealedContent
   )
 
+  // #region agent log
+  const mpUidRef = useRef(Math.random().toString(36).slice(2, 8))
+  const revealedAtMountRef = useRef(revealedContent.length)
+  useEffect(() => {
+    const uid = mpUidRef.current
+    const scroller = spacerRef.current?.parentElement ?? null
+    if (!scroller || !isStreaming || content.length <= 60) return
+    // Frame 2 after a resume mount: does the freshly mounted DOM have running CSS
+    // animations? If so the visible "animate the whole file" is the markdown
+    // (re)entering with a fade on every remount, independent of Streamdown props.
+    let f = 0
+    let raf = 0
+    const tick = () => {
+      if (f >= 2) {
+        const el = scroller as Element & {
+          getAnimations?: (o?: { subtree?: boolean }) => Animation[]
+        }
+        const anims = el.getAnimations ? el.getAnimations({ subtree: true }) : []
+        const running = anims.filter((a) => a.playState === 'running')
+        const names = running.slice(0, 6).map((a) => {
+          const eff = a.effect as KeyframeEffect | null
+          const target = eff?.target as Element | null
+          const nm =
+            (a as unknown as { animationName?: string; transitionProperty?: string })
+              .animationName ??
+            (a as unknown as { transitionProperty?: string }).transitionProperty ??
+            a.constructor.name
+          return `${nm}@${target?.tagName ?? '?'}`
+        })
+        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+          body: JSON.stringify({
+            sessionId: '3dc406',
+            hypothesisId: 'F3',
+            location: 'preview-panel.tsx:MarkdownPreview:anim-probe',
+            message: 'CSS animations on resume mount (running>0 = re-animate is mount fade)',
+            data: {
+              uid,
+              contentLen: content.length,
+              scrollTop: Math.round(scroller.scrollTop),
+              scrollHeight: Math.round(scroller.scrollHeight),
+              clientHeight: Math.round(scroller.clientHeight),
+              animTotal: anims.length,
+              animRunning: running.length,
+              names,
+            },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {})
+        return
+      }
+      f++
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+  // #endregion
+
+  // #region agent log
+  // Render-time: catch the reveal jumping BACKWARD (re-reveal "from the
+  // beginning") or the content prop resetting, the only remaining way the file
+  // could appear to re-animate without a CSS animation/scroll.
+  const prevRevealedLenRef = useRef(revealedContent.length)
+  const prevContentLenRef = useRef(content.length)
+  if (
+    revealedContent.length < prevRevealedLenRef.current - 40 ||
+    content.length < prevContentLenRef.current - 40
+  ) {
+    fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+      body: JSON.stringify({
+        sessionId: '3dc406',
+        hypothesisId: 'F6',
+        location: 'preview-panel.tsx:reveal-drop',
+        message: 'reveal/content dropped backward (re-reveal from beginning)',
+        data: {
+          uid: mpUidRef.current,
+          revealedFrom: prevRevealedLenRef.current,
+          revealedTo: revealedContent.length,
+          contentFrom: prevContentLenRef.current,
+          contentTo: content.length,
+          isStreaming,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+  }
+  prevRevealedLenRef.current = revealedContent.length
+  prevContentLenRef.current = content.length
+  // #endregion
+
   const contentRef = useRef(content)
   contentRef.current = content
 

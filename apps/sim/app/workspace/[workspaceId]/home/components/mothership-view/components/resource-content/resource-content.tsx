@@ -514,6 +514,20 @@ interface EmbeddedWorkflowProps {
 }
 
 function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
+  // #region agent log
+  fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+    body: JSON.stringify({
+      sessionId: '3dc406',
+      hypothesisId: 'B2',
+      location: 'resource-content.tsx:EmbeddedWorkflow',
+      message: 'canvas wrapper render',
+      data: { workflowId },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {})
+  // #endregion
   const { data: workflowList, isPending: isWorkflowsPending } = useWorkflows(workspaceId)
   const workflowExists = (workflowList ?? []).some((w) => w.id === workflowId)
   const hasLoadError = useWorkflowRegistry(

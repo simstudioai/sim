@@ -82,6 +82,9 @@ const STATIC_CONNECT_SRC = [
   'https://challenges.cloudflare.com',
   ...(isReactGrabEnabled ? ['https://www.react-grab.com'] : []),
   ...(isDev ? ['ws://localhost:4722'] : []),
+  // #region agent log
+  ...(isDev ? ['http://127.0.0.1:1025'] : []),
+  // #endregion
   ...(isHosted
     ? [
         'https://www.googletagmanager.com',

@@ -24,6 +24,8 @@ const FILE_SUBAGENT_ID = 'file'
 
 interface TextSegment {
   type: 'text'
+  /** Stable per-run React key (see the counters in parseBlocksWithSpanTree). */
+  id: string
   content: string
 }
 
@@ -145,10 +147,10 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
 
 const SPAN_ROOT = 'main'
 
-function createAgentGroupSegment(name: string, idKey: string, ordinal: number): AgentGroupSegment {
+function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
   return {
     type: 'agent_group',
-    id: `agent-${idKey}-${ordinal}`,
+    id,
     agentName: name,
     agentLabel: resolveAgentLabel(name),
     items: [],
@@ -177,6 +179,27 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
 function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
+  // Stable per-run counters for React keys. The Nth top-level text run / Nth
+  // mothership group keeps the same key across re-parses (text runs and groups
+  // are append-only at the top level), so React never remounts the streaming
+  // ChatContent / AgentGroup when later segments shift array position. Keying by
+  // array index or block index is unstable (subagent_end interleaves, parallel
+  // spans reorder), which caused the disappear/re-animate + parallel-subagent flash.
+  let textRun = 0
+  let mothershipRun = 0
+
+  // Canonical subagent identity: the dispatch tool call id. It is stable across
+  // the no-spanId (legacy parser) -> spanId (span-tree parser) transition and
+  // across DB-load vs live, so the group's React key never changes when the
+  // underlying span id is stamped — eliminating the remount/flash and keeping a
+  // refreshed transcript byte-identical to the live stream.
+  const spanAnchor = new Map<string, string>()
+  for (const b of blocks) {
+    if (b.type === 'subagent' && b.spanId && b.parentToolCallId) {
+      spanAnchor.set(b.spanId, b.parentToolCallId)
+    }
+  }
+  const spanGroupKey = (spanId: string): string => `agent-${spanAnchor.get(spanId) ?? spanId}`
 
   const tailMothershipGroup = (): AgentGroupSegment | null => {
     const last = segments[segments.length - 1]
@@ -192,7 +215,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const ensureMothership = (): AgentGroupSegment => {
     const existing = tailMothershipGroup()
     if (existing) return existing
-    const group = createAgentGroupSegment('mothership', 'mothership', segments.length)
+    const group = createAgentGroupSegment('mothership', `agent-mothership-${mothershipRun++}`)
     segments.push(group)
     return group
   }
@@ -227,12 +250,13 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const ensureSpanGroup = (
     name: string,
     spanId: string,
-    parentSpanId: string | undefined,
-    ordinal: number
+    parentSpanId: string | undefined
   ): AgentGroupSegment => {
     const existing = groupsBySpanId.get(spanId)
     if (existing) return existing
-    const group = createAgentGroupSegment(name, spanId, ordinal)
+    // Key by the dispatch tool call id (canonical, parser-stable) when known,
+    // falling back to the spanId for spans with no dispatch tool (legacy/orphan).
+    const group = createAgentGroupSegment(name, spanGroupKey(spanId))
     groupsBySpanId.set(spanId, group)
     attachSpanGroup(group, parentSpanId)
     return group
@@ -243,7 +267,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     if (last?.type === 'text') {
       last.content += content
     } else {
-      segments.push({ type: 'text', content })
+      segments.push({ type: 'text', id: `text-${textRun++}`, content })
     }
   }
 
@@ -257,7 +281,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // (live streaming across resume legs). Create the span group on demand,
       // nested via parentSpanId, instead of dropping the content.
       if (!g && block.subagent) {
-        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
       }
       if (!g) continue
       g.isDelegating = false
@@ -288,7 +312,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       if (block.subagent && block.spanId) {
         let g = groupsBySpanId.get(block.spanId)
         // Out-of-order safety: see subagent_text branch above.
-        if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+        if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
         if (g) {
           g.isDelegating = false
           appendTextItem(g, block.content)
@@ -305,7 +329,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // not render as a separate entry alongside the agent group.
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
-      const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId, i)
+      const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
       if (block.endedAt !== undefined) {
         // Persisted backend path: the lane was stamped closed (endedAt) without
         // a separate subagent_end block (the Sim backend stamps endedAt only;
@@ -341,7 +365,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
         // span group on demand (nested via parentSpanId) so the tool nests
         // under its agent instead of leaking to the top-level mothership flow.
         if (!g && tc.calledBy) {
-          g = ensureSpanGroup(tc.calledBy, block.spanId, block.parentSpanId, i)
+          g = ensureSpanGroup(tc.calledBy, block.spanId, block.parentSpanId)
         }
         if (g) {
           g.isDelegating = false
@@ -445,7 +469,11 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     if (existing) return { group: existing, created: false }
     const group: AgentGroupSegment = {
       type: 'agent_group',
-      id: `agent-${key}-${segments.length}`,
+      // Canonical key = the dispatch tool call id, identical to the span-tree
+      // parser, so a transcript that gains span ids (or a DB reload) keeps the
+      // same React key and never remounts. Orphans (no dispatch tool) keep the
+      // position-based legacy id.
+      id: parentToolCallId ? `agent-${parentToolCallId}` : `agent-${key}-${segments.length}`,
       agentName: name,
       agentLabel: resolveAgentLabel(name),
       items: [],
@@ -535,7 +563,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (last?.type === 'text') {
         last.content += block.content
       } else {
-        segments.push({ type: 'text', content: block.content })
+        segments.push({ type: 'text', id: `text-${i}`, content: block.content })
       }
       continue
     }
@@ -657,7 +685,7 @@ export function assistantMessageHasRenderableContent(
     parsed.length > 0
       ? parsed
       : fallbackContent.trim()
-        ? [{ type: 'text' as const, content: fallbackContent }]
+        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
   return segments.length > 0
 }
@@ -701,7 +729,7 @@ function MessageContentInner({
     parsed.length > 0
       ? parsed
       : fallbackContent?.trim()
-        ? [{ type: 'text' as const, content: fallbackContent }]
+        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
 
   const lastSegment = segments[segments.length - 1]
@@ -714,6 +742,82 @@ function MessageContentInner({
   useEffect(() => {
     onPhaseChangeRef.current?.(phase)
   }, [phase])
+
+  // #region agent log
+  useEffect(() => {
+    if (!isStreaming) return
+    const uid = Math.random().toString(36).slice(2, 8)
+    fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+      body: JSON.stringify({
+        sessionId: '3dc406',
+        hypothesisId: 'A10',
+        location: 'message-content.tsx:MessageContent:mount',
+        message: 'MessageContent MOUNT',
+        data: { uid },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {})
+    return () => {
+      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+        body: JSON.stringify({
+          sessionId: '3dc406',
+          hypothesisId: 'A10',
+          location: 'message-content.tsx:MessageContent:unmount',
+          message: 'MessageContent UNMOUNT',
+          data: { uid },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+    }
+  }, [])
+  // #endregion
+
+  // #region agent log
+  const parseSigRef = useRef('')
+  useEffect(() => {
+    if (!isStreaming) return
+    const lines: string[] = []
+    const walk = (segs: MessageSegment[], depth: number, parentId: string) => {
+      for (const s of segs) {
+        if (s.type !== 'agent_group') continue
+        const childGroups = s.items
+          .filter((it) => it.type === 'agent_group')
+          .map((it) => (it as { group: AgentGroupSegment }).group)
+        const toolCount = s.items.length - childGroups.length
+        lines.push(`${s.id}|d${depth}|p:${parentId}|n${toolCount}${s.isDelegating ? '|deleg' : ''}`)
+        walk(childGroups as unknown as MessageSegment[], depth + 1, s.id)
+      }
+    }
+    walk(segments, 0, 'ROOT')
+    const sig = lines.join(' ;; ')
+    if (sig !== parseSigRef.current) {
+      // Capture the raw subagent blocks' identity to learn whether the stable
+      // anchor (parentToolCallId) survives the provisional->real spanId swap.
+      const subBlocks = blocks
+        .filter((b) => b.type === 'subagent')
+        .map(
+          (b) => `span:${b.spanId ?? '-'}|ptc:${b.parentToolCallId ?? 'NONE'}|a:${b.content ?? '-'}`
+        )
+      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
+        body: JSON.stringify({
+          sessionId: '3dc406',
+          hypothesisId: 'F4',
+          location: 'message-content.tsx:parse-tree-signature',
+          message: 'agent_group tree CHANGED (depth/parent flip = re-parent remount/flash)',
+          data: { prev: parseSigRef.current, next: sig, subBlocks },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {})
+      parseSigRef.current = sig
+    }
+  })
+  // #endregion
 
   if (segments.length === 0) {
     if (isStreaming) {
@@ -744,7 +848,7 @@ function MessageContentInner({
           case 'text':
             return (
               <ChatContent
-                key={`text-${i}`}
+                key={segment.id}
                 content={segment.content}
                 isStreaming={shouldSmoothTextSegment({
                   isStreaming,
