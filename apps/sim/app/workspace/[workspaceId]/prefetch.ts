@@ -2,11 +2,13 @@ import type { QueryClient } from '@tanstack/react-query'
 import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { listWorkflowsForUser } from '@/lib/workflows/queries'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
-import { mapChat, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
+import {
+  MOTHERSHIP_CHAT_LIST_STALE_TIME,
+  mapChat,
+  mothershipChatKeys,
+} from '@/hooks/queries/mothership-chats'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { mapWorkflow, WORKFLOW_LIST_STALE_TIME } from '@/hooks/queries/utils/workflow-list-query'
-
-const CHAT_LIST_STALE_TIME = 60 * 1000
 
 /** Resolves whether the user may access the workspace, swallowing errors to a `false`. */
 async function userCanAccessWorkspace(workspaceId: string, userId: string): Promise<boolean> {
@@ -49,7 +51,7 @@ export async function prefetchWorkspaceSidebar(
         const data = await listMothershipChats(userId, workspaceId)
         return data.map(mapChat)
       },
-      staleTime: CHAT_LIST_STALE_TIME,
+      staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
     }),
   ])
 }
