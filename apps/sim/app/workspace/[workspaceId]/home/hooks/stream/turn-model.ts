@@ -347,17 +347,16 @@ function applyToolResult(
 /**
  * Folds one wire envelope into the model. Pure accumulator: it mutates and
  * returns the same `model` (the streaming hot path keeps one model per turn).
- * Idempotent by wire `seq` so reconnect replay over a populated model is a
- * no-op for already-applied events, and replay into a fresh model rebuilds the
- * identical tree.
+ * `seq` is the monotonic wire cursor — the contract guarantees it is always a
+ * finite number — so it is the sole ordering and idempotency key: an event at
+ * or below the applied high-water mark is a replay and no-ops (reconnect replay
+ * over a populated model is a no-op; replay into a fresh model rebuilds the
+ * identical tree).
  */
 export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnvelope): TurnModel {
-  const seq = typeof envelope.seq === 'number' ? envelope.seq : undefined
-  if (seq !== undefined) {
-    if (seq <= model.lastSeq) return model
-    model.lastSeq = seq
-  }
-  const seqNum = seq ?? model.order.length + 1
+  const seq = envelope.seq
+  if (seq <= model.lastSeq) return model
+  model.lastSeq = seq
   const tsMs = tsToMs(envelope.ts)
   const scope = envelope.scope
   const spanId = scope?.spanId ?? MAIN_SPAN
@@ -365,7 +364,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
   switch (envelope.type) {
     case MothershipStreamV1EventType.text: {
       const payload = envelope.payload
-      appendText(model, spanId, payload.channel as TextChannel, payload.text, seqNum, tsMs)
+      appendText(model, spanId, payload.channel as TextChannel, payload.text, seq, tsMs)
       break
     }
     case MothershipStreamV1EventType.tool: {
@@ -406,7 +405,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           resolveToolId(model, rawToolCallId),
           spanId,
           toolName,
-          seqNum,
+          seq,
           tsMs
         )
         if (isRecord(payload.arguments)) node.args = payload.arguments
@@ -420,7 +419,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           resolveToolId(model, rawToolCallId),
           spanId,
           toolName,
-          seqNum,
+          seq,
           tsMs
         )
         const delta = asString(payload.argumentsDelta)
@@ -445,7 +444,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         scope?.parentToolCallId ?? asString(data?.tool_call_id) ?? asString(data?.toolCallId)
       const agentId = asString(payload.agent) ?? scope?.agentId ?? ''
       const resolvedSpanId =
-        scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seqNum}`)
+        scope?.spanId ?? (triggerToolCallId ? `span:${triggerToolCallId}` : `span:${seq}`)
       const parentSpanId = scope?.parentSpanId ?? MAIN_SPAN
 
       if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
@@ -459,7 +458,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           parentSpanId,
           agentId,
           status: 'running',
-          seq: seqNum,
+          seq: seq,
           ...(tsMs !== undefined ? { startedAtMs: tsMs } : {}),
           ...(triggerToolCallId ? { triggerToolCallId } : {}),
         }
@@ -473,7 +472,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         const node = model.nodes.get(resolvedSpanId)
         if (node && node.kind === 'agent' && !isNodeTerminal(node.status)) {
           node.status = data && asString(data.error) ? 'error' : 'success'
-          node.endSeq = seqNum
+          node.endSeq = seq
         }
       }
       break
@@ -484,10 +483,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       if (kind === MothershipStreamV1RunKind.compaction_start) {
         const node = upsertToolNode(
           model,
-          `compaction:${seqNum}`,
+          `compaction:${seq}`,
           spanId,
           'context_compaction',
-          seqNum,
+          seq,
           tsMs
         )
         node.uiTitle = 'Compacting context...'
@@ -509,10 +508,10 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         if (!finalized) {
           const node = upsertToolNode(
             model,
-            `compaction:${seqNum}`,
+            `compaction:${seq}`,
             spanId,
             'context_compaction',
-            seqNum,
+            seq,
             tsMs
           )
           node.status = 'success'
@@ -535,7 +534,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           open.text += prefix + tag
         }
       } else {
-        appendText(model, spanId, 'assistant', tag, seqNum, tsMs)
+        appendText(model, spanId, 'assistant', tag, seq, tsMs)
       }
       break
     }

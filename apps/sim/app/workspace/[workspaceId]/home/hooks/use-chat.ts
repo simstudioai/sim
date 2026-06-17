@@ -2011,9 +2011,7 @@ export function useChat(
           if (parsed.stream?.streamId) {
             streamIdRef.current = parsed.stream.streamId
           }
-          const eventCursor =
-            parsed.stream?.cursor ??
-            (typeof parsed.seq === 'number' ? String(parsed.seq) : undefined)
+          const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
           if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
             continue
           }
