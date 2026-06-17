@@ -63,7 +63,7 @@ export const updateSettingsTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW',
+        'Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW',
     },
     whoCanPostMessage: {
       type: 'string',
@@ -194,7 +194,7 @@ export const updateSettingsTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Who can ban users: OWNERS_ONLY, OWNERS_AND_MANAGERS, NONE',
+      description: 'Who can ban users: ALL_MEMBERS, OWNERS_AND_MANAGERS, OWNERS_ONLY, NONE',
     },
     whoCanModerateMembers: {
       type: 'string',
@@ -297,7 +297,7 @@ export const updateSettingsTool: ToolConfig<
       if (params.whoCanDiscoverGroup !== undefined)
         body.whoCanDiscoverGroup = params.whoCanDiscoverGroup
       if (params.defaultSender !== undefined) body.defaultSender = params.defaultSender
-      return body
+      return JSON.stringify(body)
     },
   },
 
