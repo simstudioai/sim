@@ -908,20 +908,34 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
 
         // Handle delete_sheet operation
         if (operation === 'delete_sheet') {
+          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          if (Number.isNaN(parsedSheetId)) {
+            throw new Error('Sheet ID must be a valid number')
+          }
           return {
             spreadsheetId: effectiveSpreadsheetId,
-            sheetId: Number.parseInt(deleteSheetId as string, 10),
+            sheetId: parsedSheetId,
             oauthCredential,
           }
         }
 
         // Handle delete_rows operation
         if (operation === 'delete_rows') {
+          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedStartIndex = Number.parseInt(startIndex as string, 10)
+          const parsedEndIndex = Number.parseInt(endIndex as string, 10)
+          if (
+            Number.isNaN(parsedSheetId) ||
+            Number.isNaN(parsedStartIndex) ||
+            Number.isNaN(parsedEndIndex)
+          ) {
+            throw new Error('Sheet ID, start index, and end index must be valid numbers')
+          }
           return {
             spreadsheetId: effectiveSpreadsheetId,
-            sheetId: Number.parseInt(deleteSheetId as string, 10),
-            startIndex: Number.parseInt(startIndex as string, 10),
-            endIndex: Number.parseInt(endIndex as string, 10),
+            sheetId: parsedSheetId,
+            startIndex: parsedStartIndex,
+            endIndex: parsedEndIndex,
             oauthCredential,
           }
         }
