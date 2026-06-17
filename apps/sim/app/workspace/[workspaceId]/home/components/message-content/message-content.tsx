@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
@@ -18,6 +18,7 @@ import {
   PendingTagIndicator,
   ThinkingBlock,
 } from './components'
+import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 
@@ -91,17 +92,6 @@ function formatToolName(name: string): string {
 function resolveAgentLabel(key: string): string {
   if (key === 'mothership') return 'Sim'
   return SUBAGENT_LABELS[key] ?? formatToolName(key)
-}
-
-function isToolDone(status: ToolCallData['status']): boolean {
-  return (
-    status === 'success' ||
-    status === 'error' ||
-    status === 'cancelled' ||
-    status === 'skipped' ||
-    status === 'rejected' ||
-    status === 'interrupted'
-  )
 }
 
 function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
@@ -226,6 +216,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     if (parentSpanId && parentSpanId !== SPAN_ROOT) {
       const parent = groupsBySpanId.get(parentSpanId)
       if (parent) {
+        parent.isDelegating = false
         parent.items.push({ type: 'agent_group', group })
         return
       }
@@ -688,6 +679,7 @@ interface MessageContentProps {
   fallbackContent: string
   isStreaming: boolean
   onOptionSelect?: (id: string) => void
+  onPhaseChange?: (phase: MessagePhase) => void
 }
 
 function MessageContentInner({
@@ -695,9 +687,15 @@ function MessageContentInner({
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
+  onPhaseChange,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
+
+  const [trailingRevealing, setTrailingRevealing] = useState(false)
+  const handleTrailingRevealChange = useCallback((revealing: boolean) => {
+    setTrailingRevealing(revealing)
+  }, [])
 
   const segments: MessageSegment[] =
     parsed.length > 0
@@ -705,6 +703,17 @@ function MessageContentInner({
       : fallbackContent?.trim()
         ? [{ type: 'text' as const, content: fallbackContent }]
         : []
+
+  const lastSegment = segments[segments.length - 1]
+  const hasTrailingTextSegment = lastSegment?.type === 'text'
+  const isRevealing = hasTrailingTextSegment && trailingRevealing
+  const phase = deriveMessagePhase({ isStreaming, isRevealing })
+
+  const onPhaseChangeRef = useRef(onPhaseChange)
+  onPhaseChangeRef.current = onPhaseChange
+  useEffect(() => {
+    onPhaseChangeRef.current?.(phase)
+  }, [phase])
 
   if (segments.length === 0) {
     if (isStreaming) {
@@ -717,21 +726,16 @@ function MessageContentInner({
     return null
   }
 
-  const lastSegment = segments[segments.length - 1]
   const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'
 
-  let allLastGroupToolsDone = false
-  if (lastSegment.type === 'agent_group') {
-    const toolItems = lastSegment.items.filter((item) => item.type === 'tool')
-    allLastGroupToolsDone =
-      toolItems.length > 0 && toolItems.every((t) => t.type === 'tool' && isToolDone(t.data.status))
-  }
-
-  const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
-  const showTrailingThinking =
-    isStreaming &&
-    !hasTrailingContent &&
-    (lastSegment.type === 'thinking' || hasSubagentEnded || allLastGroupToolsDone)
+  // Deterministic "between steps" signal: the turn is still streaming, nothing
+  // is actively running (a running tool/subagent renders its own spinner), and
+  // no trailing text is being revealed. Derived from explicit node state rather
+  // than guessing from the shape of the last segment.
+  const hasRunningWork = blocks.some(
+    (b) => b.toolCall?.status === 'executing' || (b.type === 'subagent' && b.endedAt === undefined)
+  )
+  const showTrailingThinking = phase === 'streaming' && !hasTrailingContent && !hasRunningWork
 
   return (
     <div className='space-y-[10px]'>
@@ -749,6 +753,9 @@ function MessageContentInner({
                 })}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+                onRevealStateChange={
+                  i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                }
               />
             )
           case 'thinking': {

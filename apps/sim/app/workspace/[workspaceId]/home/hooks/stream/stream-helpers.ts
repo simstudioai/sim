@@ -1,7 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
-import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
-import type { MothershipStreamV1ToolUI } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   CrawlWebsite,
   CreateFolder,
@@ -69,87 +67,48 @@ export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
 
 export type StreamPayload = Record<string, unknown>
 
-export type StreamToolUI = {
-  hidden?: boolean
-  title?: string
-  clientExecutable?: boolean
-}
-
-export type ToolResultPhasePayload = {
-  output?: unknown
-  status?: string
-  error?: unknown
-  success?: boolean
-}
-
 export function asPayloadRecord(value: unknown): StreamPayload | undefined {
   return isRecordLike(value) ? value : undefined
 }
 
-export function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefined {
-  if (!ui) {
-    return undefined
-  }
-
-  const title =
-    typeof ui.title === 'string'
-      ? ui.title
-      : typeof ui.phaseLabel === 'string'
-        ? ui.phaseLabel
-        : undefined
-
-  return {
-    ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
-    ...(title ? { title } : {}),
-    ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
-  }
-}
-
+/**
+ * Settles any tool row still `executing` at a turn terminal by propagating the
+ * turn's outcome — the deterministic replacement for the old `interrupted`
+ * invention. A clean `complete` means the turn succeeded, so a straggler is
+ * settled `success` (with explicit tool/span terminals from the backend there
+ * are normally none); a stop settles `cancelled`; an error settles `error`.
+ */
 export function finalizeResidualToolCalls(
   blocks: ContentBlock[],
   turnTerminal: 'complete' | 'cancelled' | 'error'
 ): void {
   const endedAt = Date.now()
+  const propagated =
+    turnTerminal === 'cancelled'
+      ? ToolCallStatus.cancelled
+      : turnTerminal === 'error'
+        ? ToolCallStatus.error
+        : ToolCallStatus.success
   for (const block of blocks) {
+    // Close any still-open subagent lane at the turn terminal so its group
+    // resolves deterministically even when the backend cut off before a
+    // `span end` (abort/disconnect). The projection treats a stamped `endedAt`
+    // as a closed group, so the delegating spinner clears without any
+    // transport-based gating.
+    if (block.type === 'subagent' && block.endedAt === undefined) {
+      block.endedAt = endedAt
+      continue
+    }
     const tc = block.toolCall
     if (!tc || tc.status !== ToolCallStatus.executing) continue
-    if (turnTerminal === 'cancelled') {
-      tc.status = ToolCallStatus.cancelled
+    tc.status = propagated
+    if (propagated === ToolCallStatus.cancelled) {
       tc.displayTitle = 'Stopped by user'
-    } else if (turnTerminal === 'error') {
-      tc.status = ToolCallStatus.error
-    } else {
-      tc.status = ToolCallStatus.interrupted
-      logger.warn('Tool call unresolved at turn completion', {
-        toolCallId: tc.id,
-        toolName: tc.name,
-      })
     }
     if (block.endedAt === undefined) {
       block.endedAt = endedAt
     }
   }
-}
-
-export function isTerminalToolCallStatus(status: ToolCallStatus): boolean {
-  return (
-    status === ToolCallStatus.success ||
-    status === ToolCallStatus.error ||
-    status === ToolCallStatus.cancelled ||
-    status === ToolCallStatus.skipped ||
-    status === ToolCallStatus.rejected ||
-    status === ToolCallStatus.interrupted
-  )
-}
-
-export function resolveLiveToolStatus(
-  payload: Partial<{
-    status: string
-    success: boolean
-    output: unknown
-  }>
-): ToolCallStatus {
-  return resolveStreamToolOutcome(payload) as ToolCallStatus
 }
 
 function resolveLeafWorkflowPathSegment(segments: string[]): string | undefined {

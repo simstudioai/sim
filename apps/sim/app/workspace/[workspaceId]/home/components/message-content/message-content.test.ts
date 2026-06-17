@@ -56,6 +56,23 @@ describe('parseBlocks span-identity tree', () => {
     expect(nested.group.items.some((item) => item.type === 'tool')).toBe(true)
   })
 
+  it('clears the parent delegating flag once it has spawned a child, leaving only the child active', () => {
+    const blocks: ContentBlock[] = [
+      subagentStart('workflow', 'S1', 'main'),
+      subagentStart('deploy', 'S2', 'S1'),
+    ]
+
+    const segments = parseBlocks(blocks)
+    expect(segments).toHaveLength(1)
+    const workflow = segments[0]
+    if (workflow.type !== 'agent_group') throw new Error('expected workflow group')
+    expect(workflow.isDelegating).toBe(false)
+
+    const nested = workflow.items.find((item) => item.type === 'agent_group')
+    if (!nested || nested.type !== 'agent_group') throw new Error('expected nested deploy group')
+    expect(nested.group.isDelegating).toBe(true)
+  })
+
   it('keeps two top-level subagents as siblings', () => {
     const blocks: ContentBlock[] = [
       subagentStart('workflow', 'S1', 'main'),

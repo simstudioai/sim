@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { cn } from '@/lib/core/utils/cn'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components'
@@ -9,6 +9,7 @@ import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/componen
 import {
   assistantMessageHasRenderableContent,
   MessageContent,
+  type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
@@ -155,6 +156,7 @@ interface AssistantMessageRowProps {
   precedingUserContent?: string
   rowClassName: string
   onOptionSelect?: (id: string) => void
+  onAnimatingChange?: (animating: boolean) => void
 }
 
 const AssistantMessageRow = memo(function AssistantMessageRow({
@@ -163,10 +165,19 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   precedingUserContent,
   rowClassName,
   onOptionSelect,
+  onAnimatingChange,
 }: AssistantMessageRowProps) {
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
   const trimmedContent = message.content?.trim() ?? ''
+
+  const [phase, setPhase] = useState<MessagePhase>(isStreaming ? 'streaming' : 'settled')
+
+  const onAnimatingChangeRef = useRef(onAnimatingChange)
+  onAnimatingChangeRef.current = onAnimatingChange
+  useEffect(() => {
+    onAnimatingChangeRef.current?.(phase !== 'settled')
+  }, [phase])
 
   if (!hasAnyBlocks && !trimmedContent && isStreaming) {
     return <PendingTagIndicator />
@@ -177,7 +188,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     return null
   }
 
-  const showActions = !isStreaming && (message.content || hasAnyBlocks)
+  const showActions = phase === 'settled' && (message.content || hasAnyBlocks)
 
   return (
     <div className={rowClassName}>
@@ -186,6 +197,7 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
         fallbackContent={message.content}
         isStreaming={isStreaming}
         onOptionSelect={onOptionSelect}
+        onPhaseChange={setPhase}
       />
       {showActions && (
         <div className='mt-2.5'>
@@ -229,8 +241,9 @@ export function MothershipChat({
 }: MothershipChatProps) {
   const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
+  const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
-  const { ref: autoScrollRef } = useAutoScroll(isStreamActive)
+  const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
   const setScrollElement = useCallback(
     (el: HTMLDivElement | null) => {
       scrollElementRef.current = el
@@ -282,6 +295,11 @@ export function MothershipChat({
    * one extra always-mounted row.
    */
   const lastIndex = messages.length - 1
+  const lastRowKey = lastIndex >= 0 ? rowKeyByIndex[lastIndex] : undefined
+  useEffect(() => {
+    setLastRowAnimating(false)
+  }, [lastRowKey])
+
   const rangeExtractor = useCallback(
     (range: Range) => {
       const indexes = defaultRangeExtractor(range)
@@ -405,6 +423,7 @@ export function MothershipChat({
                         precedingUserContent={precedingUserContentByIndex[index]}
                         rowClassName={cn(styles.assistantRow, styles.rowGap)}
                         onOptionSelect={isLast ? stableOnOptionSelect : undefined}
+                        onAnimatingChange={isLast ? setLastRowAnimating : undefined}
                       />
                     )}
                   </div>
