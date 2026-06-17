@@ -12,9 +12,9 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockParseProvider, mockJwtDecode, mockEq } = vi.hoisted(() => ({
+const { mockParseProvider, mockDecodeJwt, mockEq } = vi.hoisted(() => ({
   mockParseProvider: vi.fn(),
-  mockJwtDecode: vi.fn(),
+  mockDecodeJwt: vi.fn(),
   mockEq: vi.fn((field: unknown, value: unknown) => ({ field, value, type: 'eq' })),
 }))
 
@@ -29,8 +29,8 @@ vi.mock('drizzle-orm', () => ({
   eq: mockEq,
 }))
 
-vi.mock('jwt-decode', () => ({
-  jwtDecode: mockJwtDecode,
+vi.mock('jose', () => ({
+  decodeJwt: mockDecodeJwt,
 }))
 
 vi.mock('@/lib/oauth/utils', () => ({
@@ -161,7 +161,7 @@ describe('OAuth Connections API Route', () => {
       },
     ]
 
-    mockJwtDecode.mockReturnValueOnce({
+    mockDecodeJwt.mockReturnValueOnce({
       email: 'decoded@example.com',
       name: 'Decoded User',
     })
