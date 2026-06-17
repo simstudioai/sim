@@ -799,6 +799,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
         { label: 'Name', id: 'name' },
         { label: 'Created At', id: 'created_at' },
         { label: 'Updated At', id: 'updated_at' },
+        { label: 'Last Accessed At', id: 'last_accessed_at' },
       ],
       value: () => 'name',
       condition: { field: 'operation', value: 'storage_list' },
