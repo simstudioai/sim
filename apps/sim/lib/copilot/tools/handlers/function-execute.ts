@@ -3,6 +3,8 @@ import { decodeVfsPathSegments, encodeVfsPathSegments } from '@/lib/copilot/vfs/
 import { resolveWorkflowAliasForWorkspace } from '@/lib/copilot/vfs/workflow-alias-resolver'
 import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/workflow-aliases'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { getColumnId } from '@/lib/table/column-keys'
+import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/table/export-format'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -63,7 +65,7 @@ async function resolveTableRef(
   return tablePathLookup?.get(tableName) ?? null
 }
 
-async function resolveInputFiles(
+export async function resolveInputFiles(
   workspaceId: string,
   inputFiles?: unknown[],
   inputTables?: unknown[],
@@ -265,28 +267,11 @@ async function resolveInputFiles(
       }
       const rows = await queryRows(table, {}, 'copilot-fn-exec')
 
-      const allKeys = new Set(table.schema.columns.map((column) => column.name))
-      for (const row of rows.rows ?? []) {
-        if (row.data && typeof row.data === 'object') {
-          for (const key of Object.keys(row.data as Record<string, unknown>)) {
-            allKeys.add(key)
-          }
-        }
-      }
-      const headers = Array.from(allKeys)
-      const csvLines = [headers.join(',')]
-      for (const row of rows.rows ?? []) {
-        const data = (row.data || {}) as Record<string, unknown>
+      const columns = table.schema.columns
+      const csvLines = [toCsvRow(columns.map((column) => neutralizeCsvFormula(column.name)))]
+      for (const row of rows.rows) {
         csvLines.push(
-          headers
-            .map((h) => {
-              const val = data[h]
-              const str = val === null || val === undefined ? '' : String(val)
-              return str.includes(',') || str.includes('"') || str.includes('\n')
-                ? `"${str.replace(/"/g, '""')}"`
-                : str
-            })
-            .join(',')
+          toCsvRow(columns.map((column) => formatCsvValue(row.data[getColumnId(column)])))
         )
       }
       const csvContent = csvLines.join('\n')
