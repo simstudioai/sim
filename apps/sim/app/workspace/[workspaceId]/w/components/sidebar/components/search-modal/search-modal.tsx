@@ -3,28 +3,26 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
+import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { Library } from '@/components/emcn'
 import {
   Calendar,
   Database,
-  Expand,
+  Duplicate,
   File,
   FolderPlus,
   HelpCircle,
   Home,
   Integration,
-  Link,
-  Palette,
   Play,
   Plus,
   Settings,
   Table,
   Upload,
-  Users,
+  User,
 } from '@/components/emcn/icons'
 import { Search } from '@/components/emcn/icons/search'
 import { cn } from '@/lib/core/utils/cn'
@@ -102,7 +100,6 @@ export function SearchModal({
   const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
-  const { resolvedTheme, setTheme } = useTheme()
   const invokeCommand = useInvokeGlobalCommand()
   const posthog = usePostHog()
 
@@ -201,7 +198,8 @@ export function SearchModal({
 
   /**
    * Verbs the palette can run directly. Entity navigation lives in the groups
-   * below; this list is for "do something" intents (create, import, toggle).
+   * below; this list is for "do something" intents (run, create, import, copy,
+   * invite).
    */
   const actions = useMemo((): ActionItem[] => {
     const list: ActionItem[] = []
@@ -248,7 +246,7 @@ export function SearchModal({
       id: 'fit-to-view',
       name: 'Fit workflow to view',
       keywords: 'zoom center recenter canvas reset',
-      icon: Expand,
+      icon: Scan,
       shortcut: '⌘⇧F',
       context: 'workflow',
       run: () => invokeCommand('fit-to-view'),
@@ -257,7 +255,7 @@ export function SearchModal({
       id: 'copy-workflow-url',
       name: 'Copy workflow link',
       keywords: 'url share clipboard',
-      icon: Link,
+      icon: Duplicate,
       context: 'workflow',
       run: () => {
         navigator.clipboard.writeText(window.location.href).catch((error) => {
@@ -269,17 +267,9 @@ export function SearchModal({
       id: 'invite-teammates',
       name: 'Invite teammates',
       keywords: 'members people add user organization',
-      icon: Users,
+      icon: User,
       context: 'global',
       run: () => navigateToSettings({ section: 'teammates' }),
-    })
-    list.push({
-      id: 'toggle-theme',
-      name: 'Toggle theme',
-      keywords: 'dark light mode appearance color',
-      icon: Palette,
-      context: 'global',
-      run: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'),
     })
     return list
   }, [
@@ -289,8 +279,6 @@ export function SearchModal({
     onImportWorkflow,
     invokeCommand,
     navigateToSettings,
-    resolvedTheme,
-    setTheme,
   ])
 
   const [search, setSearch] = useState('')
