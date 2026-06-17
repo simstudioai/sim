@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/core/utils/cn'
 import { getGitHubStars } from '@/lib/github/stars'
-import styles from '@/app/(landing)/brand-tokens.module.css'
 import { Footer } from '@/app/(landing)/components/footer/footer'
 import { Navbar } from '@/app/(landing)/components/navbar/navbar'
 
@@ -14,8 +13,8 @@ import { Navbar } from '@/app/(landing)/components/navbar/navbar'
  * It owns:
  * - The `light` wrapper, which pins every `var(--*)` design token to its
  *   light-mode value regardless of the visitor's theme — the landing family is
- *   always light — plus the `brand` token layer (`brand-tokens.module.css`),
- *   which remaps those tokens to the SIM brand palette for the whole subtree.
+ *   always light — plus the {@link BRAND_TOKENS} palette, which remaps those
+ *   tokens to the SIM brand neutrals for the whole subtree.
  * - The page's scroll port (`h-screen` + `overflow-y-auto` +
  *   `overscroll-y-none`): the document body no longer overflows, so the viewport
  *   can't rubber-band, and the container's own overscroll bounce is disabled —
@@ -34,6 +33,18 @@ interface LandingShellProps {
   children: ReactNode
 }
 
+/**
+ * The SIM brand palette — remaps the platform's light-mode tokens (`--bg`,
+ * `--surface-*`, `--text-*`, `--border*`) to the brand neutrals for the whole
+ * landing subtree. Written as Tailwind arbitrary-property utilities so the brand
+ * hex lives in this one component (not a stylesheet); because they emit in the
+ * `utilities` layer they override the `.light` definitions (`@layer base`)
+ * regardless of selector specificity. Every (landing) component then picks up
+ * brand color through the `var(--*)` tokens it already reads — no per-component edits.
+ */
+const BRAND_TOKENS =
+  '[--bg:#ffffff] [--surface-1:#f8f8f8] [--surface-2:#ffffff] [--surface-3:#f8f8f8] [--surface-4:#f8f8f8] [--surface-5:#f8f8f8] [--surface-6:#e6e6e6] [--surface-7:#c3c3c3] [--border:#e6e6e6] [--border-1:#e6e6e6] [--text-primary:#121212] [--text-secondary:#5f5f5f] [--text-body:#2c2c2c] [--text-muted:#5f5f5f] [--text-icon:#5f5f5f] [--text-inverse:#e6e6e6] [--text-subtle:#b4b4b4]'
+
 export async function LandingShell({ children }: LandingShellProps) {
   const stars = await getGitHubStars()
 
@@ -41,7 +52,7 @@ export async function LandingShell({ children }: LandingShellProps) {
     <div
       className={cn(
         'light h-screen overflow-y-auto overscroll-y-none bg-[var(--bg)] text-[var(--text-primary)]',
-        styles.brand
+        BRAND_TOKENS
       )}
     >
       <a
