@@ -30,6 +30,7 @@ import {
   csvProxyBodyCapResponse,
   multipartErrorResponse,
   normalizeColumn,
+  rowWriteErrorResponse,
 } from '@/app/api/table/utils'
 
 const logger = createLogger('TableImportCSV')
@@ -205,9 +206,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   } catch (error) {
     if (isMultipartError(error)) return multipartErrorResponse(error)
 
-    const message = toError(error).message
     logger.error(`[${requestId}] CSV import failed:`, error)
 
+    // Row-write failures (e.g. the plan row-limit check) map to a 400 with the real reason.
+    const rowWriteError = rowWriteErrorResponse(error)
+    if (rowWriteError) return rowWriteError
+
+    const message = toError(error).message
     const isClientError =
       message.includes('maximum table limit') ||
       message.includes('CSV file has no') ||
