@@ -3687,7 +3687,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             limit: {
               type: 'number',
               description:
-                'Maximum rows to return or affect (optional, default 100). Any value is allowed — large operations run in the background automatically. Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
+                'Maximum rows to return or affect (optional, default 100). Large operations run in the background automatically. Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
             },
             mapping: {
               type: 'object',
@@ -3746,8 +3746,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
             offset: {
               type: 'number',
-              description:
-                'Number of rows to skip for query_rows pagination (optional, default 0).',
+              description: 'Number of rows to skip (optional for query_rows, default 0)',
             },
             outputColumnNames: {
               type: 'object',
