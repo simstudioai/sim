@@ -214,6 +214,7 @@ export function contentBlocksToModel(blocks: ContentBlock[]): TurnModel {
       type,
       payload,
       ...(scope ? { scope } : {}),
+      // double-cast-allowed: synthetic replay envelope rebuilt from ContentBlocks for reduceEvent only; payloads are intentionally the minimal shape the reducer reads (no executor/mode), never provider-parsed or re-emitted on the wire
     }) as unknown as PersistedStreamEventEnvelope
 
   const scopeFor = (block: ContentBlock): Record<string, unknown> | undefined =>
