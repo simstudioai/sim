@@ -1026,6 +1026,7 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           fileData,
           functionBody,
           functionHeaders,
+          method,
           ...rest
         } = params
 
@@ -1169,12 +1170,16 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
           result.params = parsedRpcParams
         }
 
-        if (parsedFunctionBody !== undefined) {
-          result.body = parsedFunctionBody
-        }
-
-        if (parsedFunctionHeaders !== undefined) {
-          result.headers = parsedFunctionHeaders
+        if (operation === 'invoke_function') {
+          if (method !== undefined) {
+            result.method = method
+          }
+          if (parsedFunctionBody !== undefined) {
+            result.body = parsedFunctionBody
+          }
+          if (parsedFunctionHeaders !== undefined) {
+            result.headers = parsedFunctionHeaders
+          }
         }
 
         if (parsedPaths !== undefined) {
