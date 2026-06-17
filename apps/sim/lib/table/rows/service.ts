@@ -210,8 +210,8 @@ export async function batchInsertRows(
  * is responsible for opening the transaction. Use when row inserts must be
  * atomic with other writes (e.g., schema mutations) on the same tx.
  *
- * Does not check plan capacity itself — callers do: `batchInsertRows` checks
- * before opening the tx, and the import paths gate the total up front.
+ * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
+ * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
  */
 export async function batchInsertRowsWithTx(
   trx: DbTransaction,
