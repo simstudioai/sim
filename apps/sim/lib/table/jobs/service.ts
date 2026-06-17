@@ -207,21 +207,21 @@ export async function getJobProgress(tableId: string, jobId: string): Promise<nu
 }
 
 /**
- * One keyset page of rows for the export worker, ordered by `(position, id)`. Keyset (not
- * OFFSET) keeps each page O(page) — offset paging re-scans every prior row per page, which is
- * O(N²) across a large export. `(position, id)` is total (position exists on every row; id breaks
- * ties) and served by the `(table_id, position)` index; under fractional ordering a manually
- * reordered table may export in near-grid rather than exact grid order — the right trade for a
- * bulk dump. The delete-job visibility mask applies, like every user-facing read.
+ * One keyset page of rows for the export worker, ordered by `(order_key, id)` — the same
+ * authoritative visual order the grid (`queryRows`) uses, so exports and snapshots match what the
+ * user sees even after manual reorders. Keyset (not OFFSET) keeps each page O(page); `order_key` is
+ * present on every row (always assigned on insert, backfilled for legacy rows) with `id` as the
+ * tiebreaker, and the `(table_id, order_key, id)` index serves it. The delete-job visibility mask
+ * applies, like every user-facing read.
  */
 export async function selectExportRowPage(
   table: TableDefinition,
-  after: { position: number; id: string } | null,
+  after: { orderKey: string; id: string } | null,
   limit: number
-): Promise<Array<{ id: string; data: RowData; position: number }>> {
+): Promise<Array<{ id: string; data: RowData; orderKey: string }>> {
   const deleteMask = await pendingDeleteMask(table)
   const rows = await db
-    .select({ id: userTableRows.id, data: userTableRows.data, position: userTableRows.position })
+    .select({ id: userTableRows.id, data: userTableRows.data, orderKey: userTableRows.orderKey })
     .from(userTableRows)
     .where(
       and(
@@ -229,13 +229,13 @@ export async function selectExportRowPage(
         eq(userTableRows.workspaceId, table.workspaceId),
         deleteMask,
         after
-          ? sql`(${userTableRows.position}, ${userTableRows.id}) > (${after.position}, ${after.id})`
+          ? sql`(${userTableRows.orderKey}, ${userTableRows.id}) > (${after.orderKey}, ${after.id})`
           : undefined
       )
     )
-    .orderBy(asc(userTableRows.position), asc(userTableRows.id))
+    .orderBy(asc(userTableRows.orderKey), asc(userTableRows.id))
     .limit(limit)
-  return rows as Array<{ id: string; data: RowData; position: number }>
+  return rows as Array<{ id: string; data: RowData; orderKey: string }>
 }
 
 /** How long a terminal export stays listable (and re-downloadable from the tray). */

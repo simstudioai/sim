@@ -202,7 +202,7 @@ export function ConnectorsSection({
           No connected sources yet. Connect an external source to automatically sync documents.
         </p>
       ) : (
-        <div className='-mx-2 mt-2 flex flex-col gap-0.5'>
+        <div className='mt-2 flex flex-col gap-0.5'>
           {connectors.map((connector) => (
             <ConnectorCard
               key={connector.id}
