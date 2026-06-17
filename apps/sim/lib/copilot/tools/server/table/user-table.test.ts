@@ -277,8 +277,7 @@ describe('userTableServerTool.create_from_file', () => {
     expect(result.success).toBe(true)
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
     expect(mockCreateTable).toHaveBeenCalledTimes(1)
-    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
-    expect(createArgs.maxRows).toBe(1000)
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
   })
 
@@ -336,8 +335,7 @@ describe('userTableServerTool.create', () => {
 
     expect(result.success).toBe(true)
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
-    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
-    expect(createArgs.maxRows).toBe(1000)
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
   })
 })

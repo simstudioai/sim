@@ -1681,6 +1681,13 @@
       "when": 1781670551980,
       "tag": "0240_table_rows_version",
       "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1781700000000,
+      "tag": "0241_drop_table_row_cap_guard",
+      "breakpoints": true
     }
   ]
 }

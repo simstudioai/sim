@@ -257,8 +257,9 @@ export async function createTable(
   // Stamp stable ids so the table is id-keyed from its first row write.
   const schema = withGeneratedColumnIds(data.schema)
 
-  // Use provided maxRows (from billing plan) or fall back to default
-  const maxRows = data.maxRows ?? TABLE_LIMITS.MAX_ROWS_PER_TABLE
+  // Row limits are enforced per-write against the current plan (see assertRowCapacity);
+  // the stored column is no longer the source of truth, so it just takes the default.
+  const maxRows = TABLE_LIMITS.MAX_ROWS_PER_TABLE
   const maxTables = data.maxTables ?? TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE
 
   const newTable = {

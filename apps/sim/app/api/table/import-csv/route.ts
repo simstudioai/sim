@@ -132,7 +132,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           schema,
           workspaceId,
           userId,
-          maxRows: planLimits.maxRowsPerTable,
           maxTables: planLimits.maxTables,
         },
         requestId

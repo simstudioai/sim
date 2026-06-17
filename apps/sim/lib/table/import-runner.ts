@@ -17,6 +17,7 @@ import {
   type TableSchema,
   validateMapping,
 } from '@/lib/table'
+import { assertRowCapacity } from '@/lib/table/billing'
 import { withGeneratedColumnIds } from '@/lib/table/column-keys'
 import { appendTableEvent } from '@/lib/table/events'
 import {
@@ -94,6 +95,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // order keys from it.
     const basePosition = mode === 'append' ? await nextImportStartPosition(tableId) : 0
     let lastOrderKey = mode === 'append' ? await nextImportStartOrderKey(tableId) : null
+
+    // Append keeps the existing rows; create/replace start from empty (replace deletes
+    // existing rows in resolveSetup). Per-batch capacity is checked against this base + the
+    // running total, so a stream that crosses the plan limit fails within one batch.
+    const existingRowCount = mode === 'append' ? table.rowCount : 0
 
     // Count bytes as they flow so the row total can be extrapolated from byte progress.
     let bytesRead = 0
@@ -187,6 +193,11 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
       const owns = await updateJobProgress(tableId, inserted, importId)
       if (!owns) throw new ImportSupersededError()
       const coerced = coerceRowsForTable(rows, schema, headerToColumn)
+      await assertRowCapacity({
+        workspaceId,
+        currentRowCount: existingRowCount + inserted,
+        addedRows: coerced.length,
+      })
       const result = await bulkInsertImportBatch(
         {
           tableId,

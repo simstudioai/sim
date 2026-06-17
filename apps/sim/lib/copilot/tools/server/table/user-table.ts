@@ -222,7 +222,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: args.schema,
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
@@ -763,7 +762,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: { columns },
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
