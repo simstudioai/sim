@@ -1207,7 +1207,8 @@ Return ONLY the PostgREST filter expression - no explanations, no markdown, no e
     offset: { type: 'number', description: 'Number of rows to skip' },
     functionName: {
       type: 'string',
-      description: 'PostgreSQL function name for vector search or RPC',
+      description:
+        'Function name — PostgreSQL function for RPC or vector search, or Edge Function name to invoke',
     },
     queryEmbedding: { type: 'array', description: 'Query vector/embedding for similarity search' },
     matchThreshold: { type: 'number', description: 'Minimum similarity threshold (0-1)' },
