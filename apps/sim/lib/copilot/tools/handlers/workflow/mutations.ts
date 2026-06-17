@@ -676,6 +676,8 @@ export async function executeMoveWorkflow(
     const moved: string[] = []
     const failed: string[] = []
 
+    await assertFolderMutable(folderId)
+
     for (const workflowId of workflowIds) {
       try {
         const { workspaceId, workflow } = await ensureWorkflowAccess(
@@ -694,7 +696,6 @@ export async function executeMoveWorkflow(
           }
         }
         await assertWorkflowMutable(workflowId)
-        await assertFolderMutable(folderId)
         assertWorkflowMutationNotAborted(context)
         const result = await performUpdateWorkflow({
           workflowId,

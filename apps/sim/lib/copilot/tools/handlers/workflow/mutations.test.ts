@@ -155,7 +155,7 @@ describe('lock enforcement', () => {
     ensureWorkflowAccessMock.mockResolvedValue({
       workflow: { id: 'workflow-1', variables: {} },
     })
-    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
       new Error('Workflow is locked')
     )
 
@@ -178,7 +178,9 @@ describe('lock enforcement', () => {
       workflow: { id: 'workflow-1', name: 'WF', folderId: null },
     })
     verifyFolderWorkspaceMock.mockResolvedValue(true)
-    workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValue(new Error('Folder is locked'))
+    workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
+      new Error('Folder is locked')
+    )
 
     const result = await executeMoveWorkflow(
       { workflowIds: ['workflow-1'], folderId: 'locked-folder' },
@@ -186,7 +188,7 @@ describe('lock enforcement', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(result.output).toMatchObject({ moved: [], failed: ['workflow-1'] })
+    expect(result.error).toBe('Folder is locked')
     expect(performUpdateWorkflowMock).not.toHaveBeenCalled()
   })
 })
