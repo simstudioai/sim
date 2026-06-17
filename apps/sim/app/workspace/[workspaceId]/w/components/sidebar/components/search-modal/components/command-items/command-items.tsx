@@ -42,10 +42,7 @@ export const HighlightedText = memo(
       <>
         {buildSegments(text, positions).map((segment, index) =>
           segment.hit ? (
-            <span
-              key={index}
-              className='bg-[var(--highlight-match-bg)] text-[var(--highlight-match-text)]'
-            >
+            <span key={index} className='font-medium'>
               {segment.text}
             </span>
           ) : (
