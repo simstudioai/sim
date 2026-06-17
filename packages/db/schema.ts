@@ -3143,6 +3143,14 @@ export const userTableDefinitions = pgTable(
     metadata: jsonb('metadata'),
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
+    /**
+     * @remarks
+     * Monotonic counter bumped by a statement-level trigger on `user_table_rows`
+     * (INSERT/UPDATE/DELETE). Keys the versioned table-snapshot cache so a stored
+     * CSV under `v{rows_version}` is reused until the table mutates. Never written
+     * from application code — the trigger is the only writer (bypass-proof).
+     */
+    rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()

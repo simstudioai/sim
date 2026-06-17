@@ -1667,6 +1667,13 @@
       "when": 1781554278388,
       "tag": "0238_workspace_scoped_permission_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 239,
+      "version": "7",
+      "when": 1781657573736,
+      "tag": "0239_table_rows_version",
+      "breakpoints": true
     }
   ]
 }

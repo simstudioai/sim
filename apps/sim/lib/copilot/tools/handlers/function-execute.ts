@@ -5,6 +5,7 @@ import { isPlanAliasPath, workflowAliasSandboxPath } from '@/lib/copilot/vfs/wor
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { queryRows } from '@/lib/table/rows/service'
 import { getTableById, listTables } from '@/lib/table/service'
+import { getOrCreateTableSnapshot } from '@/lib/table/snapshot-cache'
 import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer,
@@ -12,6 +13,7 @@ import {
   getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { executeTool as executeAppTool } from '@/tools'
 import type { ToolExecutionContext, ToolExecutionResult } from '../../tool-executor/types'
 
@@ -20,6 +22,13 @@ const logger = createLogger('CopilotFunctionExecute')
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const MAX_TOTAL_SIZE = 50 * 1024 * 1024
 const MAX_MOUNTED_FILES = 500
+
+/**
+ * Below this row count a table mounts via the direct inline CSV path — the version-keyed snapshot
+ * cache (storage round-trip) only pays off for larger/hot tables. Behind the feature flag either
+ * way; this just keeps tiny one-shot tables on the cheaper path.
+ */
+const SNAPSHOT_MIN_ROWS = 500
 
 interface SandboxFile {
   path: string
@@ -249,6 +258,7 @@ async function resolveInputFiles(
     const tablePathLookup = hasTablePathRefs
       ? new Map((await listTables(workspaceId)).map((table) => [table.name, table]))
       : undefined
+    const snapshotCacheEnabled = await isFeatureEnabled('table-snapshot-cache')
     for (const tableRef of inputTables) {
       const tableId =
         typeof tableRef === 'string'
@@ -263,6 +273,36 @@ async function resolveInputFiles(
           `Input table not found: "${tableId}". Pass the table id (tbl_...) from tables/{name}/meta.json, or a tables/{name}/meta.json path.`
         )
       }
+      const sandboxPath =
+        typeof tableRef === 'object' && tableRef !== null
+          ? (tableRef as CanonicalTableInput).sandboxPath
+          : undefined
+      const mountPath = sandboxPath || `/home/user/tables/${table.id}.csv`
+
+      // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage —
+      // size is known before bytes are pulled (like workspace files), bounding web-process memory.
+      if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
+        const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
+        if (snapshot.size > MAX_FILE_SIZE) {
+          throw new Error(
+            `Input table "${tableId}" is ${Math.round(snapshot.size / 1024 / 1024)}MB, over the ${MAX_FILE_SIZE / 1024 / 1024}MB per-file mount limit.`
+          )
+        }
+        if (totalSize + snapshot.size > MAX_TOTAL_SIZE) {
+          throw new Error(
+            `Mounting "${tableId}" would exceed the ${MAX_TOTAL_SIZE / 1024 / 1024}MB total mount limit. Mount fewer or smaller tables.`
+          )
+        }
+        const buffer = await downloadFile({
+          key: snapshot.key,
+          context: 'execution',
+          maxBytes: MAX_FILE_SIZE,
+        })
+        totalSize += buffer.length
+        sandboxFiles.push({ path: mountPath, content: buffer.toString('utf-8') })
+        continue
+      }
+
       const rows = await queryRows(table, {}, 'copilot-fn-exec')
 
       const allKeys = new Set(table.schema.columns.map((column) => column.name))
@@ -290,14 +330,7 @@ async function resolveInputFiles(
         )
       }
       const csvContent = csvLines.join('\n')
-      const sandboxPath =
-        typeof tableRef === 'object' && tableRef !== null
-          ? (tableRef as CanonicalTableInput).sandboxPath
-          : undefined
-      sandboxFiles.push({
-        path: sandboxPath || `/home/user/tables/${table.id}.csv`,
-        content: csvContent,
-      })
+      sandboxFiles.push({ path: mountPath, content: csvContent })
     }
   }
 

@@ -4,8 +4,8 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import { getStorageConfig, USE_BLOB_STORAGE, USE_S3_STORAGE } from '@/lib/uploads/config'
-import type { BlobConfig } from '@/lib/uploads/providers/blob/types'
-import type { S3Config } from '@/lib/uploads/providers/s3/types'
+import type { AzureMultipartPart, BlobConfig } from '@/lib/uploads/providers/blob/types'
+import type { S3Config, S3MultipartPart } from '@/lib/uploads/providers/s3/types'
 import type {
   DeleteFileOptions,
   DownloadFileOptions,
@@ -179,6 +179,184 @@ export async function uploadFile(options: UploadFileOptions): Promise<FileInfo> 
     name: fileName,
     size: file.length,
     type: contentType,
+  }
+}
+
+/** Part size for streaming multipart uploads. ≥ S3's 5MB minimum (all but the last part). */
+const MULTIPART_PART_SIZE = 8 * 1024 * 1024
+/** Max parts uploading concurrently — caps in-flight memory at ~`this × PART_SIZE`. */
+const MULTIPART_MAX_INFLIGHT = 4
+
+/**
+ * Streaming upload sink. The caller `write`s chunks (CSV rows, etc.) and `complete`s;
+ * the implementation buffers into ≥5MB parts and uploads them with bounded concurrency,
+ * so peak memory stays ~`MULTIPART_MAX_INFLIGHT × MULTIPART_PART_SIZE` regardless of total
+ * size. A payload that never crosses one part takes a plain single-shot PutObject.
+ */
+export interface MultipartUploadHandle {
+  write(chunk: Buffer | string): Promise<void>
+  complete(): Promise<{ key: string; size: number }>
+  abort(): Promise<void>
+}
+
+interface MultipartBackend {
+  uploadPart(partNumber: number, body: Buffer): Promise<void>
+  finish(): Promise<void>
+  abort(): Promise<void>
+}
+
+async function createS3Backend(
+  key: string,
+  config: S3Config,
+  contentType: string,
+  purpose: string
+): Promise<MultipartBackend> {
+  const {
+    initiateS3MultipartUpload,
+    uploadS3Part,
+    completeS3MultipartUpload,
+    abortS3MultipartUpload,
+  } = await import('@/lib/uploads/providers/s3/client')
+  const { uploadId } = await initiateS3MultipartUpload({
+    fileName: key,
+    contentType,
+    fileSize: 0,
+    customConfig: config,
+    customKey: key,
+    purpose,
+  })
+  const parts: S3MultipartPart[] = []
+  return {
+    async uploadPart(partNumber, body) {
+      parts.push(await uploadS3Part(key, uploadId, partNumber, body, config))
+    },
+    finish: () => completeS3MultipartUpload(key, uploadId, parts, config).then(() => undefined),
+    abort: () => abortS3MultipartUpload(key, uploadId, config),
+  }
+}
+
+async function createBlobBackend(
+  key: string,
+  config: BlobConfig,
+  contentType: string
+): Promise<MultipartBackend> {
+  const { stageBlobPart, commitBlobBlockList, abortMultipartUpload } = await import(
+    '@/lib/uploads/providers/blob/client'
+  )
+  const parts: AzureMultipartPart[] = []
+  return {
+    async uploadPart(partNumber, body) {
+      parts.push(await stageBlobPart(key, partNumber, body, config))
+    },
+    finish: () => commitBlobBlockList(key, parts, contentType, config),
+    abort: () => abortMultipartUpload(key, config),
+  }
+}
+
+/**
+ * Open a streaming multipart upload to the configured provider. On the local
+ * filesystem provider (and for any payload smaller than one part) the bytes are
+ * buffered and written via a single {@link uploadFile} on `complete`.
+ */
+export async function createMultipartUpload(options: {
+  key: string
+  context: StorageContext
+  contentType: string
+}): Promise<MultipartUploadHandle> {
+  const { key, context, contentType } = options
+  const config = getStorageConfig(context)
+  const cloud = hasCloudStorage()
+
+  let backend: MultipartBackend | null = null
+  // Accumulate writes as references, not a growing buffer — concatenating only when a part fills
+  // (or on complete) keeps total copying ~O(bytes) instead of O(bytes × writes).
+  let pendingChunks: Buffer[] = []
+  let pendingBytes = 0
+  let totalBytes = 0
+  let partNumber = 0
+  let aborted = false
+  let firstError: unknown
+  const inflight = new Set<Promise<void>>()
+
+  /** Merge the accumulated chunks into one ArrayBuffer-backed buffer (which `uploadFile` expects). */
+  const drainPending = (): Buffer<ArrayBuffer> => Buffer.concat(pendingChunks, pendingBytes)
+
+  const ensureBackend = async (): Promise<MultipartBackend> => {
+    if (!backend) {
+      backend = USE_BLOB_STORAGE
+        ? await createBlobBackend(key, createBlobConfig(config), contentType)
+        : await createS3Backend(key, createS3Config(config), contentType, context)
+    }
+    return backend
+  }
+
+  const dispatchPart = async (body: Buffer): Promise<void> => {
+    // Bound concurrency: wait for a free slot before starting another part.
+    while (inflight.size >= MULTIPART_MAX_INFLIGHT) await Promise.race(inflight)
+    if (firstError) throw firstError
+    const be = await ensureBackend()
+    const partNo = ++partNumber
+    const p = be
+      .uploadPart(partNo, body)
+      .catch((err) => {
+        firstError ??= err
+      })
+      .finally(() => {
+        inflight.delete(p)
+      })
+    inflight.add(p)
+  }
+
+  const abort = async (): Promise<void> => {
+    aborted = true
+    await Promise.allSettled(inflight)
+    if (backend) await backend.abort().catch(() => {})
+  }
+
+  return {
+    async write(chunk) {
+      if (aborted) throw new Error('Multipart upload already aborted')
+      if (firstError) throw firstError
+      const buf = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk
+      totalBytes += buf.length
+      pendingChunks.push(buf)
+      pendingBytes += buf.length
+      // Local storage has no multipart concept — accumulate and write once on complete.
+      if (!cloud) return
+      while (pendingBytes >= MULTIPART_PART_SIZE) {
+        const merged = drainPending()
+        const part = merged.subarray(0, MULTIPART_PART_SIZE)
+        const rest = merged.subarray(MULTIPART_PART_SIZE)
+        pendingChunks = rest.length ? [rest] : []
+        pendingBytes = rest.length
+        await dispatchPart(part)
+      }
+    },
+    async complete() {
+      try {
+        if (!backend) {
+          // Never crossed one part (or local provider): single-shot upload.
+          await uploadFile({
+            file: drainPending(),
+            fileName: key,
+            contentType,
+            context,
+            preserveKey: true,
+            customKey: key,
+          })
+          return { key, size: totalBytes }
+        }
+        if (pendingBytes > 0) await dispatchPart(drainPending())
+        await Promise.all(inflight)
+        if (firstError) throw firstError
+        await backend.finish()
+        return { key, size: totalBytes }
+      } catch (err) {
+        await abort()
+        throw err
+      }
+    },
+    abort,
   }
 }
 
