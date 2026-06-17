@@ -93,7 +93,7 @@ describe('runTableExport', () => {
       return Promise.resolve(handle)
     })
     mockSelectExportRowPage.mockResolvedValue([
-      { id: 'r1', data: { col_name: 'Ada' }, position: 0 },
+      { id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' },
     ])
   })
 

@@ -54,7 +54,7 @@ describe('getOrCreateTableSnapshot', () => {
     lastHandle = null
     mockDeleteFile.mockResolvedValue(undefined)
     mockSelectExportRowPage.mockResolvedValueOnce([
-      { id: 'r1', data: { col_name: 'Ada' }, position: 0 },
+      { id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' },
     ])
     mockSelectExportRowPage.mockResolvedValue([])
     mockCreateMultipartUpload.mockImplementation(({ key }: { key: string }) => {
@@ -151,9 +151,9 @@ describe('getOrCreateTableSnapshot', () => {
     // second materialize needs its own page sequence
     mockSelectExportRowPage.mockReset()
     mockSelectExportRowPage
-      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, position: 0 }])
+      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' }])
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, position: 0 }])
+      .mockResolvedValueOnce([{ id: 'r1', data: { col_name: 'Ada' }, orderKey: 'a0' }])
       .mockResolvedValueOnce([])
 
     const ref = await getOrCreateTableSnapshot(table, 'req')
@@ -175,7 +175,7 @@ describe('getOrCreateTableSnapshot', () => {
     mockSelectExportRowPage.mockReset()
     // A full batch of wide rows on every page → the materialize loop keeps paging until the running
     // byte count crosses the cap, then aborts. Peak memory stays at one page (~MBs), not the cap.
-    const wideRow = { id: 'r', data: { col_name: 'x'.repeat(1000) }, position: 0 }
+    const wideRow = { id: 'r', data: { col_name: 'x'.repeat(1000) }, orderKey: 'a0' }
     const fullPage = Array.from({ length: 10000 }, () => wideRow)
     mockSelectExportRowPage.mockResolvedValue(fullPage)
 

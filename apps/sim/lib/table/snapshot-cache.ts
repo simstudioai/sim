@@ -103,7 +103,7 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
     bytes += Buffer.byteLength(header)
     await handle.write(header)
 
-    let after: { position: number; id: string } | null = null
+    let after: { orderKey: string; id: string } | null = null
     while (true) {
       const page = await selectExportRowPage(table, after, SNAPSHOT_BATCH_SIZE)
       if (page.length === 0) break
@@ -116,7 +116,7 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
       await handle.write(chunk)
 
       const last = page[page.length - 1]
-      after = { position: last.position, id: last.id }
+      after = { orderKey: last.orderKey, id: last.id }
       if (page.length < SNAPSHOT_BATCH_SIZE) break
     }
 

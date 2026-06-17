@@ -78,7 +78,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
     let exported = 0
     let firstJsonRow = true
-    let after: { position: number; id: string } | null = null
+    let after: { orderKey: string; id: string } | null = null
     while (true) {
       // Ownership gate before every page: a canceled job stops within one batch.
       const owns = await updateJobProgress(tableId, exported, jobId)
@@ -103,7 +103,7 @@ export async function runTableExport(payload: TableExportPayload): Promise<void>
 
       exported += page.length
       const last = page[page.length - 1]
-      after = { position: last.position, id: last.id }
+      after = { orderKey: last.orderKey, id: last.id }
       if (page.length < EXPORT_BATCH_SIZE) break
     }
     if (format === 'json') await handle.write(']')
