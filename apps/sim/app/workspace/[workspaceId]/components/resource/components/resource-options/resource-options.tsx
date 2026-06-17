@@ -84,9 +84,10 @@ interface ResourceOptionsProps {
   filterTags?: FilterTag[]
   /**
    * Lightweight control rendered immediately to the LEFT of the filter/sort
-   * cluster (right-aligned after the search) — e.g. the knowledge view's
-   * connected-source badge or the table editor's embedded run/stop control. Keep
-   * it to badges/status widgets; primary actions belong in the header's `actions`.
+   * cluster; the two form one right-aligned group, with or without a search —
+   * e.g. the knowledge view's connected-source badge or the table editor's
+   * embedded run/stop control. Keep it to badges/status widgets; primary actions
+   * belong in the header's `actions`.
    */
   aside?: ReactNode
 }
