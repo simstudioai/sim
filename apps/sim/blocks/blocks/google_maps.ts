@@ -539,7 +539,8 @@ export const GoogleMapsBlock: BlockConfig = {
 
         let days: number | undefined
         if (params.days) {
-          days = Number.parseInt(params.days, 10)
+          const parsedDays = Number.parseInt(params.days, 10)
+          days = Number.isNaN(parsedDays) ? undefined : parsedDays
         }
 
         let plantsDescription: boolean | undefined

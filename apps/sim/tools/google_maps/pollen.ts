@@ -90,7 +90,8 @@ export const googleMapsPollenTool: ToolConfig<GoogleMapsPollenParams, GoogleMaps
       const url = new URL('https://pollen.googleapis.com/v1/forecast:lookup')
       url.searchParams.set('location.latitude', params.lat.toString())
       url.searchParams.set('location.longitude', params.lng.toString())
-      url.searchParams.set('days', (params.days ?? 1).toString())
+      const days = typeof params.days === 'number' && Number.isFinite(params.days) ? params.days : 1
+      url.searchParams.set('days', days.toString())
       if (params.languageCode) {
         url.searchParams.set('languageCode', params.languageCode.trim())
       }
