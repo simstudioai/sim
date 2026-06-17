@@ -81,6 +81,8 @@ export const textSearchTool: ToolConfig<SupabaseTextSearchParams, SupabaseTextSe
       if (!columnValidation.isValid) throw new Error(columnValidation.error)
       const searchType = params.searchType || 'websearch'
       const language = params.language || 'english'
+      const languageValidation = validateDatabaseIdentifier(language, 'language')
+      if (!languageValidation.isValid) throw new Error(languageValidation.error)
 
       let url = `${supabaseBaseUrl(params.projectId)}/rest/v1/${encodeURIComponent(params.table)}?select=*`
 

@@ -558,7 +558,6 @@ export interface SupabaseStorageDeleteBucketParams {
 export interface SupabaseStorageDeleteBucketResponse extends SupabaseBaseResponse {}
 
 export interface SupabaseStorageGetPublicUrlParams {
-  apiKey: string
   projectId: string
   bucket: string
   path: string

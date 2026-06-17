@@ -39,12 +39,6 @@ export const storageGetPublicUrlTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'If true, forces download instead of inline display (default: false)',
     },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Your Supabase service role secret key',
-    },
   },
 
   /**
@@ -74,10 +68,7 @@ export const storageGetPublicUrlTool: ToolConfig<
     url: (params) =>
       `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`,
     method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
+    headers: () => ({}),
   },
 
   outputs: {

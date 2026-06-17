@@ -105,7 +105,7 @@ export const storageCreateBucketTool: ToolConfig<
     message: { type: 'string', description: 'Operation status message' },
     results: {
       type: 'object',
-      description: 'Created bucket information',
+      description: 'Created bucket result (name)',
       properties: STORAGE_CREATE_BUCKET_OUTPUT_PROPERTIES,
     },
   },
