@@ -391,28 +391,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             aliasedParent?.kind === 'tool'
               ? aliasedParent
               : findWorkspaceFileNodeInSpan(model, spanId)
-          // #region agent log
-          fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-            body: JSON.stringify({
-              sessionId: '3dc406',
-              hypothesisId: 'F7',
-              location: 'turn-model.ts:tool-call:edit_content',
-              message:
-                'edit_content call fold decision (reusedAlias prevents orphaned reopened row)',
-              data: {
-                rawToolCallId,
-                spanId,
-                foundParent: Boolean(parent),
-                reusedAlias: aliasedParent?.kind === 'tool',
-                parentId: parent?.id,
-                parentName: parent?.kind === 'tool' ? parent.name : undefined,
-              },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {})
-          // #endregion
           if (parent) {
             model.toolAlias.set(rawToolCallId, parent.id)
             parent.status = 'running'
@@ -448,43 +426,14 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
         const delta = asString(payload.argumentsDelta)
         if (delta) node.streamingArgs = (node.streamingArgs ?? '') + delta
       } else if (phase === MothershipStreamV1ToolPhase.result) {
-        const resolvedToolId = resolveToolId(model, rawToolCallId)
-        // #region agent log
-        const beforeNode = model.nodes.get(resolvedToolId)
-        // #endregion
         applyToolResult(
           model,
-          resolvedToolId,
+          resolveToolId(model, rawToolCallId),
           payload.success === true,
           payload.status,
           payload.output,
           asString(payload.error)
         )
-        // #region agent log
-        const afterNode = model.nodes.get(resolvedToolId)
-        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-          body: JSON.stringify({
-            sessionId: '3dc406',
-            hypothesisId: 'F7',
-            location: 'turn-model.ts:tool-result',
-            message:
-              'tool result applied (nodeFound=false => buffered orphan, spinner stays running)',
-            data: {
-              rawToolCallId,
-              resolvedToolId,
-              aliased: resolvedToolId !== rawToolCallId,
-              toolName,
-              spanId,
-              nodeFound: Boolean(beforeNode && beforeNode.kind === 'tool'),
-              afterStatus:
-                afterNode && afterNode.kind === 'tool' ? afterNode.status : '(buffered/none)',
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
       }
       break
     }
@@ -501,35 +450,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
 
       if (payload.event === MothershipStreamV1SpanLifecycleEvent.start) {
         breakLane(model, parentSpanId, tsMs)
-        // #region agent log
-        let priorByTrigger = ''
-        if (triggerToolCallId) {
-          for (const oid of model.order) {
-            const on = model.nodes.get(oid)
-            if (
-              on?.kind === 'agent' &&
-              on.triggerToolCallId === triggerToolCallId &&
-              on.spanId !== resolvedSpanId
-            ) {
-              priorByTrigger = on.spanId
-              break
-            }
-          }
-        }
-        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-          body: JSON.stringify({
-            sessionId: '3dc406',
-            hypothesisId: 'F5',
-            location: 'turn-model.ts:span-start',
-            message:
-              'span start (priorByTrigger!=empty => provisional->real spanId swap = group remount/flash)',
-            data: { resolvedSpanId, triggerToolCallId, agentId, priorByTrigger },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-        // #endregion
         const existingId = model.agentBySpanId.get(resolvedSpanId)
         if (existingId && model.nodes.has(existingId)) break
         const node: AgentNode = {
@@ -652,29 +572,6 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
 export function applyTurnTerminal(model: TurnModel, turn: Exclude<TurnStatus, 'streaming'>): void {
   model.status = turn
   const nodeStatus = turnTerminalNodeStatus(turn)
-  // #region agent log
-  const stragglers = model.order
-    .map((id) => model.nodes.get(id))
-    .filter(
-      (n): n is NonNullable<typeof n> => Boolean(n) && n!.kind !== 'text' && n!.status === 'running'
-    )
-    .map(
-      (n) =>
-        `${n.kind}:${n.kind === 'tool' ? n.name : ((n as { agentId?: string }).agentId ?? '?')}|${n.id}|span:${n.spanId}`
-    )
-  fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-    body: JSON.stringify({
-      sessionId: '3dc406',
-      hypothesisId: 'F7',
-      location: 'turn-model.ts:applyTurnTerminal',
-      message: 'turn terminal force-closing stragglers (these spun until turn end)',
-      data: { turn, stragglerCount: stragglers.length, stragglers },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
   for (const id of model.order) {
     const node = model.nodes.get(id)
     if (!node || node.kind === 'text') continue

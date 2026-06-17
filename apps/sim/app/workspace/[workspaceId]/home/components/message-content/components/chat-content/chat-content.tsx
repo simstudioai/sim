@@ -299,39 +299,6 @@ function ChatContentInner({
   const streamedContent = useSmoothText(displayContent, isStreaming)
   const isRevealing = isStreaming || streamedContent.length < displayContent.length
 
-  // #region agent log
-  useEffect(() => {
-    if (!isStreaming) return
-    const uid = Math.random().toString(36).slice(2, 8)
-    fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-      body: JSON.stringify({
-        sessionId: '3dc406',
-        hypothesisId: 'A5',
-        location: 'chat-content.tsx:mount',
-        message: 'streaming ChatContent MOUNT (reveal resets to 0 here)',
-        data: { uid, initialLen: displayContent.length },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    return () => {
-      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-        body: JSON.stringify({
-          sessionId: '3dc406',
-          hypothesisId: 'A5',
-          location: 'chat-content.tsx:unmount',
-          message: 'streaming ChatContent UNMOUNT',
-          data: { uid },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-    }
-  }, [])
-  // #endregion
-
   useEffect(() => {
     onRevealStateChangeRef.current?.(isRevealing)
   }, [isRevealing])

@@ -182,39 +182,6 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
 
   const [phase, setPhase] = useState<MessagePhase>(isStreaming ? 'streaming' : 'settled')
 
-  // #region agent log
-  useEffect(() => {
-    if (!isStreaming) return
-    const uid = Math.random().toString(36).slice(2, 8)
-    fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-      body: JSON.stringify({
-        sessionId: '3dc406',
-        hypothesisId: 'A9',
-        location: 'mothership-chat.tsx:AssistantMessageRow:mount',
-        message: 'streaming row MOUNT',
-        data: { uid, id: message.id },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {})
-    return () => {
-      fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-        body: JSON.stringify({
-          sessionId: '3dc406',
-          hypothesisId: 'A9',
-          location: 'mothership-chat.tsx:AssistantMessageRow:unmount',
-          message: 'streaming row UNMOUNT',
-          data: { uid },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {})
-    }
-  }, [])
-  // #endregion
-
   const onAnimatingChangeRef = useRef(onAnimatingChange)
   onAnimatingChangeRef.current = onAnimatingChange
   useEffect(() => {
@@ -290,20 +257,6 @@ export function MothershipChat({
    * starving the main thread on every streaming token.
    */
   const messages = useDeferredValue(messagesProp)
-  // #region agent log
-  fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-    body: JSON.stringify({
-      sessionId: '3dc406',
-      hypothesisId: 'B1',
-      location: 'mothership-chat.tsx:MothershipChat',
-      message: 'list render',
-      data: { msgCount: messages.length, deferred: messages !== messagesProp, isStreamActive },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {})
-  // #endregion
   const [lastRowAnimating, setLastRowAnimating] = useState(false)
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
   const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
@@ -362,37 +315,6 @@ export function MothershipChat({
   useEffect(() => {
     setLastRowAnimating(false)
   }, [lastRowKey])
-
-  // #region agent log
-  // Ungated: runs whenever the chat is mounted so it captures jank during an
-  // IDLE canvas drag (after the stream completes), not only during streaming.
-  useEffect(() => {
-    let raf = 0
-    let last = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    const tick = () => {
-      const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-      const delta = now - last
-      last = now
-      if (delta > 50) {
-        fetch('http://127.0.0.1:1025/ingest/85045d0a-92f7-4ee2-9de1-e2f99930c6bc', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '3dc406' },
-          body: JSON.stringify({
-            sessionId: '3dc406',
-            hypothesisId: 'B1',
-            location: 'mothership-chat.tsx:frame-probe',
-            message: 'long frame (jank)',
-            data: { frameMs: Math.round(delta), streamActive: isStreamActive },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {})
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [isStreamActive])
-  // #endregion
 
   const rangeExtractor = useCallback(
     (range: Range) => {
