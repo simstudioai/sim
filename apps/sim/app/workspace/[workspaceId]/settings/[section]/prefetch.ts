@@ -1,8 +1,7 @@
-import { dbReplica } from '@sim/db'
 import type { QueryClient } from '@tanstack/react-query'
+import { headers } from 'next/headers'
 import { getSession } from '@/lib/auth'
-import { getEffectiveBillingStatus } from '@/lib/billing/core/access'
-import { getSimplifiedBillingSummary } from '@/lib/billing/core/billing'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { getUserProfile, getUserSettings } from '@/lib/users/queries'
 import { generalSettingsKeys, mapGeneralSettingsResponse } from '@/hooks/queries/general-settings'
 import { subscriptionKeys } from '@/hooks/queries/subscription'
@@ -26,31 +25,26 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
 }
 
 /**
- * Prefetch subscription data server-side via the shared data layer.
- * Uses the same query key as the client `useSubscriptionData` hook (with includeOrg=false)
- * so data is shared via HydrationBoundary — ensuring the settings sidebar renders
- * with the correct Team/Enterprise tabs on the first paint, with no flash.
+ * Prefetch subscription data server-side. Unlike the other prefetches this goes
+ * through the internal billing API rather than calling the data layer directly:
+ * the billing summary contains `Date` fields (and an untyped `metadata` blob) that
+ * `NextResponse.json` serializes to the string wire shape the client caches. Going
+ * through the route yields that exact shape, avoiding a Date-vs-string mismatch
+ * between server-hydrated and client-fetched data. Uses the same query key as the
+ * client `useSubscriptionData` hook (with includeOrg=false) so data is shared via
+ * HydrationBoundary.
  */
 export function prefetchSubscriptionData(queryClient: QueryClient) {
   return queryClient.prefetchQuery({
     queryKey: subscriptionKeys.user(false),
     queryFn: async () => {
-      const session = await getSession()
-      if (!session?.user?.id) throw new Error('Unauthorized')
-      const [summary, status] = await Promise.all([
-        getSimplifiedBillingSummary(session.user.id, undefined, dbReplica),
-        getEffectiveBillingStatus(session.user.id),
-      ])
-      return {
-        success: true,
-        context: 'user' as const,
-        data: {
-          ...summary,
-          billingBlocked: status.billingBlocked,
-          billingBlockedReason: status.billingBlockedReason,
-          blockedByOrgOwner: status.blockedByOrgOwner,
-        },
-      }
+      const h = await headers()
+      const cookie = h.get('cookie')
+      const response = await fetch(`${getInternalApiBaseUrl()}/api/billing?context=user`, {
+        headers: cookie ? { cookie } : {},
+      })
+      if (!response.ok) throw new Error(`Subscription prefetch failed: ${response.status}`)
+      return response.json()
     },
     staleTime: 5 * 60 * 1000,
   })
