@@ -19,9 +19,9 @@ const mapIndexInfo = (indexInfo: RawIndexInfo | undefined) =>
         category: indexInfo.category || '',
         indexDescription: indexInfo.indexDescription || '',
         color: {
-          red: indexInfo.color?.red || 0,
-          green: indexInfo.color?.green || 0,
-          blue: indexInfo.color?.blue || 0,
+          red: indexInfo.color?.red ?? 0,
+          green: indexInfo.color?.green ?? 0,
+          blue: indexInfo.color?.blue ?? 0,
         },
       }
     : null
@@ -109,8 +109,8 @@ export const googleMapsPollenTool: ToolConfig<GoogleMapsPollenParams, GoogleMaps
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (data.error) {
-      throw new Error(`Pollen lookup failed: ${data.error.message || 'Unknown error'}`)
+    if (!response.ok || data.error) {
+      throw new Error(`Pollen lookup failed: ${data.error?.message || response.statusText}`)
     }
 
     const dailyInfo = (data.dailyInfo || []).map(

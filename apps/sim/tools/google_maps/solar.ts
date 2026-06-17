@@ -68,8 +68,8 @@ export const googleMapsSolarTool: ToolConfig<GoogleMapsSolarParams, GoogleMapsSo
   transformResponse: async (response: Response) => {
     const data = await response.json()
 
-    if (data.error) {
-      throw new Error(`Solar lookup failed: ${data.error.message || 'Unknown error'}`)
+    if (!response.ok || data.error) {
+      throw new Error(`Solar lookup failed: ${data.error?.message || response.statusText}`)
     }
 
     const potential = data.solarPotential
