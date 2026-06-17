@@ -3,7 +3,6 @@
 import { type RefObject, useLayoutEffect, useRef, useState } from 'react'
 import { ThinkingLoader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import styles from '@/app/(landing)/components/hero/components/hero-visual/stage-home.module.css'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
 import {
   ANSWER_TEXT,
@@ -146,7 +145,12 @@ export function StageHome({
           )}
         >
           {showGreeting ? (
-            <p className={cn('font-season text-[30px] leading-[40px]', styles.greeting)}>
+            <p
+              className={cn(
+                'font-season text-[30px] leading-[40px]',
+                '[-webkit-background-clip:text] bg-clip-text text-transparent [background-image:linear-gradient(90deg,var(--text-primary)_40%,var(--text-subtle)_50%,var(--text-primary)_60%)] [background-size:200%_100%] animate-hero-greeting-reveal motion-reduce:animate-none motion-reduce:[-webkit-background-clip:border-box] motion-reduce:bg-clip-border motion-reduce:[background-image:none] motion-reduce:text-[var(--text-primary)]'
+              )}
+            >
               {HOME_GREETING}
             </p>
           ) : null}

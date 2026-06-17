@@ -1,7 +1,6 @@
 import type { CSSProperties, RefObject } from 'react'
 import { Upload, X } from 'lucide-react'
 import { cn } from '@/lib/core/utils/cn'
-import styles from '@/app/(landing)/components/hero/components/hero-visual/hero-visual.module.css'
 import {
   GRAPH_EDGES,
   GRAPH_NODES,
@@ -34,7 +33,7 @@ export function StageKb({ stage, createRef }: StageKbProps) {
       <div
         className={cn(
           'w-full max-w-[420px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)]',
-          styles.modal
+          'animate-hero-modal-in motion-reduce:animate-none'
         )}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
@@ -75,7 +74,7 @@ export function StageKb({ stage, createRef }: StageKbProps) {
                         key={file.name}
                         className={cn(
                           'flex items-center gap-2 rounded-md border border-[var(--border-1)] bg-[var(--surface-2)] p-2',
-                          styles.fileRow
+                          'opacity-0 animate-hero-file-drop [animation-delay:var(--drop-delay)] motion-reduce:animate-none motion-reduce:opacity-100'
                         )}
                         style={{ '--drop-delay': `${120 + i * 170}ms` } as CSSProperties}
                       >
@@ -108,7 +107,7 @@ export function StageKb({ stage, createRef }: StageKbProps) {
                             key={`${a}-${b}`}
                             d={`M ${from.x} ${from.y} L ${to.x} ${to.y}`}
                             pathLength={1}
-                            className={styles.embedLink}
+                            className='[stroke-dasharray:1] [stroke-dashoffset:1] animate-hero-edge-draw [animation-delay:var(--pop-delay)] motion-reduce:animate-none motion-reduce:[stroke-dashoffset:0]'
                             stroke='var(--text-subtle)'
                             strokeWidth={0.5}
                             style={{ '--pop-delay': `${i * 45}ms` } as CSSProperties}
@@ -121,7 +120,12 @@ export function StageKb({ stage, createRef }: StageKbProps) {
                           cx={node.x}
                           cy={node.y}
                           r={node.hub ? 3.4 : i % 3 === 0 ? 2.4 : 1.9}
-                          className={node.hub ? styles.embedHub : styles.embedNode}
+                          className={cn(
+                            'opacity-0 [transform-box:fill-box] [transform-origin:center] motion-reduce:animate-none motion-reduce:opacity-100',
+                            node.hub
+                              ? 'animate-[hero-node-pop_440ms_cubic-bezier(0.16,1,0.3,1)_var(--pop-delay)_forwards,hero-graph-pulse_2600ms_ease-in-out_calc(var(--pop-delay)+800ms)_infinite]'
+                              : 'animate-hero-node-pop [animation-delay:var(--pop-delay)]'
+                          )}
                           fill={
                             node.hub
                               ? 'var(--text-primary)'

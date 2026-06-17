@@ -10,7 +10,6 @@ import {
 } from 'react'
 import { ThinkingLoader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
-import styles from '@/app/(landing)/components/hero/components/hero-visual/hero-visual.module.css'
 import {
   type HomeMode,
   StageHome,
@@ -536,7 +535,7 @@ export function HeroVisual() {
       </div>
 
       {showKb && (
-        <div className={cn('absolute inset-0', styles.stageFade)}>
+        <div className='absolute inset-0 animate-hero-stage-fade motion-reduce:animate-none'>
           <StageKb stage={kbStageFor(phase)} createRef={createRef} />
         </div>
       )}
@@ -549,10 +548,7 @@ export function HeroVisual() {
         {clicking && (
           <span
             key={phase}
-            className={cn(
-              '-translate-x-1/2 -translate-y-1/2 absolute size-7 rounded-full border border-[var(--text-primary)]',
-              styles.clickRing
-            )}
+            className='-translate-x-1/2 -translate-y-1/2 absolute size-7 rounded-full border border-[var(--text-primary)] animate-hero-click-ring motion-reduce:animate-none'
             style={{ left: TIP_X, top: TIP_Y }}
           />
         )}
