@@ -175,6 +175,10 @@ function tokenFallback(lowerText: string, lowerQuery: string): FuzzyResult {
  * Falls back to order-independent token matching for multi-word queries
  * (`message slack` matches "Slack Send Message") which a strict left-to-right
  * subsequence would miss.
+ *
+ * Contiguous substring matches report the indices of the substring itself, so
+ * highlighting always bolds the run the user actually matched rather than an
+ * earlier scattered occurrence of the same characters.
  */
 export function fuzzyMatch(text: string, query: string): FuzzyResult {
   if (!query) return { matched: true, score: 1, positions: [] }
@@ -182,6 +186,27 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
 
   const lowerText = text.toLowerCase()
   const lowerQuery = query.toLowerCase()
+
+  const substringIndex = lowerText.indexOf(lowerQuery)
+  if (substringIndex !== -1) {
+    const length = lowerQuery.length
+    const positions = Array.from({ length }, (_, k) => substringIndex + k)
+
+    let score = 1
+    if (substringIndex === 0) score += 10
+    else if (SEPARATORS.has(lowerText[substringIndex - 1])) score += 8
+    else if (isCamelBoundary(text, substringIndex)) score += 6
+    score += (length - 1) * 6
+
+    if (lowerText === lowerQuery) score += 120
+    else if (substringIndex === 0) score += 50
+    else score += 25
+
+    score -= substringIndex * 0.5
+    score -= (length - 1) * 0.15
+    score -= lowerText.length * 0.1
+    return { matched: true, score, positions }
+  }
 
   const positions: number[] = []
   let queryIndex = 0
@@ -203,13 +228,7 @@ export function fuzzyMatch(text: string, query: string): FuzzyResult {
     queryIndex++
   }
 
-  if (queryIndex === lowerQuery.length) {
-    if (lowerText === lowerQuery) score += 120
-    else if (lowerText.startsWith(lowerQuery)) score += 50
-    else if (lowerText.includes(lowerQuery)) score += 25
-    else if (!isHardBoundary(lowerText, positions[0])) {
-      return tokenFallback(lowerText, lowerQuery)
-    }
+  if (queryIndex === lowerQuery.length && isHardBoundary(lowerText, positions[0])) {
     score -= positions[0] * 0.5
     score -= (positions[positions.length - 1] - positions[0]) * 0.15
     score -= lowerText.length * 0.1

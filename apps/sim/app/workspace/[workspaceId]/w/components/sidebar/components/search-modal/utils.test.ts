@@ -220,6 +220,16 @@ describe('fuzzyMatch — positions for highlighting', () => {
     expect(fuzzyMatch('Slack', 'slk').positions).toEqual([0, 1, 4])
   })
 
+  it('highlights the substring itself, not an earlier scattered occurrence', () => {
+    const result = fuzzyMatch('a_apple', 'apple')
+    expect(result.matched).toBe(true)
+    expect(result.positions).toEqual([2, 3, 4, 5, 6])
+  })
+
+  it('highlights a mid-string substring at its real position', () => {
+    expect(fuzzyMatch('Webhook', 'hook').positions).toEqual([3, 4, 5, 6])
+  })
+
   it('reports empty positions for empty query', () => {
     const result = fuzzyMatch('Slack', '')
     expect(result.matched).toBe(true)
