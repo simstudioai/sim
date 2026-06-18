@@ -8,6 +8,10 @@ import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { validateSeatAvailability } from '@/lib/billing/validation/seat-management'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import {
+  type DirectGrantOutcome,
+  grantWorkspaceAccessDirectly,
+} from '@/lib/invitations/direct-grant'
+import {
   cancelPendingInvitation,
   createPendingInvitation,
   findPendingGrantForWorkspaceEmail,
@@ -38,6 +42,10 @@ export interface WorkspaceInvitationResult {
   permission: PermissionType
   membershipIntent: InvitationMembershipIntent
   expiresAt: Date | undefined
+  /** True when the user was granted access directly (no pending invitation). */
+  instantAdd?: boolean
+  /** Direct-grant outcome when `instantAdd` is true. */
+  outcome?: DirectGrantOutcome['outcome']
 }
 
 export class WorkspaceInvitationError extends Error {
@@ -152,6 +160,47 @@ export async function createWorkspaceInvitation({
     .then((rows) => rows[0])
 
   if (existingUser) {
+    const workspaceOrganizationId = context.workspaceDetails.organizationId
+    const existingMembership = workspaceOrganizationId
+      ? await getUserOrganization(existingUser.id)
+      : null
+
+    /**
+     * Invitee already belongs to the workspace's organization: grant access
+     * directly with no invitation/acceptance step. Idempotent — upgrades a
+     * lower permission and no-ops when access already meets or exceeds the
+     * requested permission.
+     */
+    if (
+      workspaceOrganizationId &&
+      existingMembership &&
+      existingMembership.organizationId === workspaceOrganizationId
+    ) {
+      const directGrant = await grantWorkspaceAccessDirectly({
+        userId: existingUser.id,
+        email: normalizedEmail,
+        workspaceId: context.workspaceId,
+        workspaceName: context.workspaceDetails.name,
+        permission: invitationPermission,
+        organizationId: workspaceOrganizationId,
+        actorId: context.inviterId,
+        actorName: context.inviterName,
+        actorEmail: context.inviterEmail,
+        request,
+      })
+
+      return {
+        id: existingUser.id,
+        workspaceId: context.workspaceId,
+        email: normalizedEmail,
+        permission: invitationPermission,
+        membershipIntent: 'internal',
+        expiresAt: undefined,
+        instantAdd: true,
+        outcome: directGrant.outcome,
+      }
+    }
+
     const existingPermission = await db
       .select()
       .from(permissions)
@@ -173,7 +222,6 @@ export async function createWorkspaceInvitation({
     }
 
     if (context.invitePolicy.organizationId) {
-      const existingMembership = await getUserOrganization(existingUser.id)
       if (
         existingMembership &&
         existingMembership.organizationId !== context.invitePolicy.organizationId

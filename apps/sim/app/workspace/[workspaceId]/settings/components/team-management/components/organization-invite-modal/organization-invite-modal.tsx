@@ -10,6 +10,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  toast,
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
@@ -112,7 +113,23 @@ export function OrganizationInviteModal({
     inviteMember.mutate(
       { emails, orgId: organizationId, workspaceInvitations },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          const summary =
+            'data' in result && result.data && typeof result.data === 'object'
+              ? (result.data as { invitationsSent?: number; directlyAddedCount?: number })
+              : null
+          const addedCount = summary?.directlyAddedCount ?? 0
+          const sentCount = summary?.invitationsSent ?? 0
+          const parts: string[] = []
+          if (addedCount > 0) {
+            parts.push(`${addedCount} member${addedCount === 1 ? '' : 's'} added`)
+          }
+          if (sentCount > 0) {
+            parts.push(`${sentCount} invite${sentCount === 1 ? '' : 's'} sent`)
+          }
+          if (parts.length > 0) {
+            toast.success(parts.join(' · '))
+          }
           setEmails([])
           setSelectedWorkspaceIds([])
           onOpenChange(false)

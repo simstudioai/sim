@@ -61,6 +61,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
 
     const successful: string[] = []
+    const added: string[] = []
+    const upgraded: string[] = []
     const failed: BatchInvitationFailure[] = []
     const invitations: WorkspaceInvitationResult[] = []
     const seenEmails = new Set<string>()
@@ -83,7 +85,12 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           permission: item.permission,
           request: req,
         })
-        successful.push(invitation.email)
+        if (invitation.instantAdd) {
+          added.push(invitation.email)
+          if (invitation.outcome === 'upgraded') upgraded.push(invitation.email)
+        } else {
+          successful.push(invitation.email)
+        }
         invitations.push(invitation)
       } catch (error) {
         if (error instanceof WorkspaceInvitationError) {
@@ -102,6 +109,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({
       success: failed.length === 0,
       successful,
+      added,
+      upgraded,
       failed,
       invitations,
     })

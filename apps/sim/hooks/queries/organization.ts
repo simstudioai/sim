@@ -435,6 +435,15 @@ export function useInviteMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      // Existing members may have been added directly to selected workspaces.
+      for (const grant of variables.workspaceInvitations ?? []) {
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.permissions(grant.workspaceId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.members(grant.workspaceId),
+        })
+      }
     },
   })
 }

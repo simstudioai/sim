@@ -15,6 +15,7 @@ import {
   getEmailSubject,
   renderBatchInvitationEmail,
   renderInvitationEmail,
+  renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -273,6 +274,41 @@ export async function sendInvitationEmail(
     to: input.email,
     subject: getEmailSubject('invitation'),
     html: emailHtml,
+    emailType: 'transactional',
+  })
+  if (!result.success) {
+    return { success: false, error: result.message }
+  }
+  return { success: true }
+}
+
+export interface SendWorkspaceAddedEmailInput {
+  email: string
+  inviterName: string
+  workspaceId: string
+  workspaceName: string
+}
+
+/**
+ * Lightweight notification sent when an existing organization member is added
+ * directly to a workspace. Unlike an invitation email, this links straight to
+ * the workspace and has no acceptance step.
+ */
+export async function sendWorkspaceAddedEmail(
+  input: SendWorkspaceAddedEmailInput
+): Promise<SendInvitationEmailResult> {
+  const workspaceLink = `${getBaseUrl()}/workspace/${input.workspaceId}/home`
+  const emailHtml = await renderWorkspaceAddedEmail(
+    input.inviterName,
+    input.workspaceName,
+    workspaceLink
+  )
+
+  const result = await sendEmail({
+    to: input.email,
+    subject: `You've been added to "${input.workspaceName}" on Sim`,
+    html: emailHtml,
+    from: getFromEmailAddress(),
     emailType: 'transactional',
   })
   if (!result.success) {

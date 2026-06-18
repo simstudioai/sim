@@ -555,6 +555,26 @@ export const PlatformEvents = {
   },
 
   /**
+   * Track member added directly to a workspace (no acceptance step) because
+   * they were already a member of the workspace's organization.
+   */
+  workspaceMemberAdded: (attrs: {
+    workspaceId: string
+    addedBy: string
+    addedUserId: string
+    role: string
+    outcome: 'added' | 'upgraded'
+  }) => {
+    trackPlatformEvent('platform.workspace.member_added', {
+      'workspace.id': attrs.workspaceId,
+      'user.id': attrs.addedBy,
+      'member.id': attrs.addedUserId,
+      'member.role': attrs.role,
+      'member.add_outcome': attrs.outcome,
+    })
+  },
+
+  /**
    * Track member joined workspace
    */
   workspaceMemberJoined: (attrs: { workspaceId: string; userId: string; role: string }) => {
