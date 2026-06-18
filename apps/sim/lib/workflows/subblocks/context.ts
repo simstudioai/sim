@@ -28,6 +28,7 @@ export const SELECTOR_CONTEXT_FIELDS = new Set<keyof SelectorContext>([
   'awsSecretAccessKey',
   'awsRegion',
   'logGroupName',
+  'tableId',
 ])
 
 /**
