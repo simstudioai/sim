@@ -1,5 +1,45 @@
+import { getCostMultiplier } from '@/lib/core/config/env-flags'
+import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import type { TimeSegment } from '@/providers/types'
+import { calculateCost } from '@/providers/utils'
+
+/**
+ * Settle the authoritative streaming LLM cost onto `output.cost` from its final
+ * tokens (the single cost seam shared with the non-streaming path), and — on the
+ * hosted-key path — emit the hosted-key cost metric. The cost multiplier is the
+ * platform markup on hosted usage, so it is applied only when `hostedKey` is set;
+ * off the hosted path this is behaviour-preserving (multiplier 1). Any `toolCost`
+ * already on `output.cost` is preserved. Used here and by providers that build
+ * streams bespoke (e.g. gemini).
+ */
+export function settleStreamingLlmCost(
+  output: NormalizedBlockOutput,
+  model: string,
+  hostedKey: { provider: string; envVar: string } | undefined,
+  cached: boolean,
+  toolCost?: number
+): void {
+  // Multiplier (platform markup) and cached pricing apply only on the hosted-key
+  // path; off it this stays behaviour-preserving (multiplier 1, no cached).
+  const multiplier = hostedKey ? getCostMultiplier() : 1
+  const breakdown = calculateCost(
+    model,
+    output.tokens?.input ?? 0,
+    output.tokens?.output ?? 0,
+    hostedKey ? cached : false,
+    multiplier,
+    multiplier
+  )
+  const tc = toolCost ?? output.cost?.toolCost
+  output.cost = tc ? { ...breakdown, toolCost: tc, total: breakdown.total + tc } : breakdown
+  if (hostedKey) {
+    hostedKeyMetrics.recordCostCharged(breakdown.total, {
+      provider: hostedKey.provider,
+      tool: model,
+    })
+  }
+}
 
 /**
  * Provider-agnostic assembly of the {@link StreamingExecution} object that every
@@ -79,6 +119,16 @@ interface CreateStreamingExecutionOptions {
   /** Marks `execution.isStreaming = true` when set. */
   isStreaming?: boolean
   /**
+   * Hosted-key cost settlement. Set only when the call resolved to a platform
+   * hosted-key (flag-on, not BYOK, not user key). When present, the wrapper owns
+   * the authoritative `output.cost` on drain via {@link settleStreamingLlmCost}
+   * (recomputed with the cost multiplier) and emits the hosted-key cost metric.
+   * Absent ⇒ provider's cost is left as-is.
+   */
+  hostedKey?: { provider: string; envVar: string }
+  /** Whether cached input pricing applies (mirrors the non-streaming `useCachedInput`). */
+  cached?: boolean
+  /**
    * Builds the provider stream. Receives the live `output` object and a
    * `finalizeTiming` hook. The provider wires its native stream factory and, in
    * the drain callback, writes final content/tokens/cost onto `output` then
@@ -104,6 +154,8 @@ export function createStreamingExecution(
     initialCost,
     toolCalls,
     isStreaming,
+    hostedKey,
+    cached,
     createStream,
   } = options
 
@@ -150,7 +202,15 @@ export function createStreamingExecution(
   const timingKind = timing.kind
   const stream = createStream({
     output,
-    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
+    finalizeTiming: () => {
+      // Hosted-key path: the wrapper owns the authoritative cost — recompute from
+      // the now-final tokens (with the cost multiplier the per-provider streaming
+      // paths omit) and emit the hosted-key cost metric exactly once on drain.
+      if (hostedKey) {
+        settleStreamingLlmCost(output, model, hostedKey, cached ?? false)
+      }
+      finalizeTiming(output, providerStartTime, timingKind)
+    },
   })
 
   return {

@@ -23,6 +23,7 @@ import type { ProviderRequest, ProviderResponse, TimeSegment } from '@/providers
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isCachedInput,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
@@ -405,6 +406,8 @@ export async function executeAnthropicProviderRequest(
       initialTokens: { input: 0, output: 0, total: 0 },
       initialCost: { total: 0.0, input: 0.0, output: 0.0 },
       isStreaming: true,
+      hostedKey: request.hostedKey,
+      cached: isCachedInput(request.context),
       createStream: ({ output, finalizeTiming }) =>
         createReadableStreamFromAnthropicStream(
           streamResponse as AsyncIterable<RawMessageStreamEvent>,
@@ -785,6 +788,8 @@ export async function executeAnthropicProviderRequest(
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         isStreaming: true,
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,
@@ -1208,6 +1213,8 @@ export async function executeAnthropicProviderRequest(
         },
         toolCalls: toolCalls.length > 0 ? { list: toolCalls, count: toolCalls.length } : undefined,
         isStreaming: true,
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output, finalizeTiming }) =>
           createReadableStreamFromAnthropicStream(
             streamResponse as AsyncIterable<RawMessageStreamEvent>,

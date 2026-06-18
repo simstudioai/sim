@@ -26,6 +26,7 @@ import {
   extractTextContent,
   mapToThinkingLevel,
 } from '@/providers/google/utils'
+import { settleStreamingLlmCost } from '@/providers/streaming-execution'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
 import type {
   FunctionCallResponse,
@@ -35,6 +36,7 @@ import type {
 } from '@/providers/types'
 import {
   calculateCost,
+  isCachedInput,
   isDeepResearchModel,
   isGemini3Model,
   prepareToolExecution,
@@ -772,8 +774,12 @@ export async function executeDeepResearchRequest(
           }
           streamingResult.execution.output.interactionId = streamInteractionId
 
-          const cost = calculateCost(model, usage.inputTokens, usage.outputTokens)
-          streamingResult.execution.output.cost = cost
+          settleStreamingLlmCost(
+            streamingResult.execution.output,
+            model,
+            request.hostedKey,
+            isCachedInput(request.context)
+          )
 
           const streamEndTime = Date.now()
           if (streamingResult.execution.output.providerTiming) {
@@ -1038,12 +1044,12 @@ export async function executeGeminiRequest(
             total: usage.totalTokenCount,
           }
 
-          const costResult = calculateCost(
+          settleStreamingLlmCost(
+            streamingResult.execution.output,
             model,
-            usage.promptTokenCount,
-            usage.candidatesTokenCount
+            request.hostedKey,
+            isCachedInput(request.context)
           )
-          streamingResult.execution.output.cost = costResult
 
           const streamEndTime = Date.now()
           if (streamingResult.execution.output.providerTiming) {
@@ -1156,12 +1162,8 @@ export async function executeGeminiRequest(
             }
           }
 
-          // Capture accumulated cost before streaming
-          const accumulatedCost = {
-            input: state.cost.input,
-            output: state.cost.output,
-            total: state.cost.total,
-          }
+          // Capture accumulated tokens before streaming; final cost is settled
+          // from the accumulated totals via settleGeminiStreamingCost.
           const accumulatedTokens = { ...state.tokens }
 
           const streamGenerator = await ai.models.generateContentStream({
@@ -1189,19 +1191,17 @@ export async function executeGeminiRequest(
                 total: accumulatedTokens.total + usage.totalTokenCount,
               }
 
-              const streamCost = calculateCost(
-                model,
-                usage.promptTokenCount,
-                usage.candidatesTokenCount
-              )
+              // Settle on the final accumulated tokens (cost is linear in tokens,
+              // so this equals the prior accumulatedCost + streamCost) so the
+              // hosted-key multiplier + metric apply uniformly.
               const tc = sumToolCosts(state.toolResults)
-              streamingResult.execution.output.cost = {
-                input: accumulatedCost.input + streamCost.input,
-                output: accumulatedCost.output + streamCost.output,
-                toolCost: tc || undefined,
-                total: accumulatedCost.total + streamCost.total + tc,
-                pricing: streamCost.pricing,
-              }
+              settleStreamingLlmCost(
+                streamingResult.execution.output,
+                model,
+                request.hostedKey,
+                isCachedInput(request.context),
+                tc
+              )
 
               if (streamingResult.execution.output.providerTiming) {
                 streamingResult.execution.output.providerTiming.endTime = new Date().toISOString()

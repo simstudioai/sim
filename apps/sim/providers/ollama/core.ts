@@ -17,6 +17,7 @@ import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
   generateSchemaInstructions,
+  isCachedInput,
   prepareToolExecution,
   sumToolCosts,
 } from '@/providers/utils'
@@ -181,6 +182,8 @@ export async function executeOllamaProviderRequest(
         timing: { kind: 'simple', segmentName: request.model },
         initialTokens: { input: 0, output: 0, total: 0 },
         initialCost: { input: 0, output: 0, total: 0 },
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output, finalizeTiming }) =>
           config.createStream(streamResponse, (content, usage) => {
             output.content = content
@@ -489,6 +492,8 @@ export async function executeOllamaProviderRequest(
                 count: toolCalls.length,
               }
             : undefined,
+        hostedKey: request.hostedKey,
+        cached: isCachedInput(request.context),
         createStream: ({ output }) =>
           config.createStream(streamResponse, (content, usage) => {
             output.content = content
