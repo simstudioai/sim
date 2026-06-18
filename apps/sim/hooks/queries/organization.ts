@@ -414,7 +414,14 @@ export function useInviteMember() {
 
   return useMutation({
     mutationFn: async ({ emails, workspaceInvitations, orgId }: InviteMemberParams) => {
-      const result = await requestJson(inviteOrganizationMembersContract, {
+      /**
+       * Partial batches return HTTP 207 with `success: false` and a `data`
+       * payload (some invited/added, some failed). `requestJson` only throws on
+       * >= 400 (e.g. the total-failure 502 / validation 400 paths), so partials
+       * resolve here and the caller reports successes + per-email failures from
+       * `data` instead of surfacing a single generic error.
+       */
+      return requestJson(inviteOrganizationMembersContract, {
         params: { id: orgId },
         query: { batch: true },
         body: {
@@ -422,12 +429,6 @@ export function useInviteMember() {
           workspaceInvitations,
         },
       })
-
-      if (result.success === false) {
-        throw new Error(result.error || result.message || 'Failed to invite teammate')
-      }
-
-      return result
     },
     onSettled: (_data, _error, variables) => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.detail(variables.orgId) })
@@ -435,6 +436,15 @@ export function useInviteMember() {
       queryClient.invalidateQueries({ queryKey: organizationKeys.memberUsage(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.roster(variables.orgId) })
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
+      // Existing members may have been added directly to selected workspaces.
+      for (const grant of variables.workspaceInvitations ?? []) {
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.permissions(grant.workspaceId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.members(grant.workspaceId),
+        })
+      }
     },
   })
 }

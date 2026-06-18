@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipDropdown,
   ChipInput,
@@ -12,6 +13,7 @@ import {
   DropdownMenuTrigger,
   MoreHorizontal,
   Search,
+  toast,
 } from '@/components/emcn'
 import type { OrgRole, PermissionType } from '@/components/permissions'
 import type {
@@ -29,7 +31,10 @@ import {
   ManageCreditsModal,
   type ManageCreditsTarget,
 } from '@/app/workspace/[workspaceId]/settings/components/team-management/components/manage-credits-modal'
-import { useUpdateWorkspacePermissions } from '@/hooks/queries/invitations'
+import {
+  useRemoveWorkspaceMember,
+  useUpdateWorkspacePermissions,
+} from '@/hooks/queries/invitations'
 import {
   useCancelInvitation,
   useResendInvitation,
@@ -93,6 +98,7 @@ export function OrganizationMemberLists({
   const updateMemberRole = useUpdateOrganizationMemberRole()
   const updateInvitation = useUpdateInvitation()
   const updatePermissions = useUpdateWorkspacePermissions()
+  const removeWorkspaceMember = useRemoveWorkspaceMember()
   const cancelInvitation = useCancelInvitation()
   const resendInvitation = useResendInvitation()
 
@@ -300,8 +306,15 @@ export function OrganizationMemberLists({
     access: RosterWorkspaceAccess
   ) => {
     const rowUserIsOrgAdmin = member.role === 'owner' || member.role === 'admin'
-    const wouldDemoteSelf = member.userId === currentUserId && access.permission === 'admin'
+    const isSelf = member.userId === currentUserId
+    const wouldDemoteSelf = isSelf && access.permission === 'admin'
     const disabled = rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
+    /**
+     * Org owners/admins keep implicit admin access on org workspaces, so
+     * deleting their explicit permission row wouldn't actually revoke access.
+     * Only regular/external members can be removed from a single workspace.
+     */
+    const canRemoveFromWorkspace = !rowUserIsOrgAdmin && !isSelf
 
     return (
       <MemberRow
@@ -328,9 +341,28 @@ export function OrganizationMemberLists({
           />
         }
         menu={buildActionsMenu(
-          <DropdownMenuItem onSelect={() => copyToClipboard(member.email)}>
-            Copy email
-          </DropdownMenuItem>
+          <>
+            <DropdownMenuItem onSelect={() => copyToClipboard(member.email)}>
+              Copy email
+            </DropdownMenuItem>
+            {canRemoveFromWorkspace && (
+              <DropdownMenuItem
+                className='text-[var(--text-error)]'
+                onSelect={() =>
+                  removeWorkspaceMember
+                    .mutateAsync({ userId: member.userId, workspaceId, organizationId })
+                    .catch((error) => {
+                      logger.error('Failed to remove workspace member', { error })
+                      toast.error("Couldn't remove member", {
+                        description: getErrorMessage(error, 'Please try again in a moment.'),
+                      })
+                    })
+                }
+              >
+                Remove from workspace
+              </DropdownMenuItem>
+            )}
+          </>
         )}
       />
     )
