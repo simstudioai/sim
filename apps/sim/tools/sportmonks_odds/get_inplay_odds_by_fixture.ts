@@ -8,8 +8,8 @@ import {
   type SportmonksPaginationParams,
 } from '@/tools/sportmonks/types'
 import {
+  SPORTMONKS_FOOTBALL_ODDS_BASE_URL,
   SPORTMONKS_INPLAY_ODD_PROPERTIES,
-  SPORTMONKS_ODDS_BASE_URL,
   type SportmonksInplayOdd,
 } from '@/tools/sportmonks_odds/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -84,7 +84,7 @@ export const sportmonksOddsGetInplayOddsByFixtureTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = `${SPORTMONKS_ODDS_BASE_URL}/inplay/fixtures/${encodeURIComponent(params.fixtureId.trim())}`
+      const url = `${SPORTMONKS_FOOTBALL_ODDS_BASE_URL}/inplay/fixtures/${encodeURIComponent(params.fixtureId.trim())}`
       return appendSportmonksQuery(url, params)
     },
     method: 'GET',

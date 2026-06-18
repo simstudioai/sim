@@ -53,7 +53,13 @@ export const sportmonksCoreSearchCountriesTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Semicolon-separated relations to enrich the response (e.g. continent)',
+      description: 'Semicolon-separated relations to enrich the response (e.g. continent;regions)',
+    },
+    filters: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filters to apply',
     },
     per_page: {
       type: 'string',
@@ -66,6 +72,12 @@ export const sportmonksCoreSearchCountriesTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description: 'Page number to retrieve',
+    },
+    order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Order direction (asc or desc)',
     },
   },
 

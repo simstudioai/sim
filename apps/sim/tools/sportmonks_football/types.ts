@@ -223,7 +223,11 @@ export const SPORTMONKS_STANDING_PROPERTIES = {
  */
 export const SPORTMONKS_TOPSCORER_PROPERTIES = {
   id: { type: 'number', description: 'Unique id of the topscorer record' },
-  season_id: { type: 'number', description: 'Season related to the topscorer' },
+  season_id: {
+    type: 'number',
+    description: 'Season related to the topscorer (absent on stage topscorers)',
+    optional: true,
+  },
   league_id: { type: 'number', description: 'League related to the topscorer', optional: true },
   stage_id: { type: 'number', description: 'Stage related to the topscorer', optional: true },
   player_id: { type: 'number', description: 'Player related to the topscorer' },
@@ -369,7 +373,7 @@ export interface SportmonksStanding {
 
 export interface SportmonksTopscorer {
   id: number
-  season_id: number
+  season_id?: number
   league_id?: number
   stage_id?: number
   player_id: number
@@ -389,4 +393,956 @@ export interface SportmonksSquadEntry {
   jersey_number?: number | null
   start?: string | null
   end?: string | null
+}
+
+/**
+ * Output property definitions for a Season object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/league-season-schedule-stage-and-round
+ */
+export const SPORTMONKS_SEASON_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the season' },
+  sport_id: { type: 'number', description: 'Sport of the season' },
+  league_id: { type: 'number', description: 'League of the season' },
+  tie_breaker_rule_id: {
+    type: 'number',
+    description: 'Tie-breaker rule of the season',
+    nullable: true,
+    optional: true,
+  },
+  name: { type: 'string', description: 'Name of the season (e.g. 2023/2024)' },
+  finished: { type: 'boolean', description: 'Whether the season is finished', optional: true },
+  pending: { type: 'boolean', description: 'Whether the season is pending', optional: true },
+  is_current: {
+    type: 'boolean',
+    description: 'Whether the season is the current season',
+    optional: true,
+  },
+  standing_method: {
+    type: 'string',
+    description: 'Standing calculation method',
+    nullable: true,
+    optional: true,
+  },
+  starting_at: {
+    type: 'string',
+    description: 'Start date of the season',
+    nullable: true,
+    optional: true,
+  },
+  ending_at: {
+    type: 'string',
+    description: 'End date of the season',
+    nullable: true,
+    optional: true,
+  },
+  standings_recalculated_at: {
+    type: 'string',
+    description: 'Last standings recalculation time',
+    nullable: true,
+    optional: true,
+  },
+  games_in_current_week: {
+    type: 'boolean',
+    description: 'Whether the season has fixtures this week',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output property definitions for a Stage object. */
+export const SPORTMONKS_STAGE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the stage' },
+  sport_id: { type: 'number', description: 'Sport of the stage' },
+  league_id: { type: 'number', description: 'League of the stage' },
+  season_id: { type: 'number', description: 'Season of the stage' },
+  type_id: { type: 'number', description: 'Type of the stage' },
+  name: { type: 'string', description: 'Name of the stage' },
+  sort_order: { type: 'number', description: 'Sort order of the stage', optional: true },
+  finished: { type: 'boolean', description: 'Whether the stage is finished', optional: true },
+  is_current: {
+    type: 'boolean',
+    description: 'Whether the stage is the current stage',
+    optional: true,
+  },
+  starting_at: {
+    type: 'string',
+    description: 'Start date of the stage',
+    nullable: true,
+    optional: true,
+  },
+  ending_at: {
+    type: 'string',
+    description: 'End date of the stage',
+    nullable: true,
+    optional: true,
+  },
+  games_in_current_week: {
+    type: 'boolean',
+    description: 'Whether the stage has fixtures this week',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output property definitions for a Round object. */
+export const SPORTMONKS_ROUND_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the round' },
+  sport_id: { type: 'number', description: 'Sport of the round' },
+  league_id: { type: 'number', description: 'League of the round' },
+  season_id: { type: 'number', description: 'Season of the round' },
+  stage_id: { type: 'number', description: 'Stage of the round', nullable: true, optional: true },
+  name: { type: 'string', description: 'Name of the round' },
+  finished: { type: 'boolean', description: 'Whether the round is finished', optional: true },
+  is_current: {
+    type: 'boolean',
+    description: 'Whether the round is the current round',
+    optional: true,
+  },
+  starting_at: {
+    type: 'string',
+    description: 'Start date of the round',
+    nullable: true,
+    optional: true,
+  },
+  ending_at: {
+    type: 'string',
+    description: 'End date of the round',
+    nullable: true,
+    optional: true,
+  },
+  games_in_current_week: {
+    type: 'boolean',
+    description: 'Whether the round has fixtures this week',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output property definitions for a Coach object. */
+export const SPORTMONKS_COACH_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the coach' },
+  player_id: {
+    type: 'number',
+    description: 'Player related to the coach',
+    nullable: true,
+    optional: true,
+  },
+  sport_id: { type: 'number', description: 'Sport of the coach' },
+  country_id: { type: 'number', description: 'Country of the coach', nullable: true },
+  nationality_id: { type: 'number', description: 'Nationality of the coach', nullable: true },
+  city_id: {
+    type: 'number',
+    description: 'Birth city of the coach',
+    nullable: true,
+    optional: true,
+  },
+  common_name: { type: 'string', description: 'Common name of the coach', optional: true },
+  firstname: {
+    type: 'string',
+    description: 'First name of the coach',
+    nullable: true,
+    optional: true,
+  },
+  lastname: {
+    type: 'string',
+    description: 'Last name of the coach',
+    nullable: true,
+    optional: true,
+  },
+  name: { type: 'string', description: 'Name of the coach' },
+  display_name: { type: 'string', description: 'Display name of the coach', optional: true },
+  image_path: { type: 'string', description: 'URL to the coach headshot', optional: true },
+  height: {
+    type: 'number',
+    description: 'Height of the coach in cm',
+    nullable: true,
+    optional: true,
+  },
+  weight: {
+    type: 'number',
+    description: 'Weight of the coach in kg',
+    nullable: true,
+    optional: true,
+  },
+  date_of_birth: {
+    type: 'string',
+    description: 'Date of birth of the coach',
+    nullable: true,
+    optional: true,
+  },
+  gender: { type: 'string', description: 'Gender of the coach', nullable: true, optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output property definitions for a Referee object. */
+export const SPORTMONKS_REFEREE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the referee' },
+  sport_id: { type: 'number', description: 'Sport of the referee' },
+  country_id: { type: 'number', description: 'Country of the referee', nullable: true },
+  nationality_id: {
+    type: 'number',
+    description: 'Nationality of the referee',
+    nullable: true,
+    optional: true,
+  },
+  city_id: {
+    type: 'number',
+    description: 'Birth city of the referee',
+    nullable: true,
+    optional: true,
+  },
+  common_name: { type: 'string', description: 'Common name of the referee', optional: true },
+  firstname: {
+    type: 'string',
+    description: 'First name of the referee',
+    nullable: true,
+    optional: true,
+  },
+  lastname: {
+    type: 'string',
+    description: 'Last name of the referee',
+    nullable: true,
+    optional: true,
+  },
+  name: { type: 'string', description: 'Name of the referee' },
+  display_name: { type: 'string', description: 'Display name of the referee', optional: true },
+  image_path: { type: 'string', description: 'URL to the referee headshot', optional: true },
+  height: {
+    type: 'number',
+    description: 'Height of the referee in cm',
+    nullable: true,
+    optional: true,
+  },
+  weight: {
+    type: 'number',
+    description: 'Weight of the referee in kg',
+    nullable: true,
+    optional: true,
+  },
+  date_of_birth: {
+    type: 'string',
+    description: 'Date of birth of the referee',
+    nullable: true,
+    optional: true,
+  },
+  gender: { type: 'string', description: 'Gender of the referee', nullable: true, optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Venue object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_VENUE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the venue' },
+  country_id: { type: 'number', description: 'Country of the venue', nullable: true },
+  city_id: { type: 'number', description: 'City of the venue', nullable: true, optional: true },
+  name: { type: 'string', description: 'Name of the venue' },
+  address: { type: 'string', description: 'Address of the venue', nullable: true, optional: true },
+  zipcode: { type: 'string', description: 'Zipcode of the venue', nullable: true, optional: true },
+  latitude: {
+    type: 'string',
+    description: 'Latitude of the venue',
+    nullable: true,
+    optional: true,
+  },
+  longitude: {
+    type: 'string',
+    description: 'Longitude of the venue',
+    nullable: true,
+    optional: true,
+  },
+  capacity: {
+    type: 'number',
+    description: 'Seating capacity of the venue',
+    nullable: true,
+    optional: true,
+  },
+  image_path: {
+    type: 'string',
+    description: 'Image path of the venue',
+    nullable: true,
+    optional: true,
+  },
+  city_name: {
+    type: 'string',
+    description: 'Name of the city the venue is in',
+    nullable: true,
+    optional: true,
+  },
+  surface: {
+    type: 'string',
+    description: 'Surface type of the venue',
+    nullable: true,
+    optional: true,
+  },
+  national_team: {
+    type: 'boolean',
+    description: 'Whether the venue is used by the national team',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a State object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_STATE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the state' },
+  state: { type: 'string', description: 'State code (e.g. NS, INPLAY_1ST_HALF)' },
+  name: { type: 'string', description: 'Full name of the state (e.g. Not Started)' },
+  short_name: {
+    type: 'string',
+    description: 'Short name of the state (e.g. NS)',
+    nullable: true,
+    optional: true,
+  },
+  developer_name: { type: 'string', description: 'Developer name of the state', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Transfer object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_TRANSFER_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the transfer' },
+  sport_id: { type: 'number', description: 'Sport of the transfer' },
+  player_id: { type: 'number', description: 'Player who transferred' },
+  type_id: { type: 'number', description: 'Type of the transfer' },
+  from_team_id: { type: 'number', description: 'Team the player transferred from', nullable: true },
+  to_team_id: { type: 'number', description: 'Team the player transferred to', nullable: true },
+  position_id: {
+    type: 'number',
+    description: 'Position id of the transfer',
+    nullable: true,
+    optional: true,
+  },
+  detailed_position_id: {
+    type: 'number',
+    description: 'Detailed position id of the transfer',
+    nullable: true,
+    optional: true,
+  },
+  date: { type: 'string', description: 'Date of the transfer', nullable: true },
+  career_ended: {
+    type: 'boolean',
+    description: 'Whether the transfer ended the career',
+    optional: true,
+  },
+  completed: { type: 'boolean', description: 'Whether the transfer is completed', optional: true },
+  amount: { type: 'number', description: 'Transfer fee amount', nullable: true, optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for an Expected (xG) by-team value.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/expected
+ */
+export const SPORTMONKS_EXPECTED_TEAM_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the expected value' },
+  fixture_id: { type: 'number', description: 'Fixture related to the value' },
+  type_id: { type: 'number', description: 'Type of the expected value' },
+  participant_id: { type: 'number', description: 'Team related to the expected value' },
+  data: {
+    type: 'object',
+    description: 'The expected value payload',
+    properties: { value: { type: 'number', description: 'The xG value' } },
+  },
+  location: { type: 'string', description: 'Home or away', nullable: true, optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/** Output property definitions for an Expected (xG) by-player value. */
+export const SPORTMONKS_EXPECTED_PLAYER_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the expected value' },
+  fixture_id: { type: 'number', description: 'Fixture related to the value' },
+  player_id: { type: 'number', description: 'Player related to the value' },
+  team_id: {
+    type: 'number',
+    description: 'Team related to the value',
+    nullable: true,
+    optional: true,
+  },
+  lineup_id: {
+    type: 'number',
+    description: 'Lineup record the player relates to',
+    nullable: true,
+    optional: true,
+  },
+  type_id: { type: 'number', description: 'Type of the expected value' },
+  data: {
+    type: 'object',
+    description: 'The expected value payload',
+    properties: { value: { type: 'number', description: 'The xG value' } },
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Prediction / Value Bet object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/odd-and-prediction
+ */
+export const SPORTMONKS_PREDICTION_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the prediction' },
+  fixture_id: { type: 'number', description: 'Fixture related to the prediction' },
+  predictions: {
+    type: 'json',
+    description: 'Prediction payload (varies by type: score map, value bet object, etc.)',
+  },
+  type_id: { type: 'number', description: 'Type of the prediction' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Commentary object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_COMMENTARY_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the commentary' },
+  fixture_id: { type: 'number', description: 'Fixture related to the commentary' },
+  comment: { type: 'string', description: 'The commentary text' },
+  minute: {
+    type: 'number',
+    description: 'Match minute of the comment',
+    nullable: true,
+    optional: true,
+  },
+  extra_minute: {
+    type: 'number',
+    description: 'Extra (injury) minute of the comment',
+    nullable: true,
+    optional: true,
+  },
+  is_goal: { type: 'boolean', description: 'Whether the comment is a goal', optional: true },
+  is_important: {
+    type: 'boolean',
+    description: 'Whether the comment is important',
+    optional: true,
+  },
+  order: { type: 'number', description: 'Order of the comment', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a TV Station object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_TVSTATION_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the TV station' },
+  name: { type: 'string', description: 'Name of the TV station' },
+  url: { type: 'string', description: 'URL of the TV station', nullable: true, optional: true },
+  image_path: {
+    type: 'string',
+    description: 'Image path of the TV station',
+    nullable: true,
+    optional: true,
+  },
+  type: { type: 'string', description: 'Type of the TV station (tv, channel)', optional: true },
+  related_id: {
+    type: 'number',
+    description: 'Related id of the TV station',
+    nullable: true,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Rival object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_RIVAL_PROPERTIES = {
+  sport_id: { type: 'number', description: 'Sport of the rival' },
+  team_id: { type: 'number', description: 'Team the rivalry belongs to' },
+  rival_id: { type: 'number', description: 'Rival team id' },
+} as const satisfies Record<string, OutputProperty>
+
+export interface SportmonksSeason {
+  id: number
+  sport_id: number
+  league_id: number
+  tie_breaker_rule_id?: number | null
+  name: string
+  finished?: boolean
+  pending?: boolean
+  is_current?: boolean
+  standing_method?: string | null
+  starting_at?: string | null
+  ending_at?: string | null
+  standings_recalculated_at?: string | null
+  games_in_current_week?: boolean
+}
+
+export interface SportmonksStage {
+  id: number
+  sport_id: number
+  league_id: number
+  season_id: number
+  type_id: number
+  name: string
+  sort_order?: number
+  finished?: boolean
+  is_current?: boolean
+  starting_at?: string | null
+  ending_at?: string | null
+  games_in_current_week?: boolean
+}
+
+export interface SportmonksRound {
+  id: number
+  sport_id: number
+  league_id: number
+  season_id: number
+  stage_id?: number | null
+  name: string
+  finished?: boolean
+  is_current?: boolean
+  starting_at?: string | null
+  ending_at?: string | null
+  games_in_current_week?: boolean
+}
+
+export interface SportmonksCoach {
+  id: number
+  player_id?: number | null
+  sport_id: number
+  country_id: number | null
+  nationality_id: number | null
+  city_id?: number | null
+  common_name?: string
+  firstname?: string | null
+  lastname?: string | null
+  name: string
+  display_name?: string
+  image_path?: string
+  height?: number | null
+  weight?: number | null
+  date_of_birth?: string | null
+  gender?: string | null
+}
+
+export interface SportmonksReferee {
+  id: number
+  sport_id: number
+  country_id: number | null
+  nationality_id?: number | null
+  city_id?: number | null
+  common_name?: string
+  firstname?: string | null
+  lastname?: string | null
+  name: string
+  display_name?: string
+  image_path?: string
+  height?: number | null
+  weight?: number | null
+  date_of_birth?: string | null
+  gender?: string | null
+}
+
+export interface SportmonksVenue {
+  id: number
+  country_id: number | null
+  city_id?: number | null
+  name: string
+  address?: string | null
+  zipcode?: string | null
+  latitude?: string | null
+  longitude?: string | null
+  capacity?: number | null
+  image_path?: string | null
+  city_name?: string | null
+  surface?: string | null
+  national_team?: boolean
+}
+
+export interface SportmonksState {
+  id: number
+  state: string
+  name: string
+  short_name?: string | null
+  developer_name?: string
+}
+
+export interface SportmonksTransfer {
+  id: number
+  sport_id: number
+  player_id: number
+  type_id: number
+  from_team_id: number | null
+  to_team_id: number | null
+  position_id?: number | null
+  detailed_position_id?: number | null
+  date: string | null
+  career_ended?: boolean
+  completed?: boolean
+  amount?: number | null
+}
+
+export interface SportmonksExpectedTeam {
+  id: number
+  fixture_id: number
+  type_id: number
+  participant_id: number
+  data: { value: number }
+  location?: string | null
+}
+
+export interface SportmonksExpectedPlayer {
+  id: number
+  fixture_id: number
+  player_id: number
+  team_id?: number | null
+  lineup_id?: number | null
+  type_id: number
+  data: { value: number }
+}
+
+export interface SportmonksPrediction {
+  id: number
+  fixture_id: number
+  predictions: Record<string, unknown>
+  type_id: number
+}
+
+export interface SportmonksCommentary {
+  id: number
+  fixture_id: number
+  comment: string
+  minute?: number | null
+  extra_minute?: number | null
+  is_goal?: boolean
+  is_important?: boolean
+  order?: number
+}
+
+export interface SportmonksTVStation {
+  id: number
+  name: string
+  url?: string | null
+  image_path?: string | null
+  type?: string
+  related_id?: number | null
+}
+
+export interface SportmonksRival {
+  sport_id: number
+  team_id: number
+  rival_id: number
+}
+
+/**
+ * Output property definitions for a News (article) object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/other
+ */
+export const SPORTMONKS_NEWS_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the news article' },
+  fixture_id: { type: 'number', description: 'Fixture related to the news article' },
+  league_id: { type: 'number', description: 'League related to the news article' },
+  title: { type: 'string', description: 'Title of the news article' },
+  type: { type: 'string', description: 'Type of the news (prematch or postmatch)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Statistic object (season/stage/round).
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/statistic
+ */
+export const SPORTMONKS_STATISTIC_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the statistic record' },
+  model_id: { type: 'number', description: 'Id of the entity the statistic belongs to' },
+  type_id: { type: 'number', description: 'Type of the statistic' },
+  relation_id: {
+    type: 'number',
+    description: 'Related entity id (e.g. participant) when applicable',
+    nullable: true,
+    optional: true,
+  },
+  value: { type: 'json', description: 'Statistic value payload (varies by type)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Standing Correction object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/standing-and-topscorer
+ */
+export const SPORTMONKS_STANDING_CORRECTION_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the standing correction' },
+  season_id: { type: 'number', description: 'Season related to the correction' },
+  stage_id: { type: 'number', description: 'Stage related to the correction', nullable: true },
+  group_id: { type: 'number', description: 'Group related to the correction', nullable: true },
+  type_id: { type: 'number', description: 'Type of the correction' },
+  value: { type: 'number', description: 'Amount of points awarded or deducted' },
+  calc_type: { type: 'string', description: 'Calculation type applied (e.g. + or -)' },
+  participant_type: { type: 'string', description: 'Type of the participant (e.g. team)' },
+  participant_id: { type: 'number', description: 'Participant the correction applies to' },
+  active: { type: 'boolean', description: 'Whether the correction is active', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Match Fact object (beta).
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/match-facts-beta
+ */
+export const SPORTMONKS_MATCH_FACT_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the match fact' },
+  sport_id: { type: 'number', description: 'Sport of the match fact' },
+  fixture_id: { type: 'number', description: 'Fixture related to the match fact' },
+  type_id: { type: 'number', description: 'Type of the match fact' },
+  participant: { type: 'string', description: 'Team the fact relates to (home or away)' },
+  basis: { type: 'string', description: 'Basis of the match fact (e.g. h2h, overall)' },
+  data: { type: 'json', description: 'Match fact data payload (counts and percentages)' },
+  natural_language: {
+    type: 'string',
+    description: 'Human-readable description of the match fact',
+    optional: true,
+  },
+  category: { type: 'string', description: 'Category of the match fact', optional: true },
+  scope: { type: 'string', description: 'Scope of the match fact', optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Team Ranking object (beta).
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/team-rankings-beta
+ */
+export const SPORTMONKS_TEAM_RANKING_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the team ranking' },
+  team_id: { type: 'number', description: 'Team related to the ranking' },
+  date: { type: 'string', description: 'Date of the ranking' },
+  current_rank: { type: 'number', description: 'Placement of the team on that date' },
+  scaled_score: { type: 'number', description: 'Scaled score of the team (0-100)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Team of the Week (TOTW) entry.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/team-of-the-week-totw
+ */
+export const SPORTMONKS_TOTW_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the TOTW entry' },
+  player_id: { type: 'number', description: 'Player of the team of the week' },
+  fixture_id: { type: 'number', description: 'Fixture the TOTW player played in' },
+  round_id: { type: 'number', description: 'Round the fixture is played at' },
+  team_id: { type: 'number', description: 'Team the TOTW player played for' },
+  rating: { type: 'string', description: 'Rating of the TOTW player' },
+  formation_position: {
+    type: 'number',
+    description: 'Player position in the TOTW formation',
+    optional: true,
+  },
+  formation: { type: 'string', description: "The TOTW's formation", optional: true },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Predictability object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/entities/odd-and-prediction
+ */
+export const SPORTMONKS_PREDICTABILITY_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the predictability record' },
+  league_id: { type: 'number', description: 'League related to the predictability' },
+  type_id: { type: 'number', description: 'Type of the predictability' },
+  data: { type: 'json', description: 'Predictability values per market' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Live Probability object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/predictions/get-live-probabilities
+ */
+export const SPORTMONKS_LIVE_PROBABILITY_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the live prediction record' },
+  fixture_id: { type: 'number', description: 'Fixture the prediction belongs to' },
+  period_id: { type: 'number', description: 'Match period the prediction was recorded in' },
+  minute: { type: 'number', description: 'Match minute the prediction was generated' },
+  predictions: {
+    type: 'json',
+    description: 'Home win, away win and draw probabilities as percentages',
+  },
+  type_id: { type: 'number', description: 'Type of the prediction (237 for fulltime result)' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Transfer Rumour object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/transfer-rumours
+ */
+export const SPORTMONKS_TRANSFER_RUMOUR_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the transfer rumour' },
+  sport_id: { type: 'number', description: 'Sport of the transfer rumour' },
+  player_id: { type: 'number', description: 'Player the rumour relates to' },
+  position_id: {
+    type: 'number',
+    description: 'Position id of the player',
+    nullable: true,
+    optional: true,
+  },
+  from_team_id: {
+    type: 'number',
+    description: 'Team the player would transfer from',
+    nullable: true,
+  },
+  to_team_id: { type: 'number', description: 'Team the player would transfer to', nullable: true },
+  transfer_fee_id: {
+    type: 'number',
+    description: 'Transfer fee id of the rumour',
+    nullable: true,
+    optional: true,
+  },
+  probability: { type: 'string', description: 'Probability of the rumour (e.g. LOW)' },
+  source_name: {
+    type: 'string',
+    description: 'Name of the source of the rumour',
+    nullable: true,
+    optional: true,
+  },
+  source_url: {
+    type: 'string',
+    description: 'URL of the source of the rumour',
+    nullable: true,
+    optional: true,
+  },
+  amount: { type: 'number', description: 'Estimated transfer fee amount', nullable: true },
+  currency: {
+    type: 'string',
+    description: 'Currency of the amount',
+    nullable: true,
+    optional: true,
+  },
+  date: { type: 'string', description: 'Date of the rumour', nullable: true },
+  type_id: { type: 'number', description: 'Type of the transfer rumour' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for an Expected Lineup (premium) object.
+ * @see https://docs.sportmonks.com/v3/endpoints-and-entities/endpoints/premium-expected-lineups
+ */
+export const SPORTMONKS_EXPECTED_LINEUP_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the expected lineup record' },
+  sport_id: { type: 'number', description: 'Sport of the expected lineup' },
+  fixture_id: { type: 'number', description: 'Fixture the expected lineup relates to' },
+  player_id: { type: 'number', description: 'Player in the expected lineup' },
+  team_id: { type: 'number', description: 'Team of the expected lineup player' },
+  formation_field: {
+    type: 'string',
+    description: 'Formation field of the player',
+    nullable: true,
+    optional: true,
+  },
+  position_id: {
+    type: 'number',
+    description: 'Position id of the player',
+    nullable: true,
+    optional: true,
+  },
+  detailed_position_id: {
+    type: 'number',
+    description: 'Detailed position id of the player',
+    nullable: true,
+    optional: true,
+  },
+  type_id: { type: 'number', description: 'Type of the expected lineup record' },
+  formation_position: {
+    type: 'number',
+    description: 'Position of the player in the formation',
+    nullable: true,
+    optional: true,
+  },
+  player_name: { type: 'string', description: 'Name of the player', optional: true },
+  jersey_number: {
+    type: 'number',
+    description: 'Jersey number of the player',
+    nullable: true,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export interface SportmonksNews {
+  id: number
+  fixture_id: number
+  league_id: number
+  title: string
+  type: string
+}
+
+export interface SportmonksStatistic {
+  id: number
+  model_id: number
+  type_id: number
+  relation_id?: number | null
+  value: Record<string, unknown>
+}
+
+export interface SportmonksStandingCorrection {
+  id: number
+  season_id: number
+  stage_id: number | null
+  group_id: number | null
+  type_id: number
+  value: number
+  calc_type: string
+  participant_type: string
+  participant_id: number
+  active?: boolean
+}
+
+export interface SportmonksMatchFact {
+  id: number
+  sport_id: number
+  fixture_id: number
+  type_id: number
+  participant: string
+  basis: string
+  data: Record<string, unknown>
+  natural_language?: string
+  category?: string
+  scope?: string
+}
+
+export interface SportmonksTeamRanking {
+  id: number
+  team_id: number
+  date: string
+  current_rank: number
+  scaled_score: number
+}
+
+export interface SportmonksTotw {
+  id: number
+  player_id: number
+  fixture_id: number
+  round_id: number
+  team_id: number
+  rating: string
+  formation_position?: number
+  formation?: string
+}
+
+export interface SportmonksPredictability {
+  id: number
+  league_id: number
+  type_id: number
+  data: Record<string, unknown>
+}
+
+export interface SportmonksLiveProbability {
+  id: number
+  fixture_id: number
+  period_id: number
+  minute: number
+  predictions: Record<string, unknown>
+  type_id: number
+}
+
+export interface SportmonksTransferRumour {
+  id: number
+  sport_id: number
+  player_id: number
+  position_id?: number | null
+  from_team_id: number | null
+  to_team_id: number | null
+  transfer_fee_id?: number | null
+  probability: string
+  source_name?: string | null
+  source_url?: string | null
+  amount: number | null
+  currency?: string | null
+  date: string | null
+  type_id: number
+}
+
+export interface SportmonksExpectedLineup {
+  id: number
+  sport_id: number
+  fixture_id: number
+  player_id: number
+  team_id: number
+  formation_field?: string | null
+  position_id?: number | null
+  detailed_position_id?: number | null
+  type_id: number
+  formation_position?: number | null
+  player_name?: string
+  jersey_number?: number | null
 }
