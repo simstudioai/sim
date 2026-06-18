@@ -4,8 +4,6 @@ import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome
 import type { MothershipStreamV1ToolUI } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   CrawlWebsite,
-  CreateFolder,
-  DeleteFolder,
   DeleteWorkflow,
   DeployApi,
   DeployChat,
@@ -18,13 +16,14 @@ import {
   ManageCredentialOperation,
   ManageCustomTool,
   ManageCustomToolOperation,
+  ManageFolder,
+  ManageFolderOperation,
   ManageMcpTool,
   ManageMcpToolOperation,
   ManageScheduledTask,
   ManageScheduledTaskOperation,
   ManageSkill,
   ManageSkillOperation,
-  MoveFolder,
   MoveWorkflow,
   QueryLogs,
   Redeploy,
@@ -55,11 +54,7 @@ export const DEPLOY_TOOL_NAMES: Set<string> = new Set([
   Redeploy.id,
 ])
 
-export const FOLDER_TOOL_NAMES: Set<string> = new Set([
-  CreateFolder.id,
-  DeleteFolder.id,
-  MoveFolder.id,
-])
+export const FOLDER_TOOL_NAMES: Set<string> = new Set([ManageFolder.id])
 
 export const WORKFLOW_MUTATION_TOOL_NAMES: Set<string> = new Set([
   MoveWorkflow.id,
@@ -370,6 +365,19 @@ export function resolveToolDisplayTitle(
     )
   }
 
+  if (name === ManageFolder.id) {
+    return resolveOperationDisplayTitle(
+      args.operation,
+      {
+        [ManageFolderOperation.create]: 'Creating folder',
+        [ManageFolderOperation.rename]: 'Renaming folder',
+        [ManageFolderOperation.move]: 'Moving folder',
+        [ManageFolderOperation.delete]: 'Deleting folder',
+      },
+      'Folder action'
+    )
+  }
+
   if (name === RunWorkflow.id) {
     const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
     return workflowName ? `Running ${workflowName}` : 'Running workflow'
@@ -518,6 +526,19 @@ export function resolveStreamingToolDisplayTitle(
         [ManageCredentialOperation.delete]: 'Deleting credential',
       },
       'Credential action'
+    )
+  }
+
+  if (name === ManageFolder.id) {
+    return resolveOperationDisplayTitle(
+      matchStreamingStringArg(streamingArgs, 'operation'),
+      {
+        [ManageFolderOperation.create]: 'Creating folder',
+        [ManageFolderOperation.rename]: 'Renaming folder',
+        [ManageFolderOperation.move]: 'Moving folder',
+        [ManageFolderOperation.delete]: 'Deleting folder',
+      },
+      'Folder action'
     )
   }
 

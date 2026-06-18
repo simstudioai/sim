@@ -35,23 +35,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     annotations: { readOnlyHint: true },
   },
   {
-    name: 'list_folders',
-    toolId: 'list_folders',
-    description:
-      'List all folders in a workspace. Returns folder IDs, names, and parent relationships for organizing workflows.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: {
-          type: 'string',
-          description: 'Workspace ID to list folders from.',
-        },
-      },
-      required: ['workspaceId'],
-    },
-    annotations: { readOnlyHint: true },
-  },
-  {
     name: 'create_workflow',
     toolId: 'create_workflow',
     description:
@@ -81,27 +64,41 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
     annotations: { destructiveHint: false },
   },
   {
-    name: 'create_folder',
-    toolId: 'create_folder',
+    name: 'manage_folder',
+    toolId: 'manage_folder',
     description:
-      'Create a new folder for organizing workflows. Use parentId to create nested folder hierarchies.',
+      'Create, rename, move, or delete workflow folders. Reference a folder by its VFS path (e.g. "workflows/Marketing/Q3 Campaigns") or folderId.',
     inputSchema: {
       type: 'object',
       properties: {
+        operation: {
+          type: 'string',
+          enum: ['create', 'rename', 'move', 'delete'],
+          description: 'The operation to perform.',
+        },
+        path: {
+          type: 'string',
+          description:
+            'Target folder VFS path (e.g. "workflows/Marketing"). For create, the new folder\'s full path.',
+        },
+        folderId: {
+          type: 'string',
+          description: 'Target folder ID (fallback to path).',
+        },
         name: {
           type: 'string',
-          description: 'Name for the new folder.',
+          description: 'Folder name. Required for rename; for create when not using a full path.',
         },
-        workspaceId: {
+        destinationPath: {
           type: 'string',
-          description: 'Optional workspace ID. Uses default workspace if not provided.',
+          description: 'Destination parent folder path for move/create (omit for workspace root).',
         },
         parentId: {
           type: 'string',
-          description: 'Optional parent folder ID for nested folders.',
+          description: 'Destination parent folder ID (fallback to destinationPath).',
         },
       },
-      required: ['name'],
+      required: ['operation'],
     },
     annotations: { destructiveHint: false },
   },
@@ -143,28 +140,6 @@ export const DIRECT_TOOL_DEFS: DirectToolDef[] = [
         },
       },
       required: ['workflowId'],
-    },
-    annotations: { destructiveHint: false, idempotentHint: true },
-  },
-  {
-    name: 'move_folder',
-    toolId: 'move_folder',
-    description:
-      'Move a folder into another folder. Omit parentId or pass empty string to move to workspace root.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        folderId: {
-          type: 'string',
-          description: 'The folder ID to move.',
-        },
-        parentId: {
-          type: 'string',
-          description:
-            'Target parent folder ID. Omit or pass empty string to move to workspace root.',
-        },
-      },
-      required: ['folderId'],
     },
     annotations: { destructiveHint: false, idempotentHint: true },
   },
