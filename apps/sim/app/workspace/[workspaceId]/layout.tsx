@@ -1,8 +1,11 @@
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { redirect } from 'next/navigation'
 import { ToastProvider } from '@/components/emcn'
 import { getSession } from '@/lib/auth'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { WorkspaceChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
+import { prefetchWorkspaceSidebar } from '@/app/workspace/[workspaceId]/prefetch'
 import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/provider-models-loader'
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
@@ -11,14 +14,27 @@ import { WorkspaceScopeSync } from '@/app/workspace/[workspaceId]/providers/work
 import { BrandingProvider } from '@/ee/whitelabeling/components/branding-provider'
 import { getOrgWhitelabelSettings } from '@/ee/whitelabeling/org-branding'
 
-export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
+export default async function WorkspaceLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode
+  params: Promise<{ workspaceId: string }>
+}) {
   const session = await getSession()
   if (!session?.user) {
     redirect('/login')
   }
+
+  const { workspaceId } = await params
+  const queryClient = getQueryClient()
+  const sidebarPrefetch = prefetchWorkspaceSidebar(queryClient, workspaceId, session.user.id)
+
   // The organization plugin is conditionally spread so TS can't infer activeOrganizationId on the base session type.
   const orgId = (session.session as { activeOrganizationId?: string } | null)?.activeOrganizationId
   const initialOrgSettings = orgId ? await getOrgWhitelabelSettings(orgId) : null
+
+  await sidebarPrefetch
 
   return (
     <BrandingProvider initialOrgSettings={initialOrgSettings}>
@@ -30,7 +46,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
             <ImpersonationBanner />
             <WorkspacePermissionsProvider>
               <WorkspaceScopeSync />
-              <WorkspaceChrome>{children}</WorkspaceChrome>
+              <HydrationBoundary state={dehydrate(queryClient)}>
+                <WorkspaceChrome>{children}</WorkspaceChrome>
+              </HydrationBoundary>
             </WorkspacePermissionsProvider>
           </div>
         </GlobalCommandsProvider>

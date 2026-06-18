@@ -39,30 +39,18 @@ export const storageGetPublicUrlTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'If true, forces download instead of inline display (default: false)',
     },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Your Supabase service role secret key',
-    },
   },
 
-  request: {
-    url: (params) => `${supabaseBaseUrl(params.projectId)}/storage/v1/bucket/${params.bucket}`,
-    method: 'GET',
-    headers: (params) => ({
-      apikey: params.apiKey,
-      Authorization: `Bearer ${params.apiKey}`,
-    }),
-  },
-
-  transformResponse: async (response: Response, params?: SupabaseStorageGetPublicUrlParams) => {
-    if (!params?.projectId) {
-      throw new Error('projectId is required to construct the public URL')
-    }
+  /**
+   * Public URLs are deterministic and built entirely from the project ID,
+   * bucket, and path — no network request is required. `directExecution`
+   * short-circuits the HTTP request so we never hit the API just to discard
+   * its response.
+   */
+  directExecution: async (params: SupabaseStorageGetPublicUrlParams) => {
     let publicUrl = `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`
 
-    if (params?.download) {
+    if (params.download) {
       publicUrl += '?download=true'
     }
 
@@ -70,10 +58,17 @@ export const storageGetPublicUrlTool: ToolConfig<
       success: true,
       output: {
         message: 'Successfully generated public URL',
-        publicUrl: publicUrl,
+        publicUrl,
       },
       error: undefined,
     }
+  },
+
+  request: {
+    url: (params) =>
+      `${supabaseBaseUrl(params.projectId)}/storage/v1/object/public/${params.bucket}/${params.path}`,
+    method: 'GET',
+    headers: () => ({}),
   },
 
   outputs: {

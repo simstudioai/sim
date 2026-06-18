@@ -38,6 +38,7 @@ export function ConnectorSelectorField({
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {}
     if (credentialId) ctx.oauthCredential = credentialId
+    if (field.mimeType) ctx.mimeType = field.mimeType
 
     for (const depFieldId of getDependsOnFields(field.dependsOn)) {
       const depField = configFields.find((f) => f.id === depFieldId)
@@ -49,7 +50,7 @@ export function ConnectorSelectorField({
     }
 
     return ctx
-  }, [credentialId, field.dependsOn, sourceConfig, configFields, canonicalModes])
+  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true

@@ -3396,36 +3396,6 @@ export function AzureIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
-export function AzureDevOpsIcon(props: SVGProps<SVGSVGElement>) {
-  const id = useId()
-  const gradientId = `azure_devops_gradient_${id}`
-  return (
-    <svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128' {...props}>
-      <defs>
-        <linearGradient
-          id={gradientId}
-          gradientUnits='userSpaceOnUse'
-          x1='9'
-          y1='16.97'
-          x2='9'
-          y2='1.03'
-          gradientTransform='scale(7.11111)'
-        >
-          <stop offset='0' stopColor='#0078d4' />
-          <stop offset='.16' stopColor='#1380da' />
-          <stop offset='.53' stopColor='#3c91e5' />
-          <stop offset='.82' stopColor='#559cec' />
-          <stop offset='1' stopColor='#5ea0ef' />
-        </linearGradient>
-      </defs>
-      <path
-        fill={`url(#${gradientId})`}
-        d='M120.89 28.445v69.262l-28.445 23.324-44.09-16.07v15.93L23.395 88.25l72.746 5.688V31.574ZM96.64 31.93 55.82 7.11v16.285L18.348 34.418 7.109 48.852v32.785l16.075 7.11V46.718Zm0 0'
-      />
-    </svg>
-  )
-}
-
 export const GroqIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg
     {...props}
@@ -7867,6 +7837,117 @@ export function TriggerDevIcon(props: SVGProps<SVGSVGElement>) {
           <stop offset='1' stopColor='#E7FF52' />
         </linearGradient>
       </defs>
+    </svg>
+  )
+}
+
+/** Datagma brand icon: navy square with the white Datagma "D" mark. */
+export function DatagmaIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect width='24' height='24' fill='#003071' />
+      <path
+        fillRule='evenodd'
+        clipRule='evenodd'
+        d='M6 4.5H11.5C15.9 4.5 18.5 7.8 18.5 12C18.5 16.2 15.9 19.5 11.5 19.5H6V4.5ZM9.3 7.5V16.5H11.5C13.8 16.5 15.2 14.6 15.2 12C15.2 9.4 13.8 7.5 11.5 7.5H9.3Z'
+        fill='#FFFFFF'
+      />
+    </svg>
+  )
+}
+
+/** LeadMagic brand icon: purple gradient tile with the white spark mark. */
+export function LeadMagicIcon(props: SVGProps<SVGSVGElement>) {
+  const id = useId()
+  const gradient = `leadmagic_grad_${id}`
+  return (
+    <svg {...props} viewBox='0 0 65 65' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <defs>
+        <linearGradient id={gradient} x1='0%' y1='100%' x2='100%' y2='0%'>
+          <stop offset='0%' stopColor='#4C1D95' />
+          <stop offset='50%' stopColor='#7C3AED' />
+          <stop offset='100%' stopColor='#C4B5FD' />
+        </linearGradient>
+      </defs>
+      <rect width='65' height='65' fill={`url(#${gradient})`} />
+      <path
+        d='M34.1016 37.707C33.5363 37.7698 33.0967 38.021 32.8454 38.5235C32.5942 39.0259 32.4686 39.654 32.5942 40.4705C32.5942 40.4705 34.29 49.8288 34.5412 50.8337C34.7925 51.8386 35.3577 53.4716 36.1114 53.346C36.9279 53.2203 36.9907 51.5245 36.9279 50.4568C36.9279 50.4568 36.237 41.601 36.1742 40.5961C36.1114 39.5284 35.8602 38.7119 35.4833 38.335C35.1065 37.8326 34.6668 37.6442 34.1016 37.707Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M33.5344 26.1529L35.4815 23.201C35.7955 22.6985 36.1095 22.7613 36.1095 23.1382L35.6699 26.9066C35.6071 27.2835 35.9211 27.7231 36.4236 27.6603L39.7523 26.9066C39.9408 26.9066 40.1292 27.1578 39.9408 27.3463L37.4285 29.5445C37.0516 29.9842 37.0516 30.4238 37.5541 30.7378L39.8152 32.1196C39.9408 32.2452 39.878 32.4336 39.6895 32.4336L36.9888 32.6221C36.4236 32.6849 36.1723 33.1245 36.2351 33.6898L37.1144 36.9558C37.1773 37.1442 36.9888 37.3326 36.7376 37.0814L34.4137 34.5691C33.9741 34.1922 33.4088 34.255 33.032 34.6947L31.399 36.8301C31.2734 36.9558 30.9593 36.8929 31.0221 36.7045L31.1478 34.1922C31.085 33.627 30.7081 33.1873 30.1428 33.2501L27.5049 34.0666C27.2537 34.1294 27.1909 33.8154 27.3165 33.6898L29.2635 31.5543C29.6404 31.1147 29.7032 30.6122 29.1379 30.2982L26.3116 28.9792C25.9348 28.728 26.1232 28.4768 26.4372 28.4768L29.452 28.414C29.8916 28.414 30.2685 28.0999 30.1428 27.4719C30.1428 27.4719 29.2635 24.3315 29.0751 23.8291C28.8867 23.3266 29.3892 23.0126 29.766 23.3894L32.3411 26.1529C32.7179 26.5926 33.1576 26.6554 33.5344 26.1529Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M32.5928 22.3851C32.3416 22.3851 32.0903 22.1339 32.0275 21.757L30.3317 13.2152C30.2689 12.8384 30.4574 12.1475 31.0854 12.0219C31.6507 11.8963 32.216 12.3359 32.2788 12.7128L32.9068 21.6314C32.9696 22.0083 32.9696 22.3851 32.5928 22.3851Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M40.5694 29.7335C40.5066 29.3567 40.8834 29.2939 41.2603 29.2939L49.3624 27.9121C49.8649 27.9121 50.1161 28.4146 50.1161 28.7286C50.2417 29.1054 49.7392 29.7335 49.0484 29.6707L41.3231 29.9847C41.009 29.9847 40.6322 30.1104 40.5694 29.7335Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M16.0122 32.3718C16.0122 31.9949 16.6402 31.2412 17.3939 31.2412L24.868 31.0528C25.2448 30.99 25.6217 31.1156 25.6217 31.4297C25.6217 31.7437 25.1192 31.8693 24.7424 31.9321L17.2055 33.1883C16.7658 33.1254 15.8865 32.8742 16.0122 32.3718Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M38.4972 24.2699C38.1831 24.0186 38.8112 23.265 39.0624 22.9509L43.3333 17.1099C43.5845 16.6702 44.401 16.419 44.9035 16.8586C45.2803 17.2355 45.2175 17.8007 44.9663 18.052L39.3137 24.0186C39.0624 24.2699 38.7484 24.3955 38.4972 24.2699Z'
+        fill='#FFFFFF'
+      />
+      <path
+        d='M18.838 19.43C19.2148 18.8647 20.0313 19.0531 20.3453 19.3044L26.1864 24.5802C26.5004 24.8314 26.6261 25.2082 26.4376 25.3339C26.2492 25.4595 25.9352 25.3967 25.6211 25.2082L18.9636 20.8117C18.6496 20.5605 18.4611 19.9324 18.838 19.43Z'
+        fill='#FFFFFF'
+      />
+    </svg>
+  )
+}
+
+/** Dropcontact brand icon: teal disc with the white open-"d" contact mark. */
+export function DropcontactIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <circle cx='12' cy='12' r='12' fill='#0ABA9F' />
+      <path
+        d='M13.87 7.9A5 5 0 1 0 13.87 16.1'
+        stroke='#FFFFFF'
+        strokeWidth='2.4'
+        strokeLinecap='round'
+      />
+      <path d='M15.1 6.2V17.8' stroke='#FFFFFF' strokeWidth='2.4' strokeLinecap='round' />
+    </svg>
+  )
+}
+
+/** Icypeas brand icon: dark tile with the teal ring + rising-chart mark. */
+export function IcypeasIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <rect width='24' height='24' rx='5' fill='#011C21' />
+      <circle cx='12' cy='12' r='7' stroke='#02C29F' strokeWidth='1.7' />
+      <path
+        d='M7.2 13.8H9.2V11.8H11.2V9.8H13.2V8.2'
+        stroke='#02C29F'
+        strokeWidth='1.7'
+        strokeLinecap='round'
+        strokeLinejoin='round'
+      />
+      <rect x='13.5' y='5.8' width='2.9' height='2.9' rx='0.8' fill='#02C29F' />
+    </svg>
+  )
+}
+
+/** Enrow brand icon: blue tile with the three white stacked rows. */
+export function EnrowIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 256 256' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <path
+        fill='#0056FF'
+        d='M217.791 0H38.209C17.107 0 0 17.107 0 38.209v179.582C0 238.893 17.107 256 38.209 256h179.582C238.893 256 256 238.893 256 217.791V38.209C256 17.107 238.893 0 217.791 0z'
+      />
+      <path
+        fill='#F0F0F0'
+        d='M196.877 58.88H78.055a3.82 3.82 0 0 0-3.82 3.82v17.96a3.82 3.82 0 0 0 3.82 3.82h118.822a3.82 3.82 0 0 0 3.821-3.82V62.701a3.82 3.82 0 0 0-3.821-3.821zm.007 112.641H73.454a3.82 3.82 0 0 0-3.821 3.82V193.3a3.82 3.82 0 0 0 3.82 3.821h123.431a3.821 3.821 0 0 0 3.821-3.821v-17.959a3.82 3.82 0 0 0-3.821-3.82zM141.588 115.2H58.606a3.821 3.821 0 0 0-3.82 3.821v17.958a3.82 3.82 0 0 0 3.82 3.821h82.982a3.82 3.82 0 0 0 3.821-3.821v-17.958a3.82 3.82 0 0 0-3.821-3.821z'
+      />
     </svg>
   )
 }

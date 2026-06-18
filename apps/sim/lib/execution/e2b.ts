@@ -1,13 +1,16 @@
 import type { Sandbox as E2BSandbox } from '@e2b/code-interpreter'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { env } from '@/lib/core/config/env'
 import { CodeLanguage } from '@/lib/execution/languages'
 
-export interface SandboxFile {
-  path: string
-  content: string
-  encoding?: 'base64'
-}
+/**
+ * A sandbox input file. `content` entries are written inline; `url` entries are fetched from inside
+ * the sandbox (so large mounts never pass their bytes through the web process).
+ */
+export type SandboxFile =
+  | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
+  | { type: 'url'; path: string; url: string }
 
 export interface E2BExecutionRequest {
   code: string
@@ -47,6 +50,62 @@ export interface E2BExecutionResult {
 }
 
 const logger = createLogger('E2BExecution')
+
+/**
+ * Materializes sandbox input files before user code runs. `content` entries are written inline;
+ * `url` entries are fetched from inside the sandbox via `curl` — their bytes never pass through the
+ * web process, so the mount size is bounded by sandbox disk, not web heap. The URL and paths are
+ * passed as env vars (never interpolated into the shell) so a presigned query string can't break or
+ * inject. A failed fetch throws so user code never runs against a missing mount. `rootUser` matches
+ * the shell sandbox's root execution context.
+ */
+async function writeSandboxInputs(
+  sandbox: E2BSandbox,
+  files: SandboxFile[] | undefined,
+  opts: { sandboxId?: string; rootUser?: boolean }
+): Promise<void> {
+  if (!files?.length) return
+  const fetchedByUrl: string[] = []
+  const writtenInline: string[] = []
+  for (const file of files) {
+    if (file.type === 'url') {
+      const dir = file.path.slice(0, file.path.lastIndexOf('/'))
+      try {
+        await sandbox.commands.run(
+          'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 "$URL" -o "$DST"',
+          {
+            envs: { URL: file.url, DST: file.path, DIR: dir },
+            ...(opts.rootUser ? { user: 'root' } : {}),
+          }
+        )
+        fetchedByUrl.push(file.path)
+      } catch (error) {
+        throw new Error(
+          `Failed to fetch mounted file into sandbox at ${file.path}: ${getErrorMessage(error)}`
+        )
+      }
+    } else if (file.encoding === 'base64') {
+      const buf = Buffer.from(file.content, 'base64')
+      await sandbox.files.write(
+        file.path,
+        buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+      )
+      writtenInline.push(file.path)
+    } else {
+      await sandbox.files.write(file.path, file.content)
+      writtenInline.push(file.path)
+    }
+  }
+  // Split counts so it's visible whether a mount was fetched in-sandbox (by presigned URL, no bytes
+  // through the web process) or written inline.
+  logger.info('Materialized sandbox inputs', {
+    sandboxId: opts.sandboxId,
+    fetchedByUrlCount: fetchedByUrl.length,
+    writtenInlineCount: writtenInline.length,
+    fetchedByUrl,
+    writtenInline,
+  })
+}
 
 async function createE2BSandbox(kind: 'code' | 'shell' | 'doc'): Promise<E2BSandbox> {
   const apiKey = env.E2B_API_KEY
@@ -127,28 +186,12 @@ export async function executeInE2B(req: E2BExecutionRequest): Promise<E2BExecuti
   const sandbox = await createE2BSandbox(req.sandboxKind ?? 'code')
   const sandboxId = sandbox.sandboxId
 
-  if (req.sandboxFiles?.length) {
-    for (const file of req.sandboxFiles) {
-      if (file.encoding === 'base64') {
-        const buf = Buffer.from(file.content, 'base64')
-        await sandbox.files.write(
-          file.path,
-          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
-        )
-      } else {
-        await sandbox.files.write(file.path, file.content)
-      }
-    }
-    logger.info('Wrote sandbox input files', {
-      sandboxId,
-      fileCount: req.sandboxFiles.length,
-      paths: req.sandboxFiles.map((f) => f.path),
-    })
-  }
-
   const stdoutChunks = []
 
   try {
+    // Inside the try so a failed mount still kills the sandbox via the finally below.
+    await writeSandboxInputs(sandbox, req.sandboxFiles, { sandboxId })
+
     const execution = await sandbox.runCode(code, {
       language: language === CodeLanguage.Python ? 'python' : 'javascript',
       timeoutMs,
@@ -247,26 +290,10 @@ export async function executeShellInE2B(
   const sandbox = await createE2BSandbox(req.sandboxKind ?? 'shell')
   const sandboxId = sandbox.sandboxId
 
-  if (req.sandboxFiles?.length) {
-    for (const file of req.sandboxFiles) {
-      if (file.encoding === 'base64') {
-        const buf = Buffer.from(file.content, 'base64')
-        await sandbox.files.write(
-          file.path,
-          buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
-        )
-      } else {
-        await sandbox.files.write(file.path, file.content)
-      }
-    }
-    logger.info('Wrote sandbox input files', {
-      sandboxId,
-      fileCount: req.sandboxFiles.length,
-      paths: req.sandboxFiles.map((f) => f.path),
-    })
-  }
-
   try {
+    // Inside the try so a failed mount still kills the sandbox via the finally below.
+    await writeSandboxInputs(sandbox, req.sandboxFiles, { sandboxId, rootUser: true })
+
     let result: { stdout: string; stderr: string; exitCode: number }
     try {
       result = await sandbox.commands.run(code, {

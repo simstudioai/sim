@@ -43,16 +43,7 @@ Integrate Pulse into the workflow. Extract text from PDF documents, images, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `filePath` | string | No | URL to a document to be processed |
-| `file` | file | No | Document file to be processed |
-| `fileUpload` | object | No | File upload data from file-upload component |
-| `pages` | string | No | Page range to process \(1-indexed, e.g., "1-2,5"\) |
-| `extractFigure` | boolean | No | Enable figure extraction from the document |
-| `figureDescription` | boolean | No | Generate descriptions/captions for extracted figures |
-| `returnHtml` | boolean | No | Include HTML in the response |
-| `chunking` | string | No | Chunking strategies \(comma-separated: semantic, header, page, recursive\) |
-| `chunkSize` | number | No | Maximum characters per chunk when chunking is enabled |
-| `apiKey` | string | Yes | Pulse API key |
+| `file` | file | Yes | Document to be processed |
 
 #### Output
 

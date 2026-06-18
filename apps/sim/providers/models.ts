@@ -1773,6 +1773,32 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'deepseek-v4-pro',
+        pricing: {
+          input: 0.435,
+          cachedInput: 0.003625,
+          output: 0.87,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {},
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
+        id: 'deepseek-v4-flash',
+        pricing: {
+          input: 0.14,
+          cachedInput: 0.0028,
+          output: 0.28,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 2 },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-04-24',
+      },
+      {
         id: 'deepseek-chat',
         pricing: {
           input: 0.14,
@@ -2383,6 +2409,19 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         releaseDate: '2025-08-12',
       },
       {
+        id: 'mistral-medium-2604',
+        pricing: {
+          input: 1.5,
+          output: 7.5,
+          updatedAt: '2026-06-16',
+        },
+        capabilities: {
+          temperature: { min: 0, max: 1.5 },
+        },
+        contextWindow: 256000,
+        releaseDate: '2026-04-29',
+      },
+      {
         id: 'mistral-medium-2508',
         pricing: {
           input: 0.4,
@@ -2458,7 +2497,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {
@@ -2471,7 +2510,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         capabilities: {
           temperature: { min: 0, max: 1.5 },
         },
-        contextWindow: 128000,
+        contextWindow: 256000,
         releaseDate: '2025-07-30',
       },
       {

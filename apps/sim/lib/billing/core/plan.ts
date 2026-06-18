@@ -82,20 +82,21 @@ export async function getHighestPrioritySubscription(
 ) {
   const { onError = 'return-null', executor = db } = options
   try {
-    const personalSubs = await executor
-      .select()
-      .from(subscription)
-      .where(
-        and(
-          eq(subscription.referenceId, userId),
-          inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
-        )
-      )
-
-    const memberships = await executor
-      .select({ organizationId: member.organizationId })
-      .from(member)
-      .where(eq(member.userId, userId))
+    const [personalSubs, memberships] = await Promise.all([
+      executor
+        .select()
+        .from(subscription)
+        .where(
+          and(
+            eq(subscription.referenceId, userId),
+            inArray(subscription.status, ENTITLED_SUBSCRIPTION_STATUSES)
+          )
+        ),
+      executor
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, userId)),
+    ])
 
     const orgIds = memberships.map((m: { organizationId: string }) => m.organizationId)
 

@@ -114,7 +114,11 @@ export const googleBigQueryListTablesTool: ToolConfig<
           tableId: { type: 'string', description: 'Table identifier' },
           datasetId: { type: 'string', description: 'Dataset ID containing this table' },
           projectId: { type: 'string', description: 'Project ID containing this table' },
-          type: { type: 'string', description: 'Table type (TABLE, VIEW, EXTERNAL, etc.)' },
+          type: {
+            type: 'string',
+            description: 'Table type (TABLE, VIEW, EXTERNAL, etc.)',
+            optional: true,
+          },
           friendlyName: {
             type: 'string',
             description: 'User-friendly name for the table',

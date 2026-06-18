@@ -36,6 +36,12 @@ export interface TableDeletePayload {
   excludeRowIds?: string[]
   /** Only rows created at/before this instant are deleted, so mid-job inserts survive. */
   cutoff: Date
+  /**
+   * Stop after deleting this many rows (an explicit caller-supplied limit). Omitted = every match.
+   * Not combined with `excludeRowIds` (the UI's select-all path uses excludes and no cap; the
+   * copilot tool uses a cap and no excludes), so the per-page fetch can be bounded directly.
+   */
+  maxRows?: number
 }
 
 /**
@@ -52,8 +58,9 @@ export interface TableDeletePayload {
  * newer job took the table) returns quietly.
  */
 export async function runTableDelete(payload: TableDeletePayload): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff } = payload
+  const { jobId, tableId, workspaceId, filter, excludeRowIds, cutoff, maxRows } = payload
   const requestId = generateId().slice(0, 8)
+  const budget = maxRows ?? Number.POSITIVE_INFINITY
 
   try {
     const table = await getTableById(tableId, { includeArchived: true })
@@ -74,7 +81,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
     let lastReported = resumed
     let afterId: string | undefined
 
-    while (true) {
+    while (processed < budget) {
       // Ownership gate before every page: once this run loses the table (cancel/supersede),
       // updateJobProgress returns false and we stop before deleting further.
       const owns = await updateJobProgress(tableId, processed, jobId)
@@ -86,7 +93,7 @@ export async function runTableDelete(payload: TableDeletePayload): Promise<void>
         cutoff,
         filterClause,
         afterId,
-        limit: TABLE_LIMITS.DELETE_PAGE_SIZE,
+        limit: Math.min(TABLE_LIMITS.DELETE_PAGE_SIZE, budget - processed),
       })
       if (page.length === 0) break
       // Advance the keyset cursor past the whole page — excluded ids are skipped (not deleted),

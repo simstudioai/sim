@@ -174,6 +174,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       'Content-Type': uploadContentType,
     }
 
+    if (validatedData.cacheControl) {
+      const cacheControl = validatedData.cacheControl.trim()
+      headers['cache-control'] = /^\d+$/.test(cacheControl)
+        ? `max-age=${cacheControl}`
+        : cacheControl
+    }
+
     if (validatedData.upsert) {
       headers['x-upsert'] = 'true'
     }
