@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, Expandable, ExpandableContent, PillsRing } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import type { ToolCallData } from '../../../../types'
-import { getAgentIcon } from '../../utils'
+import { getAgentIcon, isToolDone } from '../../utils'
 import { ToolCallItem } from './tool-call-item'
 
 /**
@@ -35,15 +35,18 @@ interface AgentGroupProps {
   defaultExpanded?: boolean
 }
 
-function isToolDone(status: ToolCallData['status']): boolean {
-  return (
-    status === 'success' ||
-    status === 'error' ||
-    status === 'cancelled' ||
-    status === 'skipped' ||
-    status === 'rejected' ||
-    status === 'interrupted'
-  )
+export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
+  let hasWork = false
+  for (const item of items) {
+    if (item.type === 'tool') {
+      hasWork = true
+      if (!isToolDone(item.data.status)) return false
+    } else if (item.type === 'agent_group') {
+      hasWork = true
+      if (item.group.isDelegating || !isAgentGroupResolved(item.group.items)) return false
+    }
+  }
+  return hasWork
 }
 
 export function AgentGroup({
@@ -56,20 +59,18 @@ export function AgentGroup({
 }: AgentGroupProps) {
   const AgentIcon = getAgentIcon(agentName)
   const hasItems = items.length > 0
-  const toolItems = items.filter(
-    (item): item is Extract<AgentGroupItem, { type: 'tool' }> => item.type === 'tool'
-  )
-  const allDone = toolItems.length > 0 && toolItems.every((t) => isToolDone(t.data.status))
-  // Only a live turn can be delegating. Once the turn is terminal (complete,
-  // errored, or stopped) no subagent should spin — even one aborted before its
-  // first tool call, where `allDone` is false because there are no tools yet.
-  const showDelegatingSpinner = isStreaming && isDelegating && !allDone
+  const resolved = isAgentGroupResolved(items)
+  // Pure projection of the run's own state: a subagent header spins while it is
+  // delegating with no resolved work yet. A terminal turn closes the lane (its
+  // subagent block is stamped ended), which clears `isDelegating`, so no
+  // transport gating is needed to stop an aborted-before-first-tool spinner.
+  const showDelegatingSpinner = isDelegating && !resolved
 
   // Expand only while the turn is live and the group is still open or working.
   // Once the turn ends (isStreaming false) — or a subagent closes mid-turn — the
   // group auto-collapses, so finished subagent blocks never stay expanded. A
   // manual toggle pins the choice for the rest of the message.
-  const autoExpanded = isStreaming && (defaultExpanded || !allDone)
+  const autoExpanded = isStreaming && (defaultExpanded || !resolved)
   const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
   const expanded = manualExpanded ?? autoExpanded
 

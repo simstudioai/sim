@@ -119,6 +119,9 @@ function buildLiveAssistantMessage(params: {
   let requestId: string | undefined
   let lastTimestamp: string | undefined
 
+  // Scope-only resolution (mirrors the live browser stream loop): with
+  // concurrent subagents the legacy activeSubagent fallback / name-match scan
+  // would mis-attribute interleaved replayed events to the wrong lane.
   const resolveScopedSubagent = (
     agentId: string | undefined,
     parentToolCallId: string | undefined,
@@ -133,7 +136,7 @@ function buildLiveAssistantMessage(params: {
       const scoped = subagentByParentToolCallId.get(parentToolCallId)
       if (scoped) return scoped
     }
-    return activeSubagent
+    return undefined
   }
 
   const resolveParentForSubagentBlock = (
@@ -141,12 +144,7 @@ function buildLiveAssistantMessage(params: {
     scopedParent: string | undefined
   ): string | undefined => {
     if (!subagent) return undefined
-    if (scopedParent) return scopedParent
-    if (activeSubagent === subagent) return activeSubagentParentToolCallId
-    for (const [parent, name] of subagentByParentToolCallId) {
-      if (name === subagent) return parent
-    }
-    return undefined
+    return scopedParent
   }
 
   const ensureToolBlock = (input: {
@@ -364,11 +362,10 @@ function buildLiveAssistantMessage(params: {
           if (parentToolCallId) {
             subagentByParentToolCallId.delete(parentToolCallId)
           }
-          if (
-            !parentToolCallId ||
-            parentToolCallId === activeSubagentParentToolCallId ||
-            name === activeSubagent
-          ) {
+          // Clear the legacy pointer only for THIS lane (by parent tool call id)
+          // or an unscoped end — never by agent name, which would tear down a
+          // concurrent same-name sibling that is still open.
+          if (!parentToolCallId || parentToolCallId === activeSubagentParentToolCallId) {
             activeSubagent = undefined
             activeSubagentParentToolCallId = undefined
           }
