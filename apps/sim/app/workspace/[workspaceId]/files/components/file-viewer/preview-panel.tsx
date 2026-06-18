@@ -84,10 +84,11 @@ interface PreviewPanelProps {
   disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
   /**
-   * Suppress the CSV "Import as a table" affordance. Set on read-only surfaces
-   * (e.g. the public share page) where there is no authenticated workspace import.
+   * Read-only surface (e.g. the public share page) — disables interactive
+   * affordances such as the CSV "Import as a table" action, which needs an
+   * authenticated workspace import.
    */
-  disableImport?: boolean
+  readOnly?: boolean
 }
 
 export const PreviewPanel = memo(function PreviewPanel({
@@ -99,7 +100,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   isStreaming,
   disableAutoScroll,
   onCheckboxToggle,
-  disableImport,
+  readOnly,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
 
@@ -119,7 +120,7 @@ export const PreviewPanel = memo(function PreviewPanel({
         content={content}
         workspaceId={workspaceId}
         file={{ key: fileKey, name: filename }}
-        disableImport={disableImport}
+        readOnly={readOnly}
       />
     )
   if (previewType === 'svg') return <SvgPreview content={content} />
@@ -1174,15 +1175,15 @@ const CsvPreview = memo(function CsvPreview({
   content,
   workspaceId,
   file,
-  disableImport,
+  readOnly,
 }: {
   content: string
   workspaceId: string
   file: CsvImportFileDescriptor
-  disableImport?: boolean
+  readOnly?: boolean
 }) {
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
-  useCsvTruncationImport(workspaceId, file, truncated, disableImport)
+  useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
   if (headers.length === 0) {
     return (

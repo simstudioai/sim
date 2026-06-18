@@ -203,7 +203,7 @@ const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
           filename={file.name}
           workspaceId={workspaceId}
           fileKey={file.key}
-          disableImport
+          readOnly
         />
       </div>
     )
