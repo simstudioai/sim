@@ -2,6 +2,17 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+
+const { mockRecordCostCharged } = vi.hoisted(() => ({ mockRecordCostCharged: vi.fn() }))
+
+vi.mock('@/providers/utils', () => ({
+  calculateCost: vi.fn(() => ({ input: 1, output: 2, total: 3, pricing: {} })),
+}))
+vi.mock('@/lib/core/config/env-flags', () => ({ getCostMultiplier: () => 1 }))
+vi.mock('@/lib/monitoring/metrics', () => ({
+  hostedKeyMetrics: { recordCostCharged: mockRecordCostCharged },
+}))
+
 import type { NormalizedBlockOutput } from '@/executor/types'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 
@@ -26,6 +37,51 @@ function fakeStreamFactory(
 describe('createStreamingExecution', () => {
   const providerStartTime = 1_000
   const providerStartTimeISO = new Date(providerStartTime).toISOString()
+
+  it('settles hosted-key cost on stream drain even when finalizeTiming is never called (post-tool path)', async () => {
+    mockRecordCostCharged.mockClear()
+    // A source stream that closes immediately, mirroring a drained provider stream.
+    const sourceStream = new ReadableStream({ start: (c) => c.close() })
+
+    const result = createStreamingExecution({
+      model: 'test-model',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: {
+        kind: 'accumulated',
+        modelTime: 1,
+        toolsTime: 0,
+        firstResponseTime: 1,
+        iterations: 1,
+        timeSegments: [],
+      },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      hostedKey: { provider: 'openai', envVar: 'OPENAI_API_KEY_1' },
+      cached: false,
+      // Post-tool streaming path: sets final tokens but never calls finalizeTiming.
+      createStream: ({ output }) => {
+        output.tokens = { input: 100, output: 50, total: 150 }
+        return sourceStream
+      },
+    })
+
+    // Cost not settled until the stream is actually drained.
+    expect(mockRecordCostCharged).not.toHaveBeenCalled()
+
+    const reader = result.stream.getReader()
+    while (!(await reader.read()).done) {
+      // drain
+    }
+
+    // Settlement ran on drain: cost recomputed from final tokens, metric emitted once.
+    expect(result.execution.output.cost).toEqual({ input: 1, output: 2, total: 3, pricing: {} })
+    expect(mockRecordCostCharged).toHaveBeenCalledTimes(1)
+    expect(mockRecordCostCharged).toHaveBeenCalledWith(3, {
+      provider: 'openai',
+      tool: 'test-model',
+    })
+  })
 
   it('assembles the simple (no-tools) shape and finalizes timing on drain', () => {
     const drainTime = 5_000

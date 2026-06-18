@@ -5,6 +5,41 @@ import type { TimeSegment } from '@/providers/types'
 import { calculateCost } from '@/providers/utils'
 
 /**
+ * Passthrough of `source` that invokes `onDrain` exactly once, after the source
+ * completes naturally (not on error or cancel). Lets the hosted-key cost settle
+ * when final tokens are known, regardless of whether the provider's drain
+ * callback finalized timing.
+ */
+function settleHostedCostOnStreamDrain(
+  source: ReadableStream,
+  onDrain: () => void
+): ReadableStream {
+  const reader = source.getReader()
+  let settled = false
+  return new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read()
+        if (done) {
+          if (!settled) {
+            settled = true
+            onDrain()
+          }
+          controller.close()
+          return
+        }
+        controller.enqueue(value)
+      } catch (error) {
+        controller.error(error)
+      }
+    },
+    cancel(reason) {
+      return reader.cancel(reason)
+    },
+  })
+}
+
+/**
  * Settle the authoritative streaming LLM cost onto `output.cost` from its final
  * tokens (the single cost seam shared with the non-streaming path), and — on the
  * hosted-key path — emit the hosted-key cost metric. The cost multiplier is the
@@ -200,18 +235,22 @@ export function createStreamingExecution(
   }
 
   const timingKind = timing.kind
-  const stream = createStream({
+  const baseStream = createStream({
     output,
-    finalizeTiming: () => {
-      // Hosted-key path: the wrapper owns the authoritative cost — recompute from
-      // the now-final tokens (with the cost multiplier the per-provider streaming
-      // paths omit) and emit the hosted-key cost metric exactly once on drain.
-      if (hostedKey) {
-        settleStreamingLlmCost(output, model, hostedKey, cached ?? false)
-      }
-      finalizeTiming(output, providerStartTime, timingKind)
-    },
+    finalizeTiming: () => finalizeTiming(output, providerStartTime, timingKind),
   })
+
+  // Settle hosted-key cost on actual stream drain. This must NOT hang off the
+  // provider's `finalizeTiming` call — the post-tool streaming paths
+  // (`createStream: ({ output }) => …`) never invoke it — so instead we wrap the
+  // returned stream and settle once the source completes (final tokens are set by
+  // the provider's drain callback before the stream closes). Recomputes the
+  // authoritative cost with the multiplier and emits the cost metric exactly once.
+  const stream = hostedKey
+    ? settleHostedCostOnStreamDrain(baseStream, () =>
+        settleStreamingLlmCost(output, model, hostedKey, cached ?? false)
+      )
+    : baseStream
 
   return {
     stream,
