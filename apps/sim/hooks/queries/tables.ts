@@ -92,6 +92,7 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
+import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('TableQueries')
 
@@ -571,8 +572,28 @@ export function useDeleteTable(workspaceId: string) {
  * Populates the cache on success so the new row is immediately available
  * without waiting for the background refetch triggered by invalidation.
  */
+/**
+ * Toasts a failed row write. A plan row-limit failure (the best-effort cap in
+ * `assertRowCapacity`) gets an "Upgrade" action routing to billing; other errors are
+ * a plain auto-dismissing toast. Validation errors are surfaced inline, not here.
+ */
+function notifyRowWriteError(
+  error: Error,
+  navigateToSettings: ReturnType<typeof useSettingsNavigation>['navigateToSettings']
+): void {
+  if (isValidationError(error)) return
+  if (error.message.toLowerCase().includes('row limit')) {
+    toast.error(error.message, {
+      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'billing' }) },
+    })
+    return
+  }
+  toast.error(error.message, { duration: 5000 })
+}
+
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const { navigateToSettings } = useSettingsNavigation()
 
   return useMutation({
     mutationFn: async (
@@ -617,10 +638,7 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) => notifyRowWriteError(error, navigateToSettings),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -783,6 +801,7 @@ type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTable
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const { navigateToSettings } = useSettingsNavigation()
 
   return useMutation({
     mutationFn: async (
@@ -798,10 +817,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) => notifyRowWriteError(error, navigateToSettings),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
