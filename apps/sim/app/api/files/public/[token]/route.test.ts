@@ -4,14 +4,20 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveActiveShareByToken } = vi.hoisted(() => ({
+const { mockResolveActiveShareByToken, mockEnforceRateLimit } = vi.hoisted(() => ({
   mockResolveActiveShareByToken: vi.fn(),
+  mockEnforceRateLimit: vi.fn(),
 }))
 
 vi.mock('@/lib/public-shares/share-manager', () => ({
   resolveActiveShareByToken: mockResolveActiveShareByToken,
 }))
 
+vi.mock('@/lib/public-shares/rate-limit', () => ({
+  enforcePublicFileRateLimit: mockEnforceRateLimit,
+}))
+
+import { NextResponse } from 'next/server'
 import { GET } from '@/app/api/files/public/[token]/route'
 
 const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
@@ -20,6 +26,16 @@ const request = (token = 'tok_1') => new NextRequest(`http://localhost/api/files
 describe('GET /api/files/public/[token]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockEnforceRateLimit.mockResolvedValue(null) // allow by default
+  })
+
+  it('returns 429 when the per-IP rate limit is exceeded', async () => {
+    mockEnforceRateLimit.mockResolvedValueOnce(
+      NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
+    )
+    const res = await GET(request(), params())
+    expect(res.status).toBe(429)
+    expect(mockResolveActiveShareByToken).not.toHaveBeenCalled()
   })
 
   it('returns 404 for an unknown or inactive token', async () => {

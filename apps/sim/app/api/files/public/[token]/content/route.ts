@@ -4,6 +4,7 @@ import { getPublicFileContentContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { loadServableDocArtifact } from '@/lib/copilot/tools/server/files/doc-compile'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { createErrorResponse, createFileResponse, FileNotFoundError } from '@/app/api/files/utils'
@@ -26,6 +27,9 @@ const logger = createLogger('PublicFileContentAPI')
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
     try {
+      const limited = await enforcePublicFileRateLimit(request, 'content')
+      if (limited) return limited
+
       const parsed = await parseRequest(getPublicFileContentContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params

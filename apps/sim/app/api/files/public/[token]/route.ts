@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { getPublicFileContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +20,9 @@ const logger = createLogger('PublicFileMetadataAPI')
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
     try {
+      const limited = await enforcePublicFileRateLimit(request, 'metadata')
+      if (limited) return limited
+
       const parsed = await parseRequest(getPublicFileContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
