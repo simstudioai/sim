@@ -5,7 +5,10 @@ import type { FilePreviewSession } from '@/lib/copilot/request/session'
 import { cn } from '@/lib/core/utils/cn'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import { RICH_PREVIEWABLE_EXTENSIONS } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
+import {
+  isCsvStreamOnly,
+  RICH_PREVIEWABLE_EXTENSIONS,
+} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import type {
@@ -13,6 +16,7 @@ import type {
   MothershipResource,
 } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { ResourceActions, ResourceContent, ResourceTabs } from './components'
 
 const PREVIEW_CYCLE: Record<PreviewMode, PreviewMode> = {
@@ -82,10 +86,23 @@ export const MothershipView = memo(
       setPreviewMode('preview')
     }
 
+    // A large CSV renders read-only (streamed) with no editor, so it must not offer the
+    // edit/split/preview toggle. Its size lives on the file record, not the resource tab.
+    const { data: files, isLoading: filesLoading } = useWorkspaceFiles(workspaceId, 'active', {
+      enabled: active?.type === 'file',
+    })
+    const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
+    const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
+
     const isActivePreviewable =
       canEdit &&
       active?.type === 'file' &&
-      RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title))
+      RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
+      // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
+      // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
+      // other rich types (markdown, html, svg, …) on the file list loading.
+      !(isActiveCsv && filesLoading) &&
+      !(activeFile && isCsvStreamOnly(activeFile))
 
     return (
       <div
