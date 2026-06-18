@@ -39,6 +39,7 @@ interface RegistryCommand extends GlobalCommand {
 
 interface GlobalCommandsContextValue {
   register: (commands: GlobalCommand[]) => () => void
+  invoke: (id: string) => boolean
 }
 
 const GlobalCommandsContext = createContext<GlobalCommandsContextValue | null>(null)
@@ -142,9 +143,37 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
   }, [isMac, router])
 
-  const value = useMemo<GlobalCommandsContextValue>(() => ({ register }), [register])
+  const invoke = useCallback((id: string): boolean => {
+    const cmd = registryRef.current.get(id)
+    if (!cmd) return false
+    try {
+      cmd.handler(new KeyboardEvent('keydown'))
+    } catch (err) {
+      logger.error('Global command handler threw', { id, err })
+    }
+    return true
+  }, [])
+
+  const value = useMemo<GlobalCommandsContextValue>(
+    () => ({ register, invoke }),
+    [register, invoke]
+  )
 
   return <GlobalCommandsContext.Provider value={value}>{children}</GlobalCommandsContext.Provider>
+}
+
+/**
+ * Returns a function that runs a registered global command by id, mirroring its
+ * keyboard shortcut exactly. Returns `false` when no command with that id is
+ * currently registered (e.g. a workflow-only command invoked off-canvas), so
+ * callers can offer the action safely without knowing what is mounted.
+ */
+export function useInvokeGlobalCommand(): (id: string) => boolean {
+  const ctx = useContext(GlobalCommandsContext)
+  if (!ctx) {
+    throw new Error('useInvokeGlobalCommand must be used within GlobalCommandsProvider')
+  }
+  return ctx.invoke
 }
 
 export function useRegisterGlobalCommands(commands: GlobalCommand[] | (() => GlobalCommand[])) {

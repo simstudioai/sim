@@ -9,6 +9,7 @@ import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
+import { assertRowCapacity } from '@/lib/table/billing'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
 import { nKeysBetween } from '@/lib/table/order-key'
 import { acquireRowOrderLock } from '@/lib/table/rows/ordering'
@@ -148,6 +149,12 @@ export async function importAppendRows(
   rows: RowData[],
   ctx: { workspaceId: string; userId?: string; requestId: string }
 ): Promise<{ inserted: TableRow[]; table: TableDefinition }> {
+  // Gate capacity before opening the tx — the lookup is a separate pool read.
+  await assertRowCapacity({
+    workspaceId: ctx.workspaceId,
+    currentRowCount: table.rowCount,
+    addedRows: rows.length,
+  })
   return db.transaction(async (trx) => {
     let working = table
     if (additions.length > 0) {
@@ -184,6 +191,13 @@ export async function importReplaceRows(
   data: { rows: RowData[]; workspaceId: string; userId?: string },
   requestId: string
 ): Promise<ReplaceRowsResult> {
+  // Replace deletes all existing rows, so the footprint is just the new set. Gate
+  // before opening the tx — the plan lookup is a separate pool read.
+  await assertRowCapacity({
+    workspaceId: data.workspaceId,
+    currentRowCount: 0,
+    addedRows: data.rows.length,
+  })
   return db.transaction(async (trx) => {
     let working = table
     if (additions.length > 0) {

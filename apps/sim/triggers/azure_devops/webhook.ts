@@ -1,4 +1,4 @@
-import { AzureDevOpsIcon } from '@/components/icons'
+import { AzureIcon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers'
 import {
   azureDevOpsTriggerOptions,
@@ -18,7 +18,7 @@ export const azureDevOpsWebhookTrigger: TriggerConfig = {
   description:
     'Trigger on whichever service hook event types you configure in Azure DevOps. Sim does not filter deliveries for this trigger.',
   version: '1.0.0',
-  icon: AzureDevOpsIcon,
+  icon: AzureIcon,
 
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'azure_devops_webhook',

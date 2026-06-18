@@ -9,12 +9,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const SECRET_ACCESS_TOKEN = 'ya29.a0SECRET_GOOGLE_BEARER_TOKEN_DO_NOT_LEAK'
 
-const { selectMock, getAllOAuthServicesMock, getPersonalAndWorkspaceEnvMock, jwtDecodeMock } =
+const { selectMock, getAllOAuthServicesMock, getPersonalAndWorkspaceEnvMock, decodeJwtMock } =
   vi.hoisted(() => ({
     selectMock: vi.fn(),
     getAllOAuthServicesMock: vi.fn(),
     getPersonalAndWorkspaceEnvMock: vi.fn(),
-    jwtDecodeMock: vi.fn(),
+    decodeJwtMock: vi.fn(),
   }))
 
 vi.mock('@sim/db', () => ({
@@ -29,8 +29,8 @@ vi.mock('@/lib/environment/utils', () => ({
   getPersonalAndWorkspaceEnv: getPersonalAndWorkspaceEnvMock,
 }))
 
-vi.mock('jwt-decode', () => ({
-  jwtDecode: jwtDecodeMock,
+vi.mock('jose', () => ({
+  decodeJwt: decodeJwtMock,
 }))
 
 import { getCredentialsServerTool } from './get-credentials'
@@ -89,7 +89,7 @@ describe('getCredentialsServerTool', () => {
       conflicts: [],
     })
 
-    jwtDecodeMock.mockReturnValue({ email: 'brent@cellular.so' })
+    decodeJwtMock.mockReturnValue({ email: 'brent@cellular.so' })
   })
 
   it('never returns access tokens for connected OAuth credentials', async () => {

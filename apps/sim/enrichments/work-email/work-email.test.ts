@@ -23,6 +23,11 @@ describe('work-email enrichment cascade', () => {
       'prospeo',
       'wiza',
       'pdl',
+      'datagma',
+      'leadmagic',
+      'dropcontact',
+      'icypeas',
+      'enrow',
     ])
   })
 
@@ -81,6 +86,85 @@ describe('work-email enrichment cascade', () => {
       })
       expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
       expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+    })
+  })
+
+  describe('datagma', () => {
+    const p = provider('datagma')
+    it('maps name + normalized company domain', () => {
+      expect(p.toolId).toBe('datagma_find_email')
+      expect(p.buildParams(nameDomain)).toEqual({ fullName: 'John Doe', company: 'acme.com' })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+      expect(p.mapOutput({})).toBeNull()
+    })
+  })
+
+  describe('leadmagic', () => {
+    const p = provider('leadmagic')
+    it('passes full_name + domain and keeps mononym rows', () => {
+      expect(p.toolId).toBe('leadmagic_find_email')
+      expect(p.buildParams(nameDomain)).toEqual({ full_name: 'John Doe', domain: 'acme.com' })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      // single-token name still runs (no longer skipped)
+      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toEqual({
+        full_name: 'Cher',
+        domain: 'acme.com',
+      })
+      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+    })
+  })
+
+  describe('dropcontact', () => {
+    const p = provider('dropcontact')
+    it('enriches from name plus company or LinkedIn', () => {
+      expect(p.toolId).toBe('dropcontact_enrich_contact')
+      expect(p.buildParams(nameDomain)).toEqual({ full_name: 'John Doe', website: 'acme.com' })
+      expect(p.buildParams(linkedinOnly)).toEqual({
+        full_name: 'John Doe',
+        linkedin: 'https://linkedin.com/in/johndoe',
+      })
+      expect(p.buildParams({ companyDomain: 'acme.com' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+      expect(p.mapOutput({})).toBeNull()
+    })
+  })
+
+  describe('icypeas', () => {
+    const p = provider('icypeas')
+    it('splits the name when possible and keeps mononym rows', () => {
+      expect(p.toolId).toBe('icypeas_find_email')
+      expect(p.buildParams(nameDomain)).toEqual({
+        firstname: 'John',
+        lastname: 'Doe',
+        domainOrCompany: 'acme.com',
+      })
+      // single-token name runs with firstname alone (lastname is optional)
+      expect(p.buildParams({ fullName: 'Cher', companyDomain: 'acme.com' })).toEqual({
+        firstname: 'Cher',
+        domainOrCompany: 'acme.com',
+      })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toEqual({ email: 'j@acme.com' })
+    })
+  })
+
+  describe('enrow', () => {
+    const p = provider('enrow')
+    it('maps full name + company domain', () => {
+      expect(p.toolId).toBe('enrow_find_email')
+      expect(p.buildParams(nameDomain)).toEqual({
+        fullname: 'John Doe',
+        company_domain: 'acme.com',
+      })
+      expect(p.buildParams({ fullName: 'John Doe' })).toBeNull()
+      // only a valid-qualified email fills the cell
+      expect(p.mapOutput({ email: 'j@acme.com', qualification: 'valid' })).toEqual({
+        email: 'j@acme.com',
+      })
+      expect(p.mapOutput({ email: 'j@acme.com', qualification: 'invalid' })).toBeNull()
+      expect(p.mapOutput({ email: 'j@acme.com' })).toBeNull()
+      expect(p.mapOutput({})).toBeNull()
     })
   })
 })

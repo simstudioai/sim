@@ -79,6 +79,7 @@ vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
 }))
 
+import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import type { ProviderToolConfig } from '@/providers/types'
 import { vllmProvider } from '@/providers/vllm/index'
 
@@ -117,6 +118,7 @@ const createPayload = (callIndex: number) => mockCreate.mock.calls[callIndex][0]
 describe('vllmProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    clearProviderClientCacheForTests()
     openAIArgs.length = 0
     envState.VLLM_BASE_URL = 'http://localhost:8000'
     envState.VLLM_API_KEY = undefined

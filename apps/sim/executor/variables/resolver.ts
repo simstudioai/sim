@@ -1,11 +1,14 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isUserFileWithMetadata } from '@/lib/core/utils/user-file'
+import { mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import {
   containsLargeValueRef,
+  formatLargeValueSize,
   getLargeValueMaterializationError,
   isLargeValueRef,
+  type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
 import { isLikelyReferenceSegment } from '@/lib/workflows/sanitization/references'
 import { BlockType, parseReferencePath, REFERENCE } from '@/executor/constants'
@@ -31,6 +34,38 @@ export const FUNCTION_BLOCK_CONTEXT_VARS_KEY = '_runtimeContextVars'
 export const FUNCTION_BLOCK_DISPLAY_CODE_KEY = '_runtimeDisplayCode'
 
 const logger = createLogger('VariableResolver')
+
+/**
+ * Combined inline budget (data + display source) for a function block's resolved
+ * block-output context values. Internal routes cap request bodies at ~10 MB, and a
+ * resolved block reference is serialized into the function request both as data
+ * (`contextVariables`) and as a literal in the display source, so it costs roughly
+ * twice its size. Keeping the inline footprint under this budget leaves headroom for
+ * the code, params, and environment variables in the same body. Values that would
+ * overflow the budget are offloaded to durable large-value refs and lazily re-read in
+ * the sandbox via the `sim.values.read` broker.
+ */
+const FUNCTION_CONTEXT_INLINE_BUDGET_BYTES = 6 * 1024 * 1024
+
+interface FunctionContextOffloadState {
+  inlineFootprintRemaining: number
+}
+
+function createFunctionContextOffloadState(): FunctionContextOffloadState {
+  return { inlineFootprintRemaining: FUNCTION_CONTEXT_INLINE_BUDGET_BYTES }
+}
+
+function measureJson(value: unknown): { json: string; size: number } | null {
+  try {
+    const json = JSON.stringify(value)
+    if (json === undefined) {
+      return null
+    }
+    return { json, size: Buffer.byteLength(json, 'utf8') }
+  } catch {
+    return null
+  }
+}
 
 function getNestedLargeValueMaterializationError(): Error {
   return new Error(
@@ -129,6 +164,7 @@ export class VariableResolver {
     const contextVariables: Record<string, unknown> = {}
     const resolved: Record<string, any> = {}
     const display: Record<string, any> = {}
+    const offloadState = createFunctionContextOffloadState()
 
     if (!params) {
       return { resolvedInputs: resolved, displayInputs: display, contextVariables }
@@ -143,7 +179,8 @@ export class VariableResolver {
             value,
             undefined,
             block,
-            contextVariables
+            contextVariables,
+            offloadState
           )
           resolved[key] = code.resolvedCode
           display[key] = code.displayCode
@@ -158,7 +195,8 @@ export class VariableResolver {
                 item.content,
                 undefined,
                 block,
-                contextVariables
+                contextVariables,
+                offloadState
               )
               resolvedItems.push({
                 ...item,
@@ -339,7 +377,8 @@ export class VariableResolver {
     template: string,
     loopScope: LoopScope | undefined,
     block: SerializedBlock,
-    contextVarAccumulator: Record<string, unknown>
+    contextVarAccumulator: Record<string, unknown>,
+    offloadState: FunctionContextOffloadState = createFunctionContextOffloadState()
   ): Promise<{ resolvedCode: string; displayCode: string }> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
@@ -388,8 +427,12 @@ export class VariableResolver {
           // Block output: store in contextVarAccumulator and replace the reference
           // with language-specific runtime access to that stored value.
           const varName = `__blockRef_${Object.keys(contextVarAccumulator).length}`
-          contextVarAccumulator[varName] = effectiveValue
           let replacement: string
+          // `storedValue` is placed in contextVarAccumulator and `displayValue` is
+          // rendered into the display source. They diverge only when an oversized
+          // inline value is offloaded to a ref (both then carry the small ref).
+          let storedValue: unknown = effectiveValue
+          let displayValue: unknown = effectiveValue
           if (isLargeValueRef(effectiveValue)) {
             const lazyReplacement = this.formatLazyLargeValueReference(
               varName,
@@ -415,16 +458,40 @@ export class VariableResolver {
           } else if (containsLargeValueRef(effectiveValue)) {
             throw getNestedLargeValueMaterializationError()
           } else {
-            replacement = this.formatContextVariableReference(
-              varName,
+            const offloadedRef = await this.maybeOffloadInlineFunctionContextValue(
+              ctx,
+              effectiveValue,
               language,
               template,
-              index,
-              effectiveValue
+              offloadState
             )
+            if (offloadedRef) {
+              storedValue = offloadedRef
+              displayValue = offloadedRef
+              // maybeOffload only returns a ref when the JS runtime helpers are usable —
+              // the same guard formatLazyLargeValueReference needs — so it is non-null here.
+              replacement =
+                this.formatLazyLargeValueReference(varName, language, template, index) ??
+                this.formatContextVariableReference(
+                  varName,
+                  language,
+                  template,
+                  index,
+                  effectiveValue
+                )
+            } else {
+              replacement = this.formatContextVariableReference(
+                varName,
+                language,
+                template,
+                index,
+                effectiveValue
+              )
+            }
           }
+          contextVarAccumulator[varName] = storedValue
           displayResult += this.formatDisplayValueForCodeContext(
-            effectiveValue,
+            displayValue,
             language,
             template,
             index
@@ -574,6 +641,68 @@ export class VariableResolver {
     return {
       replacement: this.formatJavaScriptAsyncExpression(lazyExpression, template, matchIndex),
       display: reference,
+    }
+  }
+
+  /**
+   * Offloads an inline function block-output value to a durable large-value ref when
+   * keeping it inline would push the function execution request body past its budget.
+   *
+   * A few medium values merged in one function block (for example two fetched images)
+   * can exceed the ~10 MB internal-route body cap even though no single value crosses
+   * the per-value large-value threshold. Offloading the overflowing values lets the
+   * function runtime lazily re-read them via the `sim.values.read` broker instead of
+   * inlining their bytes into the request.
+   *
+   * Returns the stored reference when offloaded, or `null` to keep the value inline.
+   */
+  private async maybeOffloadInlineFunctionContextValue(
+    ctx: ExecutionContext,
+    value: unknown,
+    language: string | undefined,
+    template: string,
+    offloadState: FunctionContextOffloadState
+  ): Promise<LargeValueRef | null> {
+    // Lazy re-reading is only available in the JavaScript isolated-vm runtime; other
+    // runtimes have no broker to materialize a ref, so the value must stay inline.
+    if (!this.canUseJavaScriptRuntimeHelpers(language, template)) {
+      return null
+    }
+    if (!ctx.workspaceId || !ctx.workflowId || !ctx.executionId) {
+      return null
+    }
+
+    const measured = measureJson(value)
+    if (measured === null) {
+      return null
+    }
+
+    // Inline values are serialized into both the request data and the display source.
+    const footprint = measured.size * 2
+    if (footprint <= offloadState.inlineFootprintRemaining) {
+      offloadState.inlineFootprintRemaining -= footprint
+      return null
+    }
+
+    try {
+      const { storeLargeValue } = await import('@/lib/execution/payloads/store')
+      const ref = await storeLargeValue(value, measured.json, measured.size, {
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+        requireDurable: true,
+      })
+      // Authorize the function route to materialize the ref it is about to receive.
+      if (ref.key) {
+        mergeLargeValueKeys(ctx, [ref.key])
+      }
+      return ref
+    } catch (error) {
+      logger.warn('Failed to offload oversized function context value; keeping inline', {
+        error: toError(error).message,
+      })
+      return null
     }
   }
 
@@ -846,6 +975,16 @@ export class VariableResolver {
     template: string,
     matchIndex: number
   ): string {
+    // Offloaded large values carry only a storage ref (or array manifest), never the
+    // data itself. Render a concise placeholder for the Input view instead of leaking
+    // the internal ref object, which is unreadable and meaningless to a user.
+    if (isLargeValueRef(value)) {
+      return `/* large ${value.kind} · ${formatLargeValueSize(value.size)}, fetched at runtime */`
+    }
+    if (isLargeArrayManifest(value)) {
+      return `/* large array · ${value.totalCount} items · ${formatLargeValueSize(value.byteSize)}, fetched at runtime */`
+    }
+
     if (language === 'shell') {
       return this.formatShellDisplayValue(value, template, matchIndex)
     }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-16",
+  "updatedAt": "2026-06-17",
   "integrations": [
     {
       "type": "onepassword",
@@ -239,7 +239,7 @@
         },
         {
           "name": "Update Contact",
-          "description": "Update a contact"
+          "description": "Update a contact's fields"
         },
         {
           "name": "Delete Contact",
@@ -349,7 +349,7 @@
       "operations": [
         {
           "name": "Domain Rating",
-          "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website"
+          "description": "Get the Domain Rating (DR) and Ahrefs Rank for a target domain. Domain Rating shows the strength of a website's backlink profile on a scale from 0 to 100."
         },
         {
           "name": "Backlinks",
@@ -770,7 +770,7 @@
       "operations": [
         {
           "name": "Search People",
-          "description": "Search Apollo"
+          "description": "Search Apollo's database for people using demographic filters"
         },
         {
           "name": "Enrich Person",
@@ -782,7 +782,7 @@
         },
         {
           "name": "Search Organizations",
-          "description": "Search Apollo"
+          "description": "Search Apollo's database for companies using filters"
         },
         {
           "name": "Enrich Organization",
@@ -802,7 +802,7 @@
         },
         {
           "name": "Search Contacts",
-          "description": "Search your team"
+          "description": "Search your team's contacts in Apollo"
         },
         {
           "name": "Bulk Create Contacts",
@@ -822,7 +822,7 @@
         },
         {
           "name": "Search Accounts",
-          "description": "Search your team"
+          "description": "Search your team's accounts in Apollo. Display limit: 50,000 records (100 records per page, 500 pages max). Use filters to narrow results. Master key required."
         },
         {
           "name": "Bulk Create Accounts",
@@ -838,7 +838,7 @@
         },
         {
           "name": "Search Opportunities",
-          "description": "Search and list all deals/opportunities in your team"
+          "description": "Search and list all deals/opportunities in your team's Apollo account"
         },
         {
           "name": "Get Opportunity",
@@ -850,7 +850,7 @@
         },
         {
           "name": "Search Sequences",
-          "description": "Search for sequences/campaigns in your team"
+          "description": "Search for sequences/campaigns in your team's Apollo account (master key required)"
         },
         {
           "name": "Add to Sequence",
@@ -866,7 +866,7 @@
         },
         {
           "name": "Get Email Accounts",
-          "description": "Get list of team"
+          "description": "Get list of team's linked email accounts in Apollo"
         }
       ],
       "operationCount": 25,
@@ -2024,7 +2024,7 @@
         },
         {
           "name": "Get Work Items Batch",
-          "description": "Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. "
+          "description": "Fetch full details for multiple work items by ID from Azure DevOps. Pass comma-separated IDs (e.g. \"123,456,789\"). Requests with more than 200 IDs are automatically split into chunks."
         },
         {
           "name": "Create Work Item",
@@ -3384,7 +3384,7 @@
         },
         {
           "name": "Extract Products",
-          "description": "Extract the product catalog from a brand"
+          "description": "Extract the product catalog from a brand's website by domain (beta)."
         },
         {
           "name": "Scrape Fonts",
@@ -3392,7 +3392,7 @@
         },
         {
           "name": "Scrape Styleguide",
-          "description": "Extract a domain"
+          "description": "Extract a domain's design system: colors, typography, spacing, shadows, and UI components."
         },
         {
           "name": "Classify NAICS",
@@ -3432,7 +3432,7 @@
         },
         {
           "name": "Prefetch by Email",
-          "description": "Queue an email"
+          "description": "Queue an email's domain for brand-data prefetching to reduce later latency (subscribers; 0 credits). Free/disposable emails are rejected."
         }
       ],
       "operationCount": 22,
@@ -3816,6 +3816,45 @@
       "category": "tools",
       "integrationType": "observability",
       "tags": ["monitoring", "incident-management", "error-tracking"]
+    },
+    {
+      "type": "datagma",
+      "slug": "datagma",
+      "name": "Datagma",
+      "description": "Find verified B2B emails, mobile phones, and enrich person or company profiles",
+      "longDescription": "Integrate Datagma to find verified work emails from a name and company, enrich person profiles via email or LinkedIn URL, enrich company data from a domain or name, look up mobile phone numbers from LinkedIn, and check your credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DatagmaIcon",
+      "docsUrl": "https://docs.sim.ai/tools/datagma",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified work email from a person's full name and company. Uses 1 credit when a verified email is found."
+        },
+        {
+          "name": "Enrich Person",
+          "description": "Enrich a person's profile using their email, LinkedIn URL, or full name and company. Returns job title, company, location, and social data. Uses 2 credits per match; add 30 credits when a phone number is found."
+        },
+        {
+          "name": "Enrich Company",
+          "description": "Enrich a company profile using a domain, company name, or SIREN number (France). Returns size, industry, revenue, and description. Uses 2 credits per match."
+        },
+        {
+          "name": "Find Phone",
+          "description": "Find a mobile phone number from a person's LinkedIn URL. Optionally supply an email to improve match accuracy. Uses 30 credits when a number is found."
+        },
+        {
+          "name": "Get Remaining Credits",
+          "description": "Check remaining credit balance on a Datagma account. Free — no credits consumed."
+        }
+      ],
+      "operationCount": 5,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "daytona",
@@ -4219,6 +4258,29 @@
       "tags": ["cloud", "document-processing"]
     },
     {
+      "type": "dropcontact",
+      "slug": "dropcontact",
+      "name": "Dropcontact",
+      "description": "Enrich B2B contacts with verified email, phone, and company data",
+      "longDescription": "Use Dropcontact to verify and enrich B2B contacts. Submit a contact with their name, company, website, or LinkedIn URL and receive a verified professional email, phone number, company firmographics, and LinkedIn profile. Enrichment is async: Dropcontact processes the request, then Sim polls until the result is ready. Credits are only charged when a verified email is returned.",
+      "bgColor": "#0066FF",
+      "iconName": "DropcontactIcon",
+      "docsUrl": "https://docs.sim.ai/tools/dropcontact",
+      "operations": [
+        {
+          "name": "Enrich Contact",
+          "description": "Enrich a contact with verified B2B email, phone, company data, and LinkedIn info via Dropcontact. Submits an async enrichment request, then polls until the result is ready (up to 2 minutes). Charges 1 credit only when a verified email is returned. Provide at least one of: email, first_name+last_name+company, full_name+company, or linkedin URL."
+        }
+      ],
+      "operationCount": 1,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
       "type": "dspy",
       "slug": "dspy",
       "name": "DSPy",
@@ -4540,7 +4602,7 @@
         },
         {
           "name": "Find Email",
-          "description": "Find a person"
+          "description": "Find a person's work email address using their full name and company domain."
         },
         {
           "name": "LinkedIn to Work Email",
@@ -4636,11 +4698,11 @@
         },
         {
           "name": "Search People Activities",
-          "description": "Get a person"
+          "description": "Get a person's LinkedIn activities (posts, comments, or articles) by profile ID."
         },
         {
           "name": "Search Company Activities",
-          "description": "Get a company"
+          "description": "Get a company's LinkedIn activities (posts, comments, or articles) by company ID."
         },
         {
           "name": "Reverse Hash Lookup",
@@ -4662,6 +4724,33 @@
       "category": "tools",
       "integrationType": "sales",
       "tags": ["enrichment"]
+    },
+    {
+      "type": "enrow",
+      "slug": "enrow",
+      "name": "Enrow",
+      "description": "Find and verify B2B emails with triple-verified accuracy",
+      "longDescription": "Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.",
+      "bgColor": "#FFFFFF",
+      "iconName": "EnrowIcon",
+      "docsUrl": "https://enrow.readme.io",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)"
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)"
+        }
+      ],
+      "operationCount": 2,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "evernote",
@@ -4845,11 +4934,11 @@
       "operations": [
         {
           "name": "Find Email From Name",
-          "description": "Find someone"
+          "description": "Find someone's email from their name and a company domain or company name. Uses one finder credit when a verified email is found."
         },
         {
           "name": "Find Email From LinkedIn",
-          "description": "Find someone"
+          "description": "Find someone's email from a LinkedIn profile URL or username. Uses one finder credit when a verified email is found."
         },
         {
           "name": "Find Emails By Domain",
@@ -4873,7 +4962,7 @@
         },
         {
           "name": "Find Phone",
-          "description": "Find someone"
+          "description": "Find someone's phone number from a LinkedIn profile URL. Uses 10 finder credits if a phone is found. EU citizens are excluded for legal reasons."
         },
         {
           "name": "Search Technologies",
@@ -5892,7 +5981,7 @@
         },
         {
           "name": "List Calendars",
-          "description": "List all calendars in the user"
+          "description": "List all calendars in the user's calendar list"
         },
         {
           "name": "Quick Add (Natural Language)",
@@ -6218,7 +6307,7 @@
         },
         {
           "name": "Update Member Role",
-          "description": "Update a member"
+          "description": "Update a member's role in a Google Group (promote or demote)"
         },
         {
           "name": "Remove Member",
@@ -6319,9 +6408,17 @@
         {
           "name": "Air Quality",
           "description": "Get current air quality data for a location"
+        },
+        {
+          "name": "Pollen Forecast",
+          "description": "Get a daily pollen forecast (grass, tree, weed) for a location"
+        },
+        {
+          "name": "Solar Potential",
+          "description": "Get solar potential and panel insights for the building nearest a location"
         }
       ],
-      "operationCount": 13,
+      "operationCount": 15,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -6462,9 +6559,21 @@
         {
           "name": "Copy Sheet",
           "description": "Copy a sheet from one spreadsheet to another"
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows from a sheet in a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Sheet",
+          "description": "Delete a sheet/tab from a Google Sheets spreadsheet"
+        },
+        {
+          "name": "Delete Spreadsheet",
+          "description": "Permanently delete a Google Sheets spreadsheet using the Google Drive API"
         }
       ],
-      "operationCount": 11,
+      "operationCount": 14,
       "triggers": [
         {
           "id": "google_sheets_poller",
@@ -6519,11 +6628,11 @@
         },
         {
           "name": "Replace All Shapes With Image",
-          "description": "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape"
+          "description": "Find every shape whose text matches the given token (e.g. {{cover-image}}) and replace it with an image, preserving the shape's position and bounds."
         },
         {
           "name": "Replace Image",
-          "description": "Replace the source of an existing image with a new image URL, preserving the image"
+          "description": "Replace the source of an existing image with a new image URL, preserving the image's position, size, and properties."
         },
         {
           "name": "Update Image Properties",
@@ -6595,7 +6704,7 @@
         },
         {
           "name": "Update Shape Properties",
-          "description": "Update a shape"
+          "description": "Update a shape's appearance — background fill color, outline, link, content alignment, autofit. Pass only the properties you want to change."
         },
         {
           "name": "Update Page Properties",
@@ -6631,7 +6740,7 @@
         },
         {
           "name": "Update Line Category",
-          "description": "Change a connector line"
+          "description": "Change a connector line's category (STRAIGHT, BENT, or CURVED)."
         },
         {
           "name": "Reroute Line",
@@ -6687,7 +6796,7 @@
         },
         {
           "name": "Replace All Shapes With Sheets Chart",
-          "description": "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape"
+          "description": "Find every shape matching a text token (e.g. {{revenue-chart}}) and replace each with the same embedded Sheets chart, preserving the shape's position and bounds."
         },
         {
           "name": "Embed Video",
@@ -7526,6 +7635,33 @@
         }
       ],
       "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
+    },
+    {
+      "type": "icypeas",
+      "slug": "icypeas",
+      "name": "Icypeas",
+      "description": "Find and verify professional email addresses",
+      "longDescription": "Integrate Icypeas to find a professional email address from a name and company domain, or verify whether an existing email is valid and deliverable. Results are returned asynchronously via polling.",
+      "bgColor": "#0EA5E9",
+      "iconName": "IcypeasIcon",
+      "docsUrl": "https://docs.sim.ai/tools/icypeas",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find a professional email address from a first name, last name, and company domain or name. Submits the search and polls until a result is available. Costs 1 credit per found email (https://www.icypeas.com/pricing)."
+        },
+        {
+          "name": "Verify Email",
+          "description": "Verify whether an email address is valid and deliverable. Submits the verification and polls until a result is available. Costs 0.1 credit per verification (https://www.icypeas.com/pricing)."
+        }
+      ],
+      "operationCount": 2,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
@@ -8508,7 +8644,7 @@
         },
         {
           "name": "Search Assets (AQL)",
-          "description": "Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = "
+          "description": "Search Assets (Insight/CMDB) objects using AQL (Assets Query Language), e.g. objectType = \"Host\" AND Status = \"Running\". Supports pagination."
         },
         {
           "name": "Get Asset Object",
@@ -8622,7 +8758,7 @@
         },
         {
           "name": "Get Fills",
-          "description": "Retrieve your portfolio"
+          "description": "Retrieve your portfolio's fills/trades from Kalshi"
         },
         {
           "name": "Get Settlements",
@@ -8836,6 +8972,61 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["feature-flags", "ci-cd"]
+    },
+    {
+      "type": "leadmagic",
+      "slug": "leadmagic",
+      "name": "LeadMagic",
+      "description": "Find and enrich B2B contacts, emails, mobile numbers, and company data",
+      "longDescription": "Integrate LeadMagic to find verified work emails by name or company, validate email deliverability, find direct mobile numbers, enrich LinkedIn profiles, reverse-lookup profiles from emails, search companies by domain, identify role holders at accounts, and check account credit balance.",
+      "bgColor": "#FFFFFF",
+      "iconName": "LeadMagicIcon",
+      "docsUrl": "https://docs.sim.ai/tools/leadmagic",
+      "operations": [
+        {
+          "name": "Find Email",
+          "description": "Find someone's verified work email from their name and company domain. Charges 1 credit when a valid email is found; free when no result."
+        },
+        {
+          "name": "Validate Email",
+          "description": "Verify an email address for deliverability. Charges 0.25 credits for definitive SMTP results (valid/invalid); unknown and RFC-invalid results are free."
+        },
+        {
+          "name": "Find Mobile",
+          "description": "Find a person's direct mobile number from their LinkedIn profile URL or email. Charges 5 credits when a number is found; free when no result."
+        },
+        {
+          "name": "Profile Search",
+          "description": "Enrich a LinkedIn profile with work history, education, skills, and contact data. Charges 1 credit per successful enrichment; free when profile not found."
+        },
+        {
+          "name": "Profile to Email",
+          "description": "Extract a verified work email from a LinkedIn profile URL. Charges 5 credits when an email is found; free when no result."
+        },
+        {
+          "name": "Email to Profile",
+          "description": "Retrieve a LinkedIn profile URL from a work or personal email address. Charges 10 credits when a profile is found; free when no result."
+        },
+        {
+          "name": "Company Search",
+          "description": "Enrich company data including firmographics, headcount, funding, and social profiles by domain, LinkedIn URL, or name. Charges 1 credit when a company is found; free when no result."
+        },
+        {
+          "name": "Role Finder",
+          "description": "Find the person holding a specific job role at a company. Charges 2 credits when a matching person is found; free when no result."
+        },
+        {
+          "name": "Get Credits",
+          "description": "Retrieve the current credit balance for the authenticated LeadMagic account. This endpoint is free and consumes no credits."
+        }
+      ],
+      "operationCount": 9,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement"]
     },
     {
       "type": "lemlist",
@@ -9622,7 +9813,7 @@
         },
         {
           "name": "Get Guest",
-          "description": "Retrieve a single guest"
+          "description": "Retrieve a single guest's details on a Luma event, including approval status, registration timestamps, and contact info."
         },
         {
           "name": "Add Guests",
@@ -9634,7 +9825,7 @@
         },
         {
           "name": "Update Guest Status",
-          "description": "Update a guest"
+          "description": "Update a guest's approval status on a Luma event — approve, decline, waitlist, or set to pending. Identify the guest by email or guest ID."
         }
       ],
       "operationCount": 11,
@@ -10568,7 +10759,7 @@
       "operations": [
         {
           "name": "Query (MATCH)",
-          "description": "Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., "
+          "description": "Execute MATCH queries to read nodes and relationships from Neo4j graph database. For best performance and to prevent large result sets, include LIMIT in your query (e.g., \"MATCH (n:User) RETURN n LIMIT 100\") or use LIMIT $limit with a limit parameter."
         },
         {
           "name": "Create Nodes/Relationships",
@@ -11159,7 +11350,7 @@
         },
         {
           "name": "Search",
-          "description": "Get ranked search results from Perplexity"
+          "description": "Get ranked search results from Perplexity's continuously refreshed index with advanced filtering and customization options"
         }
       ],
       "operationCount": 2,
@@ -11305,7 +11496,7 @@
       "operations": [
         {
           "name": "Generate Embeddings",
-          "description": "Generate embeddings from text using Pinecone"
+          "description": "Generate embeddings from text using Pinecone's hosted models"
         },
         {
           "name": "Upsert Text",
@@ -11597,7 +11788,7 @@
         },
         {
           "name": "Run Query (HogQL)",
-          "description": "Execute a HogQL query in PostHog. HogQL is PostHog"
+          "description": "Execute a HogQL query in PostHog. HogQL is PostHog's SQL-like query language for analytics. Use this for advanced data retrieval and analysis."
         },
         {
           "name": "List Insights",
@@ -12531,7 +12722,7 @@
         },
         {
           "name": "Command",
-          "description": "Execute a raw Redis command as a JSON array (e.g. ["
+          "description": "Execute a raw Redis command as a JSON array (e.g. [\"HSET\", \"key\", \"field\", \"value\"])."
         }
       ],
       "operationCount": 22,
@@ -13822,7 +14013,7 @@
         },
         {
           "name": "Update Customer",
-          "description": "Update fields on an A_Customer entity in SAP S/4HANA Cloud (API_BUSINESS_PARTNER). Uses HTTP MERGE (OData v2 partial update) — only the fields you provide are written; existing values are preserved. A_Customer is limited to modifiable fields such as OrderIsBlockedForCustomer, DeliveryIsBlocked, BillingIsBlockedForCustomer (Edm.String reason codes like "
+          "description": ""
         },
         {
           "name": "List Suppliers",
@@ -14676,7 +14867,7 @@
         },
         {
           "name": "Publish View",
-          "description": "Publish a static view to a user"
+          "description": "Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience."
         }
       ],
       "operationCount": 35,
@@ -15435,19 +15626,19 @@
       "operations": [
         {
           "name": "Search",
-          "description": "Perform AI-powered web searches using Tavily"
+          "description": "Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy."
         },
         {
           "name": "Extract Content",
-          "description": "Extract raw content from multiple web pages simultaneously using Tavily"
+          "description": "Extract raw content from multiple web pages simultaneously using Tavily's extraction API. Supports basic and advanced extraction depths with detailed error reporting for failed URLs."
         },
         {
           "name": "Crawl Website",
-          "description": "Systematically crawl and extract content from websites using Tavily"
+          "description": "Systematically crawl and extract content from websites using Tavily's crawl API. Supports depth control, path filtering, domain restrictions, and natural language instructions for targeted crawling."
         },
         {
           "name": "Map Website",
-          "description": "Discover and visualize website structure using Tavily"
+          "description": "Discover and visualize website structure using Tavily's map API. Maps out all accessible URLs from a base URL with depth control, path filtering, and domain restrictions."
         }
       ],
       "operationCount": 4,
@@ -16076,7 +16267,7 @@
         },
         {
           "name": "Command",
-          "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., ["
+          "description": "Execute an arbitrary Redis command against Upstash Redis. Pass the full command as a JSON array (e.g., [\"HSET\", \"myhash\", \"field1\", \"value1\"])."
         }
       ],
       "operationCount": 16,
@@ -16302,7 +16493,7 @@
         },
         {
           "name": "Update Project Domain",
-          "description": "Update a project domain"
+          "description": "Update a project domain's configuration on Vercel"
         },
         {
           "name": "Verify Project Domain",
@@ -16682,7 +16873,7 @@
       "operations": [
         {
           "name": "Prospect Search",
-          "description": "Search Wiza"
+          "description": "Search Wiza's database of prospects using person, company, and financial filters"
         },
         {
           "name": "Company Enrichment",
@@ -16964,11 +17155,11 @@
         },
         {
           "name": "Delete Bookmark",
-          "description": "Remove a tweet from the authenticated user"
+          "description": "Remove a tweet from the authenticated user's bookmarks"
         },
         {
           "name": "Get My Profile",
-          "description": "Get the authenticated user"
+          "description": "Get the authenticated user's profile information"
         },
         {
           "name": "Search Users",

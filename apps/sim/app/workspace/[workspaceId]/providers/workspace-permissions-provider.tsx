@@ -12,10 +12,22 @@ import {
   type WorkspacePermissions,
   workspaceKeys,
 } from '@/hooks/queries/workspace'
+import { useStableFlag } from '@/hooks/use-stable-flag'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
 
 const logger = createLogger('WorkspacePermissionsProvider')
+
+/**
+ * Anti-flicker timing for the "Reconnecting..." toast. Socket.IO flips
+ * `isReconnecting` on any disconnect — including sub-second transport hiccups
+ * that recover on the first retry — so we delay surfacing the toast until the
+ * drop has lasted long enough to matter, then hold it on screen long enough to
+ * read. Together these suppress both flicker modes (flash-on and flash-off)
+ * while still alerting on real outages.
+ */
+const RECONNECTING_TOAST_DELAY_MS = 2000
+const RECONNECTING_TOAST_MIN_VISIBLE_MS = 1500
 
 interface PersistentToastOptions {
   description?: string
@@ -115,9 +127,13 @@ export function WorkspacePermissionsProvider({ children }: WorkspacePermissionsP
 
   const isOfflineMode = hasOperationError
   const isJoinBlocked = Boolean(blockedJoinWorkflowId) && blockedJoinWorkflowId === urlWorkflowId
+  const showReconnecting = useStableFlag(isReconnecting, {
+    delayMs: RECONNECTING_TOAST_DELAY_MS,
+    minVisibleMs: RECONNECTING_TOAST_MIN_VISIBLE_MS,
+  })
   const realtimeStatusMessage = isOfflineMode
     ? null
-    : isReconnecting
+    : showReconnecting
       ? 'Reconnecting...'
       : isRetryingWorkflowJoin
         ? 'Joining workflow...'

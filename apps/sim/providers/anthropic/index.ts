@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -21,13 +22,19 @@ export const anthropicProvider: ProviderConfig = {
     return executeAnthropicProviderRequest(request, {
       providerId: 'anthropic',
       providerLabel: 'Anthropic',
-      createClient: (apiKey, useNativeStructuredOutputs) =>
-        new Anthropic({
-          apiKey,
-          defaultHeaders: useNativeStructuredOutputs
-            ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
-            : undefined,
-        }),
+      createClient: (apiKey, useNativeStructuredOutputs) => {
+        const cacheKey = `anthropic::${apiKey}::${useNativeStructuredOutputs ? 'beta' : 'default'}`
+        return getCachedProviderClient(
+          cacheKey,
+          () =>
+            new Anthropic({
+              apiKey,
+              defaultHeaders: useNativeStructuredOutputs
+                ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
+                : undefined,
+            })
+        )
+      },
       logger,
     })
   },
