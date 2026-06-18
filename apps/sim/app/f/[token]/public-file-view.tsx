@@ -15,6 +15,8 @@ interface PublicFileViewProps {
   name: string
   type: string
   size: number
+  /** Content version (the file's `updatedAt`, epoch ms) — busts the viewer's caches when the file changes. */
+  version: number
   workspaceName: string | null
   ownerName: string | null
 }
@@ -24,6 +26,7 @@ export function PublicFileView({
   name,
   type,
   size,
+  version,
   workspaceName,
   ownerName,
 }: PublicFileViewProps) {
@@ -35,23 +38,26 @@ export function PublicFileView({
 
   // The public viewer reuses the in-app FileViewer; the content source seam swaps
   // the auth-gated workspace serve URL for the token-scoped public endpoint, and a
-  // synthetic record carries the metadata the renderers/query keys need.
+  // synthetic record carries the metadata the renderers/query keys need. `key` and
+  // `updatedAt` fold in the content version so the React Query caches (keyed on the
+  // storage key + `updatedAt`) refetch when the shared file changes — even when its
+  // size is unchanged.
   const source = useMemo<FileContentSource>(() => ({ buildUrl: () => contentUrl }), [contentUrl])
   const file = useMemo<WorkspaceFileRecord>(
     () => ({
       id: token,
       workspaceId: token,
       name,
-      key: token,
+      key: `${token}@${version}`,
       path: contentUrl,
       size,
       type,
       uploadedBy: '',
       folderId: null,
-      uploadedAt: new Date(0),
-      updatedAt: new Date(0),
+      uploadedAt: new Date(version),
+      updatedAt: new Date(version),
     }),
-    [token, name, type, size, contentUrl]
+    [token, name, type, size, version, contentUrl]
   )
 
   return (

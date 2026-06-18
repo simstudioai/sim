@@ -30,6 +30,7 @@ export default async function PublicFilePage({ params }: PublicFilePageProps) {
       name={file.originalName}
       type={file.contentType}
       size={file.size}
+      version={file.updatedAt.getTime()}
       workspaceName={workspaceName}
       ownerName={ownerName}
     />
