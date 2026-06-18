@@ -65,19 +65,45 @@ export function flushThinkingBlock(context: StreamingContext): void {
   context.currentThinkingBlock = null
 }
 
-export function flushSubagentThinkingBlock(context: StreamingContext): void {
-  if (context.currentSubagentThinkingBlock) {
-    stampBlockEnd(context.currentSubagentThinkingBlock)
-    context.contentBlocks.push(context.currentSubagentThinkingBlock)
+/**
+ * Flush open subagent thinking blocks into contentBlocks. With a parentToolCallId
+ * it flushes only that lane (used when a tool/text event arrives for a specific
+ * subagent); with no argument it flushes ALL open lanes (used at stream end and
+ * at subagent lifecycle boundaries). Safe to call repeatedly.
+ */
+export function flushSubagentThinkingBlock(
+  context: StreamingContext,
+  parentToolCallId?: string
+): void {
+  if (parentToolCallId !== undefined) {
+    const block = context.subagentThinkingBlocks.get(parentToolCallId)
+    if (block) {
+      stampBlockEnd(block)
+      context.contentBlocks.push(block)
+      context.subagentThinkingBlocks.delete(parentToolCallId)
+    }
+    return
   }
-  context.currentSubagentThinkingBlock = null
+  for (const block of context.subagentThinkingBlocks.values()) {
+    stampBlockEnd(block)
+    context.contentBlocks.push(block)
+  }
+  context.subagentThinkingBlocks.clear()
 }
 
+/**
+ * Resolve the subagent lane an event belongs to, using ONLY the event's own
+ * scope. The legacy fallback to a single "current subagent" pointer was removed:
+ * with concurrent subagents that pointer reflects whichever subagent started
+ * most recently and would mis-attribute interleaved events. Every subagent-lane
+ * event is guaranteed to carry parentToolCallId (Go stamps it), so a missing one
+ * is a real contract violation — callers warn and drop rather than guess.
+ */
 export function getScopedParentToolCallId(
   event: StreamEvent,
-  context: StreamingContext
+  _context: StreamingContext
 ): string | undefined {
-  return event.scope?.parentToolCallId || context.subAgentParentToolCallId
+  return event.scope?.parentToolCallId
 }
 
 /**

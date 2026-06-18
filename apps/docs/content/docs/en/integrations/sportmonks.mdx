@@ -1,0 +1,1517 @@
+---
+title: Sportmonks
+description: Access Sportmonks football, motorsport, odds, and reference data
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="sportmonks"
+  color="#171534"
+/>
+
+## Usage Instructions
+
+Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, teams, squads, players, standings, and topscorers. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.
+
+
+
+## Actions
+
+### `sportmonks_football_get_livescores`
+
+Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events\) |
+| `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of live fixture objects |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_inplay_livescores`
+
+Retrieve all fixtures that are currently being played (in-play) from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events\) |
+| `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of in-play fixture objects |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_fixtures_by_date`
+
+Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `date` | string | Yes | The date to fetch fixtures for, in YYYY-MM-DD format |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;league\) |
+| `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501,271\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order fixtures by starting_at \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of fixture objects for the requested date |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_fixtures_by_date_range`
+
+Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `startDate` | string | Yes | Start date in YYYY-MM-DD format |
+| `endDate` | string | Yes | End date in YYYY-MM-DD format \(max 100 days after start\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
+| `filters` | string | No | Filters to apply \(e.g. fixtureLeagues:501,271\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order fixtures by starting_at \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of fixture objects within the requested date range |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_fixture`
+
+Retrieve a single football fixture by its ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores;events;lineups;statistics\) |
+| `filters` | string | No | Filters to apply \(e.g. eventTypes:14\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixture` | object | The requested fixture object |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_head_to_head`
+
+Retrieve the head-to-head fixtures between two teams from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `team1` | string | Yes | The id of the first team |
+| `team2` | string | Yes | The id of the second team |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;scores\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order fixtures by starting_at \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of head-to-head fixture objects between the two teams |
+|   ↳ `id` | number | Unique id of the fixture |
+|   ↳ `sport_id` | number | Sport the fixture is played at |
+|   ↳ `league_id` | number | League the fixture is played in |
+|   ↳ `season_id` | number | Season the fixture is played in |
+|   ↳ `stage_id` | number | Stage the fixture is played in |
+|   ↳ `group_id` | number | Group the fixture is played in |
+|   ↳ `aggregate_id` | number | Aggregate the fixture belongs to |
+|   ↳ `round_id` | number | Round the fixture is played in |
+|   ↳ `state_id` | number | State \(status\) of the fixture |
+|   ↳ `venue_id` | number | Venue the fixture is played at |
+|   ↳ `name` | string | Name of the fixture \(participants\) |
+|   ↳ `starting_at` | string | Datetime the fixture starts |
+|   ↳ `result_info` | string | Final result summary |
+|   ↳ `leg` | string | Leg of the fixture \(e.g. 1/1\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Length of the fixture in minutes |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Whether odds are available |
+|   ↳ `has_premium_odds` | boolean | Whether premium odds are available |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_football_get_leagues`
+
+Retrieve all football leagues available within your Sportmonks subscription
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order leagues \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leagues` | array | Array of league objects |
+|   ↳ `id` | number | Unique id of the league |
+|   ↳ `sport_id` | number | Sport of the league |
+|   ↳ `country_id` | number | Country of the league |
+|   ↳ `name` | string | Name of the league |
+|   ↳ `active` | number | Whether the league is active \(1\) or inactive \(0\) |
+|   ↳ `short_code` | string | Short code of the league |
+|   ↳ `image_path` | string | URL to the league logo |
+|   ↳ `type` | string | Type of the league |
+|   ↳ `sub_type` | string | Subtype of the league |
+|   ↳ `last_played_at` | string | Date the last fixture was played |
+|   ↳ `category` | number | Importance category of the league \(1-4\) |
+
+### `sportmonks_football_get_league`
+
+Retrieve a single football league by its ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `leagueId` | string | Yes | The unique id of the league |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;currentSeason;seasons\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `league` | object | The requested league object |
+|   ↳ `id` | number | Unique id of the league |
+|   ↳ `sport_id` | number | Sport of the league |
+|   ↳ `country_id` | number | Country of the league |
+|   ↳ `name` | string | Name of the league |
+|   ↳ `active` | number | Whether the league is active \(1\) or inactive \(0\) |
+|   ↳ `short_code` | string | Short code of the league |
+|   ↳ `image_path` | string | URL to the league logo |
+|   ↳ `type` | string | Type of the league |
+|   ↳ `sub_type` | string | Subtype of the league |
+|   ↳ `last_played_at` | string | Date the last fixture was played |
+|   ↳ `category` | number | Importance category of the league \(1-4\) |
+
+### `sportmonks_football_search_teams`
+
+Search for football teams by name from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The team name to search for \(e.g. Celtic\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order teams by id \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | Array of team objects matching the search query |
+|   ↳ `id` | number | Unique id of the team |
+|   ↳ `sport_id` | number | Sport of the team |
+|   ↳ `country_id` | number | Country of the team |
+|   ↳ `venue_id` | number | Home venue of the team |
+|   ↳ `gender` | string | Gender of the team |
+|   ↳ `name` | string | Name of the team |
+|   ↳ `short_code` | string | Short code of the team |
+|   ↳ `image_path` | string | URL to the team logo |
+|   ↳ `founded` | number | Founding year of the team |
+|   ↳ `type` | string | Type of the team |
+|   ↳ `placeholder` | boolean | Whether the team is a placeholder |
+|   ↳ `last_played_at` | string | Date and time of the last played match |
+
+### `sportmonks_football_get_team`
+
+Retrieve a single football team by its ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `teamId` | string | Yes | The unique id of the team |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;venue;coaches;players.player\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `team` | object | The requested team object |
+|   ↳ `id` | number | Unique id of the team |
+|   ↳ `sport_id` | number | Sport of the team |
+|   ↳ `country_id` | number | Country of the team |
+|   ↳ `venue_id` | number | Home venue of the team |
+|   ↳ `gender` | string | Gender of the team |
+|   ↳ `name` | string | Name of the team |
+|   ↳ `short_code` | string | Short code of the team |
+|   ↳ `image_path` | string | URL to the team logo |
+|   ↳ `founded` | number | Founding year of the team |
+|   ↳ `type` | string | Type of the team |
+|   ↳ `placeholder` | boolean | Whether the team is a placeholder |
+|   ↳ `last_played_at` | string | Date and time of the last played match |
+
+### `sportmonks_football_get_team_squad`
+
+Retrieve the current domestic squad for a team by team ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `teamId` | string | Yes | The unique id of the team |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;position\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `squad` | array | Array of squad entries for the team |
+|   ↳ `id` | number | Unique id of the squad record |
+|   ↳ `transfer_id` | number | Transfer id of the squad record |
+|   ↳ `player_id` | number | Player in the squad |
+|   ↳ `team_id` | number | Team of the squad |
+|   ↳ `position_id` | number | Position of the player in the squad |
+|   ↳ `detailed_position_id` | number | Detailed position of the player in the squad |
+|   ↳ `jersey_number` | number | Jersey number of the player |
+|   ↳ `start` | string | Start contract date of the player |
+|   ↳ `end` | string | End contract date of the player |
+
+### `sportmonks_football_search_players`
+
+Search for football players by name from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The player name to search for \(e.g. Tavernier\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;position;teams.team\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order players by id \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `players` | array | Array of player objects matching the search query |
+|   ↳ `id` | number | Unique id of the player |
+|   ↳ `sport_id` | number | Sport of the player |
+|   ↳ `country_id` | number | Country of birth of the player |
+|   ↳ `nationality_id` | number | Nationality of the player |
+|   ↳ `city_id` | number | City of birth of the player |
+|   ↳ `position_id` | number | Position of the player |
+|   ↳ `detailed_position_id` | number | Detailed position of the player |
+|   ↳ `type_id` | number | Type of the player |
+|   ↳ `common_name` | string | Name the player is known for |
+|   ↳ `firstname` | string | First name of the player |
+|   ↳ `lastname` | string | Last name of the player |
+|   ↳ `name` | string | Name of the player |
+|   ↳ `display_name` | string | Display name of the player |
+|   ↳ `image_path` | string | URL to the player headshot |
+|   ↳ `height` | number | Height of the player in cm |
+|   ↳ `weight` | number | Weight of the player in kg |
+|   ↳ `date_of_birth` | string | Date of birth of the player |
+|   ↳ `gender` | string | Gender of the player |
+
+### `sportmonks_football_get_player`
+
+Retrieve a single football player by their ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `playerId` | string | Yes | The unique id of the player |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;position;teams.team;statistics\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `player` | object | The requested player object |
+|   ↳ `id` | number | Unique id of the player |
+|   ↳ `sport_id` | number | Sport of the player |
+|   ↳ `country_id` | number | Country of birth of the player |
+|   ↳ `nationality_id` | number | Nationality of the player |
+|   ↳ `city_id` | number | City of birth of the player |
+|   ↳ `position_id` | number | Position of the player |
+|   ↳ `detailed_position_id` | number | Detailed position of the player |
+|   ↳ `type_id` | number | Type of the player |
+|   ↳ `common_name` | string | Name the player is known for |
+|   ↳ `firstname` | string | First name of the player |
+|   ↳ `lastname` | string | Last name of the player |
+|   ↳ `name` | string | Name of the player |
+|   ↳ `display_name` | string | Display name of the player |
+|   ↳ `image_path` | string | URL to the player headshot |
+|   ↳ `height` | number | Height of the player in cm |
+|   ↳ `weight` | number | Weight of the player in kg |
+|   ↳ `date_of_birth` | string | Date of birth of the player |
+|   ↳ `gender` | string | Gender of the player |
+
+### `sportmonks_football_get_standings_by_season`
+
+Retrieve the full league standings table for a season by season ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `seasonId` | string | Yes | The unique id of the season |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details;form\) |
+| `filters` | string | No | Filters to apply \(e.g. standingStages:77453568\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `standings` | array | Array of standing entries for the season |
+|   ↳ `id` | number | Unique id of the standing |
+|   ↳ `participant_id` | number | Team related to the standing |
+|   ↳ `sport_id` | number | Sport related to the standing |
+|   ↳ `league_id` | number | League related to the standing |
+|   ↳ `season_id` | number | Season related to the standing |
+|   ↳ `stage_id` | number | Stage related to the standing |
+|   ↳ `group_id` | number | Group related to the standing |
+|   ↳ `round_id` | number | Round related to the standing |
+|   ↳ `standing_rule_id` | number | Standing rule related to the standing |
+|   ↳ `position` | number | Position of the team in the standing |
+|   ↳ `result` | string | Movement of the team in the standing |
+|   ↳ `points` | number | Points the team has gathered |
+
+### `sportmonks_football_get_topscorers_by_season`
+
+Retrieve the topscorers (goals, assists, cards) for a season by season ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `seasonId` | string | Yes | The unique id of the season |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. player;participant;type\) |
+| `filters` | string | No | Filters to apply \(e.g. seasontopscorerTypes:208\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order topscorers by position \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `topscorers` | array | Array of topscorer entries for the season |
+|   ↳ `id` | number | Unique id of the topscorer record |
+|   ↳ `season_id` | number | Season related to the topscorer |
+|   ↳ `league_id` | number | League related to the topscorer |
+|   ↳ `stage_id` | number | Stage related to the topscorer |
+|   ↳ `player_id` | number | Player related to the topscorer |
+|   ↳ `participant_id` | number | Team related to the topscorer |
+|   ↳ `type_id` | number | Type of the topscorer \(goals, assists, cards\) |
+|   ↳ `position` | number | Position of the topscorer |
+|   ↳ `total` | number | Number of goals, assists or cards |
+
+### `sportmonks_motorsport_get_livescores`
+
+Retrieve all live motorsport fixtures (sessions) from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of live motorsport fixture \(session\) objects |
+|   ↳ `id` | number | Unique id of the fixture \(session\) |
+|   ↳ `sport_id` | number | Sport of the fixture |
+|   ↳ `league_id` | number | League the fixture is held in |
+|   ↳ `season_id` | number | Season the fixture is held in |
+|   ↳ `stage_id` | number | Stage \(race weekend\) the fixture is held in |
+|   ↳ `group_id` | number | Not used in the Motorsport API |
+|   ↳ `aggregate_id` | number | Not used in the Motorsport API |
+|   ↳ `round_id` | number | Not used in the Motorsport API |
+|   ↳ `state_id` | number | State the fixture is currently in |
+|   ↳ `venue_id` | number | Venue \(track\) the fixture is held at |
+|   ↳ `name` | string | Name of the fixture \(e.g. Practice 1, Race\) |
+|   ↳ `starting_at` | string | Start date and time |
+|   ↳ `result_info` | string | Final result info |
+|   ↳ `leg` | string | Stage of the fixture \(e.g. 2/3 for Practice 2\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Session length in minutes or total laps |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_motorsport_get_fixtures_by_date`
+
+Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `date` | string | Yes | The date to fetch fixtures for, in YYYY-MM-DD format |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;venue\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order fixtures by starting_at \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixtures` | array | Array of motorsport fixture \(session\) objects for the requested date |
+|   ↳ `id` | number | Unique id of the fixture \(session\) |
+|   ↳ `sport_id` | number | Sport of the fixture |
+|   ↳ `league_id` | number | League the fixture is held in |
+|   ↳ `season_id` | number | Season the fixture is held in |
+|   ↳ `stage_id` | number | Stage \(race weekend\) the fixture is held in |
+|   ↳ `group_id` | number | Not used in the Motorsport API |
+|   ↳ `aggregate_id` | number | Not used in the Motorsport API |
+|   ↳ `round_id` | number | Not used in the Motorsport API |
+|   ↳ `state_id` | number | State the fixture is currently in |
+|   ↳ `venue_id` | number | Venue \(track\) the fixture is held at |
+|   ↳ `name` | string | Name of the fixture \(e.g. Practice 1, Race\) |
+|   ↳ `starting_at` | string | Start date and time |
+|   ↳ `result_info` | string | Final result info |
+|   ↳ `leg` | string | Stage of the fixture \(e.g. 2/3 for Practice 2\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Session length in minutes or total laps |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_motorsport_get_fixture`
+
+Retrieve a single motorsport fixture (session) by its ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participants;results;latestLaps;pitstops\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `fixture` | object | The requested motorsport fixture \(session\) object |
+|   ↳ `id` | number | Unique id of the fixture \(session\) |
+|   ↳ `sport_id` | number | Sport of the fixture |
+|   ↳ `league_id` | number | League the fixture is held in |
+|   ↳ `season_id` | number | Season the fixture is held in |
+|   ↳ `stage_id` | number | Stage \(race weekend\) the fixture is held in |
+|   ↳ `group_id` | number | Not used in the Motorsport API |
+|   ↳ `aggregate_id` | number | Not used in the Motorsport API |
+|   ↳ `round_id` | number | Not used in the Motorsport API |
+|   ↳ `state_id` | number | State the fixture is currently in |
+|   ↳ `venue_id` | number | Venue \(track\) the fixture is held at |
+|   ↳ `name` | string | Name of the fixture \(e.g. Practice 1, Race\) |
+|   ↳ `starting_at` | string | Start date and time |
+|   ↳ `result_info` | string | Final result info |
+|   ↳ `leg` | string | Stage of the fixture \(e.g. 2/3 for Practice 2\) |
+|   ↳ `details` | string | Details about the fixture |
+|   ↳ `length` | number | Session length in minutes or total laps |
+|   ↳ `placeholder` | boolean | Whether the fixture is a placeholder |
+|   ↳ `has_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `has_premium_odds` | boolean | Not used in the Motorsport API |
+|   ↳ `starting_at_timestamp` | number | UNIX timestamp of the start time |
+
+### `sportmonks_motorsport_get_drivers`
+
+Retrieve all motorsport drivers from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `drivers` | array | Array of driver objects |
+|   ↳ `id` | number | Unique id of the driver \(player_id in responses\) |
+|   ↳ `sport_id` | number | Sport of the driver |
+|   ↳ `country_id` | number | Country of birth of the driver |
+|   ↳ `nationality_id` | number | Nationality of the driver |
+|   ↳ `city_id` | number | City of birth of the driver |
+|   ↳ `position_id` | number | Position of the driver within the team |
+|   ↳ `detailed_position_id` | number | Not used in the Motorsport API |
+|   ↳ `type_id` | number | Not used in the Motorsport API |
+|   ↳ `common_name` | string | Name the driver is known for |
+|   ↳ `firstname` | string | First name of the driver |
+|   ↳ `lastname` | string | Last name of the driver |
+|   ↳ `name` | string | Name of the driver |
+|   ↳ `display_name` | string | Display name of the driver |
+|   ↳ `image_path` | string | URL to the driver headshot |
+|   ↳ `height` | number | Height of the driver in cm |
+|   ↳ `weight` | number | Weight of the driver in kg |
+|   ↳ `date_of_birth` | string | Date of birth of the driver |
+|   ↳ `gender` | string | Gender of the driver |
+
+### `sportmonks_motorsport_get_driver`
+
+Retrieve a single motorsport driver by their ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `driverId` | string | Yes | The unique id of the driver |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `driver` | object | The requested driver object |
+|   ↳ `id` | number | Unique id of the driver \(player_id in responses\) |
+|   ↳ `sport_id` | number | Sport of the driver |
+|   ↳ `country_id` | number | Country of birth of the driver |
+|   ↳ `nationality_id` | number | Nationality of the driver |
+|   ↳ `city_id` | number | City of birth of the driver |
+|   ↳ `position_id` | number | Position of the driver within the team |
+|   ↳ `detailed_position_id` | number | Not used in the Motorsport API |
+|   ↳ `type_id` | number | Not used in the Motorsport API |
+|   ↳ `common_name` | string | Name the driver is known for |
+|   ↳ `firstname` | string | First name of the driver |
+|   ↳ `lastname` | string | Last name of the driver |
+|   ↳ `name` | string | Name of the driver |
+|   ↳ `display_name` | string | Display name of the driver |
+|   ↳ `image_path` | string | URL to the driver headshot |
+|   ↳ `height` | number | Height of the driver in cm |
+|   ↳ `weight` | number | Weight of the driver in kg |
+|   ↳ `date_of_birth` | string | Date of birth of the driver |
+|   ↳ `gender` | string | Gender of the driver |
+
+### `sportmonks_motorsport_search_drivers`
+
+Search for motorsport drivers by name from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The driver name to search for \(e.g. Verstappen\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;teams\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `drivers` | array | Array of driver objects matching the search query |
+|   ↳ `id` | number | Unique id of the driver \(player_id in responses\) |
+|   ↳ `sport_id` | number | Sport of the driver |
+|   ↳ `country_id` | number | Country of birth of the driver |
+|   ↳ `nationality_id` | number | Nationality of the driver |
+|   ↳ `city_id` | number | City of birth of the driver |
+|   ↳ `position_id` | number | Position of the driver within the team |
+|   ↳ `detailed_position_id` | number | Not used in the Motorsport API |
+|   ↳ `type_id` | number | Not used in the Motorsport API |
+|   ↳ `common_name` | string | Name the driver is known for |
+|   ↳ `firstname` | string | First name of the driver |
+|   ↳ `lastname` | string | Last name of the driver |
+|   ↳ `name` | string | Name of the driver |
+|   ↳ `display_name` | string | Display name of the driver |
+|   ↳ `image_path` | string | URL to the driver headshot |
+|   ↳ `height` | number | Height of the driver in cm |
+|   ↳ `weight` | number | Weight of the driver in kg |
+|   ↳ `date_of_birth` | string | Date of birth of the driver |
+|   ↳ `gender` | string | Gender of the driver |
+
+### `sportmonks_motorsport_get_teams`
+
+Retrieve all motorsport teams (constructors) from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `teams` | array | Array of team \(constructor\) objects |
+|   ↳ `id` | number | Unique id of the team |
+|   ↳ `sport_id` | number | Sport of the team |
+|   ↳ `country_id` | number | Country of the team |
+|   ↳ `venue_id` | number | Not used in the Motorsport API |
+|   ↳ `gender` | string | Gender of the team |
+|   ↳ `name` | string | Name of the team \(constructor\) |
+|   ↳ `short_code` | string | Short code of the team |
+|   ↳ `image_path` | string | URL to the team logo |
+|   ↳ `founded` | number | Founding year of the team |
+|   ↳ `type` | string | Type of the team |
+|   ↳ `placeholder` | boolean | Whether the team is a placeholder |
+|   ↳ `last_played_at` | string | Date and time of the team's last session |
+
+### `sportmonks_motorsport_get_team`
+
+Retrieve a single motorsport team (constructor) by its ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `teamId` | string | Yes | The unique id of the team \(constructor\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;drivers\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `team` | object | The requested team \(constructor\) object |
+|   ↳ `id` | number | Unique id of the team |
+|   ↳ `sport_id` | number | Sport of the team |
+|   ↳ `country_id` | number | Country of the team |
+|   ↳ `venue_id` | number | Not used in the Motorsport API |
+|   ↳ `gender` | string | Gender of the team |
+|   ↳ `name` | string | Name of the team \(constructor\) |
+|   ↳ `short_code` | string | Short code of the team |
+|   ↳ `image_path` | string | URL to the team logo |
+|   ↳ `founded` | number | Founding year of the team |
+|   ↳ `type` | string | Type of the team |
+|   ↳ `placeholder` | boolean | Whether the team is a placeholder |
+|   ↳ `last_played_at` | string | Date and time of the team's last session |
+
+### `sportmonks_motorsport_get_driver_standings_by_season`
+
+Retrieve the drivers championship standings for a season by season ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `seasonId` | string | Yes | The unique id of the season |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `standings` | array | Array of driver standing entries for the season |
+|   ↳ `id` | number | Unique id of the standing |
+|   ↳ `participant_id` | number | Driver or team related to the standing |
+|   ↳ `sport_id` | number | Sport related to the standing |
+|   ↳ `league_id` | number | League related to the standing |
+|   ↳ `season_id` | number | Season related to the standing |
+|   ↳ `stage_id` | number | Stage related to the standing |
+|   ↳ `group_id` | number | Not used in the Motorsport API |
+|   ↳ `round_id` | number | Not used in the Motorsport API |
+|   ↳ `standing_rule_id` | number | Not used in the Motorsport API |
+|   ↳ `position` | number | Position of the participant in the standing |
+|   ↳ `result` | string | Not used in the Motorsport API |
+|   ↳ `points` | number | Points the participant has gathered |
+
+### `sportmonks_motorsport_get_team_standings_by_season`
+
+Retrieve the constructors championship standings for a season by season ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `seasonId` | string | Yes | The unique id of the season |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;season\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `standings` | array | Array of team \(constructor\) standing entries for the season |
+|   ↳ `id` | number | Unique id of the standing |
+|   ↳ `participant_id` | number | Driver or team related to the standing |
+|   ↳ `sport_id` | number | Sport related to the standing |
+|   ↳ `league_id` | number | League related to the standing |
+|   ↳ `season_id` | number | Season related to the standing |
+|   ↳ `stage_id` | number | Stage related to the standing |
+|   ↳ `group_id` | number | Not used in the Motorsport API |
+|   ↳ `round_id` | number | Not used in the Motorsport API |
+|   ↳ `standing_rule_id` | number | Not used in the Motorsport API |
+|   ↳ `position` | number | Position of the participant in the standing |
+|   ↳ `result` | string | Not used in the Motorsport API |
+|   ↳ `points` | number | Points the participant has gathered |
+
+### `sportmonks_motorsport_get_laps_by_fixture`
+
+Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `laps` | array | Array of lap objects for the fixture |
+|   ↳ `id` | number | Unique id of the lap/pitstop |
+|   ↳ `fixture_id` | number | Fixture related to the lap/pitstop |
+|   ↳ `lap_number` | number | Lap number in the fixture |
+|   ↳ `driver_number` | number | Number of the driver |
+|   ↳ `participant_id` | number | Driver related to the lap/pitstop |
+|   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
+
+### `sportmonks_motorsport_get_pitstops_by_fixture`
+
+Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Sportmonks
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture \(session\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. participant;details\) |
+| `filters` | string | No | Filters to apply |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `pitstops` | array | Array of pitstop objects for the fixture |
+|   ↳ `id` | number | Unique id of the lap/pitstop |
+|   ↳ `fixture_id` | number | Fixture related to the lap/pitstop |
+|   ↳ `lap_number` | number | Lap number in the fixture |
+|   ↳ `driver_number` | number | Number of the driver |
+|   ↳ `participant_id` | number | Driver related to the lap/pitstop |
+|   ↳ `is_latest` | boolean | Whether it is the latest lap/pitstop |
+
+### `sportmonks_odds_get_pre_match_odds_by_fixture`
+
+Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
+| `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14 or winningOdds\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `odds` | array | Array of pre-match odd objects for the fixture |
+|   ↳ `id` | number | Unique id of the odd |
+|   ↳ `fixture_id` | number | Fixture the odd belongs to |
+|   ↳ `market_id` | number | Market the odd belongs to |
+|   ↳ `bookmaker_id` | number | Bookmaker offering the odd |
+|   ↳ `label` | string | Outcome label \(e.g. 1, X, 2\) |
+|   ↳ `value` | string | Decimal odds value |
+|   ↳ `name` | string | Outcome name \(e.g. Home, Draw, Away\) |
+|   ↳ `sort_order` | number | Sort order of the odd |
+|   ↳ `market_description` | string | Description of the market |
+|   ↳ `probability` | string | Implied probability \(e.g. 48.78%\) |
+|   ↳ `dp3` | string | Decimal odds to 3 decimal places |
+|   ↳ `fractional` | string | Fractional odds \(e.g. 31/15\) |
+|   ↳ `american` | string | American/moneyline odds \(e.g. +104\) |
+|   ↳ `winning` | boolean | Whether this is the winning outcome |
+|   ↳ `stopped` | boolean | Whether the odd is stopped |
+|   ↳ `total` | string | Total line for over/under markets |
+|   ↳ `handicap` | string | Handicap line for handicap markets |
+|   ↳ `participants` | string | Participant ids related to the outcome |
+
+### `sportmonks_odds_get_inplay_odds_by_fixture`
+
+Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `fixtureId` | string | Yes | The unique id of the fixture |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. market;bookmaker\) |
+| `filters` | string | No | Filters to apply \(e.g. markets:1,12 or bookmakers:2,14 or winningOdds\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `odds` | array | Array of in-play odd objects for the fixture |
+|   ↳ `id` | number | Unique id of the odd |
+|   ↳ `fixture_id` | number | Fixture the odd belongs to |
+|   ↳ `external_id` | number | External id of the odd |
+|   ↳ `market_id` | number | Market the odd belongs to |
+|   ↳ `bookmaker_id` | number | Bookmaker offering the odd |
+|   ↳ `label` | string | Outcome label \(e.g. 1, X, 2\) |
+|   ↳ `value` | string | Decimal odds value |
+|   ↳ `name` | string | Outcome name |
+|   ↳ `sort_order` | number | Sort order of the odd |
+|   ↳ `market_description` | string | Description of the market |
+|   ↳ `probability` | string | Implied probability |
+|   ↳ `dp3` | string | Decimal odds to 3 decimal places |
+|   ↳ `fractional` | string | Fractional odds |
+|   ↳ `american` | string | American/moneyline odds |
+|   ↳ `winning` | boolean | Whether this is the winning outcome |
+|   ↳ `suspended` | boolean | Whether the odd is suspended |
+|   ↳ `stopped` | boolean | Whether the odd is stopped |
+|   ↳ `total` | string | Total line for over/under markets |
+|   ↳ `handicap` | string | Handicap line for handicap markets |
+|   ↳ `participants` | string | Participant ids related to the outcome |
+
+### `sportmonks_odds_get_bookmakers`
+
+Retrieve all bookmakers from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `filters` | string | No | Filters to apply \(e.g. IdAfter:bookmakerID\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bookmakers` | array | Array of bookmaker objects |
+|   ↳ `id` | number | Unique id of the bookmaker |
+|   ↳ `name` | string | Name of the bookmaker |
+|   ↳ `logo` | string | Logo of the bookmaker |
+
+### `sportmonks_odds_get_bookmaker`
+
+Retrieve a single bookmaker by its ID from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `bookmakerId` | string | Yes | The unique id of the bookmaker |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bookmaker` | object | The requested bookmaker object |
+|   ↳ `id` | number | Unique id of the bookmaker |
+|   ↳ `name` | string | Name of the bookmaker |
+|   ↳ `logo` | string | Logo of the bookmaker |
+
+### `sportmonks_odds_search_bookmakers`
+
+Search for bookmakers by name from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The bookmaker name to search for \(e.g. bet365\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `bookmakers` | array | Array of bookmaker objects matching the search query |
+|   ↳ `id` | number | Unique id of the bookmaker |
+|   ↳ `name` | string | Name of the bookmaker |
+|   ↳ `logo` | string | Logo of the bookmaker |
+
+### `sportmonks_odds_get_markets`
+
+Retrieve all betting markets from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `filters` | string | No | Filters to apply \(e.g. IdAfter:marketID\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markets` | array | Array of market objects |
+|   ↳ `id` | number | Unique id of the market |
+|   ↳ `name` | string | Name of the market |
+
+### `sportmonks_odds_get_market`
+
+Retrieve a single betting market by its ID from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `marketId` | string | Yes | The unique id of the market |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `market` | object | The requested market object |
+|   ↳ `id` | number | Unique id of the market |
+|   ↳ `name` | string | Name of the market |
+
+### `sportmonks_odds_search_markets`
+
+Search for betting markets by name from the Sportmonks Odds API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The market name to search for \(e.g. Over/Under\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `markets` | array | Array of market objects matching the search query |
+|   ↳ `id` | number | Unique id of the market |
+|   ↳ `name` | string | Name of the market |
+
+### `sportmonks_core_get_continents`
+
+Retrieve all continents from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. countries\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continents` | array | Array of continent objects |
+|   ↳ `id` | number | Unique id of the continent |
+|   ↳ `name` | string | Name of the continent |
+|   ↳ `code` | string | Short code of the continent |
+
+### `sportmonks_core_get_continent`
+
+Retrieve a single continent by its ID from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `continentId` | string | Yes | The unique id of the continent |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. countries\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `continent` | object | The requested continent object |
+|   ↳ `id` | number | Unique id of the continent |
+|   ↳ `name` | string | Name of the continent |
+|   ↳ `code` | string | Short code of the continent |
+
+### `sportmonks_core_get_countries`
+
+Retrieve all countries from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent;regions\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | array | Array of country objects |
+|   ↳ `id` | number | Unique id of the country |
+|   ↳ `continent_id` | number | Continent of the country |
+|   ↳ `name` | string | Name of the country |
+|   ↳ `official_name` | string | Official name of the country |
+|   ↳ `fifa_name` | string | Official FIFA short code name |
+|   ↳ `iso2` | string | Two letter country code |
+|   ↳ `iso3` | string | Three letter country code |
+|   ↳ `latitude` | string | Latitude position of the country |
+|   ↳ `longitude` | string | Longitude position of the country |
+|   ↳ `geonameid` | number | Official geonameid |
+|   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
+|   ↳ `image_path` | string | Image path to the country flag |
+
+### `sportmonks_core_get_country`
+
+Retrieve a single country by its ID from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `countryId` | string | Yes | The unique id of the country |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent;regions\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `country` | object | The requested country object |
+|   ↳ `id` | number | Unique id of the country |
+|   ↳ `continent_id` | number | Continent of the country |
+|   ↳ `name` | string | Name of the country |
+|   ↳ `official_name` | string | Official name of the country |
+|   ↳ `fifa_name` | string | Official FIFA short code name |
+|   ↳ `iso2` | string | Two letter country code |
+|   ↳ `iso3` | string | Three letter country code |
+|   ↳ `latitude` | string | Latitude position of the country |
+|   ↳ `longitude` | string | Longitude position of the country |
+|   ↳ `geonameid` | number | Official geonameid |
+|   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
+|   ↳ `image_path` | string | Image path to the country flag |
+
+### `sportmonks_core_search_countries`
+
+Search for countries by name from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The country name to search for \(e.g. Brazil\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. continent\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `countries` | array | Array of country objects matching the search query |
+|   ↳ `id` | number | Unique id of the country |
+|   ↳ `continent_id` | number | Continent of the country |
+|   ↳ `name` | string | Name of the country |
+|   ↳ `official_name` | string | Official name of the country |
+|   ↳ `fifa_name` | string | Official FIFA short code name |
+|   ↳ `iso2` | string | Two letter country code |
+|   ↳ `iso3` | string | Three letter country code |
+|   ↳ `latitude` | string | Latitude position of the country |
+|   ↳ `longitude` | string | Longitude position of the country |
+|   ↳ `geonameid` | number | Official geonameid |
+|   ↳ `borders` | array | Neighbouring countries \(ISO3 codes\) |
+|   ↳ `image_path` | string | Image path to the country flag |
+
+### `sportmonks_core_get_regions`
+
+Retrieve all regions from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;cities\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `regions` | array | Array of region objects |
+|   ↳ `id` | number | Unique id of the region |
+|   ↳ `country_id` | number | Country of the region |
+|   ↳ `name` | string | Name of the region |
+
+### `sportmonks_core_get_region`
+
+Retrieve a single region by its ID from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `regionId` | string | Yes | The unique id of the region |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. country;cities\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `region` | object | The requested region object |
+|   ↳ `id` | number | Unique id of the region |
+|   ↳ `country_id` | number | Country of the region |
+|   ↳ `name` | string | Name of the region |
+
+### `sportmonks_core_get_cities`
+
+Retrieve all cities from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
+| `filters` | string | No | Filters to apply |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cities` | array | Array of city objects |
+|   ↳ `id` | number | Unique id of the city |
+|   ↳ `country_id` | number | Country of the city |
+|   ↳ `region` | number | Region of the city |
+|   ↳ `name` | string | Name of the city |
+|   ↳ `latitude` | string | Latitude of the city |
+|   ↳ `longitude` | string | Longitude of the city |
+|   ↳ `geonameid` | number | Official geonameid of the city |
+
+### `sportmonks_core_get_city`
+
+Retrieve a single city by its ID from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `cityId` | string | Yes | The unique id of the city |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `city` | object | The requested city object |
+|   ↳ `id` | number | Unique id of the city |
+|   ↳ `country_id` | number | Country of the city |
+|   ↳ `region` | number | Region of the city |
+|   ↳ `name` | string | Name of the city |
+|   ↳ `latitude` | string | Latitude of the city |
+|   ↳ `longitude` | string | Longitude of the city |
+|   ↳ `geonameid` | number | Official geonameid of the city |
+
+### `sportmonks_core_search_cities`
+
+Search for cities by name from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `query` | string | Yes | The city name to search for \(e.g. London\) |
+| `include` | string | No | Semicolon-separated relations to enrich the response \(e.g. region\) |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `cities` | array | Array of city objects matching the search query |
+|   ↳ `id` | number | Unique id of the city |
+|   ↳ `country_id` | number | Country of the city |
+|   ↳ `region` | number | Region of the city |
+|   ↳ `name` | string | Name of the city |
+|   ↳ `latitude` | string | Latitude of the city |
+|   ↳ `longitude` | string | Longitude of the city |
+|   ↳ `geonameid` | number | Official geonameid of the city |
+
+### `sportmonks_core_get_types`
+
+Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `per_page` | string | No | Number of results per page \(max 50, default 25\) |
+| `page` | string | No | Page number to retrieve |
+| `order` | string | No | Order direction \(asc or desc\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `types` | array | Array of type objects |
+|   ↳ `id` | number | Unique id of the type |
+|   ↳ `parent_id` | number | Parent type of the type |
+|   ↳ `name` | string | Name of the type |
+|   ↳ `code` | string | Code of the type |
+|   ↳ `developer_name` | string | Developer name of the type |
+|   ↳ `group` | string | Group the type falls under |
+|   ↳ `description` | string | Description of the type |
+
+### `sportmonks_core_get_type`
+
+Retrieve a single type by its ID from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+| `typeId` | string | Yes | The unique id of the type |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `type` | object | The requested type object |
+|   ↳ `id` | number | Unique id of the type |
+|   ↳ `parent_id` | number | Parent type of the type |
+|   ↳ `name` | string | Name of the type |
+|   ↳ `code` | string | Code of the type |
+|   ↳ `developer_name` | string | Developer name of the type |
+|   ↳ `group` | string | Group the type falls under |
+|   ↳ `description` | string | Description of the type |
+
+### `sportmonks_core_get_timezones`
+
+Retrieve all supported time zones (IANA names) from the Sportmonks Core API
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Sportmonks API token |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `timezones` | array | Array of supported IANA time zone names \(e.g. Europe/London\) |
+
+

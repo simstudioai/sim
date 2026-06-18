@@ -58,6 +58,7 @@ import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
+  applyTurnTerminal,
   createStreamLoopContext,
   dispatchStreamEvent,
   finalizeResidualToolCalls,
@@ -2010,9 +2011,7 @@ export function useChat(
           if (parsed.stream?.streamId) {
             streamIdRef.current = parsed.stream.streamId
           }
-          const eventCursor =
-            parsed.stream?.cursor ??
-            (typeof parsed.seq === 'number' ? String(parsed.seq) : undefined)
+          const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
           if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
             continue
           }
@@ -2025,7 +2024,7 @@ export function useChat(
         }
       } finally {
         if (state.sawStreamError && !state.sawCompleteEvent) {
-          finalizeResidualToolCalls(state.blocks, 'error')
+          applyTurnTerminal(state.model, 'error')
           ops.flush()
         }
         if (state.scheduledTextFlushFrame !== null) {
@@ -2914,6 +2913,36 @@ export function useChat(
   const finalize = useCallback(
     (options?: { error?: boolean; targetChatId?: string }) => {
       const isError = !!options?.error
+      if (isError) {
+        const blocks = streamingBlocksRef.current
+        if (blocks.some((block) => block.toolCall?.status === 'executing')) {
+          finalizeResidualToolCalls(blocks, 'error')
+          const assistantId =
+            activeTurnRef.current?.assistantMessageId ??
+            (streamIdRef.current ? getLiveAssistantMessageId(streamIdRef.current) : undefined)
+          const activeChatId = options?.targetChatId ?? chatIdRef.current
+          if (assistantId && activeChatId) {
+            const snapshot = buildAssistantSnapshotMessage({
+              id: assistantId,
+              content: streamingContentRef.current,
+              contentBlocks: blocks,
+              ...(streamRequestIdRef.current ? { requestId: streamRequestIdRef.current } : {}),
+            })
+            upsertChatHistory(activeChatId, (current) => ({
+              ...current,
+              messages: current.messages.map((message) =>
+                message.id === assistantId ? snapshot : message
+              ),
+            }))
+          } else if (assistantId) {
+            setPendingMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId ? { ...message, contentBlocks: [...blocks] } : message
+              )
+            )
+          }
+        }
+      }
       const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
       const hasQueuedFollowUp = !isError && (queue?.length ?? 0) > 0
       reconcileTerminalPreviewSessions()
@@ -2934,6 +2963,7 @@ export function useChat(
       notifyTurnEnded,
       reconcileTerminalPreviewSessions,
       setTransportIdle,
+      upsertChatHistory,
     ]
   )
   finalizeRef.current = finalize

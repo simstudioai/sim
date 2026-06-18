@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-17",
+  "updatedAt": "2026-06-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -14932,6 +14932,217 @@
       "integrationType": "email"
     },
     {
+      "type": "sportmonks",
+      "slug": "sportmonks",
+      "name": "Sportmonks",
+      "description": "Access Sportmonks football, motorsport, odds, and reference data",
+      "longDescription": "Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, teams, squads, players, standings, and topscorers. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.",
+      "bgColor": "#171534",
+      "iconName": "SportmonksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sportmonks",
+      "operations": [
+        {
+          "name": "Get Live Football Scores",
+          "description": "Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks"
+        },
+        {
+          "name": "Get Inplay Football Scores",
+          "description": "Retrieve all fixtures that are currently being played (in-play) from Sportmonks"
+        },
+        {
+          "name": "Get Football Fixtures by Date",
+          "description": "Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Get Football Fixtures by Date Range",
+          "description": "Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days."
+        },
+        {
+          "name": "Get Football Fixture by ID",
+          "description": "Retrieve a single football fixture by its ID from Sportmonks"
+        },
+        {
+          "name": "Get Football Head to Head",
+          "description": "Retrieve the head-to-head fixtures between two teams from Sportmonks"
+        },
+        {
+          "name": "Get Football Leagues",
+          "description": "Retrieve all football leagues available within your Sportmonks subscription"
+        },
+        {
+          "name": "Get Football League by ID",
+          "description": "Retrieve a single football league by its ID from Sportmonks"
+        },
+        {
+          "name": "Search Football Teams",
+          "description": "Search for football teams by name from Sportmonks"
+        },
+        {
+          "name": "Get Football Team by ID",
+          "description": "Retrieve a single football team by its ID from Sportmonks"
+        },
+        {
+          "name": "Get Football Team Squad",
+          "description": "Retrieve the current domestic squad for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Search Football Players",
+          "description": "Search for football players by name from Sportmonks"
+        },
+        {
+          "name": "Get Football Player by ID",
+          "description": "Retrieve a single football player by their ID from Sportmonks"
+        },
+        {
+          "name": "Get Football Standings by Season",
+          "description": "Retrieve the full league standings table for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Get Football Topscorers by Season",
+          "description": "Retrieve the topscorers (goals, assists, cards) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Get Live Motorsport Scores",
+          "description": "Retrieve all live motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Fixtures by Date",
+          "description": "Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Fixture by ID",
+          "description": "Retrieve a single motorsport fixture (session) by its ID from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Drivers",
+          "description": "Retrieve all motorsport drivers from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Driver by ID",
+          "description": "Retrieve a single motorsport driver by their ID from Sportmonks"
+        },
+        {
+          "name": "Search Motorsport Drivers",
+          "description": "Search for motorsport drivers by name from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Teams",
+          "description": "Retrieve all motorsport teams (constructors) from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Team by ID",
+          "description": "Retrieve a single motorsport team (constructor) by its ID from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Driver Standings by Season",
+          "description": "Retrieve the drivers championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Team Standings by Season",
+          "description": "Retrieve the constructors championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Laps by Fixture",
+          "description": "Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Get Motorsport Pitstops by Fixture",
+          "description": "Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Get Pre-match Odds by Fixture",
+          "description": "Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get In-play Odds by Fixture",
+          "description": "Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get Bookmakers",
+          "description": "Retrieve all bookmakers from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get Bookmaker by ID",
+          "description": "Retrieve a single bookmaker by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Search Bookmakers",
+          "description": "Search for bookmakers by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get Betting Markets",
+          "description": "Retrieve all betting markets from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get Betting Market by ID",
+          "description": "Retrieve a single betting market by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Search Betting Markets",
+          "description": "Search for betting markets by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Get Continents",
+          "description": "Retrieve all continents from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Continent by ID",
+          "description": "Retrieve a single continent by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Countries",
+          "description": "Retrieve all countries from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Country by ID",
+          "description": "Retrieve a single country by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Search Countries",
+          "description": "Search for countries by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Regions",
+          "description": "Retrieve all regions from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Region by ID",
+          "description": "Retrieve a single region by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Cities",
+          "description": "Retrieve all cities from the Sportmonks Core API"
+        },
+        {
+          "name": "Get City by ID",
+          "description": "Retrieve a single city by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Search Cities",
+          "description": "Search for cities by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Types",
+          "description": "Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Type by ID",
+          "description": "Retrieve a single type by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Get Timezones",
+          "description": "Retrieve all supported time zones (IANA names) from the Sportmonks Core API"
+        }
+      ],
+      "operationCount": 48,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "square",
       "slug": "square",
       "name": "Square",
@@ -15413,7 +15624,7 @@
       "slug": "supabase",
       "name": "Supabase",
       "description": "Use Supabase database",
-      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
+      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
       "bgColor": "#1C1C1C",
       "iconName": "SupabaseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/supabase",
@@ -15457,6 +15668,10 @@
         {
           "name": "Call RPC Function",
           "description": "Call a PostgreSQL function in Supabase"
+        },
+        {
+          "name": "Invoke Edge Function",
+          "description": "Invoke a Supabase Edge Function over HTTP"
         },
         {
           "name": "Introspect Schema",
@@ -15507,7 +15722,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 22,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",
