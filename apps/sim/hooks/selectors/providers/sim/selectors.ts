@@ -14,7 +14,6 @@ import type {
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
 import type { WorkflowFolder } from '@/stores/folders/types'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /**
@@ -94,25 +93,24 @@ export const simSelectors = {
     getQueryKey: ({ context, search }: SelectorQueryArgs) => [
       ...selectorKeys.all,
       'table.columns',
+      context.workspaceId ?? 'none',
       context.tableId ?? 'none',
       search ?? '',
     ],
-    enabled: ({ context }) => Boolean(context.tableId),
+    enabled: ({ context }) => Boolean(context.workspaceId && context.tableId),
     fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
-      const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-      if (!workspaceId || !context.tableId) return []
+      if (!context.workspaceId || !context.tableId) return []
       const table = await getQueryClient().ensureQueryData(
-        getTableDetailQueryOptions(workspaceId, context.tableId)
+        getTableDetailQueryOptions(context.workspaceId, context.tableId)
       )
       return (table.schema?.columns ?? [])
         .filter((col) => col.unique)
         .map((col) => ({ id: getColumnId(col), label: col.name }))
     },
     fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
-      const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
-      if (!detailId || !workspaceId || !context.tableId) return null
+      if (!detailId || !context.workspaceId || !context.tableId) return null
       const table = await getQueryClient().ensureQueryData(
-        getTableDetailQueryOptions(workspaceId, context.tableId)
+        getTableDetailQueryOptions(context.workspaceId, context.tableId)
       )
       const col = (table.schema?.columns ?? []).find((c) => getColumnId(c) === detailId)
       return col ? { id: getColumnId(col), label: col.name } : null
