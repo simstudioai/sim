@@ -92,14 +92,16 @@ export const MothershipView = memo(
       enabled: active?.type === 'file',
     })
     const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
+    const isActiveCsv = active?.type === 'file' && getFileExtension(active.title) === 'csv'
 
     const isActivePreviewable =
       canEdit &&
       active?.type === 'file' &&
       RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
-      // Wait for the record before deciding — otherwise the toggle flashes on for a large CSV
-      // until its size loads and we can tell it's read-only.
-      !filesLoading &&
+      // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
+      // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
+      // other rich types (markdown, html, svg, …) on the file list loading.
+      !(isActiveCsv && filesLoading) &&
       !(activeFile && isCsvStreamOnly(activeFile))
 
     return (
