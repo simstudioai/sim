@@ -84,7 +84,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         schema: { columns: [{ name: 'column_1', type: 'string' }] },
         workspaceId,
         userId,
-        maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
         jobStatus: 'running',
         jobType: 'import',

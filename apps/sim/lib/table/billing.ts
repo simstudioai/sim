@@ -13,15 +13,32 @@ import { getWorkspaceBilledAccountUserId } from '@/lib/workspaces/utils'
 const logger = createLogger('TableBilling')
 
 /**
+ * Plan lookups hit billing + subscription tables (2-3 queries). Row-limit checks
+ * run on every insert, so a short TTL keeps the hot path off the DB. Plan changes
+ * are rare and enforcement is best-effort, so brief staleness is acceptable.
+ */
+const LIMITS_CACHE_TTL_MS = 30_000
+/** Hard ceiling on cached workspaces; a sweep drops expired entries before this is exceeded so the Map can't grow unbounded. */
+const LIMITS_CACHE_MAX_ENTRIES = 5_000
+const limitsCache = new Map<string, { limits: TablePlanLimits; expiresAt: number }>()
+
+/**
  * Gets the table limits for a workspace based on its billing plan.
  *
  * Uses the workspace's billed account user to determine the subscription plan,
- * then returns the corresponding table limits.
+ * then returns the corresponding table limits. Resolved limits are cached for
+ * {@link LIMITS_CACHE_TTL_MS}; the free-tier error fallback is never cached.
  *
  * @param workspaceId - The workspace ID to get limits for
  * @returns Table limits based on the workspace's billing plan
  */
 export async function getWorkspaceTableLimits(workspaceId: string): Promise<TablePlanLimits> {
+  const cached = limitsCache.get(workspaceId)
+  if (cached) {
+    if (cached.expiresAt > Date.now()) return cached.limits
+    limitsCache.delete(workspaceId)
+  }
+
   const planLimits = getTablePlanLimits()
 
   try {
@@ -29,6 +46,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
 
     if (!billedAccountUserId) {
       logger.warn('No billed account found for workspace, using free tier limits', { workspaceId })
+      cacheLimits(workspaceId, planLimits.free)
       return planLimits.free
     }
 
@@ -44,6 +62,7 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       limits,
     })
 
+    cacheLimits(workspaceId, limits)
     return limits
   } catch (error) {
     logger.error('Error getting workspace table limits, falling back to free tier', {
@@ -51,6 +70,78 @@ export async function getWorkspaceTableLimits(workspaceId: string): Promise<Tabl
       error,
     })
     return planLimits.free
+  }
+}
+
+function cacheLimits(workspaceId: string, limits: TablePlanLimits): void {
+  // Keep the Map bounded for a new key: sweep expired entries, then (if a burst of
+  // all-fresh entries still sits at the cap) evict oldest-inserted ones. Map iteration
+  // is insertion order, so the first key is the oldest. Net: size never exceeds the cap.
+  if (limitsCache.size >= LIMITS_CACHE_MAX_ENTRIES && !limitsCache.has(workspaceId)) {
+    const now = Date.now()
+    for (const [key, entry] of limitsCache) {
+      if (entry.expiresAt <= now) limitsCache.delete(key)
+    }
+    while (limitsCache.size >= LIMITS_CACHE_MAX_ENTRIES) {
+      const oldest = limitsCache.keys().next().value
+      if (oldest === undefined) break
+      limitsCache.delete(oldest)
+    }
+  }
+  limitsCache.set(workspaceId, { limits, expiresAt: Date.now() + LIMITS_CACHE_TTL_MS })
+}
+
+/**
+ * Thrown by {@link assertRowCapacity} when a write would exceed the workspace's
+ * current plan row limit. The message includes the lowercase `row limit` token so
+ * `rowWriteErrorResponse` maps it to a 400 toast carrying the real reason.
+ */
+export class TableRowLimitError extends Error {
+  constructor(readonly limit: number) {
+    super(
+      `This table has reached its row limit (${limit.toLocaleString('en-US')} rows) on your current plan.`
+    )
+    this.name = 'TableRowLimitError'
+  }
+}
+
+/**
+ * Whether adding `addedRows` to `currentRowCount` would cross `limit`. A negative
+ * limit means unlimited. Single source of truth for the comparison so callers that
+ * fetch the limit themselves (e.g. inside a transaction, or to build a custom
+ * message) stay consistent with {@link assertRowCapacity}.
+ */
+export function wouldExceedRowLimit(
+  limit: number,
+  currentRowCount: number,
+  addedRows: number
+): boolean {
+  return limit >= 0 && currentRowCount + addedRows > limit
+}
+
+/**
+ * Best-effort capacity check against the workspace's CURRENT plan limit.
+ *
+ * Not transactional: reads the (trigger-maintained, possibly slightly stale) row
+ * count and the cached plan limit outside any lock, so concurrent writers may
+ * overshoot by a small amount. It rejects once the count is at/over the limit, so
+ * a table can't run away past its plan.
+ *
+ * Resolve the limit OUTSIDE any open transaction — `getMaxRowsPerTable` may hit the
+ * billing/subscription tables on the global pool, and doing that while holding a tx
+ * connection (and locks) risks pool starvation. Callers already inside a tx should
+ * fetch the limit up front and use {@link wouldExceedRowLimit} instead.
+ *
+ * @throws {TableRowLimitError} if `currentRowCount + addedRows` exceeds the limit
+ */
+export async function assertRowCapacity(params: {
+  workspaceId: string
+  currentRowCount: number
+  addedRows: number
+}): Promise<void> {
+  const limit = await getMaxRowsPerTable(params.workspaceId)
+  if (wouldExceedRowLimit(limit, params.currentRowCount, params.addedRows)) {
+    throw new TableRowLimitError(limit)
   }
 }
 
@@ -80,7 +171,7 @@ async function canCreateTable(
  * @param workspaceId - The workspace ID
  * @returns Maximum rows per table (-1 for unlimited)
  */
-async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
+export async function getMaxRowsPerTable(workspaceId: string): Promise<number> {
   const limits = await getWorkspaceTableLimits(workspaceId)
   return limits.maxRowsPerTable
 }
