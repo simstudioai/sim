@@ -60,6 +60,12 @@ export interface TableImportPayload {
   mapping?: CsvHeaderMapping
   /** (append/replace) CSV headers to auto-create as new columns (types inferred from the sample). */
   createColumns?: string[]
+  /**
+   * Keep the source file after the import is terminal. Set when importing an existing workspace
+   * file (the file viewer's "Import as a table") so the user's file isn't deleted. Defaults to
+   * deleting, since the normal flow uploads a single-use copy per import.
+   */
+  keepSource?: boolean
 }
 
 /**
@@ -350,9 +356,12 @@ export async function runTableImport(payload: TableImportPayload): Promise<void>
     // Release the storage stream so its HTTP connection doesn't leak on failure.
     source?.destroy()
     // The uploaded source file is single-use (a fresh upload per import) — delete it once the
-    // import is terminal so the workspace bucket doesn't accumulate. Best-effort.
-    await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
-      logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
-    })
+    // import is terminal so the workspace bucket doesn't accumulate. Best-effort. When importing
+    // an existing workspace file (keepSource), the file is the user's own — never delete it.
+    if (!payload.keepSource) {
+      await deleteFile({ key: fileKey, context: 'workspace' }).catch((err) => {
+        logger.warn(`[${requestId}] Failed to delete imported file`, { fileKey, err })
+      })
+    }
   }
 }

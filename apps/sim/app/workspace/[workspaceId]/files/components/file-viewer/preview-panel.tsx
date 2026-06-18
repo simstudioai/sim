@@ -31,11 +31,13 @@ import 'prismjs/components/prism-typescript'
 import 'prismjs/components/prism-yaml'
 import 'prismjs/components/prism-sql'
 import 'prismjs/components/prism-python'
+import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { cn } from '@/lib/core/utils/cn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useScrollAnchor } from '@/hooks/use-scroll-anchor'
 import { RESUME_SKIP_THRESHOLD, useSmoothText } from '@/hooks/use-smooth-text'
+import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { PreviewLoadingFrame } from './preview-shared'
 import { ZoomablePreview } from './zoomable-preview'
@@ -76,6 +78,8 @@ interface PreviewPanelProps {
   content: string
   mimeType: string | null
   filename: string
+  workspaceId: string
+  fileKey: string
   isStreaming?: boolean
   disableAutoScroll?: boolean
   onCheckboxToggle?: (checkboxIndex: number, checked: boolean) => void
@@ -85,6 +89,8 @@ export const PreviewPanel = memo(function PreviewPanel({
   content,
   mimeType,
   filename,
+  workspaceId,
+  fileKey,
   isStreaming,
   disableAutoScroll,
   onCheckboxToggle,
@@ -101,7 +107,14 @@ export const PreviewPanel = memo(function PreviewPanel({
       />
     )
   if (previewType === 'html') return <HtmlPreview content={content} />
-  if (previewType === 'csv') return <CsvPreview content={content} />
+  if (previewType === 'csv')
+    return (
+      <CsvPreview
+        content={content}
+        workspaceId={workspaceId}
+        file={{ key: fileKey, name: filename }}
+      />
+    )
   if (previewType === 'svg') return <SvgPreview content={content} />
   if (previewType === 'mermaid')
     return <MermaidFilePreview content={content} isStreaming={isStreaming} />
@@ -1150,8 +1163,17 @@ function MermaidFilePreview({ content, isStreaming }: { content: string; isStrea
   )
 }
 
-const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
-  const { headers, rows } = useMemo(() => parseCsv(content), [content])
+const CsvPreview = memo(function CsvPreview({
+  content,
+  workspaceId,
+  file,
+}: {
+  content: string
+  workspaceId: string
+  file: CsvImportFileDescriptor
+}) {
+  const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
+  useCsvTruncationImport(workspaceId, file, truncated)
 
   if (headers.length === 0) {
     return (
@@ -1168,15 +1190,22 @@ const CsvPreview = memo(function CsvPreview({ content }: { content: string }) {
   )
 })
 
-function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+/**
+ * Parses CSV text for the inline preview, capping at {@link CSV_PREVIEW_MAX_ROWS} rows so a
+ * small-but-many-rows file doesn't render thousands of `<tr>`s. Slices before parsing so only
+ * the capped rows are processed; `truncated` drives the "Import as a table" footer.
+ */
+function parseCsv(text: string): { headers: string[]; rows: string[][]; truncated: boolean } {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)
-  if (lines.length === 0) return { headers: [], rows: [] }
+  if (lines.length === 0) return { headers: [], rows: [], truncated: false }
 
   const delimiter = detectDelimiter(lines[0])
   const headers = parseCsvLine(lines[0], delimiter)
-  const rows = lines.slice(1).map((line) => parseCsvLine(line, delimiter))
+  const dataLines = lines.slice(1)
+  const truncated = dataLines.length > CSV_PREVIEW_MAX_ROWS
+  const rows = dataLines.slice(0, CSV_PREVIEW_MAX_ROWS).map((line) => parseCsvLine(line, delimiter))
 
-  return { headers, rows }
+  return { headers, rows, truncated }
 }
 
 function detectDelimiter(line: string): string {
