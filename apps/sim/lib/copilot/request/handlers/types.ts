@@ -167,28 +167,23 @@ export function abortPendingToolIfStreamDead(
 }
 
 /**
- * Extract the `ui` object from a typed tool_call payload. The Go backend enriches
- * tool_call events with `ui: { requiresConfirmation, clientExecutable, ... }`.
+ * Extract the behavioral `ui` flags from a typed tool_call payload. The Go
+ * backend enriches tool_call events with `ui: { clientExecutable, internal,
+ * hidden }`; presentation (title/icon) is derived client-side from the tool name.
  */
 export function getToolCallUI(data: MothershipStreamV1ToolCallDescriptor): {
-  requiresConfirmation: boolean
   clientExecutable: boolean
   simExecutable: boolean
   internal: boolean
   hidden: boolean
-  title?: string
-  phaseLabel?: string
 } {
   const raw = asRecord(data.ui)
   return {
-    requiresConfirmation: raw.requiresConfirmation === true || data.requiresConfirmation === true,
     clientExecutable:
       raw.clientExecutable === true || data.executor === MothershipStreamV1ToolExecutor.client,
     simExecutable: data.executor === MothershipStreamV1ToolExecutor.sim,
     internal: raw.internal === true,
     hidden: raw.hidden === true,
-    title: typeof raw.title === 'string' ? raw.title : undefined,
-    phaseLabel: typeof raw.phaseLabel === 'string' ? raw.phaseLabel : undefined,
   }
 }
 

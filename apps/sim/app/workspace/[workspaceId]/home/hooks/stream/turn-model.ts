@@ -477,9 +477,9 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
           tsMs
         )
         if (isRecord(payload.arguments)) node.args = payload.arguments
+        // Tool-call titles are derived from the tool name (+args) at serialize
+        // time; the stream only carries behavioral flags now.
         const ui = isRecord(payload.ui) ? payload.ui : undefined
-        const uiTitle = ui ? (asString(ui.title) ?? asString(ui.phaseLabel)) : undefined
-        if (uiTitle) node.uiTitle = uiTitle
         if (ui?.hidden === true) node.hidden = true
       } else if (phase === MothershipStreamV1ToolPhase.args_delta) {
         const node = upsertToolNode(
