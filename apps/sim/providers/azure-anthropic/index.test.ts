@@ -35,7 +35,12 @@ const {
 })
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: mockAnthropic }))
-vi.mock('@/lib/core/config/env', () => ({ env: envState }))
+vi.mock('@/lib/core/config/env', () => ({
+  env: envState,
+  getEnv: (key: string) => (envState as Record<string, string | undefined>)[key],
+  isTruthy: (v: unknown) => v === true || v === 'true' || v === '1',
+  isFalsy: (v: unknown) => v === false || v === 'false' || v === '0',
+}))
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidate,
   createPinnedFetch: mockCreatePinnedFetch,
