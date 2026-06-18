@@ -150,6 +150,31 @@ function findWorkspaceFileNodeInSpan(model: TurnModel, spanId: string): ToolNode
   return undefined
 }
 
+/**
+ * The file agent writes a file as strictly sequential `workspace_file` +
+ * `edit_content` section pairs, waiting for each to finish before the next. So
+ * when a new section's `workspace_file` opens, any earlier `workspace_file` row
+ * still `running` in the same span is a completed section whose closing
+ * `edit_content` result was reordered or dropped — finalize it as success so its
+ * "writing" spinner resolves when the next section starts, instead of lingering
+ * until the turn-terminal sweep. A no-op on the happy path (prior rows already
+ * settled on their own result).
+ */
+function finalizeStaleWorkspaceFiles(model: TurnModel, spanId: string): void {
+  for (const id of model.order) {
+    const node = model.nodes.get(id)
+    if (
+      node?.kind === 'tool' &&
+      node.spanId === spanId &&
+      node.name === WORKSPACE_FILE_TOOL &&
+      node.status === 'running'
+    ) {
+      node.status = 'success'
+      node.streamingArgs = undefined
+    }
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -437,6 +462,11 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
             drainBufferedResult(model, rawToolCallId, parent)
             break
           }
+        }
+        // A new file section opening settles any earlier still-running section row
+        // in this span (the file agent writes sections sequentially).
+        if (toolName === WORKSPACE_FILE_TOOL && !model.nodes.has(rawToolCallId)) {
+          finalizeStaleWorkspaceFiles(model, spanId)
         }
         const node = upsertToolNode(
           model,

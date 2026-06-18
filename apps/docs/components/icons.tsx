@@ -1958,6 +1958,24 @@ export function WhatsAppIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function SportmonksIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      {...props}
+      viewBox='0 0 25 24'
+      fill='none'
+      fillRule='evenodd'
+      xmlns='http://www.w3.org/2000/svg'
+    >
+      <path
+        d='M11.857 8.546c1.893 0 3.517.678 4.872 2.033 1.355 1.336 2.032 2.96 2.032 4.872 0 1.91-.677 3.535-2.032 4.871-1.355 1.355-2.979 2.032-4.872 2.032H1V17.093h10.857c.446 0 .825-.157 1.142-.473.334-.334.5-.724.5-1.17 0-.445-.166-.835-.5-1.17a1.558 1.558 0 00-1.142-.472H7.905c-1.912 0-3.537-.677-4.873-2.032C1.678 10.421 1 8.796 1 6.903 1 4.993 1.678 3.368 3.033 2.032 4.368.678 5.992 0 7.905 0h10.188V5.263H7.904a1.65 1.65 0 00-1.17.473 1.586 1.586 0 00-.472 1.169c0 .445.157.835.473 1.17.334.315.724.472 1.17.472h3.952z'
+        fill='currentColor'
+      />
+      <circle cx='21.27' cy='20.123' r='2.732' fill='#FF0F50' />
+    </svg>
+  )
+}
+
 export function SquareIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox='0 0 501.42 501.42' xmlns='http://www.w3.org/2000/svg'>

@@ -381,6 +381,24 @@ describe('reduceEvent — edit_content row merge', () => {
     expect(tool(m, 'wf-1').result?.success).toBe(true)
     expect(m.bufferedResults.has('ec-1')).toBe(false)
   })
+
+  it('finalizes a stale running section row when the next section opens', () => {
+    const sub: Scope = { lane: 'subagent', spanId: 'S1' }
+    const m = apply([
+      spanStart(1, 'S1', 'file', 'tc-file'),
+      // Section 1: the workspace_file row is reopened by its edit_content, but the
+      // edit's closing result is reordered/dropped — wf-1 is left running.
+      toolCall(2, 'wf-1', 'workspace_file', sub),
+      toolResult(3, 'wf-1', true, undefined, sub),
+      toolCall(4, 'ec-1', 'edit_content', sub),
+      // Section 2 opens before section 1's edit result lands.
+      toolCall(5, 'wf-2', 'workspace_file', sub),
+    ])
+    // The previous section settles instead of spinning until the turn terminal...
+    expect(tool(m, 'wf-1').status).toBe('success')
+    // ...and the new section's row is the live write.
+    expect(tool(m, 'wf-2').status).toBe('running')
+  })
 })
 
 describe('reduceEvent — error tag + compaction coverage', () => {
