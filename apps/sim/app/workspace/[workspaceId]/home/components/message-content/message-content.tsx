@@ -1,14 +1,14 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { stripVersionSuffix } from '@sim/utils/string'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
 import { ClientToolCallState } from '@/lib/copilot/tools/client/tool-call-state'
+import { getToolDisplayTitle, humanizeToolName } from '@/lib/copilot/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
-import { SUBAGENT_LABELS, TOOL_UI_METADATA } from '../../types'
+import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
 import {
   AgentGroup,
@@ -84,16 +84,9 @@ function isHiddenToolCall(toolName: string | undefined): boolean {
   return isToolHiddenInUi(toolName)
 }
 
-function formatToolName(name: string): string {
-  return stripVersionSuffix(name)
-    .split('_')
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ')
-}
-
 function resolveAgentLabel(key: string): string {
   if (key === 'mothership') return 'Sim'
-  return SUBAGENT_LABELS[key] ?? formatToolName(key)
+  return SUBAGENT_LABELS[key] ?? humanizeToolName(key)
 }
 
 function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
@@ -129,10 +122,7 @@ function getOverrideDisplayTitle(tc: NonNullable<ContentBlock['toolCall']>): str
 function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const displayTitle =
-    overrideDisplayTitle ||
-    tc.displayTitle ||
-    TOOL_UI_METADATA[tc.name as keyof typeof TOOL_UI_METADATA]?.title ||
-    formatToolName(tc.name)
+    overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
 
   return {
     id: tc.id,
