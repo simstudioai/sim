@@ -193,7 +193,7 @@ Generate a thumbnail image of a specific slide in a Google Slides presentation
 | `presentationId` | string | Yes | Google Slides presentation ID |
 | `pageObjectId` | string | Yes | The object ID of the slide/page to get a thumbnail for |
 | `thumbnailSize` | string | No | The size of the thumbnail: SMALL \(200px\), MEDIUM \(800px\), or LARGE \(1600px\). Defaults to MEDIUM. |
-| `mimeType` | string | No | The MIME type of the thumbnail image: PNG or GIF. Defaults to PNG. |
+| `mimeType` | string | No | The MIME type of the thumbnail image: PNG. Defaults to PNG. |
 
 #### Output
 
@@ -539,7 +539,7 @@ Remove bullets/numbering from paragraphs in a shape or table cell.
 
 ### `google_slides_replace_all_shapes_with_image`
 
-Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) and replace it with an image, preserving the shape
+Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) and replace it with an image, preserving the shape's position and bounds.
 
 #### Input
 
@@ -565,7 +565,7 @@ Find every shape whose text matches the given token (e.g. \{\{cover-image\}\}) a
 
 ### `google_slides_replace_image`
 
-Replace the source of an existing image with a new image URL, preserving the image
+Replace the source of an existing image with a new image URL, preserving the image's position, size, and properties.
 
 #### Input
 
@@ -625,7 +625,7 @@ Update image properties — brightness, contrast, transparency, crop, outline, l
 
 ### `google_slides_update_shape_properties`
 
-Update a shape
+Update a shape's appearance — background fill color, outline, link, content alignment, autofit. Pass only the properties you want to change.
 
 #### Input
 
@@ -887,7 +887,7 @@ Update line appearance — color, weight, dash style, arrows, link.
 
 ### `google_slides_update_line_category`
 
-Change a connector line
+Change a connector line's category (STRAIGHT, BENT, or CURVED).
 
 #### Input
 
@@ -1243,7 +1243,7 @@ Refresh an embedded linked Sheets chart so it reflects the latest spreadsheet da
 
 ### `google_slides_replace_all_shapes_with_sheets_chart`
 
-Find every shape matching a text token (e.g. \{\{revenue-chart\}\}) and replace each with the same embedded Sheets chart, preserving the shape
+Find every shape matching a text token (e.g. \{\{revenue-chart\}\}) and replace each with the same embedded Sheets chart, preserving the shape's position and bounds.
 
 #### Input
 

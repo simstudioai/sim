@@ -16,9 +16,25 @@ export const mondayConnectorMeta: ConnectorMeta = {
 
   configFields: [
     {
+      id: 'boardSelector',
+      title: 'Boards',
+      type: 'selector',
+      selectorKey: 'monday.boards',
+      canonicalParamId: 'boardIds',
+      mode: 'basic',
+      multi: true,
+      required: false,
+      placeholder: 'Select boards (empty = all active boards)',
+      description:
+        'Boards to sync. Leave empty to sync items from every active board you can access.',
+    },
+    {
       id: 'boardIds',
       title: 'Board IDs',
       type: 'short-input',
+      canonicalParamId: 'boardIds',
+      mode: 'advanced',
+      multi: true,
       required: false,
       placeholder: 'e.g. 1234567890, 9876543210 (empty = all active boards)',
       description:

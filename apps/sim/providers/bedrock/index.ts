@@ -24,6 +24,7 @@ import {
   generateToolUseId,
   getBedrockInferenceProfileId,
 } from '@/providers/bedrock/utils'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { enrichLastModelSegment } from '@/providers/trace-enrichment'
@@ -138,7 +139,16 @@ export const bedrockProvider: ProviderConfig = {
       }
     }
 
-    const client = new BedrockRuntimeClient(clientConfig)
+    // Key on the full credential (access key id + secret) so a corrected secret
+    // under the same access key id yields a fresh client rather than a stale one.
+    const credentialKey =
+      request.bedrockAccessKeyId && request.bedrockSecretKey
+        ? `${request.bedrockAccessKeyId}:${request.bedrockSecretKey}`
+        : 'default-chain'
+    const client = getCachedProviderClient(
+      `bedrock::${region}::${credentialKey}`,
+      () => new BedrockRuntimeClient(clientConfig)
+    )
 
     const messages: BedrockMessage[] = []
     const systemContent: SystemContentBlock[] = []

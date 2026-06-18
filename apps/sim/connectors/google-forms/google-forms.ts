@@ -3,7 +3,12 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import { googleFormsConnectorMeta, MAX_RESPONSES_PER_FORM } from '@/connectors/google-forms/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { joinTagArray, parseTagDate } from '@/connectors/utils'
+import {
+  buildDriveParentsClause,
+  joinTagArray,
+  parseMultiValue,
+  parseTagDate,
+} from '@/connectors/utils'
 
 const logger = createLogger('GoogleFormsConnector')
 
@@ -448,16 +453,14 @@ function renderFormDocument(form: FormStructure, responses: FormResponse[]): str
 }
 
 /**
- * Builds the Drive `q` query that selects form files, optionally scoped to a
- * folder. Single quotes and backslashes in the folder ID are escaped to prevent
- * query injection.
+ * Builds the Drive `q` query that selects form files, optionally scoped to one
+ * or more folders. Single quotes and backslashes in folder IDs are escaped to
+ * prevent query injection.
  */
-function buildDriveQuery(folderId?: string): string {
+function buildDriveQuery(folderIds: string[]): string {
   const parts = ['trashed = false', `mimeType = '${FORM_MIME_TYPE}'`]
-  if (folderId?.trim()) {
-    const escaped = folderId.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-    parts.push(`'${escaped}' in parents`)
-  }
+  const parentsClause = buildDriveParentsClause(folderIds)
+  if (parentsClause) parts.push(parentsClause)
   return parts.join(' and ')
 }
 
@@ -479,9 +482,9 @@ export const googleFormsConnector: ConnectorConfig = {
       return { documents: [], hasMore: false }
     }
 
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const queryParams = new URLSearchParams({
-      q: buildDriveQuery(folderId),
+      q: buildDriveQuery(folderIds),
       pageSize: String(DRIVE_PAGE_SIZE),
       orderBy: 'modifiedTime desc',
       fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,createdTime,webViewLink,owners)',
@@ -493,7 +496,7 @@ export const googleFormsConnector: ConnectorConfig = {
     const url = `${DRIVE_API_BASE}/files?${queryParams.toString()}`
 
     logger.info('Listing Google Forms', {
-      folderId: folderId?.trim() || 'all',
+      folderId: folderIds.length > 0 ? folderIds.join(',') : 'all',
       contentScope,
       cursor: cursor ?? 'initial',
     })
@@ -667,7 +670,7 @@ export const googleFormsConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const maxForms = sourceConfig.maxForms as string | undefined
     const maxResponsesPerForm = sourceConfig.maxResponsesPerForm as string | undefined
 
@@ -683,30 +686,38 @@ export const googleFormsConnector: ConnectorConfig = {
     }
 
     try {
-      if (folderId?.trim()) {
-        const url = `${DRIVE_API_BASE}/files/${encodeURIComponent(folderId.trim())}?fields=id,name,mimeType&supportsAllDrives=true`
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+      if (folderIds.length > 0) {
+        for (const folderId of folderIds) {
+          const url = `${DRIVE_API_BASE}/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
+          const response = await fetchWithRetry(
+            url,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
+            VALIDATE_RETRY_OPTIONS
+          )
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { valid: false, error: 'Folder not found. Check the folder ID and permissions.' }
+          if (!response.ok) {
+            if (response.status === 404) {
+              return {
+                valid: false,
+                error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+              }
+            }
+            return {
+              valid: false,
+              error: `Failed to access folder "${folderId}": ${response.status}`,
+            }
           }
-          return { valid: false, error: `Failed to access folder: ${response.status}` }
-        }
 
-        const folder = await response.json()
-        if (folder.mimeType !== FOLDER_MIME_TYPE) {
-          return { valid: false, error: 'The provided ID is not a folder' }
+          const folder = await response.json()
+          if (folder.mimeType !== FOLDER_MIME_TYPE) {
+            return { valid: false, error: `"${folderId}" is not a folder` }
+          }
         }
       } else {
         const url = `${DRIVE_API_BASE}/files?pageSize=1&q=${encodeURIComponent(`mimeType = '${FORM_MIME_TYPE}'`)}&fields=files(id)&supportsAllDrives=true&includeItemsFromAllDrives=true`

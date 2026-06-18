@@ -13,6 +13,7 @@ import { useDocPreviewBinary } from './use-doc-preview-binary'
 
 export type { StreamingMode } from './text-editor-state'
 
+import { CsvTablePreview } from './csv-table-preview'
 import { DocxPreview } from './docx-preview'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
@@ -34,12 +35,35 @@ const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfView
 
 const logger = createLogger('FileViewer')
 
+/**
+ * CSVs at or below this size load fully into the editor (editable, with an inline preview).
+ * Larger CSVs would OOM the browser on `response.text()`, so they render a read-only,
+ * server-streamed preview of the first rows instead (see {@link CsvTablePreview}).
+ */
+const CSV_INLINE_EDIT_MAX_BYTES = 5 * 1024 * 1024
+
 export function isTextEditable(file: { type: string; name: string }): boolean {
   return resolveFileCategory(file.type, file.name) === 'text-editable'
 }
 
 export function isPreviewable(file: { type: string; name: string }): boolean {
   return resolvePreviewType(file.type, file.name) !== null
+}
+
+/**
+ * A CSV larger than {@link CSV_INLINE_EDIT_MAX_BYTES} is shown as a streamed, read-only preview —
+ * the editor would OOM loading the whole file. The viewer renders {@link CsvTablePreview} for it,
+ * and toolbars use this to hide the edit/split/save controls (there is no editor to switch to).
+ */
+export function isCsvStreamOnly(file: {
+  type: string | null
+  name: string
+  size?: number | null
+}): boolean {
+  return (
+    resolvePreviewType(file.type, file.name) === 'csv' &&
+    (file.size ?? 0) > CSV_INLINE_EDIT_MAX_BYTES
+  )
 }
 
 export type PreviewMode = 'editor' | 'split' | 'preview'
@@ -76,6 +100,12 @@ export function FileViewer({
   const category = resolveFileCategory(file.type, file.name)
 
   if (category === 'text-editable') {
+    // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).
+    // Render a streamed, read-only preview of the first rows + an "Import as a table" path instead.
+    if (isCsvStreamOnly(file)) {
+      return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
+    }
+
     return (
       <TextEditor
         file={file}

@@ -53,7 +53,10 @@ export interface CodeExecutionInput {
     copilotToolExecution?: boolean
   }
   isCustomTool?: boolean
-  _sandboxFiles?: Array<{ path: string; content: string; encoding?: 'base64' }>
+  _sandboxFiles?: Array<
+    | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
+    | { type: 'url'; path: string; url: string }
+  >
 }
 
 export interface CodeExecutionOutput extends ToolResponse {

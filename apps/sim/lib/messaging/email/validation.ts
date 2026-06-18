@@ -69,7 +69,6 @@ function hasInvalidPatterns(email: string): boolean {
 
 /**
  * Quick email validation for client-side form feedback.
- * Server-side disposable blocking is handled by better-auth-harmony (55K+ domains).
  */
 export function quickValidateEmail(email: string): EmailValidationResult {
   const checks = {

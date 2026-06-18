@@ -62,7 +62,7 @@ Create and manage custom data tables. Store, query, and manipulate structured da
 
 ### `table_insert_row`
 
-Insert a new row into a table. IMPORTANT: You must use the 
+Insert a new row into a table. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
 #### Input
 
@@ -80,6 +80,8 @@ Insert a new row into a table. IMPORTANT: You must use the
 | `message` | string | Status message |
 
 ### `table_batch_insert_rows`
+
+Insert multiple rows into a table at once (up to $\{TABLE_LIMITS.MAX_BATCH_INSERT_SIZE\} rows)
 
 #### Input
 
@@ -99,7 +101,7 @@ Insert a new row into a table. IMPORTANT: You must use the
 
 ### `table_upsert_row`
 
-Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the 
+Insert or update a row based on unique column constraints. If a row with matching unique field exists, update it; otherwise insert a new row. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the row contents.
 
 #### Input
 
@@ -119,7 +121,7 @@ Insert or update a row based on unique column constraints. If a row with matchin
 
 ### `table_update_row`
 
-Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the 
+Update an existing row in a table. Supports partial updates - only include the fields you want to change. IMPORTANT: You must use the "data" parameter (not "values", "row", "fields", or other variations) to specify the fields to update.
 
 #### Input
 

@@ -65,6 +65,7 @@ import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/componen
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   FileViewer,
+  isCsvStreamOnly,
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -1389,8 +1390,11 @@ export function Files() {
 
   const fileActions = useMemo<ResourceAction[]>(() => {
     if (!selectedFile) return []
-    const canEditText = isTextEditable(selectedFile)
-    const canPreview = isPreviewable(selectedFile)
+    // A large CSV renders as a read-only streamed preview (no editor), so it gets neither the
+    // Save action nor the edit/split/preview toggle — just like a non-editable file.
+    const streamOnly = isCsvStreamOnly(selectedFile)
+    const canEditText = isTextEditable(selectedFile) && !streamOnly
+    const canPreview = isPreviewable(selectedFile) && !streamOnly
     const hasSplitView = canEditText && canPreview
 
     const saveLabel =

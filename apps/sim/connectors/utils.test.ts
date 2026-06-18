@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
+import type { ExternalDocument } from '@/connectors/types'
 
 vi.mock('@/components/icons', () => ({
   JiraIcon: () => null,
@@ -17,12 +18,12 @@ vi.mock('@/components/icons', () => ({
   JiraServiceManagementIcon: () => null,
   S3Icon: () => null,
   GoogleFormsIcon: () => null,
-  AzureDevOpsIcon: () => null,
   xIcon: () => null,
   GranolaIcon: () => null,
   GreenhouseIcon: () => null,
   FathomIcon: () => null,
   RootlyIcon: () => null,
+  AzureIcon: () => null,
 }))
 vi.mock('@/lib/knowledge/documents/utils', () => ({
   fetchWithRetry: vi.fn(),
@@ -59,6 +60,14 @@ import { rootlyConnector } from '@/connectors/rootly/rootly'
 import { s3Connector } from '@/connectors/s3/s3'
 import { sentryConnector } from '@/connectors/sentry/sentry'
 import { typeformConnector } from '@/connectors/typeform/typeform'
+import {
+  ConnectorFileTooLargeError,
+  isSkippedDocument,
+  markSkipped,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  takeIndexableWithinCap,
+} from '@/connectors/utils'
 import { xConnector } from '@/connectors/x/x'
 import { youtubeConnector } from '@/connectors/youtube/youtube'
 
@@ -1132,5 +1141,172 @@ describe('Rootly mapTags', () => {
   it.concurrent('skips resolvedDate when date is invalid', () => {
     const result = mapTags({ resolvedDate: 'garbage' })
     expect(result).toEqual({})
+  })
+})
+
+function streamResponse(chunks: Uint8Array[], onCancel?: () => void): Response {
+  let index = 0
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (index < chunks.length) {
+        controller.enqueue(chunks[index++])
+      } else {
+        controller.close()
+      }
+    },
+    cancel() {
+      onCancel?.()
+    },
+  })
+  return new Response(stream)
+}
+
+describe('readBodyWithLimit', () => {
+  it('returns the full buffer when the streamed body is within the cap', async () => {
+    const chunk = new Uint8Array(1024).fill(65)
+    const result = await readBodyWithLimit(streamResponse([chunk, chunk]), 4096)
+    expect(result).not.toBeNull()
+    expect(result?.byteLength).toBe(2048)
+  })
+
+  it('returns the buffer when the body is exactly at the cap', async () => {
+    const chunk = new Uint8Array(1024).fill(65)
+    const result = await readBodyWithLimit(streamResponse([chunk, chunk]), 2048)
+    expect(result?.byteLength).toBe(2048)
+  })
+
+  it('returns null and cancels the stream once the cap is exceeded', async () => {
+    const onCancel = vi.fn()
+    const chunk = new Uint8Array(1024).fill(65)
+    // Cap is 2048; the third 1KB chunk pushes the total to 3072 and trips the cap,
+    // so the remaining body is never buffered into memory.
+    const result = await readBodyWithLimit(streamResponse([chunk, chunk, chunk], onCancel), 2048)
+    expect(result).toBeNull()
+    expect(onCancel).toHaveBeenCalled()
+  })
+
+  it('enforces the cap on bodyless responses via the arrayBuffer fallback', async () => {
+    // double-cast-allowed: minimal response stub exercising the no-stream branch
+    const oversized = {
+      body: null,
+      arrayBuffer: async () => new Uint8Array(5000).buffer,
+    } as unknown as Response
+    expect(await readBodyWithLimit(oversized, 4096)).toBeNull()
+
+    // double-cast-allowed: minimal response stub exercising the no-stream branch
+    const within = {
+      body: null,
+      arrayBuffer: async () => new Uint8Array(100).buffer,
+    } as unknown as Response
+    expect((await readBodyWithLimit(within, 4096))?.byteLength).toBe(100)
+  })
+})
+
+describe('markSkipped', () => {
+  const stub: ExternalDocument = {
+    externalId: 'file-1',
+    title: 'big.csv',
+    content: 'should be cleared',
+    contentDeferred: true,
+    mimeType: 'text/csv',
+    sourceUrl: 'https://example.com/big.csv',
+    contentHash: 'hash-1',
+    metadata: { fileSize: 20_000_000, path: '/big.csv' },
+  }
+
+  it('clears content and flags the stub as skipped while preserving identity', () => {
+    const skipped = markSkipped(stub, sizeLimitSkipReason(10 * 1024 * 1024))
+    expect(skipped.content).toBe('')
+    expect(skipped.contentDeferred).toBe(false)
+    expect(skipped.skippedReason).toBe('File exceeds the 10MB size limit and was not indexed')
+    // Identity/metadata preserved so change detection + tags still work.
+    expect(skipped.externalId).toBe('file-1')
+    expect(skipped.contentHash).toBe('hash-1')
+    expect(skipped.sourceUrl).toBe('https://example.com/big.csv')
+    expect(skipped.metadata).toEqual({ fileSize: 20_000_000, path: '/big.csv' })
+  })
+
+  it('does not mutate the original stub', () => {
+    markSkipped(stub, 'too big')
+    expect(stub.content).toBe('should be cleared')
+    expect(stub.skippedReason).toBeUndefined()
+  })
+})
+
+describe('ConnectorFileTooLargeError', () => {
+  it('carries the limit and is catchable by type', () => {
+    const error = new ConnectorFileTooLargeError(100 * 1024 * 1024)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toBeInstanceOf(ConnectorFileTooLargeError)
+    expect(error.limitBytes).toBe(100 * 1024 * 1024)
+    expect(error.message).toContain('100MB')
+  })
+})
+
+describe('isSkippedDocument', () => {
+  const base: ExternalDocument = {
+    externalId: 'f1',
+    title: 'f1',
+    content: '',
+    contentDeferred: false,
+    mimeType: 'text/plain',
+    contentHash: 'h',
+    metadata: {},
+  }
+
+  it('is true only for a markSkipped stub', () => {
+    expect(isSkippedDocument(base)).toBe(false)
+    expect(isSkippedDocument(markSkipped(base, 'too big'))).toBe(true)
+  })
+})
+
+describe('takeIndexableWithinCap', () => {
+  const skip = (id: number) => ({ id, skip: true })
+  const file = (id: number) => ({ id, skip: false })
+  const isSkip = (i: { skip: boolean }) => i.skip
+
+  it('passes everything through when the cap is unlimited', () => {
+    const res = takeIndexableWithinCap([file(1), skip(2), file(3)], isSkip, 0, 0)
+    expect(res.documents).toHaveLength(3)
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(false)
+  })
+
+  it('does not count skipped items against the cap', () => {
+    const res = takeIndexableWithinCap([skip(1), skip(2), file(3), file(4), file(5)], isSkip, 2, 0)
+    // both skips + the first two files emitted; the third file is beyond the cap
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2, 3, 4])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('keeps emitting indexable docs even when oversized files crowd the front', () => {
+    // Regression guard: an oversized prefix must not starve the indexable budget.
+    const res = takeIndexableWithinCap([skip(1), skip(2), skip(3), file(4), file(5)], isSkip, 2, 0)
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2, 3, 4, 5])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('stops once the indexable quota is met, dropping trailing items', () => {
+    const res = takeIndexableWithinCap([file(1), file(2), file(3), file(4)], isSkip, 2, 0)
+    expect(res.documents.map((i) => i.id)).toEqual([1, 2])
+    expect(res.indexableCount).toBe(2)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('accounts for indexable docs already counted on previous pages', () => {
+    const res = takeIndexableWithinCap([file(1), file(2), file(3)], isSkip, 5, 4)
+    // only one indexable slot remains (5 - 4)
+    expect(res.documents.map((i) => i.id)).toEqual([1])
+    expect(res.indexableCount).toBe(1)
+    expect(res.capReached).toBe(true)
+  })
+
+  it('emits nothing once the cap is already reached', () => {
+    const res = takeIndexableWithinCap([skip(1), file(2)], isSkip, 3, 3)
+    expect(res.documents).toHaveLength(0)
+    expect(res.indexableCount).toBe(0)
+    expect(res.capReached).toBe(true)
   })
 })
