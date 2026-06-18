@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getPublicFileContentContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
-import { loadServableDocArtifact } from '@/lib/copilot/tools/server/files/doc-compile'
+import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
@@ -20,9 +21,10 @@ const logger = createLogger('PublicFileContentAPI')
  * shares. Disposition (inline vs attachment) is resolved from the file type by
  * {@link createFileResponse}; the public page's Download button uses `<a download>`.
  *
- * Generated office docs are stored as source; {@link loadServableDocArtifact}
- * swaps in their prebuilt compiled binary (read-only, never compiles). Uploaded
- * binaries pass through untouched.
+ * Generated office docs are stored as source; {@link resolveServableDoc} swaps in
+ * their prebuilt compiled binary (read-only, never compiles). Uploaded binaries
+ * pass through untouched. A generated doc whose compiled artifact isn't built yet
+ * returns 409 rather than serving raw source under a binary content type.
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
@@ -42,11 +44,20 @@ export const GET = withRouteHandler(
       const { file } = resolved
       const raw = await downloadFile({ key: file.key, context: 'workspace' })
 
-      const artifact = file.workspaceId
-        ? await loadServableDocArtifact(file.workspaceId, raw, file.originalName)
-        : null
-      const buffer = artifact?.buffer ?? raw
-      const contentType = artifact?.contentType ?? file.contentType
+      const servable = file.workspaceId
+        ? await resolveServableDoc(file.workspaceId, raw, file.originalName)
+        : ({ kind: 'passthrough' } as const)
+
+      if (servable.kind === 'unavailable') {
+        logger.info('Public shared doc not yet compiled', { token, key: file.key })
+        return NextResponse.json(
+          { error: 'This document is still being prepared. Please try again shortly.' },
+          { status: 409 }
+        )
+      }
+
+      const buffer = servable.kind === 'artifact' ? servable.buffer : raw
+      const contentType = servable.kind === 'artifact' ? servable.contentType : file.contentType
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 

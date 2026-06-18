@@ -423,20 +423,29 @@ function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
 }
 
 /**
- * Resolve the servable binary for a stored doc WITHOUT compiling — for read-only
- * consumers (e.g. the public share route). An uploaded binary already carries its
- * format magic and is served as-is (returns null → caller uses the raw bytes); a
- * generated doc stored as source returns its prebuilt content-addressed artifact
- * when present, else null (caller falls back to raw). Never invokes E2B/isolated-vm.
+ * How a read-only consumer (e.g. the public share route) should serve a stored doc
+ * WITHOUT compiling:
+ * - `passthrough` — serve the raw stored bytes as-is (a non-doc file, or an uploaded
+ *   binary that already carries its format magic).
+ * - `artifact` — serve this prebuilt content-addressed compiled binary.
+ * - `unavailable` — a generated doc stored as source whose compiled artifact does
+ *   not exist yet; the raw bytes are source, so serving them under the file's binary
+ *   content type would be corrupt. The caller should signal "not ready" instead.
  */
-export async function loadServableDocArtifact(
+export type ServableDoc =
+  | { kind: 'passthrough' }
+  | { kind: 'artifact'; buffer: Buffer; contentType: string }
+  | { kind: 'unavailable' }
+
+export async function resolveServableDoc(
   workspaceId: string,
   storedBytes: Buffer,
   fileName: string
-): Promise<{ buffer: Buffer; contentType: string } | null> {
+): Promise<ServableDoc> {
   const fmt = await getE2BDocFormat(fileName)
-  if (!fmt) return null
+  if (!fmt) return { kind: 'passthrough' }
   const magic = fmt.ext === 'pdf' ? PDF_MAGIC : ZIP_MAGIC
-  if (bufferStartsWith(storedBytes, magic)) return null
-  return loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
+  if (bufferStartsWith(storedBytes, magic)) return { kind: 'passthrough' }
+  const artifact = await loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
+  return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
 }
