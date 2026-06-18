@@ -3958,7 +3958,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           limit: {
             type: 'number',
-            description: 'Maximum rows to return or affect (optional, default 100)',
+            description:
+              'Maximum rows to return or affect (optional, default 100). Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
           },
           mapping: {
             type: 'object',

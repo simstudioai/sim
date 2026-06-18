@@ -4,11 +4,13 @@ import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/document
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import {
+  buildDriveParentsClause,
   CONNECTOR_MAX_FILE_BYTES,
   ConnectorFileTooLargeError,
   htmlToPlainText,
   joinTagArray,
   markSkipped,
+  parseMultiValue,
   parseTagDate,
   readBodyWithLimit,
   sizeLimitSkipReason,
@@ -137,10 +139,8 @@ interface DriveFile {
 function buildQuery(sourceConfig: Record<string, unknown>): string {
   const parts: string[] = ['trashed = false']
 
-  const folderId = sourceConfig.folderId as string | undefined
-  if (folderId?.trim()) {
-    parts.push(`'${folderId.trim().replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' in parents`)
-  }
+  const parentsClause = buildDriveParentsClause(parseMultiValue(sourceConfig.folderId))
+  if (parentsClause) parts.push(parentsClause)
 
   const fileType = (sourceConfig.fileType as string) || 'all'
   switch (fileType) {
@@ -324,7 +324,7 @@ export const googleDriveConnector: ConnectorConfig = {
     accessToken: string,
     sourceConfig: Record<string, unknown>
   ): Promise<{ valid: boolean; error?: string }> => {
-    const folderId = sourceConfig.folderId as string | undefined
+    const folderIds = parseMultiValue(sourceConfig.folderId)
     const maxFiles = sourceConfig.maxFiles as string | undefined
 
     if (maxFiles && (Number.isNaN(Number(maxFiles)) || Number(maxFiles) <= 0)) {
@@ -333,31 +333,39 @@ export const googleDriveConnector: ConnectorConfig = {
 
     // Verify access to Drive API
     try {
-      if (folderId?.trim()) {
-        // Verify the folder exists and is accessible
-        const url = `https://www.googleapis.com/drive/v3/files/${folderId.trim()}?fields=id,name,mimeType&supportsAllDrives=true`
-        const response = await fetchWithRetry(
-          url,
-          {
-            method: 'GET',
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              Accept: 'application/json',
+      if (folderIds.length > 0) {
+        // Verify each folder exists, is accessible, and is actually a folder
+        for (const folderId of folderIds) {
+          const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(folderId)}?fields=id,name,mimeType&supportsAllDrives=true`
+          const response = await fetchWithRetry(
+            url,
+            {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                Accept: 'application/json',
+              },
             },
-          },
-          VALIDATE_RETRY_OPTIONS
-        )
+            VALIDATE_RETRY_OPTIONS
+          )
 
-        if (!response.ok) {
-          if (response.status === 404) {
-            return { valid: false, error: 'Folder not found. Check the folder ID and permissions.' }
+          if (!response.ok) {
+            if (response.status === 404) {
+              return {
+                valid: false,
+                error: `Folder "${folderId}" not found. Check the folder ID and permissions.`,
+              }
+            }
+            return {
+              valid: false,
+              error: `Failed to access folder "${folderId}": ${response.status}`,
+            }
           }
-          return { valid: false, error: `Failed to access folder: ${response.status}` }
-        }
 
-        const folder = await response.json()
-        if (folder.mimeType !== 'application/vnd.google-apps.folder') {
-          return { valid: false, error: 'The provided ID is not a folder' }
+          const folder = await response.json()
+          if (folder.mimeType !== 'application/vnd.google-apps.folder') {
+            return { valid: false, error: `"${folderId}" is not a folder` }
+          }
         }
       } else {
         // Verify basic Drive access by listing one file

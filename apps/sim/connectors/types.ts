@@ -74,6 +74,8 @@ export interface ConnectorConfigField {
 
   /** Selector key from the selector registry (used when type is 'selector') */
   selectorKey?: SelectorKey
+  /** MIME type filter passed to the selector context (e.g. limit a Google Drive picker to folders) */
+  mimeType?: string
   /** Field IDs this field depends on — clears when deps change */
   dependsOn?: string[] | { all?: string[]; any?: string[] }
 

@@ -640,9 +640,9 @@ export function Table({
           }
         />
       )}
-      {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
-          mode there's no Resource.Header, so the run/stop control rides in the options
-          bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
+      {/* Sort + filter render in both modes. In embedded (mothership) mode there's no
+          Resource.Header, so the run/stop control rides in the options bar's `aside`
+          slot, just left of filter/sort. */}
       <Resource.Options
         sort={sortConfig}
         filter={filterConfig}
