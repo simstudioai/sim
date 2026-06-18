@@ -53,6 +53,7 @@ export type SubBlockType =
   | 'text'
   | 'router-input'
   | 'table-selector'
+  | 'column-selector'
   | 'modal'
 
 export interface OutputCondition {
