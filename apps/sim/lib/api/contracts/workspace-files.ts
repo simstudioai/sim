@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceFileScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -49,6 +50,7 @@ export const workspaceFileRecordSchema = z.object({
   uploadedAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
   storageContext: z.enum(['workspace', 'mothership']).optional(),
+  share: shareRecordSchema.nullable().optional(),
 })
 
 const workspaceFileSuccessSchema = z.object({

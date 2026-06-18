@@ -414,3 +414,29 @@ export async function loadCompiledDocByExt(
   const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
   return buffer ? { buffer, contentType: fmt.contentType } : null
 }
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
+
+function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
+  return buffer.length >= magic.length && buffer.subarray(0, magic.length).equals(magic)
+}
+
+/**
+ * Resolve the servable binary for a stored doc WITHOUT compiling — for read-only
+ * consumers (e.g. the public share route). An uploaded binary already carries its
+ * format magic and is served as-is (returns null → caller uses the raw bytes); a
+ * generated doc stored as source returns its prebuilt content-addressed artifact
+ * when present, else null (caller falls back to raw). Never invokes E2B/isolated-vm.
+ */
+export async function loadServableDocArtifact(
+  workspaceId: string,
+  storedBytes: Buffer,
+  fileName: string
+): Promise<{ buffer: Buffer; contentType: string } | null> {
+  const fmt = await getE2BDocFormat(fileName)
+  if (!fmt) return null
+  const magic = fmt.ext === 'pdf' ? PDF_MAGIC : ZIP_MAGIC
+  if (bufferStartsWith(storedBytes, magic)) return null
+  return loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
+}
