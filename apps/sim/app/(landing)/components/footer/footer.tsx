@@ -146,7 +146,7 @@ export function Footer() {
   return (
     <footer
       role='contentinfo'
-      className='mx-auto w-full max-w-[1446px] border-[var(--border)] border-t px-12 pt-20 pb-12'
+      className='mx-auto mt-[120px] w-full max-w-[1446px] border-[var(--border)] border-t px-12 pt-20 pb-12'
     >
       <nav
         aria-label='Footer navigation'

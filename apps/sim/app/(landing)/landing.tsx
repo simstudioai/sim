@@ -1,15 +1,6 @@
 import { cn } from '@/lib/core/utils/cn'
 import { getGitHubStars } from '@/lib/github/stars'
-import {
-  Cta,
-  Ethos,
-  Features,
-  Footer,
-  Hero,
-  Mothership,
-  Navbar,
-  Testimonials,
-} from '@/app/(landing)/components'
+import { Cta, Features, Footer, Hero, Mothership, Navbar } from '@/app/(landing)/components'
 import styles from '@/app/(landing)/brand-tokens.module.css'
 
 /**
@@ -56,8 +47,6 @@ export default async function Landing() {
         <Hero />
         <Mothership />
         <Features />
-        <Testimonials />
-        <Ethos />
         <Cta />
       </main>
       <Footer />

@@ -1,7 +1,6 @@
 'use client'
 
 import { type RefObject, useLayoutEffect, useRef, useState } from 'react'
-import { ThinkingLoader } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import styles from '@/app/(landing)/components/hero/components/hero-visual/stage-home.module.css'
 import { WorkflowBlockContent } from '@/app/(landing)/components/hero/components/hero-visual/workflow-block'
@@ -16,11 +15,21 @@ import {
 } from '@/app/(landing)/components/hero/components/hero-visual/workflow-data'
 
 /**
- * What the Mothership chat is showing right now. `block` is the terminal beat:
- * the card morphs into the first workflow block (the chat shell resizes and its
- * content becomes the block's), handing off seamlessly to the workflow stage.
+ * What the Mothership chat is showing right now. The travelling thinking loader
+ * itself lives at the hero root (so it can outlive these layers and track its
+ * target through the camera zoom + pan); this stage only lays out the card and
+ * exposes the send button and reply slot as the loader's ref targets.
+ *
+ * - `compose` — greeting + prompt input (the typewriter).
+ * - `sending` — compose layout, but the send button's arrow is retracted: the
+ *   root loader has taken the disc over while the camera is zoomed into it.
+ * - `thinking` — conversation layout (user bubble + an empty reply slot whose
+ *   height the loader will occupy), shown as the loader slides/docks there.
+ * - `answering` — the typed reply fills the reply slot.
+ * - `block` — the card morphs into the first workflow block (the chat shell
+ *   resizes and its content becomes the block's), handing off to the workflow.
  */
-export type HomeMode = 'compose' | 'thinking' | 'answering' | 'block'
+export type HomeMode = 'compose' | 'sending' | 'thinking' | 'answering' | 'block'
 
 /** The first workflow block, shown inside the card during the morph. */
 const FIRST_BLOCK = BLOCKS[0]
@@ -45,14 +54,16 @@ interface StageHomeProps {
   answerTypedCount: number
   /** The prompt text region — the root cursor targets this for its "click in". */
   inputRef: RefObject<HTMLDivElement | null>
-  /** The send button — the root cursor targets this to "send". */
+  /** The send button — the root cursor + travelling loader target this to "send". */
   sendRef: RefObject<HTMLDivElement | null>
-  /** Hide the send button's arrow (used during the zoom-reveal beat). */
-  arrowHidden?: boolean
+  /** The dock — an invisible spot at the LEFT of the send-button row that the
+   * loader slides to (same row, so the slide is purely horizontal and the card
+   * never has to resize for it). */
+  dockRef: RefObject<HTMLDivElement | null>
   /**
-   * Reveal the greeting headline. Held back during the boot zoom-in/out so it
-   * doesn't show prematurely, then shimmers in once the input has settled. Its
-   * space is always reserved, so revealing it never shifts the layout.
+   * Reveal the greeting headline. Held back until the input is being composed,
+   * then shimmers in. Its space is always reserved, so revealing it never shifts
+   * the layout.
    */
   showGreeting?: boolean
 }
@@ -109,12 +120,20 @@ export function StageHome({
   answerTypedCount,
   inputRef,
   sendRef,
-  arrowHidden = false,
+  dockRef,
   showGreeting = false,
 }: StageHomeProps) {
   const isCompose = mode === 'compose'
+  // The compose layer (input + send row) stays visible only while composing /
+  // sending; the loader takes over from there.
+  const isComposeLike = mode === 'compose' || mode === 'sending'
   const isBlock = mode === 'block'
   const convoShown = mode === 'thinking' || mode === 'answering'
+  // The card holds its COMPOSE height from the moment send is clicked all the way
+  // through the thinking slide — it only grows to the conversation once the camera
+  // has pulled back and the reply types in. Freezing the size keeps the send
+  // button (and so the sliding loader) from drifting as the card would reshape.
+  const useComposeHeight = mode === 'compose' || mode === 'sending' || mode === 'thinking'
   const composeRef = useRef<HTMLDivElement>(null)
   const convoRef = useRef<HTMLDivElement>(null)
   const [cardHeight, setCardHeight] = useState(80)
@@ -125,11 +144,11 @@ export function StageHome({
   // block), so skip measuring there.
   useLayoutEffect(() => {
     if (isBlock) return
-    const active = isCompose ? composeRef.current : convoRef.current
+    const active = useComposeHeight ? composeRef.current : convoRef.current
     // Guard against a collapsed/unpainted layout (width ~0) measuring a
     // wildly-wrapped height and poisoning the card size.
     if (active && active.offsetWidth > 120) setCardHeight(active.offsetHeight)
-  }, [isBlock, isCompose, mode, typedCount, answerTypedCount])
+  }, [isBlock, useComposeHeight, mode, typedCount, answerTypedCount])
 
   const visible = PROMPT_ATOMS.slice(0, typedCount)
   const isEmpty = typedCount === 0
@@ -138,11 +157,19 @@ export function StageHome({
   return (
     <div className='flex h-full w-full flex-col items-center justify-center px-10'>
       <div className='flex w-full max-w-[460px] flex-col gap-5'>
-        {/* Greeting — collapses as the conversation takes over. */}
+        {/* Greeting — visible while composing, then fades. Its SPACE is held
+            through the sending/thinking scene so collapsing it never re-centres
+            the column and shifts the card the camera is locked onto; it only
+            truly collapses once the reply takes over (answering) or the card
+            morphs to a block. */}
         <div
           className={cn(
             'overflow-hidden text-center transition-[height,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]',
-            isCompose ? 'h-[40px] opacity-100' : 'h-0 opacity-0'
+            mode === 'compose'
+              ? 'h-[40px] opacity-100'
+              : mode === 'sending' || mode === 'thinking'
+                ? 'h-[40px] opacity-0'
+                : 'h-0 opacity-0'
           )}
         >
           {showGreeting ? (
@@ -170,12 +197,13 @@ export function StageHome({
             height: isBlock ? BLOCK_CARD_HEIGHT : cardHeight,
           }}
         >
-          {/* Compose layer: the prompt input + send button. */}
+          {/* Compose layer: the prompt input + send button. Held visible through
+              `sending` (the input stays put while the camera zooms the button). */}
           <div
             ref={composeRef}
             className={cn(
               'absolute inset-x-0 top-0 px-2.5 py-2 transition-opacity duration-150 ease-[cubic-bezier(0.23,1,0.32,1)]',
-              isCompose ? 'opacity-100' : 'pointer-events-none opacity-0'
+              isComposeLike ? 'opacity-100' : 'pointer-events-none opacity-0'
             )}
           >
             <div
@@ -191,11 +219,21 @@ export function StageHome({
                 </>
               )}
             </div>
-            <div className='mt-1 flex items-center justify-end'>
+            <div className='mt-1 flex items-center justify-between'>
+              {/* Invisible left dock: same row as the send button, so the loader's
+                  slide from one to the other is purely horizontal and the card
+                  never resizes to accommodate it. */}
+              <div ref={dockRef} aria-hidden='true' className='size-[28px]' />
               <div
                 ref={sendRef}
                 aria-hidden='true'
-                className='flex size-[28px] items-center justify-center rounded-full bg-[#383838]'
+                className={cn(
+                  'flex size-[28px] items-center justify-center rounded-full bg-[#383838] transition-opacity duration-150',
+                  // The root loader's settled orb takes the disc's place; hide the
+                  // real button so no dark disc peeks behind the cycling shapes.
+                  // (It stays laid out, so it remains the loader's measure target.)
+                  mode === 'sending' ? 'opacity-0' : 'opacity-100'
+                )}
               >
                 {/* Up-arrow that draws itself on (shaft then head) via
                     stroke-dashoffset — `pathLength={1}` normalizes the dash so
@@ -211,7 +249,9 @@ export function StageHome({
                     strokeLinejoin='round'
                     className={cn(
                       '[stroke-dasharray:1] transition-[stroke-dashoffset] duration-[520ms] ease-[cubic-bezier(0.23,1,0.32,1)]',
-                      arrowHidden ? '[stroke-dashoffset:1]' : '[stroke-dashoffset:0]'
+                      // Retract the arrow as the click lands so the disc is clean
+                      // the instant the settled loader takes it over.
+                      mode === 'sending' ? '[stroke-dashoffset:1]' : '[stroke-dashoffset:0]'
                     )}
                   />
                 </svg>
@@ -229,11 +269,14 @@ export function StageHome({
               isBlock && 'opacity-0'
             )}
           >
+            {/* User bubble — held back through the zoomed thinking scene; it
+                reserves its space (so the reply slot stays put and nothing shifts)
+                but only reveals once the camera has pulled back at `answering`. */}
             <div
               className={cn(
                 'max-w-[82%] self-end rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em] [transition-delay:80ms]',
                 ENTER_BASE,
-                enterState(convoShown)
+                enterState(mode === 'answering')
               )}
             >
               <PromptAtoms atoms={PROMPT_ATOMS} />
@@ -245,8 +288,11 @@ export function StageHome({
                 enterState(convoShown)
               )}
             >
+              {/* While thinking the loader lives over the compose row (the card is
+                  still compose-height), so this slot just reserves a line; once
+                  answering — after the zoom-out — it renders the typed reply. */}
               {mode === 'thinking' ? (
-                <ThinkingLoader phase startVariant='corners' size={22} />
+                <div className='h-[26px]' aria-hidden='true' />
               ) : (
                 <p>
                   {answer}
