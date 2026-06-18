@@ -36,6 +36,11 @@ function sanitizeRequest(request: ProviderRequest): ProviderRequest {
   const sanitizedRequest = { ...request }
   const model = sanitizedRequest.model
 
+  // `hostedKey` is server-only: strip any client-supplied value so it can never
+  // be trusted. executeProviderRequest sets it solely when it acquires a platform
+  // pool key, which gates streaming cost settlement / hosted-key metrics.
+  sanitizedRequest.hostedKey = undefined
+
   if (model && !supportsTemperature(model)) {
     sanitizedRequest.temperature = undefined
   }
