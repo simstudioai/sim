@@ -83,24 +83,23 @@ export function VideoPlaceholder({
         {label}
       </span>
 
-      {/* Title block, lower-left */}
-      <div className='absolute bottom-8 left-8 z-10 max-w-[72%] md:bottom-10 md:left-10'>
-        {eyebrow && (
-          <p className='mb-3 font-normal text-[clamp(13px,2.4cqi,20px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
-            {eyebrow}
-          </p>
-        )}
-        {title && (
-          <p className='font-semibold text-[#121212] text-[clamp(2rem,8cqi,4rem)] leading-[0.96] tracking-[-0.035em] dark:text-[#F8F8F8]'>
-            {title}
-          </p>
-        )}
+      {/* Bottom row: the title (left) and the wordmark (right) share a baseline.
+          The eyebrow is taken out of flow so the row's baseline is the title's. */}
+      <div className='absolute inset-x-8 bottom-8 z-10 flex items-baseline justify-between gap-4 md:inset-x-10 md:bottom-10'>
+        <div className='relative min-w-0'>
+          {eyebrow && (
+            <p className='absolute bottom-full mb-3 whitespace-nowrap font-normal text-[clamp(13px,2.4cqi,20px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
+              {eyebrow}
+            </p>
+          )}
+          {title && (
+            <p className='font-semibold text-[#121212] text-[clamp(2rem,8cqi,4rem)] leading-[0.95] tracking-[-0.035em] dark:text-[#F8F8F8]'>
+              {title}
+            </p>
+          )}
+        </div>
+        <SimWordmark className='block h-[22px] w-auto shrink-0 text-[#121212] dark:text-white/90' />
       </div>
-
-      {/* Wordmark, bottom-right */}
-      <span className='absolute right-8 bottom-8 z-10 text-[#121212] md:right-10 md:bottom-10 dark:text-white/90'>
-        <SimWordmark className='block h-[22px] w-auto' />
-      </span>
 
       {/* Centered play button (muted — these are coming-soon placeholders) */}
       <div className='absolute inset-0 z-10 grid place-items-center'>
