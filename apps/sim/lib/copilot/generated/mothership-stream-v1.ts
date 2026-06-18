@@ -314,6 +314,7 @@ export interface MothershipStreamV1CheckpointPausePayload {
   runId: string
 }
 export interface MothershipStreamV1CheckpointPauseFrame {
+  checkpointId?: string
   parentToolCallId: string
   parentToolName: string
   pendingToolIds: string[]

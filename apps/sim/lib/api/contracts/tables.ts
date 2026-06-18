@@ -397,6 +397,12 @@ export const importTableAsyncBodySchema = z.object({
   workspaceId: z.string().min(1, 'Workspace ID is required'),
   fileKey: z.string().min(1, 'fileKey is required'),
   fileName: z.string().min(1, 'fileName is required'),
+  /**
+   * Whether the source object is deleted once the import is terminal. Defaults to true (the upload
+   * flow stores a single-use temp object); pass false when importing an existing workspace file
+   * (e.g. the file viewer's "Import as a table") that must survive the import.
+   */
+  deleteSourceFile: z.boolean().optional(),
 })
 
 export type ImportTableAsyncBody = z.input<typeof importTableAsyncBodySchema>

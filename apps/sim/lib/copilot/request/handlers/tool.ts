@@ -138,8 +138,14 @@ export async function handleToolEvent(
   // block into contentBlocks BEFORE we add the tool_call block, or
   // contentBlocks will end up with tool_call before thinking — which
   // re-renders on reload in the wrong order (Mothership group above
-  // the Thinking block, even though thinking happened first).
-  flushSubagentThinkingBlock(context)
+  // the Thinking block, even though thinking happened first). A subagent
+  // tool event flushes only its OWN lane so a concurrent sibling's thinking
+  // is left intact; a main tool event flushes all subagent lanes.
+  if (isSubagent && parentToolCallId) {
+    flushSubagentThinkingBlock(context, parentToolCallId)
+  } else {
+    flushSubagentThinkingBlock(context)
+  }
   flushThinkingBlock(context)
 
   if (isToolResultStreamEvent(event)) {
@@ -293,6 +299,11 @@ async function handleCallPhase(
 
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
+
+  // Capture the invoking subagent's channel id so the executor can thread it
+  // into the server tool context — this is what scopes the workspace_file ->
+  // edit_content intent handoff to one file subagent under concurrency.
+  if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return

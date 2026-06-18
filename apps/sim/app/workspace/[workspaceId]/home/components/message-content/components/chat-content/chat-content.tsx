@@ -279,6 +279,7 @@ interface ChatContentProps {
   isStreaming?: boolean
   onOptionSelect?: (id: string) => void
   onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onRevealStateChange?: (isRevealing: boolean) => void
 }
 
 function ChatContentInner({
@@ -286,13 +287,21 @@ function ChatContentInner({
   isStreaming = false,
   onOptionSelect,
   onWorkspaceResourceSelect,
+  onRevealStateChange,
 }: ChatContentProps) {
   const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
   onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
 
+  const onRevealStateChangeRef = useRef(onRevealStateChange)
+  onRevealStateChangeRef.current = onRevealStateChange
+
   const displayContent = useMemo(() => sanitizeChatDisplayContent(content), [content])
   const streamedContent = useSmoothText(displayContent, isStreaming)
   const isRevealing = isStreaming || streamedContent.length < displayContent.length
+
+  useEffect(() => {
+    onRevealStateChangeRef.current?.(isRevealing)
+  }, [isRevealing])
 
   /**
    * One-way latch: once a message has streamed in this mount, keep rendering it

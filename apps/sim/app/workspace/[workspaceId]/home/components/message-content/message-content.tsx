@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -18,11 +18,14 @@ import {
   PendingTagIndicator,
   ThinkingBlock,
 } from './components'
+import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
 
 interface TextSegment {
   type: 'text'
+  /** Stable per-run React key (see the counters in parseBlocksWithSpanTree). */
+  id: string
   content: string
 }
 
@@ -86,17 +89,6 @@ function resolveAgentLabel(key: string): string {
   return SUBAGENT_LABELS[key] ?? humanizeToolName(key)
 }
 
-function isToolDone(status: ToolCallData['status']): boolean {
-  return (
-    status === 'success' ||
-    status === 'error' ||
-    status === 'cancelled' ||
-    status === 'skipped' ||
-    status === 'rejected' ||
-    status === 'interrupted'
-  )
-}
-
 function isDelegatingTool(tc: NonNullable<ContentBlock['toolCall']>): boolean {
   return tc.status === 'executing'
 }
@@ -145,10 +137,10 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
 
 const SPAN_ROOT = 'main'
 
-function createAgentGroupSegment(name: string, idKey: string, ordinal: number): AgentGroupSegment {
+function createAgentGroupSegment(name: string, id: string): AgentGroupSegment {
   return {
     type: 'agent_group',
-    id: `agent-${idKey}-${ordinal}`,
+    id,
     agentName: name,
     agentLabel: resolveAgentLabel(name),
     items: [],
@@ -177,6 +169,27 @@ function appendTextItem(group: AgentGroupSegment, content: string): void {
 function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const segments: MessageSegment[] = []
   const groupsBySpanId = new Map<string, AgentGroupSegment>()
+  // Stable per-run counters for React keys. The Nth top-level text run / Nth
+  // mothership group keeps the same key across re-parses (text runs and groups
+  // are append-only at the top level), so React never remounts the streaming
+  // ChatContent / AgentGroup when later segments shift array position. Keying by
+  // array index or block index is unstable (subagent_end interleaves, parallel
+  // spans reorder), which caused the disappear/re-animate + parallel-subagent flash.
+  let textRun = 0
+  let mothershipRun = 0
+
+  // Canonical subagent identity: the dispatch tool call id. It is stable across
+  // the no-spanId (legacy parser) -> spanId (span-tree parser) transition and
+  // across DB-load vs live, so the group's React key never changes when the
+  // underlying span id is stamped — eliminating the remount/flash and keeping a
+  // refreshed transcript byte-identical to the live stream.
+  const spanAnchor = new Map<string, string>()
+  for (const b of blocks) {
+    if (b.type === 'subagent' && b.spanId && b.parentToolCallId) {
+      spanAnchor.set(b.spanId, b.parentToolCallId)
+    }
+  }
+  const spanGroupKey = (spanId: string): string => `agent-${spanAnchor.get(spanId) ?? spanId}`
 
   const tailMothershipGroup = (): AgentGroupSegment | null => {
     const last = segments[segments.length - 1]
@@ -192,7 +205,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const ensureMothership = (): AgentGroupSegment => {
     const existing = tailMothershipGroup()
     if (existing) return existing
-    const group = createAgentGroupSegment('mothership', 'mothership', segments.length)
+    const group = createAgentGroupSegment('mothership', `agent-mothership-${mothershipRun++}`)
     segments.push(group)
     return group
   }
@@ -216,6 +229,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     if (parentSpanId && parentSpanId !== SPAN_ROOT) {
       const parent = groupsBySpanId.get(parentSpanId)
       if (parent) {
+        parent.isDelegating = false
         parent.items.push({ type: 'agent_group', group })
         return
       }
@@ -226,12 +240,13 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   const ensureSpanGroup = (
     name: string,
     spanId: string,
-    parentSpanId: string | undefined,
-    ordinal: number
+    parentSpanId: string | undefined
   ): AgentGroupSegment => {
     const existing = groupsBySpanId.get(spanId)
     if (existing) return existing
-    const group = createAgentGroupSegment(name, spanId, ordinal)
+    // Key by the dispatch tool call id (canonical, parser-stable) when known,
+    // falling back to the spanId for spans with no dispatch tool (legacy/orphan).
+    const group = createAgentGroupSegment(name, spanGroupKey(spanId))
     groupsBySpanId.set(spanId, group)
     attachSpanGroup(group, parentSpanId)
     return group
@@ -242,7 +257,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
     if (last?.type === 'text') {
       last.content += content
     } else {
-      segments.push({ type: 'text', content })
+      segments.push({ type: 'text', id: `text-${textRun++}`, content })
     }
   }
 
@@ -256,7 +271,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // (live streaming across resume legs). Create the span group on demand,
       // nested via parentSpanId, instead of dropping the content.
       if (!g && block.subagent) {
-        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+        g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
       }
       if (!g) continue
       g.isDelegating = false
@@ -287,7 +302,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       if (block.subagent && block.spanId) {
         let g = groupsBySpanId.get(block.spanId)
         // Out-of-order safety: see subagent_text branch above.
-        if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId, i)
+        if (!g) g = ensureSpanGroup(block.subagent, block.spanId, block.parentSpanId)
         if (g) {
           g.isDelegating = false
           appendTextItem(g, block.content)
@@ -304,7 +319,17 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       // not render as a separate entry alongside the agent group.
       const dispatchToolName = SUBAGENT_DISPATCH_TOOLS[block.content]
       if (dispatchToolName) absorbDispatchTool(dispatchToolName, block.parentSpanId)
-      const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId, i)
+      const g = ensureSpanGroup(block.content, block.spanId, block.parentSpanId)
+      if (block.endedAt !== undefined) {
+        // Persisted backend path: the lane was stamped closed (endedAt) without
+        // a separate subagent_end block (the Sim backend stamps endedAt only;
+        // only the live browser path pushes subagent_end). Honor endedAt so a
+        // reloaded transcript shows the subagent closed instead of a stuck
+        // delegating spinner.
+        g.isOpen = false
+        g.isDelegating = false
+        continue
+      }
       // Show the working/delegating spinner from span open until the agent
       // emits its first content or tool (or ends). The legacy path derived this
       // from the dispatch tool_call, which the span path absorbs, so we set it
@@ -330,7 +355,7 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
         // span group on demand (nested via parentSpanId) so the tool nests
         // under its agent instead of leaking to the top-level mothership flow.
         if (!g && tc.calledBy) {
-          g = ensureSpanGroup(tc.calledBy, block.spanId, block.parentSpanId, i)
+          g = ensureSpanGroup(tc.calledBy, block.spanId, block.parentSpanId)
         }
         if (g) {
           g.isDelegating = false
@@ -434,7 +459,11 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     if (existing) return { group: existing, created: false }
     const group: AgentGroupSegment = {
       type: 'agent_group',
-      id: `agent-${key}-${segments.length}`,
+      // Canonical key = the dispatch tool call id, identical to the span-tree
+      // parser, so a transcript that gains span ids (or a DB reload) keeps the
+      // same React key and never remounts. Orphans (no dispatch tool) keep the
+      // position-based legacy id.
+      id: parentToolCallId ? `agent-${parentToolCallId}` : `agent-${key}-${segments.length}`,
       agentName: name,
       agentLabel: resolveAgentLabel(name),
       items: [],
@@ -524,7 +553,7 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
       if (last?.type === 'text') {
         last.content += block.content
       } else {
-        segments.push({ type: 'text', content: block.content })
+        segments.push({ type: 'text', id: `text-${i}`, content: block.content })
       }
       continue
     }
@@ -646,7 +675,7 @@ export function assistantMessageHasRenderableContent(
     parsed.length > 0
       ? parsed
       : fallbackContent.trim()
-        ? [{ type: 'text' as const, content: fallbackContent }]
+        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
   return segments.length > 0
 }
@@ -668,6 +697,7 @@ interface MessageContentProps {
   fallbackContent: string
   isStreaming: boolean
   onOptionSelect?: (id: string) => void
+  onPhaseChange?: (phase: MessagePhase) => void
 }
 
 function MessageContentInner({
@@ -675,16 +705,33 @@ function MessageContentInner({
   fallbackContent,
   isStreaming = false,
   onOptionSelect,
+  onPhaseChange,
 }: MessageContentProps) {
   const { onWorkspaceResourceSelect } = useChatSurface()
   const parsed = useMemo(() => (blocks.length > 0 ? parseBlocks(blocks) : []), [blocks])
+
+  const [trailingRevealing, setTrailingRevealing] = useState(false)
+  const handleTrailingRevealChange = useCallback((revealing: boolean) => {
+    setTrailingRevealing(revealing)
+  }, [])
 
   const segments: MessageSegment[] =
     parsed.length > 0
       ? parsed
       : fallbackContent?.trim()
-        ? [{ type: 'text' as const, content: fallbackContent }]
+        ? [{ type: 'text' as const, id: 'text-fallback', content: fallbackContent }]
         : []
+
+  const lastSegment = segments[segments.length - 1]
+  const hasTrailingTextSegment = lastSegment?.type === 'text'
+  const isRevealing = hasTrailingTextSegment && trailingRevealing
+  const phase = deriveMessagePhase({ isStreaming, isRevealing })
+
+  const onPhaseChangeRef = useRef(onPhaseChange)
+  onPhaseChangeRef.current = onPhaseChange
+  useEffect(() => {
+    onPhaseChangeRef.current?.(phase)
+  }, [phase])
 
   if (segments.length === 0) {
     if (isStreaming) {
@@ -697,21 +744,16 @@ function MessageContentInner({
     return null
   }
 
-  const lastSegment = segments[segments.length - 1]
   const hasTrailingContent = lastSegment.type === 'text' || lastSegment.type === 'stopped'
 
-  let allLastGroupToolsDone = false
-  if (lastSegment.type === 'agent_group') {
-    const toolItems = lastSegment.items.filter((item) => item.type === 'tool')
-    allLastGroupToolsDone =
-      toolItems.length > 0 && toolItems.every((t) => t.type === 'tool' && isToolDone(t.data.status))
-  }
-
-  const hasSubagentEnded = blocks.some((b) => b.type === 'subagent_end')
-  const showTrailingThinking =
-    isStreaming &&
-    !hasTrailingContent &&
-    (lastSegment.type === 'thinking' || hasSubagentEnded || allLastGroupToolsDone)
+  // Deterministic "between steps" signal: the turn is still streaming, nothing
+  // is actively running (a running tool/subagent renders its own spinner), and
+  // no trailing text is being revealed. Derived from explicit node state rather
+  // than guessing from the shape of the last segment.
+  const hasRunningWork = blocks.some(
+    (b) => b.toolCall?.status === 'executing' || (b.type === 'subagent' && b.endedAt === undefined)
+  )
+  const showTrailingThinking = phase === 'streaming' && !hasTrailingContent && !hasRunningWork
 
   return (
     <div className='space-y-[10px]'>
@@ -720,7 +762,7 @@ function MessageContentInner({
           case 'text':
             return (
               <ChatContent
-                key={`text-${i}`}
+                key={segment.id}
                 content={segment.content}
                 isStreaming={shouldSmoothTextSegment({
                   isStreaming,
@@ -729,6 +771,9 @@ function MessageContentInner({
                 })}
                 onOptionSelect={onOptionSelect}
                 onWorkspaceResourceSelect={onWorkspaceResourceSelect}
+                onRevealStateChange={
+                  i === segments.length - 1 ? handleTrailingRevealChange : undefined
+                }
               />
             )
           case 'thinking': {
