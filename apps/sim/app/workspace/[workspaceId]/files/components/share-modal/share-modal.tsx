@@ -42,12 +42,16 @@ export function ShareModal({
   const saved = share ?? initialShare ?? null
   const savedActive = saved?.isActive ?? false
 
-  const [draftActive, setDraftActive] = useState(initialShare?.isActive ?? false)
-  const isDirty = draftActive !== savedActive
+  // `null` until the user toggles, so the switch always reflects the authoritative
+  // saved state (which may resolve after mount via useFileShare) instead of a stale
+  // initial snapshot — otherwise a Save could silently flip sharing the wrong way.
+  const [draftActive, setDraftActive] = useState<boolean | null>(null)
+  const effectiveActive = draftActive ?? savedActive
+  const isDirty = draftActive !== null && draftActive !== savedActive
 
   const handleSave = () => {
     upsertShare.mutate(
-      { workspaceId, fileId, isActive: draftActive },
+      { workspaceId, fileId, isActive: effectiveActive },
       { onSuccess: () => onOpenChange(false) }
     )
   }
@@ -62,7 +66,7 @@ export function ShareModal({
           type='custom'
           title='Access'
           hint={
-            draftActive
+            effectiveActive
               ? isDirty
                 ? 'Save to make this file accessible to anyone with the link.'
                 : 'Anyone with the link can view and download this file.'
@@ -70,7 +74,7 @@ export function ShareModal({
           }
         >
           <ChipSwitch
-            value={draftActive ? 'public' : 'private'}
+            value={effectiveActive ? 'public' : 'private'}
             onChange={(value) => setDraftActive(value === 'public')}
             options={VISIBILITY_OPTIONS}
             aria-label='File access'
