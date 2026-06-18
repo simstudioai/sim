@@ -13,15 +13,13 @@ import {
   upsertFilePreviewSession,
 } from '@/lib/copilot/request/session'
 import type {
+  ActiveFileIntent,
   ExecutionContext,
   OrchestratorOptions,
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
-import {
-  clearIntentsForWorkspace,
-  peekFileIntent,
-} from '@/lib/copilot/tools/server/files/file-intent-store'
+import { peekFileIntent } from '@/lib/copilot/tools/server/files/file-intent-store'
 import {
   buildFilePreviewText,
   loadWorkspaceFileTextForPreview,
@@ -31,7 +29,7 @@ import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/
 const logger = createLogger('CopilotFilePreviewAdapter')
 
 type JsonRecord = Record<string, unknown>
-type FileIntent = NonNullable<StreamingContext['activeFileIntent']>
+type FileIntent = ActiveFileIntent
 
 type EditContentStreamState = {
   raw: string
@@ -348,6 +346,19 @@ export async function processFilePreviewStreamEvent(input: {
   const { streamId, streamEvent, context, execContext, options, state } = input
   const { editContentState, filePreviewState } = state
 
+  // Scope the in-flight intent to the invoking file subagent's channel (its
+  // outer tool_use id) so two file agents streaming concurrently never read or
+  // overwrite each other's intent. workspace_file and edit_content from the same
+  // file agent share this channel id, so they pair up; siblings stay isolated.
+  const channelId = streamEvent.scope?.parentToolCallId ?? ''
+  const getIntent = (): FileIntent | null => context.activeFileIntents.get(channelId) ?? null
+  const setIntent = (intent: FileIntent): void => {
+    context.activeFileIntents.set(channelId, intent)
+  }
+  const clearIntent = (): void => {
+    context.activeFileIntents.delete(channelId)
+  }
+
   if (isToolCallStreamEvent(streamEvent) && streamEvent.payload.toolName === 'workspace_file') {
     const toolCallId = streamEvent.payload.toolCallId
     const parsedArgs = parseWorkspaceFileArgs(streamEvent.payload.arguments)
@@ -361,31 +372,10 @@ export async function processFilePreviewStreamEvent(input: {
       const { fileId, fileName } = target
 
       const isContentOp = isContentOperation(operation)
-      if (context.activeFileIntent && isContentOp) {
-        logger.warn(
-          'Orphaned workspace_file intent: content-op workspace_file arrived without edit_content for prior intent',
-          {
-            orphanedToolCallId: context.activeFileIntent.toolCallId,
-            orphanedOperation: context.activeFileIntent.operation,
-            newToolCallId: toolCallId,
-            newOperation: operation,
-          }
-        )
-        if (execContext.workspaceId) {
-          const cleared = await clearIntentsForWorkspace(execContext.workspaceId, {
-            chatId: execContext.chatId,
-            messageId: execContext.messageId,
-          })
-          if (cleared > 0) {
-            logger.warn('Cleared orphaned execution intents from store', {
-              cleared,
-              workspaceId: execContext.workspaceId,
-            })
-          }
-        }
-      }
-
-      context.activeFileIntent = {
+      // Per-channel: a re-declared workspace_file just overwrites THIS channel's
+      // slot. No cross-message intent clearing — that would wipe a concurrent
+      // sibling file agent's pending intent.
+      const intent: FileIntent = {
         toolCallId,
         operation,
         target,
@@ -393,6 +383,7 @@ export async function processFilePreviewStreamEvent(input: {
         ...(contentType ? { contentType } : {}),
         ...(edit ? { edit } : {}),
       }
+      setIntent(intent)
 
       if (isContentOp && previewTargetKind) {
         let previewBaseContent: string | undefined
@@ -407,7 +398,7 @@ export async function processFilePreviewStreamEvent(input: {
           )
         }
 
-        let session = buildPreviewSessionFromIntent(streamId, context.activeFileIntent)
+        let session = buildPreviewSessionFromIntent(streamId, intent)
         if (previewBaseContent !== undefined) {
           session = { ...session, baseContent: previewBaseContent }
         }
@@ -447,29 +438,30 @@ export async function processFilePreviewStreamEvent(input: {
     }
   }
 
+  const workspaceResultIntent = getIntent()
   if (
     isToolResultStreamEvent(streamEvent) &&
     streamEvent.payload.toolName === 'workspace_file' &&
-    context.activeFileIntent &&
-    isContentOperation(context.activeFileIntent.operation)
+    workspaceResultIntent &&
+    isContentOperation(workspaceResultIntent.operation)
   ) {
     const result = extractWorkspaceFileResult(streamEvent.payload.output)
-    if (result.fileId && context.activeFileIntent.target.kind === 'path') {
-      context.activeFileIntent = {
-        ...context.activeFileIntent,
+    if (result.fileId && workspaceResultIntent.target.kind === 'path') {
+      const intent: FileIntent = {
+        ...workspaceResultIntent,
         target: {
           kind: 'file_id',
           fileId: result.fileId,
-          fileName: result.fileName ?? context.activeFileIntent.target.fileName,
-          path: context.activeFileIntent.target.path,
+          fileName: result.fileName ?? workspaceResultIntent.target.fileName,
+          path: workspaceResultIntent.target.path,
         },
       }
+      setIntent(intent)
 
       let previewBaseContent: string | undefined
       if (
         execContext.workspaceId &&
-        (context.activeFileIntent.operation === 'append' ||
-          context.activeFileIntent.operation === 'patch')
+        (intent.operation === 'append' || intent.operation === 'patch')
       ) {
         previewBaseContent = await loadWorkspaceFileTextForPreview(
           execContext.workspaceId,
@@ -477,11 +469,11 @@ export async function processFilePreviewStreamEvent(input: {
         )
       }
 
-      let session = buildPreviewSessionFromIntent(streamId, context.activeFileIntent)
+      let session = buildPreviewSessionFromIntent(streamId, intent)
       if (previewBaseContent !== undefined) {
         session = { ...session, baseContent: previewBaseContent }
       }
-      filePreviewState.set(context.activeFileIntent.toolCallId, {
+      filePreviewState.set(intent.toolCallId, {
         session,
         lastEmittedPreviewText: '',
         lastSnapshotAt: 0,
@@ -489,46 +481,47 @@ export async function processFilePreviewStreamEvent(input: {
       await persistFilePreviewSession(session)
 
       await emitPreviewEvent(streamEvent, options, {
-        toolCallId: context.activeFileIntent.toolCallId,
+        toolCallId: intent.toolCallId,
         toolName: 'workspace_file',
         previewPhase: 'file_preview_start',
       })
       await emitPreviewEvent(streamEvent, options, {
-        toolCallId: context.activeFileIntent.toolCallId,
+        toolCallId: intent.toolCallId,
         toolName: 'workspace_file',
         previewPhase: 'file_preview_target',
-        operation: context.activeFileIntent.operation,
+        operation: intent.operation,
         target: {
           kind: 'file_id',
           fileId: result.fileId,
           ...(result.fileName ? { fileName: result.fileName } : {}),
         },
-        ...(context.activeFileIntent.title ? { title: context.activeFileIntent.title } : {}),
+        ...(intent.title ? { title: intent.title } : {}),
       })
-      if (context.activeFileIntent.edit) {
+      if (intent.edit) {
         await emitPreviewEvent(streamEvent, options, {
-          toolCallId: context.activeFileIntent.toolCallId,
+          toolCallId: intent.toolCallId,
           toolName: 'workspace_file',
           previewPhase: 'file_preview_edit_meta',
-          edit: context.activeFileIntent.edit,
+          edit: intent.edit,
         })
       }
     }
   }
 
+  const patchDeleteIntent = getIntent()
   if (
     isToolResultStreamEvent(streamEvent) &&
     streamEvent.payload.toolName === 'workspace_file' &&
-    context.activeFileIntent &&
-    isContentOperation(context.activeFileIntent.operation) &&
-    context.activeFileIntent.operation === 'patch' &&
-    context.activeFileIntent.edit?.strategy === 'anchored' &&
-    context.activeFileIntent.edit?.mode === 'delete_between' &&
+    patchDeleteIntent &&
+    isContentOperation(patchDeleteIntent.operation) &&
+    patchDeleteIntent.operation === 'patch' &&
+    patchDeleteIntent.edit?.strategy === 'anchored' &&
+    patchDeleteIntent.edit?.mode === 'delete_between' &&
     execContext.workspaceId &&
-    context.activeFileIntent.target.fileId &&
-    !isDocFormat(context.activeFileIntent.target.fileName)
+    patchDeleteIntent.target.fileId &&
+    !isDocFormat(patchDeleteIntent.target.fileName)
   ) {
-    const currentPreview = filePreviewState.get(context.activeFileIntent.toolCallId)
+    const currentPreview = filePreviewState.get(patchDeleteIntent.toolCallId)
     const previewText = buildFilePreviewText({
       operation: 'patch',
       streamedContent: '',
@@ -539,7 +532,7 @@ export async function processFilePreviewStreamEvent(input: {
     if (previewText !== undefined) {
       const baseSession = buildPreviewSessionFromIntent(
         streamId,
-        context.activeFileIntent,
+        patchDeleteIntent,
         currentPreview?.session
       )
       const nextSession: FilePreviewSession = {
@@ -549,7 +542,7 @@ export async function processFilePreviewStreamEvent(input: {
         previewVersion: (currentPreview?.session.previewVersion ?? 0) + 1,
         updatedAt: new Date().toISOString(),
       }
-      filePreviewState.set(context.activeFileIntent.toolCallId, {
+      filePreviewState.set(patchDeleteIntent.toolCallId, {
         session: nextSession,
         lastEmittedPreviewText: previewText,
         lastSnapshotAt: Date.now(),
@@ -577,29 +570,30 @@ export async function processFilePreviewStreamEvent(input: {
     const stateForTool = editContentState.get(toolCallId) ?? { raw: '' }
     stateForTool.raw += delta
 
-    if (context.activeFileIntent) {
+    const editIntent = getIntent()
+    if (editIntent) {
       const streamedContent = extractEditContent(stateForTool.raw)
       if (streamedContent !== (stateForTool.lastContentSnapshot ?? '')) {
         stateForTool.lastContentSnapshot = streamedContent
-        let currentPreview = filePreviewState.get(context.activeFileIntent.toolCallId) ?? {
-          session: buildPreviewSessionFromIntent(streamId, context.activeFileIntent),
+        let currentPreview = filePreviewState.get(editIntent.toolCallId) ?? {
+          session: buildPreviewSessionFromIntent(streamId, editIntent),
           lastEmittedPreviewText: '',
           lastSnapshotAt: 0,
         }
 
         if (
           currentPreview.session.baseContent === undefined &&
-          (context.activeFileIntent.operation === 'append' ||
-            context.activeFileIntent.operation === 'patch') &&
+          (editIntent.operation === 'append' || editIntent.operation === 'patch') &&
           execContext.workspaceId &&
-          context.activeFileIntent.target.fileId
+          editIntent.target.fileId
         ) {
           const intentBase = await peekFileIntent(
             execContext.workspaceId,
-            context.activeFileIntent.target.fileId,
+            editIntent.target.fileId,
             {
               chatId: execContext.chatId,
               messageId: execContext.messageId,
+              channelId,
             }
           )
           if (typeof intentBase?.existingContent === 'string') {
@@ -612,14 +606,14 @@ export async function processFilePreviewStreamEvent(input: {
               ...currentPreview,
               session: seededSession,
             }
-            filePreviewState.set(context.activeFileIntent.toolCallId, currentPreview)
+            filePreviewState.set(editIntent.toolCallId, currentPreview)
             await persistFilePreviewSession(seededSession)
           }
         }
 
-        const previewText = isContentOperation(context.activeFileIntent.operation)
+        const previewText = isContentOperation(editIntent.operation)
           ? buildFilePreviewText({
-              operation: context.activeFileIntent.operation,
+              operation: editIntent.operation,
               streamedContent,
               existingContent: currentPreview.session.baseContent,
               edit: currentPreview.session.edit,
@@ -629,7 +623,7 @@ export async function processFilePreviewStreamEvent(input: {
         if (previewText !== undefined) {
           const baseSession = buildPreviewSessionFromIntent(
             streamId,
-            context.activeFileIntent,
+            editIntent,
             currentPreview.session
           )
           const now = Date.now()
@@ -647,7 +641,7 @@ export async function processFilePreviewStreamEvent(input: {
             nextSession.operation === 'patch' &&
             now - currentPreview.lastSnapshotAt < PATCH_PREVIEW_SNAPSHOT_INTERVAL_MS
           ) {
-            filePreviewState.set(context.activeFileIntent.toolCallId, {
+            filePreviewState.set(editIntent.toolCallId, {
               session: nextSession,
               lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
               lastSnapshotAt: currentPreview.lastSnapshotAt,
@@ -661,7 +655,7 @@ export async function processFilePreviewStreamEvent(input: {
               nextSession.operation
             )
 
-            filePreviewState.set(context.activeFileIntent.toolCallId, {
+            filePreviewState.set(editIntent.toolCallId, {
               session: nextSession,
               lastEmittedPreviewText: nextSession.previewText,
               lastSnapshotAt: previewUpdate.lastSnapshotAt,
@@ -682,7 +676,7 @@ export async function processFilePreviewStreamEvent(input: {
             })
           }
         } else {
-          filePreviewState.set(context.activeFileIntent.toolCallId, {
+          filePreviewState.set(editIntent.toolCallId, {
             session: currentPreview.session,
             lastEmittedPreviewText: currentPreview.lastEmittedPreviewText,
             lastSnapshotAt: currentPreview.lastSnapshotAt,
@@ -701,12 +695,13 @@ export async function processFilePreviewStreamEvent(input: {
     }
   }
 
+  const editResultIntent = getIntent()
   if (
     isToolResultStreamEvent(streamEvent) &&
     streamEvent.payload.toolName === 'edit_content' &&
-    context.activeFileIntent
+    editResultIntent
   ) {
-    const currentPreview = filePreviewState.get(context.activeFileIntent.toolCallId)
+    const currentPreview = filePreviewState.get(editResultIntent.toolCallId)
     const completedAt = new Date().toISOString()
 
     if (
@@ -714,7 +709,7 @@ export async function processFilePreviewStreamEvent(input: {
       currentPreview.lastEmittedPreviewText !== currentPreview.session.previewText &&
       currentPreview.session.previewText.length > 0
     ) {
-      filePreviewState.set(context.activeFileIntent.toolCallId, {
+      filePreviewState.set(editResultIntent.toolCallId, {
         session: currentPreview.session,
         lastEmittedPreviewText: currentPreview.session.previewText,
         lastSnapshotAt: Date.now(),
@@ -745,7 +740,7 @@ export async function processFilePreviewStreamEvent(input: {
         updatedAt: completedAt,
         completedAt,
       }
-      filePreviewState.set(context.activeFileIntent.toolCallId, {
+      filePreviewState.set(editResultIntent.toolCallId, {
         session: completedSession,
         lastEmittedPreviewText: completedSession.previewText,
         lastSnapshotAt: Date.now(),
@@ -754,13 +749,13 @@ export async function processFilePreviewStreamEvent(input: {
     }
 
     await emitPreviewEvent(streamEvent, options, {
-      toolCallId: context.activeFileIntent.toolCallId,
+      toolCallId: editResultIntent.toolCallId,
       toolName: 'workspace_file',
       previewPhase: 'file_preview_complete',
-      fileId: context.activeFileIntent.target.fileId,
+      fileId: editResultIntent.target.fileId,
       output: streamEvent.payload.output,
       ...(currentPreview ? { previewVersion: currentPreview.session.previewVersion } : {}),
     })
-    context.activeFileIntent = null
+    clearIntent()
   }
 }

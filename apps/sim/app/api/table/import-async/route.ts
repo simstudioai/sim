@@ -38,7 +38,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const parsed = await parseRequest(importTableAsyncContract, request, {})
   if (!parsed.success) return parsed.response
-  const { workspaceId, fileKey, fileName } = parsed.data.body
+  const { workspaceId, fileKey, fileName, deleteSourceFile } = parsed.data.body
 
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   if (permission !== 'write' && permission !== 'admin') {
@@ -84,7 +84,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         schema: { columns: [{ name: 'column_1', type: 'string' }] },
         workspaceId,
         userId,
-        maxRows: planLimits.maxRowsPerTable,
         maxTables: planLimits.maxTables,
         jobStatus: 'running',
         jobType: 'import',
@@ -111,6 +110,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     fileName,
     delimiter,
     mode: 'create',
+    deleteSourceFile,
   }
   if (isTriggerDevEnabled) {
     // Trigger.dev runs the import outside the web container, so it survives app deploys.

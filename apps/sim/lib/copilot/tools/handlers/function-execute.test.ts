@@ -89,7 +89,8 @@ describe('executeFunctionExecute table mounts', () => {
     mockExecuteTool.mockResolvedValue({ success: true })
     mockGetTableById.mockResolvedValue(table)
     mockIsFeatureEnabled.mockResolvedValue(false)
-    mockQueryRows.mockResolvedValue({ rows: [{ data: { name: 'Ada' } }] })
+    // Row data is keyed by stable column id at rest, not display name.
+    mockQueryRows.mockResolvedValue({ rows: [{ data: { col_name: 'Ada' } }] })
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://s3.example/presigned?sig=abc')
   })
@@ -102,6 +103,53 @@ describe('executeFunctionExecute table mounts', () => {
     const files = mountedFiles()
     expect(files[0].path).toBe('/home/user/tables/tbl_1.csv')
     expect(files[0].content).toBe('name\nAda')
+  })
+
+  it('mounts CSV with display-name headers and id-keyed values, never column ids', async () => {
+    mockGetTableById.mockResolvedValue({
+      id: 'tbl_2',
+      workspaceId: 'ws_1',
+      rowCount: 2,
+      schema: {
+        columns: [
+          { id: 'col_name', name: 'name', type: 'string' },
+          { id: 'col_company', name: 'company', type: 'string' },
+        ],
+      },
+    })
+    mockQueryRows.mockResolvedValue({
+      rows: [
+        { data: { col_name: 'Ada', col_company: 'Analytical Engine' } },
+        { data: { col_name: 'Grace', col_company: 'Navy, Inc' } },
+      ],
+    })
+
+    await executeFunctionExecute({ inputTables: ['tbl_2'] }, context as never)
+
+    const csv = mountedFiles()[0].content as string
+    const lines = csv.split('\n')
+    expect(lines[0]).toBe('name,company')
+    expect(lines[1]).toBe('Ada,Analytical Engine')
+    // Value containing a comma is quoted.
+    expect(lines[2]).toBe('Grace,"Navy, Inc"')
+    // No stable column id leaks into the mounted file.
+    expect(csv).not.toContain('col_name')
+    expect(csv).not.toContain('col_company')
+  })
+
+  it('reads values by column id for legacy name-keyed rows too', async () => {
+    // Legacy column with no id: getColumnId falls back to name, so name-keyed data is correct.
+    mockGetTableById.mockResolvedValue({
+      id: 'tbl_legacy',
+      workspaceId: 'ws_1',
+      rowCount: 1,
+      schema: { columns: [{ name: 'email', type: 'string' }] },
+    })
+    mockQueryRows.mockResolvedValue({ rows: [{ data: { email: 'a@b.com' } }] })
+
+    await executeFunctionExecute({ inputTables: ['tbl_legacy'] }, context as never)
+
+    expect(mountedFiles()[0].content).toBe('email\na@b.com')
   })
 
   it('flag ON + cloud storage: mounts by presigned URL, no bytes through web', async () => {

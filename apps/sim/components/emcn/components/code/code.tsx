@@ -10,9 +10,9 @@ import {
   useRef,
   useState,
 } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { ChevronRight } from 'lucide-react'
 import { highlight, languages } from 'prismjs'
-import { List, type RowComponentProps, useDynamicRowHeight, useListRef } from 'react-window'
 import 'prismjs/components/prism-javascript'
 import 'prismjs/components/prism-python'
 import 'prismjs/components/prism-json'
@@ -583,8 +583,10 @@ interface HighlightedLine {
  * Props for virtualized row rendering.
  */
 interface CodeRowProps {
-  /** Array of highlighted lines to render */
-  lines: HighlightedLine[]
+  /** Index of this row within the virtualized window */
+  index: number
+  /** The highlighted line to render */
+  line: HighlightedLine
   /** Width of the gutter in pixels */
   gutterWidth: number
   /** Whether to show the line number gutter */
@@ -609,26 +611,25 @@ interface CodeRowProps {
  * Row component for virtualized code viewer.
  * Renders a single line with optional gutter and collapse button.
  */
-function CodeRow({ index, style, ...props }: RowComponentProps<CodeRowProps>) {
-  const {
-    lines,
-    gutterWidth,
-    showGutter,
-    gutterStyle,
-    leftOffset,
-    wrapText,
-    showCollapseColumn,
-    collapsibleLines,
-    collapsedLines,
-    onToggleCollapse,
-  } = props
-  const line = lines[index]
+function CodeRow({
+  index,
+  line,
+  gutterWidth,
+  showGutter,
+  gutterStyle,
+  leftOffset,
+  wrapText,
+  showCollapseColumn,
+  collapsibleLines,
+  collapsedLines,
+  onToggleCollapse,
+}: CodeRowProps) {
   const originalLineIndex = line.lineNumber - 1
   const isCollapsible = showCollapseColumn && collapsibleLines.has(originalLineIndex)
   const isCollapsed = collapsedLines.has(originalLineIndex)
 
   return (
-    <div style={style} className={cn('flex', wrapText && 'overflow-hidden')} data-row-index={index}>
+    <div className={cn('flex', wrapText && 'overflow-hidden')} data-row-index={index}>
       {showGutter && (
         <div
           className='flex-shrink-0 select-none pr-0.5 text-right text-[var(--text-muted)] text-xs tabular-nums leading-[21px] dark:text-[var(--code-line-number)]'
@@ -732,7 +733,7 @@ interface CodeViewerProps {
   onMatchCountChange?: (count: number) => void
   /** Ref for the content container (for scrolling to matches) */
   contentRef?: React.RefObject<HTMLDivElement | null>
-  /** Enable virtualized rendering for large outputs (uses react-window) */
+  /** Enable virtualized rendering for large outputs (uses @tanstack/react-virtual) */
   virtualized?: boolean
   /** Whether to show a collapse column for JSON folding (only for json language) */
   showCollapseColumn?: boolean
@@ -823,7 +824,7 @@ type ViewerInnerProps = {
 }
 
 /**
- * Virtualized code viewer implementation using react-window.
+ * Virtualized code viewer implementation using @tanstack/react-virtual.
  * Optimized for large outputs with efficient scrolling and dynamic row heights.
  */
 const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
@@ -841,13 +842,8 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   showCollapseColumn,
 }: ViewerInnerProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const listRef = useListRef(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
   const [containerHeight, setContainerHeight] = useState(400)
-
-  const dynamicRowHeight = useDynamicRowHeight({
-    defaultRowHeight: CODE_LINE_HEIGHT_PX,
-    key: wrapText ? 'wrap' : 'nowrap',
-  })
 
   const lines = useMemo(() => code.split('\n'), [code])
   const gutterWidth = useMemo(() => calculateGutterWidth(lines.length), [lines.length])
@@ -914,8 +910,26 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     })
   }, [displayLines, language, visibleLineIndices, searchQuery, currentMatchIndex, matchOffsets])
 
+  const hasCollapsibleContent = collapsibleLines.size > 0
+  const effectiveShowCollapseColumn = showCollapseColumn && hasCollapsibleContent
+
+  const virtualizer = useVirtualizer({
+    count: visibleLines.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => CODE_LINE_HEIGHT_PX,
+    overscan: 5,
+  })
+
+  /**
+   * Re-measure rows when wrap mode or content changes so dynamic (wrapped) row
+   * heights stay accurate. Fixed-height (`nowrap`) rows do not need re-measuring.
+   */
   useEffect(() => {
-    if (!searchQuery?.trim() || matchCount === 0 || !listRef.current) return
+    virtualizer.measure()
+  }, [wrapText, visibleLines, virtualizer])
+
+  useEffect(() => {
+    if (!searchQuery?.trim() || matchCount === 0 || !scrollRef.current) return
 
     let accumulated = 0
     for (let i = 0; i < matchOffsets.length; i++) {
@@ -923,13 +937,13 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       if (currentMatchIndex >= accumulated && currentMatchIndex < accumulated + matchesInThisLine) {
         const visibleIndex = visibleLineIndices.indexOf(i)
         if (visibleIndex !== -1) {
-          listRef.current.scrollToRow({ index: visibleIndex, align: 'center' })
+          virtualizer.scrollToIndex(visibleIndex, { align: 'center' })
         }
         break
       }
       accumulated += matchesInThisLine
     }
-  }, [currentMatchIndex, searchQuery, matchCount, matchOffsets, listRef, visibleLineIndices])
+  }, [currentMatchIndex, searchQuery, matchCount, matchOffsets, virtualizer, visibleLineIndices])
 
   useEffect(() => {
     const container = containerRef.current
@@ -946,56 +960,15 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
     return () => resizeObserver.disconnect()
   }, [])
 
-  useEffect(() => {
-    if (!wrapText) return
-
-    const container = containerRef.current
-    if (!container) return
-
-    const rows = container.querySelectorAll('[data-row-index]')
-    if (rows.length === 0) return
-
-    return dynamicRowHeight.observeRowElements(rows)
-  }, [wrapText, dynamicRowHeight, visibleLines])
-
   const setRefs = useCallback(
     (el: HTMLDivElement | null) => {
       containerRef.current = el
+      scrollRef.current = el
       if (contentRef && 'current' in contentRef) {
         contentRef.current = el
       }
     },
     [contentRef]
-  )
-
-  const hasCollapsibleContent = collapsibleLines.size > 0
-  const effectiveShowCollapseColumn = showCollapseColumn && hasCollapsibleContent
-
-  const rowProps = useMemo(
-    () => ({
-      lines: visibleLines,
-      gutterWidth,
-      showGutter,
-      gutterStyle,
-      leftOffset: paddingLeft,
-      wrapText,
-      showCollapseColumn: effectiveShowCollapseColumn,
-      collapsibleLines,
-      collapsedLines,
-      onToggleCollapse: toggleCollapse,
-    }),
-    [
-      visibleLines,
-      gutterWidth,
-      showGutter,
-      gutterStyle,
-      paddingLeft,
-      wrapText,
-      effectiveShowCollapseColumn,
-      collapsibleLines,
-      collapsedLines,
-      toggleCollapse,
-    ]
   )
 
   return (
@@ -1004,21 +977,44 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
       className={cn(
         'code-editor-theme relative rounded-sm border border-[var(--border-1)]',
         'bg-[var(--surface-1)] font-medium font-mono text-sm',
+        wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
+        'overflow-y-auto',
         'dark:bg-[var(--code-bg)]',
         className
       )}
       style={{ height: containerHeight }}
     >
-      <List
-        listRef={listRef}
-        defaultHeight={containerHeight}
-        rowCount={visibleLines.length}
-        rowHeight={wrapText ? dynamicRowHeight : CODE_LINE_HEIGHT_PX}
-        rowComponent={CodeRow}
-        rowProps={rowProps}
-        overscanCount={5}
-        className={wrapText ? 'overflow-x-hidden' : 'overflow-x-auto'}
-      />
+      <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const line = visibleLines[virtualItem.index]
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={wrapText ? virtualizer.measureElement : undefined}
+              className='absolute top-0 left-0 w-full'
+              style={{
+                transform: `translateY(${virtualItem.start}px)`,
+                height: wrapText ? undefined : virtualItem.size,
+              }}
+            >
+              <CodeRow
+                index={virtualItem.index}
+                line={line}
+                gutterWidth={gutterWidth}
+                showGutter={showGutter}
+                gutterStyle={gutterStyle}
+                leftOffset={paddingLeft}
+                wrapText={wrapText}
+                showCollapseColumn={effectiveShowCollapseColumn}
+                collapsibleLines={collapsibleLines}
+                collapsedLines={collapsedLines}
+                onToggleCollapse={toggleCollapse}
+              />
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 })

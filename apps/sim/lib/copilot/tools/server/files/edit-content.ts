@@ -49,9 +49,15 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       return { success: false, message: 'content is required for edit_content' }
     }
 
+    // Consume the intent from THIS file subagent's channel (its outer tool_use
+    // id), not just the latest in the message — otherwise two file agents
+    // writing concurrently would each grab whichever workspace_file landed last
+    // and write their content into the wrong file. Falls back to latest-in-
+    // message when no channel id is present (main-agent / legacy calls).
     const intent = await consumeLatestFileIntent(workspaceId, {
       chatId: context.chatId,
       messageId: context.messageId,
+      channelId: context.parentToolCallId,
     })
     if (!intent) {
       return {

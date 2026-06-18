@@ -50,7 +50,7 @@ export interface DataRowProps {
   runningCount: number
   /** Whether the table has at least one workflow column — controls whether a run/stop icon is rendered. */
   hasWorkflowColumns: boolean
-  /** Width of the centered row-number/checkbox region in px, derived from the table's maxRows digit count. */
+  /** Width of the centered row-number/checkbox region in px, derived from the table's row-count digit count. */
   numRegionWidth: number
   onStopRow: (rowId: string) => void
   onRunRow: (rowId: string) => void

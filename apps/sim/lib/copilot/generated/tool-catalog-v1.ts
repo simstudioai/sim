@@ -14,12 +14,10 @@ export interface ToolCatalogEntry {
     | 'crawl_website'
     | 'create_file'
     | 'create_file_folder'
-    | 'create_folder'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'delete_file'
     | 'delete_file_folder'
-    | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
@@ -52,7 +50,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'knowledge_base'
     | 'list_file_folders'
-    | 'list_folders'
     | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -60,6 +57,7 @@ export interface ToolCatalogEntry {
     | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
+    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -67,7 +65,6 @@ export interface ToolCatalogEntry {
     | 'media'
     | 'move_file'
     | 'move_file_folder'
-    | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
@@ -115,12 +112,10 @@ export interface ToolCatalogEntry {
     | 'crawl_website'
     | 'create_file'
     | 'create_file_folder'
-    | 'create_folder'
     | 'create_workflow'
     | 'create_workspace_mcp_server'
     | 'delete_file'
     | 'delete_file_folder'
-    | 'delete_folder'
     | 'delete_workflow'
     | 'delete_workspace_mcp_server'
     | 'deploy'
@@ -153,7 +148,6 @@ export interface ToolCatalogEntry {
     | 'knowledge'
     | 'knowledge_base'
     | 'list_file_folders'
-    | 'list_folders'
     | 'list_integration_tools'
     | 'list_user_workspaces'
     | 'list_workspace_mcp_servers'
@@ -161,6 +155,7 @@ export interface ToolCatalogEntry {
     | 'load_integration_tool'
     | 'manage_credential'
     | 'manage_custom_tool'
+    | 'manage_folder'
     | 'manage_mcp_tool'
     | 'manage_scheduled_task'
     | 'manage_skill'
@@ -168,7 +163,6 @@ export interface ToolCatalogEntry {
     | 'media'
     | 'move_file'
     | 'move_file_folder'
-    | 'move_folder'
     | 'move_workflow'
     | 'oauth_get_auth_link'
     | 'oauth_request_access'
@@ -208,7 +202,6 @@ export interface ToolCatalogEntry {
     | 'workspace_file'
   parameters: unknown
   requiredPermission?: 'admin' | 'read' | 'write'
-  requiresConfirmation?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
@@ -405,23 +398,6 @@ export const CreateFileFolder: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const CreateFolder: ToolCatalogEntry = {
-  id: 'create_folder',
-  name: 'create_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      name: { type: 'string', description: 'Folder name.' },
-      parentId: { type: 'string', description: 'Optional parent folder ID.' },
-      workspaceId: { type: 'string', description: 'Optional workspace ID.' },
-    },
-    required: ['name'],
-  },
-  requiredPermission: 'write',
-}
-
 export const CreateWorkflow: ToolCatalogEntry = {
   id: 'create_workflow',
   name: 'create_workflow',
@@ -467,7 +443,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['name'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -515,27 +490,6 @@ export const DeleteFileFolder: ToolCatalogEntry = {
     },
     required: ['paths'],
   },
-  requiresConfirmation: true,
-  requiredPermission: 'write',
-}
-
-export const DeleteFolder: ToolCatalogEntry = {
-  id: 'delete_folder',
-  name: 'delete_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      folderIds: {
-        type: 'array',
-        description: 'The folder IDs to delete.',
-        items: { type: 'string' },
-      },
-    },
-    required: ['folderIds'],
-  },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -555,7 +509,6 @@ export const DeleteWorkflow: ToolCatalogEntry = {
     },
     required: ['workflowIds'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -571,7 +524,6 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -672,7 +624,6 @@ export const DeployApi: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -818,7 +769,6 @@ export const DeployChat: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -911,7 +861,6 @@ export const DeployMcp: ToolCatalogEntry = {
     },
     required: ['deploymentType', 'deploymentStatus'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -1465,7 +1414,6 @@ export const GenerateApiKey: ToolCatalogEntry = {
     },
     required: ['name'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2346,7 +2294,6 @@ export const KnowledgeBase: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
-  requiresConfirmation: true,
 }
 
 export const ListFileFolders: ToolCatalogEntry = {
@@ -2364,19 +2311,6 @@ export const ListFileFolders: ToolCatalogEntry = {
     },
   },
   requiredPermission: 'read',
-}
-
-export const ListFolders: ToolCatalogEntry = {
-  id: 'list_folders',
-  name: 'list_folders',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      workspaceId: { type: 'string', description: 'Optional workspace ID to list folders for.' },
-    },
-  },
 }
 
 export const ListIntegrationTools: ToolCatalogEntry = {
@@ -2442,7 +2376,6 @@ export const LoadDeployment: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2488,7 +2421,6 @@ export const ManageCredential: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2558,7 +2490,50 @@ export const ManageCustomTool: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
+  requiredPermission: 'write',
+}
+
+export const ManageFolder: ToolCatalogEntry = {
+  id: 'manage_folder',
+  name: 'manage_folder',
+  route: 'sim',
+  mode: 'async',
+  parameters: {
+    type: 'object',
+    properties: {
+      destinationPath: {
+        type: 'string',
+        description:
+          'Destination parent folder\'s VFS path for move/create. Omit (or pass "workflows") to target the workspace root.',
+      },
+      folderId: {
+        type: 'string',
+        description:
+          'Target folder ID, used as a fallback when path is not given. Readable from a contained workflow\'s meta.json "folderId".',
+      },
+      name: {
+        type: 'string',
+        description:
+          'Folder name. Required for rename (the new name); for create when you pass a destination parent instead of a full path.',
+      },
+      operation: {
+        type: 'string',
+        description: 'The operation to perform.',
+        enum: ['create', 'rename', 'move', 'delete'],
+      },
+      parentId: {
+        type: 'string',
+        description:
+          'Destination parent folder ID, used as a fallback when destinationPath is not given.',
+      },
+      path: {
+        type: 'string',
+        description:
+          'Target folder\'s VFS path (e.g. "workflows/Marketing/Q3 Campaigns"), per-segment percent-encoded like every VFS path. Identifies the folder for rename/move/delete; for create it is the new folder\'s full path (its parent must already exist).',
+      },
+    },
+    required: ['operation'],
+  },
   requiredPermission: 'write',
 }
 
@@ -2610,7 +2585,6 @@ export const ManageMcpTool: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2723,7 +2697,6 @@ export const ManageSkill: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2820,26 +2793,6 @@ export const MoveFileFolder: ToolCatalogEntry = {
   requiredPermission: 'write',
 }
 
-export const MoveFolder: ToolCatalogEntry = {
-  id: 'move_folder',
-  name: 'move_folder',
-  route: 'sim',
-  mode: 'async',
-  parameters: {
-    type: 'object',
-    properties: {
-      folderId: { type: 'string', description: 'The folder ID to move.' },
-      parentId: {
-        type: 'string',
-        description:
-          'Target parent folder ID. Omit or pass empty string to move to workspace root.',
-      },
-    },
-    required: ['folderId'],
-  },
-  requiredPermission: 'write',
-}
-
 export const MoveWorkflow: ToolCatalogEntry = {
   id: 'move_workflow',
   name: 'move_workflow',
@@ -2897,7 +2850,6 @@ export const OauthRequestAccess: ToolCatalogEntry = {
     },
     required: ['providerName'],
   },
-  requiresConfirmation: true,
 }
 
 export const OpenResource: ToolCatalogEntry = {
@@ -2955,7 +2907,6 @@ export const PromoteToLive: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3161,7 +3112,6 @@ export const Redeploy: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3286,7 +3236,6 @@ export const RestoreResource: ToolCatalogEntry = {
     },
     required: ['type', 'id'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3342,7 +3291,6 @@ export const RunBlock: ToolCatalogEntry = {
     required: ['blockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunFromBlock: ToolCatalogEntry = {
@@ -3377,7 +3325,6 @@ export const RunFromBlock: ToolCatalogEntry = {
     required: ['startBlockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunWorkflow: ToolCatalogEntry = {
@@ -3421,7 +3368,6 @@ export const RunWorkflow: ToolCatalogEntry = {
     },
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
@@ -3470,7 +3416,6 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
     required: ['stopAfterBlockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const ScheduledTask: ToolCatalogEntry = {
@@ -3666,7 +3611,6 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
     },
     required: ['variables'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3706,7 +3650,6 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
     },
     required: ['operations'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3772,7 +3715,6 @@ export const UpdateDeploymentVersion: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3810,7 +3752,6 @@ export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3958,7 +3899,8 @@ export const UserTable: ToolCatalogEntry = {
           },
           limit: {
             type: 'number',
-            description: 'Maximum rows to return or affect (optional, default 100)',
+            description:
+              'Maximum rows to return or affect (optional, default 100). Omit on update_rows_by_filter / delete_rows_by_filter to act on every match.',
           },
           mapping: {
             type: 'object',
@@ -4188,7 +4130,6 @@ export const UserTable: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
-  requiresConfirmation: true,
 }
 
 export const Workflow: ToolCatalogEntry = {
@@ -4438,6 +4379,23 @@ export const ManageCustomToolOperationValues = [
   ManageCustomToolOperation.list,
 ] as const
 
+export const ManageFolderOperation = {
+  create: 'create',
+  rename: 'rename',
+  move: 'move',
+  delete: 'delete',
+} as const
+
+export type ManageFolderOperation =
+  (typeof ManageFolderOperation)[keyof typeof ManageFolderOperation]
+
+export const ManageFolderOperationValues = [
+  ManageFolderOperation.create,
+  ManageFolderOperation.rename,
+  ManageFolderOperation.move,
+  ManageFolderOperation.delete,
+] as const
+
 export const ManageMcpToolOperation = {
   add: 'add',
   edit: 'edit',
@@ -4614,12 +4572,10 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [CrawlWebsite.id]: CrawlWebsite,
   [CreateFile.id]: CreateFile,
   [CreateFileFolder.id]: CreateFileFolder,
-  [CreateFolder.id]: CreateFolder,
   [CreateWorkflow.id]: CreateWorkflow,
   [CreateWorkspaceMcpServer.id]: CreateWorkspaceMcpServer,
   [DeleteFile.id]: DeleteFile,
   [DeleteFileFolder.id]: DeleteFileFolder,
-  [DeleteFolder.id]: DeleteFolder,
   [DeleteWorkflow.id]: DeleteWorkflow,
   [DeleteWorkspaceMcpServer.id]: DeleteWorkspaceMcpServer,
   [Deploy.id]: Deploy,
@@ -4652,7 +4608,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Knowledge.id]: Knowledge,
   [KnowledgeBase.id]: KnowledgeBase,
   [ListFileFolders.id]: ListFileFolders,
-  [ListFolders.id]: ListFolders,
   [ListIntegrationTools.id]: ListIntegrationTools,
   [ListUserWorkspaces.id]: ListUserWorkspaces,
   [ListWorkspaceMcpServers.id]: ListWorkspaceMcpServers,
@@ -4660,6 +4615,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [LoadIntegrationTool.id]: LoadIntegrationTool,
   [ManageCredential.id]: ManageCredential,
   [ManageCustomTool.id]: ManageCustomTool,
+  [ManageFolder.id]: ManageFolder,
   [ManageMcpTool.id]: ManageMcpTool,
   [ManageScheduledTask.id]: ManageScheduledTask,
   [ManageSkill.id]: ManageSkill,
@@ -4667,7 +4623,6 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [Media.id]: Media,
   [MoveFile.id]: MoveFile,
   [MoveFileFolder.id]: MoveFileFolder,
-  [MoveFolder.id]: MoveFolder,
   [MoveWorkflow.id]: MoveWorkflow,
   [OauthGetAuthLink.id]: OauthGetAuthLink,
   [OauthRequestAccess.id]: OauthRequestAccess,

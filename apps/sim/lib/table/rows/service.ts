@@ -17,6 +17,12 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, count, eq, inArray, lte, notInArray, type SQL, sql } from 'drizzle-orm'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import {
+  assertRowCapacity,
+  getMaxRowsPerTable,
+  TableRowLimitError,
+  wouldExceedRowLimit,
+} from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS, USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { nKeysBetween } from '@/lib/table/order-key'
@@ -115,13 +121,16 @@ export async function insertRow(
     }
   }
 
+  // Best-effort capacity check against the workspace's current plan limit.
+  await assertRowCapacity({
+    workspaceId: table.workspaceId,
+    currentRowCount: table.rowCount,
+    addedRows: 1,
+  })
+
   const rowId = `row_${generateId().replace(/-/g, '')}`
   const now = new Date()
 
-  // Capacity enforcement lives in the `increment_user_table_row_count` trigger
-  // (migration 0198): a single conditional UPDATE on user_table_definitions
-  // increments row_count iff row_count < max_rows, taking the row lock
-  // atomically. No app-level FOR UPDATE / COUNT needed.
   const row = await insertOrderedRow({
     tableId: data.tableId,
     workspaceId: data.workspaceId,
@@ -182,6 +191,14 @@ export async function batchInsertRows(
   table: TableDefinition,
   requestId: string
 ): Promise<TableRow[]> {
+  // Best-effort capacity check against the workspace's current plan limit. Import
+  // paths call `batchInsertRowsWithTx` directly and gate capacity up front instead.
+  await assertRowCapacity({
+    workspaceId: table.workspaceId,
+    currentRowCount: table.rowCount,
+    addedRows: data.rows.length,
+  })
+
   const result = await db.transaction((trx) => batchInsertRowsWithTx(trx, data, table, requestId))
   dispatchAfterBatchInsert(table, result, requestId, data.userId)
   return result
@@ -193,9 +210,8 @@ export async function batchInsertRows(
  * is responsible for opening the transaction. Use when row inserts must be
  * atomic with other writes (e.g., schema mutations) on the same tx.
  *
- * Capacity enforcement lives in the `increment_user_table_row_count` trigger
- * (migration 0198) — fires per row and raises `Maximum row limit (%) reached ...`
- * if the cap is hit mid-batch.
+ * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
+ * Callers gate it before opening the tx — see `batchInsertRows` and the import paths.
  */
 export async function batchInsertRowsWithTx(
   trx: DbTransaction,
@@ -317,7 +333,7 @@ export function dispatchAfterBatchInsert(
  *
  * Validates each row against the schema, enforces unique constraints within the
  * new rows (existing rows are deleted, so DB-side checks are unnecessary), and
- * enforces `maxRows` before the replace executes.
+ * enforces the workspace's current plan row limit before the replace executes.
  *
  * @param data - Replace data (rows to install)
  * @param table - Table definition
@@ -330,12 +346,22 @@ export async function replaceTableRows(
   table: TableDefinition,
   requestId: string
 ): Promise<ReplaceRowsResult> {
+  // All existing rows are deleted, so the footprint is just the new set. Checked
+  // before the tx opens — never inside it (the plan lookup is a separate pool read).
+  await assertRowCapacity({
+    workspaceId: table.workspaceId,
+    currentRowCount: 0,
+    addedRows: data.rows.length,
+  })
   return db.transaction((trx) => replaceTableRowsWithTx(trx, data, table, requestId))
 }
 
 /**
  * Transaction-bound variant of `replaceTableRows`. Caller opens the transaction.
  * Use when the replace must be atomic with other writes (e.g., schema mutations).
+ *
+ * Capacity is NOT checked here (it would mean a billing-pool read inside the tx).
+ * Callers gate it before opening the tx — see `replaceTableRows` and `importReplaceRows`.
  */
 export async function replaceTableRowsWithTx(
   trx: DbTransaction,
@@ -348,11 +374,6 @@ export async function replaceTableRowsWithTx(
   }
   if (data.workspaceId !== table.workspaceId) {
     throw new Error(`Workspace ID mismatch: ${data.workspaceId} does not own table ${data.tableId}`)
-  }
-  if (data.rows.length > table.maxRows) {
-    throw new Error(
-      `Cannot replace: ${data.rows.length} rows exceeds table row limit (${table.maxRows})`
-    )
   }
 
   for (let i = 0; i < data.rows.length; i++) {
@@ -452,11 +473,10 @@ export async function replaceTableRowsWithTx(
  * column, otherwise inserts a new row.
  *
  * Uses a single unique column for matching (not OR across all unique columns) to avoid
- * ambiguous matches when multiple unique columns exist. Capacity enforcement lives
- * in the `increment_user_table_row_count` trigger (migration 0198). On the insert
- * path we acquire the per-table advisory lock and re-check for an existing match
- * before inserting, so a concurrent upsert racing on the same conflict target
- * cannot produce a duplicate row.
+ * ambiguous matches when multiple unique columns exist. Capacity is checked best-effort
+ * against the current plan limit on the insert path. On the insert path we acquire the
+ * per-table advisory lock and re-check for an existing match before inserting, so a
+ * concurrent upsert racing on the same conflict target cannot produce a duplicate row.
  *
  * @param data - Upsert data including optional conflictTarget
  * @param table - Table definition
@@ -528,8 +548,11 @@ export async function upsertRow(
       ? sql`${userTableRows.data}->>${targetColumnKey}::text = ${String(targetValue)}`
       : sql`(${userTableRows.data}->${targetColumnKey}::text)::jsonb = ${JSON.stringify(targetValue)}::jsonb`
 
-  // Capacity enforcement for the insert path lives in the `increment_user_table_row_count`
-  // trigger (migration 0198). The update path doesn't change row_count, so no check needed.
+  // Resolve the plan limit BEFORE the tx (the lookup is a separate pool read; doing
+  // it inside the tx would hold a connection + the row-order lock during it). The
+  // insert branch enforces it; the update path doesn't add a row, so it's exempt.
+  const rowLimit = await getMaxRowsPerTable(table.workspaceId)
+
   const result = await db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
     // The conflict lookups below match on `data->>key` — unestimatable, and an
@@ -610,6 +633,10 @@ export async function upsertRow(
         previousData,
         operation: 'update' as const,
       }
+    }
+
+    if (wouldExceedRowLimit(rowLimit, table.rowCount, 1)) {
+      throw new TableRowLimitError(rowLimit)
     }
 
     const [insertedRow] = await trx
@@ -854,6 +881,11 @@ export async function pendingDeleteMask(table: TableDefinition): Promise<SQL | u
     .limit(1)
   if (!job?.payload) return undefined
   const scope = job.payload as TableDeleteJobPayload
+
+  // A bounded delete (explicit limit) deletes only the first `maxRows` matches, so the filter-based
+  // mask — which hides every match — would over-hide the rows beyond the cap this job never touches.
+  // Leave those reads unmasked; the bounded delete is eventually consistent like a bounded update.
+  if (scope.maxRows !== undefined) return undefined
 
   const doomedParts: SQL[] = []
   if (scope.filter && Object.keys(scope.filter).length > 0) {

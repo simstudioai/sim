@@ -20,6 +20,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         userPermission: context.userPermission ?? undefined,
         chatId: context.chatId,
         messageId: context.messageId,
+        parentToolCallId: context.parentToolCallId,
         abortSignal: context.abortSignal,
       })
 

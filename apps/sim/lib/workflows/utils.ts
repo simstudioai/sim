@@ -608,6 +608,7 @@ export async function listFolders(workspaceId: string) {
       folderName: workflowFolder.name,
       parentId: workflowFolder.parentId,
       sortOrder: workflowFolder.sortOrder,
+      locked: workflowFolder.locked,
     })
     .from(workflowFolder)
     .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt)))

@@ -199,7 +199,7 @@ export type TableJobStatus = 'running' | 'ready' | 'failed' | 'canceled'
  * mutate row data and share the single-running-job gate; `export` is read-only and bypasses it
  * (the partial-unique index excludes it), so an export can run alongside any other job.
  */
-export type TableJobType = 'import' | 'delete' | 'export' | 'backfill'
+export type TableJobType = 'import' | 'delete' | 'export' | 'backfill' | 'update'
 
 /**
  * Persisted scope of a running delete job (`table_jobs.payload`). Defines the doomed row set —
@@ -213,8 +213,34 @@ export interface TableDeleteJobPayload {
   /** ISO timestamp; rows created after it are spared. */
   cutoff: string
   /** Doomed-row estimate captured at kickoff — display-only: list/detail counts subtract the
-   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. */
+   *  not-yet-deleted remainder (doomedCount - rows_processed) while the job runs. Set only for an
+   *  unbounded delete (the masked "delete everything matching" path); omitted when `maxRows` is set. */
   doomedCount?: number
+  /**
+   * Stop after deleting this many rows (an explicit caller-supplied limit above the inline cap).
+   * Omitted = delete every match. When set, reads are NOT masked: the delete is eventually
+   * consistent (rows disappear as they're deleted) like a bounded update, because the filter-based
+   * mask would over-hide the rows beyond the cap that this job never deletes.
+   */
+  maxRows?: number
+}
+
+/**
+ * Persisted scope of a running bulk-update job (`table_jobs.payload`): the same `data` patch is
+ * merged into every row matching `filter` with `created_at <= cutoff` (so mid-job inserts are
+ * spared, matching the delete job's snapshot semantics). `affectedCount` is the kickoff estimate,
+ * display-only. Unlike delete, reads are not masked — updated rows still exist, so a background
+ * update is eventually consistent (readers may see a mix of patched/unpatched rows mid-job).
+ */
+export interface TableUpdateJobPayload {
+  filter: Filter
+  /** Column-id-keyed partial patch applied to every matched row (JSONB merge). */
+  data: RowData
+  /** ISO timestamp; rows created after it are not patched. */
+  cutoff: string
+  affectedCount?: number
+  /** Stop after updating this many rows (an explicit caller-supplied limit). Omitted = every match. */
+  maxRows?: number
 }
 
 /**
@@ -407,7 +433,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
-  /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
+  /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
+   *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
   /** Optional max tables override based on billing plan. Defaults to TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE. */
   maxTables?: number
