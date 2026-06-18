@@ -3,11 +3,14 @@ title: Tables
 description: Tables store structured data — columns as types, rows as entries — a spreadsheet or lightweight database your workflows read, write, and operate on at scale.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout'
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
 
 <VideoPlaceholder eyebrow="Foundations" title="Tables" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/03-tables.mp4" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
 
 A **table** stores structured data: columns are the types, rows are the entries. Think of it as giving your workflows a spreadsheet — or a lightweight database — for tracking and maintaining records.
 
@@ -18,23 +21,36 @@ A **table** stores structured data: columns are the types, rows are the entries.
       body: 'Columns define types, rows hold entries — the same mental model as a spreadsheet your workflows can read and write.',
     },
     {
-      title: 'Why they matter',
-      body: 'Many business use cases are just operations over structured data — a query, an update, or a combination with logic.',
+      title: 'Work as operations over data',
+      body: 'Many business use cases are just a query, an update, or a combination with logic over structured records.',
     },
     {
-      title: 'Scale and interface',
-      body: 'Workflow columns run an operation across many rows in parallel, making a table a surface for managing automation at scale.',
+      title: 'Scale with workflow columns',
+      body: 'Workflow columns run an operation across every row in parallel, making a table a surface for automation at scale.',
     },
   ]}
 />
+
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The shape of a table', time: '0:00' },
+    { title: 'Operations over data', time: '0:50' },
+    { title: 'Workflow columns at scale', time: '1:50' },
+    { title: 'A surface for automation', time: '2:40' },
+  ]}
+/>
+
+</div>
 
 ## A familiar shape
 
 If you've used a spreadsheet, you already understand a table: columns with types, rows of entries. Your workflows read rows to work on, write rows they produce, and update rows in place.
 
-## Business work is operations over data
+## Operations over data
 
-A surprising amount of real work decomposes into a few operations over structured records:
+A surprising amount of real business work decomposes into a few operations over structured records:
 
 - **A query** — "which leads are still unprocessed?"
 - **An update** — "mark these rows handled."
@@ -46,6 +62,4 @@ Once you see a use case that way, building it in Sim is mostly wiring those oper
 
 Tables aren't only storage — they're a working surface for your AI systems. **Workflow columns** let you run an operation across every row at once, in parallel, so a table becomes the place you launch and track work in bulk.
 
-<Callout type="info">
-A table is a powerful interface for automation — the place you manage and operate agentic processes at scale.
-</Callout>
+That makes a table a powerful interface for automation — the place you manage and operate agentic processes at scale.

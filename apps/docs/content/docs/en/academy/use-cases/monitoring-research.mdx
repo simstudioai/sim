@@ -5,8 +5,12 @@ description: A scheduled agent that watches sources you care about, researches w
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
 
 <VideoPlaceholder eyebrow="Use case" title="Monitoring & Automated Research" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 items-start gap-10 lg:grid-cols-[1fr_300px]">
+<div>
 
 Build a system that runs on a schedule, checks the sources you care about, researches what's new, and delivers a synthesized report — competitor moves, market signals, anything worth watching — without you asking each time.
 
@@ -18,8 +22,22 @@ Build a system that runs on a schedule, checks the sources you care about, resea
   ]}
 />
 
+</div>
+
+<VideoChapters
+  chapters={[
+    { title: 'The problem', time: '0:00' },
+    { title: 'Schedule trigger', time: '0:35' },
+    { title: 'Research with tools', time: '1:25' },
+    { title: 'Synthesize findings', time: '2:20' },
+    { title: 'Deliver the report', time: '3:10' },
+  ]}
+/>
+
+</div>
+
 ## What you'll build
 
-A Schedule trigger kicks the workflow off. An Agent block with search tools gathers and reads sources, synthesizes what changed, and a final step delivers it — a Slack message, or a saved report file.
+A **Schedule trigger** kicks the workflow off. An **Agent** block with search tools gathers and reads sources, synthesizes what changed, and a final step delivers it — a Slack message, or a saved report [file](/academy/files).
 
 This composes [workflows](/academy/workflows), [agents](/academy/agents), and [files](/academy/files).
