@@ -4,19 +4,12 @@ import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { z } from 'zod'
-import type {
-  ShareRecord,
-  shareAccessLevelSchema,
-  shareAuthTypeSchema,
-  shareResourceTypeSchema,
-} from '@/lib/api/contracts/public-shares'
+import type { ShareRecord, shareResourceTypeSchema } from '@/lib/api/contracts/public-shares'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('PublicShareManager')
 
 type ShareResourceType = z.infer<typeof shareResourceTypeSchema>
-type ShareAccessLevel = z.infer<typeof shareAccessLevelSchema>
-type ShareAuthType = z.infer<typeof shareAuthTypeSchema>
 
 type PublicShareRow = typeof publicShare.$inferSelect
 
@@ -31,8 +24,6 @@ function mapShareRecord(row: PublicShareRow): ShareRecord {
     token: row.token,
     url: buildShareUrl(row.token),
     isActive: row.isActive,
-    accessLevel: row.accessLevel as ShareAccessLevel,
-    authType: row.authType as ShareAuthType,
     resourceType: row.resourceType as ShareResourceType,
     resourceId: row.resourceId,
   }

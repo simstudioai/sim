@@ -1392,10 +1392,7 @@ export const workspaceFiles = pgTable(
 /**
  * Public share links for workspace resources. Polymorphic on `resourceType` so a
  * single mechanism serves files now and folders later. One row per resource
- * (disable/re-enable flips `isActive` and keeps the same token). `accessLevel`,
- * `authType`, `password`, and `allowedEmails` are reserved for future
- * password/email gating and edit links — v1 honors only `accessLevel='view'` and
- * `authType='public'`.
+ * (disable/re-enable flips `isActive` and keeps the same token).
  */
 export const publicShare = pgTable(
   'public_share',
@@ -1411,10 +1408,6 @@ export const publicShare = pgTable(
       .references(() => user.id, { onDelete: 'cascade' }),
     token: text('token').notNull(),
     isActive: boolean('is_active').notNull().default(true),
-    accessLevel: text('access_level').notNull().default('view'), // 'view' | 'edit' (v1 honors only 'view')
-    authType: text('auth_type').notNull().default('public'), // 'public' | 'password' | 'email' (future)
-    password: text('password'), // encrypted, populated when authType is 'password' (future)
-    allowedEmails: json('allowed_emails').default('[]'), // emails/domains when authType is 'email' (future)
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

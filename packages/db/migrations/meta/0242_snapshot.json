@@ -1,5 +1,5 @@
 {
-  "id": "379b2199-4050-4575-bd20-38fb9bbde6c2",
+  "id": "a99c0c8d-17cb-4153-8888-409e9af9c167",
   "prevId": "f7a9fd28-8bd2-4421-a048-a0a768fc8475",
   "version": "7",
   "dialect": "postgresql",
@@ -10004,33 +10004,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "access_level": {
-          "name": "access_level",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'view'"
-        },
-        "auth_type": {
-          "name": "auth_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
-        "password": {
-          "name": "password",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "allowed_emails": {
-          "name": "allowed_emails",
-          "type": "json",
-          "primaryKey": false,
-          "notNull": false,
-          "default": "'[]'"
         },
         "created_at": {
           "name": "created_at",

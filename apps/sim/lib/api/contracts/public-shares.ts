@@ -3,20 +3,16 @@ import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 export const shareResourceTypeSchema = z.enum(['file', 'folder'])
-export const shareAccessLevelSchema = z.enum(['view', 'edit'])
-export const shareAuthTypeSchema = z.enum(['public', 'password', 'email'])
 
 /**
- * Public-safe representation of a `public_share` row. Never carries the encrypted
- * password or the underlying storage key.
+ * Public-safe representation of a `public_share` row. Never carries the
+ * underlying storage key.
  */
 export const shareRecordSchema = z.object({
   id: z.string(),
   token: z.string(),
   url: z.string(),
   isActive: z.boolean(),
-  accessLevel: shareAccessLevelSchema,
-  authType: shareAuthTypeSchema,
   resourceType: shareResourceTypeSchema,
   resourceId: z.string(),
 })

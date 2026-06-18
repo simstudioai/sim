@@ -45,8 +45,6 @@ const SHARE = {
   token: 'tok_1',
   url: 'https://sim.ai/f/tok_1',
   isActive: true,
-  accessLevel: 'view' as const,
-  authType: 'public' as const,
   resourceType: 'file' as const,
   resourceId: FILE_ID,
 }

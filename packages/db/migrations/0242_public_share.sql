@@ -6,10 +6,6 @@ CREATE TABLE "public_share" (
 	"created_by" text NOT NULL,
 	"token" text NOT NULL,
 	"is_active" boolean DEFAULT true NOT NULL,
-	"access_level" text DEFAULT 'view' NOT NULL,
-	"auth_type" text DEFAULT 'public' NOT NULL,
-	"password" text,
-	"allowed_emails" json DEFAULT '[]',
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
