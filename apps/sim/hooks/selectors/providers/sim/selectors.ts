@@ -1,4 +1,6 @@
+import { getColumnId } from '@/lib/table/column-keys'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { getTableDetailQueryOptions } from '@/hooks/queries/tables'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getFolderPath } from '@/hooks/queries/utils/folder-tree'
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
@@ -12,6 +14,7 @@ import type {
   SelectorQueryArgs,
 } from '@/hooks/selectors/types'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 /**
@@ -85,4 +88,34 @@ export const simSelectors = {
       }
     },
   },
-} satisfies Record<Extract<SelectorKey, 'sim.workflows'>, SelectorDefinition>
+  'table.columns': {
+    key: 'table.columns',
+    staleTime: SELECTOR_STALE,
+    getQueryKey: ({ context, search }: SelectorQueryArgs) => [
+      ...selectorKeys.all,
+      'table.columns',
+      context.tableId ?? 'none',
+      search ?? '',
+    ],
+    enabled: ({ context }) => Boolean(context.tableId),
+    fetchList: async ({ context }: SelectorQueryArgs): Promise<SelectorOption[]> => {
+      const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+      if (!workspaceId || !context.tableId) return []
+      const table = await getQueryClient().ensureQueryData(
+        getTableDetailQueryOptions(workspaceId, context.tableId)
+      )
+      return (table.schema?.columns ?? [])
+        .filter((col) => col.unique)
+        .map((col) => ({ id: getColumnId(col), label: col.name }))
+    },
+    fetchById: async ({ context, detailId }: SelectorQueryArgs): Promise<SelectorOption | null> => {
+      const workspaceId = useWorkflowRegistry.getState().hydration.workspaceId
+      if (!detailId || !workspaceId || !context.tableId) return null
+      const table = await getQueryClient().ensureQueryData(
+        getTableDetailQueryOptions(workspaceId, context.tableId)
+      )
+      const col = (table.schema?.columns ?? []).find((c) => getColumnId(c) === detailId)
+      return col ? { id: getColumnId(col), label: col.name } : null
+    },
+  },
+} satisfies Record<Extract<SelectorKey, 'sim.workflows' | 'table.columns'>, SelectorDefinition>

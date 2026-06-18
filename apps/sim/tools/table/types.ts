@@ -142,6 +142,9 @@ export interface TableGetSchemaResponse extends ToolResponse {
   output: {
     name: string
     columns: ColumnDefinition[]
+    columnCount: number
+    rowCount: number
+    maxRows: number
     message: string
   }
 }
