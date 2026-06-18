@@ -2,7 +2,16 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
-import { parseTagDate } from '@/connectors/utils'
+import {
+  CONNECTOR_MAX_FILE_BYTES,
+  isSkippedDocument,
+  markSkipped,
+  parseTagDate,
+  readBodyWithLimit,
+  sizeLimitSkipReason,
+  stubOrSkipBySize,
+  takeIndexableWithinCap,
+} from '@/connectors/utils'
 import { zoomConnectorMeta } from '@/connectors/zoom/meta'
 
 const logger = createLogger('ZoomConnector')
@@ -208,6 +217,7 @@ function recordingToStub(
       duration: recording.duration,
       meetingDate: recording.start_time,
       topic: recording.topic,
+      fileSize: transcriptFile.file_size,
     },
   }
 }
@@ -309,21 +319,26 @@ export const zoomConnector: ConnectorConfig = {
       if (!meeting.uuid) continue
       const transcript = findTranscriptFile(meeting.recording_files)
       if (!transcript) continue
-      allDocuments.push(recordingToStub(meeting, transcript))
+      allDocuments.push(
+        stubOrSkipBySize(
+          recordingToStub(meeting, transcript),
+          transcript.file_size,
+          CONNECTOR_MAX_FILE_BYTES
+        )
+      )
     }
 
     const prevFetched = (syncContext?.totalDocsFetched as number) ?? 0
-    let documents = allDocuments
-    if (maxRecordings > 0) {
-      const remaining = Math.max(0, maxRecordings - prevFetched)
-      if (allDocuments.length > remaining) {
-        documents = allDocuments.slice(0, remaining)
-      }
-    }
+    const { documents, indexableCount, capReached } = takeIndexableWithinCap(
+      allDocuments,
+      isSkippedDocument,
+      maxRecordings,
+      prevFetched
+    )
 
-    const totalFetched = prevFetched + documents.length
+    const totalFetched = prevFetched + indexableCount
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxRecordings > 0 && totalFetched >= maxRecordings
+    const hitLimit = capReached
     if (hitLimit && syncContext) syncContext.listingCapped = true
 
     let nextCursor: string | undefined
@@ -386,7 +401,15 @@ export const zoomConnector: ConnectorConfig = {
         return null
       }
 
-      const vttText = await vttResponse.text()
+      const vttBuffer = await readBodyWithLimit(vttResponse, CONNECTOR_MAX_FILE_BYTES)
+      if (!vttBuffer) {
+        return markSkipped(
+          recordingToStub(recording, transcript),
+          sizeLimitSkipReason(CONNECTOR_MAX_FILE_BYTES)
+        )
+      }
+
+      const vttText = vttBuffer.toString('utf8')
       const transcriptText = parseVtt(vttText).trim()
       if (!transcriptText) return null
 

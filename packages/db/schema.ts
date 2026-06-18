@@ -372,6 +372,9 @@ export const workflowExecutionLogs = pgTable(
       table.workspaceId,
       table.startedAt
     ),
+    workspaceStartedAtIdDescIdx: index(
+      'workflow_execution_logs_workspace_started_at_id_desc_idx'
+    ).on(table.workspaceId, sql`${table.startedAt} DESC NULLS LAST`, sql`${table.id} DESC`),
     workspaceCostTotalIdx: index('workflow_execution_logs_workspace_cost_total_idx').on(
       table.workspaceId,
       table.costTotal
@@ -564,7 +567,6 @@ export const workspaceBYOKKeys = pgTable(
       table.workspaceId,
       table.providerId
     ),
-    workspaceIdx: index('workspace_byok_workspace_idx').on(table.workspaceId),
   })
 )
 
@@ -2975,9 +2977,6 @@ export const permissionGroupWorkspace = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (table) => ({
-    permissionGroupIdIdx: index('permission_group_workspace_group_id_idx').on(
-      table.permissionGroupId
-    ),
     workspaceIdIdx: index('permission_group_workspace_workspace_id_idx').on(table.workspaceId),
     groupWorkspaceUnique: uniqueIndex('permission_group_workspace_group_workspace_unique').on(
       table.permissionGroupId,
@@ -3143,6 +3142,14 @@ export const userTableDefinitions = pgTable(
     metadata: jsonb('metadata'),
     maxRows: integer('max_rows').notNull().default(10000),
     rowCount: integer('row_count').notNull().default(0),
+    /**
+     * @remarks
+     * Monotonic counter bumped by a statement-level trigger on `user_table_rows`
+     * (INSERT/UPDATE/DELETE). Keys the versioned table-snapshot cache so a stored
+     * CSV under `v{rows_version}` is reused until the table mutates. Never written
+     * from application code — the trigger is the only writer (bypass-proof).
+     */
+    rowsVersion: bigint('rows_version', { mode: 'number' }).notNull().default(0),
     archivedAt: timestamp('archived_at'),
     createdBy: text('created_by')
       .notNull()
@@ -3193,7 +3200,6 @@ export const userTableRows = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
   },
   (table) => ({
-    tableIdIdx: index('user_table_rows_table_id_idx').on(table.tableId),
     /**
      * Tenant-scoped containment index (requires the `btree_gin` extension,
      * created in migration 0232). A plain GIN on `data` matches `@>` candidates

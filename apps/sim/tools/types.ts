@@ -30,6 +30,11 @@ export type BYOKProviderId =
   | 'zerobounce'
   | 'neverbounce'
   | 'millionverifier'
+  | 'datagma'
+  | 'dropcontact'
+  | 'leadmagic'
+  | 'icypeas'
+  | 'enrow'
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD'
 

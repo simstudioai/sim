@@ -6,6 +6,7 @@ import {
 } from '@/tools/file/parser'
 
 export { fileAppendTool } from '@/tools/file/append'
+export { fileCompressTool, fileDecompressTool } from '@/tools/file/compress'
 export { fileGetContentTool, fileGetTool, fileReadTool } from '@/tools/file/get'
 export { fileWriteTool } from '@/tools/file/write'
 

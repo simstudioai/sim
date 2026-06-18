@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LARGE_ARRAY_MANIFEST_VERSION,
   type LargeArrayManifest,
@@ -12,6 +12,13 @@ import type { ExecutionContext } from '@/executor/types'
 import { VariableResolver } from '@/executor/variables/resolver'
 import { navigatePathAsync } from '@/executor/variables/resolvers/reference-async.server'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
+
+const { mockStoreLargeValue } = vi.hoisted(() => ({ mockStoreLargeValue: vi.fn() }))
+
+vi.mock('@/lib/execution/payloads/store', () => ({
+  storeLargeValue: mockStoreLargeValue,
+  materializeLargeValueRef: vi.fn(),
+}))
 
 function createBlock(id: string, name: string, type: string, params = {}): SerializedBlock {
   return {
@@ -1168,5 +1175,147 @@ describe('VariableResolver function block inputs', () => {
     )
     expect(result.displayInputs.code).toBe('# don\'t confuse quote tracking\necho "hello world"')
     expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+})
+
+describe('VariableResolver function context overflow offload', () => {
+  const REF_KEY = 'execution/workspace-1/workflow-1/execution-1/large-value-lv_ABCDEFGHIJKL.json'
+
+  function createOffloadEnv(language: string, producerOutput: Record<string, unknown>) {
+    const { block, ctx } = createResolver(language)
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', producerOutput)
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const resolver = new VariableResolver(workflow, {}, state)
+    const durableCtx = {
+      ...ctx,
+      blockStates: state.getBlockStates(),
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      largeValueKeys: [] as string[],
+    } as ExecutionContext
+    return { block, resolver, durableCtx }
+  }
+
+  beforeEach(() => {
+    mockStoreLargeValue.mockReset()
+    mockStoreLargeValue.mockResolvedValue({
+      __simLargeValueRef: true,
+      version: 1,
+      id: 'lv_ABCDEFGHIJKL',
+      kind: 'string',
+      size: 4 * 1024 * 1024,
+      key: REF_KEY,
+      executionId: 'execution-1',
+    })
+  })
+
+  it('offloads an oversized inline value to a lazily-read large-value ref', async () => {
+    const big = 'x'.repeat(4 * 1024 * 1024)
+    const { block, resolver, durableCtx } = createOffloadEnv('javascript', { result: big })
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      durableCtx,
+      'function',
+      { code: 'return <Producer.result>' },
+      block
+    )
+
+    expect(mockStoreLargeValue).toHaveBeenCalledTimes(1)
+    expect(result.resolvedInputs.code).toBe(
+      'return (await sim.values.read(globalThis["__blockRef_0"]))'
+    )
+    expect(result.contextVariables.__blockRef_0).toMatchObject({
+      __simLargeValueRef: true,
+      id: 'lv_ABCDEFGHIJKL',
+    })
+    // The bulky value must not be inlined into either the request data or display source,
+    // and the Input view shows a readable placeholder instead of the raw ref object.
+    expect(result.displayInputs.code.length).toBeLessThan(1024)
+    expect(result.displayInputs.code).not.toContain('__simLargeValueRef')
+    expect(result.displayInputs.code).toContain('large string')
+    // The route must be authorized to materialize the ref it is about to receive.
+    expect(durableCtx.largeValueKeys).toContain(REF_KEY)
+  })
+
+  it('offloads only the values that overflow the budget when several are merged', async () => {
+    // Each value's inline footprint (data + display ~= 2x) is ~4 MB. The first fits the
+    // ~6 MB budget and stays inline; the second overflows and is offloaded.
+    const half = 'y'.repeat(2 * 1024 * 1024)
+    const { block, resolver, durableCtx } = createOffloadEnv('javascript', {
+      first: half,
+      second: half,
+    })
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      durableCtx,
+      'function',
+      { code: 'return [<Producer.first>, <Producer.second>]' },
+      block
+    )
+
+    // First value fits the budget and stays inline; the second overflows and is offloaded.
+    expect(mockStoreLargeValue).toHaveBeenCalledTimes(1)
+    expect(result.resolvedInputs.code).toBe(
+      'return [globalThis["__blockRef_0"], (await sim.values.read(globalThis["__blockRef_1"]))]'
+    )
+    expect(result.contextVariables.__blockRef_0).toBe(half)
+    expect(result.contextVariables.__blockRef_1).toMatchObject({ __simLargeValueRef: true })
+  })
+
+  it('keeps small inline values inline without offloading', async () => {
+    const { block, resolver, durableCtx } = createOffloadEnv('javascript', {
+      result: 'hello world',
+    })
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      durableCtx,
+      'function',
+      { code: 'return <Producer.result>' },
+      block
+    )
+
+    expect(mockStoreLargeValue).not.toHaveBeenCalled()
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+    expect(result.contextVariables).toEqual({ __blockRef_0: 'hello world' })
+  })
+
+  it('does not offload when the execution context cannot persist durably', async () => {
+    const big = 'x'.repeat(4 * 1024 * 1024)
+    const { block, resolver, durableCtx } = createOffloadEnv('javascript', { result: big })
+    durableCtx.executionId = undefined
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      durableCtx,
+      'function',
+      { code: 'return <Producer.result>' },
+      block
+    )
+
+    expect(mockStoreLargeValue).not.toHaveBeenCalled()
+    expect(result.resolvedInputs.code).toBe('return globalThis["__blockRef_0"]')
+  })
+
+  it('does not offload for non-JavaScript runtimes that lack the read broker', async () => {
+    const big = 'x'.repeat(4 * 1024 * 1024)
+    const { block, resolver, durableCtx } = createOffloadEnv('python', { result: big })
+
+    const result = await resolver.resolveInputsForFunctionBlock(
+      durableCtx,
+      'function',
+      { code: 'return <Producer.result>' },
+      block
+    )
+
+    expect(mockStoreLargeValue).not.toHaveBeenCalled()
+    expect(result.resolvedInputs.code).toBe('return globals()["__blockRef_0"]')
   })
 })

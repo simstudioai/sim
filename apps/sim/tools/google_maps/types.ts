@@ -479,3 +479,126 @@ export interface GoogleMapsAirQualityResponse extends ToolResponse {
     } | null
   }
 }
+
+// ============================================================================
+// Pollen
+// ============================================================================
+
+/**
+ * Calendar date returned by the Pollen and Solar APIs
+ */
+interface GoogleMapsDate {
+  year: number
+  month: number
+  day: number
+}
+
+/**
+ * Universal pollen index info shared by pollen types and plants
+ */
+interface PollenIndexInfo {
+  code: string
+  displayName: string
+  value: number
+  category: string
+  indexDescription: string
+  color: {
+    red: number
+    green: number
+    blue: number
+  }
+}
+
+/**
+ * Pollen type forecast (grass, tree, weed)
+ */
+interface PollenTypeInfo {
+  code: string
+  displayName: string
+  inSeason: boolean | null
+  indexInfo: PollenIndexInfo | null
+  healthRecommendations: string[]
+}
+
+/**
+ * Individual plant forecast with optional description
+ */
+interface PlantInfo {
+  code: string
+  displayName: string
+  inSeason: boolean | null
+  indexInfo: PollenIndexInfo | null
+  plantDescription: {
+    type: string
+    family: string
+    season: string
+    specialColors: string
+    specialShapes: string
+    crossReaction: string
+    picture: string
+    pictureCloseup: string
+  } | null
+}
+
+interface PollenDailyInfo {
+  date: GoogleMapsDate
+  pollenTypeInfo: PollenTypeInfo[]
+  plantInfo: PlantInfo[]
+}
+
+export interface GoogleMapsPollenParams {
+  apiKey: string
+  lat: number
+  lng: number
+  days?: number
+  languageCode?: string
+  plantsDescription?: boolean
+}
+
+export interface GoogleMapsPollenResponse extends ToolResponse {
+  output: {
+    regionCode: string
+    dailyInfo: PollenDailyInfo[]
+  }
+}
+
+// ============================================================================
+// Solar
+// ============================================================================
+
+interface SolarPanelConfig {
+  panelsCount: number
+  yearlyEnergyDcKwh: number
+}
+
+interface SolarPotential {
+  maxArrayPanelsCount: number
+  maxArrayAreaMeters2: number
+  maxSunshineHoursPerYear: number
+  carbonOffsetFactorKgPerMwh: number
+  panelCapacityWatts: number
+  panelHeightMeters: number
+  panelWidthMeters: number
+  panelLifetimeYears: number
+  solarPanelConfigs: SolarPanelConfig[]
+}
+
+export interface GoogleMapsSolarParams {
+  apiKey: string
+  lat: number
+  lng: number
+  requiredQuality?: 'HIGH' | 'MEDIUM' | 'BASE'
+}
+
+export interface GoogleMapsSolarResponse extends ToolResponse {
+  output: {
+    name: string
+    center: LatLng
+    imageryDate: GoogleMapsDate | null
+    imageryQuality: string
+    regionCode: string
+    postalCode: string
+    administrativeArea: string
+    solarPotential: SolarPotential | null
+  }
+}

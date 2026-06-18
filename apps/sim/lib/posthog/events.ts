@@ -569,8 +569,11 @@ export interface PostHogEventMap {
       | 'docs'
       | 'connected_account'
       | 'integration'
+      | 'action'
     query_length: number
     workspace_id: string
+    /** Present when `result_type` is `action`; the id of the action that ran. */
+    action_id?: string
   }
 
   /** A home-page suggested action was clicked. `action_id` is the candidate id (e.g. `gmail-0`). */

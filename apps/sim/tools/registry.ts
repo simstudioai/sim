@@ -636,6 +636,13 @@ import {
   datadogSubmitMetricsTool,
 } from '@/tools/datadog'
 import {
+  datagmaEnrichCompanyTool,
+  datagmaEnrichPersonTool,
+  datagmaFindEmailTool,
+  datagmaFindPhoneTool,
+  datagmaGetCreditsTool,
+} from '@/tools/datagma'
+import {
   daytonaCreateSandboxTool,
   daytonaDeleteSandboxTool,
   daytonaDownloadFileTool,
@@ -728,6 +735,7 @@ import {
   dropboxSearchTool,
   dropboxUploadTool,
 } from '@/tools/dropbox'
+import { dropcontactEnrichContactTool } from '@/tools/dropcontact'
 import { chainOfThoughtTool, predictTool, reactTool } from '@/tools/dspy'
 import {
   dubBulkCreateLinksTool,
@@ -820,6 +828,7 @@ import {
   enrichVerifyEmailTool,
 } from '@/tools/enrich'
 import { enrichmentRunTool } from '@/tools/enrichment'
+import { enrowFindEmailTool, enrowVerifyEmailTool } from '@/tools/enrow'
 import {
   evernoteCopyNoteTool,
   evernoteCreateNotebookTool,
@@ -850,6 +859,8 @@ import {
 } from '@/tools/fathom'
 import {
   fileAppendTool,
+  fileCompressTool,
+  fileDecompressTool,
   fileFetchTool,
   fileGetContentTool,
   fileGetTool,
@@ -1266,8 +1277,10 @@ import {
   googleMapsGeolocateTool,
   googleMapsPlaceDetailsTool,
   googleMapsPlacesSearchTool,
+  googleMapsPollenTool,
   googleMapsReverseGeocodeTool,
   googleMapsSnapToRoadsTool,
+  googleMapsSolarTool,
   googleMapsSpeedLimitsTool,
   googleMapsTimezoneTool,
   googleMapsValidateAddressTool,
@@ -1535,6 +1548,7 @@ import {
   iamRemoveUserFromGroupTool,
   iamSimulatePrincipalPolicyTool,
 } from '@/tools/iam'
+import { icypeasFindEmailTool, icypeasVerifyEmailTool } from '@/tools/icypeas'
 import {
   identityCenterCheckAssignmentDeletionStatusTool,
   identityCenterCheckAssignmentStatusTool,
@@ -1832,6 +1846,17 @@ import {
   launchDarklyToggleFlagTool,
   launchDarklyUpdateFlagTool,
 } from '@/tools/launchdarkly'
+import {
+  leadmagicCompanySearchTool,
+  leadmagicEmailToProfileTool,
+  leadmagicFindEmailTool,
+  leadmagicFindMobileTool,
+  leadmagicGetCreditsTool,
+  leadmagicProfileSearchTool,
+  leadmagicProfileToEmailTool,
+  leadmagicRoleFinderTool,
+  leadmagicValidateEmailTool,
+} from '@/tools/leadmagic'
 import { lemlistGetActivitiesTool, lemlistGetLeadTool, lemlistSendEmailTool } from '@/tools/lemlist'
 import {
   linearAddLabelToIssueTool,
@@ -3286,6 +3311,7 @@ import {
   supabaseGetRowTool,
   supabaseInsertTool,
   supabaseIntrospectTool,
+  supabaseInvokeFunctionTool,
   supabaseQueryTool,
   supabaseRpcTool,
   supabaseStorageCopyTool,
@@ -3958,6 +3984,8 @@ export const tools: Record<string, ToolConfig> = {
   file_parser_v2: fileParserV2Tool,
   file_parser_v3: fileParserV3Tool,
   file_append: fileAppendTool,
+  file_compress: fileCompressTool,
+  file_decompress: fileDecompressTool,
   file_fetch: fileFetchTool,
   file_get: fileGetTool,
   file_get_content: fileGetContentTool,
@@ -4402,6 +4430,7 @@ export const tools: Record<string, ToolConfig> = {
   supabase_vector_search: supabaseVectorSearchTool,
   supabase_rpc: supabaseRpcTool,
   supabase_introspect: supabaseIntrospectTool,
+  supabase_invoke_function: supabaseInvokeFunctionTool,
   supabase_storage_upload: supabaseStorageUploadTool,
   supabase_storage_download: supabaseStorageDownloadTool,
   supabase_storage_list: supabaseStorageListTool,
@@ -5324,8 +5353,10 @@ export const tools: Record<string, ToolConfig> = {
   google_maps_geolocate: googleMapsGeolocateTool,
   google_maps_place_details: googleMapsPlaceDetailsTool,
   google_maps_places_search: googleMapsPlacesSearchTool,
+  google_maps_pollen: googleMapsPollenTool,
   google_maps_reverse_geocode: googleMapsReverseGeocodeTool,
   google_maps_snap_to_roads: googleMapsSnapToRoadsTool,
+  google_maps_solar: googleMapsSolarTool,
   google_maps_speed_limits: googleMapsSpeedLimitsTool,
   google_maps_timezone: googleMapsTimezoneTool,
   google_maps_validate_address: googleMapsValidateAddressTool,
@@ -6522,6 +6553,25 @@ export const tools: Record<string, ToolConfig> = {
   prospeo_search_person: prospeoSearchPersonTool,
   prospeo_search_company: prospeoSearchCompanyTool,
   prospeo_search_suggestions: prospeoSearchSuggestionsTool,
+  datagma_find_email: datagmaFindEmailTool,
+  datagma_find_phone: datagmaFindPhoneTool,
+  datagma_enrich_person: datagmaEnrichPersonTool,
+  datagma_enrich_company: datagmaEnrichCompanyTool,
+  datagma_get_credits: datagmaGetCreditsTool,
+  dropcontact_enrich_contact: dropcontactEnrichContactTool,
+  leadmagic_validate_email: leadmagicValidateEmailTool,
+  leadmagic_find_email: leadmagicFindEmailTool,
+  leadmagic_find_mobile: leadmagicFindMobileTool,
+  leadmagic_profile_search: leadmagicProfileSearchTool,
+  leadmagic_profile_to_email: leadmagicProfileToEmailTool,
+  leadmagic_email_to_profile: leadmagicEmailToProfileTool,
+  leadmagic_company_search: leadmagicCompanySearchTool,
+  leadmagic_role_finder: leadmagicRoleFinderTool,
+  leadmagic_get_credits: leadmagicGetCreditsTool,
+  icypeas_find_email: icypeasFindEmailTool,
+  icypeas_verify_email: icypeasVerifyEmailTool,
+  enrow_find_email: enrowFindEmailTool,
+  enrow_verify_email: enrowVerifyEmailTool,
   iam_list_users: iamListUsersTool,
   iam_get_user: iamGetUserTool,
   iam_create_user: iamCreateUserTool,

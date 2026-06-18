@@ -1,0 +1,77 @@
+---
+title: Enrow
+description: Find and verify B2B emails with triple-verified accuracy
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="enrow"
+  color="#FFFFFF"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Enrow](https://enrow.io/) is a B2B email-finding and verification service built for high accuracy, using triple verification — including deterministic checks on catch-all domains — so results are deliverable without a separate verifier.
+
+With Enrow, you can:
+
+- **Find verified B2B emails:** Resolve a professional email address from a person's full name and their company name or domain.
+- **Verify existing emails:** Check the deliverability and validity of an email, including reliable handling of catch-all domains.
+
+In Sim, the Enrow integration lets your agents find and verify professional emails inside a workflow — powering accurate, high-deliverability outreach and clean contact lists without manual checks.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Enrow to find verified B2B email addresses from a full name and company, or verify the deliverability of an existing email. Enrow performs deterministic verifications including catch-all emails — no additional verifier needed.
+
+
+
+## Actions
+
+### `enrow_find_email`
+
+Find a verified B2B email address from a full name and company domain or name. Uses the Enrow async finder — submits a search and polls until the result is ready. Costs 1 credit per valid email found. (https://enrow.readme.io/reference/find-single-email)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enrow API key |
+| `fullname` | string | Yes | Full name of the person \(e.g. "John Doe"\) |
+| `company_domain` | string | No | Company domain \(e.g. "apple.com"\). Preferred over company_name. |
+| `company_name` | string | No | Company name \(e.g. "Apple"\). Used when domain is unavailable. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Enrow job identifier used for polling |
+| `email` | string | Email address found or verified |
+| `qualification` | string | Enrow quality result: "valid" or "invalid" |
+| `fullname` | string | Full name of the person searched |
+| `company_name` | string | Company name associated with the result |
+| `company_domain` | string | Company domain associated with the result |
+| `linkedin_url` | string | LinkedIn profile URL of the person |
+
+### `enrow_verify_email`
+
+Verify the deliverability of an email address using the Enrow async verifier. Submits a verification request and polls until the result is ready. Costs 0.25 credits per verification. (https://enrow.readme.io/reference/verify-single-email)
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Enrow API key |
+| `email` | string | Yes | Email address to verify \(e.g. "john@example.com"\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Enrow job identifier used for polling |
+| `email` | string | Email address found or verified |
+| `qualification` | string | Enrow quality result: "valid" or "invalid" |
+
+

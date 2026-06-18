@@ -61,6 +61,9 @@ export const mothershipChatKeys = {
   detail: (chatId: string | undefined) => [...mothershipChatKeys.details(), chatId ?? ''] as const,
 }
 
+/** Shared by the `useMothershipChats` hook and the workspace sidebar prefetch. */
+export const MOTHERSHIP_CHAT_LIST_STALE_TIME = 60 * 1000
+
 function assertValid(condition: unknown, message: string): asserts condition {
   if (!condition) {
     throw new Error(message)
@@ -183,7 +186,7 @@ function parseChatResourcesResponse(value: unknown): { resources: MothershipReso
   }
 }
 
-function mapChat(chat: MothershipChat): MothershipChatMetadata {
+export function mapChat(chat: MothershipChat): MothershipChatMetadata {
   const updatedAt = new Date(chat.updatedAt)
   return {
     id: chat.id,
@@ -217,7 +220,7 @@ export function useMothershipChats(workspaceId?: string) {
     queryKey: mothershipChatKeys.list(workspaceId),
     queryFn: workspaceId ? ({ signal }) => fetchMothershipChats(workspaceId, signal) : skipToken,
     placeholderData: keepPreviousData,
-    staleTime: 60 * 1000,
+    staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
   })
 }
 

@@ -84,7 +84,7 @@ export function getLargeValueMaterializationError(ref: LargeValueRef): Error {
   )
 }
 
-function formatLargeValueSize(bytes: number): string {
+export function formatLargeValueSize(bytes: number): string {
   const megabytes = bytes / (1024 * 1024)
   return `${megabytes.toFixed(1)} MB`
 }
