@@ -13,7 +13,9 @@ interface WhatYouWillLearnProps {
 /** A bordered "What you will learn" card listing lesson takeaways. */
 export function WhatYouWillLearn({ items, className }: WhatYouWillLearnProps) {
   return (
-    <div className={cn('rounded-xl border border-fd-border bg-fd-card/40 p-6', className)}>
+    <div
+      className={cn('not-prose rounded-xl border border-fd-border bg-fd-card/40 p-6', className)}
+    >
       <h2 className='mt-0 mb-5 font-semibold text-fd-foreground text-xl'>What you will learn</h2>
       <div className='flex flex-col gap-5'>
         {items.map((item) => (

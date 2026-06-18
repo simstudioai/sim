@@ -5,8 +5,12 @@ description: A workflow is a visual program made of blocks — where you compose
 
 import { VideoPlaceholder } from '@/components/ui/video-placeholder'
 import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+import { VideoChapters } from '@/components/ui/video-chapters'
 
 <VideoPlaceholder eyebrow="Foundations" title="Workflows" className="mt-2" />
+
+<div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[1fr_300px]">
+<div>
 
 A **workflow** is a visual program made of blocks. It's where you compose everything else in Sim — data, operations, integrations, and AI agents — into a process, and bind it to a trigger so it runs.
 
@@ -47,3 +51,19 @@ So if `A` feeds both `B` and `C`, then `B` and `C` start at the same moment `A` 
 From those primitives you get expressive control flow: **branch** down one path or another with a Condition or Router, **loop** over a list, run work in **parallel** across many items. These are the expressive core of what you'll build — and they're all just blocks and connections.
 
 Everything complicated — an automated software factory, an autonomous triage system that takes action on its own — is built from these same simple primitives. You start with a few blocks; the platform scales to your ambition. As you get more comfortable, the workflows you compose get richer — more branches, more agents, more reach — without ever leaving the same model you learned here. We're glad you're on this journey: Sim is built of simple primitives that compose into anything you can imagine.
+
+</div>
+
+<VideoChapters
+  className="lg:sticky lg:top-24"
+  chapters={[
+    { title: 'What a workflow is', time: '0:00' },
+    { title: 'Blocks and triggers', time: '0:40' },
+    { title: 'Connections and order', time: '1:25' },
+    { title: 'Parameters and outputs', time: '2:10' },
+    { title: 'How execution flows', time: '3:05' },
+    { title: 'Branches, loops, parallel', time: '3:50' },
+  ]}
+/>
+
+</div>
