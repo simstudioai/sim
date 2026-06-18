@@ -255,7 +255,7 @@ export async function acquirePendingChatStream(
 
         const settled = await Promise.race([
           existing.promise.then(() => true),
-          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+          sleep(timeoutMs).then(() => false),
         ])
         if (!settled) {
           span.setAttribute(TraceAttr.LockAcquired, false)
