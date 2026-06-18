@@ -75,6 +75,9 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
   }
   const isOpenAPI = '_openapi' in data && data._openapi != null
   const isApiReference = slug?.some((s) => s === 'api-reference') ?? false
+  // Academy lessons are video-first: drop the "On this page" TOC and go full
+  // width so the lesson hero/video gets the room (chapters live in-page instead).
+  const isAcademy = slug?.[0] === 'academy'
 
   const pageTreeRecord = source.pageTree as Record<string, Root>
   const pageTree = pageTreeRecord[lang] ?? pageTreeRecord.en ?? Object.values(pageTreeRecord)[0]
@@ -197,18 +200,18 @@ export default async function Page(props: { params: Promise<{ slug?: string[]; l
       />
       <DocsPage
         toc={data.toc}
-        full={data.full}
+        full={data.full || isAcademy}
         breadcrumb={{
           enabled: false,
         }}
         tableOfContent={{
           style: 'clerk',
-          enabled: true,
+          enabled: !isAcademy,
           single: false,
         }}
         tableOfContentPopover={{
           style: 'clerk',
-          enabled: true,
+          enabled: !isAcademy,
         }}
         footer={{
           enabled: true,
