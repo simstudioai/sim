@@ -51,7 +51,7 @@ export function VideoPlaceholder({
   return (
     <div
       className={cn(
-        'group relative my-6 aspect-video w-full select-none overflow-hidden rounded-[20px] transition-transform duration-200',
+        'group relative my-6 aspect-video w-full select-none overflow-hidden rounded-[20px] transition-transform duration-200 [container-type:inline-size]',
         'shadow-[inset_0_0_0_1px_#E6E6E6] [background:radial-gradient(130%_130%_at_50%_14%,#ffffff_0%,#f6f6f6_55%,#ececec_100%)]',
         'dark:shadow-none dark:[background:radial-gradient(130%_130%_at_50%_18%,#1c1c1c_0%,#121212_45%,#0a0a0a_100%)]',
         className
@@ -78,7 +78,7 @@ export function VideoPlaceholder({
       ))}
 
       {/* Top-right status pill */}
-      <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium font-mono text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
+      <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
         <span className='size-1.5 rounded-full bg-[#1F8A5B]' />
         {label}
       </span>
@@ -86,12 +86,12 @@ export function VideoPlaceholder({
       {/* Title block, lower-left */}
       <div className='absolute bottom-8 left-8 z-10 max-w-[72%] md:bottom-10 md:left-10'>
         {eyebrow && (
-          <p className='mb-3.5 font-normal text-[clamp(15px,1.7vw,22px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
+          <p className='mb-3 font-normal text-[clamp(13px,2.4cqi,20px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
             {eyebrow}
           </p>
         )}
         {title && (
-          <p className='font-semibold text-[#121212] text-[clamp(40px,6.2vw,88px)] leading-[0.96] tracking-[-0.035em] dark:text-[#F8F8F8]'>
+          <p className='font-semibold text-[#121212] text-[clamp(2rem,8cqi,4rem)] leading-[0.96] tracking-[-0.035em] dark:text-[#F8F8F8]'>
             {title}
           </p>
         )}
