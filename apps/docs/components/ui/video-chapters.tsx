@@ -31,12 +31,12 @@ export function VideoChapters({ title = 'Chapters', chapters, className }: Video
           <li key={chapter.title}>
             <button
               type='button'
-              className='flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-fd-muted-foreground text-sm transition-colors hover:bg-fd-accent/50'
+              className='flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-fd-muted-foreground text-sm transition-colors hover:bg-fd-accent/50'
             >
-              <CirclePlay className='size-4 shrink-0' />
-              <span className='flex-1 truncate'>{chapter.title}</span>
+              <CirclePlay className='mt-0.5 size-4 shrink-0' />
+              <span className='min-w-0 flex-1 break-words'>{chapter.title}</span>
               {chapter.time && (
-                <span className='shrink-0 text-fd-muted-foreground text-xs tabular-nums'>
+                <span className='mt-0.5 shrink-0 text-fd-muted-foreground text-xs tabular-nums'>
                   {chapter.time}
                 </span>
               )}
