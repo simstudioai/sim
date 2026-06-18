@@ -116,10 +116,17 @@ export function OrganizationInviteModal({
         onSuccess: (result) => {
           const summary =
             'data' in result && result.data && typeof result.data === 'object'
-              ? (result.data as { invitationsSent?: number; directlyAddedCount?: number })
+              ? (result.data as {
+                  invitationsSent?: number
+                  directlyAddedCount?: number
+                  failedInvitations?: Array<{ email: string; error: string }>
+                })
               : null
           const addedCount = summary?.directlyAddedCount ?? 0
           const sentCount = summary?.invitationsSent ?? 0
+          const failed = summary?.failedInvitations ?? []
+
+          // Surface partial successes even when some addresses fail.
           const parts: string[] = []
           if (addedCount > 0) {
             parts.push(`${addedCount} member${addedCount === 1 ? '' : 's'} added`)
@@ -130,6 +137,18 @@ export function OrganizationInviteModal({
           if (parts.length > 0) {
             toast.success(parts.join(' · '))
           }
+
+          if (failed.length > 0) {
+            // Keep only the failed addresses (workspaces stay selected) for retry.
+            setEmails(failed.map((entry) => entry.email))
+            setErrorMessage(
+              failed.length === 1
+                ? failed[0].error
+                : `${failed.length} invitations failed. ${failed[0].error}`
+            )
+            return
+          }
+
           setEmails([])
           setSelectedWorkspaceIds([])
           onOpenChange(false)

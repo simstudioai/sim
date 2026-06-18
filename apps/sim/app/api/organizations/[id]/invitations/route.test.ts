@@ -251,6 +251,91 @@ describe('POST /api/organizations/[id]/invitations', () => {
     expect(body.data.existingMembers).toEqual([])
   })
 
+  it('reports a partially-failed member only as added, never in both buckets', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    // First grant succeeds, second throws (e.g. transient DB error).
+    mockGrantWorkspaceAccessDirectly
+      .mockResolvedValueOnce({ outcome: 'added', permission: 'write' })
+      .mockRejectedValueOnce(new Error('db blip'))
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ id: 'ws-2', name: 'Workspace 2', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [{ userId: 'user-2', userEmail: 'member@example.com' }],
+      [],
+      [],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          emails: ['member@example.com'],
+          workspaceInvitations: [
+            { workspaceId: 'ws-1', permission: 'write' },
+            { workspaceId: 'ws-2', permission: 'write' },
+          ],
+        },
+        {},
+        'http://localhost/api/organizations/org-1/invitations?batch=true'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockGrantWorkspaceAccessDirectly).toHaveBeenCalledTimes(2)
+    const body = await response.json()
+    expect(body.data.directlyAdded).toEqual(['member@example.com'])
+    expect(body.data.failedInvitations).toEqual([])
+  })
+
+  it('returns 207 with both successes and failures when one member is added and another fails', async () => {
+    mockGetSession.mockResolvedValue(
+      createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })
+    )
+    mockGrantWorkspaceAccessDirectly
+      .mockResolvedValueOnce({ outcome: 'added', permission: 'write' })
+      .mockRejectedValueOnce(new Error('db blip'))
+    mockDbState.selectResults = [
+      [{ role: 'owner' }],
+      [{ name: 'Org One' }],
+      [{ id: 'ws-1', name: 'Workspace 1', organizationId: 'org-1', workspaceMode: 'organization' }],
+      [
+        { userId: 'user-a', userEmail: 'a@example.com' },
+        { userId: 'user-b', userEmail: 'b@example.com' },
+      ],
+      [],
+      [],
+      [],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ]
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          emails: ['a@example.com', 'b@example.com'],
+          workspaceInvitations: [{ workspaceId: 'ws-1', permission: 'write' }],
+        },
+        {},
+        'http://localhost/api/organizations/org-1/invitations?batch=true'
+      ),
+      { params: Promise.resolve({ id: 'org-1' }) }
+    )
+
+    expect(response.status).toBe(207)
+    const body = await response.json()
+    expect(body.success).toBe(false)
+    expect(body.data.directlyAdded).toEqual(['a@example.com'])
+    expect(body.data.directlyAddedCount).toBe(1)
+    expect(body.data.failedInvitations).toEqual([{ email: 'b@example.com', error: 'db blip' }])
+  })
+
   it('returns 400 when an existing member already has access to every selected workspace', async () => {
     mockGetSession.mockResolvedValue(
       createSession({ userId: 'user-1', email: 'owner@example.com', name: 'Owner' })

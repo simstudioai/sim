@@ -499,7 +499,8 @@ export const POST = withRouteHandler(
         const memberUserId = memberUserIdByEmail.get(memberInvite.email)
         if (!memberUserId) continue
 
-        let grantedAny = false
+        let addedAny = false
+        let lastGrantError: string | null = null
         for (const grant of memberInvite.grants) {
           try {
             const grantResult = await grantWorkspaceAccessDirectly({
@@ -515,20 +516,22 @@ export const POST = withRouteHandler(
               request,
             })
 
-            if (grantResult.outcome === 'added') grantedAny = true
+            if (grantResult.outcome === 'added') addedAny = true
           } catch (grantError) {
             logger.error('Failed to grant workspace access directly', {
               email: memberInvite.email,
               workspaceId: grant.workspaceId,
               error: grantError,
             })
-            failedInvitations.push({
-              email: memberInvite.email,
-              error: getErrorMessage(grantError, 'Failed to add member to workspace'),
-            })
+            lastGrantError = getErrorMessage(grantError, 'Failed to add member to workspace')
           }
         }
-        if (grantedAny) directlyAdded.push(memberInvite.email)
+
+        if (addedAny) {
+          directlyAdded.push(memberInvite.email)
+        } else if (lastGrantError) {
+          failedInvitations.push({ email: memberInvite.email, error: lastGrantError })
+        }
       }
 
       for (const inv of sentInvitations) {

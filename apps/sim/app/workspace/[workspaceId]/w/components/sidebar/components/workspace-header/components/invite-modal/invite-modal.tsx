@@ -101,11 +101,6 @@ export function InviteModal({
       { workspaceId, organizationId, invitations },
       {
         onSuccess: (result) => {
-          if (result.failed.length > 0) {
-            setEmails(result.failed.map((f) => f.email))
-            setErrorMessage(result.failed[0].error)
-            return
-          }
           const parts: string[] = []
           if (result.added.length > 0) {
             parts.push(`${result.added.length} member${result.added.length === 1 ? '' : 's'} added`)
@@ -118,6 +113,18 @@ export function InviteModal({
           if (parts.length > 0) {
             toast.success(parts.join(' · '))
           }
+
+          if (result.failed.length > 0) {
+            // Keep the failed addresses in the field with the error for retry.
+            setEmails(result.failed.map((f) => f.email))
+            setErrorMessage(
+              result.failed.length === 1
+                ? result.failed[0].error
+                : `${result.failed.length} invitations failed. ${result.failed[0].error}`
+            )
+            return
+          }
+
           setEmails([])
           onOpenChange(false)
         },
