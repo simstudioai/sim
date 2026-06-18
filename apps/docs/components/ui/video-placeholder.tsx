@@ -1,21 +1,26 @@
 'use client'
 
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { Video } from './video'
 
 interface VideoPlaceholderProps {
   /** Large title shown on the hero. */
   title?: string
   /** Small italic eyebrow above the title, e.g. a module name. */
   eyebrow?: string
-  /** Pill in the top-right corner. Defaults to "Coming soon". */
+  /** Pill in the top-right corner. Defaults to "Coming soon" (shown only until a video is set). */
   label?: string
-  /**
-   * When set, the real {@link Video} player renders instead of the placeholder,
-   * so a script page becomes a video page by adding one prop.
-   */
-  src?: string
+  /** YouTube video id or URL. When set, the play button loads the video; otherwise the card is "coming soon". */
+  youtube?: string
   className?: string
+}
+
+/** Pull an 11-char YouTube id out of an id or any common YouTube URL. */
+function parseYouTubeId(input?: string): string | null {
+  if (!input) return null
+  if (/^[\w-]{11}$/.test(input)) return input
+  const match = input.match(/(?:youtu\.be\/|[?&]v=|\/embed\/|\/shorts\/)([\w-]{11})/)
+  return match ? match[1] : null
 }
 
 /** The sim logotype, drawn with currentColor so the theme can tint it. */
@@ -31,22 +36,39 @@ function SimWordmark({ className }: { className?: string }) {
 }
 
 /**
- * A 16:9 lesson video hero used across the Academy. Shows the lesson title and a
- * play affordance over a faint blueprint grid, theme-aware (dark + light), and
- * renders the real player as soon as a `src` is provided.
- *
- * Visual treatment mirrors the design-system `VideoCard` spec. Styling is kept
- * local to this component with literal values — it intentionally does not depend
- * on the design system's future tokens/fonts.
+ * A 16:9 lesson hero used across the Academy. Always shows the design-system
+ * video card (title, blueprint grid, theme-aware dark/light). When a `youtube`
+ * id/URL is provided the play button loads the video inline; otherwise the card
+ * reads "Coming soon" and the play button is muted.
  */
 export function VideoPlaceholder({
   title,
   eyebrow,
   label = 'Coming soon',
-  src,
+  youtube,
   className,
 }: VideoPlaceholderProps) {
-  if (src) return <Video src={src} />
+  const videoId = parseYouTubeId(youtube)
+  const [playing, setPlaying] = useState(false)
+
+  if (playing && videoId) {
+    return (
+      <div
+        className={cn(
+          'not-prose my-6 aspect-video w-full overflow-hidden rounded-[20px] bg-black',
+          className
+        )}
+      >
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`}
+          title={title ?? 'Lesson video'}
+          allow='autoplay; encrypted-media; picture-in-picture; fullscreen'
+          allowFullScreen
+          className='h-full w-full border-0'
+        />
+      </div>
+    )
+  }
 
   return (
     <div
@@ -77,11 +99,13 @@ export function VideoPlaceholder({
         </span>
       ))}
 
-      {/* Top-right status pill */}
-      <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
-        <span className='size-1.5 rounded-full bg-[#1F8A5B]' />
-        {label}
-      </span>
+      {/* Top-right status pill — only until a video is wired up */}
+      {!videoId && (
+        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[#E6E6E6] bg-white px-4 py-2 font-medium text-[12px] text-[#5F5F5F] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:border-white/12 dark:bg-[#1A1A1A] dark:text-[#E6E6E6]'>
+          <span className='size-1.5 rounded-full bg-[#1F8A5B]' />
+          {label}
+        </span>
+      )}
 
       {/* Heading: eyebrow + title, bottom-left (design: left:40 bottom:40) */}
       <div className='absolute bottom-10 left-10 z-10 max-w-[80%]'>
@@ -102,19 +126,38 @@ export function VideoPlaceholder({
         <SimWordmark className='block h-[22px] w-auto' />
       </span>
 
-      {/* Centered play button (muted — these are coming-soon placeholders) */}
+      {/* Centered play button — active when a video is wired, muted otherwise */}
       <div className='absolute inset-0 z-10 grid place-items-center'>
-        <span className='grid h-12 w-16 place-items-center rounded-[14px] bg-[rgba(255,255,255,0.78)] opacity-60 shadow-[0_1px_3px_rgba(18,18,18,0.12),inset_0_0_0_1px_#E6E6E6] backdrop-blur-[4px] transition-transform duration-200 group-hover:scale-105 dark:bg-[rgba(10,10,10,0.72)] dark:shadow-none'>
-          <svg
-            width='18'
-            height='20'
-            viewBox='0 0 18 20'
-            aria-hidden
-            className='translate-x-[1px] text-[#121212] dark:text-white'
+        {videoId ? (
+          <button
+            type='button'
+            onClick={() => setPlaying(true)}
+            aria-label={title ? `Play ${title}` : 'Play video'}
+            className='grid h-12 w-16 cursor-pointer place-items-center rounded-[14px] bg-[rgba(255,255,255,0.78)] shadow-[0_1px_3px_rgba(18,18,18,0.12),inset_0_0_0_1px_#E6E6E6] backdrop-blur-[4px] transition-transform duration-200 hover:scale-105 active:scale-95 dark:bg-[rgba(10,10,10,0.72)] dark:shadow-none'
           >
-            <path d='M0 0l18 10L0 20z' fill='currentColor' />
-          </svg>
-        </span>
+            <svg
+              width='18'
+              height='20'
+              viewBox='0 0 18 20'
+              aria-hidden
+              className='translate-x-[1px] text-[#121212] dark:text-white'
+            >
+              <path d='M0 0l18 10L0 20z' fill='currentColor' />
+            </svg>
+          </button>
+        ) : (
+          <span className='grid h-12 w-16 place-items-center rounded-[14px] bg-[rgba(255,255,255,0.78)] opacity-60 shadow-[0_1px_3px_rgba(18,18,18,0.12),inset_0_0_0_1px_#E6E6E6] backdrop-blur-[4px] dark:bg-[rgba(10,10,10,0.72)] dark:shadow-none'>
+            <svg
+              width='18'
+              height='20'
+              viewBox='0 0 18 20'
+              aria-hidden
+              className='translate-x-[1px] text-[#121212] dark:text-white'
+            >
+              <path d='M0 0l18 10L0 20z' fill='currentColor' />
+            </svg>
+          </span>
+        )}
       </div>
     </div>
   )
