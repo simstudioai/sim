@@ -315,3 +315,259 @@ export interface SportmonksMsLap {
   participant_id: number
   is_latest: boolean
 }
+
+/**
+ * Output property definitions for a Stint object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/stint
+ */
+export const SPORTMONKS_MS_STINT_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the stint' },
+  fixture_id: { type: 'number', description: 'Fixture related to the stint' },
+  stint_number: { type: 'number', description: 'Stint number in the fixture' },
+  driver_number: { type: 'number', description: 'Number of the driver' },
+  participant_id: { type: 'number', description: 'Driver related to the stint' },
+  is_latest: { type: 'boolean', description: 'Whether it is the latest stint' },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Venue (racing track) object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/venue
+ */
+export const SPORTMONKS_MS_VENUE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the venue (track)' },
+  country_id: { type: 'number', description: 'Country the venue is in' },
+  city_id: {
+    type: 'number',
+    description: 'City the venue is in',
+    nullable: true,
+    optional: true,
+  },
+  name: { type: 'string', description: 'Name of the venue/track' },
+  address: { type: 'string', description: 'Address of the venue', nullable: true },
+  zipcode: { type: 'string', description: 'Zipcode of the venue', nullable: true },
+  latitude: { type: 'string', description: 'Latitude of the venue', nullable: true },
+  longitude: { type: 'string', description: 'Longitude of the venue', nullable: true },
+  capacity: { type: 'number', description: 'Capacity of the venue', nullable: true },
+  image_path: {
+    type: 'string',
+    description: 'URL to the track layout image',
+    nullable: true,
+    optional: true,
+  },
+  city_name: { type: 'string', description: 'Name of the city the venue is in', nullable: true },
+  surface: { type: 'string', description: 'Surface of the venue', nullable: true },
+  national_team: {
+    type: 'boolean',
+    description: 'Not used in the Motorsport API',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Motorsport League object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/league
+ */
+export const SPORTMONKS_MS_LEAGUE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the league' },
+  sport_id: { type: 'number', description: 'Sport of the league' },
+  country_id: { type: 'number', description: 'Country of the league' },
+  name: { type: 'string', description: 'Name of the league' },
+  active: { type: 'boolean', description: 'Whether the league is active' },
+  short_code: { type: 'string', description: 'Short code of the league', nullable: true },
+  image_path: {
+    type: 'string',
+    description: 'URL to the league logo',
+    nullable: true,
+    optional: true,
+  },
+  type: { type: 'string', description: 'Type of the league', optional: true },
+  sub_type: {
+    type: 'string',
+    description: 'Subtype of the league',
+    nullable: true,
+    optional: true,
+  },
+  last_played_at: {
+    type: 'string',
+    description: 'Date of the last fixture held in the league',
+    nullable: true,
+  },
+  category: {
+    type: 'number',
+    description: 'Category of the league',
+    nullable: true,
+    optional: true,
+  },
+  has_jerseys: {
+    type: 'boolean',
+    description: 'Not used in the Motorsport API',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Motorsport Season object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/season
+ */
+export const SPORTMONKS_MS_SEASON_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the season' },
+  sport_id: { type: 'number', description: 'Sport of the season' },
+  league_id: { type: 'number', description: 'League of the season' },
+  tie_breaker_rule_id: {
+    type: 'number',
+    description: 'Not used in the Motorsport API',
+    nullable: true,
+    optional: true,
+  },
+  name: { type: 'string', description: 'Name of the season' },
+  finished: { type: 'boolean', description: 'Whether the season is finished' },
+  pending: { type: 'boolean', description: 'Whether the season is pending' },
+  is_current: { type: 'boolean', description: 'Whether the season is the current season' },
+  starting_at: { type: 'string', description: 'Starting date of the season', nullable: true },
+  ending_at: { type: 'string', description: 'Ending date of the season', nullable: true },
+  standings_recalculated_at: {
+    type: 'string',
+    description: 'Timestamp when standings were last updated',
+    nullable: true,
+    optional: true,
+  },
+  games_in_current_week: {
+    type: 'boolean',
+    description: 'Not used in the Motorsport API',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Motorsport Stage (race weekend) object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/stage
+ */
+export const SPORTMONKS_MS_STAGE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the stage (race weekend)' },
+  sport_id: { type: 'number', description: 'Sport of the stage' },
+  league_id: { type: 'number', description: 'League related to the stage' },
+  season_id: { type: 'number', description: 'Season related to the stage' },
+  type_id: { type: 'number', description: 'Type of the stage', nullable: true },
+  name: { type: 'string', description: 'Name of the stage' },
+  sort_order: {
+    type: 'number',
+    description: 'Order of the stage',
+    nullable: true,
+    optional: true,
+  },
+  finished: { type: 'boolean', description: 'Whether the stage is finished' },
+  is_current: { type: 'boolean', description: 'Whether the stage is the current stage' },
+  starting_at: { type: 'string', description: 'Starting date of the stage', nullable: true },
+  ending_at: { type: 'string', description: 'Ending date of the stage', nullable: true },
+  games_in_current_week: {
+    type: 'boolean',
+    description: 'Not used in the Motorsport API',
+    optional: true,
+  },
+  tie_breaker_rule_id: {
+    type: 'number',
+    description: 'Not used in the Motorsport API',
+    nullable: true,
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+/**
+ * Output property definitions for a Motorsport State (fixture status) object.
+ * @see https://docs.sportmonks.com/v3/motorsport-api/endpoints-and-entities/entities/state
+ */
+export const SPORTMONKS_MS_STATE_PROPERTIES = {
+  id: { type: 'number', description: 'Unique id of the state' },
+  state: { type: 'string', description: 'Abbreviation of the state' },
+  name: { type: 'string', description: 'Full name of the state' },
+  short_name: {
+    type: 'string',
+    description: 'Short name of the state',
+    nullable: true,
+    optional: true,
+  },
+  developer_name: {
+    type: 'string',
+    description: 'Name recommended for developers to use',
+    optional: true,
+  },
+} as const satisfies Record<string, OutputProperty>
+
+export interface SportmonksMsStint {
+  id: number
+  fixture_id: number
+  stint_number: number
+  driver_number: number
+  participant_id: number
+  is_latest: boolean
+}
+
+export interface SportmonksMsVenue {
+  id: number
+  country_id: number
+  city_id?: number | null
+  name: string
+  address: string | null
+  zipcode: string | null
+  latitude: string | null
+  longitude: string | null
+  capacity: number | null
+  image_path?: string | null
+  city_name: string | null
+  surface: string | null
+  national_team?: boolean
+}
+
+export interface SportmonksMsLeague {
+  id: number
+  sport_id: number
+  country_id: number
+  name: string
+  active: boolean
+  short_code: string | null
+  image_path?: string | null
+  type?: string
+  sub_type?: string | null
+  last_played_at: string | null
+  category?: number | null
+  has_jerseys?: boolean
+}
+
+export interface SportmonksMsSeason {
+  id: number
+  sport_id: number
+  league_id: number
+  tie_breaker_rule_id?: number | null
+  name: string
+  finished: boolean
+  pending: boolean
+  is_current: boolean
+  starting_at: string | null
+  ending_at: string | null
+  standings_recalculated_at?: string | null
+  games_in_current_week?: boolean
+}
+
+export interface SportmonksMsStage {
+  id: number
+  sport_id: number
+  league_id: number
+  season_id: number
+  type_id: number | null
+  name: string
+  sort_order?: number | null
+  finished: boolean
+  is_current: boolean
+  starting_at: string | null
+  ending_at: string | null
+  games_in_current_week?: boolean
+  tie_breaker_rule_id?: number | null
+}
+
+export interface SportmonksMsState {
+  id: number
+  state: string
+  name: string
+  short_name?: string | null
+  developer_name?: string
+}

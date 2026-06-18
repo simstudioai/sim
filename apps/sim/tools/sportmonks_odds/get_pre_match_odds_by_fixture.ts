@@ -8,8 +8,8 @@ import {
   type SportmonksPaginationParams,
 } from '@/tools/sportmonks/types'
 import {
+  SPORTMONKS_FOOTBALL_ODDS_BASE_URL,
   SPORTMONKS_ODD_PROPERTIES,
-  SPORTMONKS_ODDS_BASE_URL,
   type SportmonksOdd,
 } from '@/tools/sportmonks_odds/types'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
@@ -83,7 +83,7 @@ export const sportmonksOddsGetPreMatchOddsByFixtureTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = `${SPORTMONKS_ODDS_BASE_URL}/pre-match/fixtures/${encodeURIComponent(params.fixtureId.trim())}`
+      const url = `${SPORTMONKS_FOOTBALL_ODDS_BASE_URL}/pre-match/fixtures/${encodeURIComponent(params.fixtureId.trim())}`
       return appendSportmonksQuery(url, params)
     },
     method: 'GET',

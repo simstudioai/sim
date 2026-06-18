@@ -61,6 +61,12 @@ export const sportmonksOddsSearchBookmakersTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Page number to retrieve',
     },
+    order: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Order direction (asc or desc)',
+    },
   },
 
   request: {
