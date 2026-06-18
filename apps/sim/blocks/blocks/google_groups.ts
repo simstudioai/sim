@@ -337,19 +337,19 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           case 'get_group':
           case 'delete_group':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
             }
           case 'create_group':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               email: rest.email,
               name: rest.name,
               description: rest.description,
             }
           case 'update_group':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               name: rest.newName,
               email: rest.newEmail,
@@ -357,7 +357,7 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
             }
           case 'list_members':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               maxResults: rest.maxResults ? Number(rest.maxResults) : undefined,
               roles: rest.roles,
@@ -365,38 +365,38 @@ Return ONLY the description text - no explanations, no quotes, no extra text.`,
           case 'get_member':
           case 'remove_member':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
             }
           case 'add_member':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               email: rest.memberEmail,
               role: rest.role,
             }
           case 'update_member':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
               role: rest.role,
             }
           case 'has_member':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               memberKey: rest.memberKey,
             }
           case 'list_aliases':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
             }
           case 'add_alias':
             return {
-              credential: oauthCredential,
+              oauthCredential,
               groupKey: rest.groupKey,
               alias: rest.alias,
             }

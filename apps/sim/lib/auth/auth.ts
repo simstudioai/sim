@@ -20,7 +20,6 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
-import { emailHarmony } from 'better-auth-harmony'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -73,7 +72,6 @@ import {
   isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
-  isSignupEmailValidationEnabled,
   isSignupMxValidationEnabled,
   isSsoEnabled,
 } from '@/lib/core/config/env-flags'
@@ -812,8 +810,7 @@ export const auth = betterAuth({
      * the exact same set of returned fields a real freshly-created user would, otherwise
      * the differing response shape re-opens the enumeration oracle. The admin plugin
      * (always loaded) adds role/banned/banReason/banExpires, and the Stripe plugin — loaded
-     * only when billing is enabled — adds stripeCustomerId (null on a new user). The
-     * harmony plugin's normalizedEmail is `returned: false`, so it is intentionally omitted.
+     * only when billing is enabled — adds stripeCustomerId (null on a new user).
      */
     customSyntheticUser: ({
       coreFields,
@@ -946,7 +943,6 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({

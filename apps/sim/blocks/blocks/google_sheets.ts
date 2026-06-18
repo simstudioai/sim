@@ -326,6 +326,9 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
         { label: 'Batch Update', id: 'batch_update' },
         { label: 'Batch Clear', id: 'batch_clear' },
         { label: 'Copy Sheet', id: 'copy_sheet' },
+        { label: 'Delete Rows', id: 'delete_rows' },
+        { label: 'Delete Sheet', id: 'delete_sheet' },
+        { label: 'Delete Spreadsheet', id: 'delete_spreadsheet' },
       ],
       value: () => 'read',
     },
@@ -720,6 +723,32 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       condition: { field: 'operation', value: 'copy_sheet' },
       required: true,
     },
+    // Delete Rows / Delete Sheet Fields
+    {
+      id: 'deleteSheetId',
+      title: 'Sheet ID',
+      type: 'short-input',
+      placeholder: 'Numeric ID of the sheet/tab (use Get Spreadsheet Info to find IDs)',
+      condition: { field: 'operation', value: ['delete_rows', 'delete_sheet'] },
+      required: true,
+    },
+    // Delete Rows Fields
+    {
+      id: 'startIndex',
+      title: 'Start Row Index',
+      type: 'short-input',
+      placeholder: '0-based, inclusive (e.g., 0 for the first row)',
+      condition: { field: 'operation', value: 'delete_rows' },
+      required: true,
+    },
+    {
+      id: 'endIndex',
+      title: 'End Row Index',
+      type: 'short-input',
+      placeholder: '0-based, exclusive (e.g., 5 to delete through the fifth row)',
+      condition: { field: 'operation', value: 'delete_rows' },
+      required: true,
+    },
     ...getTrigger('google_sheets_poller').subBlocks,
   ],
   tools: {
@@ -735,6 +764,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       'google_sheets_batch_update_v2',
       'google_sheets_batch_clear_v2',
       'google_sheets_copy_sheet_v2',
+      'google_sheets_delete_rows_v2',
+      'google_sheets_delete_sheet_v2',
+      'google_sheets_delete_spreadsheet_v2',
     ],
     config: {
       tool: createVersionedToolSelector({
@@ -762,6 +794,12 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
               return 'google_sheets_batch_clear'
             case 'copy_sheet':
               return 'google_sheets_copy_sheet'
+            case 'delete_rows':
+              return 'google_sheets_delete_rows'
+            case 'delete_sheet':
+              return 'google_sheets_delete_sheet'
+            case 'delete_spreadsheet':
+              return 'google_sheets_delete_spreadsheet'
             default:
               throw new Error(`Invalid Google Sheets operation: ${params.operation}`)
           }
@@ -782,6 +820,9 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           batchData,
           sheetId,
           destinationSpreadsheetId,
+          deleteSheetId,
+          startIndex,
+          endIndex,
           filterColumn,
           filterValue,
           filterMatchType,
@@ -857,6 +898,48 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           }
         }
 
+        // Handle delete_spreadsheet operation
+        if (operation === 'delete_spreadsheet') {
+          return {
+            spreadsheetId: effectiveSpreadsheetId,
+            oauthCredential,
+          }
+        }
+
+        // Handle delete_sheet operation
+        if (operation === 'delete_sheet') {
+          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          if (Number.isNaN(parsedSheetId)) {
+            throw new Error('Sheet ID must be a valid number')
+          }
+          return {
+            spreadsheetId: effectiveSpreadsheetId,
+            sheetId: parsedSheetId,
+            oauthCredential,
+          }
+        }
+
+        // Handle delete_rows operation
+        if (operation === 'delete_rows') {
+          const parsedSheetId = Number.parseInt(deleteSheetId as string, 10)
+          const parsedStartIndex = Number.parseInt(startIndex as string, 10)
+          const parsedEndIndex = Number.parseInt(endIndex as string, 10)
+          if (
+            Number.isNaN(parsedSheetId) ||
+            Number.isNaN(parsedStartIndex) ||
+            Number.isNaN(parsedEndIndex)
+          ) {
+            throw new Error('Sheet ID, start index, and end index must be valid numbers')
+          }
+          return {
+            spreadsheetId: effectiveSpreadsheetId,
+            sheetId: parsedSheetId,
+            startIndex: parsedStartIndex,
+            endIndex: parsedEndIndex,
+            oauthCredential,
+          }
+        }
+
         // Handle read/write/update/append/clear operations (require sheet name)
         const effectiveSheetName = sheetName ? String(sheetName).trim() : ''
 
@@ -899,6 +982,18 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
     destinationSpreadsheetId: {
       type: 'string',
       description: 'Destination spreadsheet ID for copy',
+    },
+    deleteSheetId: {
+      type: 'string',
+      description: 'Numeric sheet ID for delete rows/sheet operations',
+    },
+    startIndex: {
+      type: 'string',
+      description: 'Start row index (0-based, inclusive) for delete rows operation',
+    },
+    endIndex: {
+      type: 'string',
+      description: 'End row index (0-based, exclusive) for delete rows operation',
     },
     filterColumn: {
       type: 'string',
@@ -972,7 +1067,16 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       description: 'Spreadsheet ID',
       condition: {
         field: 'operation',
-        value: ['get_info', 'create', 'batch_get', 'batch_update', 'batch_clear'],
+        value: [
+          'get_info',
+          'create',
+          'batch_get',
+          'batch_update',
+          'batch_clear',
+          'delete_rows',
+          'delete_sheet',
+          'delete_spreadsheet',
+        ],
       },
     },
     title: {
@@ -1038,11 +1142,12 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       description: 'Array of ranges that were cleared',
       condition: { field: 'operation', value: 'batch_clear' },
     },
-    // Copy Sheet outputs
+    // Copy Sheet / Delete Rows outputs
     sheetId: {
       type: 'number',
-      description: 'ID of the copied sheet in the destination',
-      condition: { field: 'operation', value: 'copy_sheet' },
+      description:
+        'ID of the copied sheet in the destination, or the sheet the rows were deleted from',
+      condition: { field: 'operation', value: ['copy_sheet', 'delete_rows'] },
     },
     index: {
       type: 'number',
@@ -1064,6 +1169,24 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
       description: 'URL of the destination spreadsheet',
       condition: { field: 'operation', value: 'copy_sheet' },
     },
+    // Delete Rows outputs
+    deletedRowRange: {
+      type: 'string',
+      description: 'Description of the deleted row range',
+      condition: { field: 'operation', value: 'delete_rows' },
+    },
+    // Delete Sheet outputs
+    deletedSheetId: {
+      type: 'number',
+      description: 'The numeric ID of the deleted sheet',
+      condition: { field: 'operation', value: 'delete_sheet' },
+    },
+    // Delete Spreadsheet outputs
+    deleted: {
+      type: 'boolean',
+      description: 'Whether the spreadsheet was successfully deleted',
+      condition: { field: 'operation', value: 'delete_spreadsheet' },
+    },
     // Common metadata
     metadata: {
       type: 'json',
@@ -1079,6 +1202,8 @@ Return ONLY the JSON array - no explanations, no markdown, no extra text.`,
           'batch_get',
           'batch_update',
           'batch_clear',
+          'delete_rows',
+          'delete_sheet',
         ],
       },
     },

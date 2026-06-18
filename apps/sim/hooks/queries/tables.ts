@@ -1448,16 +1448,16 @@ interface ImportFileAsTableParams {
 /**
  * Kicks off a background import into a new table from a file ALREADY in workspace storage
  * (e.g. the file viewer's "Import as a table"). Reuses the existing object — no re-upload —
- * and sets `keepSource` so the user's original file is preserved (the normal upload-import
- * flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress and the
- * terminal state arrive over the table-events SSE stream.
+ * and sets `deleteSourceFile: false` so the user's original file survives the import (the normal
+ * upload-import flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress
+ * and the terminal state arrive over the table-events SSE stream.
  */
 export function useImportFileAsTable() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
       const response = await requestJson(importTableAsyncContract, {
-        body: { workspaceId, fileKey, fileName, keepSource: true },
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
       })
       return response.data
     },
