@@ -62,7 +62,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     const successful: string[] = []
     const added: string[] = []
-    const upgraded: string[] = []
     const failed: BatchInvitationFailure[] = []
     const invitations: WorkspaceInvitationResult[] = []
     const seenEmails = new Set<string>()
@@ -86,8 +85,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           request: req,
         })
         if (invitation.instantAdd) {
-          added.push(invitation.email)
-          if (invitation.outcome === 'upgraded') upgraded.push(invitation.email)
+          // Only report an actual insertion; an `unchanged` outcome means the
+          // user already had access (rare race) and is a silent no-op.
+          if (invitation.outcome === 'added') added.push(invitation.email)
         } else {
           successful.push(invitation.email)
         }
@@ -110,7 +110,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       success: failed.length === 0,
       successful,
       added,
-      upgraded,
       failed,
       invitations,
     })

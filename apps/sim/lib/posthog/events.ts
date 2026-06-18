@@ -94,7 +94,6 @@ export interface PostHogEventMap {
   workspace_member_added: {
     workspace_id: string
     member_role: string
-    outcome: 'added' | 'upgraded'
   }
 
   workspace_member_removed: {

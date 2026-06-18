@@ -502,7 +502,7 @@ export const POST = withRouteHandler(
         let grantedAny = false
         for (const grant of memberInvite.grants) {
           try {
-            await grantWorkspaceAccessDirectly({
+            const grantResult = await grantWorkspaceAccessDirectly({
               userId: memberUserId,
               email: memberInvite.email,
               workspaceId: grant.workspaceId,
@@ -514,7 +514,8 @@ export const POST = withRouteHandler(
               actorEmail: session.user.email,
               request,
             })
-            grantedAny = true
+
+            if (grantResult.outcome === 'added') grantedAny = true
           } catch (grantError) {
             logger.error('Failed to grant workspace access directly', {
               email: memberInvite.email,

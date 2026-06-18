@@ -165,11 +165,35 @@ export async function createWorkspaceInvitation({
       ? await getUserOrganization(existingUser.id)
       : null
 
+    const existingPermission = await db
+      .select()
+      .from(permissions)
+      .where(
+        and(
+          eq(permissions.entityId, context.workspaceId),
+          eq(permissions.entityType, 'workspace'),
+          eq(permissions.userId, existingUser.id)
+        )
+      )
+      .then((rows) => rows[0])
+
     /**
-     * Invitee already belongs to the workspace's organization: grant access
-     * directly with no invitation/acceptance step. Idempotent — upgrades a
-     * lower permission and no-ops when access already meets or exceeds the
-     * requested permission.
+     * Already a workspace member: reject. Invites never change an existing
+     * member's permission — role changes go through the members list, not the
+     * invite flow. (The client also blocks re-inviting current teammates.)
+     */
+    if (existingPermission) {
+      throw new WorkspaceInvitationError({
+        message: `${normalizedEmail} already has access to this workspace`,
+        status: 400,
+        email: normalizedEmail,
+      })
+    }
+
+    /**
+     * Invitee already belongs to the workspace's organization (and is not yet a
+     * member of this workspace): grant access directly, with no invitation or
+     * acceptance step.
      */
     if (
       workspaceOrganizationId &&
@@ -201,37 +225,11 @@ export async function createWorkspaceInvitation({
       }
     }
 
-    const existingPermission = await db
-      .select()
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.entityId, context.workspaceId),
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.userId, existingUser.id)
-        )
-      )
-      .then((rows) => rows[0])
-
-    if (existingPermission) {
-      throw new WorkspaceInvitationError({
-        message: `${normalizedEmail} already has access to this workspace`,
-        status: 400,
-        email: normalizedEmail,
-      })
-    }
-
-    if (context.invitePolicy.organizationId) {
-      if (
-        existingMembership &&
-        existingMembership.organizationId !== context.invitePolicy.organizationId
-      ) {
+    if (workspaceOrganizationId) {
+      if (existingMembership && existingMembership.organizationId !== workspaceOrganizationId) {
         membershipIntent = 'external'
       } else if (context.invitePolicy.requiresSeat && !existingMembership) {
-        const seatValidation = await validateSeatAvailability(
-          context.invitePolicy.organizationId,
-          1
-        )
+        const seatValidation = await validateSeatAvailability(workspaceOrganizationId, 1)
         if (!seatValidation.canInvite) {
           throw new WorkspaceInvitationError({
             message: seatValidation.reason || 'No available seats for this organization.',

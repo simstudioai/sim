@@ -22,6 +22,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { computeInvitationExpiry } from '@/lib/invitations/core'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
+import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('InvitationSend')
 
@@ -206,10 +207,11 @@ export async function sendInvitationEmail(
       inviteUrl
     )
 
+    const brandName = getBrandConfig().name
     const subject =
       workspaceNames.length === 1
-        ? `You've been invited to join "${workspaceNames[0]}" on Sim`
-        : `You've been invited to join ${workspaceNames.length} workspaces on Sim`
+        ? `You've been invited to join "${workspaceNames[0]}" on ${brandName}`
+        : `You've been invited to join ${workspaceNames.length} workspaces on ${brandName}`
 
     const result = await sendEmail({
       to: input.email,
@@ -306,7 +308,7 @@ export async function sendWorkspaceAddedEmail(
 
   const result = await sendEmail({
     to: input.email,
-    subject: `You've been added to "${input.workspaceName}" on Sim`,
+    subject: getEmailSubject('workspace-added'),
     html: emailHtml,
     from: getFromEmailAddress(),
     emailType: 'transactional',

@@ -54,7 +54,6 @@ export const batchInvitationResultSchema = z
     success: z.boolean(),
     successful: z.array(z.string()),
     added: z.array(z.string()).optional(),
-    upgraded: z.array(z.string()).optional(),
     failed: z.array(z.object({ email: z.string(), error: z.string() })),
     invitations: z.array(z.record(z.string(), z.unknown())),
   })

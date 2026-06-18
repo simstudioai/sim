@@ -72,7 +72,6 @@ type BatchSendInvitationsParams = ContractBodyInput<typeof batchWorkspaceInvitat
 
 type BatchInvitationResult = Pick<BatchInvitationResultContract, 'successful' | 'failed'> & {
   added: string[]
-  upgraded: string[]
 }
 
 /**
@@ -99,7 +98,6 @@ export function useBatchSendWorkspaceInvitations() {
       return {
         successful: result.successful ?? [],
         added: result.added ?? [],
-        upgraded: result.upgraded ?? [],
         failed: result.failed ?? [],
       }
     },

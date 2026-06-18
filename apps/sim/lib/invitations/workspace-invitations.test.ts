@@ -130,7 +130,7 @@ describe('createWorkspaceInvitation', () => {
   })
 
   it('directly grants access to an existing member of the workspace organization', async () => {
-    queueWhereResponses([[{ id: 'user-2', email: 'member@example.com' }]])
+    queueWhereResponses([[{ id: 'user-2', email: 'member@example.com' }], []])
     mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
 
     const result = await createWorkspaceInvitation({
@@ -152,6 +152,26 @@ describe('createWorkspaceInvitation', () => {
     )
     expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
     expect(mockSendInvitationEmail).not.toHaveBeenCalled()
+  })
+
+  it('rejects an existing workspace member without upgrading their permission', async () => {
+    queueWhereResponses([
+      [{ id: 'user-2', email: 'member@example.com' }],
+      [{ id: 'perm-1', permissionType: 'read' }],
+    ])
+    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
+
+    await expect(
+      createWorkspaceInvitation({
+        context: makeContext(),
+        email: 'member@example.com',
+        permission: 'admin',
+        request,
+      })
+    ).rejects.toThrow('already has access')
+
+    expect(mockGrantWorkspaceAccessDirectly).not.toHaveBeenCalled()
+    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
   })
 
   it('creates an external pending invitation when the user belongs to a different org', async () => {

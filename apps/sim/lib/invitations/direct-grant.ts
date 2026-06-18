@@ -14,7 +14,6 @@ import type { NextRequest } from 'next/server'
 import { getUserOrganization } from '@/lib/billing/organizations/membership'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
-import { PERMISSION_RANK, type PermissionLevel } from '@/lib/invitations/core'
 import { cancelPendingInvitation, sendWorkspaceAddedEmail } from '@/lib/invitations/send'
 import { captureServerEvent } from '@/lib/posthog/server'
 import type { PermissionType } from '@/lib/workspaces/permissions/utils'
@@ -23,7 +22,6 @@ const logger = createLogger('InvitationDirectGrant')
 
 export type DirectGrantOutcome =
   | { outcome: 'added'; permission: PermissionType }
-  | { outcome: 'upgraded'; from: PermissionType; to: PermissionType }
   | { outcome: 'unchanged'; permission: PermissionType }
 
 export interface GrantWorkspaceAccessDirectlyInput {
@@ -89,15 +87,14 @@ async function supersedePendingWorkspaceInvites(
 /**
  * Grants a user workspace access immediately, without an invitation or
  * acceptance step. Intended for users who already belong to the workspace's
- * organization. Idempotent: no-ops when the user already has equal or higher
- * access, upgrades when the new permission is higher.
+ * organization and are not yet members of the workspace. Idempotent: when a
+ * permission already exists it is left untouched (no-op) — invites never modify
+ * or upgrade an existing member's permission.
  */
 export async function grantWorkspaceAccessDirectly(
   input: GrantWorkspaceAccessDirectlyInput
 ): Promise<DirectGrantOutcome> {
   const normalizedEmail = normalizeEmail(input.email)
-  const newPermission = input.permission as PermissionLevel
-  const newRank = PERMISSION_RANK[newPermission] ?? 0
 
   const result = await db.transaction(async (tx): Promise<DirectGrantOutcome> => {
     const [existing] = await tx
@@ -112,33 +109,29 @@ export async function grantWorkspaceAccessDirectly(
       )
       .limit(1)
 
-    if (!existing) {
-      await tx
-        .insert(permissions)
-        .values({
-          id: generateId(),
-          entityType: 'workspace',
-          entityId: input.workspaceId,
-          userId: input.userId,
-          permissionType: newPermission,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .onConflictDoNothing()
-      return { outcome: 'added', permission: input.permission }
+    if (existing) {
+      return { outcome: 'unchanged', permission: existing.permissionType as PermissionType }
     }
 
-    const existingPermission = existing.permissionType as PermissionType
-    const existingRank = PERMISSION_RANK[existingPermission as PermissionLevel] ?? 0
-    if (newRank > existingRank) {
-      await tx
-        .update(permissions)
-        .set({ permissionType: newPermission, updatedAt: new Date() })
-        .where(eq(permissions.id, existing.id))
-      return { outcome: 'upgraded', from: existingPermission, to: input.permission }
+    const inserted = await tx
+      .insert(permissions)
+      .values({
+        id: generateId(),
+        entityType: 'workspace',
+        entityId: input.workspaceId,
+        userId: input.userId,
+        permissionType: input.permission,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ id: permissions.id })
+
+    if (inserted.length === 0) {
+      return { outcome: 'unchanged', permission: input.permission }
     }
 
-    return { outcome: 'unchanged', permission: existingPermission }
+    return { outcome: 'added', permission: input.permission }
   })
 
   if (result.outcome === 'unchanged') {
@@ -182,7 +175,6 @@ export async function grantWorkspaceAccessDirectly(
       addedBy: input.actorId,
       addedUserId: input.userId,
       role: input.permission,
-      outcome: result.outcome,
     })
   } catch {
     /**
@@ -196,7 +188,6 @@ export async function grantWorkspaceAccessDirectly(
     {
       workspace_id: input.workspaceId,
       member_role: input.permission,
-      outcome: result.outcome,
     },
     {
       groups: { workspace: input.workspaceId },
@@ -212,17 +203,13 @@ export async function grantWorkspaceAccessDirectly(
     resourceType: AuditResourceType.WORKSPACE,
     resourceId: input.workspaceId,
     resourceName: normalizedEmail,
-    description:
-      result.outcome === 'upgraded'
-        ? `Added existing organization member ${normalizedEmail} (upgraded to ${input.permission})`
-        : `Added existing organization member ${normalizedEmail} as ${input.permission}`,
+    description: `Added existing organization member ${normalizedEmail} as ${input.permission}`,
     metadata: {
       targetEmail: normalizedEmail,
       targetRole: input.permission,
       organizationId: input.organizationId,
       workspaceName: input.workspaceName,
       addedUserId: input.userId,
-      outcome: result.outcome,
     },
     request: input.request,
   })

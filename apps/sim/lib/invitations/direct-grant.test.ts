@@ -41,10 +41,6 @@ vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
 }))
 
-vi.mock('@/lib/invitations/core', () => ({
-  PERMISSION_RANK: { read: 0, write: 1, admin: 2 },
-}))
-
 vi.mock('@/lib/invitations/send', () => ({
   cancelPendingInvitation: mockCancelPendingInvitation,
   sendWorkspaceAddedEmail: mockSendWorkspaceAddedEmail,
@@ -95,6 +91,8 @@ describe('grantWorkspaceAccessDirectly', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockSendWorkspaceAddedEmail.mockResolvedValue({ success: true })
+    // Insert path reports the new row via `.returning()`.
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'perm-new' }])
   })
 
   it('inserts a permission row when the user has no existing access', async () => {
@@ -107,25 +105,38 @@ describe('grantWorkspaceAccessDirectly', () => {
       expect.objectContaining({ action: 'member.added', resourceId: 'ws-1' })
     )
     expect(mockWorkspaceMemberAdded).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'ws-1', outcome: 'added' })
+      expect.objectContaining({ workspaceId: 'ws-1' })
     )
     expect(mockSendWorkspaceAddedEmail).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'member@example.com', workspaceId: 'ws-1' })
     )
   })
 
-  it('upgrades an existing lower permission', async () => {
+  it('reports unchanged (no audit/email) when a concurrent insert wins the race', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+
+    const result = await grantWorkspaceAccessDirectly({ ...baseInput })
+
+    expect(result).toEqual({ outcome: 'unchanged', permission: 'write' })
+    expect(dbChainMockFns.insert).toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockWorkspaceMemberAdded).not.toHaveBeenCalled()
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
+  })
+
+  it('does not upgrade an existing lower permission (invites never modify access)', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'read' }])
 
     const result = await grantWorkspaceAccessDirectly({ ...baseInput, permission: 'admin' })
 
-    expect(result).toEqual({ outcome: 'upgraded', from: 'read', to: 'admin' })
-    expect(dbChainMockFns.update).toHaveBeenCalled()
+    expect(result).toEqual({ outcome: 'unchanged', permission: 'read' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mockSendWorkspaceAddedEmail).toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSendWorkspaceAddedEmail).not.toHaveBeenCalled()
   })
 
-  it('no-ops when the user already has equal or higher access', async () => {
+  it('no-ops when the user already has access', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'perm-1', permissionType: 'admin' }])
 
     const result = await grantWorkspaceAccessDirectly({ ...baseInput, permission: 'write' })
