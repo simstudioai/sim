@@ -96,12 +96,12 @@ export const COMMAND_DEFINITIONS: Record<CommandId, CommandDefinition> = {
   },
   'set-canvas-mode-pointer': {
     id: 'set-canvas-mode-pointer',
-    shortcut: 'Shift+P',
+    shortcut: 'P',
     allowInEditable: false,
   },
   'set-canvas-mode-mover': {
     id: 'set-canvas-mode-mover',
-    shortcut: 'Shift+M',
+    shortcut: 'M',
     allowInEditable: false,
   },
 }
