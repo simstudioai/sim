@@ -1439,6 +1439,38 @@ export function useImportCsvAsync() {
   })
 }
 
+interface ImportFileAsTableParams {
+  workspaceId: string
+  fileKey: string
+  fileName: string
+}
+
+/**
+ * Kicks off a background import into a new table from a file ALREADY in workspace storage
+ * (e.g. the file viewer's "Import as a table"). Reuses the existing object — no re-upload —
+ * and sets `deleteSourceFile: false` so the user's original file survives the import (the normal
+ * upload-import flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress
+ * and the terminal state arrive over the table-events SSE stream.
+ */
+export function useImportFileAsTable() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start import from file:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
 export type CsvImportMode = 'append' | 'replace'
 
 interface ImportCsvIntoTableAsyncParams {
