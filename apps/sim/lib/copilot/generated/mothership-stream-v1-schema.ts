@@ -1157,9 +1157,6 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
           enum: ['call'],
           type: 'string',
         },
-        requiresConfirmation: {
-          type: 'boolean',
-        },
         status: {
           $ref: '#/$defs/MothershipStreamV1ToolStatus',
         },
@@ -1304,20 +1301,8 @@ export const MOTHERSHIP_STREAM_V1_SCHEMA: JsonSchema = {
         hidden: {
           type: 'boolean',
         },
-        icon: {
-          type: 'string',
-        },
         internal: {
           type: 'boolean',
-        },
-        phaseLabel: {
-          type: 'string',
-        },
-        requiresConfirmation: {
-          type: 'boolean',
-        },
-        title: {
-          type: 'string',
         },
       },
       type: 'object',

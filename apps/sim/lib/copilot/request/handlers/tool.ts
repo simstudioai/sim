@@ -30,6 +30,7 @@ import type {
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
@@ -50,13 +51,12 @@ import {
 
 const logger = createLogger('CopilotToolHandler')
 
-function applyToolDisplay(
-  toolCall: ToolCallState | undefined,
-  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
-): void {
-  if (!toolCall) return
-  const displayTitle = ui.title || ui.phaseLabel
-  if (displayTitle) toolCall.displayTitle = displayTitle
+function applyToolDisplay(toolCall: ToolCallState | undefined): void {
+  if (!toolCall?.name) return
+  toolCall.displayTitle = getToolDisplayTitle(
+    toolCall.name,
+    toolCall.params as Record<string, unknown> | undefined
+  )
 }
 
 /**
@@ -256,7 +256,7 @@ async function handleCallPhase(
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       if (existing && !existing.name && toolName) existing.name = toolName
       if (existing && !existing.params && args) existing.params = args
-      applyToolDisplay(existing, ui)
+      applyToolDisplay(existing)
       return
     }
   } else {
@@ -266,7 +266,7 @@ async function handleCallPhase(
     ) {
       if (!existing.name && toolName) existing.name = toolName
       if (!existing.params && args) existing.params = args
-      applyToolDisplay(existing, ui)
+      applyToolDisplay(existing)
       return
     }
   }
@@ -366,7 +366,7 @@ function registerSubagentToolCall(
   if (toolCall) {
     if (!toolCall.name && toolName) toolCall.name = toolName
     if (args && !toolCall.params) toolCall.params = args
-    applyToolDisplay(toolCall, ui)
+    applyToolDisplay(toolCall)
     if (hideFromUi) removeToolCallContentBlock(context, toolCallId)
   } else {
     toolCall = {
@@ -376,7 +376,7 @@ function registerSubagentToolCall(
       params: args,
       startTime: Date.now(),
     }
-    applyToolDisplay(toolCall, ui)
+    applyToolDisplay(toolCall)
     context.toolCalls.set(toolCallId, toolCall)
     const parentToolCall = context.toolCalls.get(parentToolCallId)
     if (!hideFromUi) {
@@ -395,7 +395,7 @@ function registerSubagentToolCall(
   if (existingSubagentToolCall) {
     if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
     if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
-    applyToolDisplay(existingSubagentToolCall, ui)
+    applyToolDisplay(existingSubagentToolCall)
   } else {
     subagentToolCalls.push(toolCall)
   }
@@ -412,7 +412,7 @@ function registerMainToolCall(
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
     if (args && !existing.params) existing.params = args
-    applyToolDisplay(existing, ui)
+    applyToolDisplay(existing)
     if (hideFromUi) {
       removeToolCallContentBlock(context, toolCallId)
       return
@@ -431,7 +431,7 @@ function registerMainToolCall(
       params: args,
       startTime: Date.now(),
     }
-    applyToolDisplay(created, ui)
+    applyToolDisplay(created)
     context.toolCalls.set(toolCallId, created)
     if (!hideFromUi) {
       addContentBlock(context, { type: 'tool_call', toolCall: created })

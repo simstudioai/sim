@@ -14,6 +14,7 @@ import {
 } from '@/lib/copilot/generated/mothership-stream-v1'
 import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 
 interface StreamSnapshotLike {
   events: StreamBatchEvent[]
@@ -58,15 +59,6 @@ function buildInlineErrorTag(payload: MothershipStreamV1ErrorPayload): string {
     ...(code ? { code } : {}),
     ...(provider ? { provider } : {}),
   })}</mothership-error>`
-}
-
-function resolveToolDisplayTitle(ui: unknown): string | undefined {
-  if (!isRecordLike(ui)) return undefined
-  return typeof ui.title === 'string'
-    ? ui.title
-    : typeof ui.phaseLabel === 'string'
-      ? ui.phaseLabel
-      : undefined
 }
 
 function appendTextBlock(
@@ -279,7 +271,6 @@ function buildLiveAssistantMessage(params: {
       case MothershipStreamV1EventType.tool: {
         const payload = parsed.payload
         const toolCallId = payload.toolCallId
-        const displayTitle = resolveToolDisplayTitle('ui' in payload ? payload.ui : undefined)
 
         if ('previewPhase' in payload) {
           continue
@@ -314,7 +305,10 @@ function buildLiveAssistantMessage(params: {
           calledBy: scopedSubagent,
           ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           ...spanIdentity,
-          displayTitle,
+          displayTitle: getToolDisplayTitle(
+            payload.toolName,
+            isRecordLike(payload.arguments) ? payload.arguments : undefined
+          ),
           params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
         })

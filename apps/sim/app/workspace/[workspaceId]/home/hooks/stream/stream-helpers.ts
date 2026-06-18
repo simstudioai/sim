@@ -9,7 +9,6 @@ import {
   DeployChat,
   DeployMcp,
   FunctionExecute,
-  GetPageContents,
   Glob,
   Grep,
   ManageCredential,
@@ -37,6 +36,7 @@ import {
   WorkspaceFileOperation,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { getWorkflowById } from '@/hooks/queries/utils/workflow-cache'
@@ -66,7 +66,6 @@ export type StreamPayload = Record<string, unknown>
 
 export type StreamToolUI = {
   hidden?: boolean
-  title?: string
   clientExecutable?: boolean
 }
 
@@ -85,17 +84,10 @@ export function getToolUI(ui?: MothershipStreamV1ToolUI): StreamToolUI | undefin
   if (!ui) {
     return undefined
   }
-
-  const title =
-    typeof ui.title === 'string'
-      ? ui.title
-      : typeof ui.phaseLabel === 'string'
-        ? ui.phaseLabel
-        : undefined
-
+  // The stream carries only behavioral flags now; display (title/icon) is
+  // derived client-side from the tool name via getToolDisplayTitle/getToolIcon.
   return {
     ...(typeof ui.hidden === 'boolean' ? { hidden: ui.hidden } : {}),
-    ...(title ? { title } : {}),
     ...(typeof ui.clientExecutable === 'boolean' ? { clientExecutable: ui.clientExecutable } : {}),
   }
 }
@@ -196,11 +188,6 @@ function stringParam(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
-function stringArrayParam(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
-}
-
 function resolveWorkflowNameForDisplay(workflowId: unknown): string | undefined {
   const id = stringParam(workflowId)
   if (!id) return undefined
@@ -254,138 +241,18 @@ function functionExecuteTitle(title: string | undefined): string {
   return title ?? 'Running code'
 }
 
-export function resolveToolDisplayTitle(
-  name: string,
-  args?: Record<string, unknown>
-): string | undefined {
-  if (!args) return undefined
-
-  if (name === FunctionExecute.id) {
-    return functionExecuteTitle(stringParam(args.title))
-  }
-
-  if (name === WorkspaceFile.id) {
-    const target = asPayloadRecord(args.target)
-    return resolveWorkspaceFileDisplayTitle(args.operation, args.title, target?.fileName)
-  }
-
-  if (name === SearchOnline.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching online for ${toolTitle}` : 'Searching online'
-  }
-
-  if (name === Grep.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Searching for ${toolTitle}` : 'Searching'
-  }
-
-  if (name === Glob.id) {
-    const toolTitle = stringParam(args.toolTitle)
-    return toolTitle ? `Finding ${toolTitle}` : 'Finding files'
-  }
-
-  if (name === ScrapePage.id) {
-    const url = stringParam(args.url)
-    return url ? `Scraping ${url}` : 'Scraping page'
-  }
-
-  if (name === CrawlWebsite.id) {
-    const url = stringParam(args.url)
-    return url ? `Crawling ${url}` : 'Crawling website'
-  }
-
-  if (name === GetPageContents.id) {
-    const urls = stringArrayParam(args.urls)
-    if (urls.length === 1) return `Getting ${urls[0]}`
-    if (urls.length > 1) return `Getting ${urls.length} pages`
-    return 'Getting page contents'
-  }
-
-  if (name === ManageCustomTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCustomToolOperation.add]: 'Creating custom tool',
-        [ManageCustomToolOperation.edit]: 'Updating custom tool',
-        [ManageCustomToolOperation.delete]: 'Deleting custom tool',
-        [ManageCustomToolOperation.list]: 'Listing custom tools',
-      },
-      'Custom tool action'
-    )
-  }
-
-  if (name === ManageMcpTool.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageMcpToolOperation.add]: 'Creating MCP server',
-        [ManageMcpToolOperation.edit]: 'Updating MCP server',
-        [ManageMcpToolOperation.delete]: 'Deleting MCP server',
-        [ManageMcpToolOperation.list]: 'Listing MCP servers',
-      },
-      'MCP server action'
-    )
-  }
-
-  if (name === ManageSkill.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageSkillOperation.add]: 'Creating skill',
-        [ManageSkillOperation.edit]: 'Updating skill',
-        [ManageSkillOperation.delete]: 'Deleting skill',
-        [ManageSkillOperation.list]: 'Listing skills',
-      },
-      'Skill action'
-    )
-  }
-
-  if (name === ManageScheduledTask.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageScheduledTaskOperation.create]: 'Creating scheduled task',
-        [ManageScheduledTaskOperation.get]: 'Getting scheduled task',
-        [ManageScheduledTaskOperation.update]: 'Updating scheduled task',
-        [ManageScheduledTaskOperation.delete]: 'Deleting scheduled task',
-        [ManageScheduledTaskOperation.list]: 'Listing scheduled tasks',
-      },
-      'Scheduled task action'
-    )
-  }
-
-  if (name === ManageCredential.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageCredentialOperation.rename]: 'Renaming credential',
-        [ManageCredentialOperation.delete]: 'Deleting credential',
-      },
-      'Credential action'
-    )
-  }
-
-  if (name === ManageFolder.id) {
-    return resolveOperationDisplayTitle(
-      args.operation,
-      {
-        [ManageFolderOperation.create]: 'Creating folder',
-        [ManageFolderOperation.rename]: 'Renaming folder',
-        [ManageFolderOperation.move]: 'Moving folder',
-        [ManageFolderOperation.delete]: 'Deleting folder',
-      },
-      'Folder action'
-    )
-  }
-
+export function resolveToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+  // Cases that enrich the title with live workspace/block names from the client
+  // stores. Everything else is resolved by the shared name+args resolver, which
+  // is the single source of truth for tool-call titles.
   if (name === RunWorkflow.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
     return workflowName ? `Running ${workflowName}` : 'Running workflow'
   }
 
   if (name === RunFromBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.startBlockId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const blockName = resolveBlockNameForDisplay(args?.startBlockId)
     if (workflowName && blockName) return `Running ${workflowName} from ${blockName}`
     if (workflowName) return `Running ${workflowName}`
     if (blockName) return `Running from ${blockName}`
@@ -393,8 +260,8 @@ export function resolveToolDisplayTitle(
   }
 
   if (name === RunWorkflowUntilBlock.id) {
-    const workflowName = resolveWorkflowNameForDisplay(args.workflowId)
-    const blockName = resolveBlockNameForDisplay(args.stopAfterBlockId)
+    const workflowName = resolveWorkflowNameForDisplay(args?.workflowId)
+    const blockName = resolveBlockNameForDisplay(args?.stopAfterBlockId)
     if (workflowName && blockName) return `Running ${workflowName} until ${blockName}`
     if (workflowName) return `Running ${workflowName}`
     if (blockName) return `Running until ${blockName}`
@@ -403,11 +270,11 @@ export function resolveToolDisplayTitle(
 
   if (name === QueryLogs.id) {
     const workflowName =
-      resolveWorkflowNameForDisplay(args.workflowId) ?? stringParam(args.workflowName)
-    return workflowName ? `Querying logs for ${workflowName}` : undefined
+      resolveWorkflowNameForDisplay(args?.workflowId) ?? stringParam(args?.workflowName)
+    if (workflowName) return `Querying logs for ${workflowName}`
   }
 
-  return undefined
+  return getToolDisplayTitle(name, args)
 }
 
 function decodeStreamingString(value: string): string {

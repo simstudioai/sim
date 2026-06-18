@@ -214,10 +214,8 @@ export function handleToolEvent(
   }
   const ui = getToolUI(payload.ui)
   if (ui?.hidden) return
-  let displayTitle = ui?.title
   const args = payload.arguments as Record<string, unknown> | undefined
-
-  displayTitle = resolveToolDisplayTitle(name, args) ?? displayTitle
+  const displayTitle = resolveToolDisplayTitle(name, args)
 
   if (name === 'edit_content') {
     const parentToolCallId = deps.latestPreviewTargetToolCallIdRef.current

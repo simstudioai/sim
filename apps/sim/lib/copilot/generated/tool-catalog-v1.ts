@@ -202,7 +202,6 @@ export interface ToolCatalogEntry {
     | 'workspace_file'
   parameters: unknown
   requiredPermission?: 'admin' | 'read' | 'write'
-  requiresConfirmation?: boolean
   resultSchema?: unknown
   route: 'client' | 'go' | 'sim' | 'subagent'
   subagentId?:
@@ -444,7 +443,6 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['name'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -492,7 +490,6 @@ export const DeleteFileFolder: ToolCatalogEntry = {
     },
     required: ['paths'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -512,7 +509,6 @@ export const DeleteWorkflow: ToolCatalogEntry = {
     },
     required: ['workflowIds'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -528,7 +524,6 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -629,7 +624,6 @@ export const DeployApi: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -775,7 +769,6 @@ export const DeployChat: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -868,7 +861,6 @@ export const DeployMcp: ToolCatalogEntry = {
     },
     required: ['deploymentType', 'deploymentStatus'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -1422,7 +1414,6 @@ export const GenerateApiKey: ToolCatalogEntry = {
     },
     required: ['name'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2303,7 +2294,6 @@ export const KnowledgeBase: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
-  requiresConfirmation: true,
 }
 
 export const ListFileFolders: ToolCatalogEntry = {
@@ -2386,7 +2376,6 @@ export const LoadDeployment: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2432,7 +2421,6 @@ export const ManageCredential: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -2502,7 +2490,6 @@ export const ManageCustomTool: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2547,7 +2534,6 @@ export const ManageFolder: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2599,7 +2585,6 @@ export const ManageMcpTool: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2712,7 +2697,6 @@ export const ManageSkill: ToolCatalogEntry = {
     },
     required: ['operation'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -2866,7 +2850,6 @@ export const OauthRequestAccess: ToolCatalogEntry = {
     },
     required: ['providerName'],
   },
-  requiresConfirmation: true,
 }
 
 export const OpenResource: ToolCatalogEntry = {
@@ -2924,7 +2907,6 @@ export const PromoteToLive: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3130,7 +3112,6 @@ export const Redeploy: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3255,7 +3236,6 @@ export const RestoreResource: ToolCatalogEntry = {
     },
     required: ['type', 'id'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -3311,7 +3291,6 @@ export const RunBlock: ToolCatalogEntry = {
     required: ['blockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunFromBlock: ToolCatalogEntry = {
@@ -3346,7 +3325,6 @@ export const RunFromBlock: ToolCatalogEntry = {
     required: ['startBlockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunWorkflow: ToolCatalogEntry = {
@@ -3390,7 +3368,6 @@ export const RunWorkflow: ToolCatalogEntry = {
     },
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const RunWorkflowUntilBlock: ToolCatalogEntry = {
@@ -3439,7 +3416,6 @@ export const RunWorkflowUntilBlock: ToolCatalogEntry = {
     required: ['stopAfterBlockId'],
   },
   clientExecutable: true,
-  requiresConfirmation: true,
 }
 
 export const ScheduledTask: ToolCatalogEntry = {
@@ -3635,7 +3611,6 @@ export const SetEnvironmentVariables: ToolCatalogEntry = {
     },
     required: ['variables'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3675,7 +3650,6 @@ export const SetGlobalWorkflowVariables: ToolCatalogEntry = {
     },
     required: ['operations'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3741,7 +3715,6 @@ export const UpdateDeploymentVersion: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'write',
 }
 
@@ -3779,7 +3752,6 @@ export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiresConfirmation: true,
   requiredPermission: 'admin',
 }
 
@@ -4157,7 +4129,6 @@ export const UserTable: ToolCatalogEntry = {
     },
     required: ['success', 'message'],
   },
-  requiresConfirmation: true,
 }
 
 export const Workflow: ToolCatalogEntry = {
