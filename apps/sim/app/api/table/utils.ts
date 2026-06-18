@@ -36,9 +36,9 @@ export function tableFilterError(
 const logger = createLogger('TableUtils')
 
 /**
- * Deepest `Error` message in the cause chain. Drizzle wraps DB errors (e.g. the
- * row-limit trigger's RAISE) in a `DrizzleQueryError` whose own message is just
- * the failed SQL — substring classification must look at the root cause.
+ * Deepest `Error` message in the cause chain. Drizzle wraps DB errors in a
+ * `DrizzleQueryError` whose own message is just the failed SQL — substring
+ * classification must look at the root cause.
  */
 export function rootErrorMessage(error: unknown): string {
   let current: unknown = error
@@ -49,9 +49,9 @@ export function rootErrorMessage(error: unknown): string {
 }
 
 /**
- * Known user-facing row-write failures (service validation + the DB row-limit
- * trigger). Anything outside this list stays a generic 500 — unknown errors can
- * carry SQL/internals that don't belong in a toast.
+ * Known user-facing row-write failures (service validation + the best-effort
+ * plan row-limit check). Anything outside this list stays a generic 500 —
+ * unknown errors can carry SQL/internals that don't belong in a toast.
  */
 const ROW_WRITE_ERROR_PATTERNS = [
   'row limit',
@@ -78,18 +78,6 @@ const ROW_WRITE_ERROR_PATTERNS = [
  */
 export function rowWriteErrorResponse(error: unknown): NextResponse | null {
   const message = rootErrorMessage(error)
-
-  // Trigger message reads `Maximum row limit (N) reached for table tbl_...` —
-  // rewrite it for the toast instead of leaking the internal table id.
-  const limitMatch = message.match(/Maximum row limit \((\d+)\) reached/)
-  if (limitMatch) {
-    return NextResponse.json(
-      {
-        error: `Row limit exceeded — this table is capped at ${Number(limitMatch[1]).toLocaleString('en-US')} rows`,
-      },
-      { status: 400 }
-    )
-  }
 
   if (ROW_WRITE_ERROR_PATTERNS.some((p) => message.includes(p)) || /^Row .+?:/.test(message)) {
     return NextResponse.json({ error: message }, { status: 400 })
