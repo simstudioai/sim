@@ -2,6 +2,7 @@
   "title": "Academy",
   "root": true,
   "pages": [
+    "---Get Started---",
     "index",
     "---Foundations---",
     "workflows",
