@@ -72,7 +72,7 @@ export const ADD_CONNECTOR_SEARCH_PARAM = 'addConnector' as const
 
 const OAUTH_RETURN_CONTEXT_KEY = 'sim.oauth-return-context'
 
-export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors'
+export type OAuthReturnOrigin = 'workflow' | 'integrations' | 'kb-connectors' | 'files'
 
 interface OAuthReturnBase {
   displayName: string
@@ -98,10 +98,15 @@ interface OAuthReturnKBConnectors extends OAuthReturnBase {
   connectorType?: string
 }
 
+interface OAuthReturnFiles extends OAuthReturnBase {
+  origin: 'files'
+}
+
 export type OAuthReturnContext =
   | OAuthReturnWorkflow
   | OAuthReturnIntegrations
   | OAuthReturnKBConnectors
+  | OAuthReturnFiles
 
 export function writeOAuthReturnContext(ctx: OAuthReturnContext) {
   if (typeof window === 'undefined') return

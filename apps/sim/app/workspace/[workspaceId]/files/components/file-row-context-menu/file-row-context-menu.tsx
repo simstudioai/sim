@@ -16,6 +16,7 @@ import {
   Pencil,
 } from '@/components/emcn'
 import { Download, Trash } from '@/components/emcn/icons'
+import { GoogleDriveIcon } from '@/components/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { renderMoveOption } from '@/app/workspace/[workspaceId]/files/move-options'
 
@@ -25,6 +26,7 @@ interface FileRowContextMenuProps {
   onClose: () => void
   onOpen: () => void
   onDownload?: () => void
+  onExportToDrive?: () => void
   onRename: () => void
   onDelete: () => void
   onMove?: (optionValue: string) => void
@@ -39,6 +41,7 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
   onClose,
   onOpen,
   onDownload,
+  onExportToDrive,
   onRename,
   onDelete,
   onMove,
@@ -70,12 +73,30 @@ export const FileRowContextMenu = memo(function FileRowContextMenu({
             Open
           </DropdownMenuItem>
         )}
-        {onDownload && (
-          <DropdownMenuItem onSelect={onDownload}>
-            <Download />
-            {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
-          </DropdownMenuItem>
-        )}
+        {onDownload &&
+          (onExportToDrive ? (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Download />
+                {isMultiSelect ? `Export ${selectedCount} items` : 'Export'}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem onSelect={onDownload}>
+                  <Download />
+                  Download
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={onExportToDrive}>
+                  <GoogleDriveIcon />
+                  Google Drive
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          ) : (
+            <DropdownMenuItem onSelect={onDownload}>
+              <Download />
+              {isMultiSelect ? `Download ${selectedCount} items` : 'Download'}
+            </DropdownMenuItem>
+          ))}
         {canEdit && (
           <>
             <DropdownMenuSeparator />

@@ -23,6 +23,7 @@ import {
   Upload,
 } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
+import { GoogleDriveIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
@@ -61,6 +62,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components'
 import { FilesActionBar } from '@/app/workspace/[workspaceId]/files/components/action-bar'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
+import { ExportToDriveModal } from '@/app/workspace/[workspaceId]/files/components/export-to-drive-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
@@ -70,6 +72,10 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
+import {
+  clearPendingDriveExport,
+  consumePendingDriveExport,
+} from '@/app/workspace/[workspaceId]/files/pending-export'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
@@ -89,6 +95,7 @@ import {
 } from '@/hooks/queries/workspace-files'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
+import { useOAuthReturnForFiles } from '@/hooks/use-oauth-return'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
@@ -172,6 +179,8 @@ export function Files() {
   const isNewFile = searchParams.get('new') === '1'
   const currentFolderId = searchParams.get('folderId')
   const workspaceId = params?.workspaceId as string
+
+  useOAuthReturnForFiles(workspaceId)
 
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
@@ -268,6 +277,24 @@ export function Files() {
     folderIds: string[]
     name: string
   } | null>(null)
+  const [exportTarget, setExportTarget] = useState<{
+    fileIds: string[]
+    fileNames: string[]
+    priorCredentialIds?: string[]
+  } | null>(null)
+
+  // Resume an export that was paused to connect a Google Drive account (the OAuth
+  // flow is a full-page redirect, so the in-flight selection is restored on return).
+  useEffect(() => {
+    const pending = consumePendingDriveExport()
+    if (pending) {
+      setExportTarget({
+        fileIds: pending.fileIds,
+        fileNames: pending.fileNames,
+        priorCredentialIds: pending.priorCredentialIds,
+      })
+    }
+  }, [])
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
@@ -1012,6 +1039,35 @@ export function Files() {
     window.location.href = `/api/workspaces/${workspaceId}/files/download?${query.toString()}`
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, workspaceId])
 
+  const openExportToDrive = useCallback((targetFiles: WorkspaceFileRecord[]) => {
+    if (targetFiles.length === 0) return
+    setExportTarget({
+      fileIds: targetFiles.map((file) => file.id),
+      fileNames: targetFiles.map((file) => file.name),
+    })
+  }, [])
+
+  const handleExportSelectedToDrive = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) openExportToDrive([file])
+  }, [openExportToDrive])
+
+  const handleBulkExportToDrive = useCallback(() => {
+    openExportToDrive(files.filter((file) => selectedFileIds.includes(file.id)))
+  }, [files, selectedFileIds, openExportToDrive])
+
+  const handleContextMenuExportToDrive = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (!item) return
+    const rowId = item.kind === 'file' ? fileRowId(item.file.id) : folderRowId(item.folder.id)
+    if (selectedRowIds.has(rowId) && selectedRowIds.size > 1) {
+      openExportToDrive(files.filter((file) => selectedFileIds.includes(file.id)))
+    } else if (item.kind === 'file') {
+      openExportToDrive([item.file])
+    }
+    closeContextMenu()
+  }, [selectedRowIds, selectedFileIds, files, openExportToDrive, closeContextMenu])
+
   const fileDetailBreadcrumbs = useMemo(() => {
     if (!selectedFile) return []
 
@@ -1442,6 +1498,11 @@ export function Files() {
         icon: Download,
         onSelect: handleDownloadSelected,
       },
+      {
+        text: 'Export to Drive',
+        icon: GoogleDriveIcon,
+        onSelect: handleExportSelectedToDrive,
+      },
       ...(canEdit
         ? [
             {
@@ -1462,6 +1523,7 @@ export function Files() {
     handleTogglePreview,
     handleSave,
     handleDownloadSelected,
+    handleExportSelectedToDrive,
     handleDeleteSelected,
   ])
 
@@ -1908,6 +1970,7 @@ export function Files() {
               <FilesActionBar
                 selectedCount={selectedRowIds.size}
                 onDownload={handleBulkDownload}
+                onExportToDrive={selectedFileIds.length > 0 ? handleBulkExportToDrive : undefined}
                 onMove={canEdit ? handleContextMenuMove : undefined}
                 moveOptions={canEdit ? contextMenuMoveOptions : undefined}
                 onDelete={canEdit ? handleBulkDelete : undefined}
@@ -1949,6 +2012,12 @@ export function Files() {
         onClose={closeContextMenu}
         onOpen={handleContextMenuOpen}
         onDownload={handleContextMenuDownload}
+        onExportToDrive={
+          contextMenuItemRef.current?.kind === 'file' ||
+          (selectedRowIds.size > 1 && selectedFileIds.length > 0)
+            ? handleContextMenuExportToDrive
+            : undefined
+        }
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
@@ -1956,6 +2025,24 @@ export function Files() {
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
       />
+
+      {exportTarget !== null && (
+        <ExportToDriveModal
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              // Dismissing the flow (vs. an OAuth redirect, which unloads the page)
+              // discards any pending resume token so a cancel never reopens later.
+              clearPendingDriveExport()
+              setExportTarget(null)
+            }
+          }}
+          workspaceId={workspaceId}
+          fileIds={exportTarget.fileIds}
+          fileNames={exportTarget.fileNames}
+          priorCredentialIds={exportTarget.priorCredentialIds}
+        />
+      )}
 
       <DeleteConfirmModal
         open={showDeleteConfirm}

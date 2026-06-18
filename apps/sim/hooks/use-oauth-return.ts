@@ -103,6 +103,14 @@ export function useOAuthReturnRouter() {
       router.replace(`${kbUrl}${connectorParam}`)
       return
     }
+
+    if (ctx.origin === 'files') {
+      try {
+        sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
+      } catch {}
+      router.replace(`/workspace/${workspaceId}/files`)
+      return
+    }
   }, [router, workspaceId])
 }
 
@@ -144,4 +152,25 @@ export function useOAuthReturnForKBConnectors(knowledgeBaseId: string) {
       dispatchCredentialUpdate(ctx)
     })()
   }, [knowledgeBaseId])
+}
+
+/**
+ * Post-OAuth handler for the Files page.
+ * Consumes the return context and shows a toast notification after a Google
+ * Drive (or other provider) account is connected from the export-to-Drive flow.
+ */
+export function useOAuthReturnForFiles(workspaceId: string) {
+  useEffect(() => {
+    const ctx = readOAuthReturnContext()
+    if (!ctx || ctx.origin !== 'files') return
+    if (ctx.workspaceId !== workspaceId) return
+    consumeOAuthReturnContext()
+    if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) return
+
+    void (async () => {
+      const message = await resolveOAuthMessage(ctx)
+      toast.success(message)
+      dispatchCredentialUpdate(ctx)
+    })()
+  }, [workspaceId])
 }
