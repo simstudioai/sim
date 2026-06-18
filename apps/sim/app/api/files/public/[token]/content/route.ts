@@ -50,7 +50,14 @@ export const GET = withRouteHandler(
 
       logger.info('Public shared file served', { token, key: file.key, size: buffer.length })
 
-      return createFileResponse({ buffer, contentType, filename: file.originalName })
+      // Revalidate every request: a shared file can be unshared, edited, or deleted,
+      // so the fixed token URL must never serve stale bytes from a long-lived cache.
+      return createFileResponse({
+        buffer,
+        contentType,
+        filename: file.originalName,
+        cacheControl: 'private, no-cache, must-revalidate',
+      })
     } catch (error) {
       logger.error('Error serving public shared file:', error)
       if (error instanceof FileNotFoundError) {

@@ -1,5 +1,5 @@
 {
-  "id": "a99c0c8d-17cb-4153-8888-409e9af9c167",
+  "id": "78b8f3d4-c24c-4303-89ec-8ae29d2ea5c8",
   "prevId": "f7a9fd28-8bd2-4421-a048-a0a768fc8475",
   "version": "7",
   "dialect": "postgresql",
@@ -9990,7 +9990,7 @@
           "name": "created_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "token": {
           "name": "token",
@@ -10104,7 +10104,7 @@
           "tableTo": "user",
           "columnsFrom": ["created_by"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

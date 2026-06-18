@@ -1403,9 +1403,9 @@ export const publicShare = pgTable(
     workspaceId: text('workspace_id')
       .notNull()
       .references(() => workspace.id, { onDelete: 'cascade' }),
-    createdBy: text('created_by')
-      .notNull()
-      .references(() => user.id, { onDelete: 'cascade' }),
+    // SET NULL (not CASCADE) so a share — and its public link — outlives the user
+    // who created it; the file still belongs to the workspace.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     token: text('token').notNull(),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at').notNull().defaultNow(),

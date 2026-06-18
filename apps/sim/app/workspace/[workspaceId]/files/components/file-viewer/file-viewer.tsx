@@ -108,6 +108,12 @@ export function FileViewer({
 
   if (category === 'text-editable') {
     if (readOnly) {
+      // ReadOnlyTextPreview loads the whole file as text; a large CSV would OOM the
+      // browser. CsvTablePreview's streamed fallback is workspace-only, so on the
+      // read-only public path a large CSV is download-only.
+      if (isCsvStreamOnly(file)) {
+        return <UnsupportedPreview file={file} />
+      }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
     }
     // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).

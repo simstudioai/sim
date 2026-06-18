@@ -101,7 +101,9 @@ export function PublicFileView({
             const anchor = document.createElement('a')
             anchor.href = contentUrl
             anchor.download = name
+            document.body.appendChild(anchor)
             anchor.click()
+            anchor.remove()
           }}
         >
           Download

@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { publicShare, user, workspace, workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { ShareRecord, shareResourceTypeSchema } from '@/lib/api/contracts/public-shares'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -136,13 +136,13 @@ export async function resolveActiveShareByToken(token: string): Promise<Resolved
       and(
         eq(publicShare.token, token),
         eq(publicShare.isActive, true),
-        eq(publicShare.resourceType, 'file')
+        eq(publicShare.resourceType, 'file'),
+        isNull(workspaceFiles.deletedAt)
       )
     )
     .limit(1)
 
   if (!row) return null
-  if (row.file.deletedAt) return null
 
   return {
     share: row.share,
