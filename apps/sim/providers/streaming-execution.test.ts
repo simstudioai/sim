@@ -3,14 +3,20 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockRecordCostCharged } = vi.hoisted(() => ({ mockRecordCostCharged: vi.fn() }))
+const { mockRecordCostCharged, mockRecordFailed } = vi.hoisted(() => ({
+  mockRecordCostCharged: vi.fn(),
+  mockRecordFailed: vi.fn(),
+}))
 
 vi.mock('@/providers/utils', () => ({
   calculateCost: vi.fn(() => ({ input: 1, output: 2, total: 3, pricing: {} })),
 }))
 vi.mock('@/lib/core/config/env-flags', () => ({ getCostMultiplier: () => 1 }))
 vi.mock('@/lib/monitoring/metrics', () => ({
-  hostedKeyMetrics: { recordCostCharged: mockRecordCostCharged },
+  hostedKeyMetrics: { recordCostCharged: mockRecordCostCharged, recordFailed: mockRecordFailed },
+}))
+vi.mock('@/lib/api-key/hosted-cost', () => ({
+  classifyHostedKeyFailure: () => 'other',
 }))
 
 import type { NormalizedBlockOutput } from '@/executor/types'
@@ -81,6 +87,41 @@ describe('createStreamingExecution', () => {
       provider: 'openai',
       tool: 'test-model',
     })
+    expect(mockRecordFailed).not.toHaveBeenCalled()
+  })
+
+  it('records a hosted-key failure (not cost) when the stream errors mid-drain', async () => {
+    mockRecordCostCharged.mockClear()
+    mockRecordFailed.mockClear()
+    const boom = new Error('upstream 500')
+    const sourceStream = new ReadableStream({
+      pull: (c) => c.error(boom),
+    })
+
+    const result = createStreamingExecution({
+      model: 'test-model',
+      providerStartTime,
+      providerStartTimeISO,
+      timing: { kind: 'simple', segmentName: 'test-model' },
+      initialTokens: { input: 0, output: 0, total: 0 },
+      initialCost: { input: 0, output: 0, total: 0 },
+      hostedKey: { provider: 'openai', envVar: 'OPENAI_API_KEY_1' },
+      cached: false,
+      createStream: () => sourceStream,
+    })
+
+    const reader = result.stream.getReader()
+    await expect(reader.read()).rejects.toThrow('upstream 500')
+
+    // Failure recorded once; no cost charged for a failed stream.
+    expect(mockRecordFailed).toHaveBeenCalledTimes(1)
+    expect(mockRecordFailed).toHaveBeenCalledWith({
+      provider: 'openai',
+      tool: 'test-model',
+      key: 'OPENAI_API_KEY_1',
+      reason: 'other',
+    })
+    expect(mockRecordCostCharged).not.toHaveBeenCalled()
   })
 
   it('assembles the simple (no-tools) shape and finalizes timing on drain', () => {

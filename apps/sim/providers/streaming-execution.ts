@@ -1,3 +1,4 @@
+import { classifyHostedKeyFailure } from '@/lib/api-key/hosted-cost'
 import { getCostMultiplier } from '@/lib/core/config/env-flags'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
@@ -5,24 +6,26 @@ import type { TimeSegment } from '@/providers/types'
 import { calculateCost } from '@/providers/utils'
 
 /**
- * Passthrough of `source` that invokes `onDrain` exactly once, after the source
- * completes naturally (not on error or cancel). Lets the hosted-key cost settle
- * when final tokens are known, regardless of whether the provider's drain
- * callback finalized timing.
+ * Passthrough of `source` that runs exactly one terminal callback: `onDrain`
+ * when it completes normally (cost is settled then), or `onError` when a read
+ * errors mid-stream (records the hosted-key failure). A client `cancel` is not a
+ * key failure, so it runs neither. Lets hosted-key cost/failure metrics stay
+ * symmetric regardless of whether the provider's drain callback finalized timing.
  */
 function settleHostedCostOnStreamDrain(
   source: ReadableStream,
-  onDrain: () => void
+  onDrain: () => void,
+  onError: (error: unknown) => void
 ): ReadableStream {
   const reader = source.getReader()
-  let settled = false
+  let finished = false
   return new ReadableStream({
     async pull(controller) {
       try {
         const { done, value } = await reader.read()
         if (done) {
-          if (!settled) {
-            settled = true
+          if (!finished) {
+            finished = true
             onDrain()
           }
           controller.close()
@@ -30,6 +33,10 @@ function settleHostedCostOnStreamDrain(
         }
         controller.enqueue(value)
       } catch (error) {
+        if (!finished) {
+          finished = true
+          onError(error)
+        }
         controller.error(error)
       }
     },
@@ -247,8 +254,16 @@ export function createStreamingExecution(
   // the provider's drain callback before the stream closes). Recomputes the
   // authoritative cost with the multiplier and emits the cost metric exactly once.
   const stream = hostedKey
-    ? settleHostedCostOnStreamDrain(baseStream, () =>
-        settleStreamingLlmCost(output, model, hostedKey, cached ?? false)
+    ? settleHostedCostOnStreamDrain(
+        baseStream,
+        () => settleStreamingLlmCost(output, model, hostedKey, cached ?? false),
+        (error) =>
+          hostedKeyMetrics.recordFailed({
+            provider: hostedKey.provider,
+            tool: model,
+            key: hostedKey.envVar,
+            reason: classifyHostedKeyFailure(error),
+          })
       )
     : baseStream
 
