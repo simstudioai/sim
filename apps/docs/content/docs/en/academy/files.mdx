@@ -1,0 +1,45 @@
+---
+title: Files
+description: Sim natively supports files — store, reference, and pass around documents and media so workflows can read and produce real assets like PDFs, images, audio, and video.
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
+
+<VideoPlaceholder eyebrow="Foundations" title="Files" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/05-files.mp4" className="mt-2" />
+
+Sim has native support for **files** — a way to store, reference, and pass around documents, media, and generated outputs, so your workflows can read and produce real assets: PDFs, images, audio, video.
+
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'Why files exist',
+      body: 'Many operations you already do involve files — attaching an image to an email, transcribing audio, processing an upload. Workflows routinely take files in and hand files out.',
+    },
+    {
+      title: 'Consume and produce',
+      body: 'A workflow can read a file as input and produce a new file as output, passing it between blocks like any other value.',
+    },
+  ]}
+/>
+
+## Why you need files
+
+Most of the work you'd want to automate touches files somewhere. You receive a PDF and need to extract from it. An email needs an image attached. Audio comes in and has to be transcribed. A user uploads a document to process. These aren't edge cases — workflows reference file types as inputs and outputs all the time, so files are a first-class thing in Sim rather than something you have to work around.
+
+## What you can do
+
+The point isn't a new concept to learn — it's recognizing that the file-based operations you already picture are supported here:
+
+- Attach a generated report to an email.
+- Transcribe an audio clip that came in through a trigger.
+- Read an uploaded image and describe it with a vision model.
+- Extract structured fields from a batch of PDFs.
+- Produce a rendered document, chart, or audio file as a workflow's output.
+
+Workflows **consume** files and **produce** them, and hand them between blocks like any other value.
+
+<Callout type="info">
+If you're thinking "could I automate the thing that involves *that* document?" — the answer is almost always yes. Files are how Sim handles the real assets your processes already run on.
+</Callout>

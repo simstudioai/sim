@@ -1,60 +1,39 @@
 ---
-title: Sim Academy
-description: Learn Sim module by module — a sequenced, video-first path from first workflow to partner-level operations.
+title: What is Sim?
+description: Sim is a unified workspace for building and operating AI systems — data, workflows, and the integrations that connect them to the outside world.
 ---
 
-import { Card, Cards } from 'fumadocs-ui/components/card'
-import { Callout } from 'fumadocs-ui/components/callout'
+import { VideoPlaceholder } from '@/components/ui/video-placeholder'
+import { WhatYouWillLearn } from '@/components/ui/what-you-will-learn'
 
-Academy is the guided way to learn Sim. Where the [Documentation](/introduction) is something you search and skim, Academy is something you move through — a sequence of short, video-first modules that build a working mental model of the platform, one resource at a time.
+<VideoPlaceholder eyebrow="Foundations" title="What is Sim?" src="https://nnjgp7vypgx4myuq.public.blob.vercel-storage.com/academy-preview/01-intro.mp4" className="mt-2" />
 
-It's built breadth-first: each module gives you a clear, confidence-building introduction to one part of Sim, then connects it back to the rest. You don't need to finish everything to be productive — but by the end you'll understand how the whole workspace fits together.
+Sim is a unified workspace for **building and operating AI systems**. Everything you make lives in one place, and everything connects.
 
-<Callout type="info">
-Academy and the Documentation share the same ontology. Each module maps to a concept page in the docs — Academy teaches it; the docs let you look it up.
-</Callout>
+<WhatYouWillLearn
+  items={[
+    {
+      title: 'What a workspace is',
+      body: 'A workspace holds two things: resources — your data — and workflows — your processes. Both live together and reference each other.',
+    },
+    {
+      title: 'How the pieces relate',
+      body: 'Workflows are where work happens; resources are what they work on; integrations are how both reach the outside world.',
+    },
+  ]}
+/>
 
-## How Sim fits together
+## The workspace
 
-Every module is a resource in the workspace, and they all meet at workflows:
+A **workspace** is a collection of shared resources and the workflows that use them.
 
-- **Workspace** is the system boundary.
-- **Chat** is the natural-language control plane.
-- **Workflows** are the executable logic.
-- **Tables** hold structured state.
-- **Knowledge Bases** are searchable memory.
-- **Files** are artifacts.
-- **Tools, integrations, MCP, and skills** are capabilities.
-- **Deployments** are external surfaces.
-- **Logs** are how you verify.
+- **Resources** are your data: [tables](/academy/tables) (structured records), [knowledge bases](/academy/knowledge-bases) (searchable memory), and [files](/academy/files) (documents and media).
+- **Workflows** are your processes — the agents and automations that read those resources, act, and write results back.
 
-## Start here
+Everything in a workspace can see everything else in it. A workflow reads a table, searches a knowledge base, produces a file — and the next workflow picks up where it left off.
 
-<Cards>
-  <Card title="Introduction" href="/academy/introduction" description="A 10–15 minute whirlwind tour of Sim. Watch this first." />
-</Cards>
+## Integrations connect you to the outside world
 
-## The modules
+**Integrations** are plugins. They let your resources and workflows reach services beyond Sim — send a Slack message, read a Gmail inbox, write a row to a CRM, call any API. You connect an account once, and any workflow can use it.
 
-<Cards>
-  <Card title="Workflows" href="/academy/workflows" description="Where AI systems become executable." />
-  <Card title="Chat" href="/academy/chat" description="Build and manage your workspace in natural language." />
-  <Card title="Tables" href="/academy/tables" description="Structured state and active pipelines." />
-  <Card title="Knowledge Bases" href="/academy/knowledge-bases" description="Give agents searchable memory." />
-  <Card title="Files" href="/academy/files" description="The artifact layer agents read and write." />
-  <Card title="Agents, Tools, MCP, Skills" href="/academy/agents-tools-mcp-skills" description="How agents gain capabilities." />
-  <Card title="Logs & Debugging" href="/academy/logs-debugging" description="Verify and diagnose runs." />
-  <Card title="Deployment" href="/academy/deployment" description="Take workflows live as APIs, chats, and MCP." />
-  <Card title="Workspaces, Credentials, Permissions" href="/academy/workspaces-credentials-permissions" description="Governance and access." />
-</Cards>
-
-## Going further
-
-<Cards>
-  <Card title="Use-case walkthroughs" href="/academy/use-case-walkthroughs" description="End-to-end builds for common scenarios." />
-  <Card title="Partner certification" href="/academy/partner-certification" description="Advanced operations for partners and operators." />
-</Cards>
-
-<Callout type="warn">
-Academy is in active development. Modules marked as drafts have their structure in place; videos and full write-ups are being recorded.
-</Callout>
+So the whole picture is small: a workspace is **data + processes**, integrations plug it into **everything else**, and the rest of this course is just learning each piece and watching them compose.
