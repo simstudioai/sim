@@ -104,8 +104,9 @@ export async function getApiKeyWithBYOK(
   userId?: string | null
 ): Promise<ApiKeyResolution> {
   // Unified hosted-key path (flag-gated). For any provider with a hosting config:
-  // BYOK workspace key wins; otherwise acquire a platform key through the shared
-  // hosted-key framework with no rate limiting. Falls through to the legacy
+  // workspace BYOK key wins, then a user-provided key (never billed via the pool),
+  // otherwise acquire a platform key through the shared hosted-key framework with no
+  // rate limiting. Mirrors tool hosted-key precedence. Falls through to the legacy
   // per-provider logic when the flag is off or no platform keys are configured,
   // keeping flag-off behavior identical.
   if (isHosted && workspaceId) {
@@ -115,6 +116,12 @@ export async function getApiKeyWithBYOK(
       if (byokResult) {
         logger.info('Using BYOK key (hosted-key-llm)', { provider, model, workspaceId })
         return byokResult
+      }
+
+      // A user-supplied key takes precedence over the platform pool — use it as-is
+      // and never bill it through hosted-key metrics/cost.
+      if (userProvidedKey) {
+        return { apiKey: userProvidedKey, isBYOK: false }
       }
 
       const acquired = await getHostedKeyRateLimiter().acquireKey(

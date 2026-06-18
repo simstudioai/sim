@@ -229,8 +229,9 @@ export async function executeProviderRequest(
     if (isBYOK) {
       zeroCostForBYOK(response)
     } else if (hostedKeyEnvVar) {
-      // Hosted key used: record usage now; cost is settled on stream drain
-      // inside createStreamingExecution (the single streaming cost seam).
+      // Hosted key used: record usage now; cost is settled on stream drain via
+      // settleStreamingLlmCost (from createStreamingExecution, or the provider's
+      // bespoke stream finalizer for gemini).
       hostedKeyMetrics.recordUsed({
         provider: providerId,
         tool: response.execution.output?.model ?? request.model,
