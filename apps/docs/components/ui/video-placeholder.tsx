@@ -51,7 +51,7 @@ export function VideoPlaceholder({
   return (
     <div
       className={cn(
-        'group relative my-6 aspect-video w-full select-none overflow-hidden rounded-[20px] transition-transform duration-200 [container-type:inline-size]',
+        'not-prose group relative my-6 aspect-video w-full select-none overflow-hidden rounded-[20px] font-season transition-transform duration-200 [container-type:inline-size]',
         'shadow-[inset_0_0_0_1px_#E6E6E6] [background:radial-gradient(130%_130%_at_50%_14%,#ffffff_0%,#f6f6f6_55%,#ececec_100%)]',
         'dark:shadow-none dark:[background:radial-gradient(130%_130%_at_50%_18%,#1c1c1c_0%,#121212_45%,#0a0a0a_100%)]',
         className
@@ -83,23 +83,24 @@ export function VideoPlaceholder({
         {label}
       </span>
 
-      {/* Bottom row: the title (left) and the wordmark (right) share a baseline.
-          The eyebrow is taken out of flow so the row's baseline is the title's. */}
-      <div className='absolute inset-x-8 bottom-8 z-10 flex items-baseline justify-between gap-4 md:inset-x-10 md:bottom-10'>
-        <div className='relative min-w-0'>
-          {eyebrow && (
-            <p className='absolute bottom-full mb-3 whitespace-nowrap font-normal text-[clamp(13px,2.4cqi,20px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
-              {eyebrow}
-            </p>
-          )}
-          {title && (
-            <p className='font-semibold text-[#121212] text-[clamp(2rem,8cqi,4rem)] leading-[0.95] tracking-[-0.035em] dark:text-[#F8F8F8]'>
-              {title}
-            </p>
-          )}
-        </div>
-        <SimWordmark className='block h-[22px] w-auto shrink-0 text-[#121212] dark:text-white/90' />
+      {/* Heading: eyebrow + title, bottom-left (design: left:40 bottom:40) */}
+      <div className='absolute bottom-10 left-10 z-10 max-w-[80%]'>
+        {eyebrow && (
+          <span className='mb-[14px] block font-normal text-[clamp(15px,2cqi,22px)] text-[#5F5F5F] italic tracking-[-0.01em] dark:text-[#B4B4B4]'>
+            {eyebrow}
+          </span>
+        )}
+        {title && (
+          <span className='block font-semibold text-[#121212] text-[clamp(2.5rem,9.5cqi,5.5rem)] leading-[0.96] tracking-[-0.035em] dark:text-[#F8F8F8]'>
+            {title}
+          </span>
+        )}
       </div>
+
+      {/* Wordmark, bottom-right (design: right:40 bottom:40, svg height 22) */}
+      <span className='absolute right-10 bottom-10 z-10 text-[#121212] dark:text-white/90'>
+        <SimWordmark className='block h-[22px] w-auto' />
+      </span>
 
       {/* Centered play button (muted — these are coming-soon placeholders) */}
       <div className='absolute inset-0 z-10 grid place-items-center'>
