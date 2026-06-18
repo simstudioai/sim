@@ -5,11 +5,13 @@ import { auditMock, authMockFns, permissionsMock, permissionsMockFns } from '@si
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceFile, mockGetShareForResource, mockUpsertFileShare } = vi.hoisted(() => ({
-  mockGetWorkspaceFile: vi.fn(),
-  mockGetShareForResource: vi.fn(),
-  mockUpsertFileShare: vi.fn(),
-}))
+const { mockGetWorkspaceFile, mockGetShareForResource, mockUpsertFileShare, mockValidateSharing } =
+  vi.hoisted(() => ({
+    mockGetWorkspaceFile: vi.fn(),
+    mockGetShareForResource: vi.fn(),
+    mockUpsertFileShare: vi.fn(),
+    mockValidateSharing: vi.fn(),
+  }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
@@ -19,6 +21,16 @@ vi.mock('@/lib/public-shares/share-manager', () => ({
   getShareForResource: mockGetShareForResource,
   upsertFileShare: mockUpsertFileShare,
 }))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => {
+  class PublicFileSharingNotAllowedError extends Error {
+    constructor() {
+      super('Public file sharing is not allowed based on your permission group settings')
+      this.name = 'PublicFileSharingNotAllowedError'
+    }
+  }
+  return { validatePublicFileSharing: mockValidateSharing, PublicFileSharingNotAllowedError }
+})
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@sim/audit', () => auditMock)
@@ -59,6 +71,7 @@ describe('share route', () => {
     mockGetWorkspaceFile.mockResolvedValue({ id: FILE_ID, name: 'report.pdf' })
     mockGetShareForResource.mockResolvedValue(SHARE)
     mockUpsertFileShare.mockResolvedValue(SHARE)
+    mockValidateSharing.mockResolvedValue(undefined) // policy allows by default
   })
 
   describe('GET', () => {
@@ -106,6 +119,29 @@ describe('share route', () => {
         isActive: true,
       })
       expect(await res.json()).toEqual({ share: SHARE })
+    })
+
+    it('returns 403 when org access-control disables public sharing (enable)', async () => {
+      const { PublicFileSharingNotAllowedError } = await import(
+        '@/ee/access-control/utils/permission-check'
+      )
+      mockValidateSharing.mockRejectedValueOnce(new PublicFileSharingNotAllowedError())
+      const res = await PUT(putRequest({ isActive: true }), params())
+      expect(res.status).toBe(403)
+      expect(mockUpsertFileShare).not.toHaveBeenCalled()
+    })
+
+    it('allows disabling a share even when policy disallows enabling', async () => {
+      mockValidateSharing.mockRejectedValue(new Error('should not be called for disable'))
+      const res = await PUT(putRequest({ isActive: false }), params())
+      expect(res.status).toBe(200)
+      expect(mockValidateSharing).not.toHaveBeenCalled()
+      expect(mockUpsertFileShare).toHaveBeenCalledWith({
+        workspaceId: WS,
+        fileId: FILE_ID,
+        userId: 'user-1',
+        isActive: false,
+      })
     })
 
     it('rejects a missing isActive body', async () => {

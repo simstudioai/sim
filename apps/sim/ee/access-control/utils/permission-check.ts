@@ -84,6 +84,13 @@ export class PublicApiNotAllowedError extends Error {
   }
 }
 
+export class PublicFileSharingNotAllowedError extends Error {
+  constructor() {
+    super('Public file sharing is not allowed based on your permission group settings')
+    this.name = 'PublicFileSharingNotAllowedError'
+  }
+}
+
 /**
  * Merges the env allowlist into a permission config.
  * If `config` is null and no env allowlist is set, returns null.
@@ -282,6 +289,21 @@ export async function getUserPermissionConfig(
 
   const resolved = await resolveWorkspaceGroup(userId, ws.organizationId, workspaceId)
   return mergeEnvAllowlist(resolved?.config ?? null)
+}
+
+/**
+ * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
+ * group for the workspace disables public file sharing. No-op when access control
+ * doesn't apply (non-enterprise / disabled), so non-governed orgs are unaffected.
+ */
+export async function validatePublicFileSharing(
+  userId: string,
+  workspaceId: string
+): Promise<void> {
+  const config = await getUserPermissionConfig(userId, workspaceId)
+  if (config?.disablePublicFileSharing) {
+    throw new PublicFileSharingNotAllowedError()
+  }
 }
 
 /**

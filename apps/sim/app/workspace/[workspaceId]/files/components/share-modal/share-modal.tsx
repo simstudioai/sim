@@ -12,6 +12,7 @@ import {
 import { Link } from '@/components/emcn/icons'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
 
 interface ShareModalProps {
   open: boolean
@@ -37,10 +38,15 @@ export function ShareModal({
   initialShare,
 }: ShareModalProps) {
   const { data: share } = useFileShare(workspaceId, fileId, { enabled: open })
+  const { config: permissionConfig } = usePermissionConfig()
   const upsertShare = useUpsertFileShare()
 
   const saved = share ?? initialShare ?? null
   const savedActive = saved?.isActive ?? false
+
+  // Org access-control policy can disable enabling new public links (the route is the
+  // source of truth; this just reflects it). Disabling an existing share stays allowed.
+  const enableBlockedByPolicy = permissionConfig.disablePublicFileSharing && !savedActive
 
   // `null` until the user toggles, so the switch always reflects the authoritative
   // saved state (which may resolve after mount via useFileShare) instead of a stale
@@ -66,11 +72,13 @@ export function ShareModal({
           type='custom'
           title='Access'
           hint={
-            effectiveActive
-              ? isDirty
-                ? 'Save to make this file accessible to anyone with the link.'
-                : 'Anyone with the link can view and download this file.'
-              : 'Only workspace members can access this file.'
+            enableBlockedByPolicy
+              ? 'Public sharing is disabled for this workspace by an administrator.'
+              : effectiveActive
+                ? isDirty
+                  ? 'Save to make this file accessible to anyone with the link.'
+                  : 'Anyone with the link can view and download this file.'
+                : 'Only workspace members can access this file.'
           }
         >
           <ChipSwitch
@@ -89,7 +97,7 @@ export function ShareModal({
         primaryAction={{
           label: upsertShare.isPending ? 'Saving...' : 'Save',
           onClick: handleSave,
-          disabled: !isDirty || upsertShare.isPending,
+          disabled: !isDirty || upsertShare.isPending || (effectiveActive && enableBlockedByPolicy),
         }}
       />
     </ChipModal>

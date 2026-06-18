@@ -10,6 +10,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getShareForResource, upsertFileShare } from '@/lib/public-shares/share-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  PublicFileSharingNotAllowedError,
+  validatePublicFileSharing,
+} from '@/ee/access-control/utils/permission-check'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,6 +94,20 @@ export const PUT = withRouteHandler(
       const file = await getWorkspaceFile(workspaceId, fileId)
       if (!file) {
         return NextResponse.json({ error: 'File not found' }, { status: 404 })
+      }
+
+      // Enabling a public link is gated by the org's access-control policy; disabling
+      // is always allowed so users can still un-share after the policy is turned on.
+      if (isActive) {
+        try {
+          await validatePublicFileSharing(session.user.id, workspaceId)
+        } catch (error) {
+          if (error instanceof PublicFileSharingNotAllowedError) {
+            logger.warn(`[${requestId}] Public file sharing disabled for workspace ${workspaceId}`)
+            return NextResponse.json({ error: error.message }, { status: 403 })
+          }
+          throw error
+        }
       }
 
       const share = await upsertFileShare({
