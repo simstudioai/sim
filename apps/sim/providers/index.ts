@@ -10,6 +10,7 @@ import {
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
 import { getProviderExecutor } from '@/providers/registry'
+import { recordHostedStreamFailure } from '@/providers/streaming-execution'
 import type { ProviderId, ProviderRequest, ProviderResponse } from '@/providers/types'
 import {
   calculateCost,
@@ -229,14 +230,17 @@ export async function executeProviderRequest(
     if (isBYOK) {
       zeroCostForBYOK(response)
     } else if (hostedKeyEnvVar) {
-      // Hosted key used: record usage now; cost is settled on stream drain via
-      // settleStreamingLlmCost (from createStreamingExecution, or the provider's
-      // bespoke stream finalizer for gemini).
-      hostedKeyMetrics.recordUsed({
-        provider: providerId,
-        tool: response.execution.output?.model ?? request.model,
-        key: hostedKeyEnvVar,
-      })
+      // Hosted key used: record usage at dispatch. Cost is settled per-provider on
+      // successful stream drain (createStreamingExecution, or gemini's bespoke
+      // finalizer); a mid-stream error records a failure here — provider-agnostic,
+      // so it covers gemini and any non-wrapper stream too.
+      const model = response.execution.output?.model ?? request.model
+      hostedKeyMetrics.recordUsed({ provider: providerId, tool: model, key: hostedKeyEnvVar })
+      response.stream = recordHostedStreamFailure(
+        response.stream,
+        { provider: providerId, envVar: hostedKeyEnvVar },
+        model
+      )
     }
     return response
   }

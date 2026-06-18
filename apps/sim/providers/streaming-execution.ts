@@ -6,16 +6,13 @@ import type { TimeSegment } from '@/providers/types'
 import { calculateCost } from '@/providers/utils'
 
 /**
- * Passthrough of `source` that runs exactly one terminal callback: `onDrain`
- * when it completes normally (cost is settled then), or `onError` when a read
- * errors mid-stream (records the hosted-key failure). A client `cancel` is not a
- * key failure, so it runs neither. Lets hosted-key cost/failure metrics stay
- * symmetric regardless of whether the provider's drain callback finalized timing.
+ * Passthrough of `source` that runs at most one terminal callback: `onDrain` when
+ * it completes normally, or `onError` when a read errors mid-stream. A client
+ * `cancel` runs neither (an abort is not a key failure).
  */
-function settleHostedCostOnStreamDrain(
+function tapStreamTermination(
   source: ReadableStream,
-  onDrain: () => void,
-  onError: (error: unknown) => void
+  callbacks: { onDrain?: () => void; onError?: (error: unknown) => void }
 ): ReadableStream {
   const reader = source.getReader()
   let finished = false
@@ -26,7 +23,7 @@ function settleHostedCostOnStreamDrain(
         if (done) {
           if (!finished) {
             finished = true
-            onDrain()
+            callbacks.onDrain?.()
           }
           controller.close()
           return
@@ -35,7 +32,7 @@ function settleHostedCostOnStreamDrain(
       } catch (error) {
         if (!finished) {
           finished = true
-          onError(error)
+          callbacks.onError?.(error)
         }
         controller.error(error)
       }
@@ -43,6 +40,29 @@ function settleHostedCostOnStreamDrain(
     cancel(reason) {
       return reader.cancel(reason)
     },
+  })
+}
+
+/**
+ * Wrap a hosted-key streaming response so a mid-stream read error records a
+ * hosted-key failure metric. Applied provider-agnostically at the chokepoint
+ * (`executeProviderRequest`) so it covers every provider — including ones that
+ * build streams bespoke (gemini) and don't go through {@link createStreamingExecution}.
+ * Cost on success is settled per-provider; this only handles the failure leg.
+ */
+export function recordHostedStreamFailure(
+  source: ReadableStream,
+  hostedKey: { provider: string; envVar: string },
+  model: string
+): ReadableStream {
+  return tapStreamTermination(source, {
+    onError: (error) =>
+      hostedKeyMetrics.recordFailed({
+        provider: hostedKey.provider,
+        tool: model,
+        key: hostedKey.envVar,
+        reason: classifyHostedKeyFailure(error),
+      }),
   })
 }
 
@@ -253,18 +273,11 @@ export function createStreamingExecution(
   // returned stream and settle once the source completes (final tokens are set by
   // the provider's drain callback before the stream closes). Recomputes the
   // authoritative cost with the multiplier and emits the cost metric exactly once.
+  // Failure on error is handled provider-agnostically in executeProviderRequest.
   const stream = hostedKey
-    ? settleHostedCostOnStreamDrain(
-        baseStream,
-        () => settleStreamingLlmCost(output, model, hostedKey, cached ?? false),
-        (error) =>
-          hostedKeyMetrics.recordFailed({
-            provider: hostedKey.provider,
-            tool: model,
-            key: hostedKey.envVar,
-            reason: classifyHostedKeyFailure(error),
-          })
-      )
+    ? tapStreamTermination(baseStream, {
+        onDrain: () => settleStreamingLlmCost(output, model, hostedKey, cached ?? false),
+      })
     : baseStream
 
   return {

@@ -20,7 +20,10 @@ vi.mock('@/lib/api-key/hosted-cost', () => ({
 }))
 
 import type { NormalizedBlockOutput } from '@/executor/types'
-import { createStreamingExecution } from '@/providers/streaming-execution'
+import {
+  createStreamingExecution,
+  recordHostedStreamFailure,
+} from '@/providers/streaming-execution'
 
 /**
  * Builds a fake stream factory mirroring the providers' `createReadableStreamFrom*`
@@ -90,27 +93,19 @@ describe('createStreamingExecution', () => {
     expect(mockRecordFailed).not.toHaveBeenCalled()
   })
 
-  it('records a hosted-key failure (not cost) when the stream errors mid-drain', async () => {
+  it('recordHostedStreamFailure records a failure (not cost) when the stream errors', async () => {
     mockRecordCostCharged.mockClear()
     mockRecordFailed.mockClear()
     const boom = new Error('upstream 500')
-    const sourceStream = new ReadableStream({
-      pull: (c) => c.error(boom),
-    })
+    const sourceStream = new ReadableStream({ pull: (c) => c.error(boom) })
 
-    const result = createStreamingExecution({
-      model: 'test-model',
-      providerStartTime,
-      providerStartTimeISO,
-      timing: { kind: 'simple', segmentName: 'test-model' },
-      initialTokens: { input: 0, output: 0, total: 0 },
-      initialCost: { input: 0, output: 0, total: 0 },
-      hostedKey: { provider: 'openai', envVar: 'OPENAI_API_KEY_1' },
-      cached: false,
-      createStream: () => sourceStream,
-    })
+    const wrapped = recordHostedStreamFailure(
+      sourceStream,
+      { provider: 'openai', envVar: 'OPENAI_API_KEY_1' },
+      'test-model'
+    )
 
-    const reader = result.stream.getReader()
+    const reader = wrapped.getReader()
     await expect(reader.read()).rejects.toThrow('upstream 500')
 
     // Failure recorded once; no cost charged for a failed stream.
@@ -122,6 +117,20 @@ describe('createStreamingExecution', () => {
       reason: 'other',
     })
     expect(mockRecordCostCharged).not.toHaveBeenCalled()
+  })
+
+  it('recordHostedStreamFailure does not record a failure when the stream completes', async () => {
+    mockRecordFailed.mockClear()
+    const wrapped = recordHostedStreamFailure(
+      new ReadableStream({ start: (c) => c.close() }),
+      { provider: 'openai', envVar: 'OPENAI_API_KEY_1' },
+      'test-model'
+    )
+    const reader = wrapped.getReader()
+    while (!(await reader.read()).done) {
+      // drain
+    }
+    expect(mockRecordFailed).not.toHaveBeenCalled()
   })
 
   it('assembles the simple (no-tools) shape and finalizes timing on drain', () => {
