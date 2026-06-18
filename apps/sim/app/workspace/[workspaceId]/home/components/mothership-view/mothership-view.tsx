@@ -88,7 +88,7 @@ export const MothershipView = memo(
 
     // A large CSV renders read-only (streamed) with no editor, so it must not offer the
     // edit/split/preview toggle. Its size lives on the file record, not the resource tab.
-    const { data: files } = useWorkspaceFiles(workspaceId, 'active', {
+    const { data: files, isLoading: filesLoading } = useWorkspaceFiles(workspaceId, 'active', {
       enabled: active?.type === 'file',
     })
     const activeFile = active?.type === 'file' ? files?.find((f) => f.id === active.id) : undefined
@@ -97,6 +97,9 @@ export const MothershipView = memo(
       canEdit &&
       active?.type === 'file' &&
       RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
+      // Wait for the record before deciding — otherwise the toggle flashes on for a large CSV
+      // until its size loads and we can tell it's read-only.
+      !filesLoading &&
       !(activeFile && isCsvStreamOnly(activeFile))
 
     return (

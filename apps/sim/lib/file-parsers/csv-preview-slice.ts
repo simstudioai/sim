@@ -59,6 +59,10 @@ export async function getCsvPreviewSlice({
 
   try {
     // Pull chunks until the first newline so the delimiter can be sniffed before parsing.
+    // Accumulate the header line incrementally — appending each chunk's decoded text rather than
+    // re-concatenating the whole buffer each iteration (which would be O(n²) for a header split
+    // across many small chunks). The delimiter chars (`,` `\t` `;`) are ASCII, so a multi-byte
+    // character split at a chunk boundary can't introduce a false delimiter into the count.
     const sniffed: Buffer[] = []
     let firstLine = ''
     let sniffedBytes = 0
@@ -68,13 +72,13 @@ export async function getCsvPreviewSlice({
       const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value)
       sniffed.push(chunk)
       sniffedBytes += chunk.length
-      const combined = Buffer.concat(sniffed).toString('utf-8')
-      const nl = combined.indexOf('\n')
+      const text = chunk.toString('utf-8')
+      const nl = text.indexOf('\n')
       if (nl !== -1) {
-        firstLine = combined.slice(0, nl)
+        firstLine += text.slice(0, nl)
         break
       }
-      firstLine = combined
+      firstLine += text
       if (sniffedBytes >= DELIMITER_SNIFF_MAX_BYTES) break
     }
 

@@ -24,7 +24,13 @@ export function useCsvTruncationImport(
   const router = useRouter()
   const importFile = useImportFileAsTable()
 
+  // Guards against a double-tap on the toast action kicking off two parallel imports of the same
+  // file. Reset once the kickoff settles so a failed import can be retried.
+  const importingRef = useRef(false)
+
   const importAsTable = useCallback(() => {
+    if (importingRef.current) return
+    importingRef.current = true
     const pendingId = `pending_${generateId()}`
     useImportTrayStore
       .getState()
@@ -39,8 +45,10 @@ export function useCsvTruncationImport(
     importFile.mutate(
       { workspaceId, fileKey: file.key, fileName: file.name },
       {
-        onSuccess: () => useImportTrayStore.getState().endUpload(pendingId),
-        onError: () => useImportTrayStore.getState().endUpload(pendingId),
+        onSettled: () => {
+          importingRef.current = false
+          useImportTrayStore.getState().endUpload(pendingId)
+        },
       }
     )
     // importFile.mutate and router are stable references
