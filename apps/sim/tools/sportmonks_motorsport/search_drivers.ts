@@ -55,6 +55,12 @@ export const sportmonksMotorsportSearchDriversTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Semicolon-separated relations to enrich the response (e.g. country;teams)',
     },
+    filters: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Filters to apply',
+    },
     per_page: {
       type: 'string',
       required: false,

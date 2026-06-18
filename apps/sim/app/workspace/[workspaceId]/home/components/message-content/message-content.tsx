@@ -10,14 +10,7 @@ import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/ch
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import {
-  AgentGroup,
-  ChatContent,
-  CircleStop,
-  Options,
-  PendingTagIndicator,
-  ThinkingBlock,
-} from './components'
+import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
@@ -27,14 +20,6 @@ interface TextSegment {
   /** Stable per-run React key (see the counters in parseBlocksWithSpanTree). */
   id: string
   content: string
-}
-
-interface ThinkingSegment {
-  type: 'thinking'
-  id: string
-  content: string
-  startedAt?: number
-  endedAt?: number
 }
 
 interface AgentGroupSegment {
@@ -56,12 +41,7 @@ interface StoppedSegment {
   type: 'stopped'
 }
 
-type MessageSegment =
-  | TextSegment
-  | ThinkingSegment
-  | AgentGroupSegment
-  | OptionsSegment
-  | StoppedSegment
+type MessageSegment = TextSegment | AgentGroupSegment | OptionsSegment | StoppedSegment
 
 const SUBAGENT_KEYS = new Set(Object.keys(SUBAGENT_LABELS))
 
@@ -279,23 +259,9 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
       continue
     }
 
-    if (block.type === 'thinking') {
-      if (!block.content?.trim()) continue
-      const last = segments[segments.length - 1]
-      if (last?.type === 'thinking' && last.endedAt === undefined) {
-        last.content += block.content
-        if (block.endedAt !== undefined) last.endedAt = block.endedAt
-      } else {
-        segments.push({
-          type: 'thinking',
-          id: `thinking-${i}`,
-          content: block.content,
-          startedAt: block.timestamp,
-          endedAt: block.endedAt,
-        })
-      }
-      continue
-    }
+    // Main-agent thinking is intentionally not rendered. The reasoning is still
+    // reduced and persisted upstream — this is a display-only omission.
+    if (block.type === 'thinking') continue
 
     if (block.type === 'text') {
       if (!block.content) continue
@@ -515,21 +481,10 @@ function parseBlocksLegacy(blocks: ContentBlock[]): MessageSegment[] {
     }
 
     if (block.type === 'thinking') {
+      // Main-agent thinking is not rendered, but it still breaks open subagent
+      // lanes so later chunks don't merge across it (display-only omission).
       if (!block.content?.trim()) continue
       flushLanes()
-      const last = segments[segments.length - 1]
-      if (last?.type === 'thinking' && last.endedAt === undefined) {
-        last.content += block.content
-        if (block.endedAt !== undefined) last.endedAt = block.endedAt
-      } else {
-        segments.push({
-          type: 'thinking',
-          id: `thinking-${i}`,
-          content: block.content,
-          startedAt: block.timestamp,
-          endedAt: block.endedAt,
-        })
-      }
       continue
     }
 
@@ -776,29 +731,6 @@ function MessageContentInner({
                 }
               />
             )
-          case 'thinking': {
-            const isActive =
-              isStreaming && i === segments.length - 1 && segment.endedAt === undefined
-            const elapsedMs =
-              segment.startedAt !== undefined && segment.endedAt !== undefined
-                ? segment.endedAt - segment.startedAt
-                : undefined
-            // Hide completed thinking that took 3s or less — quick thinking
-            // isn't worth the visual noise. Still show while active (unknown
-            // duration yet) and still show when timing is missing (old
-            // persisted blocks) so we don't drop historical content.
-            if (elapsedMs !== undefined && elapsedMs <= 3000) return null
-            return (
-              <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
-                <ThinkingBlock
-                  content={segment.content}
-                  isActive={isActive}
-                  startedAt={segment.startedAt}
-                  isStreaming={isStreaming}
-                />
-              </div>
-            )
-          }
           case 'agent_group': {
             return (
               <div key={segment.id} className={isStreaming ? 'animate-stream-fade-in' : undefined}>
@@ -809,7 +741,8 @@ function MessageContentInner({
                   items={segment.items}
                   isDelegating={segment.isDelegating}
                   isStreaming={isStreaming}
-                  defaultExpanded={segment.isOpen}
+                  isCurrentSection={i === segments.length - 1}
+                  isLaneOpen={segment.isOpen}
                 />
               </div>
             )

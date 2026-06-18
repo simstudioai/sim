@@ -47,12 +47,6 @@ export const sportmonksCoreGetContinentsTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Semicolon-separated relations to enrich the response (e.g. countries)',
     },
-    filters: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filters to apply',
-    },
     per_page: {
       type: 'string',
       required: false,
