@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-17",
+  "updatedAt": "2026-06-18",
   "integrations": [
     {
       "type": "onepassword",
@@ -14932,6 +14932,909 @@
       "integrationType": "email"
     },
     {
+      "type": "sportmonks",
+      "slug": "sportmonks",
+      "name": "Sportmonks",
+      "description": "Access Sportmonks football, motorsport, odds, and reference data",
+      "longDescription": "Integrate the Sportmonks sports data APIs into the workflow from a single block. Football: fixtures, livescores, leagues, seasons, stages, rounds, teams, squads, players, coaches, referees, venues, standings, topscorers, transfers, schedules, commentaries, TV stations, rivals, expected goals (xG), and predictions. Motorsport: sessions, drivers, teams, championship standings, laps, and pitstops. Odds: pre-match and in-play odds, bookmakers, and markets. Core: continents, countries, regions, cities, types, and time zones.",
+      "bgColor": "#171534",
+      "iconName": "SportmonksIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/sportmonks",
+      "operations": [
+        {
+          "name": "Football: Get Expected xG by Player",
+          "description": "Retrieve lineup-level expected goals (xG) values per player from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected xG by Team",
+          "description": "Retrieve fixture-level expected goals (xG) values per team from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Commentaries",
+          "description": "Retrieve all textual commentaries available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Fixtures",
+          "description": "Retrieve all football fixtures available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Players",
+          "description": "Retrieve all football players available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Rivals",
+          "description": "Retrieve all teams with their rivals information from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Teams",
+          "description": "Retrieve all football teams available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Transfer Rumours",
+          "description": "Retrieve all transfer rumours available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get All Transfers",
+          "description": "Retrieve all transfers available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Brackets by Season",
+          "description": "Retrieve the knockout-stage tournament bracket (stages and progression edges) for a season ID"
+        },
+        {
+          "name": "Football: Get Coach by ID",
+          "description": "Retrieve a single football coach by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Coaches",
+          "description": "Retrieve all football coaches available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Coaches by Country",
+          "description": "Retrieve all coaches for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Commentaries by Fixture",
+          "description": "Retrieve textual commentary for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Current Leagues by Team",
+          "description": "Retrieve all current leagues for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected Lineups by Player",
+          "description": "Retrieve the premium expected lineups for a player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Expected Lineups by Team",
+          "description": "Retrieve the premium expected lineups for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Extended Team Squad",
+          "description": "Retrieve all squad entries for a team (based on current seasons) by team ID"
+        },
+        {
+          "name": "Football: Get Fixture by ID",
+          "description": "Retrieve a single football fixture by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Date",
+          "description": "Retrieve all football fixtures on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Date Range",
+          "description": "Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days."
+        },
+        {
+          "name": "Football: Get Fixtures by Date Range for Team",
+          "description": "Retrieve fixtures for a team within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Fixtures by Multiple IDs",
+          "description": "Retrieve multiple football fixtures by a comma-separated list of IDs (max 50)"
+        },
+        {
+          "name": "Football: Get Grouped Standings by Round",
+          "description": "Retrieve the standing table for a round ID grouped by group where applicable from Sportmonks"
+        },
+        {
+          "name": "Football: Get Head to Head",
+          "description": "Retrieve the head-to-head fixtures between two teams from Sportmonks"
+        },
+        {
+          "name": "Football: Get Inplay Livescores",
+          "description": "Retrieve all fixtures that are currently being played (in-play) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Last Updated Coaches",
+          "description": "Retrieve all coaches that have received updates in the past two hours"
+        },
+        {
+          "name": "Football: Get Latest Updated Fixtures",
+          "description": "Retrieve all fixtures that have received updates within the last 10 seconds"
+        },
+        {
+          "name": "Football: Get Latest Updated Livescores",
+          "description": "Retrieve all livescores that have received updates within the last 10 seconds"
+        },
+        {
+          "name": "Football: Get Last Updated Players",
+          "description": "Retrieve all players that have received updates in the past two hours"
+        },
+        {
+          "name": "Football: Get Latest Team of the Week",
+          "description": "Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Latest Transfers",
+          "description": "Retrieve the latest transfers available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get League by ID",
+          "description": "Retrieve a single football league by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues",
+          "description": "Retrieve all football leagues available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Leagues by Country",
+          "description": "Retrieve all leagues for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues by Date",
+          "description": "Retrieve all leagues with fixtures on a given date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Leagues by Team",
+          "description": "Retrieve all current and historical leagues for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Leagues",
+          "description": "Retrieve all leagues that have fixtures currently being played from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Probabilities",
+          "description": "Retrieve all live (in-play) prediction probabilities from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Probabilities by Fixture",
+          "description": "Retrieve all live (in-play) prediction probabilities for a fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Live Standings by League",
+          "description": "Retrieve the live standing table for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Livescores",
+          "description": "Retrieve fixtures starting within 15 minutes and currently in progress from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Match Facts",
+          "description": "Retrieve all available match facts within your Sportmonks subscription (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by Date Range",
+          "description": "Retrieve match facts within a date range (YYYY-MM-DD) from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by Fixture",
+          "description": "Retrieve match facts for a fixture ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Match Facts by League",
+          "description": "Retrieve match facts for a league ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Past Fixtures by TV Station",
+          "description": "Retrieve all past fixtures that were available for a TV station ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Player by ID",
+          "description": "Retrieve a single football player by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Players by Country",
+          "description": "Retrieve all players for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Post-Match News",
+          "description": "Retrieve all post-match news articles available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Post-Match News by Season",
+          "description": "Retrieve all post-match news articles for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Predictability by League",
+          "description": "Retrieve the predictions model performance for a league ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Pre-Match News",
+          "description": "Retrieve all pre-match news articles available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Pre-Match News by Season",
+          "description": "Retrieve all pre-match news articles for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Pre-Match News for Upcoming Fixtures",
+          "description": "Retrieve all pre-match news articles for upcoming fixtures from Sportmonks"
+        },
+        {
+          "name": "Football: Get Probabilities",
+          "description": "Retrieve all prediction probabilities available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Predictions by Fixture",
+          "description": "Retrieve prediction probabilities for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referee by ID",
+          "description": "Retrieve a single football referee by their ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referees",
+          "description": "Retrieve all football referees available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Referees by Country",
+          "description": "Retrieve all referees for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Referees by Season",
+          "description": "Retrieve all referees for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Rivals by Team",
+          "description": "Retrieve rival teams for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Round by ID",
+          "description": "Retrieve a single football round by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Round Statistics",
+          "description": "Retrieve all available statistics for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Rounds",
+          "description": "Retrieve all football rounds available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Rounds by Season",
+          "description": "Retrieve all rounds for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Schedules by Season",
+          "description": "Retrieve the full schedule (stages, rounds and fixtures) for a season by season ID"
+        },
+        {
+          "name": "Football: Get Schedules by Season and Team",
+          "description": "Retrieve the full season schedule for a specific team by season ID and team ID"
+        },
+        {
+          "name": "Football: Get Schedules by Team",
+          "description": "Retrieve the full schedule (stages, rounds and fixtures) for a team by team ID"
+        },
+        {
+          "name": "Football: Get Season by ID",
+          "description": "Retrieve a single football season by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Seasons",
+          "description": "Retrieve all football seasons available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Seasons by Team",
+          "description": "Retrieve all seasons for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stage by ID",
+          "description": "Retrieve a single football stage by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stage Statistics",
+          "description": "Retrieve all available statistics for a stage ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Stages",
+          "description": "Retrieve all football stages available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Stages by Season",
+          "description": "Retrieve all stages for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Standing Corrections by Season",
+          "description": "Retrieve point corrections (awarded or deducted) for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Standings",
+          "description": "Retrieve all standings available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Standings by Round",
+          "description": "Retrieve the full standing table for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Standings by Season",
+          "description": "Retrieve the full league standings table for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get State by ID",
+          "description": "Retrieve a single fixture state by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get States",
+          "description": "Retrieve all fixture states (e.g. Not Started, 1st Half, Full Time) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team by ID",
+          "description": "Retrieve a single football team by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Team Rankings",
+          "description": "Retrieve all team rankings available within your Sportmonks subscription (beta)"
+        },
+        {
+          "name": "Football: Get Team Rankings by Date",
+          "description": "Retrieve team rankings for a given date (YYYY-MM-DD) from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Team Rankings by Team",
+          "description": "Retrieve team rankings for a team ID from Sportmonks (beta)"
+        },
+        {
+          "name": "Football: Get Team Squad",
+          "description": "Retrieve the current domestic squad for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team Squad by Season",
+          "description": "Retrieve the (historical) squad for a team in a specific season from Sportmonks"
+        },
+        {
+          "name": "Football: Get Teams by Country",
+          "description": "Retrieve all teams for a country ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Teams by Season",
+          "description": "Retrieve all teams for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Topscorers by Season",
+          "description": "Retrieve the topscorers (goals, assists, cards) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Topscorers by Stage",
+          "description": "Retrieve topscorers for a stage by stage ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get All Team of the Week",
+          "description": "Retrieve all available Team of the Week (TOTW) entries from Sportmonks"
+        },
+        {
+          "name": "Football: Get Team of the Week by Round",
+          "description": "Retrieve the Team of the Week (TOTW) for a round ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer by ID",
+          "description": "Retrieve a single transfer by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumour by ID",
+          "description": "Retrieve a single transfer rumour by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours Between Dates",
+          "description": "Retrieve transfer rumours within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours by Player",
+          "description": "Retrieve transfer rumours for a player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfer Rumours by Team",
+          "description": "Retrieve transfer rumours for a team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers Between Dates",
+          "description": "Retrieve transfers within a date range (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers by Player",
+          "description": "Retrieve transfers for a player by player ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Transfers by Team",
+          "description": "Retrieve transfers for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get TV Station by ID",
+          "description": "Retrieve a single TV station by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get TV Stations",
+          "description": "Retrieve all TV stations available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get TV Stations by Fixture",
+          "description": "Retrieve broadcasting TV stations for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Upcoming Fixtures by Market",
+          "description": "Retrieve all upcoming fixtures for a market ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Upcoming Fixtures by TV Station",
+          "description": "Retrieve all upcoming fixtures available for a TV station ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Value Bets",
+          "description": "Retrieve all value bets available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Value Bets by Fixture",
+          "description": "Retrieve value bet predictions for a fixture by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Venue by ID",
+          "description": "Retrieve a single football venue by its ID from Sportmonks"
+        },
+        {
+          "name": "Football: Get Venues",
+          "description": "Retrieve all football venues available within your Sportmonks subscription"
+        },
+        {
+          "name": "Football: Get Venues by Season",
+          "description": "Retrieve all venues for a season ID from Sportmonks"
+        },
+        {
+          "name": "Football: Search Coaches",
+          "description": "Search for football coaches by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Fixtures",
+          "description": "Search for football fixtures by name (participants) from Sportmonks"
+        },
+        {
+          "name": "Football: Search Leagues",
+          "description": "Search for football leagues by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Players",
+          "description": "Search for football players by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Referees",
+          "description": "Search for football referees by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Rounds",
+          "description": "Search for football rounds by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Seasons",
+          "description": "Search for football seasons by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Stages",
+          "description": "Search for football stages by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Teams",
+          "description": "Search for football teams by name from Sportmonks"
+        },
+        {
+          "name": "Football: Search Venues",
+          "description": "Search for football venues by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Fixtures",
+          "description": "Retrieve all motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Current Leagues by Team",
+          "description": "Retrieve the current motorsport leagues for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Driver by ID",
+          "description": "Retrieve a single motorsport driver by their ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Driver Standings",
+          "description": "Retrieve all driver championship standings from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Driver Standings by Season",
+          "description": "Retrieve the drivers championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers",
+          "description": "Retrieve all motorsport drivers from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers by Country",
+          "description": "Retrieve all motorsport drivers for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Drivers by Season",
+          "description": "Retrieve all motorsport drivers for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixture by ID",
+          "description": "Retrieve a single motorsport fixture (session) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by Date",
+          "description": "Retrieve motorsport fixtures (sessions) on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by Date Range",
+          "description": "Retrieve motorsport fixtures (sessions) between two dates (YYYY-MM-DD, max 100 days) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Fixtures by IDs",
+          "description": "Retrieve multiple motorsport fixtures (sessions) by their IDs (max 50) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture",
+          "description": "Retrieve all laps for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture and Driver",
+          "description": "Retrieve all laps for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Laps by Fixture and Lap Number",
+          "description": "Retrieve all laps for a motorsport fixture and lap number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Laps by Fixture",
+          "description": "Retrieve the latest laps for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Pitstops by Fixture",
+          "description": "Retrieve the latest pitstops for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Stints by Fixture",
+          "description": "Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Updated Drivers",
+          "description": "Retrieve the most recently updated motorsport drivers from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Latest Updated Fixtures",
+          "description": "Retrieve the most recently updated motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get League by ID",
+          "description": "Retrieve a single motorsport league by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Leagues",
+          "description": "Retrieve all motorsport leagues from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Country",
+          "description": "Retrieve all motorsport leagues for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Fixture Date",
+          "description": "Retrieve all motorsport leagues with fixtures on a specific date (YYYY-MM-DD) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Live",
+          "description": "Retrieve all motorsport leagues that currently have live fixtures from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Leagues by Team",
+          "description": "Retrieve all current and historical motorsport leagues for a team by team ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Livescores",
+          "description": "Retrieve all live motorsport fixtures (sessions) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture",
+          "description": "Retrieve all pitstops for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture and Driver",
+          "description": "Retrieve all pitstops for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Pitstops by Fixture and Lap Number",
+          "description": "Retrieve all pitstops for a motorsport fixture and lap number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Race Results by Season and Driver",
+          "description": "Retrieve race results (stages with fixtures, lineups and lineup details) for a season and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Race Results by Season and Team",
+          "description": "Retrieve race results (stages with fixtures, lineups and lineup details) for a season and team from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Schedules by Season",
+          "description": "Retrieve the full schedule (stages with nested fixtures and venues) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Season by ID",
+          "description": "Retrieve a single motorsport season by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Seasons",
+          "description": "Retrieve all motorsport seasons from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stage by ID",
+          "description": "Retrieve a single motorsport stage (race weekend) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Stages",
+          "description": "Retrieve all motorsport stages (race weekends) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stages by Season",
+          "description": "Retrieve all motorsport stages (race weekends) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get State by ID",
+          "description": "Retrieve a single motorsport fixture state by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All States",
+          "description": "Retrieve all possible motorsport fixture states from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture",
+          "description": "Retrieve all tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture and Driver",
+          "description": "Retrieve all tyre stints for a motorsport fixture and driver from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Stints by Fixture and Stint Number",
+          "description": "Retrieve all tyre stints for a motorsport fixture and stint number from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Team by ID",
+          "description": "Retrieve a single motorsport team (constructor) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get All Team Standings",
+          "description": "Retrieve all team (constructor) championship standings from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Team Standings by Season",
+          "description": "Retrieve the constructors championship standings for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams",
+          "description": "Retrieve all motorsport teams (constructors) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams by Country",
+          "description": "Retrieve all motorsport teams (constructors) for a country by country ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Teams by Season",
+          "description": "Retrieve all motorsport teams (constructors) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venue by ID",
+          "description": "Retrieve a single motorsport venue (racing track) by its ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venues",
+          "description": "Retrieve all motorsport venues (racing tracks) from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Get Venues by Season",
+          "description": "Retrieve all motorsport venues (racing tracks) for a season by season ID from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Drivers",
+          "description": "Search for motorsport drivers by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Leagues",
+          "description": "Search for motorsport leagues by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Stages",
+          "description": "Search for motorsport stages (race weekends) by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Teams",
+          "description": "Search for motorsport teams (constructors) by name from Sportmonks"
+        },
+        {
+          "name": "Motorsport: Search Venues",
+          "description": "Search for motorsport venues (racing tracks) by name from Sportmonks"
+        },
+        {
+          "name": "Odds: Get All Historical Odds",
+          "description": "Retrieve all available historical (premium) pre-match odd values from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All In-play Odds",
+          "description": "Retrieve all available live (in-play) odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All Pre-match Odds",
+          "description": "Retrieve all available pre-match odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get All Premium Odds",
+          "description": "Retrieve all available premium (historical) pre-match odds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmaker by ID",
+          "description": "Retrieve a single bookmaker by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmaker Event IDs by Fixture",
+          "description": "Retrieve bookmakers' own event ids mapped to a Sportmonks fixture via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmakers",
+          "description": "Retrieve all bookmakers from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Bookmakers by Fixture",
+          "description": "Retrieve all bookmakers available for a fixture from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture",
+          "description": "Retrieve live (in-play) odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture and Bookmaker",
+          "description": "Retrieve live (in-play) odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get In-play Odds by Fixture and Market",
+          "description": "Retrieve live (in-play) odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Last Updated In-play Odds",
+          "description": "Retrieve in-play odds updated in the last 10 seconds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Last Updated Pre-match Odds",
+          "description": "Retrieve pre-match odds updated in the last 10 seconds from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Market by ID",
+          "description": "Retrieve a single betting market by its ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Markets",
+          "description": "Retrieve all betting markets from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture",
+          "description": "Retrieve pre-match odds for a fixture by fixture ID from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture and Bookmaker",
+          "description": "Retrieve pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Pre-match Odds by Fixture and Market",
+          "description": "Retrieve pre-match odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture",
+          "description": "Retrieve premium (historical) pre-match odds for a fixture from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture and Bookmaker",
+          "description": "Retrieve premium pre-match odds for a fixture from a specific bookmaker via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Premium Odds by Fixture and Market",
+          "description": "Retrieve premium pre-match odds for a fixture on a specific market via the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Updated Historical Odds Between Time Range",
+          "description": "Retrieve historical (premium) odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Get Updated Premium Odds Between Time Range",
+          "description": "Retrieve premium odds updated between two UNIX timestamps (max 5 minutes) from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Search Bookmakers",
+          "description": "Search for bookmakers by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Odds: Search Markets",
+          "description": "Search for betting markets by name from the Sportmonks Odds API"
+        },
+        {
+          "name": "Core: Get Cities",
+          "description": "Retrieve all cities from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get City by ID",
+          "description": "Retrieve a single city by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Continent by ID",
+          "description": "Retrieve a single continent by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Continents",
+          "description": "Retrieve all continents from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Countries",
+          "description": "Retrieve all countries from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Country by ID",
+          "description": "Retrieve a single country by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get All Entity Filters",
+          "description": "Retrieve all available filters grouped per entity from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get My Usage",
+          "description": "Retrieve your Sportmonks API usage aggregated per 5 minutes"
+        },
+        {
+          "name": "Core: Get Region by ID",
+          "description": "Retrieve a single region by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Regions",
+          "description": "Retrieve all regions from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Timezones",
+          "description": "Retrieve all supported time zones (IANA names) from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Type by ID",
+          "description": "Retrieve a single type by its ID from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Type by Entity",
+          "description": "Retrieve the available types grouped per entity from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Get Types",
+          "description": "Retrieve all types (reference data describing events, statistics, positions, etc.) from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Cities",
+          "description": "Search for cities by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Countries",
+          "description": "Search for countries by name from the Sportmonks Core API"
+        },
+        {
+          "name": "Core: Search Regions",
+          "description": "Search for regions by name from the Sportmonks Core API"
+        }
+      ],
+      "operationCount": 221,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "analytics",
+      "tags": ["data-analytics"]
+    },
+    {
       "type": "square",
       "slug": "square",
       "name": "Square",
@@ -15413,7 +16316,7 @@
       "slug": "supabase",
       "name": "Supabase",
       "description": "Use Supabase database",
-      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
+      "longDescription": "Integrate Supabase into the workflow. Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).",
       "bgColor": "#1C1C1C",
       "iconName": "SupabaseIcon",
       "docsUrl": "https://docs.sim.ai/integrations/supabase",
@@ -15457,6 +16360,10 @@
         {
           "name": "Call RPC Function",
           "description": "Call a PostgreSQL function in Supabase"
+        },
+        {
+          "name": "Invoke Edge Function",
+          "description": "Invoke a Supabase Edge Function over HTTP"
         },
         {
           "name": "Introspect Schema",
@@ -15507,7 +16414,7 @@
           "description": "Delete a storage bucket in Supabase"
         }
       ],
-      "operationCount": 22,
+      "operationCount": 23,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

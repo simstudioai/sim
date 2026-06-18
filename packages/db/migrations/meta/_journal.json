@@ -1685,8 +1685,15 @@
     {
       "idx": 241,
       "version": "7",
-      "when": 1781742732072,
-      "tag": "0241_public_share",
+      "when": 1781700000000,
+      "tag": "0241_drop_table_row_cap_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1781815945803,
+      "tag": "0242_public_share",
       "breakpoints": true
     }
   ]

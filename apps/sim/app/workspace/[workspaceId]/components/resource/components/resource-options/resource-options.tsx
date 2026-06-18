@@ -84,10 +84,11 @@ interface ResourceOptionsProps {
   filterTags?: FilterTag[]
   /**
    * Lightweight control rendered immediately to the LEFT of the filter/sort
-   * cluster; the two form one right-aligned group, with or without a search —
-   * e.g. the knowledge view's connected-source badge or the table editor's
-   * embedded run/stop control. Keep it to badges/status widgets; primary actions
-   * belong in the header's `actions`.
+   * cluster, forming one group with it — e.g. the knowledge view's
+   * connected-source badge or the table editor's embedded run/stop control. With
+   * a search the group is pushed right (opposite the search); without one it
+   * stays left-aligned (the embedded table editor). Keep it to badges/status
+   * widgets; primary actions belong in the header's `actions`.
    */
   aside?: ReactNode
 }
@@ -117,7 +118,7 @@ export const ResourceOptions = memo(function ResourceOptions({
     <div className={cn('border-[var(--border)] border-b py-2.5', search ? 'px-6' : 'px-4')}>
       <div className='flex items-center'>
         {search && <SearchSection search={search} />}
-        <div className='ml-auto flex shrink-0 items-center gap-1.5'>
+        <div className={cn('flex shrink-0 items-center gap-1.5', search && 'ml-auto')}>
           {aside}
           <div className='flex items-center'>
             {filterTags?.map((tag) => (

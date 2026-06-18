@@ -14,6 +14,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { toast } from '@/components/emcn'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -571,8 +572,26 @@ export function useDeleteTable(workspaceId: string) {
  * Populates the cache on success so the new row is immediately available
  * without waiting for the background refetch triggered by invalidation.
  */
+/**
+ * Toasts a failed row write. A plan row-limit failure (the best-effort cap in
+ * `assertRowCapacity`) gets an "Upgrade" action routing to the explore-plans page;
+ * other errors are a plain auto-dismissing toast. Validation errors are surfaced
+ * inline, not here.
+ */
+function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
+  if (isValidationError(error)) return
+  if (error.message.toLowerCase().includes('row limit')) {
+    toast.error(error.message, {
+      action: { label: 'Upgrade', onClick: onUpgrade },
+    })
+    return
+  }
+  toast.error(error.message, { duration: 5000 })
+}
+
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -617,10 +636,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -783,6 +800,7 @@ type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTable
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -798,10 +816,8 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) => {
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
@@ -1431,6 +1447,38 @@ export function useImportCsvAsync() {
     },
     onError: (error) => {
       logger.error('Failed to start async CSV import:', error)
+      toast.error(error.message, { duration: 5000 })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
+    },
+  })
+}
+
+interface ImportFileAsTableParams {
+  workspaceId: string
+  fileKey: string
+  fileName: string
+}
+
+/**
+ * Kicks off a background import into a new table from a file ALREADY in workspace storage
+ * (e.g. the file viewer's "Import as a table"). Reuses the existing object — no re-upload —
+ * and sets `deleteSourceFile: false` so the user's original file survives the import (the normal
+ * upload-import flow deletes its single-use copy). Resolves with `{ tableId, importId }`; progress
+ * and the terminal state arrive over the table-events SSE stream.
+ */
+export function useImportFileAsTable() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ workspaceId, fileKey, fileName }: ImportFileAsTableParams) => {
+      const response = await requestJson(importTableAsyncContract, {
+        body: { workspaceId, fileKey, fileName, deleteSourceFile: false },
+      })
+      return response.data
+    },
+    onError: (error) => {
+      logger.error('Failed to start import from file:', error)
       toast.error(error.message, { duration: 5000 })
     },
     onSettled: () => {

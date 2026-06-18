@@ -265,7 +265,13 @@ class ToolExecutionTimeoutError extends Error {
  */
 async function executeToolWithWatchdog(toolCall: ToolCallState, execContext: ExecutionContext) {
   const timeoutMs = toolWatchdogTimeoutMs(toolCall.name)
-  const execution = executeTool(toolCall.name, toolCall.params || {}, execContext)
+  // Thread the invoking subagent's channel id per call (execContext is shared
+  // across the whole turn, so the channel id can't live on it) — server tools
+  // use it to scope the workspace_file -> edit_content intent handoff.
+  const toolContext = toolCall.parentToolCallId
+    ? { ...execContext, parentToolCallId: toolCall.parentToolCallId }
+    : execContext
+  const execution = executeTool(toolCall.name, toolCall.params || {}, toolContext)
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
