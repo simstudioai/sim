@@ -345,6 +345,42 @@ function applyToolResult(
 }
 
 /**
+ * Materializes a subagent lane on first reference. Subagent-scoped content
+ * (text/thinking/tool) can be reduced before its `subagent_start` under heavy
+ * parallel bursts (many subagents streaming into one ordered channel); without
+ * the owning `AgentNode` the serializer can't attribute the content, so it leaks
+ * into the main lane and the subagent's thinking is dropped until the start
+ * lands. The wire scope already carries the lane identity (Go tags every
+ * forwarded subagent event with its agent id/span), so the lane is rebuilt
+ * deterministically from the content event itself — the symmetric counterpart to
+ * buffering a result before its call. The later `subagent_start` finds this node
+ * and no-ops.
+ */
+function ensureSubagentLane(
+  model: TurnModel,
+  spanId: string,
+  scope: { agentId?: string; parentSpanId?: string; parentToolCallId?: string } | undefined,
+  seq: number,
+  atMs?: number
+): void {
+  if (spanId === MAIN_SPAN || model.agentBySpanId.has(spanId)) return
+  const node: AgentNode = {
+    kind: 'agent',
+    id: spanId,
+    spanId,
+    parentSpanId: scope?.parentSpanId ?? MAIN_SPAN,
+    agentId: scope?.agentId ?? '',
+    status: 'running',
+    seq,
+    ...(atMs !== undefined ? { startedAtMs: atMs } : {}),
+    ...(scope?.parentToolCallId ? { triggerToolCallId: scope.parentToolCallId } : {}),
+  }
+  model.nodes.set(node.id, node)
+  model.order.push(node.id)
+  model.agentBySpanId.set(spanId, node.id)
+}
+
+/**
  * Folds one wire envelope into the model. Pure accumulator: it mutates and
  * returns the same `model` (the streaming hot path keeps one model per turn).
  * `seq` is the monotonic wire cursor — the contract guarantees it is always a
@@ -364,6 +400,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
   switch (envelope.type) {
     case MothershipStreamV1EventType.text: {
       const payload = envelope.payload
+      ensureSubagentLane(model, spanId, scope, seq, tsMs)
       appendText(model, spanId, payload.channel as TextChannel, payload.text, seq, tsMs)
       break
     }
@@ -374,6 +411,7 @@ export function reduceEvent(model: TurnModel, envelope: PersistedStreamEventEnve
       const rawToolCallId = asString(payload.toolCallId)
       if (!rawToolCallId) break
       const toolName = asString(payload.toolName) ?? ''
+      ensureSubagentLane(model, spanId, scope, seq, tsMs)
       const phase = payload.phase
       if (phase === MothershipStreamV1ToolPhase.call) {
         // edit_content folds into its span's workspace_file row (the write

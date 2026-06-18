@@ -133,6 +133,49 @@ describe('modelToContentBlocks', () => {
     expect(snap2[0].content).toBe('one')
   })
 
+  it('attributes subagent content that streams before its subagent_start (parallel-burst inversion)', () => {
+    const sub: Scope = {
+      lane: 'subagent',
+      spanId: 'R1',
+      parentSpanId: 'main',
+      parentToolCallId: 'tc-r1',
+      agentId: 'research',
+    }
+    const m = createTurnModel()
+    reduceEvent(m, env(1, 'text', { channel: 'assistant', text: 'Spawning research.' }))
+    // Under an 8-way burst the subagent's thinking + text can be reduced before
+    // its subagent_start lands. The content already carries the lane identity.
+    reduceEvent(m, env(2, 'text', { channel: 'thinking', text: 'Considering odds.' }, sub))
+    reduceEvent(m, env(3, 'text', { channel: 'assistant', text: 'Team analysis.' }, sub))
+
+    // Snapshot mid-burst (before the start): the research content must already be
+    // its own lane, never leaked into the main ("Sim") lane with its thinking dropped.
+    const mid = modelToContentBlocks(m)
+    const midSub = mid.find((b) => b.type === 'subagent')
+    expect(midSub?.content).toBe('research')
+    expect(midSub?.spanId).toBe('R1')
+    expect(mid.find((b) => b.type === 'subagent_thinking')?.spanId).toBe('R1')
+    expect(mid.filter((b) => b.type === 'text' && b.spanId === 'R1')).toHaveLength(1)
+    // The main lane holds only the pre-spawn text — nothing leaked in.
+    const mainText = mid.filter((b) => b.type === 'text' && !b.spanId)
+    expect(mainText).toHaveLength(1)
+    expect(mainText[0].content).toBe('Spawning research.')
+
+    // The real subagent_start lands afterward and no-ops: still one research lane.
+    reduceEvent(
+      m,
+      env(
+        4,
+        'span',
+        { kind: 'subagent', event: 'start', agent: 'research', data: { tool_call_id: 'tc-r1' } },
+        sub
+      )
+    )
+    const after = modelToContentBlocks(m)
+    expect(after.filter((b) => b.type === 'subagent')).toHaveLength(1)
+    expect(after.find((b) => b.type === 'subagent')?.content).toBe('research')
+  })
+
   it('places subagent_end at its end seq (after the lane work), never reordering siblings', () => {
     const sub: Scope = {
       lane: 'subagent',
