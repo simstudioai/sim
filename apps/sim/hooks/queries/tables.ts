@@ -14,6 +14,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { toast } from '@/components/emcn'
 import { isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
@@ -92,7 +93,6 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { runUploadStrategy } from '@/lib/uploads/client/direct-upload'
-import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
 const logger = createLogger('TableQueries')
 
@@ -574,17 +574,15 @@ export function useDeleteTable(workspaceId: string) {
  */
 /**
  * Toasts a failed row write. A plan row-limit failure (the best-effort cap in
- * `assertRowCapacity`) gets an "Upgrade" action routing to billing; other errors are
- * a plain auto-dismissing toast. Validation errors are surfaced inline, not here.
+ * `assertRowCapacity`) gets an "Upgrade" action routing to the explore-plans page;
+ * other errors are a plain auto-dismissing toast. Validation errors are surfaced
+ * inline, not here.
  */
-function notifyRowWriteError(
-  error: Error,
-  navigateToSettings: ReturnType<typeof useSettingsNavigation>['navigateToSettings']
-): void {
+function notifyRowWriteError(error: Error, onUpgrade: () => void): void {
   if (isValidationError(error)) return
   if (error.message.toLowerCase().includes('row limit')) {
     toast.error(error.message, {
-      action: { label: 'Upgrade', onClick: () => navigateToSettings({ section: 'billing' }) },
+      action: { label: 'Upgrade', onClick: onUpgrade },
     })
     return
   }
@@ -593,7 +591,7 @@ function notifyRowWriteError(
 
 export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
-  const { navigateToSettings } = useSettingsNavigation()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -638,7 +636,8 @@ export function useCreateTableRow({ workspaceId, tableId }: RowMutationContext) 
         predicate: (query) => !isDefaultOrderRowsQuery(query.queryKey),
       })
     },
-    onError: (error) => notifyRowWriteError(error, navigateToSettings),
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
       // cache + its `totalCount`; only refresh the count surfaces here so a late
@@ -801,7 +800,7 @@ type BatchCreateTableRowsResponse = ContractJsonResponse<typeof batchCreateTable
  */
 export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationContext) {
   const queryClient = useQueryClient()
-  const { navigateToSettings } = useSettingsNavigation()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async (
@@ -817,7 +816,8 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
         },
       })
     },
-    onError: (error) => notifyRowWriteError(error, navigateToSettings),
+    onError: (error) =>
+      notifyRowWriteError(error, () => router.push(`/workspace/${workspaceId}/upgrade`)),
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)
     },
