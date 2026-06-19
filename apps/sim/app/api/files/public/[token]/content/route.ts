@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 import { getPublicFileContentContract } from '@/lib/api/contracts/public-shares'
 import { parseRequest } from '@/lib/api/server'
 import { resolveServableDoc } from '@/lib/copilot/tools/server/files/doc-compile'
+import { validateDeploymentAuth } from '@/lib/core/security/deployment-auth'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { enforcePublicFileRateLimit } from '@/lib/public-shares/rate-limit'
 import { resolveActiveShareByToken } from '@/lib/public-shares/share-manager'
@@ -28,6 +30,8 @@ const logger = createLogger('PublicFileContentAPI')
  */
 export const GET = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ token: string }> }) => {
+    const requestId = generateRequestId()
+
     try {
       const limited = await enforcePublicFileRateLimit(request, 'content')
       if (limited) return limited
@@ -39,6 +43,17 @@ export const GET = withRouteHandler(
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {
         throw new FileNotFoundError('Not found')
+      }
+
+      const auth = await validateDeploymentAuth(
+        requestId,
+        resolved.share,
+        request,
+        undefined,
+        'file'
+      )
+      if (!auth.authorized) {
+        return NextResponse.json({ error: auth.error ?? 'auth_required_password' }, { status: 401 })
       }
 
       const { file } = resolved
