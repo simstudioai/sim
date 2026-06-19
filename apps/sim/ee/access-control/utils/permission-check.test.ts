@@ -32,6 +32,7 @@ const {
     disableSkills: false,
     disableInvitations: false,
     disablePublicApi: false,
+    disablePublicFileSharing: false,
     hideDeployApi: false,
     hideDeployMcp: false,
     hideDeployA2a: false,
