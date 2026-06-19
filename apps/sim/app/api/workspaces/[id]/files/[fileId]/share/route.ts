@@ -7,7 +7,11 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getShareForResource, upsertFileShare } from '@/lib/public-shares/share-manager'
+import {
+  getShareForResource,
+  ShareValidationError,
+  upsertFileShare,
+} from '@/lib/public-shares/share-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
@@ -138,6 +142,9 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ share })
     } catch (error) {
+      if (error instanceof ShareValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       logger.error(`[${requestId}] Error updating file share:`, error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to update share') },

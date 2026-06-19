@@ -17,10 +17,19 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: mockGetWorkspaceFile,
 }))
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getShareForResource: mockGetShareForResource,
-  upsertFileShare: mockUpsertFileShare,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => {
+  class ShareValidationError extends Error {
+    constructor(message: string) {
+      super(message)
+      this.name = 'ShareValidationError'
+    }
+  }
+  return {
+    getShareForResource: mockGetShareForResource,
+    upsertFileShare: mockUpsertFileShare,
+    ShareValidationError,
+  }
+})
 
 vi.mock('@/ee/access-control/utils/permission-check', () => {
   class PublicFileSharingNotAllowedError extends Error {
@@ -38,6 +47,7 @@ vi.mock('@sim/audit', () => auditMock)
 const WS = '7727ef3f-8cf6-4686-b063-2bb006a10785'
 const FILE_ID = 'wf_abc'
 
+import { ShareValidationError } from '@/lib/public-shares/share-manager'
 import { GET, PUT } from '@/app/api/workspaces/[id]/files/[fileId]/share/route'
 
 const params = (id = WS, fileId = FILE_ID) => ({ params: Promise.resolve({ id, fileId }) })
@@ -100,6 +110,15 @@ describe('share route', () => {
       const res = await PUT(putRequest({ isActive: true }), params())
       expect(res.status).toBe(403)
       expect(mockUpsertFileShare).not.toHaveBeenCalled()
+    })
+
+    it('maps a ShareValidationError to 400, not 500', async () => {
+      mockUpsertFileShare.mockRejectedValueOnce(
+        new ShareValidationError('Password is required for password-protected shares')
+      )
+      const res = await PUT(putRequest({ isActive: true, authType: 'password' }), params())
+      expect(res.status).toBe(400)
+      expect((await res.json()).error).toBe('Password is required for password-protected shares')
     })
 
     it('returns 404 when the file is not in the workspace', async () => {

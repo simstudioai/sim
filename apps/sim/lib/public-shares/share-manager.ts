@@ -14,6 +14,14 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('PublicShareManager')
 
+/** Thrown when share auth config is invalid (e.g. enabling a password share with no password). Maps to a 400. */
+export class ShareValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ShareValidationError'
+  }
+}
+
 type ShareResourceType = z.infer<typeof shareResourceTypeSchema>
 
 type PublicShareRow = typeof publicShare.$inferSelect
@@ -94,10 +102,11 @@ interface UpsertFileShareInput {
  * a fresh unguessable token; subsequent calls flip `isActive`/`authType` and keep
  * the token stable (so an existing link resolves again after re-enable).
  *
- * Auth handling (fail-fast): `password` requires a plaintext `password` unless the
- * share already has one (encrypted at rest via {@link encryptSecret}); `email`/`sso`
- * require a non-empty `allowedEmails` (provided or already stored); any other type
- * clears both the password and the allow-list.
+ * Auth validation only applies when **enabling** (`isActive: true`): `password`
+ * requires a plaintext `password` unless one is already stored (encrypted via
+ * {@link encryptSecret}); `email`/`sso` require a non-empty `allowedEmails`.
+ * Disabling (going Private) always succeeds and preserves the stored config so a
+ * later re-enable restores it. Validation failures throw {@link ShareValidationError}.
  */
 export async function upsertFileShare({
   workspaceId,
@@ -117,23 +126,35 @@ export async function upsertFileShare({
 
   const finalAuthType: ShareAuthType =
     authType ?? (existing?.authType as ShareAuthType | undefined) ?? 'public'
+  const existingAllowedEmails = Array.isArray(existing?.allowedEmails)
+    ? (existing.allowedEmails as string[])
+    : []
 
-  let finalPassword: string | null = null
-  let finalAllowedEmails: string[] = []
-  if (finalAuthType === 'password') {
-    if (password) {
-      finalPassword = (await encryptSecret(password)).encrypted
-    } else if (existing?.password) {
-      finalPassword = existing.password
+  // Disabling preserves the stored config (and skips validation) so turning
+  // sharing off always succeeds; only enabling validates the chosen auth mode.
+  let finalPassword: string | null = existing?.password ?? null
+  let finalAllowedEmails: string[] = existingAllowedEmails
+  if (isActive) {
+    if (finalAuthType === 'password') {
+      if (password) {
+        finalPassword = (await encryptSecret(password)).encrypted
+      } else if (existing?.password) {
+        finalPassword = existing.password
+      } else {
+        throw new ShareValidationError('Password is required for password-protected shares')
+      }
+      finalAllowedEmails = []
+    } else if (finalAuthType === 'email' || finalAuthType === 'sso') {
+      finalAllowedEmails = allowedEmails ?? existingAllowedEmails
+      if (finalAllowedEmails.length === 0) {
+        throw new ShareValidationError(
+          'At least one allowed email is required for email/SSO shares'
+        )
+      }
+      finalPassword = null
     } else {
-      throw new Error('Password is required for password-protected shares')
-    }
-  } else if (finalAuthType === 'email' || finalAuthType === 'sso') {
-    finalAllowedEmails =
-      allowedEmails ??
-      (Array.isArray(existing?.allowedEmails) ? (existing.allowedEmails as string[]) : [])
-    if (finalAllowedEmails.length === 0) {
-      throw new Error('At least one allowed email is required for email/SSO shares')
+      finalPassword = null
+      finalAllowedEmails = []
     }
   }
 
