@@ -11,7 +11,6 @@ import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
-import type { StreamingMode } from './text-editor-state'
 import { useEditableFileContent } from './use-editable-file-content'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
@@ -332,7 +331,6 @@ interface TextEditorProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: StreamingMode
   disableStreamingAutoScroll: boolean
   previewContextKey?: string
 }
@@ -347,7 +345,6 @@ export const TextEditor = memo(function TextEditor({
   onSaveStatusChange,
   saveRef,
   streamingContent,
-  streamingMode = 'append',
   disableStreamingAutoScroll,
   previewContextKey,
 }: TextEditorProps) {
@@ -382,7 +379,6 @@ export const TextEditor = memo(function TextEditor({
     workspaceId,
     canEdit,
     streamingContent,
-    streamingMode,
     onDirtyChange,
     onSaveStatusChange,
     saveRef,

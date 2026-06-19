@@ -14,7 +14,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { CodeBlockWithLanguage, MarkdownCodeBlock } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
 import { MarkdownImage, ResizableImage } from './image'
-import { EditorKeymap } from './keymap'
+import { RichMarkdownKeymap } from './keymap'
 import { MarkdownLinkInputRule } from './link-input-rule'
 import { MarkdownPaste } from './markdown-paste'
 import { SlashCommand } from './slash-command/slash-command'
@@ -106,7 +106,7 @@ export function createMarkdownEditorExtensions({
     ...createMarkdownContentExtensions({ nodeViews: true }),
     CodeBlockHighlight,
     SlashCommand,
-    EditorKeymap,
+    RichMarkdownKeymap,
     MarkdownPaste,
     Placeholder.configure({ placeholder }),
   ]

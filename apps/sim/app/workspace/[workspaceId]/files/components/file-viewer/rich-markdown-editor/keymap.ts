@@ -33,7 +33,7 @@ function selectAdjacentLeaf(editor: Editor, direction: 'up' | 'down'): boolean {
  *   same scoped behavior as a code editor.
  * - **ArrowUp/ArrowDown** select an adjacent divider or image (see {@link selectAdjacentLeaf}).
  */
-export const EditorKeymap = Extension.create({
+export const RichMarkdownKeymap = Extension.create({
   name: 'richMarkdownKeymap',
   priority: 1000,
 

@@ -6,14 +6,9 @@ import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
-import { resolveFileCategory } from './file-category'
-import type { StreamingMode } from './text-editor-state'
-import { useDocPreviewBinary } from './use-doc-preview-binary'
-
-export type { StreamingMode } from './text-editor-state'
-
 import { CsvTablePreview } from './csv-table-preview'
 import { DocxPreview } from './docx-preview'
+import { resolveFileCategory } from './file-category'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
@@ -26,6 +21,7 @@ import {
   resolvePreviewError,
 } from './preview-shared'
 import { TextEditor } from './text-editor'
+import { useDocPreviewBinary } from './use-doc-preview-binary'
 import { XlsxPreview } from './xlsx-preview'
 
 const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfViewerCore), {
@@ -95,7 +91,6 @@ interface FileViewerProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -111,7 +106,6 @@ export function FileViewer({
   onSaveStatusChange,
   saveRef,
   streamingContent,
-  streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: FileViewerProps) {
@@ -153,7 +147,6 @@ export function FileViewer({
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
           streamingContent={streamingContent}
-          streamingMode={streamingMode}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -171,7 +164,6 @@ export function FileViewer({
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
         streamingContent={streamingContent}
-        streamingMode={streamingMode}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />

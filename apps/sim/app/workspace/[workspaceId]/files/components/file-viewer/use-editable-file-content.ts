@@ -9,7 +9,6 @@ import {
 import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
-  type StreamingMode,
   type SyncTextEditorContentStateOptions,
   textEditorContentReducer,
 } from './text-editor-state'
@@ -32,7 +31,6 @@ interface UseEditableFileContentOptions {
   workspaceId: string
   canEdit: boolean
   streamingContent?: string
-  streamingMode?: StreamingMode
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -69,8 +67,7 @@ function useFileContentState(options: SyncTextEditorContentStateOptions) {
     prev === null ||
     prev.canReconcileToFetchedContent !== options.canReconcileToFetchedContent ||
     prev.fetchedContent !== options.fetchedContent ||
-    prev.streamingContent !== options.streamingContent ||
-    prev.streamingMode !== options.streamingMode
+    prev.streamingContent !== options.streamingContent
   ) {
     prevOptionsRef.current = options
     dispatch({ type: 'sync-external', ...options })
@@ -105,7 +102,6 @@ export function useEditableFileContent({
   workspaceId,
   canEdit,
   streamingContent,
-  streamingMode = 'append',
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -141,7 +137,6 @@ export function useEditableFileContent({
     canReconcileToFetchedContent: file.key.length > 0,
     fetchedContent,
     streamingContent,
-    streamingMode,
   })
 
   const contentRef = useRef(content)

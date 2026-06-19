@@ -143,7 +143,6 @@ export const ResourceContent = memo(function ResourceContent({
           canEdit={false}
           previewMode={previewMode ?? 'preview'}
           streamingContent={textStreamingContent}
-          streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -166,7 +165,6 @@ export const ResourceContent = memo(function ResourceContent({
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
-          streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -552,7 +550,6 @@ interface EmbeddedFileProps {
   filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
-  streamingMode?: 'append' | 'replace'
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -563,7 +560,6 @@ function EmbeddedFile({
   filePath,
   previewMode,
   streamingContent,
-  streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -603,7 +599,6 @@ function EmbeddedFile({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        streamingMode={streamingMode}
         previewMode={previewMode}
         streamingContent={streamingContent}
         disableStreamingAutoScroll={disableStreamingAutoScroll}

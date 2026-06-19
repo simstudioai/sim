@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
-  resolveStreamingEditorContent,
   syncTextEditorContentState,
   type TextEditorContentState,
   textEditorContentReducer,
@@ -25,36 +24,6 @@ function streaming(
 function reconciling(content: string, savedContent = ''): TextEditorContentState {
   return { phase: 'reconciling', content, savedContent, lastStreamedContent: null }
 }
-
-describe('resolveStreamingEditorContent', () => {
-  it('returns streamingContent when mode is replace', () => {
-    expect(resolveStreamingEditorContent('existing', 'new chunk', 'replace')).toBe('new chunk')
-  })
-
-  it('returns streamingContent when fetchedContent is undefined', () => {
-    expect(resolveStreamingEditorContent(undefined, 'chunk', 'append')).toBe('chunk')
-  })
-
-  it('returns fetchedContent when it already ends with streamingContent', () => {
-    expect(resolveStreamingEditorContent('base\nchunk', 'chunk', 'append')).toBe('base\nchunk')
-  })
-
-  it('returns fetchedContent when it ends with newline + streamingContent', () => {
-    expect(resolveStreamingEditorContent('base\nchunk', 'chunk', 'append')).toBe('base\nchunk')
-  })
-
-  it('appends with newline separator when fetched does not end with chunk', () => {
-    expect(resolveStreamingEditorContent('base', 'new stuff', 'append')).toBe('base\nnew stuff')
-  })
-
-  it('handles empty streamingContent in append mode', () => {
-    expect(resolveStreamingEditorContent('base', '', 'append')).toBe('base')
-  })
-
-  it('handles empty fetchedContent in append mode (prepends newline separator)', () => {
-    expect(resolveStreamingEditorContent('', 'chunk', 'append')).toBe('\nchunk')
-  })
-})
 
 describe("reducer 'edit' action", () => {
   it('updates content when phase is ready and content differs', () => {
@@ -130,7 +99,6 @@ describe('syncTextEditorContentState — initialization', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'loaded',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('loaded')
@@ -142,7 +110,6 @@ describe('syncTextEditorContentState — initialization', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(INITIAL_TEXT_EDITOR_CONTENT_STATE)
   })
@@ -155,7 +122,6 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v1',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -166,7 +132,6 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.content).toBe('v2')
     expect(next.savedContent).toBe('v2')
@@ -184,7 +149,6 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     // Local edits take precedence — content should remain 'user edit'
     expect(next.content).toBe('user edit')
@@ -199,31 +163,18 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'existing',
       streamingContent: 'streamed chunk',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('streamed chunk')
     expect(next.lastStreamedContent).toBe('streamed chunk')
   })
 
-  it('appends streaming content to fetched in append mode', () => {
-    const next = syncTextEditorContentState(INITIAL_TEXT_EDITOR_CONTENT_STATE, {
-      canReconcileToFetchedContent: false,
-      fetchedContent: 'base',
-      streamingContent: 'addition',
-      streamingMode: 'append',
-    })
-    expect(next.phase).toBe('streaming')
-    expect(next.content).toBe('base\naddition')
-  })
-
   it('returns same reference when streaming state is already current', () => {
-    const state = streaming('base\naddition', 'base\naddition', 'base')
+    const state = streaming('addition', 'addition', 'base')
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: false,
       fetchedContent: 'base',
       streamingContent: 'addition',
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -234,7 +185,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'base\nchunk',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('base\nchunk')
@@ -248,7 +198,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('reconciling')
   })
@@ -259,7 +208,6 @@ describe('syncTextEditorContentState — streaming', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('streamed')
@@ -273,7 +221,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: '',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('reconciling')
   })
@@ -284,7 +231,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next).toBe(state)
   })
@@ -300,7 +246,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -312,7 +257,6 @@ describe('syncTextEditorContentState — reconciling', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'v99',
       streamingContent: undefined,
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('streamed')
@@ -327,7 +271,6 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
       canReconcileToFetchedContent: false,
       fetchedContent: 'v2',
       streamingContent: 'v2',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -339,7 +282,6 @@ describe('syncTextEditorContentState — streaming finalize shortcuts', () => {
       canReconcileToFetchedContent: true,
       fetchedContent: 'v2',
       streamingContent: 'chunk',
-      streamingMode: 'append',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('v2')
@@ -357,7 +299,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: 'short',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('short')
@@ -374,7 +315,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '#',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('#')
@@ -386,7 +326,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '',
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('streaming')
     expect(next.content).toBe('')
@@ -399,7 +338,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New',
-      streamingMode: 'replace',
     })
     expect(chunk1.phase).toBe('streaming')
     expect(chunk1.content).toBe('# New')
@@ -408,7 +346,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New Section\n\nSome text',
-      streamingMode: 'replace',
     })
     expect(chunk2.phase).toBe('streaming')
     expect(chunk2.content).toBe('# New Section\n\nSome text')
@@ -417,7 +354,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: '# New Section\n\nSome text that is now longer than the original',
-      streamingMode: 'replace',
     })
     expect(chunk3.phase).toBe('streaming')
     expect(chunk3.content).toBe('# New Section\n\nSome text that is now longer than the original')
@@ -433,7 +369,6 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
       canReconcileToFetchedContent: false,
       fetchedContent: undefined,
       streamingContent: undefined,
-      streamingMode: 'replace',
     })
     expect(next.phase).toBe('ready')
     expect(next.content).toBe('# Complete Document\n\nAll done.')
@@ -460,7 +395,6 @@ describe('syncTextEditorContentState — mothership streamed-file lifecycle (rep
       canReconcileToFetchedContent: true,
       fetchedContent,
       streamingContent,
-      streamingMode: 'replace' as const,
     })
 
     // 1. Empty file (create_file wrote an empty buffer); first streamed chunk arrives.

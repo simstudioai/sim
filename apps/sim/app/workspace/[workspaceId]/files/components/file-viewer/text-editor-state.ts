@@ -1,5 +1,3 @@
-export type StreamingMode = 'append' | 'replace'
-
 export type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
 
 export interface TextEditorContentState {
@@ -13,7 +11,6 @@ export interface SyncTextEditorContentStateOptions {
   canReconcileToFetchedContent: boolean
   fetchedContent?: string
   streamingContent?: string
-  streamingMode: StreamingMode
 }
 
 export type TextEditorContentAction =
@@ -26,25 +23,6 @@ export const INITIAL_TEXT_EDITOR_CONTENT_STATE: TextEditorContentState = {
   content: '',
   savedContent: '',
   lastStreamedContent: null,
-}
-
-export function resolveStreamingEditorContent(
-  fetchedContent: string | undefined,
-  streamingContent: string,
-  streamingMode: StreamingMode
-): string {
-  if (streamingMode === 'replace' || fetchedContent === undefined) {
-    return streamingContent
-  }
-
-  if (
-    fetchedContent.endsWith(streamingContent) ||
-    fetchedContent.endsWith(`\n${streamingContent}`)
-  ) {
-    return fetchedContent
-  }
-
-  return `${fetchedContent}\n${streamingContent}`
 }
 
 function finalizeTextEditorContentState(
@@ -105,14 +83,10 @@ export function syncTextEditorContentState(
   state: TextEditorContentState,
   options: SyncTextEditorContentStateOptions
 ): TextEditorContentState {
-  const { canReconcileToFetchedContent, fetchedContent, streamingContent, streamingMode } = options
+  const { canReconcileToFetchedContent, fetchedContent, streamingContent } = options
 
   if (streamingContent !== undefined) {
-    const nextContent = resolveStreamingEditorContent(
-      fetchedContent,
-      streamingContent,
-      streamingMode
-    )
+    const nextContent = streamingContent
     const fetchedMatchesNextContent = fetchedContent !== undefined && fetchedContent === nextContent
     const fetchedMatchesLastStreamedContent =
       fetchedContent !== undefined &&

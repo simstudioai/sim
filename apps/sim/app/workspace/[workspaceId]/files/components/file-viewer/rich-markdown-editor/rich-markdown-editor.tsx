@@ -8,7 +8,6 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
 import { PreviewLoadingFrame } from '../preview-shared'
-import type { StreamingMode } from '../text-editor-state'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './extensions'
 import { extractImageFiles } from './image-paste'
@@ -36,7 +35,6 @@ interface RichMarkdownEditorProps {
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
-  streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -62,7 +60,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onSaveStatusChange,
   saveRef,
   streamingContent,
-  streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: RichMarkdownEditorProps) {
@@ -78,7 +75,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     workspaceId,
     canEdit,
     streamingContent,
-    streamingMode,
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
@@ -101,7 +97,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       file={file}
       workspaceId={workspaceId}
       content={content}
-      streaming={isStreamInteractionLocked}
+      isStreaming={isStreamInteractionLocked}
       canEdit={canEdit}
       autoFocus={autoFocus}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
@@ -117,7 +113,7 @@ interface LoadedRichMarkdownEditorProps {
   /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
   content: string
   /** True while agent output is streaming in: the editor renders it read-only and syncs each chunk. */
-  streaming: boolean
+  isStreaming: boolean
   canEdit: boolean
   autoFocus?: boolean
   disableStreamingAutoScroll?: boolean
@@ -143,7 +139,7 @@ function lockSettled(content: string): SettledContent {
 
 /**
  * The single TipTap editor for a markdown file — the only surface the user ever sees. While agent
- * output streams in ({@link streaming}) it renders that content read-only and re-syncs each chunk;
+ * output streams in ({@link isStreaming}) it renders that content read-only and re-syncs each chunk;
  * when the stream settles it locks the round-trip verdict + frontmatter on the final content and
  * hands control to the user. A file opened outside a stream skips straight to that editable state via
  * the initial-content model (no imperative sync). Frontmatter is held aside and re-applied on every
@@ -153,7 +149,7 @@ export function LoadedRichMarkdownEditor({
   file,
   workspaceId,
   content,
-  streaming,
+  isStreaming,
   canEdit,
   autoFocus,
   disableStreamingAutoScroll,
@@ -162,7 +158,7 @@ export function LoadedRichMarkdownEditor({
 }: LoadedRichMarkdownEditorProps) {
   // Whether this editor mounted mid-stream. If so it starts empty + read-only and syncs the streamed
   // content until the stream settles; otherwise it uses the plain create-time initial-content model.
-  const streamingAtMountRef = useRef(streaming)
+  const streamingAtMountRef = useRef(isStreaming)
 
   // The verdict + frontmatter locked via {@link lockSettled} — at mount for a settled file, or at the
   // moment a stream settles (in the effect below). Null until then; reads default to read-only.
@@ -170,7 +166,7 @@ export function LoadedRichMarkdownEditor({
   if (!streamingAtMountRef.current && settledRef.current === null) {
     settledRef.current = lockSettled(content)
   }
-  const isEditable = canEdit && !streaming && (settledRef.current?.verdict ?? false)
+  const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
 
   // The body that seeds the editor at create time. Empty when streaming — the sync effect pushes the
   // streamed body in via setContent (this ref is never written again).
@@ -278,7 +274,7 @@ export function LoadedRichMarkdownEditor({
   const lastSyncedBodyRef = useRef<string | null>(null)
   useEffect(() => {
     if (!editor) return
-    if (streaming) {
+    if (isStreaming) {
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
@@ -303,7 +299,7 @@ export function LoadedRichMarkdownEditor({
       return
     }
     editor.setEditable(canEdit && settledRef.current.verdict)
-  }, [editor, content, streaming, canEdit, autoFocus, disableStreamingAutoScroll])
+  }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
 
   return (
     <div

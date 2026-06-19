@@ -23,7 +23,7 @@ import 'prismjs/components/prism-ruby'
 import 'prismjs/components/prism-rust'
 import { detectLanguage } from './detect-language'
 
-const KEY = new PluginKey('codeBlockHighlight')
+const HIGHLIGHT_PLUGIN_KEY = new PluginKey('codeBlockHighlight')
 
 function tokenClasses(token: Token): string {
   const classes = ['token', token.type]
@@ -113,7 +113,7 @@ export const CodeBlockHighlight = Extension.create({
   addProseMirrorPlugins() {
     return [
       new Plugin({
-        key: KEY,
+        key: HIGHLIGHT_PLUGIN_KEY,
         state: {
           init: (_, { doc }) => buildDecorations(doc),
           apply: (tr, current) => {
@@ -124,7 +124,7 @@ export const CodeBlockHighlight = Extension.create({
         },
         props: {
           decorations(state) {
-            return KEY.getState(state)
+            return HIGHLIGHT_PLUGIN_KEY.getState(state)
           },
         },
       }),

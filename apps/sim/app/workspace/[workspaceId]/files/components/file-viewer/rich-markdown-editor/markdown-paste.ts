@@ -35,6 +35,7 @@ export const MarkdownPaste = Extension.create({
       new Plugin({
         props: {
           handlePaste: (_view, event) => {
+            if (!editor.isEditable) return false
             if (editor.isActive('codeBlock')) return false
             const html = event.clipboardData?.getData('text/html')
             if (html) return false
