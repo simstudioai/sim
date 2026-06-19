@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -158,28 +158,24 @@ export function LoadedRichMarkdownEditor({
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
-  // Whether this editor mounted mid-stream. If so it starts empty + read-only and syncs the streamed
-  // content until the stream settles; otherwise it uses the plain create-time initial-content model.
+  // Whether this editor mounted mid-stream — if so it starts empty and syncs streamed chunks until settle.
   const streamingAtMountRef = useRef(isStreaming)
 
-  // The verdict + frontmatter locked via {@link lockSettled} — at mount for a settled file, or at the
-  // moment a stream settles (in the effect below). Null until then; reads default to read-only.
+  // Verdict + frontmatter locked once via {@link lockSettled} (at mount when settled, else when the
+  // stream settles below); null until then reads as read-only.
   const settledRef = useRef<SettledContent | null>(null)
   if (!streamingAtMountRef.current && settledRef.current === null) {
     settledRef.current = lockSettled(content)
   }
   const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
 
-  // The parsed doc that seeds the editor at create time — chunked-parsed (linear) rather than handed
-  // to the editor as a raw markdown string (whose parse is ~O(n²)). Empty when streaming: the sync
-  // effect pushes the streamed body in via setContent (this ref is never written again).
-  const initialContentRef = useRef<JSONContent | string>(
+  // Seed the editor with the chunked-parsed doc (linear vs the editor's ~O(n²) markdown parse), computed
+  // once via lazy state init — `useRef(parseMarkdownToDoc(...))` would re-parse the whole body every render.
+  const [initialContent] = useState<JSONContent | string>(() =>
     streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
-  // The frontmatter re-attached on every change. Empty until the content settles (the editor never
-  // displays frontmatter, so a streamed doc simply shows its body). Re-derived in the settle effect
-  // on each stream→settle, so a repeat stream re-attaches the settled doc's frontmatter, never a
-  // stale one.
+  // Frontmatter held aside and re-attached on every change (the editor never shows it); re-derived per
+  // stream→settle in the settle effect, so a repeat stream uses the new doc's frontmatter, not a stale one.
   const frontmatterRef = useRef(settledRef.current?.frontmatter ?? '')
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -229,7 +225,7 @@ export function LoadedRichMarkdownEditor({
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    content: initialContentRef.current,
+    content: initialContent,
     editorProps: {
       attributes: { class: 'rich-markdown-prose' },
       handleKeyDown: (_view, event) => {
@@ -273,19 +269,15 @@ export function LoadedRichMarkdownEditor({
   })
   editorInstanceRef.current = editor
 
-  // Stream content into the editor (read-only) until it settles, then lock the verdict + frontmatter
-  // and hand control to the user. After the hand-off, only `canEdit` changes touch the editor — the
-  // editor owns the content, so there is no sync that could clobber a user edit.
+  // Stream content in read-only until it settles, then lock the verdict + frontmatter and hand off; after
+  // that only `canEdit` touches the editor (it owns the content, so no sync can clobber a user edit).
   const lastSyncedBodyRef = useRef<string | null>(null)
-  // Whether the editor was streaming on the previous effect run, so the settle branch can re-lock on
-  // each stream→settle transition. An agent can edit the same file more than once within a chat, and
-  // `previewContextKey` (the chat id) keeps this instance mounted across those edits — so the verdict
-  // + frontmatter must be re-derived per stream, not frozen on the first settled snapshot.
+  // Tracks whether the previous run was streaming so the settle branch re-locks on every stream→settle:
+  // one instance can receive several agent edits in a chat (kept mounted by `previewContextKey`), so the
+  // verdict/frontmatter must follow the latest stream, not the first settled snapshot.
   const wasStreamingRef = useRef(streamingAtMountRef.current)
-  // Coalesce streaming chunk-syncs to one re-parse per animation frame. A fast-streaming agent emits
-  // many chunks per frame; without this each one re-parses the whole accumulating markdown
-  // (`@tiptap/markdown`'s parse is superlinear), saturating the main thread. The editor is read-only
-  // while streaming, so only the latest frame's content needs to render.
+  // Coalesce streamed chunks to one re-parse per animation frame — a fast agent emits many per frame and
+  // each would re-parse the whole accumulating body. Read-only while streaming, so only the latest renders.
   const pendingStreamBodyRef = useRef<string | null>(null)
   const streamRafRef = useRef<number | null>(null)
   useEffect(() => {
@@ -312,16 +304,14 @@ export function LoadedRichMarkdownEditor({
       })
       return
     }
-    // A streamed frame scheduled just before settle must not land afterward and clobber the final
-    // content, so drop it before settling.
+    // Drop a frame scheduled just before settle so it can't land afterward and clobber the final content.
     if (streamRafRef.current !== null) {
       cancelAnimationFrame(streamRafRef.current)
       streamRafRef.current = null
     }
-    // Settle: lock the verdict + frontmatter on the freshly-settled content. Re-lock on the initial
-    // settle and on every later stream→settle, so a repeat agent edit gates editability + frontmatter
-    // on the NEW content rather than a stale pre-stream snapshot. User edits never re-derive (they
-    // keep `isStreaming`/`wasStreamingRef` false), preserving the don't-strand-edits rule.
+    // Settle: re-lock the verdict + frontmatter on the freshly-settled content — on the first settle and
+    // every later stream→settle, so a repeat agent edit gates on the NEW content, not a stale snapshot.
+    // User edits never reach here (`isStreaming`/`wasStreamingRef` stay false), preserving don't-strand-edits.
     const isInitialSettle = settledRef.current === null
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false

@@ -50,6 +50,11 @@ const BLOCKQUOTE = /^[ ]{0,3}>/
  * single loose list/quote). Merging is intentionally conservative — over-merging only yields a larger
  * chunk, whereas under-merging would shatter a structure — and every block is parsed by
  * `@tiptap/markdown`'s own lexer, so block boundaries always match the parser.
+ *
+ * The indent-merge rule is load-bearing for fenced code indented past 3 spaces (e.g. inside a list
+ * item): {@link FENCE_OPEN} only tracks fences at the document margin, so a nested fence's interior
+ * blank lines are held together by the indent merge, not the fence tracker. Weakening that merge
+ * would silently shatter nested fences.
  */
 export function splitMarkdownBlocks(body: string): string[] {
   const lines = body.split('\n')
@@ -81,19 +86,21 @@ export function splitMarkdownBlocks(body: string): string[] {
   }
   flush()
 
-  const blocks: string[] = []
+  // Build continuation runs and join each once — concatenating onto the growing block per group would be
+  // O(n²) for one long loose list. A group continues the run when indented, or when its first line and the
+  // group open the same marker kind (list or blockquote) — i.e. they form one loose list/quote.
+  const runs: string[][] = []
   for (const group of groups) {
-    const prev = blocks.length > 0 ? blocks[blocks.length - 1] : null
-    const indented = /^\s/.test(group)
+    const head = runs.length > 0 ? runs[runs.length - 1][0] : null
     const continues =
-      prev !== null &&
-      (indented ||
-        (LIST_MARKER.test(prev) && LIST_MARKER.test(group)) ||
-        (BLOCKQUOTE.test(prev) && BLOCKQUOTE.test(group)))
-    if (continues) blocks[blocks.length - 1] = `${prev}\n\n${group}`
-    else blocks.push(group)
+      head !== null &&
+      (/^\s/.test(group) ||
+        (LIST_MARKER.test(head) && LIST_MARKER.test(group)) ||
+        (BLOCKQUOTE.test(head) && BLOCKQUOTE.test(group)))
+    if (continues) runs[runs.length - 1].push(group)
+    else runs.push([group])
   }
-  return blocks
+  return runs.map((run) => run.join('\n\n'))
 }
 
 /**
