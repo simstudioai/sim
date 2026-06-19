@@ -43,7 +43,7 @@ export const LANGUAGE_OPTIONS = [
 const CONTROL_CLASS =
   'flex size-[24px] items-center justify-center rounded-lg text-[var(--text-icon)] outline-none transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-body)] focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]'
 
-function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
+function CodeBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) {
   const [wrap, setWrap] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
@@ -63,33 +63,41 @@ function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
         )}
         contentEditable={false}
       >
-        <DropdownMenu onOpenChange={setMenuOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type='button'
-              aria-label='Code language'
-              className={cn(
-                chipVariants({ variant: 'default', flush: true }),
-                'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
-              )}
-            >
-              {label}
-              <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='end'>
-            {LANGUAGE_OPTIONS.map((option) => (
-              <DropdownMenuItem
-                key={option.value}
-                onSelect={() =>
-                  updateAttributes({ language: option.value === PLAIN ? null : option.value })
-                }
+        {editor.isEditable ? (
+          // Editable: a language picker. Read-only: a static label — selecting a language calls
+          // updateAttributes, which would mutate a doc that must not change.
+          <DropdownMenu onOpenChange={setMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type='button'
+                aria-label='Code language'
+                className={cn(
+                  chipVariants({ variant: 'default', flush: true }),
+                  'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
+                )}
               >
-                {option.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {label}
+                <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              {LANGUAGE_OPTIONS.map((option) => (
+                <DropdownMenuItem
+                  key={option.value}
+                  onSelect={() =>
+                    updateAttributes({ language: option.value === PLAIN ? null : option.value })
+                  }
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <span className='flex h-[24px] items-center px-1.5 text-[var(--text-muted)] text-caption'>
+            {label}
+          </span>
+        )}
         <button
           type='button'
           aria-label='Toggle line wrap'

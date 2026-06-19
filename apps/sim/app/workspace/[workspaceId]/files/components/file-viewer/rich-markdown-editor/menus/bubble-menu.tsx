@@ -119,6 +119,7 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   useEffect(() => {
     const dom = editor.view.dom
     const openLinkOnShortcut = (event: KeyboardEvent) => {
+      if (!editor.isEditable) return
       if (!(event.metaKey || event.ctrlKey) || event.isComposing) return
       if (event.key?.toLowerCase() !== 'k') return
       const { from, to } = editor.state.selection
@@ -164,8 +165,11 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       aria-label='Text formatting'
       updateDelay={0}
       shouldShow={({ editor: e, from, to }) => {
+        // Read-only never shows the menu — even mid-link-edit (e.g. a stream starting) — so a link
+        // can't be applied to a doc that must not mutate.
+        if (!e.isEditable) return false
         if (isEditingLink) return true
-        if (!e.isEditable || e.isActive('codeBlock')) return false
+        if (e.isActive('codeBlock')) return false
         return e.state.doc.textBetween(from, to, ' ').trim().length > 0
       }}
       className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-100 motion-reduce:animate-none'

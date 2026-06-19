@@ -152,7 +152,7 @@ export const MarkdownImage = Image.extend({
  * Drag-to-resize image node view (handle at the bottom-right, revealed on selection). Dragging
  * commits the new pixel width to the `width` attribute, which serializes to `<img width>`.
  */
-function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+function ResizableImageView({ node, updateAttributes, selected, editor }: ReactNodeViewProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -204,19 +204,23 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
   // untrusted and could be `javascript:`/`data:`; an unsafe value drops the link (image only).
   const safeHref = normalizeLinkHref(typeof attrs.href === 'string' ? attrs.href : '')
 
+  // Read-only: no drag-to-reorder and no resize handle — both call updateAttributes / dispatch a move,
+  // mutating a doc that must not change. The image still renders (and follows its link on click).
+  const editable = editor.isEditable
+
   const image = (
     <img
       ref={imageRef}
       src={attrs.src}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
-      // The image itself is the drag handle — grab anywhere on it to reorder. (The node view's
-      // wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
+      // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
+      // view's wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
       // the resize button sits outside this element, so it keeps its own pointer behavior.)
-      draggable
-      data-drag-handle
+      draggable={editable}
+      data-drag-handle={editable ? '' : undefined}
       style={widthStyle}
-      className='block max-w-full cursor-grab rounded-lg border border-[var(--border)]'
+      className={`block max-w-full rounded-lg border border-[var(--border)]${editable ? ' cursor-grab' : ''}`}
     />
   )
 
@@ -229,7 +233,7 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
       ) : (
         image
       )}
-      {(selected || dragging) && (
+      {editable && (selected || dragging) && (
         <button
           type='button'
           aria-label='Resize image'

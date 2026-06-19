@@ -235,10 +235,12 @@ export function LoadedRichMarkdownEditor({
         void onSaveShortcutRef.current()
         return true
       },
-      handleClick: (_view, _pos, event) => {
-        if (!(event.metaKey || event.ctrlKey)) return false
+      handleClick: (view, _pos, event) => {
         const href = (event.target as HTMLElement | null)?.closest('a')?.getAttribute('href')
         if (!href) return false
+        // Editing: require a modifier so a plain click can place the cursor. Read-only (a reader, e.g.
+        // the public share page): a plain click follows the link.
+        if (view.editable && !(event.metaKey || event.ctrlKey)) return false
         const normalized = normalizeLinkHref(href)
         if (!normalized) return false
         window.open(normalized, '_blank', 'noopener,noreferrer')
