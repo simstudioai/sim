@@ -112,25 +112,18 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
       throw new Error(`Icypeas API error: ${response.status} - ${errorText}`)
     }
     const json = (await response.json()) as Record<string, unknown>
-    // Icypeas returns HTTP 200 with { success: false, validationErrors: [...] } when
-    // it rejects the input up front (missing/invalid name or domain). There is no item
-    // to poll — this is a BAD_INPUT verdict, not a transport error. Surface it as a
-    // successful run with a null email so the enrichment cascade records the verdict
-    // instead of inflating the runner's error count. Key on a non-empty validationErrors
-    // array specifically: a bare { success: false } is an unexpected failure shape that
-    // should fall through and throw, not be masked as BAD_INPUT.
-    if (Array.isArray(json.validationErrors) && json.validationErrors.length > 0) {
-      return {
-        success: true,
-        output: {
-          searchId: null,
-          status: 'BAD_INPUT',
-          email: null,
-          firstname: null,
-          lastname: null,
-          item: json,
-        },
-      }
+    // Icypeas signals submit-time failures as HTTP 200 { success: false, validationErrors: [...] }
+    // — malformed input, insufficient credits, rate limits, etc. None of these are a
+    // search verdict (those only come from polling), so fail fast with the human-readable
+    // reason rather than a cryptic missing-_id error or a fabricated empty result.
+    const validationErrors = json.validationErrors
+    if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+      const first = validationErrors[0] as Record<string, unknown> | undefined
+      const reason =
+        (first?.humanReadableMessage as string | undefined) ??
+        (first?.message as string | undefined) ??
+        'validation error'
+      throw new Error(`Icypeas email-search rejected the request: ${reason}`)
     }
     // Submit response: { success: true, item: { _id: '...', status: 'NONE', ... } }
     const item = (json.item as Record<string, unknown> | undefined) ?? {}
@@ -147,15 +140,14 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
   postProcess: async (result, params) => {
     if (!result.success) return result
 
-    // If already terminal, return immediately — a BAD_INPUT verdict has no searchId
-    // to poll, so this must run before the searchId guard.
-    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
-      return result
-    }
-
     const searchId = result.output.searchId
     if (!searchId) {
       throw new Error('Icypeas find-email result is missing a searchId')
+    }
+
+    // If already terminal (unlikely on submit but defensive), return immediately.
+    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
+      return result
     }
 
     let elapsed = 0

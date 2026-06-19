@@ -99,30 +99,25 @@ export const icypeasVerifyEmailTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response, params?: IcypeasVerifyEmailParams) => {
+  transformResponse: async (response: Response) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Icypeas API error: ${response.status} - ${errorText}`)
     }
     const json = (await response.json()) as Record<string, unknown>
-    // Icypeas returns HTTP 200 with { success: false, validationErrors: [...] } when
-    // it rejects the input up front (bad format, role-based address, etc.). There is
-    // no item to poll — this is a BAD_INPUT verdict, not a transport error. Surface it
-    // as a successful run with valid=false so the enrichment cascade records the
-    // verdict instead of inflating the runner's error count. Key on a non-empty
-    // validationErrors array specifically: a bare { success: false } is an unexpected
-    // failure shape that should fall through and throw, not be masked as BAD_INPUT.
-    if (Array.isArray(json.validationErrors) && json.validationErrors.length > 0) {
-      return {
-        success: true,
-        output: {
-          searchId: null,
-          status: 'BAD_INPUT',
-          email: params?.email ?? null,
-          valid: false,
-          item: json,
-        },
-      }
+    // Icypeas signals submit-time failures as HTTP 200 { success: false, validationErrors: [...] }
+    // — malformed input, insufficient credits, rate limits, etc. None of these are a
+    // deliverability verdict (those only come from polling), so fail fast with the
+    // human-readable reason rather than a cryptic missing-_id error or a fabricated
+    // valid=false result.
+    const validationErrors = json.validationErrors
+    if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+      const first = validationErrors[0] as Record<string, unknown> | undefined
+      const reason =
+        (first?.humanReadableMessage as string | undefined) ??
+        (first?.message as string | undefined) ??
+        'validation error'
+      throw new Error(`Icypeas email-verification rejected the request: ${reason}`)
     }
     // Submit response: { success: true, item: { _id: '...', status: 'NONE', ... } }
     const item = (json.item as Record<string, unknown> | undefined) ?? {}
@@ -139,15 +134,14 @@ export const icypeasVerifyEmailTool: ToolConfig<
   postProcess: async (result, params) => {
     if (!result.success) return result
 
-    // If already terminal, return immediately — a BAD_INPUT verdict has no searchId
-    // to poll, so this must run before the searchId guard.
-    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
-      return result
-    }
-
     const searchId = result.output.searchId
     if (!searchId) {
       throw new Error('Icypeas verify-email result is missing a searchId')
+    }
+
+    // If already terminal, return immediately.
+    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
+      return result
     }
 
     let elapsed = 0

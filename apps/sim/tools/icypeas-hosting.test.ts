@@ -84,54 +84,60 @@ describe('Icypeas verify-email pricing', () => {
 })
 
 describe('Icypeas transformResponse validation errors', () => {
-  it('verify-email maps a 200 validationErrors body to a BAD_INPUT verdict', async () => {
-    const response = new Response(
-      JSON.stringify({
-        success: false,
-        validationErrors: [
-          { expected: 'email', type: 'required', field: 'email', message: 'validation_required' },
-        ],
-      }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
-    )
-
-    const result = await icypeasVerifyEmailTool.transformResponse!(response, {
-      apiKey: 'test-key',
-      email: 'support@stripe.com',
-    } as any)
-
-    expect(result.success).toBe(true)
-    expect((result.output as any).status).toBe('BAD_INPUT')
-    expect((result.output as any).valid).toBe(false)
-    expect((result.output as any).email).toBe('support@stripe.com')
-    expect((result.output as any).searchId).toBeNull()
-  })
-
-  it('find-email maps a 200 validationErrors body to a BAD_INPUT verdict', async () => {
+  it('verify-email throws the human-readable reason on a 200 validationErrors body', async () => {
     const response = new Response(
       JSON.stringify({
         success: false,
         validationErrors: [
           {
-            expected: 'string',
-            type: 'required',
-            field: 'domainOrCompany',
-            message: 'validation_required',
+            field: 'type',
+            message: 'insufficient_credits',
+            humanReadableMessage: 'Insufficient credits to run the search',
+            type: 'InsufficientCredits',
           },
         ],
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
 
-    const result = await icypeasFindEmailTool.transformResponse!(response, {
-      apiKey: 'test-key',
-      domainOrCompany: 'stripe.com',
-    } as any)
+    await expect(icypeasVerifyEmailTool.transformResponse!(response)).rejects.toThrow(
+      /Insufficient credits to run the search/
+    )
+  })
 
-    expect(result.success).toBe(true)
-    expect((result.output as any).status).toBe('BAD_INPUT')
-    expect((result.output as any).email).toBeNull()
-    expect((result.output as any).searchId).toBeNull()
+  it('find-email throws the human-readable reason on a 200 validationErrors body', async () => {
+    const response = new Response(
+      JSON.stringify({
+        success: false,
+        validationErrors: [
+          {
+            field: 'type',
+            message: 'insufficient_credits',
+            humanReadableMessage: 'Insufficient credits to run the search',
+            type: 'InsufficientCredits',
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+    await expect(icypeasFindEmailTool.transformResponse!(response)).rejects.toThrow(
+      /Insufficient credits to run the search/
+    )
+  })
+
+  it('verify-email falls back to message when humanReadableMessage is absent', async () => {
+    const response = new Response(
+      JSON.stringify({
+        success: false,
+        validationErrors: [{ field: 'email', message: 'validation_required' }],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+    await expect(icypeasVerifyEmailTool.transformResponse!(response)).rejects.toThrow(
+      /validation_required/
+    )
   })
 
   it('verify-email still throws when a success body has no item _id', async () => {
@@ -140,77 +146,7 @@ describe('Icypeas transformResponse validation errors', () => {
       headers: { 'Content-Type': 'application/json' },
     })
 
-    await expect(
-      icypeasVerifyEmailTool.transformResponse!(response, {
-        apiKey: 'test-key',
-        email: 'jane@example.com',
-      } as any)
-    ).rejects.toThrow(/item _id/)
-  })
-
-  it('verify-email throws on a bare success:false body without validationErrors', async () => {
-    const response = new Response(JSON.stringify({ success: false }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    })
-
-    await expect(
-      icypeasVerifyEmailTool.transformResponse!(response, {
-        apiKey: 'test-key',
-        email: 'jane@example.com',
-      } as any)
-    ).rejects.toThrow(/item _id/)
-  })
-})
-
-describe('Icypeas postProcess on BAD_INPUT', () => {
-  it('verify-email returns the BAD_INPUT verdict without polling or throwing', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await icypeasVerifyEmailTool.postProcess!(
-      {
-        success: true as const,
-        output: {
-          searchId: null,
-          status: 'BAD_INPUT',
-          email: 'support@stripe.com',
-          valid: false,
-          item: {},
-        },
-      } as any,
-      { apiKey: 'test-key', email: 'support@stripe.com' } as any,
-      vi.fn()
-    )
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(result.success).toBe(true)
-    expect((result.output as any).status).toBe('BAD_INPUT')
-  })
-
-  it('find-email returns the BAD_INPUT verdict without polling or throwing', async () => {
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await icypeasFindEmailTool.postProcess!(
-      {
-        success: true as const,
-        output: {
-          searchId: null,
-          status: 'BAD_INPUT',
-          email: null,
-          firstname: null,
-          lastname: null,
-          item: {},
-        },
-      } as any,
-      { apiKey: 'test-key', domainOrCompany: 'stripe.com' } as any,
-      vi.fn()
-    )
-
-    expect(fetchMock).not.toHaveBeenCalled()
-    expect(result.success).toBe(true)
-    expect((result.output as any).status).toBe('BAD_INPUT')
+    await expect(icypeasVerifyEmailTool.transformResponse!(response)).rejects.toThrow(/item _id/)
   })
 })
 
