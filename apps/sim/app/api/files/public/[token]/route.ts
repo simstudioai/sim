@@ -93,6 +93,17 @@ export const POST = withRouteHandler(
         return NextResponse.json({ error: 'Not found' }, { status: 404 })
       }
 
+      // This endpoint authenticates password shares only. Refusing other modes
+      // here prevents minting a `file_auth` cookie for a `public` share (which
+      // `validateDeploymentAuth` would otherwise authorize), which could later
+      // satisfy the gate if the share is switched to `email`/`sso`.
+      if (resolved.share.authType !== 'password') {
+        return NextResponse.json(
+          { error: 'This file does not use password authentication' },
+          { status: 400 }
+        )
+      }
+
       const auth = await validateDeploymentAuth(
         requestId,
         resolved.share,

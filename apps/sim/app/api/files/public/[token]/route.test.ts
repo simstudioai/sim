@@ -149,6 +149,17 @@ describe('POST /api/files/public/[token]', () => {
     )
   })
 
+  it('refuses to mint a cookie for a non-password (e.g. public) share', async () => {
+    mockResolveActiveShareByToken.mockResolvedValueOnce({
+      ...passwordShare,
+      share: { id: 'sh_1', token: 'tok_1', authType: 'public', password: null },
+    })
+    const res = await POST(postRequest('whatever'), params())
+    expect(res.status).toBe(400)
+    expect(mockValidateDeploymentAuth).not.toHaveBeenCalled()
+    expect(mockSetDeploymentAuthCookie).not.toHaveBeenCalled()
+  })
+
   it('returns 401 Invalid password on mismatch without setting a cookie', async () => {
     mockValidateDeploymentAuth.mockResolvedValueOnce({
       authorized: false,

@@ -72,7 +72,10 @@ export async function validateDeploymentAuth(
   if (authType !== 'sso') {
     const authCookie = request.cookies.get(deploymentAuthCookieName(cookiePrefix, resource.id))
 
-    if (authCookie && validateAuthToken(authCookie.value, resource.id, resource.password)) {
+    if (
+      authCookie &&
+      validateAuthToken(authCookie.value, resource.id, authType, resource.password)
+    ) {
       return { authorized: true }
     }
   }

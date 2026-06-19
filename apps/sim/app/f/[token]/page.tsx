@@ -90,7 +90,7 @@ async function renderAuthGate(token: string, share: GateShare) {
 
   const cookieStore = await cookies()
   const cookieValue = cookieStore.get(deploymentAuthCookieName('file', share.id))?.value
-  if (validateAuthToken(cookieValue ?? '', share.id, share.password)) return null
+  if (validateAuthToken(cookieValue ?? '', share.id, share.authType, share.password)) return null
 
   return share.authType === 'email' ? (
     <PublicFileEmailAuth token={token} />

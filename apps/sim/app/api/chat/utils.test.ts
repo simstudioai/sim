@@ -135,6 +135,7 @@ describe('Chat API Utils', () => {
       expect(mockValidateAuthToken).toHaveBeenCalledWith(
         'valid-token',
         'chat-id',
+        'password',
         'encrypted-password'
       )
       expect(result.authorized).toBe(true)

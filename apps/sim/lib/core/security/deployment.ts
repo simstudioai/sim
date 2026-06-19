@@ -38,6 +38,7 @@ function generateAuthToken(
 export function validateAuthToken(
   token: string,
   deploymentId: string,
+  authType: string,
   encryptedPassword?: string | null
 ): boolean {
   try {
@@ -55,9 +56,14 @@ export function validateAuthToken(
 
     const parts = payload.split(':')
     if (parts.length < 4) return false
-    const [storedId, _type, timestamp, storedPwSlot] = parts
+    const [storedId, storedType, timestamp, storedPwSlot] = parts
 
     if (storedId !== deploymentId) return false
+
+    // Bind the cookie to the auth type so a token minted under one mode (e.g. a
+    // `public` share, which has an empty password slot) can't satisfy another
+    // mode (e.g. `email` OTP) after the share's auth type is changed.
+    if (storedType !== authType) return false
 
     const expectedPwSlot = passwordSlot(encryptedPassword)
     if (storedPwSlot !== expectedPwSlot) return false
