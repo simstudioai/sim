@@ -6,6 +6,7 @@ import {
   getOrganizationDataRetentionContract,
   type OrganizationDataRetention,
   type OrganizationRetentionValues,
+  type UpdateOrganizationDataRetentionBody,
   updateOrganizationDataRetentionContract,
 } from '@/lib/api/contracts/organization'
 
@@ -39,7 +40,7 @@ export function useOrganizationRetention(orgId: string | undefined) {
 
 interface UpdateRetentionVariables {
   orgId: string
-  settings: Partial<RetentionValues>
+  settings: UpdateOrganizationDataRetentionBody
 }
 
 export function useUpdateOrganizationRetention() {

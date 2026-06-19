@@ -1063,6 +1063,37 @@ export const chat = pgTable(
   }
 )
 
+/**
+ * A single PII redaction rule. Lives in the org-level
+ * {@link DataRetentionSettings.piiRedaction} rules list. Each rule targets one
+ * scope — all workspaces (`workspaceId: null`) or a single workspace — and
+ * `workspaceId` is unique across rules. Resolution is most-specific-wins: a
+ * workspace's own rule overrides the all-workspaces rule (never unioned).
+ */
+export interface PiiRedactionRule {
+  id: string
+  name?: string
+  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
+  entityTypes: string[]
+  /** `null` = all workspaces; otherwise the single targeted workspace. */
+  workspaceId: string | null
+}
+
+/**
+ * Org-level data retention + governance settings. Retention-hours fall back to
+ * plan defaults when unset. `piiRedaction.rules` are org-scoped; each rule
+ * selects which workspaces it applies to.
+ */
+export interface DataRetentionSettings {
+  logRetentionHours?: number | null
+  softDeleteRetentionHours?: number | null
+  taskCleanupHours?: number | null
+  /** Enterprise PII redaction rules applied to workflow logs on persist. */
+  piiRedaction?: {
+    rules?: PiiRedactionRule[]
+  } | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -1082,11 +1113,7 @@ export const organization = pgTable('organization', {
     privacyUrl?: string
     hidePoweredBySim?: boolean
   }>(),
-  dataRetentionSettings: json('data_retention_settings').$type<{
-    logRetentionHours?: number | null
-    softDeleteRetentionHours?: number | null
-    taskCleanupHours?: number | null
-  }>(),
+  dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
   orgUsageLimit: decimal('org_usage_limit'),
   /**
    * Storage upload/delete hot-path tracker for org-scoped plans.
@@ -3366,6 +3393,13 @@ export const tableRowExecutions = pgTable(
     runningBlockIds: text('running_block_ids').array().notNull().default(sql`'{}'::text[]`),
     blockErrors: jsonb('block_errors').notNull().default({}),
     cancelledAt: timestamp('cancelled_at'),
+    /**
+     * Enrichment cascade breakdown (provider outcomes, cost, timing) for
+     * `enrichment`-type groups. Null for workflow groups and pre-feature runs.
+     * Deliberately excluded from the hot grid read (`loadExecutionsByRow`) — read
+     * on demand for the enrichment details panel.
+     */
+    enrichmentDetails: jsonb('enrichment_details'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

@@ -34,9 +34,9 @@ describe('sim workspace event trigger registration', () => {
     })
   })
 
-  it('is named Sim', () => {
-    expect(SimWorkspaceEventBlock.name).toBe('Sim')
-    expect(simWorkspaceEventTrigger.name).toBe('Sim')
+  it('is named Sim Workspace Events', () => {
+    expect(SimWorkspaceEventBlock.name).toBe('Sim Workspace Events')
+    expect(simWorkspaceEventTrigger.name).toBe('Sim Workspace Events')
   })
 })
 

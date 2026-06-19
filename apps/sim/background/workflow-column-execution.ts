@@ -208,7 +208,7 @@ async function runWorkflowAndWriteTerminal(
     // workflow path rather than erroring.
     if (group.type === 'enrichment' && group.enrichmentId) {
       const { getEnrichment } = await import('@/enrichments/registry')
-      const { runEnrichment } = await import('@/enrichments/run')
+      const { runEnrichment, skippedEnrichmentDetail } = await import('@/enrichments/run')
       const enrichment = getEnrichment(group.enrichmentId)
       // `tableRowExecutions.workflowId` is an opaque id for status; use the
       // enrichment id for enrichment cells.
@@ -320,6 +320,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: null,
+            enrichmentDetails: skippedEnrichmentDetail(enrichment),
           },
           clearPatch
         )
@@ -334,10 +335,11 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: skippedEnrichmentDetail(enrichment, { aborted: true }),
           })
           return 'error'
         }
-        const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
+        const { result, cost, error, detail } = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
           workspaceId,
@@ -352,6 +354,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: detail,
           })
           return 'error'
         }
@@ -365,6 +368,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error,
+            enrichmentDetails: detail,
           })
           return 'error'
         }
@@ -410,7 +414,14 @@ async function runWorkflowAndWriteTerminal(
             value === undefined || value === null ? '' : (value as RowData[string])
         }
         await writeState(
-          { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },
+          {
+            status: 'completed',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: null,
+            enrichmentDetails: detail,
+          },
           dataPatch
         )
         return 'completed'
