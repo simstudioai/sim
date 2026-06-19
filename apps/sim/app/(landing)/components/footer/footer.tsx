@@ -10,9 +10,10 @@ import { SimWordmark } from '@/app/(landing)/components/navbar/components/sim-wo
  * section above; this is purely the `<footer>` landmark.
  *
  * Carries `SiteNavigationElement` schema for crawlable footer nav. A top
- * hairline separates it from the page; horizontal padding (`px-12`) matches
- * every section above, and the footer is capped and centered at the shared
- * `max-w-[1446px]` so its top hairline aligns with the contained content.
+ * hairline separates it from the page and spans the full viewport width
+ * (edge-to-edge): the border lives on the full-width `<footer>` landmark while
+ * an inner container caps and centers the content at the shared
+ * `max-w-[1446px]` with the same `px-12` gutter as every section above.
  */
 
 const LINK_CLASS =
@@ -146,27 +147,35 @@ export function Footer() {
   return (
     <footer
       role='contentinfo'
-      className='mx-auto mt-[120px] w-full max-w-[1446px] border-[var(--border)] border-t px-12 pt-20 pb-12'
+      className='mt-[120px] w-full border-[var(--border)] border-t max-lg:mt-20 max-sm:mt-16'
     >
-      <nav
-        aria-label='Footer navigation'
-        itemScope
-        itemType='https://schema.org/SiteNavigationElement'
-        className='grid grid-cols-7 gap-x-8 gap-y-10'
-      >
-        <Link href='/' aria-label='Sim home' className='flex h-[18px] items-center'>
-          <SimWordmark />
-        </Link>
+      <div className='mx-auto w-full max-w-[1446px] px-12 pt-20 pb-12 max-lg:px-8 max-lg:pt-16 max-sm:px-5 max-sm:pt-12'>
+        <nav
+          aria-label='Footer navigation'
+          itemScope
+          itemType='https://schema.org/SiteNavigationElement'
+          className='grid grid-cols-7 gap-x-8 gap-y-10 max-lg:grid-cols-3 max-sm:grid-cols-2 max-sm:gap-y-8'
+        >
+          <Link
+            href='/'
+            aria-label='Sim home'
+            className='flex h-[18px] items-center max-lg:col-span-full max-lg:mb-2'
+          >
+            <SimWordmark />
+          </Link>
 
-        <FooterColumn title='Product' items={PRODUCT_LINKS} />
-        <FooterColumn title='Resources' items={RESOURCES_LINKS} />
-        <FooterColumn title='Blocks' items={BLOCK_LINKS} />
-        <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
-        <FooterColumn title='Socials' items={SOCIAL_LINKS} />
-        <FooterColumn title='Legal' items={LEGAL_LINKS} />
-      </nav>
+          <FooterColumn title='Product' items={PRODUCT_LINKS} />
+          <FooterColumn title='Resources' items={RESOURCES_LINKS} />
+          <FooterColumn title='Blocks' items={BLOCK_LINKS} />
+          <FooterColumn title='Integrations' items={INTEGRATION_LINKS} />
+          <FooterColumn title='Socials' items={SOCIAL_LINKS} />
+          <FooterColumn title='Legal' items={LEGAL_LINKS} />
+        </nav>
 
-      <p className='mt-16 text-[13px] text-[var(--text-muted)]'>© 2026 Sim. All rights reserved.</p>
+        <p className='mt-16 text-[13px] text-[var(--text-muted)]'>
+          © 2026 Sim. All rights reserved.
+        </p>
+      </div>
     </footer>
   )
 }

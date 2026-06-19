@@ -73,7 +73,7 @@ export function Hero() {
     <section
       id='hero'
       aria-labelledby='hero-heading'
-      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left'
+      className='relative mx-auto flex min-h-[calc(100vh-62px)] w-full max-w-[1446px] flex-col items-start gap-[22px] px-12 pt-[112px] text-left max-xl:min-h-0 max-xl:gap-5 max-xl:px-8 max-xl:pt-20 max-xl:pb-4 max-sm:px-5 max-sm:pt-12'
     >
       <p className='sr-only'>
         Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Connect
@@ -84,20 +84,20 @@ export function Hero() {
 
       <h1
         id='hero-heading'
-        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] '
+        className='text-balance text-[48px] text-[var(--text-primary)] leading-[1.1] max-xl:text-[40px] max-sm:text-[32px]'
       >
         Your workflow agent for
         <br />
         solving automations.
       </h1>
 
-      <p className='text-[20px] text-[var(--text-body)] leading-[1.5]'>
+      <p className='text-[20px] text-[var(--text-body)] leading-[1.5] max-sm:text-[16px] [&>br]:max-sm:hidden'>
         Sim is the collaborative workspace to build, deploy, <br /> and manage AI agents and
         workflows.
       </p>
 
-      <div className='flex items-center gap-2'>
-        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3'>
+      <div className='flex items-center gap-2 max-sm:w-full max-sm:flex-col max-sm:items-stretch'>
+        <div className='flex h-[44px] w-[360px] items-center gap-2 rounded-[13px] border border-[var(--border-1)] pr-[5px] pl-3 max-sm:w-full'>
           <input
             type='email'
             aria-label='Email address'
@@ -116,7 +116,7 @@ export function Hero() {
         <ChipLink
           href='/signup'
           flush
-          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit]'
+          className='h-[44px] border border-[var(--border-1)] px-[0.571em] text-[16px] [&>span]:[font-size:inherit] max-sm:justify-center max-sm:[&>span]:flex-none'
         >
           Sign up
         </ChipLink>
@@ -124,12 +124,12 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[#fafafa]'
+        className='absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[#fafafa] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full max-sm:mt-3 max-sm:aspect-[5/4]'
       >
         <HeroVisual />
       </div>
 
-      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20'>
+      <div className='pointer-events-none absolute top-8 right-1/2 bottom-8 left-12 flex flex-col justify-end pb-20 max-xl:static max-xl:mt-10 max-xl:w-full max-xl:pb-0 max-sm:mt-8'>
         <HeroLogos />
       </div>
     </section>

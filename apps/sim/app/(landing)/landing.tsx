@@ -43,7 +43,7 @@ export default async function Landing() {
         Skip to main content
       </a>
       <Navbar stars={stars} />
-      <main id='main-content' className='flex flex-col gap-[120px]'>
+      <main id='main-content' className='flex flex-col gap-[120px] max-lg:gap-[88px] max-sm:gap-16'>
         <Hero />
         <Mothership />
         <Features />

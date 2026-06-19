@@ -1,14 +1,15 @@
-import { CtaChat } from '@/app/(landing)/components/cta/components/cta-chat'
+import { ChipLink } from '@/components/emcn'
 
 /**
- * Landing pre-footer CTA — the page's final conversion band. A clean, centered
- * stack: the "Build your first agent today." headline over a live Mothership
- * chat input ({@link CtaChat}). The visitor's first prompt is the call to
- * action — typing and sending routes them into Sim's sign-up flow with their
- * message preserved.
+ * Landing pre-footer CTA — the page's final conversion band. A tall, centered
+ * stack modeled on Linear's closing CTA: a large headline over two pill
+ * actions — a primary "Get started" routing to sign-up and an outline
+ * "Contact sales" routing to the contact form.
  *
- * Inter-section spacing is owned by the `<main>` flex `gap` in `landing.tsx`;
- * horizontal padding (`px-12`) matches every section above, and the section is
+ * The band carries its own vertical padding (`py-[120px]`) so it reads
+ * as a spacious closing moment rather than just another section; inter-section
+ * spacing above is still owned by the `<main>` flex `gap` in `landing.tsx`.
+ * Horizontal padding (`px-12`) matches every section above, and the section is
  * capped and centered at the shared `max-w-[1446px]`.
  */
 export function Cta() {
@@ -16,15 +17,22 @@ export function Cta() {
     <section
       id='cta'
       aria-labelledby='cta-heading'
-      className='mx-auto flex w-full max-w-[1446px] flex-col items-center gap-8 px-12 text-center'
+      className='mx-auto flex w-full max-w-[1446px] flex-col items-center gap-10 px-12 py-[120px] text-center max-lg:gap-8 max-lg:px-8 max-lg:py-24 max-sm:px-5 max-sm:py-16'
     >
       <h2
         id='cta-heading'
-        className='max-w-[720px] text-balance text-[40px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em]'
+        className='max-w-[860px] text-balance text-[64px] text-[var(--text-primary)] leading-[1.05] tracking-[-0.02em] max-lg:text-[48px] max-sm:text-[36px]'
       >
         Build your first agent today.
       </h2>
-      <CtaChat />
+      <div className='flex items-center gap-3'>
+        <ChipLink variant='primary' href='/signup'>
+          Get started
+        </ChipLink>
+        <ChipLink href='/contact' className='border border-[var(--border-1)]'>
+          Contact sales
+        </ChipLink>
+      </div>
     </section>
   )
 }

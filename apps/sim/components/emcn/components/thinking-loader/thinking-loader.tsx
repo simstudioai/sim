@@ -209,6 +209,12 @@ export interface ThinkingLoaderProps {
    * Overrides `label`.
    */
   phase?: boolean
+  /**
+   * Phrase/label font size as a fraction of `size`. Defaults to `0.7`. Lower it
+   * when the loader is shown scaled up (e.g. a zoomed hero shot) so the phrase
+   * doesn't read oversized next to the glyph.
+   */
+  labelRatio?: number
   /** Layout-only classes (margins, alignment). The loader owns its chrome. */
   className?: string
   /**
@@ -241,6 +247,7 @@ export function ThinkingLoader({
   size = 20,
   label,
   phase,
+  labelRatio = 0.7,
   className,
   style,
 }: ThinkingLoaderProps) {
@@ -414,7 +421,7 @@ export function ThinkingLoader({
       className={cn(styles.labelRow, className)}
       style={
         {
-          '--tl-label-size': `${size * 0.7}px`,
+          '--tl-label-size': `${size * labelRatio}px`,
           '--tl-label-gap': `${size * 0.4}px`,
         } as CSSProperties
       }
