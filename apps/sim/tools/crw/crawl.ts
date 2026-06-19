@@ -44,19 +44,6 @@ export const crawlTool: ToolConfig<CrwCrawlParams, CrwCrawlResponse> = {
       description:
         'Output formats for scraped content (e.g., ["markdown"], ["markdown", "html"], ["markdown", "links"])',
     },
-    excludePaths: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'URL paths to exclude from crawling (e.g., ["/blog/*", "/admin/*", "/*.pdf"])',
-    },
-    includePaths: {
-      type: 'json',
-      required: false,
-      visibility: 'user-or-llm',
-      description:
-        'URL paths to include in crawling (e.g., ["/docs/*", "/api/*"]). Only these paths will be crawled',
-    },
     onlyMainContent: {
       type: 'boolean',
       required: false,
@@ -107,8 +94,6 @@ export const crawlTool: ToolConfig<CrwCrawlParams, CrwCrawlResponse> = {
       }
 
       if (params.maxDepth) body.maxDepth = Number(params.maxDepth)
-      if (params.excludePaths) body.excludePaths = params.excludePaths
-      if (params.includePaths) body.includePaths = params.includePaths
 
       return body
     },

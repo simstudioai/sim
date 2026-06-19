@@ -190,8 +190,6 @@ export interface CrwCrawlParams {
   maxDepth?: number
   formats?: string[]
   onlyMainContent?: boolean
-  excludePaths?: string[]
-  includePaths?: string[]
   scrapeOptions?: ScrapeOptions
 }
 
