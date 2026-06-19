@@ -347,7 +347,18 @@ const HIDDEN_STYLE = { display: 'none' } as const
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+interface SidebarProps {
+  /**
+   * Collapse state read from the `sidebar_collapsed` cookie in the server
+   * layout. Seeds the first (pre-hydration) render so the server emits the
+   * correct collapsed/expanded structure — without it the server can't read
+   * `localStorage` and always renders the expanded tree, which then paints
+   * skeletons and pinned-chat icons inside the 51px rail until React flips it.
+   */
+  initialCollapsed?: boolean
+}
+
+export const Sidebar = memo(function Sidebar({ initialCollapsed = false }: SidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -378,15 +389,21 @@ export const Sidebar = memo(function Sidebar() {
   }, [initializeSearchData, filterBlocks, providerModelSignature])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
-  const isCollapsed = useSidebarStore((state) => state.isCollapsed)
+  const storeIsCollapsed = useSidebarStore((state) => state.isCollapsed)
+  const hasHydrated = useSidebarStore((state) => state._hasHydrated)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
+  // Until the persisted store hydrates, fall back to the cookie-seeded value so
+  // the server and the first client render agree (no hydration mismatch) and the
+  // correct structure paints immediately. After hydration the store — the source
+  // of truth, including cross-tab updates — takes over.
+  const isCollapsed = hasHydrated ? storeIsCollapsed : initialCollapsed
+
   // Hydrate the persisted sidebar state before the browser paints. The store
-  // sets `skipHydration` so its default (`isCollapsed: false`) matches the SSR
-  // HTML on first render; flushing rehydration here re-renders the correct
-  // collapsed/expanded structure synchronously in the same pre-paint commit,
-  // preventing the expanded tree from flashing inside the collapsed rail.
+  // sets `skipHydration` so its default matches the cookie-seeded first render;
+  // flushing rehydration here reconciles any drift synchronously in the same
+  // pre-paint commit instead of reflowing after paint.
   useLayoutEffect(() => {
     void useSidebarStore.persist.rehydrate()
   }, [])

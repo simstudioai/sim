@@ -79,6 +79,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 var defaultSidebarWidth = 248;
                 try {
                   var stored = localStorage.getItem('sidebar-state');
+                  // The server renders collapsed/expanded structure from the
+                  // sidebar_collapsed cookie; fall back to it for the width when
+                  // localStorage is absent so width and structure never disagree.
+                  var cookieCollapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
                   if (stored) {
                     var parsed = JSON.parse(stored);
                     var state = parsed && parsed.state;
@@ -96,6 +100,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                           : defaultSidebarWidth;
                       document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
                     }
+                  } else if (cookieCollapsed) {
+                    document.documentElement.style.setProperty('--sidebar-width', '51px');
+                    document.documentElement.setAttribute('data-sidebar-collapsed', '');
                   } else {
                     document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
                   }

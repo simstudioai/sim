@@ -24,6 +24,17 @@ function applySidebarWidth(width: number) {
   document.documentElement.style.setProperty('--sidebar-width', `${value}px`)
 }
 
+/**
+ * Mirrors the collapse state into the `sidebar_collapsed` cookie so the server
+ * layout can render the correct structure on the first paint (the store itself
+ * lives in `localStorage`, which the server can't read). Written on every toggle
+ * and once on rehydration to backfill the cookie for already-persisted users.
+ */
+function applyCollapsedCookie(collapsed: boolean) {
+  if (typeof document === 'undefined') return
+  document.cookie = `sidebar_collapsed=${collapsed ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`
+}
+
 export const useSidebarStore = create<SidebarState>()(
   persist(
     (set, get) => ({
@@ -42,6 +53,7 @@ export const useSidebarStore = create<SidebarState>()(
         const { isCollapsed, sidebarWidth } = get()
         const nextCollapsed = !isCollapsed
         set({ isCollapsed: nextCollapsed })
+        applyCollapsedCookie(nextCollapsed)
         applySidebarWidth(nextCollapsed ? SIDEBAR_WIDTH.COLLAPSED : clampSidebarWidth(sidebarWidth))
       },
       syncWidth: () => {
@@ -71,6 +83,7 @@ export const useSidebarStore = create<SidebarState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)
+          applyCollapsedCookie(state.isCollapsed)
           const width = state.isCollapsed
             ? SIDEBAR_WIDTH.COLLAPSED
             : clampSidebarWidth(state.sidebarWidth)
