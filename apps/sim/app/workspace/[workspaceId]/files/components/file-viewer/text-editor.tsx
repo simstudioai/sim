@@ -322,14 +322,6 @@ function useMonacoTheme(): string {
   return isDark ? 'sim-dark' : 'sim-light'
 }
 
-function toggleMarkdownCheckbox(markdown: string, targetIndex: number, checked: boolean): string {
-  let currentIndex = 0
-  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)]) +)\[([ xX])\]/gm, (match, prefix: string) => {
-    if (currentIndex++ !== targetIndex) return match
-    return `${prefix}[${checked ? 'x' : ' '}]`
-  })
-}
-
 interface TextEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
@@ -496,21 +488,6 @@ export const TextEditor = memo(function TextEditor({
     }
   }, [isResizing])
 
-  const handleCheckboxToggle = useCallback(
-    (checkboxIndex: number, checked: boolean) => {
-      const toggled = toggleMarkdownCheckbox(content, checkboxIndex, checked)
-      if (toggled !== content) {
-        setDraftContent(toggled)
-        const model = monacoEditorRef.current?.getModel()
-        if (model) {
-          model.setValue(toggled)
-          lastSyncedContentRef.current = toggled
-        }
-      }
-    },
-    [content, setDraftContent]
-  )
-
   const handleEditorMount: OnMount = (editor, monaco) => {
     monacoEditorRef.current = editor
 
@@ -657,8 +634,6 @@ export const TextEditor = memo(function TextEditor({
               workspaceId={workspaceId}
               fileKey={file.key}
               isStreaming={isStreaming}
-              disableAutoScroll={disableStreamingAutoScroll}
-              onCheckboxToggle={canEdit && !isStreaming ? handleCheckboxToggle : undefined}
             />
           </div>
         </>
