@@ -266,7 +266,6 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
-  const router = useRouter()
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)

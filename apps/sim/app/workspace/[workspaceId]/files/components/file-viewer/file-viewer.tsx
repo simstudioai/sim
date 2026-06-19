@@ -1,7 +1,6 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createLogger } from '@sim/logger'
 import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
@@ -37,8 +36,6 @@ const MarkdownFileEditor = dynamic(
   () => import('./rich-markdown-editor/markdown-file-editor').then((m) => m.MarkdownFileEditor),
   { ssr: false, loading: () => <PreviewLoadingFrame className='flex flex-1 flex-col' /> }
 )
-
-const logger = createLogger('FileViewer')
 
 /**
  * CSVs at or below this size load fully into the editor (editable, with an inline preview).
