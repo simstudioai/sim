@@ -272,3 +272,65 @@ export const getWorkspaceMembersContract = defineRouteContract({
 })
 
 export type WorkspacesResponse = ContractJsonResponse<typeof listWorkspacesContract>
+
+const workspaceRetentionHoursSchema = z.number().int().min(24).max(43800).nullable().optional()
+
+/**
+ * Per-workspace override of the org-level data retention settings. Any omitted
+ * key falls back to the org default at resolution time, so a workspace need only
+ * send the keys it wants to override.
+ */
+export const updateWorkspaceDataRetentionBodySchema = z.object({
+  logRetentionHours: workspaceRetentionHoursSchema,
+  softDeleteRetentionHours: workspaceRetentionHoursSchema,
+  taskCleanupHours: workspaceRetentionHoursSchema,
+})
+
+const workspaceRetentionValuesSchema = z.object({
+  logRetentionHours: z.number().int().nullable(),
+  softDeleteRetentionHours: z.number().int().nullable(),
+  taskCleanupHours: z.number().int().nullable(),
+})
+
+const workspaceDataRetentionDataSchema = z.object({
+  isEnterprise: z.boolean(),
+  defaults: workspaceRetentionValuesSchema,
+  /** The org-level default this workspace inherits from when unset. */
+  orgConfigured: workspaceRetentionValuesSchema,
+  /** This workspace's own override (nulls where it defers to the org). */
+  workspaceConfigured: workspaceRetentionValuesSchema,
+  /** Resolved per key: workspace override ?? org default ?? plan default. */
+  effective: workspaceRetentionValuesSchema,
+})
+
+export type WorkspaceDataRetention = z.output<typeof workspaceDataRetentionDataSchema>
+
+export const workspaceDataRetentionResponseSchema = z.object({
+  success: z.boolean(),
+  data: workspaceDataRetentionDataSchema,
+})
+
+export const getWorkspaceDataRetentionContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/workspaces/[id]/data-retention',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: workspaceDataRetentionResponseSchema,
+  },
+})
+
+export const updateWorkspaceDataRetentionContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/workspaces/[id]/data-retention',
+  params: workspaceParamsSchema,
+  body: updateWorkspaceDataRetentionBodySchema,
+  response: {
+    mode: 'json',
+    schema: workspaceDataRetentionResponseSchema,
+  },
+})
+
+export type UpdateWorkspaceDataRetentionBody = z.input<
+  typeof updateWorkspaceDataRetentionBodySchema
+>

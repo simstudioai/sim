@@ -1063,6 +1063,39 @@ export const chat = pgTable(
   }
 )
 
+/**
+ * A single PII redaction rule. Lives in the org-level
+ * {@link DataRetentionSettings.piiRedaction} rules list. A workflow log is
+ * redacted on persist if any rule targets its workspace; the applicable rules'
+ * entity types are unioned (an empty `entityTypes` means "redact all").
+ */
+export interface PiiRedactionRule {
+  id: string
+  name?: string
+  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  entityTypes: string[]
+  /** When true the rule covers every workspace in the org. */
+  appliesToAllWorkspaces: boolean
+  /** Targeted workspace ids when `appliesToAllWorkspaces` is false. */
+  workspaceIds: string[]
+}
+
+/**
+ * Data retention + governance settings. Retention-hours live on both
+ * `organization` (default) and `workspace` (optional override, resolved
+ * `workspace ?? organization ?? plan defaults`). `piiRedaction.rules` are
+ * org-scoped; each rule selects which workspaces it applies to.
+ */
+export interface DataRetentionSettings {
+  logRetentionHours?: number | null
+  softDeleteRetentionHours?: number | null
+  taskCleanupHours?: number | null
+  /** Enterprise PII redaction rules applied to workflow logs on persist. */
+  piiRedaction?: {
+    rules?: PiiRedactionRule[]
+  } | null
+}
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -1082,11 +1115,7 @@ export const organization = pgTable('organization', {
     privacyUrl?: string
     hidePoweredBySim?: boolean
   }>(),
-  dataRetentionSettings: json('data_retention_settings').$type<{
-    logRetentionHours?: number | null
-    softDeleteRetentionHours?: number | null
-    taskCleanupHours?: number | null
-  }>(),
+  dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
   orgUsageLimit: decimal('org_usage_limit'),
   /**
    * Storage upload/delete hot-path tracker for org-scoped plans.
@@ -1245,6 +1274,8 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
+    /** Per-workspace override of the org-level data retention settings. */
+    dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),

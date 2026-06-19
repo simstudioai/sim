@@ -85,6 +85,25 @@ export const userFileSchema = z
   })
   .passthrough()
 
+/** A single PII redaction rule targeting a set of workspaces. */
+export const piiRedactionRuleSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().max(100).optional(),
+  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
+  appliesToAllWorkspaces: z.boolean(),
+  workspaceIds: z.array(z.string().min(1)).max(1000),
+})
+
+export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
+
+/** Enterprise PII redaction policy applied to workflow logs on persist. */
+export const piiRedactionSettingsSchema = z.object({
+  rules: z.array(piiRedactionRuleSchema).max(100),
+})
+
+export type PiiRedactionSettings = z.output<typeof piiRedactionSettingsSchema>
+
 export const booleanQueryFlagSchema = z.preprocess(
   (value) => {
     if (typeof value === 'boolean') return value

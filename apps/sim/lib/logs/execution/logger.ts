@@ -1,17 +1,22 @@
 import { db } from '@sim/db'
 import {
   member,
+  organization,
   usageLog,
   userStats,
   user as userTable,
   workflow,
   workflowExecutionLogs,
+  workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
+import {
+  getHighestPrioritySubscription,
+  isWorkspaceOnEnterprisePlan,
+} from '@/lib/billing/core/subscription'
 import {
   checkUsageStatus,
   getOrgUsageLimit,
@@ -24,6 +29,7 @@ import {
   recordUsage,
   stableEventKey,
 } from '@/lib/billing/core/usage-log'
+import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
@@ -32,6 +38,7 @@ import {
   collectLargeValueReferenceKeys,
   replaceLargeValueReferenceKeysWithClient,
 } from '@/lib/execution/payloads/large-value-metadata'
+import { type RedactablePayload, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'
 import { snapshotService } from '@/lib/logs/execution/snapshot/service'
 import {
   externalizeExecutionData,
@@ -585,6 +592,36 @@ export class ExecutionLogger implements IExecutionLoggerService {
     }
   }
 
+  /**
+   * Mask PII from log content before persistence when the execution's workspace
+   * (via workspace override or org default) has enterprise PII redaction enabled.
+   * Resolved at persist time so both the inline and externalized write paths are
+   * covered. Returns the payload unchanged when disabled or non-enterprise.
+   */
+  private async applyPiiRedaction(
+    workspaceId: string | null,
+    payload: RedactablePayload
+  ): Promise<RedactablePayload> {
+    if (!workspaceId) return payload
+
+    const [row] = await db
+      .select({ orgSettings: organization.dataRetentionSettings })
+      .from(workspace)
+      .leftJoin(organization, eq(organization.id, workspace.organizationId))
+      .where(eq(workspace.id, workspaceId))
+      .limit(1)
+    if (!row) return payload
+
+    const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
+    if (!config.enabled) return payload
+
+    // Settings are only writable by enterprise orgs, but re-verify at read time
+    // (e.g. a plan downgrade) before doing the work.
+    if (!(await isWorkspaceOnEnterprisePlan(workspaceId))) return payload
+
+    return redactPIIFromExecution(payload, { entityTypes: config.entityTypes })
+  }
+
   async completeWorkflowExecution(params: {
     executionId: string
     endedAt: string
@@ -720,6 +757,12 @@ export class ExecutionLogger implements IExecutionLoggerService {
     const redactedWorkflowInput =
       filteredWorkflowInput !== undefined ? redactApiKeys(filteredWorkflowInput) : undefined
 
+    const pii = await this.applyPiiRedaction(existingLog?.workspaceId ?? null, {
+      traceSpans: redactedTraceSpans,
+      finalOutput: redactedFinalOutput,
+      ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+    })
+
     const rawDurationMs =
       isResume && existingLog?.startedAt
         ? new Date(endedAt).getTime() - new Date(existingLog.startedAt).getTime()
@@ -731,9 +774,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
 
     const cleanExecutionData: ExecutionData = {
       ...builtExecutionData,
-      traceSpans: redactedTraceSpans,
-      finalOutput: redactedFinalOutput,
-      ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+      traceSpans: pii.traceSpans as TraceSpan[],
+      finalOutput: pii.finalOutput as BlockOutputData,
+      ...(pii.workflowInput !== undefined ? { workflowInput: pii.workflowInput } : {}),
     }
 
     stripSpanCosts((cleanExecutionData as Record<string, unknown>).traceSpans)
