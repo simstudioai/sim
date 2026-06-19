@@ -4,14 +4,13 @@ import {
   knowledgeConnector,
   mcpServers,
   userTableDefinitions,
-  userTableRows,
   workflow,
   workflowFolder,
   workflowSchedule,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, count, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
@@ -57,7 +56,11 @@ export interface WorkspaceMdData {
     description?: string | null
     connectorTypes?: string[]
   }>
-  tables: Array<{ id: string; name: string; description?: string | null; rowCount: number }>
+  // rowCount is no longer rendered (it is volatile and would bust the cached
+  // prompt prefix); kept optional so callers that still have it cheaply (the VFS
+  // materializer via listTables) need not change, while generateWorkspaceContext
+  // skips the per-table COUNT query entirely.
+  tables: Array<{ id: string; name: string; description?: string | null; rowCount?: number }>
   files: Array<{ id: string; name: string; type: string; size: number; folderPath?: string | null }>
   oauthIntegrations: Array<{
     id: string
@@ -82,8 +85,29 @@ export interface WorkspaceMdData {
 }
 
 /**
+ * Deterministic string ordering. The workspace inventory is placed in the
+ * prompt-cache prefix (mothership), so its bytes must be identical for identical
+ * workspace state regardless of DB row order — otherwise the cache silently
+ * busts every turn. `localeCompare` with a pinned locale gives stable, readable
+ * ordering across Sim instances (all run the same Node/ICU build).
+ */
+function stableCompare(a: string, b: string): number {
+  return a.localeCompare(b, 'en')
+}
+
+/** Stable order by display name, tie-broken by id, for inventory listings. */
+function byNameThenId(a: { name: string; id: string }, b: { name: string; id: string }): number {
+  return stableCompare(a.name, b.name) || stableCompare(a.id, b.id)
+}
+
+/**
  * Pure formatting: build WORKSPACE.md content from pre-fetched data.
  * No DB access — callers are responsible for providing the data.
+ *
+ * Output is deterministic: every collection is sorted by a stable key and
+ * volatile fields (run timestamps, mutable row counts) are omitted, so the
+ * rendered inventory only changes when the workspace structurally changes. This
+ * is what lets the mothership cache it in the prompt prefix across turns.
  */
 export function buildWorkspaceMd(data: WorkspaceMdData): string {
   const sections: string[] = []
@@ -95,10 +119,12 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.members.length > 0) {
-    const lines = data.members.map((m) => {
-      const display = m.name ? `${m.name} (${m.email})` : m.email
-      return `- ${display} — ${m.permissionType}`
-    })
+    const lines = [...data.members]
+      .sort((a, b) => stableCompare(a.email, b.email))
+      .map((m) => {
+        const display = m.name ? `${m.name} (${m.email})` : m.email
+        return `- ${display} — ${m.permissionType}`
+      })
     sections.push(`## Members\n${lines.join('\n')}`)
   }
 
@@ -122,10 +148,11 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
       parts.push(`${indent}  VFS dir: \`${workflowDir}\``)
       parts.push(`${indent}  VFS state path: \`${workflowDir}/state.json\``)
       if (wf.description) parts.push(`${indent}  ${wf.description}`)
-      const flags: string[] = []
-      if (wf.isDeployed) flags.push('deployed')
-      if (wf.lastRunAt) flags.push(`last run: ${wf.lastRunAt.toISOString().split('T')[0]}`)
-      if (flags.length > 0) parts[0] += ` — ${flags.join(', ')}`
+      // `deployed` is a structural flag (kept); `lastRunAt` is intentionally
+      // omitted — it changes on every run and would bust the cached prompt
+      // prefix that carries this inventory. Current run data lives in
+      // workflows/{name}/executions.json.
+      if (wf.isDeployed) parts[0] += ' — deployed'
       return parts.join('\n')
     }
 
@@ -133,13 +160,13 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     lines.push(
       'Use the canonical VFS dir/state path shown under each workflow. Paths are percent-encoded per segment; copy them verbatim and do not infer paths from display names.'
     )
-    for (const wf of rootWorkflows) {
+    for (const wf of [...rootWorkflows].sort(byNameThenId)) {
       lines.push(formatWf(wf, ''))
     }
-    const sortedFolders = [...folderWorkflows.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    const sortedFolders = [...folderWorkflows.entries()].sort((a, b) => stableCompare(a[0], b[0]))
     for (const [folder, wfs] of sortedFolders) {
       lines.push(`- 📁 **${folder}/**`)
-      for (const wf of wfs) {
+      for (const wf of [...wfs].sort(byNameThenId)) {
         lines.push(formatWf(wf, '  '))
       }
     }
@@ -149,11 +176,11 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.knowledgeBases.length > 0) {
-    const lines = data.knowledgeBases.map((kb) => {
+    const lines = [...data.knowledgeBases].sort(byNameThenId).map((kb) => {
       let line = `- **${kb.name}** (${kb.id})`
       if (kb.description) line += ` — ${kb.description}`
       if (kb.connectorTypes && kb.connectorTypes.length > 0) {
-        line += ` | connectors: ${kb.connectorTypes.join(', ')}`
+        line += ` | connectors: ${[...kb.connectorTypes].sort(stableCompare).join(', ')}`
       }
       return line
     })
@@ -163,9 +190,11 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.tables.length > 0) {
-    const lines = data.tables.map((t) => {
-      let line = `- **${t.name}** (${t.id}) — ${t.rowCount} rows`
-      if (t.description) line += `, ${t.description}`
+    // rowCount is omitted: it changes on every row write and would bust the
+    // cached prompt prefix. Live counts are in tables/{name}/meta.json.
+    const lines = [...data.tables].sort(byNameThenId).map((t) => {
+      let line = `- **${t.name}** (${t.id})`
+      if (t.description) line += ` — ${t.description}`
       return line
     })
     sections.push(`## Tables (${data.tables.length})\n${lines.join('\n')}`)
@@ -192,13 +221,13 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
     const lines: string[] = [
       'Read or edit a file by the exact VFS path shown in backticks below — copy it verbatim (it is already percent-encoded) and append `/content` to read the contents. Do not retype the display name or re-encode the path.',
     ]
-    for (const f of rootFiles) {
+    for (const f of [...rootFiles].sort(byNameThenId)) {
       lines.push(fileLine(f, ''))
     }
-    const sortedFolders = [...folderFiles.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    const sortedFolders = [...folderFiles.entries()].sort((a, b) => stableCompare(a[0], b[0]))
     for (const [folder, folderFileList] of sortedFolders) {
       lines.push(`- 📁 **${folder}/**`)
-      for (const f of folderFileList) {
+      for (const f of [...folderFileList].sort(byNameThenId)) {
         lines.push(fileLine(f, '  '))
       }
     }
@@ -208,13 +237,15 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.oauthIntegrations.length > 0) {
-    const lines = data.oauthIntegrations.map((c) => {
-      const services = PROVIDER_SERVICES[c.providerId]
-      const svc = services ? ` (${services.join(', ')})` : ''
-      const who = c.displayName ? ` — ${c.displayName}` : ''
-      const role = c.role ? `, ${c.role}` : ''
-      return `- ${c.providerId}${svc}${who}${role} — credentialId: \`${c.id}\``
-    })
+    const lines = [...data.oauthIntegrations]
+      .sort((a, b) => stableCompare(a.providerId, b.providerId) || stableCompare(a.id, b.id))
+      .map((c) => {
+        const services = PROVIDER_SERVICES[c.providerId]
+        const svc = services ? ` (${services.join(', ')})` : ''
+        const who = c.displayName ? ` — ${c.displayName}` : ''
+        const role = c.role ? `, ${c.role}` : ''
+        return `- ${c.providerId}${svc}${who}${role} — credentialId: \`${c.id}\``
+      })
     sections.push(
       `## Connected Integrations\nPass these credentialId values directly on OAuth tool calls — no need to read environment/credentials.json for them.\n${lines.join('\n')}`
     )
@@ -223,17 +254,17 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.envVariables.length > 0) {
-    const lines = data.envVariables.map((v) => `- ${v}`)
+    const lines = [...data.envVariables].sort(stableCompare).map((v) => `- ${v}`)
     sections.push(`## Environment Variables (${data.envVariables.length})\n${lines.join('\n')}`)
   }
 
   if (data.customTools && data.customTools.length > 0) {
-    const lines = data.customTools.map((t) => `- **${t.name}** (${t.id})`)
+    const lines = [...data.customTools].sort(byNameThenId).map((t) => `- **${t.name}** (${t.id})`)
     sections.push(`## Custom Tools (${data.customTools.length})\n${lines.join('\n')}`)
   }
 
   if (data.mcpServers && data.mcpServers.length > 0) {
-    const lines = data.mcpServers.map((s) => {
+    const lines = [...data.mcpServers].sort(byNameThenId).map((s) => {
       const status = s.enabled ? 'enabled' : 'disabled'
       return `- **${s.name}** (${s.id}) — ${status}${s.url ? `, ${s.url}` : ''}`
     })
@@ -241,7 +272,9 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.skills && data.skills.length > 0) {
-    const lines = data.skills.map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
+    const lines = [...data.skills]
+      .sort(byNameThenId)
+      .map((s) => `- **${s.name}** (${s.id}) — ${s.description}`)
     sections.push(
       `## Skills (${data.skills.length})\n` +
         'To use a skill, call the load_user_skill tool with its name to load the full instructions, then follow them. The descriptions below only say when each skill applies — they are not the instructions.\n' +
@@ -250,16 +283,18 @@ export function buildWorkspaceMd(data: WorkspaceMdData): string {
   }
 
   if (data.jobs && data.jobs.length > 0) {
-    const lines = data.jobs.map((j) => {
-      const displayName = j.title || j.id
-      let line = `- **${displayName}** (${j.id}) — ${j.status}`
-      if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
-      if (j.cronExpression) line += `, cron: ${j.cronExpression}`
-      if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
-      const promptPreview = j.prompt.length > 80 ? `${j.prompt.slice(0, 77)}...` : j.prompt
-      line += `\n  ${promptPreview}`
-      return line
-    })
+    const lines = [...data.jobs]
+      .sort((a, b) => stableCompare(a.title || a.id, b.title || b.id) || stableCompare(a.id, b.id))
+      .map((j) => {
+        const displayName = j.title || j.id
+        let line = `- **${displayName}** (${j.id}) — ${j.status}`
+        if (j.lifecycle !== 'persistent') line += ` [${j.lifecycle}]`
+        if (j.cronExpression) line += `, cron: ${j.cronExpression}`
+        if (j.sourceTaskName) line += `, task: ${j.sourceTaskName}`
+        const promptPreview = j.prompt.length > 80 ? `${j.prompt.slice(0, 77)}...` : j.prompt
+        line += `\n  ${promptPreview}`
+        return line
+      })
     sections.push(`## Jobs (${data.jobs.length})\n${lines.join('\n')}`)
   }
 
@@ -384,19 +419,6 @@ export async function generateWorkspaceContext(
         ),
     ])
 
-    const rowCounts =
-      tables.length > 0
-        ? await Promise.all(
-            tables.map(async (t) => {
-              const [row] = await dbReplica
-                .select({ count: count() })
-                .from(userTableRows)
-                .where(eq(userTableRows.tableId, t.id))
-              return row?.count ?? 0
-            })
-          )
-        : []
-
     const kbIds = kbs.map((kb) => kb.id)
     const connectorRows =
       kbIds.length > 0
@@ -448,7 +470,7 @@ export async function generateWorkspaceContext(
         ...kb,
         connectorTypes: connectorTypesByKb.get(kb.id),
       })),
-      tables: tables.map((t, i) => ({ ...t, rowCount: rowCounts[i] ?? 0 })),
+      tables: tables.map((t) => ({ id: t.id, name: t.name, description: t.description })),
       files: files.map((f) => ({
         id: f.id,
         name: f.name,
