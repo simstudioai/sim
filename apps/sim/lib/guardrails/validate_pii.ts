@@ -150,6 +150,14 @@ function runPythonScript<T>(payload: Record<string, unknown>): Promise<T> {
       reject(new Error('PII processing timeout'))
     }, DEFAULT_TIMEOUT)
 
+    // stdin errors (e.g. EPIPE when the child exits before draining the payload —
+    // chunks can exceed the OS pipe buffer) emit on stdin, not the process. Without
+    // a listener Node throws an unhandled 'error' and crashes; funnel it into the
+    // promise so the caller's fail-safe scrub path handles it.
+    python.stdin.on('error', (error: Error) => {
+      clearTimeout(timeout)
+      reject(new Error(`PII script stdin error: ${error.message}`))
+    })
     python.stdin.write(JSON.stringify(payload))
     python.stdin.end()
     python.stdout.on('data', (data) => {
@@ -225,6 +233,12 @@ async function executePythonPIIDetection(
       entityTypes,
       mode,
       language,
+    })
+    // See runPythonScript: stdin errors (EPIPE on early child exit) must be
+    // caught here or Node throws an unhandled 'error' and crashes the process.
+    python.stdin.on('error', (error: Error) => {
+      clearTimeout(timeout)
+      reject(new Error(`Failed to write to Python: ${error.message}`))
     })
     python.stdin.write(inputData)
     python.stdin.end()
