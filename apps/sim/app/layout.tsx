@@ -78,33 +78,30 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // window yields a width >= MIN instead of a sub-minimum sliver.
                 var defaultSidebarWidth = 248;
                 try {
+                  // Collapse is owned by the sidebar_collapsed cookie (the same
+                  // source the server renders structure from); width is read from
+                  // localStorage so the two never disagree on the first paint.
                   var stored = localStorage.getItem('sidebar-state');
-                  // The server renders collapsed/expanded structure from the
-                  // sidebar_collapsed cookie; fall back to it for the width when
-                  // localStorage is absent so width and structure never disagree.
-                  var cookieCollapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
-                  if (stored) {
-                    var parsed = JSON.parse(stored);
-                    var state = parsed && parsed.state;
-                    var isCollapsed = state && state.isCollapsed;
+                  var state = stored ? JSON.parse(stored).state : null;
+                  var collapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
 
-                    if (isCollapsed) {
-                      document.documentElement.style.setProperty('--sidebar-width', '51px');
-                      document.documentElement.setAttribute('data-sidebar-collapsed', '');
-                    } else {
-                      var width = state && state.sidebarWidth;
-                      var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
-                      var finalWidth =
-                        typeof width === 'number' && isFinite(width)
-                          ? Math.min(Math.max(width, 248), maxSidebarWidth)
-                          : defaultSidebarWidth;
-                      document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
-                    }
-                  } else if (cookieCollapsed) {
+                  // One-time migration: seed the cookie from the legacy localStorage
+                  // flag for users who collapsed before the cookie existed.
+                  if (document.cookie.indexOf('sidebar_collapsed=') === -1 && state && typeof state.isCollapsed === 'boolean') {
+                    collapsed = state.isCollapsed;
+                    document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
+                  }
+
+                  if (collapsed) {
                     document.documentElement.style.setProperty('--sidebar-width', '51px');
-                    document.documentElement.setAttribute('data-sidebar-collapsed', '');
                   } else {
-                    document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
+                    var width = state && state.sidebarWidth;
+                    var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
+                    var finalWidth =
+                      typeof width === 'number' && isFinite(width)
+                        ? Math.min(Math.max(width, 248), maxSidebarWidth)
+                        : defaultSidebarWidth;
+                    document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
                   }
                 } catch (e) {
                   document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');

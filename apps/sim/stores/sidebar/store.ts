@@ -25,14 +25,20 @@ function applySidebarWidth(width: number) {
 }
 
 /**
- * Mirrors the collapse state into the `sidebar_collapsed` cookie so the server
- * layout can render the correct structure on the first paint (the store itself
- * lives in `localStorage`, which the server can't read). Written on every toggle
- * and once on rehydration to backfill the cookie for already-persisted users.
+ * The `sidebar_collapsed` cookie is the single source of truth for collapse: the
+ * server layout reads it to render the correct structure on the first paint
+ * (it can't read `localStorage`), and the client seeds its initial state from it
+ * below. Width is the only field persisted to `localStorage`.
  */
 function applyCollapsedCookie(collapsed: boolean) {
   if (typeof document === 'undefined') return
   document.cookie = `sidebar_collapsed=${collapsed ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`
+}
+
+/** Reads the collapse state the server saw, so the client store seeds identically. */
+function readCollapsedCookie(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.cookie.includes('sidebar_collapsed=1')
 }
 
 export const useSidebarStore = create<SidebarState>()(
@@ -40,7 +46,7 @@ export const useSidebarStore = create<SidebarState>()(
     (set, get) => ({
       workspaceDropdownOpen: false,
       sidebarWidth: SIDEBAR_WIDTH.DEFAULT,
-      isCollapsed: false,
+      isCollapsed: readCollapsedCookie(),
       _hasHydrated: false,
       setWorkspaceDropdownOpen: (isOpen) => set({ workspaceDropdownOpen: isOpen }),
       setSidebarWidth: (width) => {
@@ -71,31 +77,30 @@ export const useSidebarStore = create<SidebarState>()(
     {
       name: 'sidebar-state',
       /**
-       * Hydration is driven manually from a `useLayoutEffect` (see Sidebar) so it
-       * runs synchronously before the first paint. Auto-hydration would either
-       * (a) run at module load and make the client's first render disagree with
-       * the server's `isCollapsed: false` HTML — a mismatch React recovers from by
-       * flashing the server tree, or (b) run after paint, reflowing the expanded
-       * tree into the collapsed rail. Skipping it lets the layout effect flip the
-       * structure in the same pre-paint commit, so neither flash is visible.
+       * Width is hydrated manually from a client-only effect (see Sidebar) so
+       * `_hasHydrated` is deterministically `false` during SSR and the first
+       * client render — both of which read collapse from the cookie-seeded prop.
+       * This is zustand's documented SSR pattern; it avoids relying on auto
+       * hydration's behavior when `localStorage` is absent on the server.
        */
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)
-          applyCollapsedCookie(state.isCollapsed)
           const width = state.isCollapsed
             ? SIDEBAR_WIDTH.COLLAPSED
             : clampSidebarWidth(state.sidebarWidth)
           applySidebarWidth(width)
-          if (typeof document !== 'undefined') {
-            document.documentElement.removeAttribute('data-sidebar-collapsed')
-          }
         }
       },
-      partialize: (state) => ({
-        sidebarWidth: state.sidebarWidth,
-        isCollapsed: state.isCollapsed,
+      // Only width is persisted; collapse lives in the cookie.
+      partialize: (state) => ({ sidebarWidth: state.sidebarWidth }),
+      // Never let a legacy persisted `isCollapsed` override the cookie-seeded
+      // value — the cookie is the source of truth (handles migration cleanly).
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<SidebarState>),
+        isCollapsed: current.isCollapsed,
       }),
     }
   )
