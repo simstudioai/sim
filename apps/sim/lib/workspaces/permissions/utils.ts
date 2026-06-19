@@ -107,21 +107,22 @@ export async function getWorkspaceWithOwner(
 
 /**
  * Resolve the effective workspace permission for a user under the governance
- * inheritance model: the workspace owner and the owners/admins of the
- * organization that owns the workspace are workspace admins. Returns the higher
- * of any explicit grant and any derived admin.
+ * inheritance model: the owners/admins of the organization that owns the
+ * workspace are derived workspace admins. Returns the higher of any explicit
+ * grant and the org-admin derivation. The workspace owner is not special-cased —
+ * they always hold an explicit `admin` row, so the resolver's lookup covers them.
  *
  * Delegates to the shared resolver in `@sim/platform-authz/workspace` so the
  * rule has a single source of truth shared with the realtime server.
  *
  * @param userId - The user to resolve the permission for
- * @param ws - The workspace (owner + organization already loaded)
+ * @param ws - The workspace (organization already loaded)
  */
 export async function getEffectiveWorkspacePermission(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'id' | 'ownerId' | 'organizationId'>
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
 ): Promise<PermissionType | null> {
-  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.ownerId, ws.organizationId)
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
 }
 
 /**

@@ -1688,6 +1688,13 @@
       "when": 1781700000000,
       "tag": "0241_drop_table_row_cap_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1781893805958,
+      "tag": "0242_marvelous_kabuki",
+      "breakpoints": true
     }
   ]
 }

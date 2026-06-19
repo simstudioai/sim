@@ -370,9 +370,15 @@ describe('Permission Utils', () => {
   })
 
   describe('hasWorkspaceAdminAccess', () => {
-    it('should return true when user owns the workspace', async () => {
-      const chain = createMockChain([{ ownerId: 'user123' }])
-      mockDb.select.mockReturnValue(chain)
+    it('should return true for the workspace owner via their explicit admin row', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ ownerId: 'user123' }])
+        }
+        return createMockChain([{ permissionType: 'admin' }])
+      })
 
       const result = await hasWorkspaceAdminAccess('user123', 'workspace456')
 
@@ -769,9 +775,15 @@ describe('Permission Utils', () => {
       })
     })
 
-    it('should return full access when user is workspace owner', async () => {
-      const chain = createMockChain([{ id: 'workspace123', ownerId: 'user123' }])
-      mockDb.select.mockReturnValue(chain)
+    it('should return full access for the workspace owner via their explicit admin row', async () => {
+      let callCount = 0
+      mockDb.select.mockImplementation(() => {
+        callCount++
+        if (callCount === 1) {
+          return createMockChain([{ id: 'workspace123', ownerId: 'user123' }])
+        }
+        return createMockChain([{ permissionType: 'admin' }])
+      })
 
       const result = await checkWorkspaceAccess('workspace123', 'user123')
 

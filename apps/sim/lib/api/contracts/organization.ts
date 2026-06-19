@@ -370,6 +370,8 @@ export const removeOrganizationMemberContract = defineRouteContract({
 export const organizationMemberUsageLimitDataSchema = z.object({
   creditsUsed: z.number(),
   creditLimit: z.number().nullable(),
+  /** Billing cadence of the org's subscription, so the UI can label the usage window. */
+  billingInterval: z.enum(['month', 'year']),
 })
 
 export const getOrganizationMemberUsageLimitContract = defineRouteContract({

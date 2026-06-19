@@ -13,7 +13,6 @@ export type ActiveWorkflowRecord = typeof workflow.$inferSelect
 export interface ActiveWorkflowContext {
   workflow: ActiveWorkflowRecord
   workspaceId: string
-  workspaceOwnerId: string
   workspaceOrganizationId: string | null
 }
 
@@ -24,7 +23,6 @@ export async function getActiveWorkflowContext(
     .select({
       workflow,
       workspaceId: workspace.id,
-      workspaceOwnerId: workspace.ownerId,
       workspaceOrganizationId: workspace.organizationId,
     })
     .from(workflow)
@@ -41,7 +39,6 @@ export async function getActiveWorkflowContext(
   return {
     workflow: rows[0].workflow,
     workspaceId: rows[0].workspaceId,
-    workspaceOwnerId: rows[0].workspaceOwnerId,
     workspaceOrganizationId: rows[0].workspaceOrganizationId,
   }
 }
@@ -283,7 +280,6 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
   const workspacePermission = await resolveEffectiveWorkspacePermission(
     userId,
     wf.workspaceId,
-    activeContext.workspaceOwnerId,
     activeContext.workspaceOrganizationId
   )
 

@@ -406,3 +406,102 @@ export async function reassignBilledAccountForUser(
 
   return { reassigned, unresolved }
 }
+
+export interface ReassignOwnedWorkspacesResult {
+  reassigned: Array<{ workspaceId: string; newOwnerId: string }>
+  unresolved: string[]
+}
+
+/**
+ * Reassigns `ownerId` on every workspace owned by `departingUserId` to another
+ * eligible user, so the user can be deleted without the `workspace.owner_id`
+ * `ON DELETE CASCADE` silently deleting their workspaces.
+ *
+ * Preference order for the replacement:
+ *  1. The workspace billed account (if different from the departing user)
+ *  2. Any other workspace admin
+ *
+ * Returns workspaces that could not be reassigned (no distinct billed account and
+ * no other admin). Callers MUST block user deletion when `unresolved.length > 0`
+ * so the cascade can never nuke a workspace.
+ */
+export async function reassignOwnedWorkspacesForUser(
+  departingUserId: string
+): Promise<ReassignOwnedWorkspacesResult> {
+  const ownedWorkspaces = await db
+    .select({
+      id: workspaceTable.id,
+      billedAccountUserId: workspaceTable.billedAccountUserId,
+    })
+    .from(workspaceTable)
+    .where(eq(workspaceTable.ownerId, departingUserId))
+
+  if (ownedWorkspaces.length === 0) {
+    return { reassigned: [], unresolved: [] }
+  }
+
+  const reassigned: ReassignOwnedWorkspacesResult['reassigned'] = []
+  const unresolved: string[] = []
+
+  for (const ws of ownedWorkspaces) {
+    let replacement: string | null =
+      ws.billedAccountUserId !== departingUserId ? ws.billedAccountUserId : null
+
+    if (!replacement) {
+      const [admin] = await db
+        .select({ userId: permissions.userId })
+        .from(permissions)
+        .where(
+          and(
+            eq(permissions.entityType, 'workspace'),
+            eq(permissions.entityId, ws.id),
+            eq(permissions.permissionType, 'admin'),
+            ne(permissions.userId, departingUserId)
+          )
+        )
+        .limit(1)
+
+      replacement = admin?.userId ?? null
+    }
+
+    if (!replacement) {
+      unresolved.push(ws.id)
+      continue
+    }
+
+    const now = new Date()
+    await db
+      .update(workspaceTable)
+      .set({ ownerId: replacement, updatedAt: now })
+      .where(eq(workspaceTable.id, ws.id))
+
+    // Owners are admins — guarantee the new owner holds an admin permission row.
+    await db
+      .insert(permissions)
+      .values({
+        id: generateId(),
+        userId: replacement,
+        entityType: 'workspace',
+        entityId: ws.id,
+        permissionType: 'admin',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [permissions.userId, permissions.entityType, permissions.entityId],
+        set: { permissionType: 'admin', updatedAt: now },
+      })
+
+    reassigned.push({ workspaceId: ws.id, newOwnerId: replacement })
+  }
+
+  if (reassigned.length > 0) {
+    logger.info('Reassigned workspace ownership for departing user', {
+      departingUserId,
+      reassignedCount: reassigned.length,
+      unresolvedCount: unresolved.length,
+    })
+  }
+
+  return { reassigned, unresolved }
+}

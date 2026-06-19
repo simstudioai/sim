@@ -7,9 +7,14 @@ export * from './predicates'
 
 /**
  * Resolves the effective workspace permission under the governance inheritance
- * model: the workspace owner and the owners/admins of the organization that owns
- * the workspace are workspace admins. Returns the higher of any explicit grant
- * and any derived admin.
+ * model: the owners/admins of the organization that owns the workspace are
+ * derived workspace admins. Returns the higher of any explicit grant and the
+ * org-admin derivation.
+ *
+ * The workspace owner is intentionally NOT a special case: every owner already
+ * holds an explicit `admin` row in `permissions` (added at creation, verified
+ * across all production workspaces), so the lookup below already grants them
+ * admin. `workspace.ownerId` is a lifecycle anchor, not a permission input.
  *
  * Single source of truth for workspace-permission resolution, shared by the Next
  * app (`getEffectiveWorkspacePermission`) and the realtime server (via the
@@ -19,13 +24,8 @@ export * from './predicates'
 export async function resolveEffectiveWorkspacePermission(
   userId: string,
   workspaceId: string,
-  workspaceOwnerId: string,
   workspaceOrganizationId: string | null
 ): Promise<PermissionType | null> {
-  if (workspaceOwnerId === userId) {
-    return 'admin'
-  }
-
   const [permissionRow] = await db
     .select({ permissionType: permissions.permissionType })
     .from(permissions)
