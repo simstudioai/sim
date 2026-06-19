@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useMemo } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
@@ -29,10 +29,6 @@ interface MarkdownFileEditorProps {
  * (raw HTML, footnotes, linked images, >128KB); editing those would corrupt them, so the gate marks
  * them read-only (autosave never fires) while still rendering them in the same rich editor. There is
  * no separate raw/Monaco editor.
- *
- * The round-trip decision is made once, on the first SETTLED content, and locked for the mount
- * (keyed by file id). It is deferred while streaming — partial content would misclassify, and the
- * editor renders the live stream read-only regardless of the eventual verdict.
  */
 export function MarkdownFileEditor({
   file,
@@ -51,12 +47,17 @@ export function MarkdownFileEditor({
 
   const isStreaming = streamingContent !== undefined
 
-  const decisionRef = useRef<boolean | null>(null)
-  if (decisionRef.current === null && !isStreaming && data !== undefined) {
-    decisionRef.current = isRoundTripSafe(data)
-  }
+  // Whether the file's content round-trips losslessly through the editor. Derived from the live
+  // content — memoized on the bytes, so it only re-probes when they actually change — rather than
+  // locked on the first snapshot: locking could capture a stale/empty buffer (e.g. a just-created
+  // file before an agent stream's server write lands) and wrongly leave an unsafe document editable.
+  // Deferred while streaming: the content is partial and the editor renders the stream read-only.
+  const isContentRoundTripSafe = useMemo(
+    () => (isStreaming || data === undefined ? null : isRoundTripSafe(data)),
+    [isStreaming, data]
+  )
 
-  if (decisionRef.current === null && isLoading && !isStreaming) {
+  if (isContentRoundTripSafe === null && isLoading && !isStreaming) {
     return <PreviewLoadingFrame className='flex flex-1 flex-col' />
   }
 
@@ -64,7 +65,7 @@ export function MarkdownFileEditor({
     <RichMarkdownEditor
       file={file}
       workspaceId={workspaceId}
-      canEdit={canEdit && decisionRef.current !== false}
+      canEdit={canEdit && isContentRoundTripSafe !== false}
       autoFocus={autoFocus}
       onDirtyChange={onDirtyChange}
       onSaveStatusChange={onSaveStatusChange}
