@@ -93,10 +93,12 @@ export const useSidebarStore = create<SidebarState>()(
           applySidebarWidth(width)
         }
       },
-      // Only width is persisted; collapse lives in the cookie.
+      /** Only width is persisted; collapse lives in the cookie. */
       partialize: (state) => ({ sidebarWidth: state.sidebarWidth }),
-      // Never let a legacy persisted `isCollapsed` override the cookie-seeded
-      // value — the cookie is the source of truth (handles migration cleanly).
+      /**
+       * Never lets a legacy persisted `isCollapsed` override the cookie-seeded
+       * value — the cookie is the source of truth (handles migration cleanly).
+       */
       merge: (persisted, current) => ({
         ...current,
         ...(persisted as Partial<SidebarState>),

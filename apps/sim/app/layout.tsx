@@ -78,10 +78,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // window yields a width >= MIN instead of a sub-minimum sliver.
                 var defaultSidebarWidth = 248;
                 try {
-                  // Collapse is owned by the sidebar_collapsed cookie (the same
-                  // source the server renders structure from) and must never depend
-                  // on localStorage parsing succeeding. Read it first, then read the
-                  // persisted width defensively in its own try.
+                  // Collapse comes from the cookie (independent of localStorage
+                  // parsing); the persisted width is read defensively below.
                   var hasCookie = document.cookie.indexOf('sidebar_collapsed=') !== -1;
                   var collapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
 

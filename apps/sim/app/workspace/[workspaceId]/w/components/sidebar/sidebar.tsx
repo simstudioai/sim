@@ -394,14 +394,18 @@ export const Sidebar = memo(function Sidebar({ initialCollapsed = false }: Sideb
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
-  // The server renders from the `sidebar_collapsed` cookie (via `initialCollapsed`);
-  // the client store seeds from the same cookie, so both agree on the first paint.
-  // Until the store reports hydration we read the prop to guarantee that match,
-  // then the store takes over.
+  /**
+   * The server renders from the `sidebar_collapsed` cookie (via `initialCollapsed`)
+   * and the client store seeds from the same cookie, so both agree on the first
+   * paint. The prop is read until the store reports hydration to guarantee that
+   * match, after which the store takes over.
+   */
   const isCollapsed = hasHydrated ? storeIsCollapsed : initialCollapsed
 
-  // Hydrate the persisted width before paint (collapse already came from the
-  // cookie). Pre-paint so any width-dependent layout settles in the same commit.
+  /**
+   * Hydrates the persisted width before paint (collapse already came from the
+   * cookie) so any width-dependent layout settles in the same commit.
+   */
   useLayoutEffect(() => {
     void useSidebarStore.persist.rehydrate()
   }, [])
