@@ -1,9 +1,4 @@
 import { db } from '@sim/db'
-import type {
-  VfsSnapshotV1,
-  VfsSnapshotV1Job,
-  VfsSnapshotV1Workflow,
-} from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   knowledgeBase,
   knowledgeConnector,
@@ -16,6 +11,11 @@ import {
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import type {
+  VfsSnapshotV1,
+  VfsSnapshotV1Job,
+  VfsSnapshotV1Workflow,
+} from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
 import { canonicalWorkflowVfsDir, canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'

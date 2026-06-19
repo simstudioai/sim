@@ -142,7 +142,10 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
-    generateWorkspaceSnapshot.mockResolvedValue({ markdown: 'workspace context', snapshot: undefined })
+    generateWorkspaceSnapshot.mockResolvedValue({
+      markdown: 'workspace context',
+      snapshot: undefined,
+    })
     processContextsServer.mockResolvedValue([])
     resolveActiveResourceContext.mockResolvedValue(null)
     buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)
