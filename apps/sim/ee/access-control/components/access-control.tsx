@@ -1170,6 +1170,28 @@ export function AccessControl() {
     )
   }
 
+  const deleteConfirmModal = (
+    <ChipConfirmModal
+      open={!!deletingGroup}
+      onOpenChange={() => setDeletingGroup(null)}
+      srTitle='Delete Permission Group'
+      title='Delete Permission Group'
+      text={[
+        'Are you sure you want to delete ',
+        { text: deletingGroup?.name ?? 'this group', bold: true },
+        '? ',
+        { text: 'All members will be removed from this group.', error: true },
+        ' This action cannot be undone.',
+      ]}
+      confirm={{
+        label: 'Delete',
+        onClick: confirmDelete,
+        pending: deletePermissionGroup.isPending,
+        pendingLabel: 'Deleting...',
+      }}
+    />
+  )
+
   if (viewingGroup) {
     return (
       <>
@@ -1479,7 +1501,7 @@ export function AccessControl() {
                   {filteredToolBlocks.length > 0 && (
                     <div className='flex flex-col gap-1.5 border-[var(--border)] border-t pt-4'>
                       <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                        Tools
+                        Integrations and Triggers
                       </span>
                       <div className='grid grid-cols-3 gap-x-2 gap-y-0.5'>
                         {filteredToolBlocks.map((block) => {
@@ -1638,6 +1660,8 @@ export function AccessControl() {
           isAdding={bulkAddMembers.isPending}
           errorMessage={addMembersError}
         />
+
+        {deleteConfirmModal}
       </>
     )
   }
@@ -1784,25 +1808,7 @@ export function AccessControl() {
         />
       </ChipModal>
 
-      <ChipConfirmModal
-        open={!!deletingGroup}
-        onOpenChange={() => setDeletingGroup(null)}
-        srTitle='Delete Permission Group'
-        title='Delete Permission Group'
-        text={[
-          'Are you sure you want to delete ',
-          { text: deletingGroup?.name ?? 'this group', bold: true },
-          '? ',
-          { text: 'All members will be removed from this group.', error: true },
-          ' This action cannot be undone.',
-        ]}
-        confirm={{
-          label: 'Delete',
-          onClick: confirmDelete,
-          pending: deletePermissionGroup.isPending,
-          pendingLabel: 'Deleting...',
-        }}
-      />
+      {deleteConfirmModal}
     </>
   )
 }

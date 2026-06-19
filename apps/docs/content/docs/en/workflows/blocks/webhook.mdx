@@ -1,6 +1,6 @@
 ---
-title: Webhook
-description: The Webhook block sends an HTTP POST to an external endpoint, with automatic headers and optional signing.
+title: Outgoing Webhook
+description: The Outgoing Webhook block sends an HTTP POST to an external endpoint, with automatic headers and optional signing.
 pageType: reference
 ---
 
@@ -8,7 +8,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 import { BlockPreview, WorkflowPreview, WEBHOOK_NOTIFY_WORKFLOW, WEBHOOK_TRIGGER_WORKFLOW } from '@/components/workflow-preview'
 import { FAQ } from '@/components/ui/faq'
 
-The Webhook block sends HTTP POST requests to external webhook endpoints with automatic webhook headers and optional HMAC signing.
+The Outgoing Webhook block sends HTTP POST requests to external webhook endpoints with automatic webhook headers and optional HMAC signing.
 
 <BlockPreview type="webhook" />
 
@@ -77,16 +77,16 @@ Format the result, then POST it to a Slack, Discord, or custom endpoint.
 
 <WorkflowPreview workflow={WEBHOOK_TRIGGER_WORKFLOW} />
 
-When the Condition passes, the Webhook starts a process in another system.
+When the Condition passes, the Outgoing Webhook starts a process in another system.
 
 <Callout>
-The Webhook block always uses POST. For other HTTP methods or more control, use the [API block](/workflows/blocks/api).
+The Outgoing Webhook block always uses POST. For other HTTP methods or more control, use the [API block](/workflows/blocks/api).
 </Callout>
 
 <FAQ items={[
-  { question: "Can I use HTTP methods other than POST?", answer: "No. The Webhook block always sends POST requests. If you need GET, PUT, DELETE, or PATCH, use the API block instead, which supports all standard HTTP methods." },
+  { question: "Can I use HTTP methods other than POST?", answer: "No. The Outgoing Webhook block always sends POST requests. If you need GET, PUT, DELETE, or PATCH, use the API block instead, which supports all standard HTTP methods." },
   { question: "How does HMAC payload signing work?", answer: "When you provide a signing secret, the block generates an HMAC-SHA256 signature of the payload and includes it in the X-Webhook-Signature header in the format t=timestamp,v1=signature. The receiver can verify by computing HMAC-SHA256(secret, \"timestamp.body\") and comparing with the v1 value." },
   { question: "What headers are added automatically?", answer: "Every webhook request automatically includes Content-Type (application/json), X-Webhook-Timestamp (Unix timestamp in milliseconds), X-Delivery-ID (unique UUID), and Idempotency-Key (same as X-Delivery-ID for deduplication)." },
   { question: "Can custom headers override the automatic ones?", answer: "Yes. Any custom headers you define in the Additional Headers section will override automatic headers that share the same name." },
-  { question: "How is the Webhook block different from the API block?", answer: "The Webhook block is purpose-built for webhook delivery: it is POST-only, automatically adds webhook-specific headers (timestamp, delivery ID, idempotency key), and supports optional HMAC signing. The API block is more general-purpose with support for all HTTP methods, query parameters, and configurable retries." },
+  { question: "How is the Outgoing Webhook block different from the API block?", answer: "The Outgoing Webhook block is purpose-built for webhook delivery: it is POST-only, automatically adds webhook-specific headers (timestamp, delivery ID, idempotency key), and supports optional HMAC signing. The API block is more general-purpose with support for all HTTP methods, query parameters, and configurable retries." },
 ]} />
