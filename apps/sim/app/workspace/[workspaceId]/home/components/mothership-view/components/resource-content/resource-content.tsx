@@ -125,7 +125,6 @@ export const ResourceContent = memo(function ResourceContent({
     !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
   const textStreamingContent =
     isTextPreview &&
-    previewSession?.status === 'streaming' &&
     typeof previewSession?.previewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)
       ? previewSession.previewText
@@ -143,6 +142,7 @@ export const ResourceContent = memo(function ResourceContent({
           streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
+          inlineMarkdownEditor
         />
       </div>
     )
