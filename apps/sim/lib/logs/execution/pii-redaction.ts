@@ -29,6 +29,7 @@ export interface RedactablePayload {
   trigger?: unknown
   executionState?: unknown
   environment?: unknown
+  correlation?: unknown
 }
 
 /** Keys of {@link RedactablePayload} processed by the redactor, in order. */
@@ -41,6 +42,7 @@ const REDACTABLE_KEYS: (keyof RedactablePayload)[] = [
   'trigger',
   'executionState',
   'environment',
+  'correlation',
 ]
 
 /** Trace-span fields that carry runtime content (and therefore possible PII). */

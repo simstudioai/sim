@@ -93,6 +93,7 @@ describe('redactPIIFromExecution', () => {
       trigger: { type: 'webhook', data: { from: 'caller@x.com' } },
       executionState: { status: 'completed', note: 'state for e@f.com' },
       environment: { variables: { CONTACT: 'admin@x.com' } },
+      correlation: { source: 'corr@x.com' },
     }
 
     const result = await redactPIIFromExecution(payload, { entityTypes: ['EMAIL_ADDRESS'] })
@@ -107,6 +108,7 @@ describe('redactPIIFromExecution', () => {
     expect((result.trigger as any).data.from).toBe('MASKED(caller@x.com)')
     expect((result.executionState as any).note).toBe('MASKED(state for e@f.com)')
     expect((result.environment as any).variables.CONTACT).toBe('MASKED(admin@x.com)')
+    expect((result.correlation as any).source).toBe('MASKED(corr@x.com)')
   })
 
   it('returns payload unchanged when there is nothing to mask', async () => {

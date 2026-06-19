@@ -770,6 +770,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
       ...(builtExecutionData.environment !== undefined
         ? { environment: builtExecutionData.environment }
         : {}),
+      ...(builtExecutionData.correlation !== undefined
+        ? { correlation: builtExecutionData.correlation }
+        : {}),
     })
 
     const rawDurationMs =
@@ -796,6 +799,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
         : {}),
       ...(pii.environment !== undefined
         ? { environment: pii.environment as ExecutionEnvironment }
+        : {}),
+      ...(pii.correlation !== undefined
+        ? { correlation: pii.correlation as ExecutionData['correlation'] }
         : {}),
     }
 
