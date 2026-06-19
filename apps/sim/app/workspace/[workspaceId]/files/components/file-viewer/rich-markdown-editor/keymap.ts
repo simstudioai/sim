@@ -25,9 +25,9 @@ function selectAdjacentLeaf(editor: Editor, direction: 'up' | 'down'): boolean {
 /**
  * Editor-specific keyboard behavior layered on top of StarterKit's defaults:
  *
- * - **Backspace** at the start of a block whose previous sibling is a horizontal rule deletes the
- *   rule. ProseMirror's default `joinBackward` can't cross a leaf node, so without this pressing
- *   Backspace below a divider is a confusing no-op.
+ * - **Backspace** at the start of a heading reverts it to a paragraph; at the start of a block whose
+ *   previous sibling is a horizontal rule it deletes the rule (ProseMirror's default `joinBackward`
+ *   can't cross a leaf node, so without this pressing Backspace below a divider is a confusing no-op).
  * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
  *   block is already fully selected) falls through to the default whole-document select-all, the
  *   same scoped behavior as a code editor.
@@ -42,6 +42,11 @@ export const EditorKeymap = Extension.create({
       Backspace: ({ editor }) => {
         const { selection, doc } = editor.state
         if (!selection.empty || selection.$from.parentOffset !== 0) return false
+        // At the start of a heading, revert it to a paragraph (ProseMirror's default joins or
+        // no-ops, stranding the heading style); a second Backspace then merges as usual.
+        if (selection.$from.parent.type.name === 'heading') {
+          return editor.commands.setParagraph()
+        }
         const blockStart = selection.$from.before(selection.$from.depth)
         const nodeBefore = doc.resolve(blockStart).nodeBefore
         if (nodeBefore?.type.name !== 'horizontalRule') return false
