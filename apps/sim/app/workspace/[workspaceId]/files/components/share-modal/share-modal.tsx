@@ -85,18 +85,30 @@ export function ShareModal({
   const effectiveActive = effectiveMode !== 'private'
   const effectiveEmails = draftEmails ?? saved?.allowedEmails ?? []
 
+  // Org access-control may restrict which auth modes are allowed (`null` = all).
+  // The route is the source of truth; this just hides disallowed options.
+  const allowedAuthTypes = permissionConfig.allowedFileShareAuthTypes
+  const isAuthTypeAllowed = (mode: ShareAuthType) =>
+    allowedAuthTypes === null || allowedAuthTypes.includes(mode)
+
   const ssoEnabled = isTruthy(getEnv('NEXT_PUBLIC_SSO_ENABLED')) || savedAccessMode === 'sso'
-  const accessModes: AccessMode[] = [
-    'private',
+  const candidateAuthTypes: ShareAuthType[] = [
     'public',
     'password',
     'email',
     ...(ssoEnabled ? (['sso'] as const) : []),
   ]
+  // Keep the saved mode visible even if newly disallowed, so the current state shows.
+  const accessModes: AccessMode[] = [
+    'private',
+    ...candidateAuthTypes.filter((mode) => isAuthTypeAllowed(mode) || mode === savedAccessMode),
+  ]
 
-  // Org access-control policy can disable enabling new public links (the route is the
-  // source of truth; this just reflects it). Disabling an existing share stays allowed.
-  const enableBlockedByPolicy = permissionConfig.disablePublicFileSharing && !saved?.isActive
+  // The selected mode is blocked when org policy disables public sharing entirely
+  // (enabling a new share) or when the chosen auth mode isn't allowed.
+  const modeDisallowed = effectiveMode !== 'private' && !isAuthTypeAllowed(effectiveMode)
+  const enableBlockedByPolicy =
+    (permissionConfig.disablePublicFileSharing && !saved?.isActive) || modeDisallowed
 
   // A password share needs a secret: either one already stored or a freshly typed one.
   const passwordMissing =
@@ -169,6 +181,7 @@ export function ShareModal({
   }
 
   const accessHint = (() => {
+    if (modeDisallowed) return 'This sharing method is disabled by an administrator.'
     if (enableBlockedByPolicy)
       return 'Public sharing is disabled for this workspace by an administrator.'
     if (effectiveMode === 'private') return 'Only workspace members can access this file.'

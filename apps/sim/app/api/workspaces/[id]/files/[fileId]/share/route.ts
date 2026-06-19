@@ -100,11 +100,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'File not found' }, { status: 404 })
       }
 
-      // Enabling a public link is gated by the org's access-control policy; disabling
-      // is always allowed so users can still un-share after the policy is turned on.
+      // Enabling a share is gated by the org's access-control policy (both the
+      // master on/off and the per-auth-type allow-list); disabling is always
+      // allowed so users can still un-share after the policy is turned on.
       if (isActive) {
         try {
-          await validatePublicFileSharing(session.user.id, workspaceId)
+          await validatePublicFileSharing(session.user.id, workspaceId, authType ?? 'public')
         } catch (error) {
           if (error instanceof PublicFileSharingNotAllowedError) {
             logger.warn(`[${requestId}] Public file sharing disabled for workspace ${workspaceId}`)
