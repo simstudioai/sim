@@ -12,7 +12,7 @@ import json
 from typing import List, Dict, Any
 
 try:
-    from presidio_analyzer import AnalyzerEngine
+    from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
     from presidio_anonymizer import AnonymizerEngine
     from presidio_anonymizer.entities import OperatorConfig
 except ImportError:
@@ -22,6 +22,52 @@ except ImportError:
         "detectedEntities": []
     }))
     sys.exit(0)
+
+
+class VinRecognizer(PatternRecognizer):
+    """
+    Recognizes Vehicle Identification Numbers (17 chars, A-Z/0-9 excluding
+    I/O/Q) and validates the ISO 3779 check digit (position 9). Validation makes
+    accidental matches on arbitrary 17-char codes (request ids, SKUs, tokens)
+    extremely unlikely. Note: some non-North-American VINs don't use the check
+    digit and will be skipped — an intentional bias toward precision.
+    """
+
+    _TRANSLIT = {
+        **{str(d): d for d in range(10)},
+        "A": 1, "B": 2, "C": 3, "D": 4, "E": 5, "F": 6, "G": 7, "H": 8,
+        "J": 1, "K": 2, "L": 3, "M": 4, "N": 5, "P": 7, "R": 9,
+        "S": 2, "T": 3, "U": 4, "V": 5, "W": 6, "X": 7, "Y": 8, "Z": 9,
+    }
+    _WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2]
+
+    def validate_result(self, pattern_text: str):
+        vin = pattern_text.upper()
+        if len(vin) != 17:
+            return False
+        try:
+            total = sum(self._TRANSLIT[c] * w for c, w in zip(vin, self._WEIGHTS))
+        except KeyError:
+            return False
+        check = total % 11
+        expected = "X" if check == 10 else str(check)
+        return vin[8] == expected
+
+
+def build_analyzer() -> "AnalyzerEngine":
+    """
+    AnalyzerEngine with custom recognizers registered on top of the Presidio
+    defaults. Adds a check-digit-validated VIN recognizer.
+    """
+    analyzer = AnalyzerEngine()
+    vin_pattern = Pattern(name="vin", regex=r"\b[A-HJ-NPR-Z0-9]{17}\b", score=0.7)
+    vin_recognizer = VinRecognizer(
+        supported_entity="VIN",
+        patterns=[vin_pattern],
+        context=["vin", "vehicle", "chassis"],
+    )
+    analyzer.registry.add_recognizer(vin_recognizer)
+    return analyzer
 
 
 def detect_pii(
@@ -44,7 +90,7 @@ def detect_pii(
     """
     try:
         # Initialize Presidio engines
-        analyzer = AnalyzerEngine()
+        analyzer = build_analyzer()
         
         # Analyze text for PII
         results = analyzer.analyze(
@@ -124,18 +170,64 @@ def detect_pii(
         }
 
 
+def mask_batch(
+    texts: List[str],
+    entity_types: List[str],
+    language: str = "en"
+) -> Dict[str, Any]:
+    """
+    Mask PII across many strings in a single process, reusing one analyzer +
+    anonymizer instance (engine construction loads the spaCy model and is the
+    dominant cost). Returns masked text per input, in input order; strings with
+    no detected PII are returned unchanged so callers can substitute directly.
+    """
+    analyzer = build_analyzer()
+    anonymizer = AnonymizerEngine()
+    entities = entity_types if entity_types else None
+
+    results = []
+    for text in texts:
+        if not text:
+            results.append({"maskedText": text})
+            continue
+        analyzer_results = analyzer.analyze(text=text, entities=entities, language=language)
+        if not analyzer_results:
+            results.append({"maskedText": text})
+            continue
+        operators = {
+            entity_type: OperatorConfig("replace", {"new_value": f"<{entity_type}>"})
+            for entity_type in set([r.entity_type for r in analyzer_results])
+        }
+        anonymized = anonymizer.anonymize(
+            text=text,
+            analyzer_results=analyzer_results,
+            operators=operators
+        )
+        results.append({"maskedText": anonymized.text})
+
+    return {"passed": True, "results": results}
+
+
 def main():
     """Main entry point for CLI usage"""
     try:
         # Read input from stdin
         input_data = sys.stdin.read()
         data = json.loads(input_data)
-        
-        text = data.get("text", "")
+
         entity_types = data.get("entityTypes", [])
-        mode = data.get("mode", "block")
         language = data.get("language", "en")
-        
+
+        # Batch mask mode: an array of texts processed with one warm engine pair.
+        if "texts" in data:
+            texts = data.get("texts", [])
+            result = mask_batch(texts, entity_types, language)
+            print(f"__SIM_RESULT__={json.dumps(result)}")
+            return
+
+        text = data.get("text", "")
+        mode = data.get("mode", "block")
+
         # Validate inputs
         if not text:
             result = {
@@ -145,7 +237,7 @@ def main():
             }
         else:
             result = detect_pii(text, entity_types, mode, language)
-        
+
         # Output result with marker for parsing
         print(f"__SIM_RESULT__={json.dumps(result)}")
         
