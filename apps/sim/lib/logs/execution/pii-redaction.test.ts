@@ -74,24 +74,25 @@ describe('redactPIIFromExecution', () => {
     expect(result.finalOutput).toBe(REDACTION_FAILED_MARKER)
   })
 
-  it('skips oversized strings without consuming a masked slot', async () => {
-    const huge = 'x'.repeat(200 * 1024)
-    const payload = { finalOutput: { big: huge, small: 'pii' } }
+  it('masks large strings too (never left unredacted)', async () => {
+    const big = 'x'.repeat(200 * 1024)
+    const payload = { finalOutput: { big, small: 'pii' } }
 
     const result = await redactPIIFromExecution(payload, { entityTypes: [] })
 
-    expect((result.finalOutput as any).big).toBe(huge)
+    expect((result.finalOutput as any).big).toBe(`MASKED(${big})`)
     expect((result.finalOutput as any).small).toBe('MASKED(pii)')
-    expect(mockMaskPIIBatch.mock.calls[0][0]).toEqual(['pii'])
+    expect(mockMaskPIIBatch.mock.calls[0][0]).toEqual([big, 'pii'])
   })
 
-  it('masks span error/errorMessage and top-level error, trigger, executionState', async () => {
+  it('masks span error/errorMessage and top-level error, trigger, executionState, environment', async () => {
     const payload = {
       traceSpans: [{ blockId: 'b1', error: 'failed for bob@x.com', errorMessage: 'bad input z' }],
       error: 'run failed: a@b.com',
       completionFailure: 'cancelled by c@d.com',
       trigger: { type: 'webhook', data: { from: 'caller@x.com' } },
       executionState: { status: 'completed', note: 'state for e@f.com' },
+      environment: { variables: { CONTACT: 'admin@x.com' } },
     }
 
     const result = await redactPIIFromExecution(payload, { entityTypes: ['EMAIL_ADDRESS'] })
@@ -105,6 +106,7 @@ describe('redactPIIFromExecution', () => {
     expect((result.trigger as any).type).toBe('MASKED(webhook)')
     expect((result.trigger as any).data.from).toBe('MASKED(caller@x.com)')
     expect((result.executionState as any).note).toBe('MASKED(state for e@f.com)')
+    expect((result.environment as any).variables.CONTACT).toBe('MASKED(admin@x.com)')
   })
 
   it('returns payload unchanged when there is nothing to mask', async () => {

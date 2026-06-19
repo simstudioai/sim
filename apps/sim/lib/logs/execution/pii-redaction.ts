@@ -7,14 +7,10 @@ const logger = createLogger('PiiRedaction')
 export const REDACTION_FAILED_MARKER = '[REDACTION_FAILED]'
 
 /**
- * Strings larger than this are skipped (left as-is). They are almost always
- * base64 blobs / embedded JSON rather than PII prose, and would dominate NER time.
- */
-const PII_MAX_STRING_BYTES = 128 * 1024
-
-/**
- * Upper bound on total text masked for one execution. Beyond this we scrub rather
- * than spend minutes in NER. Typical inline logs (≤3MB) stay well under.
+ * Upper bound on total text masked for one execution. Beyond this we scrub the
+ * whole payload rather than spend minutes in NER (never leave it unmasked).
+ * Typical inline logs (≤3MB) stay well under. Individual strings are never
+ * skipped by size — they would otherwise persist unredacted.
  */
 const PII_MAX_TOTAL_BYTES = 16 * 1024 * 1024
 
@@ -32,6 +28,7 @@ export interface RedactablePayload {
   completionFailure?: unknown
   trigger?: unknown
   executionState?: unknown
+  environment?: unknown
 }
 
 /** Keys of {@link RedactablePayload} processed by the redactor, in order. */
@@ -43,6 +40,7 @@ const REDACTABLE_KEYS: (keyof RedactablePayload)[] = [
   'completionFailure',
   'trigger',
   'executionState',
+  'environment',
 ]
 
 /** Trace-span fields that carry runtime content (and therefore possible PII). */
@@ -57,7 +55,7 @@ const SPAN_CONTENT_FIELDS = [
 ] as const
 
 function isEligibleString(value: string): boolean {
-  return value.length > 0 && Buffer.byteLength(value, 'utf8') <= PII_MAX_STRING_BYTES
+  return value.length > 0
 }
 
 /**

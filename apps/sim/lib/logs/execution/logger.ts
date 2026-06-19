@@ -767,6 +767,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
       ...(builtExecutionData.executionState !== undefined
         ? { executionState: builtExecutionData.executionState }
         : {}),
+      ...(builtExecutionData.environment !== undefined
+        ? { environment: builtExecutionData.environment }
+        : {}),
     })
 
     const rawDurationMs =
@@ -790,6 +793,9 @@ export class ExecutionLogger implements IExecutionLoggerService {
       ...(pii.trigger !== undefined ? { trigger: pii.trigger as ExecutionTrigger } : {}),
       ...(pii.executionState !== undefined
         ? { executionState: pii.executionState as SerializableExecutionState }
+        : {}),
+      ...(pii.environment !== undefined
+        ? { environment: pii.environment as ExecutionEnvironment }
         : {}),
     }
 
