@@ -20,6 +20,7 @@ import {
   splitFrontmatter,
 } from './markdown-fidelity'
 import { EditorBubbleMenu } from './menus/bubble-menu'
+import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
 
@@ -116,7 +117,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       file={file}
       workspaceId={workspaceId}
       initialContent={content}
-      isEditable={canEdit}
+      canEdit={canEdit}
       autoFocus={autoFocus}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
@@ -128,7 +129,7 @@ interface LoadedRichMarkdownEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
   initialContent: string
-  isEditable: boolean
+  canEdit: boolean
   autoFocus?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
@@ -144,11 +145,24 @@ function LoadedRichMarkdownEditor({
   file,
   workspaceId,
   initialContent,
-  isEditable,
+  canEdit,
   autoFocus,
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
+  // Whether the opened content round-trips losslessly through the editor — computed once, on the
+  // exact content the editor opens with (keyed by file id, so it remounts per file), and locked for
+  // the editor's lifetime. A round-trip-unsafe document (raw HTML, footnotes, >128KB, …) opens
+  // read-only so an edit can't corrupt it; a safe one stays editable. It is never re-derived: a
+  // dirty document is round-trip-safe by construction (the editor only emits safe markdown), so
+  // flipping editability off mid-edit would only strand unsaved edits (autosave, ⌘S, the toolbar
+  // Save, and the unmount flush all gate on it).
+  const roundTripSafeRef = useRef<boolean | null>(null)
+  if (roundTripSafeRef.current === null) {
+    roundTripSafeRef.current = isRoundTripSafe(initialContent)
+  }
+  const isEditable = canEdit && roundTripSafeRef.current
+
   const { frontmatter, body } = useMemo(() => splitFrontmatter(initialContent), [initialContent])
   const frontmatterRef = useRef(frontmatter)
   frontmatterRef.current = frontmatter

@@ -32,8 +32,8 @@ const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfView
   ssr: false,
 })
 
-const MarkdownFileEditor = dynamic(
-  () => import('./rich-markdown-editor/markdown-file-editor').then((m) => m.MarkdownFileEditor),
+const RichMarkdownEditor = dynamic(
+  () => import('./rich-markdown-editor/rich-markdown-editor').then((m) => m.RichMarkdownEditor),
   { ssr: false, loading: () => <PreviewLoadingFrame className='flex flex-1 flex-col' /> }
 )
 
@@ -130,7 +130,7 @@ export function FileViewer({
       // the bubble menu, and every other editing affordance.
       if (isMarkdownFile(file)) {
         return (
-          <MarkdownFileEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
         )
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
@@ -143,7 +143,7 @@ export function FileViewer({
 
     if (isMarkdownFile(file)) {
       return (
-        <MarkdownFileEditor
+        <RichMarkdownEditor
           key={file.id}
           file={file}
           workspaceId={workspaceId}
