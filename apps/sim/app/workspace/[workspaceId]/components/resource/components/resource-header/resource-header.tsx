@@ -371,6 +371,9 @@ interface BreadcrumbLocationPopoverProps {
   veilBoundaryRef: React.RefObject<HTMLDivElement | null>
 }
 
+/** How long the reopen latch is held after a click-to-navigate, covering the route swap. */
+const NAVIGATE_LATCH_MS = 250
+
 function BreadcrumbLocationPopover({
   icon: Icon,
   breadcrumbs,
@@ -386,11 +389,14 @@ function BreadcrumbLocationPopover({
    * veil and popover content would snap away instead of fading — a visible
    * flash. {@link navigateAndClose} closes the popover before running the
    * crumb's handler and latches this so the pointer still resting on the
-   * trigger can't re-fire `openPopover` mid-navigation. It is cleared on the
-   * next pointer/focus exit so the popover keeps working when the handler does
-   * not actually navigate (e.g. an unsaved-changes guard that opens a modal).
+   * trigger can't re-fire `openPopover` mid-navigation. The latch is held by a
+   * short timer (not cleared on the next pointer exit, which fires immediately
+   * and would let the popover flash back open before the route swaps); the
+   * timer releases it so the popover keeps working when the handler does not
+   * actually navigate (e.g. an unsaved-changes guard that opens a modal).
    */
   const navigatingRef = useRef(false)
+  const navigateLatchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rootBreadcrumb = breadcrumbs[0]
 
   const clearCloseTimeout = () => {
@@ -407,7 +413,6 @@ function BreadcrumbLocationPopover({
   }
 
   const scheduleClose = () => {
-    navigatingRef.current = false
     clearCloseTimeout()
     closeTimeoutRef.current = setTimeout(() => {
       setOpen(false)
@@ -421,11 +426,17 @@ function BreadcrumbLocationPopover({
     clearCloseTimeout()
     setOpen(false)
     onClick()
+    if (navigateLatchRef.current) clearTimeout(navigateLatchRef.current)
+    navigateLatchRef.current = setTimeout(() => {
+      navigatingRef.current = false
+      navigateLatchRef.current = null
+    }, NAVIGATE_LATCH_MS)
   }
 
   useEffect(() => {
     return () => {
       if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+      if (navigateLatchRef.current) clearTimeout(navigateLatchRef.current)
     }
   }, [])
 
