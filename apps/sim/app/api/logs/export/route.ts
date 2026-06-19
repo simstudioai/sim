@@ -1,5 +1,5 @@
 import { dbReplica } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -10,6 +10,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
 import { buildFilterConditions, LogFilterParamsSchema } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsExportAPI')
 
@@ -72,6 +73,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       'traceSpans',
     ].join(',')
 
+    const access = await checkWorkspaceAccess(params.workspaceId, userId)
+    if (!access.hasAccess) {
+      return new NextResponse(`${header}\n`, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="logs-export.csv"',
+          'Cache-Control': 'no-cache',
+        },
+      })
+    }
+
     const encoder = new TextEncoder()
     const stream = new ReadableStream<Uint8Array>({
       start: async (controller) => {
@@ -84,14 +97,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
               .select(selectColumns)
               .from(workflowExecutionLogs)
               .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-              .innerJoin(
-                permissions,
-                and(
-                  eq(permissions.entityType, 'workspace'),
-                  eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-                  eq(permissions.userId, userId)
-                )
-              )
               .where(conditions)
               .orderBy(desc(workflowExecutionLogs.startedAt))
               .limit(pageSize)

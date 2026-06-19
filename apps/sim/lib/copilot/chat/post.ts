@@ -1,10 +1,10 @@
 import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
 import { db } from '@sim/db'
-import { copilotChats, permissions } from '@sim/db/schema'
+import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
@@ -48,6 +48,7 @@ import { resolveWorkflowIdForUser } from '@/lib/workflows/utils'
 import {
   getUserEntityPermissions,
   isWorkspaceAccessDeniedError,
+  type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
 import type { ChatContext } from '@/stores/panel'
 
@@ -194,6 +195,7 @@ type UnifiedChatBranch =
   | {
       kind: 'workspace'
       workspaceId: string
+      workspacePermission: PermissionType | null
       effectiveModel: string
       goRoute: '/api/mothership'
       titleModel: string
@@ -639,25 +641,20 @@ async function resolveBranch(params: {
     return createBadRequestResponse('workspaceId is required when workflowId is not provided')
   }
 
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, authenticatedUserId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, requestedWorkspaceId)
-      )
-    )
-    .limit(1)
+  const workspacePermission = await getUserEntityPermissions(
+    authenticatedUserId,
+    'workspace',
+    requestedWorkspaceId
+  )
 
-  if (!permissionRow) {
+  if (workspacePermission === null) {
     return createBadRequestResponse('Workspace not found or access denied')
   }
 
   return {
     kind: 'workspace',
     workspaceId: requestedWorkspaceId,
+    workspacePermission,
     effectiveModel: DEFAULT_MODEL,
     goRoute: '/api/mothership',
     titleModel: DEFAULT_MODEL,
@@ -880,15 +877,22 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       })
 
       const workspaceId = branch.workspaceId
-      const userPermissionPromise = workspaceId
-        ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch((error) => {
-            logger.warn('Failed to load user permissions', {
-              error: getErrorMessage(error),
-              workspaceId,
-            })
-            return null
-          })
-        : Promise.resolve(null)
+      // The workspace branch already resolved this permission (and gated on it)
+      // during branch resolution; reuse it instead of querying again.
+      const userPermissionPromise =
+        branch.kind === 'workspace'
+          ? Promise.resolve(branch.workspacePermission)
+          : workspaceId
+            ? getUserEntityPermissions(authenticatedUserId, 'workspace', workspaceId).catch(
+                (error) => {
+                  logger.warn('Failed to load user permissions', {
+                    error: getErrorMessage(error),
+                    workspaceId,
+                  })
+                  return null
+                }
+              )
+            : Promise.resolve(null)
       // Wrap the pre-LLM prep work in spans so the trace waterfall shows
       // where time is going between "request received" and "llm.stream
       // opens". Previously these ran bare under the root and inflated the

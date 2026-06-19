@@ -8,6 +8,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { organizationParamsSchema } from '@/lib/api/contracts/organization'
@@ -117,16 +118,25 @@ export const GET = withRouteHandler(
         permissionsByUser.set(row.userId, list)
       }
 
-      const members = memberRows.map((row) => ({
-        memberId: row.memberId,
-        userId: row.userId,
-        role: row.role,
-        createdAt: row.createdAt,
-        name: row.userName,
-        email: row.userEmail,
-        image: row.userImage,
-        workspaces: permissionsByUser.get(row.userId) ?? [],
-      }))
+      const members = memberRows.map((row) => {
+        const isOrgAdmin = isOrgAdminRole(row.role)
+        return {
+          memberId: row.memberId,
+          userId: row.userId,
+          role: row.role,
+          createdAt: row.createdAt,
+          name: row.userName,
+          email: row.userEmail,
+          image: row.userImage,
+          workspaces: isOrgAdmin
+            ? orgWorkspaces.map((ws) => ({
+                workspaceId: ws.id,
+                workspaceName: ws.name,
+                permission: 'admin' as const,
+              }))
+            : (permissionsByUser.get(row.userId) ?? []),
+        }
+      })
 
       const externalPermissionRows =
         orgWorkspaceIds.length > 0

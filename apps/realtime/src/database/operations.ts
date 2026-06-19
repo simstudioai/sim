@@ -8,6 +8,7 @@ import {
   workflowSubflows,
 } from '@sim/db'
 import { createLogger } from '@sim/logger'
+import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import {
   BLOCK_OPERATIONS,
   BLOCKS_OPERATIONS,
@@ -20,7 +21,6 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { randomFloat } from '@sim/utils/random'
-import { getActiveWorkflowContext } from '@sim/workflow-authz'
 import { loadWorkflowFromNormalizedTablesRaw } from '@sim/workflow-persistence/load'
 import { mergeSubBlockValues } from '@sim/workflow-persistence/subblocks'
 import { isWorkflowBlockProtected } from '@sim/workflow-types/workflow'

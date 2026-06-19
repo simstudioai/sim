@@ -1231,6 +1231,16 @@ export const workspace = pgTable(
     name: text('name').notNull(),
     color: text('color').notNull().default('#33C482'),
     logoUrl: text('logo_url'),
+    /**
+     * @deprecated Not a permission or identity concept — do not use for admin/access
+     * checks. The owner→admin derivation is redundant: every workspace owner already
+     * has an explicit `admin` row in `permissions` (verified across all production
+     * workspaces) and all creation paths add one. Retained only as the lifecycle
+     * anchor — `onDelete: 'cascade'` cleans up a user's workspaces on account
+     * deletion — and the ownership-transfer target when an owner is removed. For
+     * admin checks use explicit `permissions` rows; for the workspace's principal
+     * billing identity use `billedAccountUserId`.
+     */
     ownerId: text('owner_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
@@ -1447,6 +1457,17 @@ export const invitationWorkspaceGrant = pgTable(
   })
 )
 
+/**
+ * Polymorphic access grants: `entityType` + `entityId` reference a workspace,
+ * workflow, organization, etc. by id, but `entityId` is **not a foreign key** —
+ * so deleting the referenced entity does NOT cascade-delete these rows. Soft
+ * deletes (e.g. workspace archive) intentionally keep them: the entity is blocked
+ * everywhere by its `archivedAt`, so the rows are harmless, and a future restore
+ * would need them. Only a **hard** delete/purge of an entity must remove its
+ * grants explicitly — e.g.
+ * `DELETE FROM permissions WHERE entity_type = 'workspace' AND entity_id = $id` —
+ * or they orphan.
+ */
 export const permissions = pgTable(
   'permissions',
   {
@@ -1528,7 +1549,7 @@ export const knowledgeBase = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
-    workspaceId: text('workspace_id').references(() => workspace.id),
+    workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     description: text('description'),
 

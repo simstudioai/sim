@@ -137,7 +137,7 @@ export {
 } from './terminal-console.mock'
 // URL mocks
 export { urlsMock, urlsMockFns } from './urls.mock'
-// Workflow authz package mocks (for @sim/workflow-authz)
+// Workflow authz package mocks (for @sim/platform-authz/workflow)
 export { workflowAuthzMock, workflowAuthzMockFns } from './workflow-authz.mock'
 // Workflows API utils mocks (for @/app/api/workflows/utils)
 export { workflowsApiUtilsMock, workflowsApiUtilsMockFns } from './workflows-api-utils.mock'

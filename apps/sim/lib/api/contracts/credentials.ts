@@ -229,6 +229,8 @@ export const workspaceCredentialMemberSchema = z.object({
   userName: z.string().nullable(),
   userEmail: z.string().nullable(),
   userImage: z.string().nullable().optional(),
+  /** `workspace-admin` roles are derived from workspace admin and cannot be changed. */
+  roleSource: z.enum(['explicit', 'workspace-admin']).optional(),
 })
 
 export type WorkspaceCredentialMember = z.output<typeof workspaceCredentialMemberSchema>

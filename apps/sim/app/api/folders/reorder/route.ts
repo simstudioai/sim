@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
 import { workflowFolder } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, FolderLockedError } from '@sim/workflow-authz'
+import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { reorderFoldersContract } from '@/lib/api/contracts'

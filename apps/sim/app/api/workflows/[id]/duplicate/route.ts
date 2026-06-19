@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { FolderLockedError } from '@sim/workflow-authz'
+import { FolderLockedError } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { duplicateWorkflowContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'

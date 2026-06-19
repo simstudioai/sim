@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/workflow-authz'
+import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
 import { deploymentsPromoteContract } from '@/lib/api/contracts/tools/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'

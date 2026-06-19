@@ -210,11 +210,25 @@ export const auth = betterAuth({
           )
         }
 
-        const { reassignBilledAccountForUser } = await import('@/lib/workspaces/utils')
+        const { reassignBilledAccountForUser, reassignOwnedWorkspacesForUser } = await import(
+          '@/lib/workspaces/utils'
+        )
         const { unresolved } = await reassignBilledAccountForUser(deletingUser.id)
         if (unresolved.length > 0) {
           throw new Error(
             `Your account is the billing account for ${unresolved.length} workspace${unresolved.length === 1 ? '' : 's'} with no other admin to take it over. Add another admin to ${unresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${unresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
+          )
+        }
+
+        // Reassign workspace ownership BEFORE deletion so the `workspace.owner_id`
+        // ON DELETE CASCADE can never silently nuke workspaces this user owns
+        // (e.g. org workspaces they created but are billed to the org owner).
+        const { unresolved: ownedUnresolved } = await reassignOwnedWorkspacesForUser(
+          deletingUser.id
+        )
+        if (ownedUnresolved.length > 0) {
+          throw new Error(
+            `Your account owns ${ownedUnresolved.length} workspace${ownedUnresolved.length === 1 ? '' : 's'} with no other admin to take over ownership. Add another admin to ${ownedUnresolved.length === 1 ? 'that workspace' : 'those workspaces'} or delete ${ownedUnresolved.length === 1 ? 'it' : 'them'} before deleting your account.`
           )
         }
       },

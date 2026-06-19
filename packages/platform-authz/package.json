@@ -1,5 +1,5 @@
 {
-  "name": "@sim/workflow-authz",
+  "name": "@sim/platform-authz",
   "version": "0.1.0",
   "private": true,
   "sideEffects": false,
@@ -10,9 +10,17 @@
     "node": ">=20.0.0"
   },
   "exports": {
-    ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+    "./predicates": {
+      "types": "./src/predicates.ts",
+      "default": "./src/predicates.ts"
+    },
+    "./workspace": {
+      "types": "./src/workspace.ts",
+      "default": "./src/workspace.ts"
+    },
+    "./workflow": {
+      "types": "./src/workflow.ts",
+      "default": "./src/workflow.ts"
     }
   },
   "scripts": {

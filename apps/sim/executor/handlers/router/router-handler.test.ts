@@ -5,6 +5,21 @@ import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
 
+vi.mock('@/lib/credentials/access', () => ({
+  getCredentialActorContext: vi.fn().mockResolvedValue({
+    credential: {
+      id: 'test-vertex-credential',
+      type: 'oauth',
+      workspaceId: 'test-workspace',
+      accountId: 'test-vertex-credential-id',
+    },
+    member: { role: 'admin', status: 'active' },
+    hasWorkspaceAccess: true,
+    canWriteWorkspace: true,
+    isAdmin: true,
+  }),
+}))
+
 import { generateRouterPrompt, generateRouterV2Prompt } from '@/blocks/blocks/router'
 import { BlockType } from '@/executor/constants'
 import { RouterBlockHandler } from '@/executor/handlers/router/router-handler'
@@ -65,6 +80,7 @@ describe('RouterBlockHandler', () => {
 
     mockContext = {
       workflowId: 'test-workflow-id',
+      userId: 'test-user',
       blockStates: new Map(),
       blockLogs: [],
       metadata: { duration: 0 },
@@ -363,6 +379,7 @@ describe('RouterBlockHandler V2', () => {
 
     mockContext = {
       workflowId: 'test-workflow-id',
+      userId: 'test-user',
       blockStates: new Map(),
       blockLogs: [],
       metadata: { duration: 0 },
