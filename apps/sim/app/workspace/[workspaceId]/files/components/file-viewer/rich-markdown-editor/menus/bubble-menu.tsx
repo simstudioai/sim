@@ -66,7 +66,7 @@ interface EditorBubbleMenuProps {
 }
 
 /**
- * Floating formatting toolbar shown on text selection (Linear-style). Marks and the common
+ * Floating formatting toolbar shown on text selection. Marks and the common
  * block types; the link button swaps the bar into an inline URL editor. Richer block inserts
  * live in the `/` slash menu. Active states are read through {@link useEditorState} so the bar
  * stays correct without re-rendering the editor on every transaction.

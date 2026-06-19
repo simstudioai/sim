@@ -136,8 +136,6 @@ export function FileViewer({
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
     }
 
-    // Markdown renders in the inline rich editor when idle. During agent streaming we keep
-    // the raw/preview editor, which already handles incremental token reconciliation.
     if (isMarkdownFile(file) && streamingContent === undefined) {
       return (
         <MarkdownFileEditor

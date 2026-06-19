@@ -149,9 +149,9 @@ export const MarkdownCodeBlock = CodeBlock.extend({
 })
 
 /**
- * Code block with hover-revealed controls (language picker, line-wrap toggle, copy), in the
- * style of Linear's editor. The `language` attribute drives {@link CodeBlockHighlight}'s Prism
- * highlighting and serializes to the ```lang fence on save; wrap is a view-only preference.
+ * Code block with hover-revealed controls (language picker, line-wrap toggle, copy). The
+ * `language` attribute drives {@link CodeBlockHighlight}'s Prism highlighting and serializes to
+ * the ```lang fence on save; wrap is a view-only preference.
  */
 export const CodeBlockWithLanguage = MarkdownCodeBlock.extend({
   addNodeView() {

@@ -36,8 +36,8 @@ interface RichMarkdownEditorProps {
 
 /**
  * Inline WYSIWYG markdown editor (TipTap/ProseMirror) for markdown files. Renders a
- * single editing surface — markdown is transformed inline as you type, Linear-style —
- * with no raw/preview split. Content loading and autosave are delegated to
+ * single editing surface — markdown is transformed inline as you type — with no raw/preview
+ * split. Content loading and autosave are delegated to
  * {@link useEditableFileContent}; this component only renders the editor and bridges
  * markdown in and out of it.
  */
@@ -98,7 +98,6 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
         .catch(() => null)
       const editor = editorInstanceRef.current
       if (!result || !editor) continue
-      // The doc may have shrunk during the await; clamp so the insert can't land out of bounds.
       const safePosition = Math.min(position, editor.state.doc.content.size)
       try {
         editor

@@ -17,8 +17,8 @@ function escapeAttr(value: string): string {
 
 /**
  * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
- * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML
- * (the same convention GitHub uses). Unsized images stay clean `![alt](src)`.
+ * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
+ * preserve its dimensions. Unsized images stay clean `![alt](src)`.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}

@@ -30,7 +30,7 @@ function selectAdjacentLeaf(editor: Editor, direction: 'up' | 'down'): boolean {
  *   Backspace below a divider is a confusing no-op.
  * - **Mod-A** inside a code block selects only that block's contents; pressing it again (when the
  *   block is already fully selected) falls through to the default whole-document select-all, the
- *   same scoped behavior as Linear and code editors.
+ *   same scoped behavior as a code editor.
  * - **ArrowUp/ArrowDown** select an adjacent divider or image (see {@link selectAdjacentLeaf}).
  */
 export const EditorKeymap = Extension.create({

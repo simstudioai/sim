@@ -54,8 +54,6 @@ export function MarkdownFileEditor({
     return <PreviewLoadingFrame className='flex flex-1 flex-col' />
   }
 
-  // On a failed fetch, fall back to the raw editor rather than mount the rich editor over empty
-  // content; a later retry-success resolves `data` and the gate decides normally.
   if (decisionRef.current === null && error) {
     return (
       <TextEditor
