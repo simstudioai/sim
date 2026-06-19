@@ -97,9 +97,26 @@ export const piiRedactionRuleSchema = z.object({
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
 
-/** Enterprise PII redaction policy applied to workflow logs on persist. */
+/**
+ * Enterprise PII redaction policy applied to workflow logs on persist. Each
+ * scope is unique: at most one all-workspaces rule (`workspaceId: null`) and at
+ * most one rule per workspace — resolution is most-specific-wins, so duplicate
+ * scopes would make masking depend on array order.
+ */
 export const piiRedactionSettingsSchema = z.object({
-  rules: z.array(piiRedactionRuleSchema).max(1000),
+  rules: z
+    .array(piiRedactionRuleSchema)
+    .max(1000)
+    .refine(
+      (rules) => {
+        const scopes = rules.map((r) => r.workspaceId ?? '__all__')
+        return new Set(scopes).size === scopes.length
+      },
+      {
+        message:
+          'Each workspace (and the all-workspaces default) may have at most one PII redaction rule.',
+      }
+    ),
 })
 
 export type PiiRedactionSettings = z.output<typeof piiRedactionSettingsSchema>
