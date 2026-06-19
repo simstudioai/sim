@@ -34,9 +34,10 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
     setError(null)
     setIsLoading(true)
     try {
+      const normalizedEmail = email.trim().toLowerCase()
       const { eligible } = await requestJson(publicFileSSOContract, {
         params: { token },
-        body: { email },
+        body: { email: normalizedEmail },
       })
       if (!eligible) {
         setError('Email not authorized for this file.')
@@ -45,7 +46,7 @@ export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
       }
       const callbackUrl = `/f/${token}`
       router.push(
-        `/sso?email=${encodeURIComponent(email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+        `/sso?email=${encodeURIComponent(normalizedEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
       )
     } catch (err) {
       setError(getErrorMessage(err, 'Email not authorized for this file.'))

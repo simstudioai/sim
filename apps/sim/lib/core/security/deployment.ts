@@ -103,17 +103,22 @@ export function setDeploymentAuthCookie(
 }
 
 /**
- * Checks if an email matches the allowed emails list (exact match or domain match)
+ * Checks if an email matches the allowed emails list (exact match or domain
+ * match). Case-insensitive — email addresses are compared lowercased on both
+ * sides, so callers don't need to normalize before calling.
  */
 export function isEmailAllowed(email: string, allowedEmails: string[]): boolean {
-  if (allowedEmails.includes(email)) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const normalizedAllowed = allowedEmails.map((allowed) => allowed.trim().toLowerCase())
+
+  if (normalizedAllowed.includes(normalizedEmail)) {
     return true
   }
 
-  const atIndex = email.indexOf('@')
+  const atIndex = normalizedEmail.indexOf('@')
   if (atIndex > 0) {
-    const domain = email.substring(atIndex + 1)
-    if (domain && allowedEmails.some((allowed: string) => allowed === `@${domain}`)) {
+    const domain = normalizedEmail.substring(atIndex + 1)
+    if (domain && normalizedAllowed.some((allowed) => allowed === `@${domain}`)) {
       return true
     }
   }

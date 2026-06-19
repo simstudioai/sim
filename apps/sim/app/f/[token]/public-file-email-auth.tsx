@@ -43,7 +43,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     }
     setError(null)
     try {
-      await requestOtp.mutateAsync({ email })
+      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
       setSent(true)
       setOtp('')
     } catch (err) {
@@ -55,7 +55,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
     if (code.length !== 6) return
     setError(null)
     try {
-      await verifyOtp.mutateAsync({ email, otp: code })
+      await verifyOtp.mutateAsync({ email: email.trim().toLowerCase(), otp: code })
       router.refresh()
     } catch (err) {
       setError(getErrorMessage(err, 'Invalid verification code'))
@@ -65,7 +65,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   const resend = async () => {
     setCountdown(30)
     try {
-      await requestOtp.mutateAsync({ email })
+      await requestOtp.mutateAsync({ email: email.trim().toLowerCase() })
       setOtp('')
       setError(null)
     } catch (err) {
