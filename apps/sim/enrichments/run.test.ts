@@ -137,6 +137,7 @@ describe('runEnrichment cascade detail', () => {
       }
     )
     expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(outcome.detail.aborted).toBe(true)
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['not_run', 'not_run'])
   })
 

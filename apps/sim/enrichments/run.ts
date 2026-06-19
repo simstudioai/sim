@@ -30,7 +30,10 @@ export interface EnrichmentRunOutcome {
  * marked `skipped` so the details panel stays informative (shows the configured
  * cascade) instead of empty.
  */
-export function skippedEnrichmentDetail(enrichment: EnrichmentConfig): EnrichmentRunDetail {
+export function skippedEnrichmentDetail(
+  enrichment: EnrichmentConfig,
+  opts: { aborted?: boolean } = {}
+): EnrichmentRunDetail {
   const now = new Date().toISOString()
   return {
     startedAt: now,
@@ -38,6 +41,7 @@ export function skippedEnrichmentDetail(enrichment: EnrichmentConfig): Enrichmen
     durationMs: 0,
     totalCost: 0,
     matchedProvider: null,
+    aborted: opts.aborted ?? false,
     providers: enrichment.providers.map((provider) => ({
       id: provider.id,
       label: provider.label,
@@ -204,6 +208,7 @@ export async function runEnrichment(
     durationMs: completedAt - startedAt,
     totalCost: cost,
     matchedProvider,
+    aborted: Boolean(ctx.signal?.aborted),
     providers,
   }
 

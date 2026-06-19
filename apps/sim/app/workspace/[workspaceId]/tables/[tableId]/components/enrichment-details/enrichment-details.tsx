@@ -19,7 +19,7 @@ import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/log
 
 type EnrichmentDetailsTab = 'result' | 'cascade'
 
-type ResultStatus = 'matched' | 'no_match' | 'error' | 'not_run'
+type ResultStatus = 'matched' | 'no_match' | 'error' | 'not_run' | 'cancelled'
 
 const RESULT_STATUS_CONFIG: Record<
   ResultStatus,
@@ -29,6 +29,7 @@ const RESULT_STATUS_CONFIG: Record<
   no_match: { variant: 'gray', label: 'No match' },
   error: { variant: 'red', label: 'Error' },
   not_run: { variant: 'gray', label: 'Not run' },
+  cancelled: { variant: 'orange', label: 'Cancelled' },
 }
 
 /** Minimum bar width so a sub-millisecond provider still shows on the timeline. */
@@ -76,11 +77,13 @@ function didRun(p: EnrichmentProviderOutcome): boolean {
 }
 
 /**
- * Derives the cell-level outcome from the cascade — mirrors the executor: a run
- * is `error` only when every provider that ran errored; `not_run` when nothing
- * executed (missing inputs / cancelled early); otherwise a clean `no_match`.
+ * Derives the cell-level outcome from the cascade — mirrors the executor: a
+ * cancelled run is `cancelled` regardless of how far the cascade got; otherwise
+ * `error` only when every provider that ran errored, `not_run` when nothing
+ * executed (missing inputs), else a clean `no_match`.
  */
 function deriveResultStatus(detail: EnrichmentRunDetail): ResultStatus {
+  if (detail.aborted) return 'cancelled'
   if (detail.matchedProvider) return 'matched'
   const ran = detail.providers.filter(didRun)
   if (ran.length === 0) return 'not_run'

@@ -180,6 +180,9 @@ export interface EnrichmentRunDetail {
   totalCost: number
   /** Provider id that produced the match, or `null` on no match. */
   matchedProvider: string | null
+  /** True when the run was cancelled (stop / signal abort) — drives a
+   *  "Cancelled" result rather than inferring no-match/not-run from the cascade. */
+  aborted: boolean
   /** Every configured provider, in cascade order (including `not_run` ones). */
   providers: EnrichmentProviderOutcome[]
 }

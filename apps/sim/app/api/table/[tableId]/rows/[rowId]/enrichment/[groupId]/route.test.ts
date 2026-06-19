@@ -55,6 +55,7 @@ const detail: EnrichmentRunDetail = {
   durationMs: 1000,
   totalCost: 0.05,
   matchedProvider: 'hunter',
+  aborted: false,
   providers: [
     {
       id: 'hunter',

@@ -335,7 +335,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
-            enrichmentDetails: skippedEnrichmentDetail(enrichment),
+            enrichmentDetails: skippedEnrichmentDetail(enrichment, { aborted: true }),
           })
           return 'error'
         }
