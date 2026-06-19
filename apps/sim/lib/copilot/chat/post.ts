@@ -22,7 +22,7 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
@@ -32,6 +32,7 @@ import {
 } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
+import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/copilot/request/http'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/copilot/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/copilot/request/otel'
@@ -184,6 +185,7 @@ type UnifiedChatBranch =
         prefetch?: boolean
         implicitFeedback?: string
         workspaceContext?: string
+        vfs?: VfsSnapshotV1
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -212,6 +214,7 @@ type UnifiedChatBranch =
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
+        vfs?: VfsSnapshotV1
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -618,6 +621,7 @@ async function resolveBranch(params: {
             prefetch: payloadParams.prefetch,
             implicitFeedback: payloadParams.implicitFeedback,
             workspaceContext: payloadParams.workspaceContext,
+            vfs: payloadParams.vfs,
             userPermission: payloadParams.userPermission,
             userTimezone: payloadParams.userTimezone,
             userMetadata: payloadParams.userMetadata,
@@ -672,6 +676,7 @@ async function resolveBranch(params: {
           fileAttachments: payloadParams.fileAttachments,
           chatId: payloadParams.chatId,
           workspaceContext: payloadParams.workspaceContext,
+          vfs: payloadParams.vfs,
           userPermission: payloadParams.userPermission,
           userTimezone: payloadParams.userTimezone,
           userMetadata: payloadParams.userMetadata,
@@ -902,7 +907,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         ? withCopilotSpan(
             TraceSpan.CopilotChatBuildWorkspaceContext,
             { [TraceAttr.WorkspaceId]: workspaceId },
-            () => generateWorkspaceContext(workspaceId, authenticatedUserId),
+            () => generateWorkspaceSnapshot(workspaceId, authenticatedUserId),
             activeOtelRoot.context
           )
         : Promise.resolve(undefined)
@@ -947,7 +952,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, workspaceContext, , executionContext] =
+      const [agentContexts, userPermission, workspaceSnapshot, , executionContext] =
         await Promise.all([
           agentContextsPromise,
           userPermissionPromise,
@@ -955,6 +960,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           persistUserMessagePromise,
           executionContextPromise,
         ])
+      // Both halves come from one primary-db fetch (workspace-context.ts):
+      // `workspaceContext` is the markdown transition fallback, `vfs` is the
+      // typed snapshot Go diffs into baseline+delta messages.
+      const workspaceContext = workspaceSnapshot?.markdown
+      const vfs = workspaceSnapshot?.snapshot
 
       executionContext.userPermission = userPermission ?? undefined
 
@@ -991,6 +1001,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
                 workspaceContext,
+                vfs,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -1003,6 +1014,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userTimezone: body.userTimezone,
                 userMetadata,
                 workspaceContext,
+                vfs,
               }),
         activeOtelRoot.context
       )
