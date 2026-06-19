@@ -408,7 +408,7 @@ describe('Chat API Utils', () => {
         })
 
         expect(result.authorized).toBe(false)
-        expect(result.error).toBe('Your email is not authorized to access this chat')
+        expect(result.error).toBe('Your email is not authorized to access this resource')
       })
     })
   })

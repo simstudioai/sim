@@ -104,6 +104,12 @@ describe('POST /api/files/public/[token]/otp', () => {
     expect(mockStoreOTP).not.toHaveBeenCalled()
   })
 
+  it('lowercases the email for allow-list matching and OTP storage', async () => {
+    await POST(post('User@ACME.com'), params())
+    expect(mockIsEmailAllowed).toHaveBeenCalledWith('user@acme.com', expect.anything())
+    expect(mockStoreOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com', '123456')
+  })
+
   it('rejects a non-email share with 400', async () => {
     mockResolveActiveShareByToken.mockResolvedValueOnce({
       ...emailShare,

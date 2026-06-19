@@ -53,7 +53,7 @@ export const POST = withRouteHandler(
     const parsed = await parseRequest(publicFileSSOContract, request, context)
     if (!parsed.success) return parsed.response
     const { token } = parsed.data.params
-    const { email } = parsed.data.body
+    const email = parsed.data.body.email.trim().toLowerCase()
 
     const resolved = await resolveActiveShareByToken(token)
     if (!resolved) {

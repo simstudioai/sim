@@ -188,7 +188,7 @@ export async function validateDeploymentAuth(
         return { authorized: true }
       }
 
-      return { authorized: false, error: 'Your email is not authorized to access this chat' }
+      return { authorized: false, error: 'Your email is not authorized to access this resource' }
     } catch (error) {
       logger.error(`[${requestId}] Error validating SSO:`, error)
       return { authorized: false, error: 'SSO authentication error' }

@@ -69,7 +69,9 @@ export const POST = withRouteHandler(
       const parsed = await parseRequest(requestPublicFileOtpContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
-      const { email } = parsed.data.body
+      // Normalize once so allow-list matching, OTP storage, and the verify lookup
+      // all key off the same value (allow-list entries are stored lowercase).
+      const email = parsed.data.body.email.trim().toLowerCase()
 
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {
@@ -87,7 +89,7 @@ export const POST = withRouteHandler(
       }
 
       const emailRateLimit = await rateLimiter.checkRateLimitDirect(
-        `file-otp:email:${resolved.share.id}:${email.toLowerCase()}`,
+        `file-otp:email:${resolved.share.id}:${email}`,
         OTP_EMAIL_RATE_LIMIT
       )
       if (!emailRateLimit.allowed) {
@@ -130,7 +132,8 @@ export const PUT = withRouteHandler(
       const parsed = await parseRequest(verifyPublicFileOtpContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
-      const { email, otp } = parsed.data.body
+      const { otp } = parsed.data.body
+      const email = parsed.data.body.email.trim().toLowerCase()
 
       const resolved = await resolveActiveShareByToken(token)
       if (!resolved) {
