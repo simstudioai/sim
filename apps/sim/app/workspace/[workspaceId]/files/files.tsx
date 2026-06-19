@@ -66,6 +66,7 @@ import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components
 import {
   FileViewer,
   isCsvStreamOnly,
+  isMarkdownFile,
   isPreviewable,
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -1422,7 +1423,11 @@ export function Files() {
     const streamOnly = isCsvStreamOnly(selectedFile)
     const canEditText = isTextEditable(selectedFile) && !streamOnly
     const canPreview = isPreviewable(selectedFile) && !streamOnly
-    const hasSplitView = canEditText && canPreview
+    // Markdown renders in the single-surface inline editor, which has no raw/split/preview
+    // modes — so it keeps Save but drops the mode toggle.
+    const isInlineMarkdown = isMarkdownFile(selectedFile)
+    const hasSplitView = canEditText && canPreview && !isInlineMarkdown
+    const showPreviewToggle = canPreview && !isInlineMarkdown
 
     const saveLabel =
       saveStatus === 'saving'
@@ -1459,7 +1464,7 @@ export function Files() {
               onSelect: handleCyclePreviewMode,
             },
           ]
-        : canPreview
+        : showPreviewToggle
           ? [
               {
                 text: previewMode === 'preview' ? 'Edit' : 'Preview',
@@ -1860,7 +1865,7 @@ export function Files() {
     return (
       <Resource>
         <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
-        <div className='flex flex-1 items-center justify-center bg-[var(--surface-1)]'>
+        <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
       </Resource>

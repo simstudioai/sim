@@ -1,27 +1,18 @@
 'use client'
 
-import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import type { OnMount } from '@monaco-editor/react'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import {
-  useUpdateWorkspaceFileContent,
-  useWorkspaceFileContent,
-} from '@/hooks/queries/workspace-files'
-import { useAutosave } from '@/hooks/use-autosave'
 import { EditorContextMenu } from './editor-context-menu'
 import type { PreviewMode } from './file-viewer'
 import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import { PreviewLoadingFrame } from './preview-shared'
-import {
-  INITIAL_TEXT_EDITOR_CONTENT_STATE,
-  type StreamingMode,
-  type SyncTextEditorContentStateOptions,
-  textEditorContentReducer,
-} from './text-editor-state'
+import type { StreamingMode } from './text-editor-state'
+import { useEditableFileContent } from './use-editable-file-content'
 
 const SIM_DARK_RULES: MonacoEditorTypes.ITokenThemeRule[] = [
   { token: 'comment', foreground: '606060', fontStyle: 'italic' },
@@ -316,40 +307,6 @@ function resolveMonacoLanguage(file: { type: string; name: string }): string {
   return MONACO_LANGUAGE_BY_EXTENSION[ext] ?? MONACO_LANGUAGE_BY_MIME[file.type] ?? 'plaintext'
 }
 
-function useTextEditorContentState(options: SyncTextEditorContentStateOptions) {
-  const [state, dispatch] = useReducer(textEditorContentReducer, INITIAL_TEXT_EDITOR_CONTENT_STATE)
-
-  const prevOptionsRef = useRef<SyncTextEditorContentStateOptions | null>(null)
-  const prev = prevOptionsRef.current
-  if (
-    prev === null ||
-    prev.canReconcileToFetchedContent !== options.canReconcileToFetchedContent ||
-    prev.fetchedContent !== options.fetchedContent ||
-    prev.streamingContent !== options.streamingContent ||
-    prev.streamingMode !== options.streamingMode
-  ) {
-    prevOptionsRef.current = options
-    dispatch({ type: 'sync-external', ...options })
-  }
-
-  const setDraftContent = useCallback((content: string) => {
-    dispatch({ type: 'edit', content })
-  }, [])
-
-  const markSavedContent = (content: string) => {
-    dispatch({ type: 'save-success', content })
-  }
-
-  return {
-    content: state.content,
-    savedContent: state.savedContent,
-    isInitialized: state.phase !== 'uninitialized',
-    isStreamInteractionLocked: state.phase === 'streaming' || state.phase === 'reconciling',
-    setDraftContent,
-    markSavedContent,
-  }
-}
-
 function useMonacoTheme(): string {
   const [isDark, setIsDark] = useState(
     () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
@@ -418,45 +375,25 @@ export const TextEditor = memo(function TextEditor({
     hasSelection: boolean
   } | null>(null)
 
-  const {
-    data: fetchedContent,
-    isLoading,
-    error,
-  } = useWorkspaceFileContent(
-    workspaceId,
-    file.id,
-    file.key,
-    file.type === 'text/x-pptxgenjs' ||
-      file.type === 'text/x-docxjs' ||
-      file.type === 'text/x-pdflibjs' ||
-      file.type === 'text/x-python-pdf' ||
-      file.type === 'text/x-python-xlsx'
-  )
-
-  const updateContent = useUpdateWorkspaceFileContent()
-  const updateContentRef = useRef(updateContent)
-  updateContentRef.current = updateContent
-
   const monacoLanguage = resolveMonacoLanguage(file)
   const monacoTheme = useMonacoTheme()
 
-  const onDirtyChangeRef = useRef(onDirtyChange)
-  const onSaveStatusChangeRef = useRef(onSaveStatusChange)
-  onDirtyChangeRef.current = onDirtyChange
-  onSaveStatusChangeRef.current = onSaveStatusChange
-
   const {
     content,
-    savedContent,
-    isInitialized,
-    isStreamInteractionLocked,
     setDraftContent,
-    markSavedContent,
-  } = useTextEditorContentState({
-    canReconcileToFetchedContent: file.key.length > 0,
-    fetchedContent,
+    isStreamInteractionLocked,
+    isContentLoading,
+    hasContentError,
+    saveImmediately,
+  } = useEditableFileContent({
+    file,
+    workspaceId,
+    canEdit,
     streamingContent,
     streamingMode,
+    onDirtyChange,
+    onSaveStatusChange,
+    saveRef,
   })
   contentRef.current = content
 
@@ -532,42 +469,6 @@ export const TextEditor = memo(function TextEditor({
       editor.revealLine(lineCount)
     }
   }, [content, isStreamInteractionLocked, disableStreamingAutoScroll])
-
-  async function onSave() {
-    if (content === savedContent) return
-
-    await updateContentRef.current.mutateAsync({
-      workspaceId,
-      fileId: file.id,
-      content,
-    })
-    markSavedContent(content)
-  }
-
-  const { saveStatus, saveImmediately, isDirty } = useAutosave({
-    content,
-    savedContent,
-    onSave,
-    enabled: canEdit && isInitialized && !isStreamInteractionLocked,
-  })
-
-  useEffect(() => {
-    onDirtyChangeRef.current?.(isDirty)
-  }, [isDirty])
-
-  useEffect(() => {
-    onSaveStatusChangeRef.current?.(saveStatus)
-  }, [saveStatus])
-
-  useEffect(() => {
-    if (!saveRef) return
-    saveRef.current = saveImmediately
-    return () => {
-      if (saveRef.current === saveImmediately) {
-        saveRef.current = null
-      }
-    }
-  }, [saveImmediately, saveRef])
 
   useEffect(() => {
     if (!isResizing) return
@@ -657,16 +558,14 @@ export const TextEditor = memo(function TextEditor({
   const showEditor = effectiveMode !== 'preview'
   const showPreviewPane = effectiveMode !== 'editor'
 
-  if (streamingContent === undefined) {
-    if (isLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
+  if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
 
-    if (error && !isInitialized) {
-      return (
-        <div className='flex flex-1 items-center justify-center'>
-          <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
-        </div>
-      )
-    }
+  if (hasContentError) {
+    return (
+      <div className='flex flex-1 items-center justify-center'>
+        <p className='text-[13px] text-[var(--text-muted)]'>Failed to load file content</p>
+      </div>
+    )
   }
 
   const closeContextMenu = () => setContextMenu(null)

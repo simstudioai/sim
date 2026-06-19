@@ -192,9 +192,12 @@ export function textEditorContentReducer(
         content: action.content,
       }
     case 'save-success':
+      // Advance only the saved baseline. Never roll `content` back to the saved snapshot: a
+      // keystroke landing while the save was in flight makes `content` newer than `action.content`,
+      // and overwriting it would silently drop that edit (and leave the doc looking clean so it's
+      // never re-saved). Leaving `content` ahead keeps the doc dirty so the trailing edit autosaves.
       if (
         state.phase === 'ready' &&
-        state.content === action.content &&
         state.savedContent === action.content &&
         state.lastStreamedContent === null
       ) {
@@ -203,7 +206,6 @@ export function textEditorContentReducer(
       return {
         ...state,
         phase: 'ready',
-        content: action.content,
         savedContent: action.content,
         lastStreamedContent: null,
       }

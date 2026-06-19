@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface UseAutosaveOptions {
   content: string
@@ -33,6 +33,7 @@ export function useAutosave({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const displayTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const savingRef = useRef(false)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
@@ -66,7 +67,7 @@ export function useAutosave({
     } finally {
       const elapsed = Date.now() - savingStartRef.current
       const remaining = Math.max(0, MIN_SAVING_DISPLAY_MS - elapsed)
-      setTimeout(() => {
+      displayTimerRef.current = setTimeout(() => {
         setSaveStatus(nextStatus)
         clearTimeout(idleTimerRef.current)
         idleTimerRef.current = setTimeout(() => setSaveStatus('idle'), 2000)
@@ -89,11 +90,11 @@ export function useAutosave({
     return () => {
       clearTimeout(timerRef.current)
       clearTimeout(idleTimerRef.current)
-      if (
-        enabledRef.current &&
-        contentRef.current !== savedContentRef.current &&
-        !savingRef.current
-      ) {
+      clearTimeout(displayTimerRef.current)
+      // Flush the latest content on unmount even if a save is mid-flight: that in-flight save
+      // captured an older snapshot, so skipping here would terminally drop any edit typed since.
+      // The duplicate PUT is idempotent.
+      if (enabledRef.current && contentRef.current !== savedContentRef.current) {
         onSaveRef.current().catch(() => {})
       }
     }

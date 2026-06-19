@@ -114,6 +114,14 @@ describe("reducer 'save-success' action", () => {
     expect(next.lastStreamedContent).toBeNull()
     expect(next.phase).toBe('ready')
   })
+
+  it('does not revert a keystroke typed while the save was in flight', () => {
+    const state = ready('ABC', 'old')
+    const next = textEditorContentReducer(state, { type: 'save-success', content: 'AB' })
+    expect(next.content).toBe('ABC')
+    expect(next.savedContent).toBe('AB')
+    expect(next.content === next.savedContent).toBe(false)
+  })
 })
 
 describe('syncTextEditorContentState — initialization', () => {

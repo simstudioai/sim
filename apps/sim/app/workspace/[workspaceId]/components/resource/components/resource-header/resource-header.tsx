@@ -379,24 +379,48 @@ function BreadcrumbLocationPopover({
 }: BreadcrumbLocationPopoverProps) {
   const [open, setOpen] = useState(false)
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /**
+   * Suppresses reopen for the brief window between a click-to-navigate and the
+   * route swap. Navigating away tears this popover down (the list and detail
+   * views render different subtrees), so if `open` were still true the dimming
+   * veil and popover content would snap away instead of fading — a visible
+   * flash. {@link navigateAndClose} closes the popover before running the
+   * crumb's handler and latches this so the pointer still resting on the
+   * trigger can't re-fire `openPopover` mid-navigation. It is cleared on the
+   * next pointer/focus exit so the popover keeps working when the handler does
+   * not actually navigate (e.g. an unsaved-changes guard that opens a modal).
+   */
+  const navigatingRef = useRef(false)
   const rootBreadcrumb = breadcrumbs[0]
 
-  const openPopover = () => {
+  const clearCloseTimeout = () => {
     if (closeTimeoutRef.current) {
       clearTimeout(closeTimeoutRef.current)
       closeTimeoutRef.current = null
     }
+  }
+
+  const openPopover = () => {
+    if (navigatingRef.current) return
+    clearCloseTimeout()
     setOpen(true)
   }
 
   const scheduleClose = () => {
-    if (closeTimeoutRef.current) {
-      clearTimeout(closeTimeoutRef.current)
-    }
+    navigatingRef.current = false
+    clearCloseTimeout()
     closeTimeoutRef.current = setTimeout(() => {
       setOpen(false)
       closeTimeoutRef.current = null
     }, 120)
+  }
+
+  const navigateAndClose = (onClick?: () => void) => {
+    if (!onClick) return
+    navigatingRef.current = true
+    clearCloseTimeout()
+    setOpen(false)
+    onClick()
   }
 
   useEffect(() => {
@@ -413,7 +437,7 @@ function BreadcrumbLocationPopover({
           <button
             type='button'
             aria-label={rootBreadcrumb?.label ?? 'Path'}
-            onClick={rootBreadcrumb?.onClick}
+            onClick={() => navigateAndClose(rootBreadcrumb?.onClick)}
             onFocus={openPopover}
             onBlur={scheduleClose}
             onMouseEnter={openPopover}
@@ -474,7 +498,7 @@ function BreadcrumbLocationPopover({
                 key={`${crumb.label}-${index}`}
                 icon={crumb.icon || (index === 0 ? Icon : undefined)}
                 label={crumb.label}
-                onClick={crumb.onClick}
+                onClick={crumb.onClick ? () => navigateAndClose(crumb.onClick) : undefined}
                 active={index === breadcrumbs.length - 1}
               />
             ))}

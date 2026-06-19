@@ -33,6 +33,11 @@ const PdfViewerCore = dynamic(() => import('./pdf-viewer').then((m) => m.PdfView
   ssr: false,
 })
 
+const MarkdownFileEditor = dynamic(
+  () => import('./rich-markdown-editor/markdown-file-editor').then((m) => m.MarkdownFileEditor),
+  { ssr: false, loading: () => <PreviewLoadingFrame className='flex flex-1 flex-col' /> }
+)
+
 const logger = createLogger('FileViewer')
 
 /**
@@ -48,6 +53,15 @@ export function isTextEditable(file: { type: string; name: string }): boolean {
 
 export function isPreviewable(file: { type: string; name: string }): boolean {
   return resolvePreviewType(file.type, file.name) !== null
+}
+
+/**
+ * Markdown files render in the inline rich editor ({@link RichMarkdownEditor}) rather than
+ * the raw Monaco editor. Toolbars use this to hide the raw/split/preview mode controls,
+ * which don't apply to the single-surface editor.
+ */
+export function isMarkdownFile(file: { type: string; name: string }): boolean {
+  return resolvePreviewType(file.type, file.name) === 'markdown'
 }
 
 /**
@@ -120,6 +134,23 @@ export function FileViewer({
     // Render a streamed, read-only preview of the first rows + an "Import as a table" path instead.
     if (isCsvStreamOnly(file)) {
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
+    }
+
+    // Markdown renders in the inline rich editor when idle. During agent streaming we keep
+    // the raw/preview editor, which already handles incremental token reconciliation.
+    if (isMarkdownFile(file) && streamingContent === undefined) {
+      return (
+        <MarkdownFileEditor
+          key={file.id}
+          file={file}
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          autoFocus={autoFocus}
+          onDirtyChange={onDirtyChange}
+          onSaveStatusChange={onSaveStatusChange}
+          saveRef={saveRef}
+        />
+      )
     }
 
     return (
