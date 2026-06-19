@@ -15,7 +15,7 @@
 import { db } from '@sim/db'
 import { workflowBlocks, workflowEdges } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { count, eq } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import {

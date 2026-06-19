@@ -310,6 +310,8 @@ export const inviteOrganizationMembersContract = defineRouteContract({
           .object({
             invitationsSent: z.number(),
             invitedEmails: z.array(z.string()),
+            directlyAdded: z.array(z.string()).optional(),
+            directlyAddedCount: z.number().optional(),
             failedInvitations: z.array(z.object({ email: z.string(), error: z.string() })),
             existingMembers: z.array(z.string()),
             pendingInvitations: z.array(z.string()),
@@ -368,6 +370,8 @@ export const removeOrganizationMemberContract = defineRouteContract({
 export const organizationMemberUsageLimitDataSchema = z.object({
   creditsUsed: z.number(),
   creditLimit: z.number().nullable(),
+  /** Billing cadence of the org's subscription, so the UI can label the usage window. */
+  billingInterval: z.enum(['month', 'year']),
 })
 
 export const getOrganizationMemberUsageLimitContract = defineRouteContract({

@@ -5,8 +5,9 @@
  * session/internal auth, workspace permission enforcement, and the mapping of
  * orchestration results to tool responses.
  */
+
+import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { createMockRequest, hybridAuthMockFns, workflowAuthzMockFns } from '@sim/testing'
-import { WorkflowLockedError } from '@sim/workflow-authz'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {

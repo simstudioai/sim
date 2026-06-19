@@ -2,9 +2,8 @@ import { db } from '@sim/db'
 import { member, organization, subscription, userStats } from '@sim/db/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import {
-  getBillingInterval,
   getHighestPrioritySubscription,
-  type SubscriptionMetadata,
+  resolveBillingInterval,
 } from '@/lib/billing/core/subscription'
 import { getOrgUsageLimit, getUserUsageData } from '@/lib/billing/core/usage'
 import { COPILOT_USAGE_SOURCES, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
@@ -544,7 +543,7 @@ export async function getSimplifiedBillingSummary(
         : 0
 
       const orgCredits = await getCreditBalance(userId, executor)
-      const orgBillingInterval = getBillingInterval(subscription.metadata as SubscriptionMetadata)
+      const orgBillingInterval = resolveBillingInterval(subscription)
 
       return {
         type: 'organization',
@@ -643,9 +642,7 @@ export async function getSimplifiedBillingSummary(
       : 0
 
     const userCredits = await getCreditBalance(userId, executor)
-    const individualBillingInterval = getBillingInterval(
-      subscription?.metadata as SubscriptionMetadata
-    )
+    const individualBillingInterval = resolveBillingInterval(subscription)
 
     return {
       type: 'individual',

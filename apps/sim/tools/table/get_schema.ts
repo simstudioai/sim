@@ -1,3 +1,5 @@
+import { getColumnId } from '@/lib/table/column-keys'
+import type { ColumnDefinition } from '@/lib/table/types'
 import type { TableGetSchemaParams, TableGetSchemaResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -35,11 +37,21 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
     const result = await response.json()
     const data = result.data || result
 
+    // Always surface a usable `id` per column. Legacy columns predating the id
+    // backfill have no stored id; their storage key is the name, so project that
+    // as the id rather than leaving it undefined.
+    const columns: ColumnDefinition[] = (
+      (data.table.schema.columns ?? []) as ColumnDefinition[]
+    ).map((col) => ({ ...col, id: getColumnId(col) }))
+
     return {
       success: true,
       output: {
         name: data.table.name,
-        columns: data.table.schema.columns,
+        columns,
+        columnCount: columns.length,
+        rowCount: data.table.rowCount ?? 0,
+        maxRows: data.table.maxRows ?? 0,
         message: data.message || 'Schema retrieved successfully',
       },
     }
@@ -48,7 +60,13 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
   outputs: {
     success: { type: 'boolean', description: 'Whether schema was retrieved' },
     name: { type: 'string', description: 'Table name' },
-    columns: { type: 'array', description: 'Column definitions' },
+    columns: { type: 'array', description: 'Column definitions (each includes its stable id)' },
+    columnCount: { type: 'number', description: 'Number of columns' },
+    rowCount: { type: 'number', description: 'Number of rows in the table' },
+    maxRows: {
+      type: 'number',
+      description: "Max rows per table for the workspace's plan",
+    },
     message: { type: 'string', description: 'Status message' },
   },
 }

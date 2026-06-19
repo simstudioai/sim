@@ -2,12 +2,12 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
 import {
   assertWorkflowMutable,
   authorizeWorkflowByWorkspacePermission,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
+import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { workflowVariablesContract } from '@/lib/api/contracts/workflows'

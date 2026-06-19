@@ -1,4 +1,4 @@
-import { type ActiveWorkflowRecord, getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { type ActiveWorkflowRecord, getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { NextResponse } from 'next/server'
 import { type RateLimitResult, validateWorkspaceAccess } from '@/app/api/v1/middleware'
 

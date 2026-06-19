@@ -490,7 +490,8 @@ export interface CreateTableData {
   schema: TableSchema
   workspaceId: string
   userId: string
-  /** Optional max rows override based on billing plan. Defaults to TABLE_LIMITS.MAX_ROWS_PER_TABLE. */
+  /** Optional stored row cap. Vestigial under plan-based enforcement (the column is no longer
+   *  consulted on insert), but retained so callers that still set it type-check. */
   maxRows?: number
   /** Optional max tables override based on billing plan. Defaults to TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE. */
   maxTables?: number

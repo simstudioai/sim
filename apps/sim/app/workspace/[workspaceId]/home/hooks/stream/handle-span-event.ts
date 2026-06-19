@@ -14,13 +14,19 @@ import {
 
 type SpanEvent = Extract<PersistedStreamEventEnvelope, { type: 'span' }>
 
+/**
+ * Side effects for subagent span lifecycle. The model owns the subagent
+ * group/nesting/close (via `reduceEvent`); this handler only seeds the file
+ * preview session on a fresh file-subagent start and reconciles the file
+ * resource chrome on end, then flushes the model-derived snapshot.
+ */
 export function handleSpanEvent(
   ctx: StreamLoopContext,
   parsed: SpanEvent,
   scope: StreamEventScope
 ): void {
   const { state, ops, deps } = ctx
-  const { scopedParentToolCallId, scopedAgentId, scopedSpanId, spanIdentity } = scope
+  const { scopedParentToolCallId, scopedAgentId, scopedSpanId } = scope
   const payload = parsed.payload
   if (payload.kind !== MothershipStreamV1SpanPayloadKind.subagent) {
     return
@@ -36,37 +42,12 @@ export function handleSpanEvent(
   const isPendingPause = spanData?.pending === true
   const name = typeof payload.agent === 'string' ? payload.agent : scopedAgentId
 
-  if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name) {
-    const existingOpenForSpan = scopedSpanId
-      ? state.blocks.some(
-          (b) => b.type === 'subagent' && b.spanId === scopedSpanId && b.endedAt === undefined
-        )
-      : false
-    const isSameActiveSubagent =
-      existingOpenForSpan ||
-      (!scopedSpanId &&
-        state.activeSubagent === name &&
-        Boolean(state.activeSubagentParentToolCallId) &&
-        parentToolCallId === state.activeSubagentParentToolCallId)
-    if (scopedSpanId) {
-      state.subagentBySpanId.set(scopedSpanId, name)
-    }
-    if (parentToolCallId) {
-      state.subagentByParentToolCallId.set(parentToolCallId, name)
-    }
-    state.activeSubagent = name
-    state.activeSubagentParentToolCallId = parentToolCallId
-    if (!isSameActiveSubagent) {
-      ops.stampBlockEnd(state.blocks[state.blocks.length - 1])
-      state.blocks.push({
-        type: 'subagent',
-        content: name,
-        ...(parentToolCallId ? { parentToolCallId } : {}),
-        ...spanIdentity,
-        timestamp: Date.now(),
-      })
-    }
-    if (name === FILE_SUBAGENT_ID && !isSameActiveSubagent) {
+  if (payload.event === MothershipStreamV1SpanLifecycleEvent.start && name === FILE_SUBAGENT_ID) {
+    // Seed the pending preview session only on a freshly-opened lane (the agent
+    // node was created by this event), so concurrent file subagents don't re-seed.
+    const node = scopedSpanId ? state.model.nodes.get(scopedSpanId) : undefined
+    const isNewLane = node?.kind === 'agent' && node.seq === parsed.seq
+    if (isNewLane) {
       deps.applyPreviewSessionUpdate({
         schemaVersion: 1,
         id: parentToolCallId || 'file-preview',
@@ -87,12 +68,6 @@ export function handleSpanEvent(
     if (isPendingPause) {
       return
     }
-    if (scopedSpanId) {
-      state.subagentBySpanId.delete(scopedSpanId)
-    }
-    if (parentToolCallId) {
-      state.subagentByParentToolCallId.delete(parentToolCallId)
-    }
     if (
       deps.previewSessionRef.current &&
       (!deps.activePreviewSessionIdRef.current ||
@@ -106,44 +81,6 @@ export function handleSpanEvent(
         deps.setActiveResourceId(lastFileResource.id)
       }
     }
-    if (
-      !parentToolCallId ||
-      parentToolCallId === state.activeSubagentParentToolCallId ||
-      name === state.activeSubagent
-    ) {
-      state.activeSubagent = undefined
-      state.activeSubagentParentToolCallId = undefined
-    }
-    const endNow = Date.now()
-    if (scopedSpanId) {
-      for (let i = state.blocks.length - 1; i >= 0; i--) {
-        const b = state.blocks[i]
-        if (b.type === 'subagent' && b.spanId === scopedSpanId && b.endedAt === undefined) {
-          b.endedAt = endNow
-          break
-        }
-      }
-    } else if (name) {
-      for (let i = state.blocks.length - 1; i >= 0; i--) {
-        const b = state.blocks[i]
-        if (
-          b.type === 'subagent' &&
-          b.content === name &&
-          b.endedAt === undefined &&
-          (!parentToolCallId || b.parentToolCallId === parentToolCallId)
-        ) {
-          b.endedAt = endNow
-          break
-        }
-      }
-    }
-    ops.stampBlockEnd(state.blocks[state.blocks.length - 1])
-    state.blocks.push({
-      type: 'subagent_end',
-      ...(parentToolCallId ? { parentToolCallId } : {}),
-      ...spanIdentity,
-      timestamp: endNow,
-    })
     ops.flush()
   }
 }

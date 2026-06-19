@@ -7,26 +7,41 @@ import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/model
 import type { ToolConfig } from '@/tools/types'
 
 /**
- * Serialize workflow metadata for VFS meta.json
+ * Serialize workflow metadata for VFS meta.json.
+ *
+ * `locked` is the EFFECTIVE lock — true when the workflow is locked directly or
+ * sits inside a locked folder. A locked workflow cannot be edited, moved,
+ * renamed, or deleted (mutations are rejected server-side with a 423). The
+ * mothership should read this before attempting any workflow mutation.
+ * `inheritedFolderLock` carries the resolved containing-folder lock (the
+ * caller computes folder inheritance; see workspace-vfs materializeWorkflows).
  */
-export function serializeWorkflowMeta(wf: {
-  id: string
-  name: string
-  description?: string | null
-  folderId?: string | null
-  isDeployed: boolean
-  deployedAt?: Date | null
-  runCount: number
-  lastRunAt?: Date | null
-  createdAt: Date
-  updatedAt: Date
-}): string {
+export function serializeWorkflowMeta(
+  wf: {
+    id: string
+    name: string
+    description?: string | null
+    folderId?: string | null
+    isDeployed: boolean
+    deployedAt?: Date | null
+    runCount: number
+    lastRunAt?: Date | null
+    createdAt: Date
+    updatedAt: Date
+    locked?: boolean
+  },
+  options?: { inheritedFolderLock?: boolean }
+): string {
+  const directLock = wf.locked ?? false
+  const locked = directLock || (options?.inheritedFolderLock ?? false)
   return JSON.stringify(
     {
       id: wf.id,
       name: wf.name,
       description: wf.description || undefined,
       folderId: wf.folderId || undefined,
+      locked,
+      lockedBy: locked ? (directLock ? 'workflow' : 'folder') : undefined,
       isDeployed: wf.isDeployed,
       deployedAt: wf.deployedAt?.toISOString(),
       runCount: wf.runCount,

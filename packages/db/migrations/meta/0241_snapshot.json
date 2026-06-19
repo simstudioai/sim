@@ -1,5 +1,5 @@
 {
-  "id": "15fb2499-0b33-4587-88a0-b965c9a4b06d",
+  "id": "f7a9fd28-8bd2-4421-a048-a0a768fc8475",
   "prevId": "34c63a54-3015-4e6d-9bed-5fe0d53f5741",
   "version": "7",
   "dialect": "postgresql",
@@ -11093,12 +11093,6 @@
         "cancelled_at": {
           "name": "cancelled_at",
           "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "enrichment_details": {
-          "name": "enrichment_details",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

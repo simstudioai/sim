@@ -35,6 +35,8 @@ import type {
   ExecutionContext,
   OrchestratorOptions,
   OrchestratorResult,
+  ResumeContinuation,
+  ResumeFrame,
   StreamEvent,
   StreamingContext,
 } from '@/lib/copilot/request/types'
@@ -232,6 +234,299 @@ export async function runCopilotLifecycle(
 }
 
 // ---------------------------------------------------------------------------
+// Per-subagent checkpoint resume (concurrent fan-out)
+// ---------------------------------------------------------------------------
+//
+// Under the per-subagent checkpoint model each paused subagent is its OWN
+// checkpoint chain (frame.checkpointId) joined at the orchestrator. Instead of
+// one bundled /resume, Sim drives one resume chain per child CONCURRENTLY so a
+// fast child never waits on a slow sibling, and the Go join wakes the
+// orchestrator on whichever child finishes last. Gated by the Go
+// `parallel-subagents` flag, surfaced here purely by frames carrying their own
+// checkpointId.
+//
+// IMPORTANT (concurrency): JS is single-threaded, so the legs interleave at await
+// points rather than running truly in parallel; shared accumulators
+// (contentBlocks, toolCalls maps, errors) are appended via atomic synchronous
+// ops and stay shared by reference. Only the per-leg STREAM CONTROL flags
+// (streamComplete, awaitingAsyncContinuation) and the join-leg scalars
+// (accumulatedContent/usage/cost) are isolated per leg and merged back.
+
+type AsyncContinuation = ResumeContinuation
+
+function isPerSubagentContinuation(c: AsyncContinuation): boolean {
+  return !!c.frames && c.frames.length > 0 && c.frames.every((f) => !!f.checkpointId)
+}
+
+// Shared header set for every Sim -> Go mothership request (initial stream and
+// every resume leg), so the auth/source/version headers can't drift between the
+// sequential path and the concurrent per-subagent resume legs.
+function mothershipRequestHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
+    ...getMothershipSourceEnvHeaders(),
+    'X-Client-Version': SIM_AGENT_VERSION,
+  }
+}
+
+// makeResumeLegContext / mergeResumeLegOutputs are a PAIR and must stay in
+// lockstep: every field reset here is folded back there, and nothing else on
+// StreamingContext is per-leg. Everything not listed is shared BY REFERENCE
+// across all concurrent legs (the one merged chat: contentBlocks, toolCalls,
+// pendingToolPromises, subagent maps, etc.). The per-leg ISOLATED set:
+//   - streamComplete / awaitingAsyncContinuation: stream-control flags, so a
+//     finished leg can't stop a sibling's read loop (reset only; not merged).
+//   - accumulatedContent / finalAssistantContent / usage / cost: join-leg
+//     scalars — only the join-carrying leg sets them; zeroing per leg keeps the
+//     `+=` merge from multiplying the orchestrator's pre-fanout content by the
+//     leg count, and keeps a child leg's stale usage/cost from clobbering the
+//     join leg's real totals on merge.
+//   - errors: a leg's transient retryable error (rolled back inside
+//     runResumeLegWithRetry) must not truncate a concurrent sibling's shared
+//     error array by index; each leg collects its own and merges the survivors.
+// When adding a per-leg field, update BOTH functions (and the contract test in
+// resume-leg-context.test.ts). Exported only for that test.
+export function makeResumeLegContext(base: StreamingContext): StreamingContext {
+  return {
+    ...base,
+    streamComplete: false,
+    awaitingAsyncContinuation: undefined,
+    accumulatedContent: '',
+    finalAssistantContent: '',
+    usage: undefined,
+    cost: undefined,
+    errors: [],
+  }
+}
+
+// mergeResumeLegOutputs folds a finished leg's isolated scalars back into the
+// shared context. Child (subagent-lane) legs leave the join scalars empty; only
+// the join-carrying leg (which streams the orchestrator continuation) sets them.
+export function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingContext): void {
+  if (leg.accumulatedContent) context.accumulatedContent += leg.accumulatedContent
+  if (leg.finalAssistantContent) context.finalAssistantContent += leg.finalAssistantContent
+  if (leg.usage) context.usage = leg.usage
+  if (leg.cost) context.cost = leg.cost
+  if (leg.sawMainToolCall) context.sawMainToolCall = true
+  if (leg.wasAborted) context.wasAborted = true
+  if (leg.errors.length > 0) context.errors.push(...leg.errors)
+}
+
+async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
+  const promises: Promise<unknown>[] = []
+  for (const id of toolIds) {
+    const p = context.pendingToolPromises.get(id)
+    if (p) promises.push(p)
+  }
+  if (promises.length > 0) await Promise.allSettled(promises)
+}
+
+function collectResultsForToolIds(
+  context: StreamingContext,
+  toolIds: string[],
+  checkpointId: string
+): Array<{ callId: string; name: string; data: unknown; success: boolean }> {
+  return toolIds.map((toolCallId) => {
+    const tool = context.toolCalls.get(toolCallId)
+    if (!tool || !tool.result) {
+      throw new Error(
+        `Cannot resume subagent chain ${checkpointId}: missing result for tool call ${toolCallId}`
+      )
+    }
+    return {
+      callId: toolCallId,
+      name: tool.name || '',
+      data: getToolCallTerminalData(tool),
+      success: requireToolCallStateResult(tool).success,
+    }
+  })
+}
+
+// runResumeLegWithRetry runs ONE resume POST with the same retryable-error +
+// bounded-backoff policy the sequential checkpoint loop uses, so a concurrent
+// child leg survives a transient Go 5xx (or network blip) instead of failing the
+// whole turn — Go releases the claim on such errors expecting a retry. The leg's
+// transient error is rolled back on its OWN (isolated) errors array so a
+// recovered retry isn't mis-finalized as `error`. An AbortError (a sibling
+// failure cancelling this leg, see driveSubagentChains) is non-retryable and
+// propagates immediately.
+async function runResumeLegWithRetry(
+  url: string,
+  body: Record<string, unknown>,
+  leg: StreamingContext,
+  execContext: ExecutionContext,
+  options: CopilotLifecycleOptions
+): Promise<void> {
+  let attempt = 0
+  for (;;) {
+    const errorsBeforeAttempt = leg.errors.length
+    const willRetryOnStreamError = attempt < MAX_RESUME_ATTEMPTS - 1
+    const legBody = willRetryOnStreamError ? { ...body, willRetryOnStreamError: true } : body
+    try {
+      await runStreamLoop(
+        url,
+        { method: 'POST', headers: mothershipRequestHeaders(), body: JSON.stringify(legBody) },
+        leg,
+        execContext,
+        options
+      )
+      return
+    } catch (error) {
+      if (isRetryableStreamError(error) && attempt < MAX_RESUME_ATTEMPTS - 1) {
+        leg.errors.length = errorsBeforeAttempt
+        attempt++
+        const backoff = RESUME_BACKOFF_MS[attempt - 1] ?? 1000
+        logger.warn('Child resume leg failed, retrying', {
+          attempt: attempt + 1,
+          maxAttempts: MAX_RESUME_ATTEMPTS,
+          backoffMs: backoff,
+          error: toError(error).message,
+        })
+        await sleepWithAbort(backoff, options.abortSignal)
+        continue
+      }
+      throw error
+    }
+  }
+}
+
+// driveOneChildChain resumes a single subagent's checkpoint chain to its end:
+// resume -> (re-pause -> resume)* -> fold into join. Returns the orchestrator's
+// follow-on continuation when THIS leg is the one the Go join woke (the last
+// finisher whose /resume response carried the orchestrator continuation), else
+// null. Re-pause vs follow-on is disambiguated by checkpoint id: a re-pause keeps
+// the same child id; the join continuation is a different (orchestrator) id.
+async function driveOneChildChain(
+  frame: ResumeFrame,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: CopilotLifecycleOptions,
+  baseURL: string,
+  workspaceId?: string
+): Promise<AsyncContinuation | null> {
+  // ParentToolCallID is the SAME subagent's stable identity across re-pauses;
+  // the checkpoint id rotates each re-pause (the prior one is already claimed).
+  const parentToolCallId = frame.parentToolCallId
+  // Guarded (not cast): a per-subagent frame always carries its own checkpointId
+  // (isPerSubagentContinuation requires it), but a local guard keeps this driver
+  // correct on its own terms rather than trusting a caller-side invariant.
+  if (!frame.checkpointId) return null
+  let checkpointId = frame.checkpointId
+  let toolIds = frame.pendingToolIds
+
+  for (;;) {
+    if (isAborted(options, context)) return null
+
+    await waitForToolIds(context, toolIds)
+    const results = collectResultsForToolIds(context, toolIds, checkpointId)
+
+    const leg = makeResumeLegContext(context)
+    await runResumeLegWithRetry(
+      `${baseURL}/api/tools/resume`,
+      {
+        streamId: context.messageId,
+        checkpointId,
+        userId: options.userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        results,
+      },
+      leg,
+      execContext,
+      options
+    )
+    mergeResumeLegOutputs(context, leg)
+
+    const cont = leg.awaitingAsyncContinuation
+    if (!cont) {
+      // The last finisher's leg, whose join continuation streamed the
+      // orchestrator to completion (done): nothing more to drive on this leg.
+      return null
+    }
+    // A NON-last finisher folds with a TERMINAL pause carrying the join id but
+    // NO pending tools and NO frames — the child's work is done and the join
+    // wakes on whichever sibling finishes last. End this leg cleanly; do NOT
+    // mistake the join id for an orchestrator follow-on and try to resume it.
+    const hasPending = (cont.pendingToolCallIds?.length ?? 0) > 0
+    const hasFrames = (cont.frames?.length ?? 0) > 0
+    if (!hasPending && !hasFrames) {
+      return null
+    }
+    // Re-pause is identified by THIS subagent's stable parentToolCallId (the
+    // checkpoint id rotates each re-pause). If present, keep driving this child
+    // with its new id + leaves.
+    const repaused = cont.frames?.find(
+      (f) => f.parentToolCallId === parentToolCallId && f.checkpointId
+    )
+    if (repaused?.checkpointId) {
+      checkpointId = repaused.checkpointId
+      toolIds = repaused.pendingToolIds
+      continue
+    }
+    // No frame for this subagent => the join fired and the orchestrator re-paused
+    // on this leg. Hand it back to the main loop to continue the turn.
+    return cont
+  }
+}
+
+// driveSubagentChains fans out one resume chain per child frame concurrently and
+// returns the single orchestrator follow-on continuation (if the orchestrator
+// re-paused after the join), or null when the turn completed.
+//
+// Failure isolation: the legs share a per-fanout AbortController so the FIRST leg
+// to fail cancels its siblings' in-flight resumes (otherwise a `Promise.all`
+// reject leaves the siblings running detached — still mutating shared context and
+// POSTing /resume after the turn has errored). The controller also chains off the
+// caller's abort signal so a user stop cancels every leg. Each leg's failure is
+// caught (so Promise.all can't reject before its siblings unwind); we then
+// rethrow the first REAL error, not the AbortErrors it triggered in the siblings.
+async function driveSubagentChains(
+  continuation: AsyncContinuation,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options: CopilotLifecycleOptions,
+  baseURL: string,
+  workspaceId?: string
+): Promise<AsyncContinuation | null> {
+  const frames = continuation.frames ?? []
+  logger.info('Driving subagent checkpoint chains concurrently', {
+    childCount: frames.length,
+    checkpointIds: frames.map((f) => f.checkpointId),
+  })
+
+  const fanoutController = new AbortController()
+  const parentSignal = options.abortSignal
+  const onParentAbort = () => fanoutController.abort()
+  if (parentSignal) {
+    if (parentSignal.aborted) fanoutController.abort()
+    else parentSignal.addEventListener('abort', onParentAbort, { once: true })
+  }
+  const legOptions: CopilotLifecycleOptions = { ...options, abortSignal: fanoutController.signal }
+
+  let firstError: unknown
+  try {
+    const followOns = await Promise.all(
+      frames.map((frame) =>
+        driveOneChildChain(frame, context, execContext, legOptions, baseURL, workspaceId).catch(
+          (error) => {
+            // First real failure wins and cancels the siblings; their resulting
+            // AbortErrors arrive later and don't overwrite it. Swallow here so
+            // Promise.all doesn't reject before every leg has unwound.
+            if (firstError === undefined) firstError = error
+            fanoutController.abort()
+            return null
+          }
+        )
+      )
+    )
+    if (firstError !== undefined) throw firstError
+    return followOns.find((c): c is AsyncContinuation => !!c) ?? null
+  } finally {
+    parentSignal?.removeEventListener('abort', onParentAbort)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Checkpoint loop – the core state machine
 // ---------------------------------------------------------------------------
 
@@ -339,12 +634,7 @@ async function runCheckpointLoop(
         `${mothershipBaseURL}${route}`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(env.COPILOT_API_KEY ? { 'x-api-key': env.COPILOT_API_KEY } : {}),
-            ...getMothershipSourceEnvHeaders(),
-            'X-Client-Version': SIM_AGENT_VERSION,
-          },
+          headers: mothershipRequestHeaders(),
           body: JSON.stringify(legPayload),
         },
         context,
@@ -405,8 +695,37 @@ async function runCheckpointLoop(
       break
     }
 
-    const continuation = context.awaitingAsyncContinuation
+    let continuation = context.awaitingAsyncContinuation
     if (!continuation) break
+
+    // Per-subagent checkpoint model: fan out one concurrent resume chain per
+    // child instead of a single bundled resume. The driver returns null when the
+    // turn completed, or the orchestrator's follow-on continuation when it
+    // re-paused after the join. A per-subagent follow-on (orchestrator spawned
+    // more subagents) loops back through the driver; a normal follow-on falls
+    // through to the sequential resume path below.
+    if (isPerSubagentContinuation(continuation)) {
+      context.awaitingAsyncContinuation = undefined
+      let next: AsyncContinuation | null = continuation
+      while (next && isPerSubagentContinuation(next)) {
+        if (isAborted(options, context)) {
+          cancelPendingTools(context)
+          next = null
+          break
+        }
+        await waitForToolIds(context, next.pendingToolCallIds)
+        next = await driveSubagentChains(
+          next,
+          context,
+          execContext,
+          options,
+          mothershipBaseURL,
+          lifecycleWorkspaceId
+        )
+      }
+      if (!next) break
+      continuation = next
+    }
 
     if (context.pendingToolPromises.size > 0) {
       // Bounded by the slowest pending tool's watchdog plus grace. The

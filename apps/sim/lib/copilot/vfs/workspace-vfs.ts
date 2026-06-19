@@ -120,6 +120,7 @@ import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
+  hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
@@ -1017,6 +1018,37 @@ export class WorkspaceVFS {
   }
 
   /**
+   * Resolve the set of folder IDs that are effectively locked — locked directly
+   * or via a locked ancestor folder. A workflow inside any of these folders is
+   * itself immutable, so its meta.json must report `locked: true`. Mirrors the
+   * folder-chain walk in `@sim/platform-authz/workflow` getFolderLockStatus, but resolves
+   * the whole workspace in memory to avoid a per-workflow DB round trip.
+   */
+  private computeLockedFolderIds(
+    folders: Array<{ folderId: string; parentId: string | null; locked: boolean }>
+  ): Set<string> {
+    const byId = new Map(folders.map((f) => [f.folderId, f]))
+    const lockedFolderIds = new Set<string>()
+
+    for (const folder of folders) {
+      let current: string | null = folder.folderId
+      const visited = new Set<string>()
+      while (current && !visited.has(current)) {
+        visited.add(current)
+        const node = byId.get(current)
+        if (!node) break
+        if (node.locked) {
+          lockedFolderIds.add(folder.folderId)
+          break
+        }
+        current = node.parentId
+      }
+    }
+
+    return lockedFolderIds
+  }
+
+  /**
    * Materialize all workflows using the shared listWorkflows function.
    * Workflows are nested under their folder paths in the VFS:
    *   workflows/{folder}/{name}/  (if in a folder)
@@ -1031,6 +1063,7 @@ export class WorkspaceVFS {
     ])
 
     const folderPaths = this.buildFolderPaths(folderRows)
+    const lockedFolderIds = this.computeLockedFolderIds(folderRows)
 
     // NOTE: materialization is a pure READ. Alias backing (changelog/plan
     // folders + files) is ensured at write time — workflow create/rename
@@ -1056,7 +1089,8 @@ export class WorkspaceVFS {
         const prefix = `${canonicalWorkflowVfsDir({ name: wf.name, folderPath })}/`
         const workflowPath = prefix.replace(/\/$/, '')
 
-        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf))
+        const inheritedFolderLock = wf.folderId ? lockedFolderIds.has(wf.folderId) : false
+        this.files.set(`${prefix}meta.json`, serializeWorkflowMeta(wf, { inheritedFolderLock }))
 
         if (workflowArtifactsEnabled) {
           const changelog = findWorkspaceFileRecord(
@@ -2118,9 +2152,10 @@ export class WorkspaceVFS {
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
+      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId),
-        getAccessibleOAuthCredentials(workspaceId, userId),
+        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
       ])

@@ -1,11 +1,9 @@
-import { db } from '@sim/db'
-import { permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { listInvitationsForWorkspaces } from '@/lib/invitations/core'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,24 +16,14 @@ export const GET = withRouteHandler(async (req: NextRequest) => {
   }
 
   try {
-    const userWorkspaces = await db
-      .select({ id: workspace.id })
-      .from(workspace)
-      .innerJoin(
-        permissions,
-        and(
-          eq(permissions.entityId, workspace.id),
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.userId, session.user.id)
-        )
-      )
-      .where(isNull(workspace.archivedAt))
-
-    if (userWorkspaces.length === 0) {
+    const accessibleRows = await listAccessibleWorkspaceRowsForUser(session.user.id)
+    if (accessibleRows.length === 0) {
       return NextResponse.json({ invitations: [] })
     }
 
-    const invitations = await listInvitationsForWorkspaces(userWorkspaces.map((w) => w.id))
+    const invitations = await listInvitationsForWorkspaces(
+      accessibleRows.map((row) => row.workspace.id)
+    )
     return NextResponse.json({ invitations })
   } catch (error) {
     logger.error('Error fetching workspace invitations:', error)

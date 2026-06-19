@@ -13,7 +13,7 @@ const logger = createLogger('SessionBuffer')
 const STREAM_OUTBOX_PREFIX = 'mothership_stream:'
 const DEFAULT_TTL_SECONDS = 60 * 60
 const DEFAULT_COMPLETED_TTL_SECONDS = 5 * 60
-const DEFAULT_EVENT_LIMIT = 5_000
+const DEFAULT_EVENT_LIMIT = 100_000
 const RETRY_DELAYS_MS = [0, 50, 150] as const
 
 type RedisOperationMetadata = {

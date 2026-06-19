@@ -16,6 +16,15 @@ import { getUniqueColumns } from '@/lib/table/validation'
 
 vi.mock('@sim/db', () => dbChainMock)
 
+// Capacity is exercised in billing.test.ts; here it's a no-op so the timeout-scaling
+// suites can use large synthetic row counts without tripping the plan limit.
+vi.mock('@/lib/table/billing', () => ({
+  assertRowCapacity: vi.fn().mockResolvedValue(undefined),
+  getMaxRowsPerTable: vi.fn().mockResolvedValue(1_000_000),
+  wouldExceedRowLimit: () => false,
+  TableRowLimitError: class TableRowLimitError extends Error {},
+}))
+
 // These suites assert flag-off position-shift semantics; pin the flag so they're
 // deterministic regardless of a local TABLES_FRACTIONAL_ORDERING env value.
 vi.mock('@/lib/core/config/feature-flags', () => ({

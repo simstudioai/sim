@@ -1,5 +1,5 @@
 import { dbReplica } from '@sim/db'
-import { permissions, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import { workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -15,6 +15,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { buildFilterConditions } from '@/lib/logs/filters'
 import { expandFolderIdsWithDescendants } from '@/lib/logs/folder-expansion'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('LogsStatsAPI')
 
@@ -36,6 +37,22 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       const { searchParams } = new URL(request.url)
       const params = statsQueryParamsSchema.parse(Object.fromEntries(searchParams.entries()))
 
+      const access = await checkWorkspaceAccess(params.workspaceId, userId)
+      if (!access.hasAccess) {
+        return NextResponse.json(
+          {
+            workflows: [],
+            aggregateSegments: [],
+            totalRuns: 0,
+            totalErrors: 0,
+            avgLatency: 0,
+            timeBounds: { start: new Date().toISOString(), end: new Date().toISOString() },
+            segmentMs: 0,
+          } satisfies DashboardStatsResponse,
+          { status: 200 }
+        )
+      }
+
       const workspaceFilter = eq(workflowExecutionLogs.workspaceId, params.workspaceId)
 
       if (params.folderIds) {
@@ -55,14 +72,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
         .from(workflowExecutionLogs)
         .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .innerJoin(
-          permissions,
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-            eq(permissions.userId, userId)
-          )
-        )
         .where(whereCondition)
 
       const bounds = boundsQuery[0]
@@ -103,14 +112,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         })
         .from(workflowExecutionLogs)
         .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-        .innerJoin(
-          permissions,
-          and(
-            eq(permissions.entityType, 'workspace'),
-            eq(permissions.entityId, workflowExecutionLogs.workspaceId),
-            eq(permissions.userId, userId)
-          )
-        )
         .where(whereCondition)
         .groupBy(
           sql`COALESCE(${workflowExecutionLogs.workflowId}, 'deleted')`,

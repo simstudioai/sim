@@ -644,6 +644,12 @@ export function AccessControl() {
         category: 'Features',
         configKey: 'disablePublicApi' as const,
       },
+      {
+        id: 'disable-public-file-sharing',
+        label: 'Public Sharing',
+        category: 'Files',
+        configKey: 'disablePublicFileSharing' as const,
+      },
     ],
     []
   )
@@ -1157,7 +1163,9 @@ export function AccessControl() {
   if (!canManage) {
     return (
       <div className='flex h-full items-center justify-center text-[var(--text-muted)] text-sm'>
-        Only organization admins on Enterprise plans can manage Access Control settings.
+        {!organizationId
+          ? "Access Control applies to organization workspaces. This workspace isn't part of an organization."
+          : 'Only organization admins on Enterprise plans can manage Access Control settings.'}
       </div>
     )
   }
