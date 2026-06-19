@@ -17,7 +17,7 @@ const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const {
   getEffectiveDecryptedEnv,
-  generateWorkspaceContext,
+  generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
   buildCopilotRequestPayload,
@@ -31,7 +31,7 @@ const {
   mockPublishStatusChanged,
 } = vi.hoisted(() => ({
   getEffectiveDecryptedEnv: vi.fn(),
-  generateWorkspaceContext: vi.fn(),
+  generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
   buildCopilotRequestPayload: vi.fn(),
@@ -56,7 +56,7 @@ vi.mock('@/lib/environment/utils', () => ({
 }))
 
 vi.mock('@/lib/copilot/chat/workspace-context', () => ({
-  generateWorkspaceContext,
+  generateWorkspaceSnapshot,
 }))
 
 vi.mock('@/lib/copilot/chat/process-contents', () => ({
@@ -142,7 +142,7 @@ describe('handleUnifiedChatPost', () => {
     })
     getUserEntityPermissions.mockResolvedValue('write')
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
-    generateWorkspaceContext.mockResolvedValue('workspace context')
+    generateWorkspaceSnapshot.mockResolvedValue({ markdown: 'workspace context', snapshot: undefined })
     processContextsServer.mockResolvedValue([])
     resolveActiveResourceContext.mockResolvedValue(null)
     buildCopilotRequestPayload.mockImplementation(async (params: Record<string, unknown>) => params)
@@ -178,7 +178,7 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(generateWorkspaceContext).toHaveBeenCalledWith('ws-1', 'user-1')
+    expect(generateWorkspaceSnapshot).toHaveBeenCalledWith('ws-1', 'user-1')
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
       expect.objectContaining({
         model: 'claude-opus-4-8',

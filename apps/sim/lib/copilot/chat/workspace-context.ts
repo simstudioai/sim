@@ -1,4 +1,9 @@
-import { dbReplica } from '@sim/db'
+import { db } from '@sim/db'
+import type {
+  VfsSnapshotV1,
+  VfsSnapshotV1Job,
+  VfsSnapshotV1Workflow,
+} from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   knowledgeBase,
   knowledgeConnector,
@@ -311,15 +316,20 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
  * discovery rules; the LLM reads dynamic workspace state from VFS files.
  * The LLM never writes this file directly.
  */
-export async function generateWorkspaceContext(
+// Fetch + assemble the workspace inventory data once, from the PRIMARY db
+// (read-your-writes: a just-edited workflow is visible immediately, so the
+// injected snapshot can't lag behind a `glob`). Both the markdown inventory and
+// the typed VFS snapshot are built from this single fetch. Returns null when the
+// workspace is unavailable or a fetch fails.
+async function buildWorkspaceMdData(
   workspaceId: string,
   userId: string
-): Promise<string> {
+): Promise<WorkspaceMdData | null> {
   try {
     await assertActiveWorkspaceAccess(workspaceId, userId)
     const wsRow = await getWorkspaceWithOwner(workspaceId)
     if (!wsRow) {
-      return '## Workspace\n(unavailable)'
+      return null
     }
 
     const [
@@ -337,7 +347,7 @@ export async function generateWorkspaceContext(
     ] = await Promise.all([
       getUsersWithPermissions(workspaceId),
 
-      dbReplica
+      db
         .select({
           id: workflow.id,
           name: workflow.name,
@@ -349,7 +359,7 @@ export async function generateWorkspaceContext(
         .from(workflow)
         .where(and(eq(workflow.workspaceId, workspaceId), isNull(workflow.archivedAt))),
 
-      dbReplica
+      db
         .select({
           id: workflowFolder.id,
           name: workflowFolder.name,
@@ -358,7 +368,7 @@ export async function generateWorkspaceContext(
         .from(workflowFolder)
         .where(and(eq(workflowFolder.workspaceId, workspaceId), isNull(workflowFolder.archivedAt))),
 
-      dbReplica
+      db
         .select({
           id: knowledgeBase.id,
           name: knowledgeBase.name,
@@ -367,7 +377,7 @@ export async function generateWorkspaceContext(
         .from(knowledgeBase)
         .where(and(eq(knowledgeBase.workspaceId, workspaceId), isNull(knowledgeBase.deletedAt))),
 
-      dbReplica
+      db
         .select({
           id: userTableDefinitions.id,
           name: userTableDefinitions.name,
@@ -387,7 +397,7 @@ export async function generateWorkspaceContext(
 
       listCustomTools({ userId, workspaceId }),
 
-      dbReplica
+      db
         .select({
           id: mcpServers.id,
           name: mcpServers.name,
@@ -399,7 +409,7 @@ export async function generateWorkspaceContext(
 
       listSkills({ workspaceId, includeBuiltins: false }),
 
-      dbReplica
+      db
         .select({
           id: workflowSchedule.id,
           jobTitle: workflowSchedule.jobTitle,
@@ -422,7 +432,7 @@ export async function generateWorkspaceContext(
     const kbIds = kbs.map((kb) => kb.id)
     const connectorRows =
       kbIds.length > 0
-        ? await dbReplica
+        ? await db
             .select({
               knowledgeBaseId: knowledgeConnector.knowledgeBaseId,
               connectorType: knowledgeConnector.connectorType,
@@ -459,7 +469,7 @@ export async function generateWorkspaceContext(
       return path
     }
 
-    return buildWorkspaceMd({
+    return {
       workspace: wsRow,
       members,
       workflows: workflows.map((wf) => ({
@@ -468,7 +478,11 @@ export async function generateWorkspaceContext(
       })),
       knowledgeBases: kbs.map((kb) => ({
         ...kb,
-        connectorTypes: connectorTypesByKb.get(kb.id),
+        // Sort connector types so the snapshot is order-stable: the DB query has
+        // no ORDER BY, and the Go delta engine compares item JSON byte-wise, so
+        // an unsorted (but unchanged) list would emit a spurious "modified"
+        // delta and needlessly bust the prompt cache.
+        connectorTypes: connectorTypesByKb.get(kb.id)?.sort(stableCompare),
       })),
       tables: tables.map((t) => ({ id: t.id, name: t.name, description: t.description })),
       files: files.map((f) => ({
@@ -499,13 +513,128 @@ export async function generateWorkspaceContext(
           lifecycle: j.lifecycle,
           sourceTaskName: j.sourceTaskName,
         })),
-    })
+    }
   } catch (err) {
-    logger.error('Failed to generate workspace context', {
+    logger.error('Failed to build workspace data', {
       workspaceId,
       error: toError(err).message,
     })
-    return '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
+    return null
+  }
+}
+
+const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
+  '## Workspace\n(unavailable)\n\n## Workflows\n(unavailable)\n\n## Knowledge Bases\n(unavailable)\n\n## Tables\n(unavailable)\n\n## Files\n(unavailable)\n\n## Connected Integrations\n(unavailable)'
+
+/**
+ * Generate WORKSPACE.md markdown from current DB state (primary db). The LLM
+ * reads dynamic workspace state from VFS files; it never writes this file.
+ */
+export async function generateWorkspaceContext(
+  workspaceId: string,
+  userId: string
+): Promise<string> {
+  const data = await buildWorkspaceMdData(workspaceId, userId)
+  return data ? buildWorkspaceMd(data) : WORKSPACE_CONTEXT_UNAVAILABLE_MD
+}
+
+/**
+ * Build BOTH the markdown inventory and the typed VFS snapshot from a single
+ * primary-db fetch. The snapshot is the structured form Go diffs into
+ * baseline+delta messages; the markdown is the transition fallback. Returns null
+ * when the workspace is unavailable.
+ */
+export async function generateWorkspaceSnapshot(
+  workspaceId: string,
+  userId: string
+): Promise<{ markdown: string; snapshot: VfsSnapshotV1 } | null> {
+  const data = await buildWorkspaceMdData(workspaceId, userId)
+  if (!data) return null
+  return { markdown: buildWorkspaceMd(data), snapshot: buildVfsSnapshot(data) }
+}
+
+/**
+ * Map the workspace inventory data to the typed VFS snapshot contract. Pure;
+ * mirrors buildWorkspaceMd's field selection. Resource order is irrelevant — Go
+ * diffs by stable id, not position.
+ */
+export function buildVfsSnapshot(data: WorkspaceMdData): VfsSnapshotV1 {
+  const workflows: VfsSnapshotV1Workflow[] = data.workflows.map((wf) => ({
+    id: wf.id,
+    name: wf.name,
+    path: canonicalWorkflowVfsDir({ name: wf.name, folderPath: wf.folderPath }),
+    ...(wf.description ? { description: wf.description } : {}),
+    ...(wf.isDeployed ? { isDeployed: true } : {}),
+    ...(wf.folderPath ? { folderPath: wf.folderPath } : {}),
+  }))
+  const jobs: VfsSnapshotV1Job[] = (data.jobs ?? [])
+    .filter((j) => j.status !== 'completed')
+    .map((j) => ({
+      id: j.id,
+      ...(j.title ? { title: j.title } : {}),
+      ...(j.prompt ? { prompt: j.prompt } : {}),
+      ...(j.cronExpression ? { cronExpression: j.cronExpression } : {}),
+      ...(j.status ? { status: j.status } : {}),
+      ...(j.lifecycle ? { lifecycle: j.lifecycle } : {}),
+      ...(j.sourceTaskName ? { sourceTaskName: j.sourceTaskName } : {}),
+    }))
+  return {
+    ...(data.workspace
+      ? {
+          workspace: {
+            id: data.workspace.id,
+            name: data.workspace.name,
+            ...(data.workspace.ownerId ? { ownerId: data.workspace.ownerId } : {}),
+          },
+        }
+      : {}),
+    members: data.members.map((m) => ({
+      ...(m.name ? { name: m.name } : {}),
+      email: m.email,
+      ...(m.permissionType ? { permissionType: m.permissionType } : {}),
+    })),
+    workflows,
+    knowledgeBases: data.knowledgeBases.map((kb) => ({
+      id: kb.id,
+      name: kb.name,
+      ...(kb.description ? { description: kb.description } : {}),
+      ...(kb.connectorTypes && kb.connectorTypes.length > 0
+        ? { connectorTypes: kb.connectorTypes }
+        : {}),
+    })),
+    tables: data.tables.map((t) => ({
+      id: t.id,
+      name: t.name,
+      ...(t.description ? { description: t.description } : {}),
+    })),
+    files: data.files.map((f) => ({
+      id: f.id,
+      name: f.name,
+      path: canonicalWorkspaceFilePath({ folderPath: f.folderPath, name: f.name }),
+      ...(f.type ? { type: f.type } : {}),
+      ...(f.size ? { size: f.size } : {}),
+      ...(f.folderPath ? { folderPath: f.folderPath } : {}),
+    })),
+    integrations: data.oauthIntegrations.map((c) => ({
+      id: c.id,
+      providerId: c.providerId,
+      ...(c.displayName ? { displayName: c.displayName } : {}),
+      ...(c.role ? { role: c.role } : {}),
+    })),
+    envVars: data.envVariables,
+    customTools: (data.customTools ?? []).map((t) => ({ id: t.id, name: t.name })),
+    mcpServers: (data.mcpServers ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      ...(s.url ? { url: s.url } : {}),
+      ...(s.enabled ? { enabled: true } : {}),
+    })),
+    skills: (data.skills ?? []).map((s) => ({
+      id: s.id,
+      name: s.name,
+      ...(s.description ? { description: s.description } : {}),
+    })),
+    jobs,
   }
 }
 

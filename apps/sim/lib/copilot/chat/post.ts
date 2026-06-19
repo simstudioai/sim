@@ -22,7 +22,8 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/copilot/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
+import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
+import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import {
@@ -183,6 +184,7 @@ type UnifiedChatBranch =
         prefetch?: boolean
         implicitFeedback?: string
         workspaceContext?: string
+        vfs?: VfsSnapshotV1
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -210,6 +212,7 @@ type UnifiedChatBranch =
         userTimezone?: string
         userMetadata?: { name?: string; email?: string; timezone?: string }
         workspaceContext?: string
+        vfs?: VfsSnapshotV1
       }) => Promise<Record<string, unknown>>
       buildExecutionContext: (params: {
         userId: string
@@ -898,7 +901,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         ? withCopilotSpan(
             TraceSpan.CopilotChatBuildWorkspaceContext,
             { [TraceAttr.WorkspaceId]: workspaceId },
-            () => generateWorkspaceContext(workspaceId, authenticatedUserId),
+            () => generateWorkspaceSnapshot(workspaceId, authenticatedUserId),
             activeOtelRoot.context
           )
         : Promise.resolve(undefined)
@@ -943,7 +946,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         activeOtelRoot.context
       )
 
-      const [agentContexts, userPermission, workspaceContext, , executionContext] =
+      const [agentContexts, userPermission, workspaceSnapshot, , executionContext] =
         await Promise.all([
           agentContextsPromise,
           userPermissionPromise,
@@ -951,6 +954,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           persistUserMessagePromise,
           executionContextPromise,
         ])
+      // Both halves come from one primary-db fetch (workspace-context.ts):
+      // `workspaceContext` is the markdown transition fallback, `vfs` is the
+      // typed snapshot Go diffs into baseline+delta messages.
+      const workspaceContext = workspaceSnapshot?.markdown
+      const vfs = workspaceSnapshot?.snapshot
 
       executionContext.userPermission = userPermission ?? undefined
 
@@ -987,6 +995,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 prefetch: body.prefetch,
                 implicitFeedback: body.implicitFeedback,
                 workspaceContext,
+                vfs,
               })
             : branch.buildPayload({
                 message: body.message,
@@ -999,6 +1008,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
                 userTimezone: body.userTimezone,
                 userMetadata,
                 workspaceContext,
+                vfs,
               }),
         activeOtelRoot.context
       )
