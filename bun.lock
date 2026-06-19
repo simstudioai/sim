@@ -1,6 +1,5 @@
 {
   "lockfileVersion": 1,
-  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "simstudio",
@@ -62,10 +61,10 @@
         "@sim/auth": "workspace:*",
         "@sim/db": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/platform-authz": "workspace:*",
         "@sim/realtime-protocol": "workspace:*",
         "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
-        "@sim/workflow-authz": "workspace:*",
         "@sim/workflow-persistence": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "@socket.io/redis-adapter": "8.3.0",
@@ -151,10 +150,10 @@
         "@react-email/render": "2.0.8",
         "@sim/audit": "workspace:*",
         "@sim/logger": "workspace:*",
+        "@sim/platform-authz": "workspace:*",
         "@sim/realtime-protocol": "workspace:*",
         "@sim/security": "workspace:*",
         "@sim/utils": "workspace:*",
-        "@sim/workflow-authz": "workspace:*",
         "@sim/workflow-persistence": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "@t3-oss/env-nextjs": "0.13.4",
@@ -360,6 +359,18 @@
         "vitest": "^4.1.0",
       },
     },
+    "packages/platform-authz": {
+      "name": "@sim/platform-authz",
+      "version": "0.1.0",
+      "dependencies": {
+        "@sim/db": "workspace:*",
+        "drizzle-orm": "^0.45.2",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "typescript": "^5.7.3",
+      },
+    },
     "packages/realtime-protocol": {
       "name": "@sim/realtime-protocol",
       "version": "0.1.0",
@@ -421,18 +432,6 @@
         "@sim/tsconfig": "workspace:*",
         "typescript": "^5.7.3",
         "vitest": "^4.1.0",
-      },
-    },
-    "packages/workflow-authz": {
-      "name": "@sim/workflow-authz",
-      "version": "0.1.0",
-      "dependencies": {
-        "@sim/db": "workspace:*",
-        "drizzle-orm": "^0.45.2",
-      },
-      "devDependencies": {
-        "@sim/tsconfig": "workspace:*",
-        "typescript": "^5.7.3",
       },
     },
     "packages/workflow-persistence": {
@@ -1410,6 +1409,8 @@
 
     "@sim/logger": ["@sim/logger@workspace:packages/logger"],
 
+    "@sim/platform-authz": ["@sim/platform-authz@workspace:packages/platform-authz"],
+
     "@sim/realtime": ["@sim/realtime@workspace:apps/realtime"],
 
     "@sim/realtime-protocol": ["@sim/realtime-protocol@workspace:packages/realtime-protocol"],
@@ -1421,8 +1422,6 @@
     "@sim/tsconfig": ["@sim/tsconfig@workspace:packages/tsconfig"],
 
     "@sim/utils": ["@sim/utils@workspace:packages/utils"],
-
-    "@sim/workflow-authz": ["@sim/workflow-authz@workspace:packages/workflow-authz"],
 
     "@sim/workflow-persistence": ["@sim/workflow-persistence@workspace:packages/workflow-persistence"],
 

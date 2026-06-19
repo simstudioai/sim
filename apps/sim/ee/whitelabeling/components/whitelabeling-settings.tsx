@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Image as ImageIcon, X } from 'lucide-react'
 import Image from 'next/image'
@@ -127,7 +128,7 @@ export function WhitelabelingSettings() {
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = userRole === 'owner' || userRole === 'admin'
+  const canManage = isOrgAdminRole(userRole)
   const subscriptionAccess = getSubscriptionAccessState(subscriptionData?.data)
   const hasEnterprisePlan = subscriptionAccess.hasUsableEnterpriseAccess
 

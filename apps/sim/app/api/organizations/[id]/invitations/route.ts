@@ -10,6 +10,7 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -79,7 +80,7 @@ export const GET = withRouteHandler(
       }
 
       const userRole = memberEntry.role
-      if (!['owner', 'admin'].includes(userRole)) {
+      if (!isOrgAdminRole(userRole)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 
@@ -149,7 +150,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      if (!['owner', 'admin'].includes(memberEntry.role)) {
+      if (!isOrgAdminRole(memberEntry.role)) {
         return NextResponse.json({ error: 'Forbidden - Admin access required' }, { status: 403 })
       }
 

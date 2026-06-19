@@ -84,6 +84,7 @@ export const workspaceUserSchema = z.object({
   permissionType: workspacePermissionSchema,
   isExternal: z.boolean(),
   joinedAt: z.string(),
+  roleSource: z.enum(['owner', 'explicit', 'org-admin']),
 })
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>

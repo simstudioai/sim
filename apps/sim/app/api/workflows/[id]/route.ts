@@ -7,7 +7,7 @@ import {
   authorizeWorkflowByWorkspacePermission,
   FolderLockedError,
   WorkflowLockedError,
-} from '@sim/workflow-authz'
+} from '@sim/platform-authz/workflow'
 import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { updateWorkflowContract } from '@/lib/api/contracts/workflows'

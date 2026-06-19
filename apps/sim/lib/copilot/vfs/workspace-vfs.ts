@@ -120,6 +120,7 @@ import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
+  hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
@@ -1020,7 +1021,7 @@ export class WorkspaceVFS {
    * Resolve the set of folder IDs that are effectively locked — locked directly
    * or via a locked ancestor folder. A workflow inside any of these folders is
    * itself immutable, so its meta.json must report `locked: true`. Mirrors the
-   * folder-chain walk in `@sim/workflow-authz` getFolderLockStatus, but resolves
+   * folder-chain walk in `@sim/platform-authz/workflow` getFolderLockStatus, but resolves
    * the whole workspace in memory to avoid a per-workflow DB round trip.
    */
   private computeLockedFolderIds(
@@ -2151,9 +2152,10 @@ export class WorkspaceVFS {
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
+      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId),
-        getAccessibleOAuthCredentials(workspaceId, userId),
+        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
       ])

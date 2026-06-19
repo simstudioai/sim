@@ -8,7 +8,7 @@ Thank you for your interest in contributing to Sim! Our goal is to provide devel
 > - `apps/sim/` — the main Next.js application (App Router, ReactFlow, Zustand, Shadcn, Tailwind CSS).
 > - `apps/realtime/` — a small Bun + Socket.IO server that powers the collaborative canvas. Shares DB and Better Auth secrets with `apps/sim` via `@sim/*` packages.
 > - `apps/docs/` — Fumadocs-based documentation site.
-> - `packages/` — shared workspace packages (`@sim/db`, `@sim/auth`, `@sim/audit`, `@sim/workflow-types`, `@sim/workflow-persistence`, `@sim/workflow-authz`, `@sim/realtime-protocol`, `@sim/security`, `@sim/logger`, `@sim/utils`, `@sim/testing`, `@sim/tsconfig`).
+> - `packages/` — shared workspace packages (`@sim/db`, `@sim/auth`, `@sim/audit`, `@sim/workflow-types`, `@sim/workflow-persistence`, `@sim/platform-authz`, `@sim/realtime-protocol`, `@sim/security`, `@sim/logger`, `@sim/utils`, `@sim/testing`, `@sim/tsconfig`).
 >
 > Strict one-way dependency flow: `apps/* → packages/*`. Packages never import from apps. Please ensure your contributions follow this and our best practices for clarity, maintainability, and consistency.
 

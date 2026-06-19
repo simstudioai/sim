@@ -941,7 +941,9 @@ export const schemaMock = {
     executionId: 'executionId',
     createdAt: 'createdAt',
   },
-  credentialTypeEnum: 'credentialTypeEnum',
+  credentialTypeEnum: {
+    enumValues: ['oauth', 'env_workspace', 'env_personal', 'service_account'] as const,
+  },
   credential: {
     id: 'id',
     workspaceId: 'workspaceId',

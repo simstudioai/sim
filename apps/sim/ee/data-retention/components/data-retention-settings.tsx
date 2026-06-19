@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { Chip, ChipSelect, toast } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
@@ -71,7 +72,7 @@ export function DataRetentionSettings() {
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = userRole === 'owner' || userRole === 'admin'
+  const canManage = isOrgAdminRole(userRole)
 
   const [logDays, setLogDays] = useState('')
   const [softDeleteDays, setSoftDeleteDays] = useState('')

@@ -394,7 +394,7 @@ describe('Folders API Route', () => {
     it('should reject creating a subfolder inside a locked parent folder', async () => {
       mockAuthenticatedUser()
 
-      const { FolderLockedError } = await import('@sim/workflow-authz')
+      const { FolderLockedError } = await import('@sim/platform-authz/workflow')
       workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
         new FolderLockedError('Folder is locked')
       )

@@ -10,6 +10,7 @@ const {
   mockGetOrgMemberUsageLimit,
   mockGetOrgMemberWorkspaceUsage,
   mockSetOrgMemberUsageLimit,
+  mockGetOrganizationSubscription,
   mockFlags,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -17,6 +18,7 @@ const {
   mockGetOrgMemberUsageLimit: vi.fn(),
   mockGetOrgMemberWorkspaceUsage: vi.fn(),
   mockSetOrgMemberUsageLimit: vi.fn(),
+  mockGetOrganizationSubscription: vi.fn(),
   mockFlags: { isHosted: true },
 }))
 
@@ -35,6 +37,10 @@ vi.mock('@/lib/billing/organizations/member-limits', () => ({
   getOrgMemberUsageLimit: mockGetOrgMemberUsageLimit,
   getOrgMemberWorkspaceUsage: mockGetOrgMemberWorkspaceUsage,
   setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
+}))
+
+vi.mock('@/lib/billing/core/billing', () => ({
+  getOrganizationSubscription: mockGetOrganizationSubscription,
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
@@ -65,6 +71,7 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     mockIsOrganizationOwnerOrAdmin.mockResolvedValue(true)
     mockGetOrgMemberWorkspaceUsage.mockResolvedValue(1) // $1 -> 200 credits
     mockGetOrgMemberUsageLimit.mockResolvedValue(2) // $2 -> 400 credits
+    mockGetOrganizationSubscription.mockResolvedValue(null)
   })
 
   it('returns 401 without a session', async () => {
@@ -93,6 +100,7 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
       data: {
         creditsUsed: 200,
         creditLimit: 400,
+        billingInterval: 'month',
       },
     })
   })
@@ -102,6 +110,20 @@ describe('GET /api/organizations/[id]/members/[memberId]/usage-limit', () => {
     const res = await GET(getRequest(), context())
     const body = await res.json()
     expect(body.data.creditLimit).toBeNull()
+  })
+
+  it('reports a yearly billing interval from subscription metadata', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue({ metadata: { billingInterval: 'year' } })
+    const res = await GET(getRequest(), context())
+    const body = await res.json()
+    expect(body.data.billingInterval).toBe('year')
+  })
+
+  it('prefers the billing_interval column when metadata lacks it', async () => {
+    mockGetOrganizationSubscription.mockResolvedValue({ billingInterval: 'year', metadata: {} })
+    const res = await GET(getRequest(), context())
+    const body = await res.json()
+    expect(body.data.billingInterval).toBe('year')
   })
 })
 

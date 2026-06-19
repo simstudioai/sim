@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import {
@@ -170,7 +171,7 @@ async function checkTableWriteAccess(tableId: string, userId: string): Promise<T
   }
 
   const userPermission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  if (userPermission === 'write' || userPermission === 'admin') {
+  if (permissionSatisfies(userPermission, 'write')) {
     return { hasAccess: true, table }
   }
 
@@ -193,11 +194,7 @@ export async function checkAccess(
   }
 
   const permission = await getUserEntityPermissions(userId, 'workspace', table.workspaceId)
-  const hasAccess =
-    permission !== null &&
-    (level === 'read' ||
-      (level === 'write' && (permission === 'write' || permission === 'admin')) ||
-      (level === 'admin' && permission === 'admin'))
+  const hasAccess = permissionSatisfies(permission, level)
 
   return hasAccess ? { ok: true, table } : { ok: false, status: 403 }
 }
