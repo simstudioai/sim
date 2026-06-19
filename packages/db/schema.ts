@@ -3306,6 +3306,13 @@ export const tableRowExecutions = pgTable(
     runningBlockIds: text('running_block_ids').array().notNull().default(sql`'{}'::text[]`),
     blockErrors: jsonb('block_errors').notNull().default({}),
     cancelledAt: timestamp('cancelled_at'),
+    /**
+     * Enrichment cascade breakdown (provider outcomes, cost, timing) for
+     * `enrichment`-type groups. Null for workflow groups and pre-feature runs.
+     * Deliberately excluded from the hot grid read (`loadExecutionsByRow`) — read
+     * on demand for the enrichment details panel.
+     */
+    enrichmentDetails: jsonb('enrichment_details'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

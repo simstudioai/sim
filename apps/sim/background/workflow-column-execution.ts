@@ -337,7 +337,7 @@ async function runWorkflowAndWriteTerminal(
           })
           return 'error'
         }
-        const { result, cost, error } = await runEnrichment(enrichment, enrichInputs, {
+        const { result, cost, error, detail } = await runEnrichment(enrichment, enrichInputs, {
           tableId,
           rowId,
           workspaceId,
@@ -365,6 +365,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error,
+            enrichmentDetails: detail,
           })
           return 'error'
         }
@@ -410,7 +411,14 @@ async function runWorkflowAndWriteTerminal(
             value === undefined || value === null ? '' : (value as RowData[string])
         }
         await writeState(
-          { status: 'completed', executionId, jobId: null, workflowId: statusId, error: null },
+          {
+            status: 'completed',
+            executionId,
+            jobId: null,
+            workflowId: statusId,
+            error: null,
+            enrichmentDetails: detail,
+          },
           dataPatch
         )
         return 'completed'

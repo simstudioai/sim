@@ -43,6 +43,7 @@ import {
   exportDownloadContract,
   exportTableAsyncContract,
   findTableRowsContract,
+  getEnrichmentDetailContract,
   getTableContract,
   type InsertTableRowBodyInput,
   importIntoTableAsyncContract,
@@ -71,6 +72,7 @@ import {
 } from '@/lib/api/contracts/tables'
 import type {
   CsvHeaderMapping,
+  EnrichmentRunDetail,
   Filter,
   RowData,
   RowExecutionMetadata,
@@ -114,6 +116,10 @@ export const tableKeys = {
     [...tableKeys.rowsRoot(tableId), 'find', paramsKey] as const,
   activeDispatches: (tableId: string) =>
     [...tableKeys.detail(tableId), 'active-dispatches'] as const,
+  enrichmentDetails: (tableId: string) =>
+    [...tableKeys.detail(tableId), 'enrichment-detail'] as const,
+  enrichmentDetail: (tableId: string, rowId: string, groupId: string) =>
+    [...tableKeys.enrichmentDetails(tableId), rowId, groupId] as const,
 }
 
 type TableRowsParams = Omit<TableRowsQueryInput, 'filter' | 'sort'> &
@@ -282,6 +288,39 @@ async function fetchTableRunState(tableId: string, signal?: AbortSignal): Promis
     runningCellCount: response.data.runningCellCount,
     runningByRowId: response.data.runningByRowId,
   }
+}
+
+async function fetchEnrichmentDetail(
+  tableId: string,
+  rowId: string,
+  groupId: string,
+  signal?: AbortSignal
+): Promise<EnrichmentRunDetail | null> {
+  const response = await requestJson(getEnrichmentDetailContract, {
+    params: { tableId, rowId, groupId },
+    signal,
+  })
+  return response.data.detail
+}
+
+/**
+ * Enrichment cascade breakdown for one cell, fetched on demand when the
+ * enrichment details panel opens. Kept off the hot grid read — only queried
+ * while `enabled` (panel open with a selected row + group).
+ */
+export function useEnrichmentDetail(
+  tableId: string,
+  rowId: string | null,
+  groupId: string | null,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: tableKeys.enrichmentDetail(tableId, rowId ?? '', groupId ?? ''),
+    queryFn: ({ signal }) =>
+      fetchEnrichmentDetail(tableId, rowId as string, groupId as string, signal),
+    enabled: Boolean(tableId && rowId && groupId) && (options?.enabled ?? true),
+    staleTime: 30 * 1000,
+  })
 }
 
 /** Count groups flipped to in-flight (`pending`) by an optimistic schedule that
