@@ -142,7 +142,6 @@ export const ResourceContent = memo(function ResourceContent({
           streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
-          inlineMarkdownEditor
         />
       </div>
     )
@@ -606,7 +605,6 @@ function EmbeddedFile({
         streamingContent={streamingContent}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
-        inlineMarkdownEditor
       />
     </div>
   )

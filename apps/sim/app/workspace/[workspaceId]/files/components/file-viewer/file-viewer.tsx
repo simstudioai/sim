@@ -143,10 +143,7 @@ export function FileViewer({
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
     }
 
-    // In an inline-markdown surface, idle markdown is the rich editor; while the agent streams,
-    // show the rendered preview (never the raw Monaco view) until the content settles.
-    const isInlineMarkdown = inlineMarkdownEditor && isMarkdownFile(file)
-    if (isInlineMarkdown && streamingContent === undefined) {
+    if (inlineMarkdownEditor && isMarkdownFile(file) && streamingContent === undefined) {
       return (
         <MarkdownFileEditor
           key={file.id}
@@ -166,7 +163,7 @@ export function FileViewer({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        previewMode={isInlineMarkdown ? 'preview' : (previewMode ?? 'editor')}
+        previewMode={previewMode ?? 'editor'}
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}

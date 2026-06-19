@@ -7,7 +7,6 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import {
   isCsvStreamOnly,
-  isMarkdownFile,
   RICH_PREVIEWABLE_EXTENSIONS,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
@@ -99,8 +98,6 @@ export const MothershipView = memo(
       canEdit &&
       active?.type === 'file' &&
       RICH_PREVIEWABLE_EXTENSIONS.has(getFileExtension(active.title)) &&
-      // Markdown uses the single-surface inline editor, which has no raw/split/preview modes.
-      !isMarkdownFile({ type: '', name: active.title }) &&
       // Only a CSV's previewability depends on its size (large = read-only, no editor). Wait for
       // the record before deciding so the toggle doesn't flash on for a large CSV — but don't gate
       // other rich types (markdown, html, svg, …) on the file list loading.
