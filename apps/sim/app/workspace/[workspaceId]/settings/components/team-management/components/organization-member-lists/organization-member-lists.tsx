@@ -15,7 +15,12 @@ import {
   Search,
   toast,
 } from '@/components/emcn'
-import type { OrgRole, PermissionType } from '@/components/permissions'
+import {
+  type OrgRole,
+  type PermissionType,
+  RoleLockTooltip,
+  workspaceRoleLockReason,
+} from '@/components/permissions'
 import type {
   OrganizationRoster,
   RosterMember,
@@ -309,11 +314,7 @@ export function OrganizationMemberLists({
     const isSelf = member.userId === currentUserId
     const wouldDemoteSelf = isSelf && access.permission === 'admin'
     const disabled = rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending
-    /**
-     * Org owners/admins keep implicit admin access on org workspaces, so
-     * deleting their explicit permission row wouldn't actually revoke access.
-     * Only regular/external members can be removed from a single workspace.
-     */
+    const lockReason = rowUserIsOrgAdmin ? workspaceRoleLockReason('org-admin') : null
     const canRemoveFromWorkspace = !rowUserIsOrgAdmin && !isSelf
 
     return (
@@ -324,21 +325,25 @@ export function OrganizationMemberLists({
         image={member.image}
         status={`Joined ${formatJoinedDate(member.createdAt)}`}
         roleControl={
-          <ChipDropdown
-            value={access.permission}
-            onChange={(permission) =>
-              updatePermissions
-                .mutateAsync({
-                  workspaceId,
-                  organizationId,
-                  updates: [{ userId: member.userId, permissions: permission as PermissionType }],
-                })
-                .catch((error) => logger.error('Failed to update workspace permission', { error }))
-            }
-            options={WORKSPACE_ROLE_OPTIONS}
-            matchTriggerWidth={false}
-            disabled={disabled}
-          />
+          <RoleLockTooltip reason={lockReason}>
+            <ChipDropdown
+              value={access.permission}
+              onChange={(permission) =>
+                updatePermissions
+                  .mutateAsync({
+                    workspaceId,
+                    organizationId,
+                    updates: [{ userId: member.userId, permissions: permission as PermissionType }],
+                  })
+                  .catch((error) =>
+                    logger.error('Failed to update workspace permission', { error })
+                  )
+              }
+              options={WORKSPACE_ROLE_OPTIONS}
+              matchTriggerWidth={false}
+              disabled={disabled}
+            />
+          </RoleLockTooltip>
         }
         menu={buildActionsMenu(
           <>

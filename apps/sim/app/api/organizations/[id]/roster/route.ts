@@ -117,16 +117,25 @@ export const GET = withRouteHandler(
         permissionsByUser.set(row.userId, list)
       }
 
-      const members = memberRows.map((row) => ({
-        memberId: row.memberId,
-        userId: row.userId,
-        role: row.role,
-        createdAt: row.createdAt,
-        name: row.userName,
-        email: row.userEmail,
-        image: row.userImage,
-        workspaces: permissionsByUser.get(row.userId) ?? [],
-      }))
+      const members = memberRows.map((row) => {
+        const isOrgAdmin = row.role === 'owner' || row.role === 'admin'
+        return {
+          memberId: row.memberId,
+          userId: row.userId,
+          role: row.role,
+          createdAt: row.createdAt,
+          name: row.userName,
+          email: row.userEmail,
+          image: row.userImage,
+          workspaces: isOrgAdmin
+            ? orgWorkspaces.map((ws) => ({
+                workspaceId: ws.id,
+                workspaceName: ws.name,
+                permission: 'admin' as const,
+              }))
+            : (permissionsByUser.get(row.userId) ?? []),
+        }
+      })
 
       const externalPermissionRows =
         orgWorkspaceIds.length > 0

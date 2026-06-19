@@ -1,9 +1,10 @@
 import { db } from '@sim/db'
-import { permissions, workflow, workspace as workspaceTable } from '@sim/db/schema'
+import { member, permissions, workflow, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
+import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceUtils')
 
@@ -45,14 +46,48 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
   return settings?.billedAccountUserId ?? null
 }
 
-export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {
-  const workspaces = await db
-    .select({
-      workspaceId: workspaceTable.id,
-      workspaceName: workspaceTable.name,
-      ownerId: workspaceTable.ownerId,
-      permissionType: permissions.permissionType,
-    })
+/**
+ * Workspaces the user administers purely through organization owner/admin role,
+ * with no explicit permission row required. Empty when the user is not an org
+ * owner/admin. Implements the workspace-permission inheritance model.
+ */
+export async function getOrgAdminWorkspaceRows(
+  userId: string,
+  scope: WorkspaceScope = 'active'
+): Promise<Array<typeof workspaceTable.$inferSelect>> {
+  const [membership] = await db
+    .select({ organizationId: member.organizationId, role: member.role })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .limit(1)
+
+  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+    return []
+  }
+
+  const orgFilter = eq(workspaceTable.organizationId, membership.organizationId)
+  const where =
+    scope === 'all'
+      ? orgFilter
+      : scope === 'archived'
+        ? and(orgFilter, sql`${workspaceTable.archivedAt} IS NOT NULL`)
+        : and(orgFilter, isNull(workspaceTable.archivedAt))
+
+  return db.select().from(workspaceTable).where(where).orderBy(desc(workspaceTable.createdAt))
+}
+
+/**
+ * Every workspace a user can access: explicit permission grants plus workspaces
+ * derived from organization owner/admin role. Deduped with explicit rows first.
+ */
+export async function listAccessibleWorkspaceRowsForUser(
+  userId: string,
+  scope: WorkspaceScope = 'active'
+): Promise<
+  Array<{ workspace: typeof workspaceTable.$inferSelect; permissionType: PermissionType }>
+> {
+  const explicit = await db
+    .select({ workspace: workspaceTable, permissionType: permissions.permissionType })
     .from(permissions)
     .innerJoin(workspaceTable, eq(permissions.entityId, workspaceTable.id))
     .where(
@@ -72,10 +107,31 @@ export async function listUserWorkspaces(userId: string, scope: WorkspaceScope =
     )
     .orderBy(desc(workspaceTable.createdAt))
 
-  return workspaces.map((row) => ({
-    workspaceId: row.workspaceId,
-    workspaceName: row.workspaceName,
-    role: row.ownerId === userId ? 'owner' : row.permissionType,
+  const orgRows = await getOrgAdminWorkspaceRows(userId, scope)
+  if (orgRows.length === 0) {
+    return explicit
+  }
+
+  const orgWorkspaceIds = new Set(orgRows.map((ws) => ws.id))
+  const seen = new Set(explicit.map((row) => row.workspace.id))
+
+  const elevatedExplicit = explicit.map((row) =>
+    orgWorkspaceIds.has(row.workspace.id) ? { ...row, permissionType: 'admin' as const } : row
+  )
+  const derived = orgRows
+    .filter((ws) => !seen.has(ws.id))
+    .map((ws) => ({ workspace: ws, permissionType: 'admin' as const }))
+
+  return [...elevatedExplicit, ...derived]
+}
+
+export async function listUserWorkspaces(userId: string, scope: WorkspaceScope = 'active') {
+  const rows = await listAccessibleWorkspaceRowsForUser(userId, scope)
+
+  return rows.map(({ workspace: ws, permissionType }) => ({
+    workspaceId: ws.id,
+    workspaceName: ws.name,
+    role: ws.ownerId === userId ? 'owner' : permissionType,
   }))
 }
 

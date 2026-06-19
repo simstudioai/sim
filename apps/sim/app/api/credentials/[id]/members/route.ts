@@ -5,12 +5,18 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { upsertWorkspaceCredentialMemberContract } from '@/lib/api/contracts/credentials'
+import {
+  upsertWorkspaceCredentialMemberContract,
+  type WorkspaceCredentialMember,
+} from '@/lib/api/contracts/credentials'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  getUserEntityPermissions,
+  getUsersWithPermissions,
+} from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('CredentialMembersAPI')
 
@@ -18,7 +24,7 @@ interface RouteContext {
   params: Promise<{ id: string }>
 }
 
-async function requireWorkspaceAdminMembership(credentialId: string, userId: string) {
+async function requireCredentialAdmin(credentialId: string, userId: string) {
   const [cred] = await db
     .select({ id: credential.id, workspaceId: credential.workspaceId, type: credential.type })
     .from(credential)
@@ -30,6 +36,8 @@ async function requireWorkspaceAdminMembership(credentialId: string, userId: str
   const perm = await getUserEntityPermissions(userId, 'workspace', cred.workspaceId)
   if (perm === null) return null
 
+  const isWorkspaceAdmin = cred.type !== 'env_personal' && perm === 'admin'
+
   const [membership] = await db
     .select({ role: credentialMember.role, status: credentialMember.status })
     .from(credentialMember)
@@ -38,10 +46,12 @@ async function requireWorkspaceAdminMembership(credentialId: string, userId: str
     )
     .limit(1)
 
-  if (!membership || membership.status !== 'active' || membership.role !== 'admin') {
+  const isCredentialAdmin = membership?.status === 'active' && membership?.role === 'admin'
+
+  if (!isWorkspaceAdmin && !isCredentialAdmin) {
     return null
   }
-  return { ...membership, credentialType: cred.type, workspaceId: cred.workspaceId }
+  return { credentialType: cred.type, workspaceId: cred.workspaceId }
 }
 
 export const GET = withRouteHandler(async (_request: NextRequest, context: RouteContext) => {
@@ -54,7 +64,7 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
     const { id: credentialId } = await context.params
 
     const [cred] = await db
-      .select({ id: credential.id, workspaceId: credential.workspaceId })
+      .select({ id: credential.id, workspaceId: credential.workspaceId, type: credential.type })
       .from(credential)
       .where(eq(credential.id, credentialId))
       .limit(1)
@@ -72,7 +82,7 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const members = await db
+    const explicitMembers = await db
       .select({
         id: credentialMember.id,
         userId: credentialMember.userId,
@@ -85,6 +95,48 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       .from(credentialMember)
       .innerJoin(user, eq(credentialMember.userId, user.id))
       .where(eq(credentialMember.credentialId, credentialId))
+
+    const byUser = new Map<string, WorkspaceCredentialMember>(
+      explicitMembers.map((m) => [
+        m.userId,
+        {
+          id: m.id,
+          userId: m.userId,
+          role: m.role,
+          status: m.status,
+          joinedAt: m.joinedAt ? m.joinedAt.toISOString() : null,
+          userName: m.userName,
+          userEmail: m.userEmail,
+          roleSource: 'explicit' as const,
+        },
+      ])
+    )
+
+    if (cred.type !== 'env_personal') {
+      const workspaceMembers = await getUsersWithPermissions(cred.workspaceId)
+      for (const wsMember of workspaceMembers) {
+        if (wsMember.permissionType !== 'admin') continue
+        const existing = byUser.get(wsMember.userId)
+        if (existing) {
+          existing.role = 'admin'
+          existing.status = 'active'
+          existing.roleSource = 'workspace-admin'
+        } else {
+          byUser.set(wsMember.userId, {
+            id: `workspace-admin-${wsMember.userId}`,
+            userId: wsMember.userId,
+            role: 'admin',
+            status: 'active',
+            joinedAt: null,
+            userName: wsMember.name,
+            userEmail: wsMember.email,
+            roleSource: 'workspace-admin',
+          })
+        }
+      }
+    }
+
+    const members = Array.from(byUser.values())
 
     return NextResponse.json({ members })
   } catch (error) {
@@ -102,7 +154,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
 
     const { id: credentialId } = await context.params
 
-    const admin = await requireWorkspaceAdminMembership(credentialId, session.user.id)
+    const admin = await requireCredentialAdmin(credentialId, session.user.id)
     if (!admin) {
       logger.warn('Credential member share denied', {
         credentialId,
@@ -124,6 +176,19 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
     if (!parsed.success) return parsed.response
 
     const { userId, role } = parsed.data.body
+
+    const targetWorkspacePerm = await getUserEntityPermissions(
+      userId,
+      'workspace',
+      admin.workspaceId
+    )
+    if (targetWorkspacePerm === 'admin' && role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Workspace admins are automatically credential admins and cannot be demoted' },
+        { status: 400 }
+      )
+    }
+
     const now = new Date()
 
     const [existing] = await db
@@ -233,7 +298,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
       return NextResponse.json({ error: 'userId query parameter required' }, { status: 400 })
     }
 
-    const admin = await requireWorkspaceAdminMembership(credentialId, session.user.id)
+    const admin = await requireCredentialAdmin(credentialId, session.user.id)
     if (!admin) {
       logger.warn('Credential member removal denied', {
         credentialId,
@@ -260,6 +325,20 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
 
     if (!target) {
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
+    }
+
+    if (admin.credentialType !== 'env_personal') {
+      const targetWorkspacePerm = await getUserEntityPermissions(
+        targetUserId,
+        'workspace',
+        admin.workspaceId
+      )
+      if (targetWorkspacePerm === 'admin') {
+        return NextResponse.json(
+          { error: 'Workspace admins are automatically credential admins and cannot be removed' },
+          { status: 400 }
+        )
+      }
     }
 
     const revoked = await db.transaction(async (tx) => {

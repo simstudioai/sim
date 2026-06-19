@@ -120,6 +120,7 @@ import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
   getWorkspaceWithOwner,
+  hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
 import { computeNeedsRedeployment } from '@/app/api/workflows/utils'
 import { getAllBlocks } from '@/blocks/registry'
@@ -2151,9 +2152,10 @@ export class WorkspaceVFS {
     envVariables: WorkspaceMdData['envVariables']
   }> {
     try {
+      const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData] = await Promise.all([
-        getAccessibleEnvCredentials(workspaceId, userId),
-        getAccessibleOAuthCredentials(workspaceId, userId),
+        getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin }),
+        getAccessibleOAuthCredentials(workspaceId, userId, { isWorkspaceAdmin }),
         listApiKeys(workspaceId),
         getPersonalAndWorkspaceEnv(userId, workspaceId),
       ])

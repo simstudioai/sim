@@ -101,11 +101,13 @@ export async function getPersonalAndWorkspaceEnv(
   conflicts: string[]
   decryptionFailures: string[]
 }> {
+  let workspaceCanAdmin = false
   if (workspaceId) {
     const access = await checkWorkspaceAccess(workspaceId, userId)
     if (!access.hasAccess) {
       throw new Error(`Access denied to workspace ${workspaceId}`)
     }
+    workspaceCanAdmin = access.canAdmin
   }
 
   const [personalRows, workspaceRows, accessibleEnvCredentials] = await Promise.all([
@@ -117,7 +119,9 @@ export async function getPersonalAndWorkspaceEnv(
           .where(eq(workspaceEnvironment.workspaceId, workspaceId))
           .limit(1)
       : Promise.resolve([] as any[]),
-    workspaceId ? getAccessibleEnvCredentials(workspaceId, userId) : Promise.resolve([]),
+    workspaceId
+      ? getAccessibleEnvCredentials(workspaceId, userId, { isWorkspaceAdmin: workspaceCanAdmin })
+      : Promise.resolve([]),
   ])
 
   const ownPersonalEncrypted: Record<string, string> = (personalRows[0]?.variables as any) || {}

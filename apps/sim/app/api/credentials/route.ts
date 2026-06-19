@@ -498,11 +498,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const now = new Date()
     const credentialId = generateId()
-    const {
-      ownerId: workspaceOwnerId,
-      memberUserIds: workspaceMemberUserIds,
-      adminUserIds: workspaceAdminUserIds,
-    } = await getWorkspaceMembership(workspaceId)
+    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
+      await getWorkspaceMembership(workspaceId)
 
     await db.transaction(async (tx) => {
       // service_account has no DB-level unique index on (workspaceId, providerId,
@@ -537,8 +534,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
         if (workspaceMemberUserIds.length > 0) {
           for (const memberUserId of workspaceMemberUserIds) {
-            const isAdmin =
-              memberUserId === session.user.id || workspaceAdminUserIds.has(memberUserId)
+            const isAdmin = memberUserId === session.user.id
             await tx.insert(credentialMember).values({
               id: generateId(),
               credentialId,
