@@ -13,10 +13,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, sql } from 'drizzle-orm'
-import {
-  getHighestPrioritySubscription,
-  isWorkspaceOnEnterprisePlan,
-} from '@/lib/billing/core/subscription'
+import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import {
   checkUsageStatus,
   getOrgUsageLimit,
@@ -612,12 +609,13 @@ export class ExecutionLogger implements IExecutionLoggerService {
       .limit(1)
     if (!row) return payload
 
+    // Rules are only writable by enterprise orgs (route-gated), so an enabled
+    // rule already implies entitlement. We deliberately do NOT re-check
+    // `isWorkspaceOnEnterprisePlan` here: it returns false on transient lookup
+    // errors, which would silently skip masking and leak PII (fail-open). When
+    // rules are present we always redact (fail-safe; over-redaction at worst).
     const config = resolveEffectivePiiRedaction({ orgSettings: row.orgSettings, workspaceId })
     if (!config.enabled) return payload
-
-    // Settings are only writable by enterprise orgs, but re-verify at read time
-    // (e.g. a plan downgrade) before doing the work.
-    if (!(await isWorkspaceOnEnterprisePlan(workspaceId))) return payload
 
     return redactPIIFromExecution(payload, { entityTypes: config.entityTypes })
   }

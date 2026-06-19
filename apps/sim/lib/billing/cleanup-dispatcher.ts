@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
+import type { WorkspaceMode } from '@sim/db/schema'
 import { organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { tasks } from '@trigger.dev/sdk'
@@ -7,7 +7,6 @@ import { and, asc, eq, gt, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { getPlanType, type PlanCategory } from '@/lib/billing/plan-helpers'
-import { resolveEffectiveRetentionHours } from '@/lib/billing/retention'
 import { chunkArray } from '@/lib/cleanup/batch-delete'
 import { getJobQueue } from '@/lib/core/async-jobs'
 import { shouldExecuteInline } from '@/lib/core/async-jobs/config'
@@ -59,7 +58,6 @@ interface WorkspaceCleanupScopeRow {
   organizationId: string | null
   workspaceMode: WorkspaceMode
   organizationSettings: OrganizationRetentionSettings | null
-  workspaceSettings: DataRetentionSettings | null
 }
 
 const DAY = 24
@@ -101,7 +99,6 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
       organizationSettings: organization.dataRetentionSettings,
-      workspaceSettings: workspace.dataRetentionSettings,
     })
     .from(workspace)
     .leftJoin(organization, eq(organization.id, workspace.organizationId))
@@ -117,7 +114,6 @@ async function listActiveWorkspaceCleanupScopeRowsPage(
     ...row,
     organizationSettings:
       (row.organizationSettings as OrganizationRetentionSettings | null) ?? null,
-    workspaceSettings: (row.workspaceSettings as DataRetentionSettings | null) ?? null,
   }))
 }
 
@@ -269,12 +265,7 @@ async function forEachCleanupChunk(
 
     for (const row of rows) {
       if (planByWorkspaceId.get(row.id) !== 'enterprise') continue
-      const hours = resolveEffectiveRetentionHours({
-        workspaceSettings: row.workspaceSettings,
-        orgSettings: row.organizationSettings,
-        key: config.key,
-        fallback: config.defaults.enterprise,
-      })
+      const hours = row.organizationSettings?.[config.key]
       if (hours == null) continue
       workspaceCount++
       await emitChunk({

@@ -1,11 +1,5 @@
 import type { DataRetentionSettings } from '@sim/db/schema'
 
-/** Retention-hours keys shared by the cleanup dispatcher and settings routes. */
-export type RetentionHoursKey =
-  | 'logRetentionHours'
-  | 'softDeleteRetentionHours'
-  | 'taskCleanupHours'
-
 export interface EffectivePiiRedaction {
   enabled: boolean
   /** Presidio entity types to mask. Empty = redact all detected PII. */
@@ -15,23 +9,6 @@ export interface EffectivePiiRedaction {
 export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
   enabled: false,
   entityTypes: [],
-}
-
-interface ResolveParams {
-  workspaceSettings: DataRetentionSettings | null | undefined
-  orgSettings: DataRetentionSettings | null | undefined
-}
-
-/**
- * Resolve a retention-hours value as `workspace override ?? org default ??
- * plan default`. The plan default is supplied by the caller (it lives in the
- * dispatcher's `CLEANUP_CONFIG`).
- */
-export function resolveEffectiveRetentionHours(
-  params: ResolveParams & { key: RetentionHoursKey; fallback: number | null }
-): number | null {
-  const { workspaceSettings, orgSettings, key, fallback } = params
-  return workspaceSettings?.[key] ?? orgSettings?.[key] ?? fallback
 }
 
 /**

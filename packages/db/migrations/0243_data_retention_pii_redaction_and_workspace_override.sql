@@ -1,1 +1,0 @@
-ALTER TABLE "workspace" ADD COLUMN "data_retention_settings" json;

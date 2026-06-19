@@ -1081,10 +1081,9 @@ export interface PiiRedactionRule {
 }
 
 /**
- * Data retention + governance settings. Retention-hours live on both
- * `organization` (default) and `workspace` (optional override, resolved
- * `workspace ?? organization ?? plan defaults`). `piiRedaction.rules` are
- * org-scoped; each rule selects which workspaces it applies to.
+ * Org-level data retention + governance settings. Retention-hours fall back to
+ * plan defaults when unset. `piiRedaction.rules` are org-scoped; each rule
+ * selects which workspaces it applies to.
  */
 export interface DataRetentionSettings {
   logRetentionHours?: number | null
@@ -1274,8 +1273,6 @@ export const workspace = pgTable(
     inboxEnabled: boolean('inbox_enabled').notNull().default(false),
     inboxAddress: text('inbox_address'),
     inboxProviderId: text('inbox_provider_id'),
-    /** Per-workspace override of the org-level data retention settings. */
-    dataRetentionSettings: json('data_retention_settings').$type<DataRetentionSettings>(),
     archivedAt: timestamp('archived_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
