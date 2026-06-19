@@ -11,6 +11,7 @@ import type { SaveStatus } from '@/hooks/use-autosave'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './extensions'
+import { findHeadingPos } from './heading-anchors'
 import { extractImageFiles } from './image-paste'
 import {
   applyFrontmatter,
@@ -241,6 +242,17 @@ export function LoadedRichMarkdownEditor({
         // Editing: require a modifier so a plain click can place the cursor. Read-only (a reader, e.g.
         // the public share page): a plain click follows the link.
         if (view.editable && !(event.metaKey || event.ctrlKey)) return false
+        // Same-page anchor (`[x](#slug)`): scroll to the matching heading instead of opening a tab,
+        // restoring the table-of-contents links that worked via rehype-slug in the old preview.
+        if (href.startsWith('#')) {
+          const pos = findHeadingPos(view.state.doc, href.slice(1))
+          if (pos < 0) return false
+          ;(view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          })
+          return true
+        }
         const normalized = normalizeLinkHref(href)
         if (!normalized) return false
         window.open(normalized, '_blank', 'noopener,noreferrer')
