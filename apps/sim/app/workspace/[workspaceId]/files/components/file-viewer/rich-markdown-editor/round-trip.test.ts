@@ -114,8 +114,11 @@ describe('markdown-fidelity utils', () => {
     expect(normalizeLinkHref('ftp://host/file')).toBe('ftp://host/file')
   })
 
-  it('trims a leading blank line and collapses trailing newlines', () => {
-    expect(postProcessSerializedMarkdown('\n| a |\n| --- |\n\n\n')).toBe('| a |\n| --- |\n')
+  it('collapses trailing blank lines and preserves leading whitespace', () => {
+    expect(postProcessSerializedMarkdown('| a |\n| --- |\n\n\n')).toBe('| a |\n| --- |\n')
+    // No global leading-newline strip (the table trims its own at the source), so content that
+    // legitimately begins with a blank line is no longer clobbered on save.
+    expect(postProcessSerializedMarkdown('\nbody\n')).toBe('\nbody\n')
   })
 })
 

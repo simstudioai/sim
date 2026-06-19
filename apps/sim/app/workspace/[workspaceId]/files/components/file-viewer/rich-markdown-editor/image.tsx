@@ -3,6 +3,7 @@ import type { JSONContent } from '@tiptap/core'
 import { Image } from '@tiptap/extension-image'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { normalizeLinkHref } from './markdown-fidelity'
 
 const MIN_WIDTH = 64
 
@@ -199,6 +200,10 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
     ? { width: /^\d+$/.test(attrs.width) ? `${attrs.width}px` : attrs.width }
     : undefined
 
+  // Sanitize the linked-image target before rendering the anchor — a parsed markdown href is
+  // untrusted and could be `javascript:`/`data:`; an unsafe value drops the link (image only).
+  const safeHref = normalizeLinkHref(typeof attrs.href === 'string' ? attrs.href : '')
+
   const image = (
     <img
       ref={imageRef}
@@ -217,8 +222,8 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
 
   return (
     <NodeViewWrapper className='relative my-4 inline-block leading-none'>
-      {attrs.href ? (
-        <a href={attrs.href} rel='noopener noreferrer' className='block'>
+      {safeHref ? (
+        <a href={safeHref} rel='noopener noreferrer' className='block'>
           {image}
         </a>
       ) : (

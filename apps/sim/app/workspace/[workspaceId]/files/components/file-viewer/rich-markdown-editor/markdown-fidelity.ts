@@ -51,12 +51,11 @@ export function normalizeLinkHref(href: string): string {
 
 /**
  * Cleans up serializer output: restores callout markers the serializer backslash-escapes
- * (`> \[!NOTE\]` → `> [!NOTE]`) and trims the spurious leading blank line the table
- * serializer emits, plus trailing blank lines.
+ * (`> \[!NOTE\]` → `> [!NOTE]`) and collapses trailing blank lines to a single newline. The
+ * table serializer's spurious surrounding blank lines are trimmed at the source (PipeSafeTable),
+ * so no global leading-newline strip is needed here — avoiding clobbering content that legitimately
+ * begins with whitespace.
  */
 export function postProcessSerializedMarkdown(markdown: string): string {
-  return markdown
-    .replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]')
-    .replace(/^\n+/, '')
-    .replace(/\n+$/, '\n')
+  return markdown.replace(ESCAPED_CALLOUT_REGEX, '$1[!$2]').replace(/\n+$/, '\n')
 }
