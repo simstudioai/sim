@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { maskPIIBatch } from '@/lib/guardrails/validate_pii'
 
 const logger = createLogger('PiiRedaction')
 
@@ -29,10 +28,33 @@ export interface RedactablePayload {
   traceSpans?: unknown
   finalOutput?: unknown
   workflowInput?: unknown
+  error?: unknown
+  completionFailure?: unknown
+  trigger?: unknown
+  executionState?: unknown
 }
 
+/** Keys of {@link RedactablePayload} processed by the redactor, in order. */
+const REDACTABLE_KEYS: (keyof RedactablePayload)[] = [
+  'traceSpans',
+  'finalOutput',
+  'workflowInput',
+  'error',
+  'completionFailure',
+  'trigger',
+  'executionState',
+]
+
 /** Trace-span fields that carry runtime content (and therefore possible PII). */
-const SPAN_CONTENT_FIELDS = ['input', 'output', 'thinking', 'modelToolCalls'] as const
+const SPAN_CONTENT_FIELDS = [
+  'input',
+  'output',
+  'thinking',
+  'modelToolCalls',
+  'toolCalls',
+  'error',
+  'errorMessage',
+] as const
 
 function isEligibleString(value: string): boolean {
   return value.length > 0 && Buffer.byteLength(value, 'utf8') <= PII_MAX_STRING_BYTES
@@ -110,12 +132,10 @@ export async function redactPIIFromExecution(
   const { entityTypes } = options
   const language = options.language ?? 'en'
 
-  const units: { key: keyof RedactablePayload; value: unknown }[] = []
-  if (payload.traceSpans !== undefined) units.push({ key: 'traceSpans', value: payload.traceSpans })
-  if (payload.finalOutput !== undefined)
-    units.push({ key: 'finalOutput', value: payload.finalOutput })
-  if (payload.workflowInput !== undefined)
-    units.push({ key: 'workflowInput', value: payload.workflowInput })
+  const units = REDACTABLE_KEYS.filter((key) => payload[key] !== undefined).map((key) => ({
+    key,
+    value: payload[key],
+  }))
 
   const collected: string[] = []
   let totalBytes = 0
@@ -138,6 +158,10 @@ export async function redactPIIFromExecution(
     masked = collected.map(() => REDACTION_FAILED_MARKER)
   } else {
     try {
+      // Lazy import keeps the Python-spawning guardrails module (child_process +
+      // a `lib/guardrails` dir reference) out of the static middleware/RSC graph;
+      // it's only loaded at runtime on the Node log-persist path.
+      const { maskPIIBatch } = await import('@/lib/guardrails/validate_pii')
       masked = await maskPIIBatch(collected, entityTypes, language)
     } catch (error) {
       logger.error('PII masking failed; scrubbing text to avoid leaking PII', {

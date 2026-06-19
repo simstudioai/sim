@@ -761,6 +761,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       traceSpans: redactedTraceSpans,
       finalOutput: redactedFinalOutput,
       ...(redactedWorkflowInput !== undefined ? { workflowInput: redactedWorkflowInput } : {}),
+      ...(builtExecutionData.error !== undefined ? { error: builtExecutionData.error } : {}),
+      ...(builtExecutionData.completionFailure !== undefined
+        ? { completionFailure: builtExecutionData.completionFailure }
+        : {}),
+      ...(builtExecutionData.trigger !== undefined ? { trigger: builtExecutionData.trigger } : {}),
+      ...(builtExecutionData.executionState !== undefined
+        ? { executionState: builtExecutionData.executionState }
+        : {}),
     })
 
     const rawDurationMs =
@@ -777,6 +785,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
       traceSpans: pii.traceSpans as TraceSpan[],
       finalOutput: pii.finalOutput as BlockOutputData,
       ...(pii.workflowInput !== undefined ? { workflowInput: pii.workflowInput } : {}),
+      ...(pii.error !== undefined ? { error: pii.error as string } : {}),
+      ...(pii.completionFailure !== undefined
+        ? { completionFailure: pii.completionFailure as string }
+        : {}),
+      ...(pii.trigger !== undefined ? { trigger: pii.trigger as ExecutionTrigger } : {}),
+      ...(pii.executionState !== undefined
+        ? { executionState: pii.executionState as SerializableExecutionState }
+        : {}),
     }
 
     stripSpanCosts((cleanExecutionData as Record<string, unknown>).traceSpans)

@@ -85,6 +85,28 @@ describe('redactPIIFromExecution', () => {
     expect(mockMaskPIIBatch.mock.calls[0][0]).toEqual(['pii'])
   })
 
+  it('masks span error/errorMessage and top-level error, trigger, executionState', async () => {
+    const payload = {
+      traceSpans: [{ blockId: 'b1', error: 'failed for bob@x.com', errorMessage: 'bad input z' }],
+      error: 'run failed: a@b.com',
+      completionFailure: 'cancelled by c@d.com',
+      trigger: { type: 'webhook', data: { from: 'caller@x.com' } },
+      executionState: { status: 'completed', note: 'state for e@f.com' },
+    }
+
+    const result = await redactPIIFromExecution(payload, { entityTypes: ['EMAIL_ADDRESS'] })
+
+    const span = (result.traceSpans as any[])[0]
+    expect(span.blockId).toBe('b1')
+    expect(span.error).toBe('MASKED(failed for bob@x.com)')
+    expect(span.errorMessage).toBe('MASKED(bad input z)')
+    expect(result.error).toBe('MASKED(run failed: a@b.com)')
+    expect(result.completionFailure).toBe('MASKED(cancelled by c@d.com)')
+    expect((result.trigger as any).type).toBe('MASKED(webhook)')
+    expect((result.trigger as any).data.from).toBe('MASKED(caller@x.com)')
+    expect((result.executionState as any).note).toBe('MASKED(state for e@f.com)')
+  })
+
   it('returns payload unchanged when there is nothing to mask', async () => {
     const payload = { traceSpans: [{ blockId: 'b1', count: 5 }] }
     const result = await redactPIIFromExecution(payload, { entityTypes: [] })

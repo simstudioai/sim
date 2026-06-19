@@ -111,6 +111,10 @@ export const updateOrganizationDataRetentionBodySchema = z.object({
   piiRedaction: piiRedactionSettingsSchema.optional(),
 })
 
+export type UpdateOrganizationDataRetentionBody = z.input<
+  typeof updateOrganizationDataRetentionBodySchema
+>
+
 const organizationRetentionValuesSchema = z.object({
   logRetentionHours: z.number().int().nullable(),
   softDeleteRetentionHours: z.number().int().nullable(),
