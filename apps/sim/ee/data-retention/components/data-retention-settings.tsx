@@ -268,14 +268,16 @@ export function DataRetentionSettings() {
   const [modalOriginal, setModalOriginal] = useState<RuleDraft | null>(null)
   const [modalIsNew, setModalIsNew] = useState(false)
   const [showUnsaved, setShowUnsaved] = useState(false)
-  const formInitializedRef = useRef(false)
+  // Org the form was hydrated for; re-hydrate when the active org switches so
+  // saves don't target the new org with the previous org's config.
+  const hydratedOrgRef = useRef<string | null>(null)
 
   function hoursSnapshot(log: string, soft: string, task: string): string {
     return JSON.stringify({ log, soft, task })
   }
 
   useEffect(() => {
-    if (!data || formInitializedRef.current) return
+    if (!data || !orgId || hydratedOrgRef.current === orgId) return
     const log = hoursToDisplayDays(data.effective.logRetentionHours)
     const soft = hoursToDisplayDays(data.effective.softDeleteRetentionHours)
     const task = hoursToDisplayDays(data.effective.taskCleanupHours)
@@ -290,8 +292,8 @@ export function DataRetentionSettings() {
         workspaceId: r.workspaceId,
       }))
     )
-    formInitializedRef.current = true
-  }, [data])
+    hydratedOrgRef.current = orgId
+  }, [data, orgId])
 
   const hoursChanged = hoursSnapshot(logDays, softDeleteDays, taskCleanupDays) !== savedHours
   const modalChanged =
