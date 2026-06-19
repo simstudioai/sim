@@ -27,6 +27,24 @@ function escapeAttr(value: string): string {
 }
 
 /**
+ * Rewrite an in-app workspace file path (`/workspace/{id}/files/{fileId}`) to its serving endpoint
+ * (`/api/files/view/{fileId}`) for display only — the stored `src` attribute keeps the original path
+ * so markdown round-trips unchanged. Absolute and non-workspace URLs pass through untouched.
+ */
+export function resolveDisplaySrc(src: string | undefined): string | undefined {
+  if (!src) return src
+  try {
+    const parsed = new URL(src, 'http://placeholder')
+    if (parsed.origin !== 'http://placeholder') return src
+    const [, seg1, , seg3, fileId] = parsed.pathname.split('/')
+    if (seg1 === 'workspace' && seg3 === 'files' && fileId) return `/api/files/view/${fileId}`
+  } catch {
+    // not a parseable URL — render as-is
+  }
+  return src
+}
+
+/**
  * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
  * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
  * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
@@ -211,7 +229,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   const image = (
     <img
       ref={imageRef}
-      src={attrs.src}
+      src={resolveDisplaySrc(attrs.src)}
       alt={attrs.alt ?? ''}
       title={attrs.title ?? undefined}
       // When editable, the image itself is the drag handle — grab anywhere on it to reorder. (The node
