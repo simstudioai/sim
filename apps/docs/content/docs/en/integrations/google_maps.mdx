@@ -326,6 +326,43 @@ Search for places using a text query
 |   ↳ `businessStatus` | string | Business status |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
+### `google_maps_pollen`
+
+Get a daily pollen forecast (grass, tree, weed) for a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key with Pollen API enabled |
+| `lat` | number | Yes | Latitude coordinate |
+| `lng` | number | Yes | Longitude coordinate |
+| `days` | number | No | Number of forecast days to return \(1-5, defaults to 1\) |
+| `languageCode` | string | No | Language code for the response \(e.g., "en", "es"\) |
+| `plantsDescription` | boolean | No | Include detailed plant descriptions \(defaults to true\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `regionCode` | string | Region code \(ISO 3166-1 alpha-2\) for the location |
+| `dailyInfo` | array | Daily pollen forecast entries |
+|   ↳ `date` | object | Calendar date of the forecast entry |
+|   ↳ `pollenTypeInfo` | array | Pollen type indices \(grass, tree, weed\) |
+|     ↳ `code` | string | Pollen type code \(GRASS, TREE, WEED\) |
+|     ↳ `displayName` | string | Display name |
+|     ↳ `inSeason` | boolean | Whether the pollen type is in season |
+|     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
+|     ↳ `healthRecommendations` | array | Health recommendations |
+|   ↳ `plantInfo` | array | Per-plant forecast with descriptions |
+|     ↳ `code` | string | Plant code \(e.g., BIRCH, RAGWEED\) |
+|     ↳ `displayName` | string | Display name |
+|     ↳ `inSeason` | boolean | Whether the plant is in season |
+|     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
+|     ↳ `plantDescription` | object | Plant details \(type, family, season, cross-reactions\) |
+
 ### `google_maps_reverse_geocode`
 
 Convert geographic coordinates (latitude and longitude) into a human-readable address
@@ -378,6 +415,36 @@ Snap GPS coordinates to the nearest road segment
 |   ↳ `originalIndex` | number | Index in the original path \(if not interpolated\) |
 |   ↳ `placeId` | string | Place ID for this road segment |
 | `warningMessage` | string | Warning message if any \(e.g., if points could not be snapped\) |
+
+### `google_maps_solar`
+
+Get solar potential and panel insights for the building nearest a location
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Google Maps API key with Solar API enabled |
+| `lat` | number | Yes | Latitude coordinate |
+| `lng` | number | Yes | Longitude coordinate |
+| `requiredQuality` | string | No | Minimum imagery quality to accept \(HIGH, MEDIUM, or BASE\) |
+| `pricing` | per_request | No | No description |
+| `rateLimit` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `name` | string | Resource name of the building \(e.g., "buildings/ChIJ..."\) |
+| `center` | object | Center coordinate of the building |
+|   ↳ `lat` | number | Latitude |
+|   ↳ `lng` | number | Longitude |
+| `imageryDate` | object | Date the underlying imagery was captured |
+| `imageryQuality` | string | Quality of the imagery used \(HIGH, MEDIUM, BASE\) |
+| `regionCode` | string | Region code \(ISO 3166-1 alpha-2\) for the building |
+| `postalCode` | string | Postal code of the building |
+| `administrativeArea` | string | Administrative area \(e.g., state or province\) |
+| `solarPotential` | object | Solar potential: max panel count/area, sunshine hours, carbon offset, panel specs, and configs |
 
 ### `google_maps_speed_limits`
 

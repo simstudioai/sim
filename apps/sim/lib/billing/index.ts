@@ -4,6 +4,7 @@
  */
 
 export * from '@/lib/billing/calculations/usage-monitor'
+export * from '@/lib/billing/core/api-access'
 export * from '@/lib/billing/core/billing'
 export * from '@/lib/billing/core/organization'
 export * from '@/lib/billing/core/subscription'
@@ -29,6 +30,7 @@ export {
   getUserUsageLimit as getUsageLimit,
   updateUserUsageLimit as updateUsageLimit,
 } from '@/lib/billing/core/usage'
+export * from '@/lib/billing/core/workspace-access'
 export * from '@/lib/billing/credits/balance'
 export * from '@/lib/billing/credits/purchase'
 export {

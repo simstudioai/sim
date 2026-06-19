@@ -4,7 +4,7 @@ import type { EnrichmentConfig } from '@/enrichments/types'
 
 /**
  * Company Domain enrichment. Resolves a company's website domain from its name
- * via a People Data Labs company match.
+ * via a People Data Labs company match, falling back to Datagma's company enrich.
  */
 export const companyDomainEnrichment: EnrichmentConfig = {
   id: 'company-domain',
@@ -26,6 +26,21 @@ export const companyDomainEnrichment: EnrichmentConfig = {
       mapOutput: (output) => {
         const company = output.company as Record<string, unknown> | undefined
         const domain = normalizeDomain(company?.website)
+        return domain ? { domain } : null
+      },
+    }),
+    toolProvider({
+      id: 'datagma',
+      label: 'Datagma',
+      toolId: 'datagma_enrich_company',
+      buildParams: (inputs) => {
+        // Datagma's `data` accepts a company name and returns its website.
+        const data = str(inputs.companyName)
+        if (!data) return null
+        return { data }
+      },
+      mapOutput: (output) => {
+        const domain = normalizeDomain(output.website)
         return domain ? { domain } : null
       },
     }),

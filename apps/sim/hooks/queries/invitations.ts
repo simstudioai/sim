@@ -234,7 +234,10 @@ export function useLeaveWorkspace() {
         queryKey: workspaceKeys.permissions(variables.workspaceId),
       })
       queryClient.invalidateQueries({
-        queryKey: workspaceKeys.all,
+        queryKey: workspaceKeys.lists(),
+      })
+      queryClient.invalidateQueries({
+        queryKey: workspaceKeys.detail(variables.workspaceId),
       })
     },
   })

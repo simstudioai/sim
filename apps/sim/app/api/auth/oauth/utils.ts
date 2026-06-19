@@ -358,7 +358,7 @@ async function performCoalescedRefresh({
 
   const lockKey = `oauth:refresh:${accountId}`
 
-  return coalesceLocally(lockKey, () =>
+  const refreshPromise = coalesceLocally(lockKey, () =>
     withLeaderLock<string>({
       key: lockKey,
       onLeader: async () => {
@@ -429,6 +429,16 @@ async function performCoalescedRefresh({
       },
     })
   )
+
+  try {
+    return await refreshPromise
+  } catch (error) {
+    logger.error('Coalesced refresh did not settle', {
+      ...logContext,
+      error: toError(error).message,
+    })
+    return null
+  }
 }
 
 export async function getOAuthToken(userId: string, providerId: string): Promise<string | null> {

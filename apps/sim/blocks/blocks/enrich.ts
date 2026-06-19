@@ -740,6 +740,7 @@ export const EnrichBlock: BlockConfig = {
 
 export const EnrichBlockMeta = {
   tags: ['enrichment'],
+  url: 'https://www.enrich.so',
   templates: [
     {
       icon: EnrichSoIcon,

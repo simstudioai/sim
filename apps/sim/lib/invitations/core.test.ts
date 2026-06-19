@@ -14,7 +14,6 @@ const {
   mockSetActiveOrganizationForCurrentSession,
   mockSyncUsageLimitsFromSubscription,
   mockSyncWorkspaceEnvCredentials,
-  mockApplyWorkspaceAutoAddGroup,
   mockIsWorkspaceOnEnterprisePlan,
   mockFeatureFlags,
 } = vi.hoisted(() => ({
@@ -27,7 +26,6 @@ const {
   mockSetActiveOrganizationForCurrentSession: vi.fn(),
   mockSyncUsageLimitsFromSubscription: vi.fn(),
   mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockApplyWorkspaceAutoAddGroup: vi.fn(),
   mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
   mockFeatureFlags: { isBillingEnabled: true },
 }))
@@ -52,7 +50,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
 }))
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
+vi.mock('@/lib/core/config/env-flags', () => ({
   get isBillingEnabled() {
     return mockFeatureFlags.isBillingEnabled
   },
@@ -72,10 +70,6 @@ vi.mock('@/lib/billing/core/usage', () => ({
 
 vi.mock('@/lib/credentials/environment', () => ({
   syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
-
-vi.mock('@/lib/permission-groups/auto-add', () => ({
-  applyWorkspaceAutoAddGroup: mockApplyWorkspaceAutoAddGroup,
 }))
 
 import { acceptInvitation } from '@/lib/invitations/core'
@@ -171,7 +165,6 @@ describe('acceptInvitation', () => {
     expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
     expect(mockSetActiveOrganizationForCurrentSession).not.toHaveBeenCalled()
     expect(mockSyncUsageLimitsFromSubscription).not.toHaveBeenCalled()
-    expect(mockApplyWorkspaceAutoAddGroup).toHaveBeenCalled()
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'external-user',
@@ -503,7 +496,6 @@ describe('acceptInvitation', () => {
       expect(result.kind).toBe('already-processed')
     }
     // Aborted before granting workspace access — no zombie permission write.
-    expect(mockApplyWorkspaceAutoAddGroup).not.toHaveBeenCalled()
     expect(mockSetActiveOrganizationForCurrentSession).not.toHaveBeenCalled()
   })
 })

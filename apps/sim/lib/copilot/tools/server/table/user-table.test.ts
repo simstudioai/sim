@@ -15,6 +15,14 @@ const {
   mockCreateTable,
   mockDeleteTable,
   mockGetWorkspaceTableLimits,
+  mockMarkTableJobRunning,
+  mockReleaseJobClaim,
+  mockQueryRows,
+  mockDeleteRowsByFilter,
+  mockUpdateRowsByFilter,
+  mockRunTableImport,
+  mockRunTableDelete,
+  mockRunTableUpdate,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockResolveWorkspaceFileReference: vi.fn(),
@@ -26,6 +34,14 @@ const {
   mockCreateTable: vi.fn(),
   mockDeleteTable: vi.fn(),
   mockGetWorkspaceTableLimits: vi.fn(),
+  mockMarkTableJobRunning: vi.fn(),
+  mockReleaseJobClaim: vi.fn(),
+  mockQueryRows: vi.fn(),
+  mockDeleteRowsByFilter: vi.fn(),
+  mockUpdateRowsByFilter: vi.fn(),
+  mockRunTableImport: vi.fn(),
+  mockRunTableDelete: vi.fn(),
+  mockRunTableUpdate: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -56,28 +72,60 @@ vi.mock('@/enrichments/registry', () => ({
 }))
 
 vi.mock('@/lib/table/service', () => ({
-  addTableColumn: vi.fn(),
-  addWorkflowGroup: mockAddWorkflowGroup,
-  batchInsertRows: mockBatchInsertRows,
-  batchUpdateRows: vi.fn(),
   createTable: mockCreateTable,
+  deleteTable: mockDeleteTable,
+  getTableById: mockGetTableById,
+  renameTable: vi.fn(),
+}))
+
+vi.mock('@/lib/table/workflow-groups/service', () => ({
+  addWorkflowGroup: mockAddWorkflowGroup,
+  addWorkflowGroupOutput: vi.fn(),
+  deleteWorkflowGroup: vi.fn(),
+  deleteWorkflowGroupOutput: vi.fn(),
+  updateWorkflowGroup: vi.fn(),
+}))
+
+vi.mock('@/lib/table/columns/service', () => ({
+  addTableColumn: vi.fn(),
   deleteColumn: vi.fn(),
   deleteColumns: vi.fn(),
-  deleteRow: vi.fn(),
-  deleteRowsByFilter: vi.fn(),
-  deleteRowsByIds: vi.fn(),
-  deleteTable: mockDeleteTable,
-  getRowById: vi.fn(),
-  getTableById: mockGetTableById,
-  insertRow: vi.fn(),
-  queryRows: vi.fn(),
   renameColumn: vi.fn(),
-  renameTable: vi.fn(),
-  replaceTableRows: mockReplaceTableRows,
   updateColumnConstraints: vi.fn(),
   updateColumnType: vi.fn(),
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  batchInsertRows: mockBatchInsertRows,
+  batchUpdateRows: vi.fn(),
+  deleteRow: vi.fn(),
+  deleteRowsByFilter: mockDeleteRowsByFilter,
+  deleteRowsByIds: vi.fn(),
+  getRowById: vi.fn(),
+  insertRow: vi.fn(),
+  queryRows: mockQueryRows,
+  replaceTableRows: mockReplaceTableRows,
   updateRow: vi.fn(),
-  updateRowsByFilter: vi.fn(),
+  updateRowsByFilter: mockUpdateRowsByFilter,
+}))
+
+vi.mock('@/lib/table/jobs/service', () => ({
+  markTableJobRunning: mockMarkTableJobRunning,
+  releaseJobClaim: mockReleaseJobClaim,
+}))
+
+vi.mock('@/lib/table/import-runner', () => ({
+  runTableImport: mockRunTableImport,
+}))
+
+vi.mock('@/lib/table/delete-runner', () => ({
+  markTableDeleteFailed: vi.fn(),
+  runTableDelete: mockRunTableDelete,
+}))
+
+vi.mock('@/lib/table/update-runner', () => ({
+  markTableUpdateFailed: vi.fn(),
+  runTableUpdate: mockRunTableUpdate,
 }))
 
 vi.mock('@/lib/table/billing', () => ({
@@ -109,15 +157,25 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   }
 }
 
+/** Lets a runDetached microtask chain run before asserting on the work it dispatched. */
+async function flushDetached(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 describe('userTableServerTool.import_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveWorkspaceFileReference.mockResolvedValue({
       name: 'people.csv',
       type: 'text/csv',
+      key: 'workspace/workspace-1/people.csv',
+      size: 100,
     })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetTableById.mockResolvedValue(buildTable())
+    mockMarkTableJobRunning.mockResolvedValue(true)
+    mockReleaseJobClaim.mockResolvedValue(undefined)
     mockBatchInsertRows.mockImplementation(async (data: { rows: unknown[] }) =>
       data.rows.map((_, i) => ({ id: `row_${i}` }))
     )
@@ -240,12 +298,95 @@ describe('userTableServerTool.import_file', () => {
     expect(result.message).toMatch(/missing required columns/i)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
+
+  it('claims and releases the table job slot around an inline import', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockReleaseJobClaim).toHaveBeenCalledWith(
+      'tbl_1',
+      mockMarkTableJobRunning.mock.calls[0][1]
+    )
+  })
+
+  it('rejects an inline import while another job holds the table slot', async () => {
+    mockMarkTableJobRunning.mockResolvedValueOnce(false)
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/job is already in progress/i)
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    expect(mockReleaseJobClaim).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a background import for large CSV files', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      name: 'big.csv',
+      type: 'text/csv',
+      key: 'workspace/workspace-1/big.csv',
+      size: 9 * 1024 * 1024,
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1', mode: 'replace' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.jobId).toBeDefined()
+    expect(result.message).toMatch(/background/i)
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'import')
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockRunTableImport).toHaveBeenCalledTimes(1)
+    expect(mockRunTableImport.mock.calls[0][0]).toMatchObject({
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-1',
+      fileKey: 'workspace/workspace-1/big.csv',
+      mode: 'replace',
+      deleteSourceFile: false,
+    })
+  })
+
+  it('rejects a background import while another job holds the table slot', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      name: 'big.csv',
+      type: 'text/csv',
+      key: 'workspace/workspace-1/big.csv',
+      size: 9 * 1024 * 1024,
+    })
+    mockMarkTableJobRunning.mockResolvedValueOnce(false)
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/job is already in progress/i)
+    expect(mockRunTableImport).not.toHaveBeenCalled()
+  })
 })
 
 describe('userTableServerTool.create_from_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockResolveWorkspaceFileReference.mockResolvedValue({ name: 'people.csv', type: 'text/csv' })
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      name: 'people.csv',
+      type: 'text/csv',
+      key: 'workspace/workspace-1/people.csv',
+      size: 100,
+    })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
     mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'people' }))
@@ -264,8 +405,7 @@ describe('userTableServerTool.create_from_file', () => {
     expect(result.success).toBe(true)
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
     expect(mockCreateTable).toHaveBeenCalledTimes(1)
-    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
-    expect(createArgs.maxRows).toBe(1000)
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
   })
 
@@ -300,6 +440,40 @@ describe('userTableServerTool.create_from_file', () => {
     expect(result.message).toMatch(/rolled back/i)
     expect(result.message).toMatch(/must be unique/i)
   })
+
+  it('creates a placeholder table and dispatches a background import for large CSV files', async () => {
+    mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      name: 'big.csv',
+      type: 'text/csv',
+      key: 'workspace/workspace-1/big.csv',
+      size: 9 * 1024 * 1024,
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.tableId).toBe('tbl_new')
+    expect(result.data?.jobId).toBeDefined()
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    const createArgs = mockCreateTable.mock.calls[0][0] as Record<string, unknown>
+    expect(createArgs).toMatchObject({
+      jobStatus: 'running',
+      jobType: 'import',
+      jobId: result.data?.jobId,
+    })
+    expect(mockRunTableImport).toHaveBeenCalledTimes(1)
+    expect(mockRunTableImport.mock.calls[0][0]).toMatchObject({
+      tableId: 'tbl_new',
+      mode: 'create',
+      fileKey: 'workspace/workspace-1/big.csv',
+      deleteSourceFile: false,
+    })
+  })
 })
 
 describe('userTableServerTool.create', () => {
@@ -323,8 +497,7 @@ describe('userTableServerTool.create', () => {
 
     expect(result.success).toBe(true)
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
-    const createArgs = mockCreateTable.mock.calls[0][0] as { maxRows: number; maxTables: number }
-    expect(createArgs.maxRows).toBe(1000)
+    const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
   })
 })
@@ -491,5 +664,342 @@ describe('userTableServerTool.add_enrichment', () => {
     expect(result.success).toBe(false)
     expect(result.message).toMatch(/does not exist/)
     expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+})
+
+describe('userTableServerTool.query_rows', () => {
+  const queryRow = (i: number) => ({
+    id: `row_${i}`,
+    data: { name: `r${i}` },
+    executions: {},
+    position: i,
+    orderKey: `a${i}`,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01'),
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+    mockQueryRows.mockResolvedValue({
+      rows: [queryRow(1), queryRow(2)],
+      rowCount: 2,
+      totalCount: 10,
+      limit: 2,
+      offset: 0,
+    })
+  })
+
+  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBe(1000)
+  })
+
+  it('queries without execution metadata and passes limit/offset through', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, offset: 10 } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.withExecutions).toBe(false)
+    expect(options.offset).toBe(10)
+    expect(result.data?.nextCursor).toBeUndefined()
+  })
+})
+
+describe('userTableServerTool.delete_rows_by_filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable({ rowCount: 50000, maxRows: 100000 }))
+    mockMarkTableJobRunning.mockResolvedValue(true)
+    mockDeleteRowsByFilter.mockResolvedValue({ affectedCount: 5, affectedRowIds: ['r1'] })
+    mockQueryRows.mockResolvedValue({
+      rows: [],
+      rowCount: 0,
+      totalCount: 5,
+      limit: 1,
+      offset: 0,
+    })
+  })
+
+  it('escalates an explicit limit above the cap to a background delete with maxRows (unmasked)', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 5000 },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
+    expect(result.data?.doomedCount).toBe(5000)
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(type).toBe('delete')
+    // Bounded delete carries maxRows and omits doomedCount so the mask is skipped and the count
+    // isn't double-subtracted.
+    expect(payload).toMatchObject({ maxRows: 5000 })
+    expect((payload as { doomedCount?: number }).doomedCount).toBeUndefined()
+    expect(mockRunTableDelete.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
+  })
+
+  it('deletes inline when the unbounded match count is within the cap', async () => {
+    const result = await userTableServerTool.execute(
+      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.data?.affectedCount).toBe(5)
+    expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
+    // Inline delete still claims (and releases) the table's write-job slot.
+    expect(mockMarkTableJobRunning).toHaveBeenCalledWith('tbl_1', expect.any(String), 'delete')
+    expect(mockReleaseJobClaim).toHaveBeenCalled()
+  })
+
+  it('rejects an inline delete while another job holds the table slot', async () => {
+    mockMarkTableJobRunning.mockResolvedValueOnce(false)
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/job is already in progress/i)
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a background delete when the unbounded match count exceeds the cap', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.jobId).toBeDefined()
+    expect(result.data?.doomedCount).toBe(20000)
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(tableId).toBe('tbl_1')
+    expect(type).toBe('delete')
+    expect(payload).toMatchObject({ doomedCount: 20000, cutoff: expect.any(String) })
+    // Unbounded delete masks the whole set — no maxRows cap.
+    expect((payload as { maxRows?: number }).maxRows).toBeUndefined()
+    expect(mockRunTableDelete).toHaveBeenCalledTimes(1)
+    expect(mockRunTableDelete.mock.calls[0][0]).toMatchObject({
+      jobId,
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-1',
+      cutoff: expect.any(Date),
+    })
+  })
+
+  it('rejects a background delete while another job holds the table slot', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+    mockMarkTableJobRunning.mockResolvedValueOnce(false)
+
+    const result = await userTableServerTool.execute(
+      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/job is already in progress/i)
+    expect(mockDeleteRowsByFilter).not.toHaveBeenCalled()
+    expect(mockRunTableDelete).not.toHaveBeenCalled()
+  })
+
+  it('deletes inline with an explicit limit without counting first', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockDeleteRowsByFilter).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('userTableServerTool.update_rows_by_filter', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+    mockMarkTableJobRunning.mockResolvedValue(true)
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 5, affectedRowIds: ['r1'] })
+    mockQueryRows.mockResolvedValue({ rows: [], rowCount: 0, totalCount: 5, limit: 1, offset: 0 })
+  })
+
+  it('escalates an explicit limit above the cap to a background update with maxRows', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 5000 },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    // target = min(limit 5000, matchCount 20000) = 5000, above the inline cap → background.
+    expect(result.data?.affectedCount).toBe(5000)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    const [, , type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(type).toBe('update')
+    expect(payload).toMatchObject({ affectedCount: 5000, maxRows: 5000 })
+    expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({ maxRows: 5000 })
+  })
+
+  it('updates inline when the unbounded match count is within the cap', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    expect(result.success).toBe(true)
+    expect(result.data?.affectedCount).toBe(5)
+    expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+  })
+
+  it('dispatches a background update when the unbounded match count exceeds the cap', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    await flushDetached()
+
+    expect(result.success).toBe(true)
+    expect(result.data?.jobId).toBeDefined()
+    expect(result.data?.affectedCount).toBe(20000)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    const [tableId, jobId, type, payload] = mockMarkTableJobRunning.mock.calls[0]
+    expect(tableId).toBe('tbl_1')
+    expect(type).toBe('update')
+    expect(payload).toMatchObject({
+      affectedCount: 20000,
+      cutoff: expect.any(String),
+      data: { age: 1 },
+    })
+    // Unbounded match (no explicit limit) → the worker patches every match, no cap.
+    expect((payload as { maxRows?: number }).maxRows).toBeUndefined()
+    expect(mockRunTableUpdate).toHaveBeenCalledTimes(1)
+    expect(mockRunTableUpdate.mock.calls[0][0]).toMatchObject({
+      jobId,
+      tableId: 'tbl_1',
+      workspaceId: 'workspace-1',
+      cutoff: expect.any(Date),
+    })
+  })
+
+  it('keeps a unique-column patch inline even when many rows match', async () => {
+    mockGetTableById.mockResolvedValue(
+      buildTable({ schema: { columns: [{ name: 'email', type: 'string', unique: true }] } })
+    )
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { email: 'x' }, data: { email: 'y' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    expect(result.success).toBe(true)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+    expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects a background update while another job holds the table slot', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [],
+      rowCount: 0,
+      totalCount: 20000,
+      limit: 1,
+      offset: 0,
+    })
+    mockMarkTableJobRunning.mockResolvedValueOnce(false)
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/job is already in progress/i)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+    expect(mockRunTableUpdate).not.toHaveBeenCalled()
+  })
+
+  it('updates inline with an explicit limit without counting first', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 100 },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    expect(result.success).toBe(true)
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
   })
 })

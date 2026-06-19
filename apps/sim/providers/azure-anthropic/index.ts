@@ -1,9 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createLogger } from '@sim/logger'
 import { env } from '@/lib/core/config/env'
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import type { ProviderConfig, ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -28,6 +29,8 @@ export const azureAnthropicProvider: ProviderConfig = {
       )
     }
 
+    let pinnedFetch: typeof fetch | undefined
+    let pinnedIP: string | undefined
     if (userProvidedEndpoint) {
       const validation = await validateUrlWithDNS(userProvidedEndpoint, 'azureEndpoint')
       if (!validation.isValid) {
@@ -37,6 +40,11 @@ export const azureAnthropicProvider: ProviderConfig = {
         })
         throw new Error(`Invalid Azure Anthropic endpoint: ${validation.error}`)
       }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid Azure Anthropic endpoint: could not resolve a pinnable IP address')
+      }
+      pinnedIP = validation.resolvedIP
+      pinnedFetch = createPinnedFetch(pinnedIP)
     }
 
     const apiKey = request.apiKey
@@ -63,18 +71,32 @@ export const azureAnthropicProvider: ProviderConfig = {
       {
         providerId: 'azure-anthropic',
         providerLabel: 'Azure Anthropic',
-        createClient: (apiKey, useNativeStructuredOutputs) =>
-          new Anthropic({
-            baseURL,
+        createClient: (apiKey, useNativeStructuredOutputs) => {
+          const cacheKey = [
+            'azure-anthropic',
             apiKey,
-            defaultHeaders: {
-              'api-key': apiKey,
-              'anthropic-version': anthropicVersion,
-              ...(useNativeStructuredOutputs
-                ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
-                : {}),
-            },
-          }),
+            baseURL,
+            anthropicVersion,
+            pinnedIP ?? 'no-pin',
+            useNativeStructuredOutputs ? 'beta' : 'default',
+          ].join('::')
+          return getCachedProviderClient(
+            cacheKey,
+            () =>
+              new Anthropic({
+                baseURL,
+                apiKey,
+                ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
+                defaultHeaders: {
+                  'api-key': apiKey,
+                  'anthropic-version': anthropicVersion,
+                  ...(useNativeStructuredOutputs
+                    ? { 'anthropic-beta': 'structured-outputs-2025-11-13' }
+                    : {}),
+                },
+              })
+          )
+        },
         logger,
       }
     )

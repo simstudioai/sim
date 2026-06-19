@@ -25,7 +25,7 @@ import {
 } from '@/components/emcn'
 import {
   BookOpen,
-  Clock,
+  Calendar,
   Database,
   Files,
   HelpCircle,
@@ -753,7 +753,7 @@ export const Sidebar = memo(function Sidebar() {
         {
           id: 'scheduled-tasks',
           label: 'Scheduled tasks',
-          icon: Clock,
+          icon: Calendar,
           href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
@@ -1735,6 +1735,10 @@ export const Sidebar = memo(function Sidebar() {
         connectedAccounts={searchModalConnectedAccounts}
         isOnWorkflowPage={!!workflowId}
         isOnIntegrationsPage={isOnIntegrationsPage}
+        canEdit={canEdit}
+        onCreateWorkflow={handleCreateWorkflow}
+        onCreateFolder={handleCreateFolder}
+        onImportWorkflow={handleImportWorkflow}
       />
 
       <HelpModal

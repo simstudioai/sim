@@ -5,18 +5,16 @@
  *   List all permission groups with optional filtering.
  *
  *   Query Parameters:
- *     - workspaceId?: string - Filter by workspace ID
- *     - organizationId?: string - Filter by organization ID (joins via workspace)
+ *     - organizationId?: string - Filter by organization ID
  *
  *   Response: { data: AdminPermissionGroup[], pagination: PaginationMeta }
  *
  * DELETE /api/v1/admin/access-control
- *   Delete permission groups scoped to a workspace or organization (via workspace join).
+ *   Delete permission groups scoped to an organization.
  *   Used when an enterprise plan churns to clean up access control data.
  *
  *   Query Parameters:
- *     - workspaceId?: string - Delete all permission groups for this workspace
- *     - organizationId?: string - Delete all permission groups for every workspace in this org
+ *     - organizationId: string - Delete all permission groups for this organization
  *     - reason?: string - Reason recorded in audit log (default: "Enterprise plan churn cleanup")
  *
  *   Response: { success: true, deletedCount: number, membersRemoved: number }
@@ -24,7 +22,7 @@
 
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { permissionGroup, permissionGroupMember, user, workspace } from '@sim/db/schema'
+import { organization, permissionGroup, permissionGroupMember, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { count, eq, inArray, sql } from 'drizzle-orm'
 import {
@@ -37,6 +35,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuth } from '@/app/api/v1/admin/middleware'
 import {
   adminValidationErrorResponse,
+  badRequestResponse,
   internalErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
@@ -53,33 +52,28 @@ export const GET = withRouteHandler(
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, organizationId } = parsed.data.query
+    const { organizationId } = parsed.data.query
 
     try {
       const baseQuery = db
         .select({
           id: permissionGroup.id,
-          workspaceId: permissionGroup.workspaceId,
-          workspaceName: workspace.name,
-          workspaceOrganizationId: workspace.organizationId,
+          organizationId: permissionGroup.organizationId,
+          organizationName: organization.name,
           name: permissionGroup.name,
           description: permissionGroup.description,
+          isDefault: permissionGroup.isDefault,
           createdAt: permissionGroup.createdAt,
           createdByUserId: permissionGroup.createdBy,
           createdByEmail: user.email,
         })
         .from(permissionGroup)
-        .leftJoin(workspace, eq(permissionGroup.workspaceId, workspace.id))
+        .leftJoin(organization, eq(permissionGroup.organizationId, organization.id))
         .leftJoin(user, eq(permissionGroup.createdBy, user.id))
 
-      let groups
-      if (workspaceId) {
-        groups = await baseQuery.where(eq(permissionGroup.workspaceId, workspaceId))
-      } else if (organizationId) {
-        groups = await baseQuery.where(eq(workspace.organizationId, organizationId))
-      } else {
-        groups = await baseQuery
-      }
+      const groups = organizationId
+        ? await baseQuery.where(eq(permissionGroup.organizationId, organizationId))
+        : await baseQuery
 
       const groupsWithCounts = await Promise.all(
         groups.map(async (group) => {
@@ -90,11 +84,11 @@ export const GET = withRouteHandler(
 
           return {
             id: group.id,
-            workspaceId: group.workspaceId,
-            workspaceName: group.workspaceName,
-            organizationId: group.workspaceOrganizationId,
+            organizationId: group.organizationId,
+            organizationName: group.organizationName,
             name: group.name,
             description: group.description,
+            isDefault: group.isDefault,
             memberCount: memberCount?.count ?? 0,
             createdAt: group.createdAt.toISOString(),
             createdByUserId: group.createdByUserId,
@@ -104,7 +98,6 @@ export const GET = withRouteHandler(
       )
 
       logger.info('Admin API: Listed permission groups', {
-        workspaceId,
         organizationId,
         count: groupsWithCounts.length,
       })
@@ -121,7 +114,6 @@ export const GET = withRouteHandler(
     } catch (error) {
       logger.error('Admin API: Failed to list permission groups', {
         error,
-        workspaceId,
         organizationId,
       })
       return internalErrorResponse('Failed to list permission groups')
@@ -141,26 +133,26 @@ export const DELETE = withRouteHandler(
     )
     if (!parsed.success) return parsed.response
 
-    const { workspaceId, organizationId, reason: rawReason } = parsed.data.query
+    const { organizationId, reason: rawReason } = parsed.data.query
+    // The contract's refine guarantees this at the boundary; this explicit guard
+    // narrows the type (avoiding a non-null assertion) and stays correct even if
+    // the contract changes.
+    if (!organizationId) {
+      return badRequestResponse('organizationId is required')
+    }
     const reason = rawReason || 'Enterprise plan churn cleanup'
 
     try {
-      const selectBase = db
+      const existingGroups = await db
         .select({
           id: permissionGroup.id,
-          workspaceId: permissionGroup.workspaceId,
           name: permissionGroup.name,
         })
         .from(permissionGroup)
-
-      const existingGroups = workspaceId
-        ? await selectBase.where(eq(permissionGroup.workspaceId, workspaceId))
-        : await selectBase
-            .innerJoin(workspace, eq(workspace.id, permissionGroup.workspaceId))
-            .where(eq(workspace.organizationId, organizationId!))
+        .where(eq(permissionGroup.organizationId, organizationId))
 
       if (existingGroups.length === 0) {
-        logger.info('Admin API: No permission groups to delete', { workspaceId, organizationId })
+        logger.info('Admin API: No permission groups to delete', { organizationId })
         return singleResponse({
           success: true,
           deletedCount: 0,
@@ -182,20 +174,18 @@ export const DELETE = withRouteHandler(
 
       for (const group of existingGroups) {
         recordAudit({
-          workspaceId: group.workspaceId,
           actorId: 'admin-api',
           action: AuditAction.PERMISSION_GROUP_DELETED,
           resourceType: AuditResourceType.PERMISSION_GROUP,
           resourceId: group.id,
           resourceName: group.name,
           description: `Admin API deleted permission group "${group.name}"`,
-          metadata: { reason, workspaceId: group.workspaceId, organizationId },
+          metadata: { reason, organizationId },
           request,
         })
       }
 
       logger.info('Admin API: Deleted permission groups', {
-        workspaceId,
         organizationId,
         deletedCount: existingGroups.length,
         membersRemoved: membersToRemove,
@@ -211,7 +201,6 @@ export const DELETE = withRouteHandler(
     } catch (error) {
       logger.error('Admin API: Failed to delete permission groups', {
         error,
-        workspaceId,
         organizationId,
       })
       return internalErrorResponse('Failed to delete permission groups')

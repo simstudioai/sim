@@ -970,6 +970,7 @@ Output only the ISO 8601 timestamp string, nothing else.`,
 
 export const AshbyBlockMeta = {
   tags: ['hiring'],
+  url: 'https://ashbyhq.com',
   templates: [
     {
       icon: AshbyIcon,

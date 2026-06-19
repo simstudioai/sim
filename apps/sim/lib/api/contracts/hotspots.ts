@@ -162,11 +162,20 @@ export const functionExecuteContract = defineRouteContract({
     isCustomTool: z.boolean().optional().default(false),
     _sandboxFiles: z
       .array(
-        z.object({
-          path: z.string(),
-          content: z.string(),
-          encoding: z.literal('base64').optional(),
-        })
+        z.union([
+          z.object({
+            type: z.literal('content').optional(),
+            path: z.string(),
+            content: z.string(),
+            encoding: z.literal('base64').optional(),
+          }),
+          // Mounted by reference: the sandbox fetches `url` itself (no bytes through the web tier).
+          z.object({
+            type: z.literal('url'),
+            path: z.string(),
+            url: z.string(),
+          }),
+        ])
       )
       .optional(),
   }),

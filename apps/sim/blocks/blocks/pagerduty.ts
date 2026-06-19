@@ -485,6 +485,7 @@ export const PagerDutyBlock: BlockConfig = {
 
 export const PagerDutyBlockMeta = {
   tags: ['incident-management', 'monitoring'],
+  url: 'https://www.pagerduty.com',
   templates: [
     {
       icon: PagerDutyIcon,

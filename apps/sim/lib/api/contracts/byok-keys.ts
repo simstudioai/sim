@@ -30,6 +30,11 @@ export const byokProviderIdSchema = z.enum([
   'zerobounce',
   'neverbounce',
   'millionverifier',
+  'datagma',
+  'dropcontact',
+  'leadmagic',
+  'icypeas',
+  'enrow',
 ])
 
 /** Maximum number of keys a workspace may store per provider. */

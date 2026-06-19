@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
+import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import {
   buildCanonicalIndex,
@@ -714,6 +715,9 @@ export function isBlockTypeAllowed(
   blockType: string,
   permissionConfig: PermissionGroupConfig | null
 ): boolean {
+  if (isBlockTypeAccessControlExempt(blockType)) {
+    return true
+  }
   if (!permissionConfig || permissionConfig.allowedIntegrations === null) {
     return true
   }
@@ -945,7 +949,7 @@ export async function preValidateCredentialInputs(
   context: { userId: string; workspaceId?: string },
   workflowState?: Record<string, unknown>
 ): Promise<{ filteredOperations: EditWorkflowOperation[]; errors: ValidationError[] }> {
-  const { isHosted } = await import('@/lib/core/config/feature-flags')
+  const { isHosted } = await import('@/lib/core/config/env-flags')
   const { getHostedModels } = await import('@/providers/utils')
 
   const logger = createLogger('PreValidateCredentials')

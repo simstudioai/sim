@@ -19,7 +19,7 @@ export function UnsavedChangesModal({ open, onOpenChange, onDiscard }: UnsavedCh
       onOpenChange={onOpenChange}
       srTitle='Unsaved Changes'
       title='Unsaved Changes'
-      description='You have unsaved changes. Are you sure you want to discard them?'
+      text='You have unsaved changes. Are you sure you want to discard them?'
       dismissLabel='Keep editing'
       confirm={{ label: 'Discard Changes', onClick: onDiscard }}
     />

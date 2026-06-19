@@ -1739,6 +1739,7 @@ export const IntercomV2Block: BlockConfig = {
 
 export const IntercomBlockMeta = {
   tags: ['customer-support', 'messaging'],
+  url: 'https://www.intercom.com',
   templates: [
     {
       icon: IntercomIcon,
@@ -1844,4 +1845,5 @@ export const IntercomBlockMeta = {
 
 export const IntercomV2BlockMeta = {
   tags: ['customer-support', 'messaging'],
+  url: 'https://www.intercom.com',
 } as const satisfies BlockMeta

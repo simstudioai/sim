@@ -14,7 +14,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/copilot/vfs/resource-writer'
-import { isE2bEnabled } from '@/lib/core/config/feature-flags'
+import { isE2bEnabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInE2B, executeShellInE2B } from '@/lib/execution/e2b'
@@ -115,10 +115,13 @@ let typescriptModulePromise: Promise<TypeScriptModule> | null = null
 
 async function loadTypeScriptModule(): Promise<TypeScriptModule> {
   if (!typescriptModulePromise) {
-    typescriptModulePromise = import('typescript').then((mod) => {
-      const tsModule = (mod?.default ?? mod) as TypeScriptModule
-      return tsModule
-    })
+    typescriptModulePromise = import('typescript').then(
+      (mod) => (mod?.default ?? mod) as TypeScriptModule,
+      (error) => {
+        typescriptModulePromise = null
+        throw error
+      }
+    )
   }
 
   return typescriptModulePromise

@@ -3,7 +3,7 @@ import { account, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
-import { jwtDecode } from 'jwt-decode'
+import { decodeJwt } from 'jose'
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 import type { BaseServerTool } from '@/lib/copilot/tools/server/base-tool'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -84,7 +84,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
       let displayName = ''
       if (acc.idToken) {
         try {
-          const decoded = jwtDecode<{ email?: string; name?: string }>(acc.idToken)
+          const decoded = decodeJwt<{ email?: string; name?: string }>(acc.idToken)
           displayName = decoded.email || decoded.name || ''
         } catch (error) {
           logger.warn('Failed to decode JWT id token', {

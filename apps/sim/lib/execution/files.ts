@@ -57,7 +57,7 @@ export async function processExecutionFile(
 
   if (file.type === 'url' && file.data) {
     const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file-utils.server')
-    const buffer = await downloadFileFromUrl(file.data)
+    const buffer = await downloadFileFromUrl(file.data, { userId })
 
     if (buffer.length > MAX_FILE_SIZE) {
       const fileSizeMB = (buffer.length / (1024 * 1024)).toFixed(2)

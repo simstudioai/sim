@@ -817,6 +817,7 @@ Return ONLY a valid JSON object - no explanations, no extra text.`,
 
 export const TemporalBlockMeta = {
   tags: ['automation'],
+  url: 'https://temporal.io',
   templates: [
     {
       icon: TemporalIcon,

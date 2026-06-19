@@ -31,12 +31,6 @@ export const salesforceListDashboardsTool: ToolConfig<
     accessToken: { type: 'string', required: true, visibility: 'hidden' },
     idToken: { type: 'string', required: false, visibility: 'hidden' },
     instanceUrl: { type: 'string', required: false, visibility: 'hidden' },
-    folderName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Filter dashboards by folder name (case-insensitive partial match)',
-    },
   },
 
   request: {
@@ -51,7 +45,7 @@ export const salesforceListDashboardsTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response, params?) => {
+  transformResponse: async (response) => {
     const data = await response.json()
     if (!response.ok) {
       const errorMessage = extractErrorMessage(
@@ -63,14 +57,13 @@ export const salesforceListDashboardsTool: ToolConfig<
       throw new Error(errorMessage)
     }
 
-    let dashboards = data.dashboards || data || []
-
-    // Filter by folder name if provided
-    if (params?.folderName) {
-      dashboards = dashboards.filter((dashboard: any) =>
-        dashboard.folderName?.toLowerCase().includes(params.folderName!.toLowerCase())
-      )
-    }
+    // GET /analytics/dashboards returns a bare top-level array of dashboard objects;
+    // fall back to a `dashboards` wrapper defensively in case the shape varies by org.
+    const dashboards = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.dashboards)
+        ? data.dashboards
+        : []
 
     return {
       success: true,

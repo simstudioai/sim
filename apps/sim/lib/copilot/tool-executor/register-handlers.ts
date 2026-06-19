@@ -1,7 +1,7 @@
 import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
-  CompleteJob,
+  CompleteScheduledTask,
   CreateFolder,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
@@ -30,8 +30,8 @@ import {
   LoadDeployment,
   ManageCredential,
   ManageCustomTool,
-  ManageJob,
   ManageMcpTool,
+  ManageScheduledTask,
   ManageSkill,
   MaterializeFile,
   MoveFolder,
@@ -51,7 +51,7 @@ import {
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateDeploymentVersion,
-  UpdateJobHistory,
+  UpdateScheduledTaskHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
@@ -177,9 +177,9 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [PromoteToLive.id]: h(executePromoteToLive),
     [UpdateDeploymentVersion.id]: h(executeUpdateDeploymentVersion),
 
-    [ManageJob.id]: h(executeManageJob),
-    [CompleteJob.id]: h(executeCompleteJob),
-    [UpdateJobHistory.id]: h(executeUpdateJobHistory),
+    [ManageScheduledTask.id]: h(executeManageJob),
+    [CompleteScheduledTask.id]: h(executeCompleteJob),
+    [UpdateScheduledTaskHistory.id]: h(executeUpdateJobHistory),
 
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),

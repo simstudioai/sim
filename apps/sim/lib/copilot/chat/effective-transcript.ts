@@ -1,3 +1,4 @@
+import { isRecordLike } from '@sim/utils/object'
 import { normalizeMessage, type PersistedMessage } from '@/lib/copilot/chat/persisted-message'
 import { resolveStreamToolOutcome } from '@/lib/copilot/chat/stream-tool-outcome'
 import {
@@ -32,12 +33,8 @@ export function getLiveAssistantMessageId(streamId: string): string {
   return `live-assistant:${streamId}`
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-}
-
 function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined
+  return isRecordLike(value) ? value : undefined
 }
 
 function isTerminalStreamStatus(status: string | null | undefined): boolean {
@@ -64,7 +61,7 @@ function buildInlineErrorTag(payload: MothershipStreamV1ErrorPayload): string {
 }
 
 function resolveToolDisplayTitle(ui: unknown): string | undefined {
-  if (!isRecord(ui)) return undefined
+  if (!isRecordLike(ui)) return undefined
   return typeof ui.title === 'string'
     ? ui.title
     : typeof ui.phaseLabel === 'string'
@@ -318,7 +315,7 @@ function buildLiveAssistantMessage(params: {
           ...(parentForBlock ? { parentToolCallId: parentForBlock } : {}),
           ...spanIdentity,
           displayTitle,
-          params: isRecord(payload.arguments) ? payload.arguments : undefined,
+          params: isRecordLike(payload.arguments) ? payload.arguments : undefined,
           state: typeof payload.status === 'string' ? payload.status : 'executing',
         })
         continue

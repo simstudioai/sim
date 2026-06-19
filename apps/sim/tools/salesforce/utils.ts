@@ -37,6 +37,23 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
 }
 
 /**
+ * Trims a record ID and throws if it is missing or whitespace-only.
+ * Prevents whitespace-only IDs from collapsing into an empty URL path segment
+ * (e.g. `/sobjects/Account/`) and hitting Salesforce with a malformed request.
+ * @param value - The raw ID value from params
+ * @param label - Human-readable field name used in the error message
+ * @returns The trimmed, non-empty ID
+ * @throws Error if the ID is absent or whitespace-only
+ */
+export function requireId(value: string | undefined, label: string): string {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    throw new Error(`${label} is required. Please provide a valid Salesforce ${label}.`)
+  }
+  return trimmed
+}
+
+/**
  * Extracts a descriptive error message from Salesforce API responses
  * @param data - The response data from Salesforce API
  * @param status - HTTP status code

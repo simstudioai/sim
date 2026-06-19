@@ -52,6 +52,13 @@ export const storageUploadTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'MIME type of the file (e.g., "image/jpeg", "text/plain")',
     },
+    cacheControl: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Cache-Control header value in seconds for the stored object (e.g., "3600"; default: "3600")',
+    },
     upsert: {
       type: 'boolean',
       required: false,
@@ -80,6 +87,7 @@ export const storageUploadTool: ToolConfig<
       path: params.path,
       fileData: params.fileData,
       contentType: params.contentType,
+      cacheControl: params.cacheControl,
       upsert: params.upsert,
     }),
   },

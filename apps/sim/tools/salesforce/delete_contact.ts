@@ -4,7 +4,7 @@ import type {
   SalesforceDeleteContactResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('SalesforceContacts')
@@ -35,7 +35,8 @@ export const salesforceDeleteContactTool: ToolConfig<
   request: {
     url: (params) => {
       const instanceUrl = getInstanceUrl(params.idToken, params.instanceUrl)
-      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${params.contactId}`
+      const contactId = requireId(params.contactId, 'Contact ID')
+      return `${instanceUrl}/services/data/v59.0/sobjects/Contact/${contactId}`
     },
     method: 'DELETE',
     headers: (params) => ({
@@ -48,14 +49,14 @@ export const salesforceDeleteContactTool: ToolConfig<
       const data = await response.json().catch(() => ({}))
       logger.error('Salesforce API request failed', { data, status: response.status })
       throw new Error(
-        data[0]?.message || data.message || 'Failed to delete contact from Salesforce'
+        extractErrorMessage(data, response.status, 'Failed to delete contact from Salesforce')
       )
     }
 
     return {
       success: true,
       output: {
-        id: params?.contactId || '',
+        id: params?.contactId?.trim() || '',
         deleted: true,
       },
     }

@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
-import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/feature-flags'
+import { isBillingEnabled, isDataDrainsEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchDueDrains } from '@/lib/data-drains/dispatcher'
 

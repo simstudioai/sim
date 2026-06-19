@@ -4,7 +4,7 @@ import {
   isCohereConfigured,
   isHosted,
   isOllamaConfigured,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
@@ -13,6 +13,7 @@ import {
   getHostedModels,
   getProviderIcon,
   getProviderModels,
+  orderModelIdsByReleaseDate,
 } from '@/providers/models'
 import { useProvidersStore } from '@/stores/providers/store'
 
@@ -48,7 +49,7 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
  */
 export function getModelOptions() {
   const providersState = useProvidersStore.getState()
-  const baseModels = providersState.providers.base.models
+  const baseModels = orderModelIdsByReleaseDate(providersState.providers.base.models)
   const ollamaModels = providersState.providers.ollama.models
   const ollamaCloudModels = providersState.providers['ollama-cloud'].models
   const vllmModels = providersState.providers.vllm.models

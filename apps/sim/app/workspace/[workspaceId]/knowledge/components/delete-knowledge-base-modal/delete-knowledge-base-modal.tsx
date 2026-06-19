@@ -43,26 +43,26 @@ export const DeleteKnowledgeBaseModal = memo(function DeleteKnowledgeBaseModal({
       onOpenChange={onClose}
       srTitle='Delete Knowledge Base'
       title='Delete Knowledge Base'
-      description={
-        <>
-          {knowledgeBaseName ? (
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{knowledgeBaseName}</span>?
-              <span className='text-[var(--text-error)]'>
-                All associated documents, chunks, and embeddings will be removed.
-              </span>
-            </>
-          ) : (
-            <>
-              Are you sure you want to delete this knowledge base?{' '}
-              <span className='text-[var(--text-error)]'>
-                All associated documents, chunks, and embeddings will be removed.
-              </span>
-            </>
-          )}{' '}
-          You can restore it from Recently Deleted in Settings.
-        </>
+      text={
+        knowledgeBaseName
+          ? [
+              'Are you sure you want to delete ',
+              { text: knowledgeBaseName, bold: true },
+              '? ',
+              {
+                text: 'All associated documents, chunks, and embeddings will be removed.',
+                error: true,
+              },
+              ' You can restore it from Recently Deleted in Settings.',
+            ]
+          : [
+              'Are you sure you want to delete this knowledge base? ',
+              {
+                text: 'All associated documents, chunks, and embeddings will be removed.',
+                error: true,
+              },
+              ' You can restore it from Recently Deleted in Settings.',
+            ]
       }
       confirm={{
         label: 'Delete',

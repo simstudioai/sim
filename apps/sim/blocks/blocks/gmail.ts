@@ -645,6 +645,7 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
 
 export const GmailBlockMeta = {
   tags: ['google-workspace', 'messaging'],
+  url: 'https://www.google.com/gmail/about',
   templates: [
     {
       icon: GmailIcon,
@@ -759,4 +760,5 @@ export const GmailBlockMeta = {
 
 export const GmailV2BlockMeta = {
   tags: ['google-workspace', 'messaging'],
+  url: 'https://www.google.com/gmail/about',
 } as const satisfies BlockMeta

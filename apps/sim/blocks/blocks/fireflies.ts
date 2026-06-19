@@ -693,6 +693,7 @@ export const FirefliesV2Block: BlockConfig<FirefliesResponse> = {
 
 export const FirefliesBlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://fireflies.ai',
   templates: [
     {
       icon: FirefliesIcon,
@@ -791,4 +792,5 @@ export const FirefliesBlockMeta = {
 
 export const FirefliesV2BlockMeta = {
   tags: ['meeting', 'note-taking'],
+  url: 'https://fireflies.ai',
 } as const satisfies BlockMeta

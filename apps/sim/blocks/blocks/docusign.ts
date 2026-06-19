@@ -375,6 +375,7 @@ export const DocuSignBlock: BlockConfig<DocuSignResponse> = {
 
 export const DocuSignBlockMeta = {
   tags: ['e-signatures', 'document-processing'],
+  url: 'https://www.docusign.com',
   templates: [
     {
       icon: DocuSignIcon,

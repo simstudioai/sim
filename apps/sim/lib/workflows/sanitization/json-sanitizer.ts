@@ -1,3 +1,4 @@
+import { isRecordLike, sortObjectKeysDeep } from '@sim/utils/object'
 import type { Edge } from 'reactflow'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
@@ -75,12 +76,8 @@ interface SanitizedCondition {
   value: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-}
-
 function toSanitizedCondition(condition: unknown): SanitizedCondition {
-  const record = isRecord(condition) ? condition : {}
+  const record = isRecordLike(condition) ? condition : {}
   return {
     id: String(record.id ?? ''),
     title: String(record.title ?? ''),
@@ -113,7 +110,7 @@ function parseConditions(value: unknown): Array<{ id: string; title: string }> |
 
   const conditions: Array<{ id: string; title: string }> = []
   for (const item of items) {
-    if (!isRecord(item) || typeof item.id !== 'string') {
+    if (!isRecordLike(item) || typeof item.id !== 'string') {
       return null
     }
     conditions.push({
@@ -133,7 +130,7 @@ function parseRoutes(value: unknown): Array<{ id: string; title?: string }> | nu
 
   const routes: Array<{ id: string; title?: string }> = []
   for (const item of items) {
-    if (!isRecord(item) || typeof item.id !== 'string') {
+    if (!isRecordLike(item) || typeof item.id !== 'string') {
       return null
     }
     routes.push({
@@ -251,26 +248,7 @@ function sanitizeTools(tools: ToolInput[]): SanitizedTool[] {
 }
 
 function isToolInput(value: unknown): value is ToolInput {
-  return isRecord(value) && typeof value.type === 'string'
-}
-
-/**
- * Sort object keys recursively for consistent comparison
- */
-function sortKeysRecursively(item: unknown): unknown {
-  if (Array.isArray(item)) {
-    return item.map(sortKeysRecursively)
-  }
-  if (item !== null && typeof item === 'object') {
-    const obj = item as Record<string, unknown>
-    return Object.keys(obj)
-      .sort()
-      .reduce((result: Record<string, unknown>, key: string) => {
-        result[key] = sortKeysRecursively(obj[key])
-        return result
-      }, {})
-  }
-  return item
+  return isRecordLike(value) && typeof value.type === 'string'
 }
 
 /**
@@ -304,7 +282,7 @@ function sanitizeSubBlocks(
 
         // Sort keys for consistent comparison
         if (obj && typeof obj === 'object') {
-          sanitized[key] = sortKeysRecursively(obj) as Record<string, unknown>
+          sanitized[key] = sortObjectKeysDeep(obj) as Record<string, unknown>
           return
         }
       } catch {

@@ -348,6 +348,7 @@ Return ONLY the valid JSON object - no explanations, no markdown.`,
 
 export const AirtableBlockMeta = {
   tags: ['spreadsheet', 'automation'],
+  url: 'https://www.airtable.com',
   templates: [
     {
       icon: AirtableIcon,

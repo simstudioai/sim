@@ -457,19 +457,32 @@ export async function resetUsageForSubscription(sub: {
           .limit(1)
       }
 
-      await tx
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, sub.referenceId))
-        .for('update')
-        .limit(1)
-
       const membersRows = await tx
         .select({ userId: member.userId })
         .from(member)
         .where(eq(member.organizationId, sub.referenceId))
 
       const memberIds = membersRows.map((row) => row.userId)
+
+      // Lock every member's userStats before the organization row so this path
+      // follows the canonical userStats → organization order shared by the
+      // join, remove, threshold-billing, and storage-transfer paths. Locking
+      // organization first would invert against them and risk an AB-BA
+      // deadlock. The per-member UPDATE below re-locks these rows (no-op).
+      if (memberIds.length > 0) {
+        await tx
+          .select({ userId: userStats.userId })
+          .from(userStats)
+          .where(inArray(userStats.userId, memberIds))
+          .for('update')
+      }
+
+      await tx
+        .select({ id: organization.id })
+        .from(organization)
+        .where(eq(organization.id, sub.referenceId))
+        .for('update')
+        .limit(1)
       if (memberIds.length > 0) {
         const memberStatsRows = await tx
           .select({

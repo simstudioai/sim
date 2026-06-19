@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { getNavBlogPosts } from '@/lib/blog/registry'
-import { isHosted } from '@/lib/core/config/feature-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { ContactForm } from '@/app/(landing)/components/contact/contact-form'
 import Footer from '@/app/(landing)/components/footer/footer'

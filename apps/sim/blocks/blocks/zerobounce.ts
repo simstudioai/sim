@@ -99,4 +99,5 @@ export const ZeroBounceBlock: BlockConfig<ZeroBounceResponse> = {
 
 export const ZeroBounceBlockMeta = {
   tags: ['enrichment', 'sales-engagement'],
+  url: 'https://www.zerobounce.net',
 } as const satisfies BlockMeta

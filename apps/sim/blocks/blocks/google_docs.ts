@@ -215,6 +215,7 @@ Return ONLY the document content - no explanations, no extra text.`,
 
 export const GoogleDocsBlockMeta = {
   tags: ['google-workspace', 'document-processing', 'content-management'],
+  url: 'https://www.google.com/docs/about',
   templates: [
     {
       icon: GoogleDocsIcon,

@@ -2,6 +2,7 @@ import { Buffer, isUtf8 } from 'buffer'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
+import JSZip from 'jszip'
 import { type NextRequest, NextResponse } from 'next/server'
 import { fileManageContract } from '@/lib/api/contracts/tools/file'
 import { parseRequest } from '@/lib/api/server'
@@ -132,6 +133,98 @@ const extractFileIdsFromInput = (fileInput: unknown): string[] => {
 const MAX_GET_CONTENT_FILE_BYTES = 64 * 1024 * 1024
 /** Combined extracted-text cap so the content array stays within the large-value-ref ceiling. */
 const MAX_GET_CONTENT_TOTAL_BYTES = 64 * 1024 * 1024
+
+/** Per-file download cap for the compress operation. */
+const MAX_COMPRESS_FILE_BYTES = 100 * 1024 * 1024
+/** Combined input cap for the compress operation to bound in-memory archiving. */
+const MAX_COMPRESS_TOTAL_BYTES = 100 * 1024 * 1024
+
+/** Ensure an archive name ends with a single `.zip` extension. */
+const ensureZipExtension = (name: string): string =>
+  name.toLowerCase().endsWith('.zip') ? name : `${name}.zip`
+
+/** Strip the trailing extension from a file name (e.g., "report.pdf" -> "report"). */
+const stripExtension = (name: string): string => {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(0, dot) : name
+}
+
+/**
+ * Reduce an arbitrary name to a safe, flat file name: takes the final path
+ * segment, drops directory and traversal components, and falls back when the
+ * result would be empty or a dot segment. Used for zip entry names and the
+ * compress archive name so untrusted input cannot introduce nested or
+ * zip-slip-style paths.
+ */
+const toFlatFileName = (name: string, fallback: string): string => {
+  const leaf = name.replace(/\\/g, '/').split('/').pop()?.trim()
+  if (!leaf || leaf === '.' || leaf === '..') return fallback
+  return leaf
+}
+
+/**
+ * Return a zip entry name unique within `usedNames`, appending a numeric suffix
+ * before the extension on collision (e.g., "data.csv" -> "data (1).csv").
+ */
+const uniqueZipEntryName = (name: string, usedNames: Set<string>): string => {
+  if (!usedNames.has(name)) {
+    usedNames.add(name)
+    return name
+  }
+
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  let counter = 1
+  let candidate = `${base} (${counter})${ext}`
+  while (usedNames.has(candidate)) {
+    counter += 1
+    candidate = `${base} (${counter})${ext}`
+  }
+  usedNames.add(candidate)
+  return candidate
+}
+
+/** Input archive download cap for the decompress operation. */
+const MAX_DECOMPRESS_ARCHIVE_BYTES = 100 * 1024 * 1024
+/** Maximum number of entries extracted from a single archive. */
+const MAX_DECOMPRESS_ENTRIES = 1000
+/** Maximum uncompressed size for any single archive entry. */
+const MAX_DECOMPRESS_ENTRY_BYTES = 100 * 1024 * 1024
+/** Maximum total uncompressed size across all entries, to bound zip-bomb expansion. */
+const MAX_DECOMPRESS_TOTAL_BYTES = 200 * 1024 * 1024
+
+const S_IFMT = 0o170000
+const S_IFLNK = 0o120000
+
+/** Read a zip entry's declared uncompressed size without materializing it (zip-bomb pre-check). */
+const readEntryUncompressedSize = (entry: JSZip.JSZipObject): number | undefined => {
+  const data = (entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } })._data
+  const size = data?.uncompressedSize
+  return typeof size === 'number' && Number.isFinite(size) ? size : undefined
+}
+
+/** True when a zip entry's unix mode marks it as a symlink (never extracted). */
+const isSymlinkEntry = (entry: JSZip.JSZipObject): boolean => {
+  const mode = (entry as JSZip.JSZipObject & { unixPermissions?: number | null }).unixPermissions
+  return typeof mode === 'number' && (mode & S_IFMT) === S_IFLNK
+}
+
+/**
+ * Normalize a zip entry path into safe workspace folder segments, guarding against
+ * zip-slip. Returns null for traversal (`..`), so the entry is skipped rather than
+ * written outside its intended location.
+ */
+const sanitizeArchiveEntryPath = (rawPath: string): string[] | null => {
+  const segments = rawPath
+    .replace(/\\/g, '/')
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== '.')
+
+  if (segments.length === 0 || segments.includes('..')) return null
+  return segments
+}
 
 const isLikelyTextBuffer = (buffer: Buffer): boolean => isUtf8(buffer) && !buffer.includes(0)
 
@@ -461,6 +554,299 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         } finally {
           await releaseLock(lockKey, lockValue)
         }
+      }
+
+      case 'compress': {
+        const { fileId, fileInput, archiveName } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = Array.isArray(fileId)
+          ? fileId.map((id) => id.trim()).filter(Boolean)
+          : fileId
+            ? normalizeFileIdList(fileId)
+            : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const userFiles: UserFile[] = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)
+
+        const zip = new JSZip()
+        const usedNames = new Set<string>()
+        let totalBytes = 0
+        for (const userFile of userFiles) {
+          const denied = await assertToolFileAccess(userFile.key, userId, requestId, logger)
+          if (denied) return denied
+
+          const buffer = await downloadFileFromStorage(userFile, requestId, logger, {
+            maxBytes: MAX_COMPRESS_FILE_BYTES,
+          })
+          totalBytes += buffer.length
+          if (totalBytes > MAX_COMPRESS_TOTAL_BYTES) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Combined input is too large to compress. Maximum is ${
+                  MAX_COMPRESS_TOTAL_BYTES / (1024 * 1024)
+                } MB.`,
+              },
+              { status: 413 }
+            )
+          }
+          zip.file(uniqueZipEntryName(toFlatFileName(userFile.name, 'file'), usedNames), buffer)
+        }
+
+        const zipBuffer = await zip.generateAsync({
+          type: 'nodebuffer',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        })
+
+        const requestedName = typeof archiveName === 'string' ? archiveName.trim() : ''
+        const baseName = requestedName
+          ? toFlatFileName(requestedName, 'archive')
+          : userFiles.length === 1
+            ? stripExtension(toFlatFileName(userFiles[0].name, 'archive'))
+            : 'archive'
+        const leafName = ensureZipExtension(baseName)
+        const folderId = await ensureWorkspaceFileFolderPath({
+          workspaceId,
+          userId,
+          pathSegments: [],
+        })
+        const result = await uploadWorkspaceFile(
+          workspaceId,
+          userId,
+          zipBuffer,
+          leafName,
+          'application/zip',
+          { folderId }
+        )
+
+        const compressedFile: UserFile = {
+          ...result,
+          url: ensureAbsoluteUrl(result.url),
+          size: zipBuffer.length,
+        }
+
+        logger.info('Files compressed', {
+          fileId: result.id,
+          name: result.name,
+          fileCount: userFiles.length,
+          size: zipBuffer.length,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: compressedFile.id,
+            name: compressedFile.name,
+            size: compressedFile.size,
+            url: compressedFile.url,
+            files: [compressedFile],
+          },
+        })
+      }
+
+      case 'decompress': {
+        const { fileId, fileInput } = body
+        const requestId = generateRequestId()
+
+        const selectedFileIds = fileId ? [fileId] : extractFileIdsFromInput(fileInput)
+        const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
+
+        if (selectedFileIds.length === 0 && selectedInputFiles.length === 0) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+        if (selectedFileIds.length + selectedInputFiles.length > 1) {
+          return NextResponse.json(
+            { success: false, error: 'Decompress accepts a single .zip archive at a time' },
+            { status: 400 }
+          )
+        }
+
+        const workspaceFiles = await Promise.all(
+          selectedFileIds.map((id) => getWorkspaceFile(workspaceId, id))
+        )
+        const missingFileId = selectedFileIds.find((_, index) => !workspaceFiles[index])
+        if (missingFileId) {
+          return NextResponse.json(
+            { success: false, error: `File not found: "${missingFileId}"` },
+            { status: 404 }
+          )
+        }
+
+        const archive = workspaceFiles
+          .map((file) => workspaceFileToUserFile(file))
+          .filter((file): file is NonNullable<ReturnType<typeof workspaceFileToUserFile>> =>
+            Boolean(file)
+          )
+          .concat(selectedInputFiles)[0]
+
+        if (!archive) {
+          return NextResponse.json({ success: false, error: 'File is required' }, { status: 400 })
+        }
+
+        const denied = await assertToolFileAccess(archive.key, userId, requestId, logger)
+        if (denied) return denied
+
+        const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
+          maxBytes: MAX_DECOMPRESS_ARCHIVE_BYTES,
+        })
+
+        let zip: JSZip
+        try {
+          zip = await JSZip.loadAsync(archiveBuffer)
+        } catch {
+          return NextResponse.json(
+            { success: false, error: `"${archive.name}" is not a valid .zip archive` },
+            { status: 400 }
+          )
+        }
+
+        const entries = Object.values(zip.files).filter(
+          (entry) => !entry.dir && !isSymlinkEntry(entry)
+        )
+        if (entries.length > MAX_DECOMPRESS_ENTRIES) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Archive has too many entries to extract. Maximum is ${MAX_DECOMPRESS_ENTRIES}.`,
+            },
+            { status: 413 }
+          )
+        }
+
+        const entryTooLargeResponse = (name: string) =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive entry "${name}" is too large to extract. Maximum is ${
+                MAX_DECOMPRESS_ENTRY_BYTES / (1024 * 1024)
+              } MB per file.`,
+            },
+            { status: 413 }
+          )
+        const totalTooLargeResponse = () =>
+          NextResponse.json(
+            {
+              success: false,
+              error: `Archive expands to more than the ${
+                MAX_DECOMPRESS_TOTAL_BYTES / (1024 * 1024)
+              } MB extraction limit.`,
+            },
+            { status: 413 }
+          )
+
+        // Resolve which entries are safe to extract first, so unsafe entries
+        // (skipped below) never count toward the size caps.
+        const safeEntries: Array<{ entry: JSZip.JSZipObject; segments: string[] }> = []
+        let skippedCount = 0
+        for (const entry of entries) {
+          const segments = sanitizeArchiveEntryPath(entry.name)
+          if (!segments) {
+            skippedCount += 1
+            logger.warn('Skipping unsafe archive entry', { name: entry.name })
+            continue
+          }
+          safeEntries.push({ entry, segments })
+        }
+
+        // Reject standard zip bombs up front using the declared uncompressed sizes,
+        // before materializing any entry into memory.
+        let declaredTotal = 0
+        for (const { entry } of safeEntries) {
+          const declaredSize = readEntryUncompressedSize(entry)
+          if (declaredSize === undefined) continue
+          if (declaredSize > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
+          declaredTotal += declaredSize
+          if (declaredTotal > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
+        }
+
+        // Read and validate every safe entry before writing anything, so a cap
+        // breach never leaves partially-extracted files behind in the workspace.
+        const pending: Array<{ segments: string[]; buffer: Buffer }> = []
+        let totalBytes = 0
+        for (const { entry, segments } of safeEntries) {
+          const buffer = await entry.async('nodebuffer')
+          // Enforce the per-entry cap on the materialized size too, covering
+          // entries that omit a declared uncompressed size.
+          if (buffer.length > MAX_DECOMPRESS_ENTRY_BYTES) return entryTooLargeResponse(entry.name)
+          totalBytes += buffer.length
+          if (totalBytes > MAX_DECOMPRESS_TOTAL_BYTES) return totalTooLargeResponse()
+
+          pending.push({ segments, buffer })
+        }
+
+        if (pending.length === 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `No files could be extracted from "${archive.name}".`,
+            },
+            { status: 422 }
+          )
+        }
+
+        const folderIdCache = new Map<string, string | null>()
+        const extractedFiles: UserFile[] = []
+        for (const { segments, buffer } of pending) {
+          const leafName = segments[segments.length - 1]
+          const folderSegments = segments.slice(0, -1)
+          const folderKey = folderSegments.join('/')
+          let folderId = folderIdCache.get(folderKey)
+          if (folderId === undefined) {
+            folderId = await ensureWorkspaceFileFolderPath({
+              workspaceId,
+              userId,
+              pathSegments: folderSegments,
+            })
+            folderIdCache.set(folderKey, folderId)
+          }
+
+          const mimeType = getMimeTypeFromExtension(getFileExtension(leafName))
+          const uploaded = await uploadWorkspaceFile(
+            workspaceId,
+            userId,
+            buffer,
+            leafName,
+            mimeType,
+            { folderId }
+          )
+          extractedFiles.push({ ...uploaded, url: ensureAbsoluteUrl(uploaded.url) })
+        }
+
+        logger.info('Archive decompressed', {
+          fileId: archive.id,
+          name: archive.name,
+          extractedCount: extractedFiles.length,
+          skippedCount,
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            files: extractedFiles,
+          },
+        })
       }
     }
   } catch (error) {

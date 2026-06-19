@@ -3,10 +3,14 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import OpenAI from 'openai'
 import type { ChatCompletionCreateParamsStreaming } from 'openai/resources/chat/completions'
 import { env } from '@/lib/core/config/env'
+import { createPinnedFetch, validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
 import type { StreamingExecution } from '@/executor/types'
 import { MAX_TOOL_ITERATIONS } from '@/providers'
 import { formatMessagesForProvider } from '@/providers/attachments'
+import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
+import { createStreamingExecution } from '@/providers/streaming-execution'
+import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
 import type {
   Message,
@@ -93,16 +97,53 @@ export const vllmProvider: ProviderConfig = {
       stream: !!request.stream,
     })
 
-    const baseUrl = (request.azureEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
+    const userProvidedEndpoint = request.azureEndpoint
+
+    const baseUrl = (userProvidedEndpoint || env.VLLM_BASE_URL || '').replace(/\/$/, '')
     if (!baseUrl) {
       throw new Error('VLLM_BASE_URL is required for vLLM provider')
     }
 
+    /**
+     * A user-supplied endpoint is attacker-controlled: validate it against the
+     * central SSRF guard and pin the connection to the resolved IP to defeat DNS
+     * rebinding. The operator-configured `VLLM_BASE_URL` is trusted and left
+     * unvalidated, mirroring the Azure providers.
+     *
+     * `allowHttp` is enabled because self-hosted vLLM is frequently served over
+     * plain HTTP; this only relaxes the protocol requirement — the private/reserved
+     * IP blocklist and blocked-port checks still apply, so SSRF protection is intact.
+     */
+    let pinnedFetch: typeof fetch | undefined
+    let pinnedIP: string | undefined
+    if (userProvidedEndpoint) {
+      const validation = await validateUrlWithDNS(userProvidedEndpoint, 'vLLM endpoint', {
+        allowHttp: true,
+      })
+      if (!validation.isValid) {
+        logger.warn('Blocked SSRF attempt via vLLM endpoint', {
+          endpoint: userProvidedEndpoint,
+          error: validation.error,
+        })
+        throw new Error(`Invalid vLLM endpoint: ${validation.error}`)
+      }
+      if (!validation.resolvedIP) {
+        throw new Error('Invalid vLLM endpoint: could not resolve a pinnable IP address')
+      }
+      pinnedIP = validation.resolvedIP
+      pinnedFetch = createPinnedFetch(pinnedIP)
+    }
+
     const apiKey = request.apiKey || env.VLLM_API_KEY || 'empty'
-    const vllm = new OpenAI({
-      apiKey,
-      baseURL: `${baseUrl}/v1`,
-    })
+    const vllm = getCachedProviderClient(
+      `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
+      () =>
+        new OpenAI({
+          apiKey,
+          baseURL: `${baseUrl}/v1`,
+          ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
+        })
+    )
 
     const allMessages: Message[] = []
 
@@ -126,14 +167,7 @@ export const vllmProvider: ProviderConfig = {
     const formattedMessages = formatMessagesForProvider(allMessages, 'vllm') as Message[]
 
     const tools = request.tools?.length
-      ? request.tools.map((tool) => ({
-          type: 'function',
-          function: {
-            name: tool.id,
-            description: tool.description,
-            parameters: tool.parameters,
-          },
-        }))
+      ? request.tools.map((tool) => adaptOpenAIChatToolSchema(tool))
       : undefined
 
     const payload: any = {
@@ -199,80 +233,43 @@ export const vllmProvider: ProviderConfig = {
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
-        const streamingResult = {
-          stream: createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
-            let cleanContent = content
-            if (cleanContent && request.responseFormat) {
-              cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
-            }
-
-            streamingResult.execution.output.content = cleanContent
-            streamingResult.execution.output.tokens = {
-              input: usage.prompt_tokens,
-              output: usage.completion_tokens,
-              total: usage.total_tokens,
-            }
-
-            const costResult = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            streamingResult.execution.output.cost = {
-              input: costResult.input,
-              output: costResult.output,
-              total: costResult.total,
-            }
-
-            const streamEndTime = Date.now()
-            const streamEndTimeISO = new Date(streamEndTime).toISOString()
-
-            if (streamingResult.execution.output.providerTiming) {
-              streamingResult.execution.output.providerTiming.endTime = streamEndTimeISO
-              streamingResult.execution.output.providerTiming.duration =
-                streamEndTime - providerStartTime
-
-              if (streamingResult.execution.output.providerTiming.timeSegments?.[0]) {
-                streamingResult.execution.output.providerTiming.timeSegments[0].endTime =
-                  streamEndTime
-                streamingResult.execution.output.providerTiming.timeSegments[0].duration =
-                  streamEndTime - providerStartTime
+        const streamingResult = createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: { kind: 'simple', segmentName: request.model },
+          initialTokens: { input: 0, output: 0, total: 0 },
+          initialCost: { input: 0, output: 0, total: 0 },
+          createStream: ({ output, finalizeTiming }) =>
+            createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
+              let cleanContent = content
+              if (cleanContent && request.responseFormat) {
+                cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
               }
-            }
-          }),
-          execution: {
-            success: true,
-            output: {
-              content: '',
-              model: request.model,
-              tokens: { input: 0, output: 0, total: 0 },
-              toolCalls: undefined,
-              providerTiming: {
-                startTime: providerStartTimeISO,
-                endTime: new Date().toISOString(),
-                duration: Date.now() - providerStartTime,
-                timeSegments: [
-                  {
-                    type: 'model',
-                    name: request.model,
-                    startTime: providerStartTime,
-                    endTime: Date.now(),
-                    duration: Date.now() - providerStartTime,
-                  },
-                ],
-              },
-              cost: { input: 0, output: 0, total: 0 },
-            },
-            logs: [],
-            metadata: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-            },
-          },
-        } as StreamingExecution
 
-        return streamingResult as StreamingExecution
+              output.content = cleanContent
+              output.tokens = {
+                input: usage.prompt_tokens,
+                output: usage.completion_tokens,
+                total: usage.total_tokens,
+              }
+
+              const costResult = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              output.cost = {
+                input: costResult.input,
+                output: costResult.output,
+                total: costResult.total,
+              }
+
+              finalizeTiming()
+            }),
+        })
+
+        return streamingResult
       }
 
       const initialCallTime = Date.now()
@@ -556,76 +553,65 @@ export const vllmProvider: ProviderConfig = {
           request.abortSignal ? { signal: request.abortSignal } : undefined
         )
 
-        const streamingResult = {
-          stream: createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
-            let cleanContent = content
-            if (cleanContent && request.responseFormat) {
-              cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
-            }
-
-            streamingResult.execution.output.content = cleanContent
-            streamingResult.execution.output.tokens = {
-              input: tokens.input + usage.prompt_tokens,
-              output: tokens.output + usage.completion_tokens,
-              total: tokens.total + usage.total_tokens,
-            }
-
-            const streamCost = calculateCost(
-              request.model,
-              usage.prompt_tokens,
-              usage.completion_tokens
-            )
-            const tc = sumToolCosts(toolResults)
-            streamingResult.execution.output.cost = {
-              input: accumulatedCost.input + streamCost.input,
-              output: accumulatedCost.output + streamCost.output,
-              toolCost: tc || undefined,
-              total: accumulatedCost.total + streamCost.total + tc,
-            }
-          }),
-          execution: {
-            success: true,
-            output: {
-              content: '',
-              model: request.model,
-              tokens: {
-                input: tokens.input,
-                output: tokens.output,
-                total: tokens.total,
-              },
-              toolCalls:
-                toolCalls.length > 0
-                  ? {
-                      list: toolCalls,
-                      count: toolCalls.length,
-                    }
-                  : undefined,
-              providerTiming: {
-                startTime: providerStartTimeISO,
-                endTime: new Date().toISOString(),
-                duration: Date.now() - providerStartTime,
-                modelTime: modelTime,
-                toolsTime: toolsTime,
-                firstResponseTime: firstResponseTime,
-                iterations: iterationCount + 1,
-                timeSegments: timeSegments,
-              },
-              cost: {
-                input: accumulatedCost.input,
-                output: accumulatedCost.output,
-                total: accumulatedCost.total,
-              },
-            },
-            logs: [],
-            metadata: {
-              startTime: providerStartTimeISO,
-              endTime: new Date().toISOString(),
-              duration: Date.now() - providerStartTime,
-            },
+        const streamingResult = createStreamingExecution({
+          model: request.model,
+          providerStartTime,
+          providerStartTimeISO,
+          timing: {
+            kind: 'accumulated',
+            modelTime,
+            toolsTime,
+            firstResponseTime,
+            iterations: iterationCount + 1,
+            timeSegments,
           },
-        } as StreamingExecution
+          initialTokens: {
+            input: tokens.input,
+            output: tokens.output,
+            total: tokens.total,
+          },
+          initialCost: {
+            input: accumulatedCost.input,
+            output: accumulatedCost.output,
+            total: accumulatedCost.total,
+          },
+          toolCalls:
+            toolCalls.length > 0
+              ? {
+                  list: toolCalls,
+                  count: toolCalls.length,
+                }
+              : undefined,
+          createStream: ({ output }) =>
+            createReadableStreamFromVLLMStream(streamResponse, (content, usage) => {
+              let cleanContent = content
+              if (cleanContent && request.responseFormat) {
+                cleanContent = cleanContent.replace(/```json\n?|\n?```/g, '').trim()
+              }
 
-        return streamingResult as StreamingExecution
+              output.content = cleanContent
+              output.tokens = {
+                input: tokens.input + usage.prompt_tokens,
+                output: tokens.output + usage.completion_tokens,
+                total: tokens.total + usage.total_tokens,
+              }
+
+              const streamCost = calculateCost(
+                request.model,
+                usage.prompt_tokens,
+                usage.completion_tokens
+              )
+              const tc = sumToolCosts(toolResults)
+              output.cost = {
+                input: accumulatedCost.input + streamCost.input,
+                output: accumulatedCost.output + streamCost.output,
+                toolCost: tc || undefined,
+                total: accumulatedCost.total + streamCost.total + tc,
+              }
+            }),
+        })
+
+        return streamingResult
       }
 
       const providerEndTime = Date.now()

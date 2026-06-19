@@ -276,6 +276,7 @@ export const GoogleContactsBlock: BlockConfig<GoogleContactsResponse> = {
 
 export const GoogleContactsBlockMeta = {
   tags: ['google-workspace', 'customer-support', 'enrichment'],
+  url: 'https://contacts.google.com',
   templates: [
     {
       icon: GoogleContactsIcon,

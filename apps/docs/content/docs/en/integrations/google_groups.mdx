@@ -199,7 +199,7 @@ Remove a member from a Google Group
 
 ### `google_groups_update_member`
 
-Update a member
+Update a member's role in a Google Group (promote or demote)
 
 #### Input
 
@@ -352,7 +352,7 @@ Update the settings for a Google Group including access permissions, moderation,
 | `description` | string | No | The group description \(max 4096 characters\) |
 | `whoCanJoin` | string | No | Who can join: ANYONE_CAN_JOIN, ALL_IN_DOMAIN_CAN_JOIN, INVITED_CAN_JOIN, CAN_REQUEST_TO_JOIN |
 | `whoCanViewMembership` | string | No | Who can view membership: ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
-| `whoCanViewGroup` | string | No | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW |
+| `whoCanViewGroup` | string | No | Who can view group messages: ANYONE_CAN_VIEW, ALL_IN_DOMAIN_CAN_VIEW, ALL_MEMBERS_CAN_VIEW, ALL_MANAGERS_CAN_VIEW, ALL_OWNERS_CAN_VIEW |
 | `whoCanPostMessage` | string | No | Who can post: NONE_CAN_POST, ALL_MANAGERS_CAN_POST, ALL_MEMBERS_CAN_POST, ALL_OWNERS_CAN_POST, ALL_IN_DOMAIN_CAN_POST, ANYONE_CAN_POST |
 | `allowExternalMembers` | string | No | Whether external users can be members: true or false |
 | `allowWebPosting` | string | No | Whether web posting is allowed: true or false |
@@ -373,7 +373,7 @@ Update the settings for a Google Group including access permissions, moderation,
 | `whoCanContactOwner` | string | No | Who can contact owner: ALL_IN_DOMAIN_CAN_CONTACT, ALL_MANAGERS_CAN_CONTACT, ALL_MEMBERS_CAN_CONTACT, ANYONE_CAN_CONTACT |
 | `favoriteRepliesOnTop` | string | No | Whether favorite replies appear at top: true or false |
 | `whoCanApproveMembers` | string | No | Who can approve members: ALL_OWNERS_CAN_APPROVE, ALL_MANAGERS_CAN_APPROVE, ALL_MEMBERS_CAN_APPROVE, NONE_CAN_APPROVE |
-| `whoCanBanUsers` | string | No | Who can ban users: OWNERS_ONLY, OWNERS_AND_MANAGERS, NONE |
+| `whoCanBanUsers` | string | No | Who can ban users: ALL_MEMBERS, OWNERS_AND_MANAGERS, OWNERS_ONLY, NONE |
 | `whoCanModerateMembers` | string | No | Who can manage members: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
 | `whoCanModerateContent` | string | No | Who can moderate content: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |
 | `whoCanAssistContent` | string | No | Who can assist with content metadata: OWNERS_ONLY, OWNERS_AND_MANAGERS, ALL_MEMBERS, NONE |

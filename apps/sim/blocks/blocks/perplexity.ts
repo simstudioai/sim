@@ -263,6 +263,7 @@ Return ONLY the date string in MM/DD/YYYY format - no explanations, no quotes, n
 
 export const PerplexityBlockMeta = {
   tags: ['llm', 'web-scraping', 'agentic'],
+  url: 'https://www.perplexity.ai',
   templates: [
     {
       icon: PerplexityIcon,

@@ -21,18 +21,18 @@
   <a href="https://deepwiki.com/simstudioai/sim" target="_blank" rel="noopener noreferrer"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>  <a href="https://cursor.com/link/prompt?text=Help%20me%20set%20up%20Sim%20locally.%20Follow%20these%20steps%3A%0A%0A1.%20First%2C%20verify%20Docker%20is%20installed%20and%20running%3A%0A%20%20%20docker%20--version%0A%20%20%20docker%20info%0A%0A2.%20Clone%20the%20repository%3A%0A%20%20%20git%20clone%20https%3A%2F%2Fgithub.com%2Fsimstudioai%2Fsim.git%0A%20%20%20cd%20sim%0A%0A3.%20Start%20the%20services%20with%20Docker%20Compose%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.prod.yml%20up%20-d%0A%0A4.%20Wait%20for%20all%20containers%20to%20be%20healthy%20(this%20may%20take%201-2%20minutes)%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.prod.yml%20ps%0A%0A5.%20Verify%20the%20app%20is%20accessible%20at%20http%3A%2F%2Flocalhost%3A3000%0A%0AIf%20there%20are%20any%20errors%2C%20help%20me%20troubleshoot%20them.%20Common%20issues%3A%0A-%20Port%203000%2C%203002%2C%20or%205432%20already%20in%20use%0A-%20Docker%20not%20running%0A-%20Insufficient%20memory%20(needs%2012GB%2B%20RAM)%0A%0AFor%20local%20AI%20models%20with%20Ollama%2C%20use%20this%20instead%20of%20step%203%3A%0A%20%20%20docker%20compose%20-f%20docker-compose.ollama.yml%20--profile%20setup%20up%20-d"><img src="https://img.shields.io/badge/Set%20Up%20with-Cursor-000000?logo=cursor&logoColor=white" alt="Set Up with Cursor"></a>
 </p>
 
-### Build everything in Mothership
-Your AI command center. Describe what you want in plain language. Mothership knows your entire workspace and takes action: building agents, running them, querying data, and more.
+### Build everything in Chat
+Your AI command center. Describe what you want in plain language. Sim knows your entire workspace and takes action: building agents, running them, querying data, and more.
 
 <p align="center">
-  <img src="apps/sim/public/static/mothership.gif" alt="Mothership building and running an agent from chat" width="800"/>
+  <img src="apps/sim/public/static/mothership.gif" alt="Sim building and running an agent from chat" width="800"/>
 </p>
 
 ### Create files and documents
 Generate documents, reports, and presentations from a single prompt, grounded in your workspace data.
 
 <p align="center">
-  <img src="apps/sim/public/static/files.gif" alt="Mothership generating a document from a prompt" width="800"/>
+  <img src="apps/sim/public/static/files.gif" alt="Sim generating a document from a prompt" width="800"/>
 </p>
 
 ### Ground agents in your knowledge
@@ -50,7 +50,7 @@ A database, built in. Store, query, and wire structured data into agent runs.
 </p>
 
 ### Build visually with Workflows
-Prefer a canvas? Design agents block by block in the visual builder, and let Copilot generate blocks, wire variables, and fix errors from natural language.
+Prefer a canvas? Design agents block by block in the visual builder, and let Sim generate blocks, wire variables, and fix errors from natural language.
 
 <p align="center">
   <img src="apps/sim/public/static/workflow.gif" alt="Workflow builder demo" width="800"/>
@@ -138,11 +138,11 @@ bun run dev:full  # Starts Next.js app and realtime socket server
 
 Or run separately: `bun run dev` (Next.js) and `cd apps/sim && bun run dev:sockets` (realtime).
 
-## Copilot API Keys
+## Chat API Keys
 
-Copilot is a Sim-managed service. To use Copilot on a self-hosted instance:
+Chat is a Sim-managed service. To use Chat on a self-hosted instance:
 
-- Go to https://sim.ai → Settings → Copilot and generate a Copilot API key
+- Go to https://sim.ai → Settings → Chat keys and generate a Chat API key
 - Set `COPILOT_API_KEY` environment variable in your self-hosted apps/sim/.env file to that value
 
 ## Environment Variables

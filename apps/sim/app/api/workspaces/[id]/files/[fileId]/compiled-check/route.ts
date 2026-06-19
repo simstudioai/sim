@@ -6,7 +6,7 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { getE2BDocFormat } from '@/lib/copilot/tools/server/files/doc-compile'
 import { runE2BCompiledCheck } from '@/lib/copilot/tools/server/files/doc-recalc'
-import { isE2BDocEnabled } from '@/lib/core/config/feature-flags'
+import { isE2BDocEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { BINARY_DOC_TASKS, MAX_DOCUMENT_PREVIEW_CODE_BYTES } from '@/lib/execution/constants'
 import { runSandboxTask, SandboxUserCodeError } from '@/lib/execution/sandbox/run-task'
@@ -57,7 +57,7 @@ export const GET = withRouteHandler(
     // In the E2B regime ALL four formats compile in the doc sandbox (Node for
     // pptx/docx, Python for pdf/xlsx). Gate on the flag (not the stored MIME) so
     // a stale file can't trigger an E2B compile when the sandbox is disabled.
-    const e2bFmt = isE2BDocEnabled ? getE2BDocFormat(fileRecord.name) : null
+    const e2bFmt = isE2BDocEnabled ? await getE2BDocFormat(fileRecord.name) : null
     const taskId = BINARY_DOC_TASKS[ext]
     const isMermaidFile = ext === 'mmd' || ext === 'mermaid'
     if (!e2bFmt && !taskId && !isMermaidFile) {

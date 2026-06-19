@@ -47,9 +47,10 @@ export const addAliasTool: ToolConfig<GoogleGroupsAddAliasParams, GoogleGroupsAd
       Authorization: `Bearer ${params.accessToken}`,
       'Content-Type': 'application/json',
     }),
-    body: (params) => ({
-      alias: params.alias.trim(),
-    }),
+    body: (params) =>
+      JSON.stringify({
+        alias: params.alias.trim(),
+      }),
   },
 
   transformResponse: async (response) => {

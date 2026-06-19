@@ -1,6 +1,6 @@
 'use server'
 
-import type { Logger } from '@sim/logger'
+import { createLogger, type Logger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import {
@@ -24,6 +24,8 @@ import {
 } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import type { UserFile } from '@/executor/types'
+
+const logger = createLogger('FileUtilsServer')
 
 /**
  * Result type for file input resolution
@@ -138,19 +140,62 @@ export async function resolveFileInputToUrl(
 }
 
 /**
- * Download a file from a URL (internal or external)
- * For internal URLs, uses direct storage access (server-side only)
- * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning
+ * Options for {@link downloadFileFromUrl}.
+ */
+export interface DownloadFileFromUrlOptions {
+  /** Download timeout for external URLs. Defaults to the max execution timeout. */
+  timeoutMs?: number
+  /** Hard cap on the number of bytes read from the source. */
+  maxBytes?: number
+  /**
+   * Principal the download is performed on behalf of. Required to authorize
+   * internal (`/api/files/serve/...`) URLs: the resolved storage key is checked
+   * with {@link verifyFileAccess} before any bytes are read. Without it, internal
+   * URLs are rejected (fail closed) so a `/api/files/serve/` substring can never
+   * be treated as implicitly trusted.
+   */
+  userId?: string
+}
+
+/**
+ * Download a file from a URL (internal or external).
+ *
+ * For internal URLs, uses direct storage access (server-side only) after
+ * authorizing the resolved storage key against `userId`. Context is derived
+ * from the key via {@link inferContextFromKey}, never from a caller-controlled
+ * `?context=` query param — trusting the param would let a private key be
+ * labeled with a world-readable context (e.g. profile-pictures) so
+ * {@link verifyFileAccess} short-circuits to granted while the private object is
+ * still read. This mirrors how `/api/files/serve` resolves context.
+ *
+ * For external URLs, validates DNS/SSRF and uses secure fetch with IP pinning.
  */
 export async function downloadFileFromUrl(
   fileUrl: string,
-  timeoutMs = getMaxExecutionTimeout(),
-  maxBytes?: number
+  options: DownloadFileFromUrlOptions = {}
 ): Promise<Buffer> {
-  const { parseInternalFileUrl } = await import('./file-utils')
+  const { timeoutMs = getMaxExecutionTimeout(), maxBytes, userId } = options
 
   if (isInternalFileUrl(fileUrl)) {
-    const { key, context } = parseInternalFileUrl(fileUrl)
+    if (!userId) {
+      logger.warn('Internal file download denied: no userId provided', { fileUrl })
+      throw new Error('Access denied: internal file URL requires an authenticated user')
+    }
+
+    const key = extractStorageKey(fileUrl)
+    if (!key) {
+      logger.warn('Internal file download denied: could not resolve storage key', { fileUrl })
+      throw new Error('Access denied: could not resolve internal file key')
+    }
+
+    const context = inferContextFromKey(key)
+
+    const hasAccess = await verifyFileAccess(key, userId, undefined, context, false)
+    if (!hasAccess) {
+      logger.warn('Internal file download denied: access check failed', { key, context, userId })
+      throw new Error('Access denied: file not found or insufficient permissions')
+    }
+
     const { downloadFile } = await import('@/lib/uploads/core/storage-service')
     return downloadFile({ key, context, maxBytes })
   }

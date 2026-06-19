@@ -1,1 +1,1 @@
-export * from './enrichment'
+export * from '@/lib/table/llm/enrichment'

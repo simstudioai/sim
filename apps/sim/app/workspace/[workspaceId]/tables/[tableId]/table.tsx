@@ -610,7 +610,7 @@ export function Table({
   )
 
   return (
-    <div className='relative flex h-full flex-col overflow-hidden'>
+    <Resource>
       {!embedded && (
         <Resource.Header
           icon={TableIcon}
@@ -640,9 +640,9 @@ export function Table({
           }
         />
       )}
-      {/* Sort + filter render in both modes (left-aligned). In embedded (mothership)
-          mode there's no Resource.Header, so the run/stop control rides in the options
-          bar's right-aligned `aside` slot — opposite the left-aligned filter/sort. */}
+      {/* Sort + filter render in both modes. In embedded (mothership) mode there's no
+          Resource.Header, so the run/stop control rides in the options bar's `aside`
+          slot, just left of filter/sort. */}
       <Resource.Options
         sort={sortConfig}
         filter={filterConfig}
@@ -823,7 +823,7 @@ export function Table({
         }}
         srTitle='Delete rows'
         title='Delete rows'
-        description={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
+        text={`Delete ${deletingAll ? deletingAll.estimatedCount.toLocaleString() : 0} ${
           deletingAll?.estimatedCount === 1 ? 'row' : 'rows'
         }${queryOptions.filter ? ' matching the current filter' : ''}? This can't be undone.`}
         confirm={{
@@ -863,34 +863,25 @@ export function Table({
             ? `Delete ${deletingColumns.length} Columns`
             : 'Delete Column'
         }
-        description={
-          <>
-            {deletingColumns && deletingColumns.length > 1 ? (
-              <>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {deletingColumns.length} columns
-                </span>
-                ?{' '}
-              </>
-            ) : (
-              <>
-                Are you sure you want to delete{' '}
-                <span className='font-medium text-[var(--text-primary)]'>
-                  {(deletingColumns &&
+        text={[
+          'Are you sure you want to delete ',
+          deletingColumns && deletingColumns.length > 1
+            ? { text: `${deletingColumns.length} columns`, bold: true }
+            : {
+                text:
+                  (deletingColumns &&
                     columns.find((c) => getColumnId(c) === deletingColumns[0])?.name) ??
-                    deletingColumns?.[0]}
-                </span>
-                ?{' '}
-              </>
-            )}
-            <span className='text-[var(--text-error)]'>
-              This will remove all data in{' '}
-              {deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.
-            </span>{' '}
-            You can undo this action.
-          </>
-        }
+                  deletingColumns?.[0] ??
+                  'this column',
+                bold: true,
+              },
+          '? ',
+          {
+            text: `This will remove all data in ${deletingColumns && deletingColumns.length > 1 ? 'these columns' : 'this column'}.`,
+            error: true,
+          },
+          ' You can undo this action.',
+        ]}
         confirm={{
           label: 'Delete',
           onClick: handleConfirmDeleteColumns,
@@ -902,16 +893,13 @@ export function Table({
           onOpenChange={setShowDeleteTableConfirm}
           srTitle='Delete Table'
           title='Delete Table'
-          description={
-            <>
-              Are you sure you want to delete{' '}
-              <span className='font-medium text-[var(--text-primary)]'>{tableData?.name}</span>?{' '}
-              <span className='text-[var(--text-error)]'>
-                All {tableData?.rowCount ?? 0} rows will be removed.
-              </span>{' '}
-              You can restore it from Recently Deleted in Settings.
-            </>
-          }
+          text={[
+            'Are you sure you want to delete ',
+            { text: tableData?.name ?? 'this table', bold: true },
+            '? ',
+            { text: `All ${tableData?.rowCount ?? 0} rows will be removed.`, error: true },
+            ' You can restore it from Recently Deleted in Settings.',
+          ]}
           confirm={{
             label: 'Delete',
             onClick: handleDeleteTable,
@@ -920,6 +908,6 @@ export function Table({
           }}
         />
       )}
-    </div>
+    </Resource>
   )
 }

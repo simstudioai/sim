@@ -20,7 +20,6 @@ import {
   oneTimeToken,
   organization,
 } from 'better-auth/plugins'
-import { emailHarmony } from 'better-auth-harmony'
 import { and, count, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import Stripe from 'stripe'
@@ -65,16 +64,17 @@ import {
   isAuthDisabled,
   isBillingEnabled,
   isEmailPasswordEnabled,
+  isEmailSignupDisabled,
   isEmailVerificationEnabled,
   isGithubAuthDisabled,
   isGoogleAuthDisabled,
   isHosted,
+  isMicrosoftAuthDisabled,
   isOrganizationsEnabled,
   isRegistrationDisabled,
-  isSignupEmailValidationEnabled,
   isSignupMxValidationEnabled,
   isSsoEnabled,
-} from '@/lib/core/config/feature-flags'
+} from '@/lib/core/config/env-flags'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { getBaseUrl, isLocalhostUrl, parseOriginList } from '@/lib/core/utils/urls'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
@@ -724,6 +724,15 @@ export const auth = betterAuth({
         ],
       },
     }),
+    ...(!isMicrosoftAuthDisabled &&
+      env.MICROSOFT_CLIENT_ID &&
+      env.MICROSOFT_CLIENT_SECRET && {
+        microsoft: {
+          clientId: env.MICROSOFT_CLIENT_ID,
+          clientSecret: env.MICROSOFT_CLIENT_SECRET,
+          scope: ['openid', 'profile', 'email'],
+        },
+      }),
   },
   emailVerification: {
     autoSignInAfterVerification: true,
@@ -801,8 +810,7 @@ export const auth = betterAuth({
      * the exact same set of returned fields a real freshly-created user would, otherwise
      * the differing response shape re-opens the enumeration oracle. The admin plugin
      * (always loaded) adds role/banned/banReason/banExpires, and the Stripe plugin — loaded
-     * only when billing is enabled — adds stripeCustomerId (null on a new user). The
-     * harmony plugin's normalizedEmail is `returned: false`, so it is intentionally omitted.
+     * only when billing is enabled — adds stripeCustomerId (null on a new user).
      */
     customSyntheticUser: ({
       coreFields,
@@ -874,6 +882,11 @@ export const auth = betterAuth({
           })
       }
 
+      if (isEmailSignupDisabled && ctx.path.startsWith('/sign-up/email'))
+        throw new APIError('FORBIDDEN', {
+          message: 'Email sign-up is disabled. Please use Google, Microsoft, or GitHub.',
+        })
+
       const isSignIn = ctx.path.startsWith('/sign-in')
       const isSignUp = ctx.path.startsWith('/sign-up')
 
@@ -930,7 +943,6 @@ export const auth = betterAuth({
     }),
   },
   plugins: [
-    ...(isSignupEmailValidationEnabled ? [emailHarmony()] : []),
     ...(env.TURNSTILE_SECRET_KEY
       ? [
           captcha({

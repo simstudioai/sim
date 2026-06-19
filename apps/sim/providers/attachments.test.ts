@@ -7,11 +7,16 @@ import {
   buildAnthropicMessageContent,
   buildBedrockMessageContent,
   buildGeminiMessageParts,
+  buildOpenAICompatibleChatContent,
   buildOpenAIMessageContent,
   buildOpenRouterMessageContent,
   formatMessagesForProvider,
+  getProviderAttachmentMaxBytes,
+  getProviderFileStrategy,
+  INLINE_ATTACHMENT_THRESHOLD_BYTES,
   inferAttachmentMimeType,
   prepareProviderAttachments,
+  shouldUseLargeFilePath,
 } from '@/providers/attachments'
 
 const imageFile: UserFile = {
@@ -268,5 +273,135 @@ describe('provider attachments', () => {
         'deepseek'
       )
     ).toThrow('not supported')
+  })
+})
+
+describe('provider large-file capability', () => {
+  it('reports per-provider strategy and ceiling, defaulting others to inline', () => {
+    expect(getProviderFileStrategy('openai')).toBe('files-api')
+    expect(getProviderFileStrategy('google')).toBe('files-api')
+    expect(getProviderFileStrategy('anthropic')).toBe('remote-url')
+    expect(getProviderFileStrategy('groq')).toBe('remote-url')
+    expect(getProviderFileStrategy('bedrock')).toBe('inline')
+    expect(getProviderFileStrategy('azure-openai')).toBe('inline')
+    expect(getProviderFileStrategy('vertex')).toBe('inline')
+
+    expect(getProviderAttachmentMaxBytes('openai')).toBeGreaterThan(
+      INLINE_ATTACHMENT_THRESHOLD_BYTES
+    )
+    expect(getProviderAttachmentMaxBytes('bedrock')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+    expect(getProviderAttachmentMaxBytes('azure-openai')).toBe(INLINE_ATTACHMENT_THRESHOLD_BYTES)
+  })
+
+  it('routes only oversized files on capable providers to the large-file path', () => {
+    const small = { ...imageFile, size: 1024 }
+    const large = { ...imageFile, size: INLINE_ATTACHMENT_THRESHOLD_BYTES + 1 }
+    expect(shouldUseLargeFilePath(small, 'openai')).toBe(false)
+    expect(shouldUseLargeFilePath(large, 'openai')).toBe(true)
+    expect(shouldUseLargeFilePath(large, 'bedrock')).toBe(false)
+  })
+
+  it('references uploaded OpenAI files by file_id instead of inlining base64', () => {
+    const content = buildOpenAIMessageContent(
+      'Analyze',
+      [
+        { ...imageFile, base64: undefined, providerFileId: 'file-img' },
+        { ...pdfFile, base64: undefined, providerFileId: 'file-doc' },
+      ],
+      'openai'
+    )
+    expect(content).toEqual([
+      { type: 'input_text', text: 'Analyze' },
+      { type: 'input_image', file_id: 'file-img', detail: 'auto' },
+      { type: 'input_file', file_id: 'file-doc' },
+    ])
+  })
+
+  it('references large Anthropic files via url content-block sources', () => {
+    const content = buildAnthropicMessageContent(
+      'Analyze',
+      [
+        { ...imageFile, base64: undefined, remoteUrl: 'https://signed/img.png' },
+        { ...pdfFile, base64: undefined, remoteUrl: 'https://signed/doc.pdf' },
+      ],
+      'anthropic'
+    )
+    expect(content).toEqual([
+      { type: 'text', text: 'Analyze' },
+      { type: 'image', source: { type: 'url', url: 'https://signed/img.png' } },
+      {
+        type: 'document',
+        source: { type: 'url', url: 'https://signed/doc.pdf' },
+        title: 'example.pdf',
+      },
+    ])
+  })
+
+  it('references uploaded Gemini files via fileData uri', () => {
+    const parts = buildGeminiMessageParts(
+      'Analyze',
+      [{ ...imageFile, base64: undefined, providerFileUri: 'https://files/abc' }],
+      'google'
+    )
+    expect(parts).toEqual([
+      { text: 'Analyze' },
+      { fileData: { fileUri: 'https://files/abc', mimeType: 'image/png' } },
+    ])
+  })
+
+  it('passes a remote url to OpenAI-compatible providers instead of a data url', () => {
+    const content = buildOpenAICompatibleChatContent(
+      'Analyze',
+      [{ ...imageFile, base64: undefined, remoteUrl: 'https://signed/img.png' }],
+      'groq'
+    )
+    expect(content).toEqual([
+      { type: 'text', text: 'Analyze' },
+      { type: 'image_url', image_url: { url: 'https://signed/img.png' } },
+    ])
+  })
+
+  it('rejects oversized non-PDF text documents on Anthropic (url source supports PDFs/images only)', () => {
+    expect(() =>
+      buildAnthropicMessageContent(
+        'Analyze',
+        [
+          {
+            ...markdownFile,
+            type: 'text/csv',
+            name: 'data.csv',
+            base64: undefined,
+            remoteUrl: 'https://signed/data.csv',
+          },
+        ],
+        'anthropic'
+      )
+    ).toThrow('Only PDFs and images are supported')
+  })
+
+  it('references large Anthropic PDFs via a url document source', () => {
+    const content = buildAnthropicMessageContent(
+      'Analyze',
+      [{ ...pdfFile, base64: undefined, remoteUrl: 'https://signed/doc.pdf' }],
+      'anthropic'
+    )
+    expect(content).toEqual([
+      { type: 'text', text: 'Analyze' },
+      {
+        type: 'document',
+        source: { type: 'url', url: 'https://signed/doc.pdf' },
+        title: 'example.pdf',
+      },
+    ])
+  })
+
+  it('rejects files above the provider ceiling', () => {
+    const huge = {
+      ...imageFile,
+      size: getProviderAttachmentMaxBytes('openai') + 1,
+      base64: undefined,
+      providerFileId: 'file-img',
+    }
+    expect(() => buildOpenAIMessageContent('Analyze', [huge], 'openai')).toThrow('exceeds the')
   })
 })

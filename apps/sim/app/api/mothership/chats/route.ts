@@ -1,14 +1,13 @@
 import { db } from '@sim/db'
 import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, desc, eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createMothershipChatContract,
   listMothershipChatsContract,
 } from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
-import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
+import { listMothershipChats } from '@/lib/copilot/chat/list-mothership-chats'
 import { chatPubSub } from '@/lib/copilot/chat-status'
 import {
   authenticateCopilotRequestSessionOnly,
@@ -42,35 +41,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     await assertActiveWorkspaceAccess(workspaceId, userId)
 
-    const chats = await db
-      .select({
-        id: copilotChats.id,
-        title: copilotChats.title,
-        updatedAt: copilotChats.updatedAt,
-        activeStreamId: copilotChats.conversationId,
-        lastSeenAt: copilotChats.lastSeenAt,
-        pinned: copilotChats.pinned,
-      })
-      .from(copilotChats)
-      .where(
-        and(
-          eq(copilotChats.userId, userId),
-          eq(copilotChats.workspaceId, workspaceId),
-          eq(copilotChats.type, 'mothership')
-        )
-      )
-      .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
+    const data = await listMothershipChats(userId, workspaceId)
 
-    const streamMarkers = await reconcileChatStreamMarkers(
-      chats.map((c) => ({ chatId: c.id, streamId: c.activeStreamId })),
-      { repairVerifiedStaleMarkers: true }
-    )
-    const reconciled = chats.map((c) => {
-      const activeStreamId = streamMarkers.get(c.id)?.streamId ?? null
-      return activeStreamId === c.activeStreamId ? c : { ...c, activeStreamId }
-    })
-
-    return NextResponse.json({ success: true, data: reconciled })
+    return NextResponse.json({ success: true, data })
   } catch (error) {
     if (isWorkspaceAccessDeniedError(error)) {
       return createForbiddenResponse('Workspace access denied')

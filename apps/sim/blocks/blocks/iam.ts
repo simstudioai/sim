@@ -667,6 +667,7 @@ export const IAMBlock: BlockConfig<IAMBaseResponse> = {
 
 export const IAMBlockMeta = {
   tags: ['cloud', 'identity'],
+  url: 'https://aws.amazon.com/iam',
   templates: [
     {
       icon: IAMIcon,

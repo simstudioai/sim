@@ -3,7 +3,7 @@ import type {
   SalesforceDeleteCaseResponse,
 } from '@/tools/salesforce/types'
 import { SOBJECT_DELETE_OUTPUT_PROPERTIES } from '@/tools/salesforce/types'
-import { getInstanceUrl } from '@/tools/salesforce/utils'
+import { extractErrorMessage, getInstanceUrl, requireId } from '@/tools/salesforce/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const salesforceDeleteCaseTool: ToolConfig<
@@ -45,8 +45,10 @@ export const salesforceDeleteCaseTool: ToolConfig<
   },
 
   request: {
-    url: (params) =>
-      `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${params.caseId}`,
+    url: (params) => {
+      const caseId = requireId(params.caseId, 'Case ID')
+      return `${getInstanceUrl(params.idToken, params.instanceUrl)}/services/data/v59.0/sobjects/Case/${caseId}`
+    },
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.accessToken}`,
@@ -56,12 +58,12 @@ export const salesforceDeleteCaseTool: ToolConfig<
   transformResponse: async (response, params?) => {
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data[0]?.message || data.message || 'Failed to delete case')
+      throw new Error(extractErrorMessage(data, response.status, 'Failed to delete case'))
     }
     return {
       success: true,
       output: {
-        id: params?.caseId || '',
+        id: params?.caseId?.trim() || '',
         deleted: true,
       },
     }

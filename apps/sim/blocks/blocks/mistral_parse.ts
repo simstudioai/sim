@@ -406,6 +406,7 @@ export const MistralParseV3Block: BlockConfig<MistralParserOutput> = {
 
 export const MistralParseBlockMeta = {
   tags: ['document-processing', 'ocr'],
+  url: 'https://mistral.ai',
   templates: [
     {
       icon: MistralIcon,

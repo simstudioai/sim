@@ -158,6 +158,12 @@ export interface SuggestedSkill {
 /** Presentation/catalog data for a block. Never read by the executor. */
 export interface BlockMeta {
   tags: readonly IntegrationTag[]
+  /**
+   * Canonical homepage of the external service this block integrates with
+   * (e.g. `https://exa.ai`). Distinct from `BlockConfig.docsLink`, which points
+   * at Sim's own integration docs. Links back to the tool from its catalog page.
+   */
+  url?: string
   templates?: readonly BlockTemplate[]
   /** Popular, ready-to-add skills for this integration, shown on its detail page. */
   skills?: readonly SuggestedSkill[]

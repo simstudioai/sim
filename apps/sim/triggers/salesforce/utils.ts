@@ -1,6 +1,7 @@
 import { extractSalesforceObjectTypeFromPayload } from '@/lib/webhooks/providers/salesforce'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
+import { normalizeToken } from '@/triggers/utils/tokens'
 
 /**
  * Dropdown options for the Salesforce trigger type selector.
@@ -13,13 +14,6 @@ export const salesforceTriggerOptions = [
   { label: 'Case Status Changed', id: 'salesforce_case_status_changed' },
   { label: 'Generic Webhook (All Events)', id: 'salesforce_webhook' },
 ]
-
-function normalizeToken(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, '_')
-}
 
 const RECORD_CREATED = new Set([
   'record_created',

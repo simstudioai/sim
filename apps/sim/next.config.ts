@@ -1,6 +1,6 @@
 import type { NextConfig } from 'next'
 import { env, isTruthy } from './lib/core/config/env'
-import { isDev } from './lib/core/config/feature-flags'
+import { isDev } from './lib/core/config/env-flags'
 import {
   getChatEmbedCSPPolicy,
   getMainCSPPolicy,
@@ -93,17 +93,6 @@ const nextConfig: NextConfig = {
       './lib/execution/sandbox/bundles/*.cjs',
     ],
   },
-  turbopack: {
-    resolveAlias: {
-      // `dns/promises` has no browser shim. Server-only connector fetch logic
-      // (which imports `input-validation.server`) is statically reachable from
-      // the client bundle via the connector registry, but never runs there.
-      // Stub it for the browser only; the server keeps the real module so SSRF
-      // validation is unaffected.
-      'dns/promises': { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-      dns: { browser: './lib/core/security/empty-node-fallback.browser.ts' },
-    },
-  },
   experimental: {
     optimizeCss: true,
     preloadEntriesOnStart: false,
@@ -146,7 +135,6 @@ const nextConfig: NextConfig = {
     '@t3-oss/env-nextjs',
     '@t3-oss/env-core',
     '@sim/db',
-    'better-auth-harmony',
   ],
   async headers() {
     return [
@@ -323,6 +311,15 @@ const nextConfig: NextConfig = {
     redirects.push({
       source: '/workspace/:workspaceId/task/:chatId',
       destination: '/workspace/:workspaceId/chat/:chatId',
+      permanent: true,
+    })
+
+    // Legacy integration slug: the incident.io block's display name was fixed
+    // from `incidentio` to `incident.io`, which moved its catalog slug.
+    // Preserve the previously indexed landing URL.
+    redirects.push({
+      source: '/integrations/incidentio',
+      destination: '/integrations/incident-io',
       permanent: true,
     })
 

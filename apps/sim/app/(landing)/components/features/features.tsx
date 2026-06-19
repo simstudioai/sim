@@ -41,12 +41,12 @@ interface FeatureTab {
 
 const FEATURE_TABS: FeatureTab[] = [
   {
-    label: 'Mothership',
+    label: 'Chat',
     color: '#FA4EDF',
     title: 'Your AI command center',
     description:
       'Direct your entire AI workforce from one place. Build agents, spin up workflows, query tables, and manage every resource across your workspace — in natural language.',
-    cta: 'Explore mothership',
+    cta: 'Explore chat',
     segments: [
       [0.3, 8],
       [0.25, 10],
@@ -186,7 +186,7 @@ export default function Features() {
               Workspace
             </Badge>
             <p className='sr-only'>
-              Sim's workspace includes four core features: Mothership, an AI command center for
+              Sim's workspace includes four core features: Chat, an AI command center for
               natural-language control of your entire workspace; Tables, a built-in database for
               filtering, sorting, and wiring data directly into workflows; Files, a shared document
               store for uploading, creating, and sharing documents, spreadsheets, and media across
