@@ -30,8 +30,8 @@ interface PublicFilePageProps {
 
 /**
  * Social-preview metadata. Public shares unfurl with the file name + provenance;
- * password-protected shares stay deliberately generic so the filename never leaks
- * before the password is entered. Always `noindex`.
+ * any protected share (password / email / SSO) stays deliberately generic so the
+ * filename never leaks before the visitor authenticates. Always `noindex`.
  */
 export async function generateMetadata({ params }: PublicFilePageProps): Promise<Metadata> {
   const { token } = await params
@@ -42,9 +42,9 @@ export async function generateMetadata({ params }: PublicFilePageProps): Promise
 
   let title: string
   let description: string
-  if (resolved.share.authType === 'password') {
+  if (resolved.share.authType !== 'public') {
     title = 'Shared file'
-    description = 'This file is password-protected.'
+    description = 'Authentication is required to view this file.'
   } else {
     title = resolved.file.originalName
     description =

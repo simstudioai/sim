@@ -53,8 +53,8 @@ export interface DeploymentAuthResult {
 /**
  * Shared password/email/SSO gate for deployed resources. The `cookiePrefix`
  * selects the auth cookie (`${cookiePrefix}_auth_${id}`) and the rate-limit
- * namespace so chat deployments and public file shares share one code path. File
- * shares only ever use `'public'` / `'password'`, a strict subset of chat's modes.
+ * namespace so chat deployments and public file shares share one code path. Both
+ * support all four modes: `'public'`, `'password'`, `'email'`, and `'sso'`.
  */
 export async function validateDeploymentAuth(
   requestId: string,

@@ -11,18 +11,18 @@ export const size = {
 
 /**
  * Social-preview card for a shared file. Public shares show the file name +
- * provenance; password-protected (and unknown) shares stay generic so the
- * filename never leaks pre-auth.
+ * provenance; protected (password / email / SSO) and unknown shares stay generic
+ * so the filename never leaks pre-auth.
  */
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const resolved = await resolveActiveShareByToken(token)
 
-  if (!resolved || resolved.share.authType === 'password') {
+  if (!resolved || resolved.share.authType !== 'public') {
     return createLandingOgImage({
       eyebrow: 'Shared file',
-      title: 'Password-protected file',
-      subtitle: 'Enter the password to view this file',
+      title: 'Protected file',
+      subtitle: 'Authentication is required to view this file',
     })
   }
 
