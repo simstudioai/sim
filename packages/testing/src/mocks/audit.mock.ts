@@ -76,6 +76,8 @@ export const auditMock = {
     FILE_DELETED: 'file.deleted',
     FILE_RESTORED: 'file.restored',
     FILE_MOVED: 'file.moved',
+    FILE_SHARED: 'file.shared',
+    FILE_SHARE_DISABLED: 'file.share_disabled',
     FOLDER_CREATED: 'folder.created',
     FOLDER_UPDATED: 'folder.updated',
     FOLDER_DELETED: 'folder.deleted',

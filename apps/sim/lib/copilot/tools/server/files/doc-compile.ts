@@ -414,3 +414,38 @@ export async function loadCompiledDocByExt(
   const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
   return buffer ? { buffer, contentType: fmt.contentType } : null
 }
+
+const ZIP_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04])
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]) // %PDF-
+
+function bufferStartsWith(buffer: Buffer, magic: Buffer): boolean {
+  return buffer.length >= magic.length && buffer.subarray(0, magic.length).equals(magic)
+}
+
+/**
+ * How a read-only consumer (e.g. the public share route) should serve a stored doc
+ * WITHOUT compiling:
+ * - `passthrough` — serve the raw stored bytes as-is (a non-doc file, or an uploaded
+ *   binary that already carries its format magic).
+ * - `artifact` — serve this prebuilt content-addressed compiled binary.
+ * - `unavailable` — a generated doc stored as source whose compiled artifact does
+ *   not exist yet; the raw bytes are source, so serving them under the file's binary
+ *   content type would be corrupt. The caller should signal "not ready" instead.
+ */
+export type ServableDoc =
+  | { kind: 'passthrough' }
+  | { kind: 'artifact'; buffer: Buffer; contentType: string }
+  | { kind: 'unavailable' }
+
+export async function resolveServableDoc(
+  workspaceId: string,
+  storedBytes: Buffer,
+  fileName: string
+): Promise<ServableDoc> {
+  const fmt = await getE2BDocFormat(fileName)
+  if (!fmt) return { kind: 'passthrough' }
+  const magic = fmt.ext === 'pdf' ? PDF_MAGIC : ZIP_MAGIC
+  if (bufferStartsWith(storedBytes, magic)) return { kind: 'passthrough' }
+  const artifact = await loadCompiledDocByExt(workspaceId, storedBytes.toString('utf-8'), fmt.ext)
+  return artifact ? { kind: 'artifact', ...artifact } : { kind: 'unavailable' }
+}

@@ -6,7 +6,7 @@ import { Music } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
-import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
+import { useWorkspaceFileBinary, useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
 import { resolveFileCategory } from './file-category'
 import type { StreamingMode } from './text-editor-state'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
@@ -18,7 +18,7 @@ import { DocxPreview } from './docx-preview'
 import { ImagePreview } from './image-preview'
 import type { PdfDocumentSource } from './pdf-viewer'
 import { PptxPreview } from './pptx-preview'
-import { resolvePreviewType } from './preview-panel'
+import { PreviewPanel, resolvePreviewType } from './preview-panel'
 import {
   PREVIEW_LOADING_OVERLAY,
   PreviewError,
@@ -72,6 +72,12 @@ interface FileViewerProps {
   file: WorkspaceFileRecord
   workspaceId: string
   canEdit: boolean
+  /**
+   * Render a read-only preview with no editing affordances. Text files render
+   * through {@link PreviewPanel} (or a plain `<pre>`) instead of the editable
+   * {@link TextEditor}. Used by the public share page.
+   */
+  readOnly?: boolean
   previewMode?: PreviewMode
   autoFocus?: boolean
   onDirtyChange?: (isDirty: boolean) => void
@@ -87,6 +93,7 @@ export function FileViewer({
   file,
   workspaceId,
   canEdit,
+  readOnly = false,
   previewMode,
   autoFocus,
   onDirtyChange,
@@ -100,6 +107,15 @@ export function FileViewer({
   const category = resolveFileCategory(file.type, file.name)
 
   if (category === 'text-editable') {
+    if (readOnly) {
+      // ReadOnlyTextPreview loads the whole file as text; a large CSV would OOM the
+      // browser. CsvTablePreview's streamed fallback is workspace-only, so on the
+      // read-only public path a large CSV is download-only.
+      if (isCsvStreamOnly(file)) {
+        return <UnsupportedPreview file={file} />
+      }
+      return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
+    }
     // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).
     // Render a streamed, read-only preview of the first rows + an "Import as a table" path instead.
     if (isCsvStreamOnly(file)) {
@@ -154,6 +170,53 @@ export function FileViewer({
 
   return <UnsupportedPreview file={file} />
 }
+
+/**
+ * Read-only text/markdown/code preview. Renders rich types (markdown, csv, svg,
+ * mermaid, html) through {@link PreviewPanel} and plain text/code in a `<pre>`.
+ * Fetches content through the active content source, so it works for both
+ * workspace files and public share links.
+ */
+const ReadOnlyTextPreview = memo(function ReadOnlyTextPreview({
+  file,
+  workspaceId,
+}: {
+  file: WorkspaceFileRecord
+  workspaceId: string
+}) {
+  const {
+    data: content,
+    isLoading,
+    error,
+  } = useWorkspaceFileContent(workspaceId, file.id, file.key)
+
+  const resolvedError = resolvePreviewError((error as Error | null) ?? null, null)
+  if (resolvedError) return <PreviewError label='file' error={resolvedError} />
+  if (isLoading || content == null) return <PreviewLoadingFrame className='h-full' tone='surface' />
+
+  if (resolvePreviewType(file.type, file.name)) {
+    return (
+      <div className='h-full min-h-0 w-full overflow-auto'>
+        <PreviewPanel
+          content={content}
+          mimeType={file.type}
+          filename={file.name}
+          workspaceId={workspaceId}
+          fileKey={file.key}
+          readOnly
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className='h-full min-h-0 w-full overflow-auto bg-[var(--surface-1)] p-4'>
+      <pre className='whitespace-pre-wrap break-words font-mono text-[13px] text-[var(--text-body)]'>
+        {content}
+      </pre>
+    </div>
+  )
+})
 
 const IframePreview = memo(function IframePreview({
   file,
