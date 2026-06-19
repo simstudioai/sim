@@ -48,10 +48,12 @@ import { HeroLogos } from '@/app/(landing)/components/hero/components/logos'
  * `aria-hidden` product demo (home → typed prompt → GitHub→Agent→Jira workflow
  * with data flowing) and the page's only client island. It is absolutely
  * positioned against the section: its left edge sits at the screen center
- * (`left-1/2`), its right edge at the hero's right padding (`right-12`), and it
- * is inset a uniform 32px from the section's top and bottom (`top-8 bottom-8`,
- * the section box top being the navbar's bottom edge) — equal breathing room
- * above and below, never overflowing the fold. Chrome is `rounded-lg` (chip
+ * (`left-1/2`) and its right edge at the hero's right padding (`right-12`), so
+ * its width is the right half. Vertically it is inset `top-[112px] bottom-[112px]`
+ * — matching the headline's `pt-[112px]` top and the logos' 112px-from-bottom
+ * resting line — so the panel's top edge aligns with the top of the hero text
+ * and its bottom edge aligns with the bottom of the customer logos, framing the
+ * exact vertical extent of the left content column. Chrome is `rounded-lg` (chip
  * roundedness) + `--surface-2` fill + a 1px `border-[var(--border-1)]` (the same
  * field border as the email-capture bar), sitting inside the border-box so the
  * inset positions are unaffected; `overflow-hidden` clips the future video to
@@ -124,7 +126,7 @@ export function Hero() {
 
       <div
         aria-hidden='true'
-        className='absolute top-8 right-12 bottom-8 left-1/2 overflow-hidden rounded-lg bg-[#fafafa] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full max-sm:mt-3 max-sm:aspect-[5/4]'
+        className='absolute top-[112px] right-12 bottom-[112px] left-1/2 overflow-hidden rounded-lg bg-[#fafafa] max-xl:static max-xl:mt-6 max-xl:aspect-[16/10] max-xl:w-full max-sm:mt-3 max-sm:aspect-[5/4]'
       >
         <HeroVisual />
       </div>
