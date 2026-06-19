@@ -307,6 +307,11 @@ async function fetchEnrichmentDetail(
  * Enrichment cascade breakdown for one cell, fetched on demand when the
  * enrichment details panel opens. Kept off the hot grid read — only queried
  * while `enabled` (panel open with a selected row + group).
+ *
+ * `staleTime: 0` so reopening the panel always refetches: a cell can be re-run
+ * between opens (the run writes new `enrichmentDetails` in the background with no
+ * client invalidation), and the panel is opened on demand, so a fresh fetch per
+ * open keeps the cascade in sync without a cached stale run.
  */
 export function useEnrichmentDetail(
   tableId: string,
@@ -319,7 +324,7 @@ export function useEnrichmentDetail(
     queryFn: ({ signal }) =>
       fetchEnrichmentDetail(tableId, rowId as string, groupId as string, signal),
     enabled: Boolean(tableId && rowId && groupId) && (options?.enabled ?? true),
-    staleTime: 30 * 1000,
+    staleTime: 0,
   })
 }
 

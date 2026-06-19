@@ -24,6 +24,32 @@ export interface EnrichmentRunOutcome {
   detail: EnrichmentRunDetail
 }
 
+/**
+ * Detail for a terminal cell that recorded no provider attempt — missing
+ * required inputs, or cancelled before any provider ran. Every provider is
+ * marked `skipped` so the details panel stays informative (shows the configured
+ * cascade) instead of empty.
+ */
+export function skippedEnrichmentDetail(enrichment: EnrichmentConfig): EnrichmentRunDetail {
+  const now = new Date().toISOString()
+  return {
+    startedAt: now,
+    completedAt: now,
+    durationMs: 0,
+    totalCost: 0,
+    matchedProvider: null,
+    providers: enrichment.providers.map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      toolId: provider.toolId,
+      status: 'skipped' as const,
+      cost: 0,
+      durationMs: 0,
+      error: null,
+    })),
+  }
+}
+
 /** True when at least one output value in the result is non-empty. */
 function hasResult(result: Record<string, unknown>): boolean {
   return Object.values(result).some((v) => v !== undefined && v !== null && v !== '')

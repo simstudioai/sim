@@ -208,7 +208,7 @@ async function runWorkflowAndWriteTerminal(
     // workflow path rather than erroring.
     if (group.type === 'enrichment' && group.enrichmentId) {
       const { getEnrichment } = await import('@/enrichments/registry')
-      const { runEnrichment } = await import('@/enrichments/run')
+      const { runEnrichment, skippedEnrichmentDetail } = await import('@/enrichments/run')
       const enrichment = getEnrichment(group.enrichmentId)
       // `tableRowExecutions.workflowId` is an opaque id for status; use the
       // enrichment id for enrichment cells.
@@ -320,6 +320,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: null,
+            enrichmentDetails: skippedEnrichmentDetail(enrichment),
           },
           clearPatch
         )
@@ -334,6 +335,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: skippedEnrichmentDetail(enrichment),
           })
           return 'error'
         }
@@ -352,6 +354,7 @@ async function runWorkflowAndWriteTerminal(
             jobId: null,
             workflowId: statusId,
             error: 'Cancelled',
+            enrichmentDetails: detail,
           })
           return 'error'
         }

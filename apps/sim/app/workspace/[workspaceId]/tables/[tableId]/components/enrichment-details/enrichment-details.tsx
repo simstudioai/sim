@@ -19,7 +19,7 @@ import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/log
 
 type EnrichmentDetailsTab = 'result' | 'cascade'
 
-type ResultStatus = 'matched' | 'no_match' | 'error'
+type ResultStatus = 'matched' | 'no_match' | 'error' | 'not_run'
 
 const RESULT_STATUS_CONFIG: Record<
   ResultStatus,
@@ -28,6 +28,7 @@ const RESULT_STATUS_CONFIG: Record<
   matched: { variant: 'green', label: 'Matched' },
   no_match: { variant: 'gray', label: 'No match' },
   error: { variant: 'red', label: 'Error' },
+  not_run: { variant: 'gray', label: 'Not run' },
 }
 
 /** Minimum bar width so a sub-millisecond provider still shows on the timeline. */
@@ -69,15 +70,21 @@ function buildCascadeRows(providers: EnrichmentProviderOutcome[]): CascadeRow[] 
   })
 }
 
+/** A provider that actually executed its tool (not skipped / never reached). */
+function didRun(p: EnrichmentProviderOutcome): boolean {
+  return p.status !== 'skipped' && p.status !== 'not_run'
+}
+
 /**
  * Derives the cell-level outcome from the cascade — mirrors the executor: a run
- * is `error` only when every provider that actually ran errored; a clean miss is
- * `no_match`.
+ * is `error` only when every provider that ran errored; `not_run` when nothing
+ * executed (missing inputs / cancelled early); otherwise a clean `no_match`.
  */
 function deriveResultStatus(detail: EnrichmentRunDetail): ResultStatus {
   if (detail.matchedProvider) return 'matched'
-  const ran = detail.providers.filter((p) => p.status !== 'skipped')
-  if (ran.length > 0 && ran.every((p) => p.status === 'error')) return 'error'
+  const ran = detail.providers.filter(didRun)
+  if (ran.length === 0) return 'not_run'
+  if (ran.every((p) => p.status === 'error')) return 'error'
   return 'no_match'
 }
 
@@ -131,7 +138,7 @@ function EnrichmentDetailsContent({
     ? (detail.providers.find((p) => p.id === detail.matchedProvider)?.label ??
       detail.matchedProvider)
     : null
-  const ranCount = detail ? detail.providers.filter((p) => p.status !== 'skipped').length : 0
+  const ranCount = detail ? detail.providers.filter(didRun).length : 0
   const lastError = detail
     ? [...detail.providers].reverse().find((p) => p.status === 'error')?.error
     : null
@@ -229,7 +236,7 @@ function EnrichmentDetailsContent({
           {/* Provider waterfall — each row is one cascade attempt on a shared timeline */}
           <div className='flex flex-col pb-4'>
             {buildCascadeRows(detail.providers).map(({ outcome, offsetPct, widthPct }) => {
-              const ran = outcome.status !== 'skipped' && outcome.status !== 'not_run'
+              const ran = didRun(outcome)
               const { icon: ProviderIcon, bgColor: rawBgColor } = getBlockIconAndColor(
                 'tool',
                 outcome.toolId

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
-import { runEnrichment } from '@/enrichments/run'
+import { runEnrichment, skippedEnrichmentDetail } from '@/enrichments/run'
 import type { EnrichmentConfig, EnrichmentProvider } from '@/enrichments/types'
 
 const ICON = (() => null) as unknown as EnrichmentConfig['icon']
@@ -115,6 +115,14 @@ describe('runEnrichment cascade detail', () => {
     expect(outcome.result).toEqual({})
     expect(outcome.error).toBeNull()
     expect(outcome.detail.providers.map((p) => p.status)).toEqual(['no_match'])
+  })
+
+  it('skippedEnrichmentDetail marks every provider skipped without running', () => {
+    const detail = skippedEnrichmentDetail(config([prov('a'), prov('b')]))
+    expect(detail.matchedProvider).toBeNull()
+    expect(detail.totalCost).toBe(0)
+    expect(detail.providers.map((p) => p.status)).toEqual(['skipped', 'skipped'])
+    expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
   it('does not error when some providers no-match and only some error', async () => {
