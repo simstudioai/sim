@@ -8,7 +8,6 @@ import { Plus } from 'lucide-react'
 import {
   Checkbox,
   Chip,
-  ChipDropdown,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -35,6 +34,9 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
 
+/** Sentinel ChipSelect value representing the all-workspaces scope (`workspaceId: null`). */
+const ALL_WORKSPACES = '__all__'
+
 const DAY_OPTIONS = [
   { value: '1', label: '1 day' },
   { value: '3', label: '3 days' },
@@ -54,8 +56,8 @@ interface RuleDraft {
   id: string
   name: string
   entityTypes: string[]
-  appliesToAllWorkspaces: boolean
-  workspaceIds: string[]
+  /** null = all workspaces; otherwise the single targeted workspace. */
+  workspaceId: string | null
 }
 
 function hoursToDisplayDays(hours: number | null): string {
@@ -72,20 +74,13 @@ function normalizeRule(rule: RuleDraft): string {
   return JSON.stringify({
     name: rule.name.trim(),
     entityTypes: [...rule.entityTypes].sort(),
-    appliesToAllWorkspaces: rule.appliesToAllWorkspaces,
-    workspaceIds: rule.appliesToAllWorkspaces ? [] : [...rule.workspaceIds].sort(),
+    workspaceId: rule.workspaceId,
   })
 }
 
 function entitySummary(rule: RuleDraft): string {
   if (rule.entityTypes.length === 0) return 'None'
   return `${rule.entityTypes.length} entity type${rule.entityTypes.length === 1 ? '' : 's'}`
-}
-
-function workspaceSummary(rule: RuleDraft): string {
-  if (rule.appliesToAllWorkspaces) return 'All workspaces'
-  const n = rule.workspaceIds.length
-  return `${n} workspace${n === 1 ? '' : 's'}`
 }
 
 interface RetentionSelectProps {
@@ -189,7 +184,8 @@ interface RuleModalProps {
   draft: RuleDraft
   isNew: boolean
   isSaving: boolean
-  workspaceOptions: { value: string; label: string }[]
+  /** Selectable scopes for this rule (excludes scopes taken by other rules). */
+  scopeOptions: { value: string; label: string }[]
   onChange: (draft: RuleDraft) => void
   onClose: () => void
   onSave: () => void
@@ -199,7 +195,7 @@ function RuleModal({
   draft,
   isNew,
   isSaving,
-  workspaceOptions,
+  scopeOptions,
   onChange,
   onClose,
   onSave,
@@ -218,22 +214,12 @@ function RuleModal({
           placeholder='e.g., Mask customer contact info'
         />
         <ChipModalField type='custom' title='Applies to'>
-          <ChipDropdown
-            multiple
-            searchable
-            value={draft.workspaceIds}
-            onChange={(workspaceIds) =>
-              onChange({
-                ...draft,
-                workspaceIds,
-                appliesToAllWorkspaces: workspaceIds.length === 0,
-              })
+          <ChipSelect
+            value={draft.workspaceId ?? ALL_WORKSPACES}
+            onChange={(value) =>
+              onChange({ ...draft, workspaceId: value === ALL_WORKSPACES ? null : value })
             }
-            options={workspaceOptions}
-            allLabel='All workspaces'
-            placeholder='All workspaces'
-            searchPlaceholder='Search workspaces'
-            matchTriggerWidth={false}
+            options={scopeOptions}
             align='start'
           />
         </ChipModalField>
@@ -305,8 +291,7 @@ export function DataRetentionSettings() {
         id: r.id,
         name: r.name ?? '',
         entityTypes: r.entityTypes,
-        appliesToAllWorkspaces: r.appliesToAllWorkspaces,
-        workspaceIds: r.workspaceIds,
+        workspaceId: r.workspaceId,
       }))
     )
     formInitializedRef.current = true
@@ -318,6 +303,27 @@ export function DataRetentionSettings() {
     modalOriginal !== null &&
     normalizeRule(modalDraft) !== normalizeRule(modalOriginal)
 
+  // Scope availability: at most one all-workspaces rule and one rule per workspace.
+  const allScopeTaken = rules.some((r) => r.workspaceId === null)
+  const takenWorkspaceIds = new Set(
+    rules.flatMap((r) => (r.workspaceId === null ? [] : [r.workspaceId]))
+  )
+  const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
+  const hasAvailableScope = !allScopeTaken || freeWorkspaces.length > 0
+
+  /** Scopes selectable for `draft` — excludes scopes taken by OTHER rules. */
+  function scopeOptionsForDraft(draft: RuleDraft): { value: string; label: string }[] {
+    const others = rules.filter((r) => r.id !== draft.id)
+    const otherAll = others.some((r) => r.workspaceId === null)
+    const otherWs = new Set(others.flatMap((r) => (r.workspaceId === null ? [] : [r.workspaceId])))
+    const options: { value: string; label: string }[] = []
+    if (!otherAll) options.push({ value: ALL_WORKSPACES, label: 'All workspaces' })
+    for (const w of workspaceOptions) {
+      if (!otherWs.has(w.value)) options.push(w)
+    }
+    return options
+  }
+
   async function persistRules(nextRules: RuleDraft[]) {
     if (!orgId) return
     await updateMutation.mutateAsync({
@@ -328,8 +334,7 @@ export function DataRetentionSettings() {
             id: r.id,
             name: r.name.trim() || undefined,
             entityTypes: r.entityTypes,
-            appliesToAllWorkspaces: r.appliesToAllWorkspaces,
-            workspaceIds: r.appliesToAllWorkspaces ? [] : r.workspaceIds,
+            workspaceId: r.workspaceId,
           })),
         },
       },
@@ -342,8 +347,7 @@ export function DataRetentionSettings() {
       id: generateId(),
       name: '',
       entityTypes: [],
-      appliesToAllWorkspaces: true,
-      workspaceIds: [],
+      workspaceId: allScopeTaken ? (freeWorkspaces[0]?.value ?? null) : null,
     }
     setModalIsNew(true)
     setModalOriginal(blank)
@@ -506,10 +510,10 @@ export function DataRetentionSettings() {
                           {rule.name.trim() || 'Untitled rule'}
                         </span>
                         <span className='truncate text-[var(--text-muted)] text-caption'>
-                          {entitySummary(rule)} ·{' '}
-                          {rule.appliesToAllWorkspaces || rule.workspaceIds.length !== 1
-                            ? workspaceSummary(rule)
-                            : workspaceName(rule.workspaceIds[0])}
+                          {rule.workspaceId === null
+                            ? 'All workspaces'
+                            : workspaceName(rule.workspaceId)}{' '}
+                          · {entitySummary(rule)}
                         </span>
                       </div>
                       <div className='flex flex-shrink-0 items-center gap-2'>
@@ -526,7 +530,7 @@ export function DataRetentionSettings() {
                 </div>
               )}
               <div>
-                <Chip leftIcon={Plus} onClick={openAddRule}>
+                <Chip leftIcon={Plus} onClick={openAddRule} disabled={!hasAvailableScope}>
                   Add rule
                 </Chip>
               </div>
@@ -539,7 +543,7 @@ export function DataRetentionSettings() {
           draft={modalDraft}
           isNew={modalIsNew}
           isSaving={updateMutation.isPending}
-          workspaceOptions={workspaceOptions}
+          scopeOptions={scopeOptionsForDraft(modalDraft)}
           onChange={setModalDraft}
           onClose={requestCloseModal}
           onSave={saveModalRule}

@@ -1065,19 +1065,18 @@ export const chat = pgTable(
 
 /**
  * A single PII redaction rule. Lives in the org-level
- * {@link DataRetentionSettings.piiRedaction} rules list. A workflow log is
- * redacted on persist if any rule targets its workspace; the applicable rules'
- * entity types are unioned (an empty `entityTypes` means "redact all").
+ * {@link DataRetentionSettings.piiRedaction} rules list. Each rule targets one
+ * scope — all workspaces (`workspaceId: null`) or a single workspace — and
+ * `workspaceId` is unique across rules. Resolution is most-specific-wins: a
+ * workspace's own rule overrides the all-workspaces rule (never unioned).
  */
 export interface PiiRedactionRule {
   id: string
   name?: string
-  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
   entityTypes: string[]
-  /** When true the rule covers every workspace in the org. */
-  appliesToAllWorkspaces: boolean
-  /** Targeted workspace ids when `appliesToAllWorkspaces` is false. */
-  workspaceIds: string[]
+  /** `null` = all workspaces; otherwise the single targeted workspace. */
+  workspaceId: string | null
 }
 
 /**

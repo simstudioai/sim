@@ -85,21 +85,21 @@ export const userFileSchema = z
   })
   .passthrough()
 
-/** A single PII redaction rule targeting a set of workspaces. */
+/** A single PII redaction rule targeting one scope (all workspaces, or one). */
 export const piiRedactionRuleSchema = z.object({
   id: z.string().min(1),
   name: z.string().max(100).optional(),
-  /** Presidio entity types to mask. Empty = redact all detected PII. */
+  /** Presidio entity types to mask. Empty = redact nothing for this scope. */
   entityTypes: z.array(z.string().min(1, 'Entity type cannot be empty')).max(100),
-  appliesToAllWorkspaces: z.boolean(),
-  workspaceIds: z.array(z.string().min(1)).max(1000),
+  /** null = all workspaces; otherwise the single targeted workspace. */
+  workspaceId: z.string().min(1).nullable(),
 })
 
 export type PiiRedactionRule = z.output<typeof piiRedactionRuleSchema>
 
 /** Enterprise PII redaction policy applied to workflow logs on persist. */
 export const piiRedactionSettingsSchema = z.object({
-  rules: z.array(piiRedactionRuleSchema).max(100),
+  rules: z.array(piiRedactionRuleSchema).max(1000),
 })
 
 export type PiiRedactionSettings = z.output<typeof piiRedactionSettingsSchema>

@@ -13,10 +13,11 @@ export const DEFAULT_PII_REDACTION: EffectivePiiRedaction = {
 
 /**
  * Resolve the effective PII redaction policy for a workspace from the org-level
- * rules list: the entity types of every rule targeting the workspace are
- * unioned. A rule with no entity types selected redacts nothing (it contributes
- * nothing to the union), so an empty effective set means "redact nothing" —
- * never "redact everything". Defensive about the loosely-typed JSON column.
+ * rules list, most-specific-wins (never unioned): the workspace's own rule takes
+ * precedence over the all-workspaces rule (`workspaceId: null`). A resolved rule
+ * with no entity types redacts nothing — so a workspace-specific empty rule
+ * exempts that workspace, overriding the all rule. Defensive about the
+ * loosely-typed JSON column.
  */
 export function resolveEffectivePiiRedaction(params: {
   orgSettings: DataRetentionSettings | null | undefined
@@ -25,19 +26,13 @@ export function resolveEffectivePiiRedaction(params: {
   const rules = params.orgSettings?.piiRedaction?.rules
   if (!Array.isArray(rules) || rules.length === 0) return DEFAULT_PII_REDACTION
 
-  const applicable = rules.filter(
-    (rule) =>
-      rule?.appliesToAllWorkspaces === true ||
-      (Array.isArray(rule?.workspaceIds) && rule.workspaceIds.includes(params.workspaceId))
-  )
+  const rule =
+    rules.find((r) => r?.workspaceId === params.workspaceId) ??
+    rules.find((r) => r?.workspaceId == null)
 
-  const union = new Set<string>()
-  for (const rule of applicable) {
-    if (!Array.isArray(rule.entityTypes)) continue
-    for (const t of rule.entityTypes) {
-      if (typeof t === 'string') union.add(t)
-    }
-  }
-  if (union.size === 0) return DEFAULT_PII_REDACTION
-  return { enabled: true, entityTypes: [...union] }
+  const types = Array.isArray(rule?.entityTypes)
+    ? rule.entityTypes.filter((t): t is string => typeof t === 'string')
+    : []
+  if (types.length === 0) return DEFAULT_PII_REDACTION
+  return { enabled: true, entityTypes: types }
 }
