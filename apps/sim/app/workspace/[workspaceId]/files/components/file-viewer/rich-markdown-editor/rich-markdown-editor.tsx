@@ -172,9 +172,10 @@ export function LoadedRichMarkdownEditor({
   // streamed body in via setContent (this ref is never written again).
   const initialBodyRef = useRef(streamingAtMountRef.current ? '' : splitFrontmatter(content).body)
   // The frontmatter re-attached on every change. Empty until the content settles (the editor never
-  // displays frontmatter, so a streamed doc simply shows its body).
-  const frontmatterRef = useRef('')
-  frontmatterRef.current = settledRef.current?.frontmatter ?? ''
+  // displays frontmatter, so a streamed doc simply shows its body). Re-derived in the settle effect
+  // on each stream→settle, so a repeat stream re-attaches the settled doc's frontmatter, never a
+  // stale one.
+  const frontmatterRef = useRef(settledRef.current?.frontmatter ?? '')
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
@@ -272,9 +273,15 @@ export function LoadedRichMarkdownEditor({
   // and hand control to the user. After the hand-off, only `canEdit` changes touch the editor — the
   // editor owns the content, so there is no sync that could clobber a user edit.
   const lastSyncedBodyRef = useRef<string | null>(null)
+  // Whether the editor was streaming on the previous effect run, so the settle branch can re-lock on
+  // each stream→settle transition. An agent can edit the same file more than once within a chat, and
+  // `previewContextKey` (the chat id) keeps this instance mounted across those edits — so the verdict
+  // + frontmatter must be re-derived per stream, not frozen on the first settled snapshot.
+  const wasStreamingRef = useRef(streamingAtMountRef.current)
   useEffect(() => {
     if (!editor) return
     if (isStreaming) {
+      wasStreamingRef.current = true
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
       lastSyncedBodyRef.current = body
@@ -285,8 +292,15 @@ export function LoadedRichMarkdownEditor({
       if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
       return
     }
-    if (settledRef.current === null) {
+    // Settle: lock the verdict + frontmatter on the freshly-settled content. Re-lock on the initial
+    // settle and on every later stream→settle, so a repeat agent edit gates editability + frontmatter
+    // on the NEW content rather than a stale pre-stream snapshot. User edits never re-derive (they
+    // keep `isStreaming`/`wasStreamingRef` false), preserving the don't-strand-edits rule.
+    const isInitialSettle = settledRef.current === null
+    if (isInitialSettle || wasStreamingRef.current) {
+      wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
+      frontmatterRef.current = settledRef.current.frontmatter
       // Re-seed only if the settled body differs from the last streamed chunk — it usually doesn't,
       // and an extra setContent would needlessly rebuild the doc and drop selection/scroll.
       const body = splitFrontmatter(content).body
@@ -295,10 +309,10 @@ export function LoadedRichMarkdownEditor({
         editor.commands.setContent(body, { contentType: 'markdown', emitUpdate: false })
       }
       editor.setEditable(canEdit && settledRef.current.verdict)
-      if (autoFocus) editor.commands.focus('end')
+      if (isInitialSettle && autoFocus) editor.commands.focus('end')
       return
     }
-    editor.setEditable(canEdit && settledRef.current.verdict)
+    if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
   }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
 
   return (
