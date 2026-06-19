@@ -54,23 +54,9 @@ export function MarkdownFileEditor({
     return <PreviewLoadingFrame className='flex flex-1 flex-col' />
   }
 
-  if (decisionRef.current === null && error) {
-    return (
-      <TextEditor
-        file={file}
-        workspaceId={workspaceId}
-        canEdit={canEdit}
-        previewMode='editor'
-        autoFocus={autoFocus}
-        onDirtyChange={onDirtyChange}
-        onSaveStatusChange={onSaveStatusChange}
-        saveRef={saveRef}
-        disableStreamingAutoScroll={false}
-      />
-    )
-  }
-
-  if (decisionRef.current === false) {
+  // Fall back to the raw editor when the content can't round-trip losslessly, or the fetch failed
+  // (a later retry-success resolves `data` and the gate decides normally).
+  if (decisionRef.current === false || (decisionRef.current === null && error)) {
     return (
       <TextEditor
         file={file}
