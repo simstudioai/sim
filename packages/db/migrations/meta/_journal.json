@@ -1685,8 +1685,22 @@
     {
       "idx": 241,
       "version": "7",
-      "when": 1781820290132,
-      "tag": "0241_data_retention_pii_redaction_and_workspace_override",
+      "when": 1781700000000,
+      "tag": "0241_drop_table_row_cap_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 242,
+      "version": "7",
+      "when": 1781818772450,
+      "tag": "0242_public_share",
+      "breakpoints": true
+    },
+    {
+      "idx": 243,
+      "version": "7",
+      "when": 1781836685588,
+      "tag": "0243_data_retention_pii_redaction_and_workspace_override",
       "breakpoints": true
     }
   ]

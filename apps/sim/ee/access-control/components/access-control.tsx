@@ -644,6 +644,12 @@ export function AccessControl() {
         category: 'Features',
         configKey: 'disablePublicApi' as const,
       },
+      {
+        id: 'disable-public-file-sharing',
+        label: 'Public Sharing',
+        category: 'Files',
+        configKey: 'disablePublicFileSharing' as const,
+      },
     ],
     []
   )

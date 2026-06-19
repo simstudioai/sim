@@ -1420,6 +1420,39 @@ export const workspaceFiles = pgTable(
   })
 )
 
+/**
+ * Public share links for workspace resources. Polymorphic on `resourceType` so a
+ * single mechanism serves files now and folders later. One row per resource
+ * (disable/re-enable flips `isActive` and keeps the same token).
+ */
+export const publicShare = pgTable(
+  'public_share',
+  {
+    id: text('id').primaryKey(),
+    resourceType: text('resource_type').notNull(), // 'file' | 'folder' (folder reserved for future)
+    resourceId: text('resource_id').notNull(),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    // SET NULL (not CASCADE) so a share — and its public link — outlives the user
+    // who created it; the file still belongs to the workspace.
+    createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
+    token: text('token').notNull(),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    tokenIdx: uniqueIndex('public_share_token_unique').on(table.token),
+    resourceUniqueIdx: uniqueIndex('public_share_resource_unique').on(
+      table.resourceType,
+      table.resourceId
+    ),
+    resourceIdIdx: index('public_share_resource_id_idx').on(table.resourceId),
+    workspaceIdIdx: index('public_share_workspace_id_idx').on(table.workspaceId),
+  })
+)
+
 export const permissionTypeEnum = pgEnum('permission_type', ['admin', 'write', 'read'])
 
 export const invitationWorkspaceGrant = pgTable(

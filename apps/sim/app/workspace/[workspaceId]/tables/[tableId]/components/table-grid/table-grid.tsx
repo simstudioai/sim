@@ -619,7 +619,7 @@ export function TableGrid({
 
   const hasWorkflowColumns = columns.some((c) => !!c.workflowGroupId)
   const { colWidth: checkboxColWidth, numRegionWidth } = checkboxColLayout(
-    tableData?.maxRows ?? 0,
+    tableData?.rowCount ?? 0,
     hasWorkflowColumns
   )
 

@@ -33,8 +33,8 @@ import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('InvitationCore')
 
-const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
-type PermissionLevel = keyof typeof PERMISSION_RANK
+export const PERMISSION_RANK = { read: 0, write: 1, admin: 2 } as const
+export type PermissionLevel = keyof typeof PERMISSION_RANK
 
 export const INVITATION_EXPIRY_DAYS = 7
 

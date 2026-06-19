@@ -30,19 +30,23 @@ export const handleSpanEvent: StreamHandler = (event, context) => {
   if (kind === MothershipStreamV1SpanPayloadKind.subagent) {
     const scopeAgent =
       typeof payload.agent === 'string' && payload.agent ? payload.agent : 'subagent'
+    // Key by the deterministic spanId so two concurrent runs of the SAME agent
+    // (e.g. two parallel `research` subagents) get distinct trace spans. Fall
+    // back to agent:parentToolCallId for legacy events that predate span ids.
+    const traceKey = event.scope?.spanId || `${scopeAgent}:${event.scope?.parentToolCallId || ''}`
     if (evt === MothershipStreamV1SpanLifecycleEvent.start) {
       const span = context.trace.startSpan(`subagent:${scopeAgent}`, 'go.subagent', {
         agent: scopeAgent,
         parentToolCallId: event.scope?.parentToolCallId,
+        spanId: event.scope?.spanId,
       })
       context.subAgentTraceSpans ??= new Map()
-      context.subAgentTraceSpans.set(`${scopeAgent}:${event.scope?.parentToolCallId || ''}`, span)
+      context.subAgentTraceSpans.set(traceKey, span)
     } else if (evt === MothershipStreamV1SpanLifecycleEvent.end) {
-      const key = `${scopeAgent}:${event.scope?.parentToolCallId || ''}`
-      const span = context.subAgentTraceSpans?.get(key)
+      const span = context.subAgentTraceSpans?.get(traceKey)
       if (span) {
         context.trace.endSpan(span, 'ok')
-        context.subAgentTraceSpans?.delete(key)
+        context.subAgentTraceSpans?.delete(traceKey)
       }
     }
     return

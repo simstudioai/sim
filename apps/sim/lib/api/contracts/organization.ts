@@ -318,6 +318,8 @@ export const inviteOrganizationMembersContract = defineRouteContract({
           .object({
             invitationsSent: z.number(),
             invitedEmails: z.array(z.string()),
+            directlyAdded: z.array(z.string()).optional(),
+            directlyAddedCount: z.number().optional(),
             failedInvitations: z.array(z.object({ email: z.string(), error: z.string() })),
             existingMembers: z.array(z.string()),
             pendingInvitations: z.array(z.string()),

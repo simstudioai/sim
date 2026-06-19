@@ -20,6 +20,7 @@ import {
   BatchInvitationEmail,
   InvitationEmail,
   PollingGroupInvitationEmail,
+  WorkspaceAddedEmail,
   WorkspaceInvitationEmail,
 } from '@/components/emails/invitations'
 import { HelpConfirmationEmail } from '@/components/emails/support'
@@ -211,6 +212,20 @@ export async function renderWorkspaceInvitationEmail(
       inviterName,
       workspaceNames,
       invitationLink,
+    })
+  )
+}
+
+export async function renderWorkspaceAddedEmail(
+  inviterName: string,
+  workspaceName: string,
+  workspaceLink: string
+): Promise<string> {
+  return await render(
+    WorkspaceAddedEmail({
+      inviterName,
+      workspaceName,
+      workspaceLink,
     })
   )
 }

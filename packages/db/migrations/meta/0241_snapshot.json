@@ -1,5 +1,5 @@
 {
-  "id": "57dabdfc-b19d-44bc-9afa-58b95cd8f589",
+  "id": "f7a9fd28-8bd2-4421-a048-a0a768fc8475",
   "prevId": "34c63a54-3015-4e6d-9bed-5fe0d53f5741",
   "version": "7",
   "dialect": "postgresql",
@@ -15433,12 +15433,6 @@
         "inbox_provider_id": {
           "name": "inbox_provider_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "data_retention_settings": {
-          "name": "data_retention_settings",
-          "type": "json",
           "primaryKey": false,
           "notNull": false
         },
