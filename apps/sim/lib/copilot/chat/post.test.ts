@@ -144,7 +144,7 @@ describe('handleUnifiedChatPost', () => {
     getEffectiveDecryptedEnv.mockResolvedValue({ API_KEY: 'secret' })
     generateWorkspaceSnapshot.mockResolvedValue({
       markdown: 'workspace context',
-      snapshot: undefined,
+      snapshot: { workflows: [{ id: 'wf-1', name: 'Alpha', path: 'workflows/Alpha' }] },
     })
     processContextsServer.mockResolvedValue([])
     resolveActiveResourceContext.mockResolvedValue(null)
@@ -186,6 +186,8 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         model: 'claude-opus-4-8',
         workspaceContext: 'workspace context',
+        // Regression guard: the branch must forward the typed snapshot, not drop it.
+        vfs: expect.objectContaining({ workflows: expect.any(Array) }),
       }),
       { selectedModel: 'claude-opus-4-8' }
     )
@@ -224,6 +226,8 @@ describe('handleUnifiedChatPost', () => {
       expect.objectContaining({
         workspaceId: 'ws-1',
         workspaceContext: 'workspace context',
+        // Regression guard: the branch must forward the typed snapshot, not drop it.
+        vfs: expect.objectContaining({ workflows: expect.any(Array) }),
       }),
       { selectedModel: '' }
     )
