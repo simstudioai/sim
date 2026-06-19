@@ -1891,6 +1891,7 @@ export function Files() {
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
+            inlineMarkdownEditor
           />
 
           <ChipConfirmModal

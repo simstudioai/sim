@@ -101,6 +101,12 @@ interface FileViewerProps {
   streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  /**
+   * Render idle markdown in the inline rich editor. Off by default so preview surfaces (e.g. the
+   * Chat resource view, which streams content and persists via the raw editor) keep the
+   * mode-toggleable raw/preview editor; the files view opts in.
+   */
+  inlineMarkdownEditor?: boolean
 }
 
 export function FileViewer({
@@ -117,6 +123,7 @@ export function FileViewer({
   streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  inlineMarkdownEditor = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -136,7 +143,7 @@ export function FileViewer({
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
     }
 
-    if (isMarkdownFile(file) && streamingContent === undefined) {
+    if (inlineMarkdownEditor && isMarkdownFile(file) && streamingContent === undefined) {
       return (
         <MarkdownFileEditor
           key={file.id}
