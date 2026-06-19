@@ -58,6 +58,16 @@ export const useSidebarStore = create<SidebarState>()(
     }),
     {
       name: 'sidebar-state',
+      /**
+       * Hydration is driven manually from a `useLayoutEffect` (see Sidebar) so it
+       * runs synchronously before the first paint. Auto-hydration would either
+       * (a) run at module load and make the client's first render disagree with
+       * the server's `isCollapsed: false` HTML — a mismatch React recovers from by
+       * flashing the server tree, or (b) run after paint, reflowing the expanded
+       * tree into the collapsed rail. Skipping it lets the layout effect flip the
+       * structure in the same pre-paint commit, so neither flash is visible.
+       */
+      skipHydration: true,
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)

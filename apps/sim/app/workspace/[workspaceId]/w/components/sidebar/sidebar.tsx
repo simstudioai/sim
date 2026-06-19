@@ -382,6 +382,15 @@ export const Sidebar = memo(function Sidebar() {
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
+  // Hydrate the persisted sidebar state before the browser paints. The store
+  // sets `skipHydration` so its default (`isCollapsed: false`) matches the SSR
+  // HTML on first render; flushing rehydration here re-renders the correct
+  // collapsed/expanded structure synchronously in the same pre-paint commit,
+  // preventing the expanded tree from flashing inside the collapsed rail.
+  useLayoutEffect(() => {
+    void useSidebarStore.persist.rehydrate()
+  }, [])
+
   const isCollapsedRef = useRef(isCollapsed)
   useLayoutEffect(() => {
     isCollapsedRef.current = isCollapsed
