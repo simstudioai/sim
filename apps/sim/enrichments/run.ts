@@ -83,7 +83,6 @@ export async function runEnrichment(
   let errorCount = 0
   let lastError: string | null = null
   let matchedProvider: string | null = null
-  let matchedIndex = -1
   let winner: { result: Record<string, unknown>; label: string } | null = null
   const providers: EnrichmentProviderOutcome[] = []
   const startedAt = Date.now()
@@ -147,7 +146,6 @@ export async function runEnrichment(
           error: null,
         })
         matchedProvider = provider.id
-        matchedIndex = i
         winner = { result, label: provider.label }
         logger.info('Enrichment hit', { enrichmentId: enrichment.id, provider: provider.id })
         break
@@ -182,21 +180,21 @@ export async function runEnrichment(
     }
   }
 
-  // The cascade short-circuits on a match — record the providers it never
-  // reached so the panel shows the full configured cascade.
-  if (matchedIndex >= 0) {
-    for (let i = matchedIndex + 1; i < enrichment.providers.length; i++) {
-      const provider = enrichment.providers[i]
-      providers.push({
-        id: provider.id,
-        label: provider.label,
-        toolId: provider.toolId,
-        status: 'not_run',
-        cost: 0,
-        durationMs: 0,
-        error: null,
-      })
-    }
+  // Any provider not represented yet never ran — the cascade short-circuited on
+  // a match or aborted mid-run. Record them as `not_run` (in registry order) so
+  // the panel always shows the full configured cascade.
+  const seen = new Set(providers.map((p) => p.id))
+  for (const provider of enrichment.providers) {
+    if (seen.has(provider.id)) continue
+    providers.push({
+      id: provider.id,
+      label: provider.label,
+      toolId: provider.toolId,
+      status: 'not_run',
+      cost: 0,
+      durationMs: 0,
+      error: null,
+    })
   }
 
   const completedAt = Date.now()

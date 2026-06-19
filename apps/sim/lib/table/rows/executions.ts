@@ -276,7 +276,11 @@ export async function writeExecutionsPatch(
             runningBlockIds: insertValues.runningBlockIds,
             blockErrors: insertValues.blockErrors,
             cancelledAt: insertValues.cancelledAt,
-            enrichmentDetails: insertValues.enrichmentDetails,
+            // Sticky: preserve a prior cascade breakdown when this write omits
+            // it (e.g. the running pickup stamp) so only an explicit detail
+            // overwrites it. Re-runs delete the row first, so this never serves
+            // stale detail across runs.
+            enrichmentDetails: sql`coalesce(excluded.enrichment_details, ${tableRowExecutions.enrichmentDetails})`,
             updatedAt: insertValues.updatedAt,
           },
           where: and(
@@ -311,7 +315,10 @@ export async function writeExecutionsPatch(
           runningBlockIds: insertValues.runningBlockIds,
           blockErrors: insertValues.blockErrors,
           cancelledAt: insertValues.cancelledAt,
-          enrichmentDetails: insertValues.enrichmentDetails,
+          // Sticky: preserve a prior cascade breakdown when this write omits it
+          // (e.g. the running pickup stamp) so only an explicit detail overwrites
+          // it. Re-runs delete the row first, so this never serves stale detail.
+          enrichmentDetails: sql`coalesce(excluded.enrichment_details, ${tableRowExecutions.enrichmentDetails})`,
           updatedAt: insertValues.updatedAt,
         },
       })

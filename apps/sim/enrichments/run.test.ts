@@ -125,6 +125,21 @@ describe('runEnrichment cascade detail', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
+  it('marks unattempted providers not_run when the signal is already aborted', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const outcome = await runEnrichment(
+      config([prov('a'), prov('b')]),
+      {},
+      {
+        ...ctx,
+        signal: controller.signal,
+      }
+    )
+    expect(mockExecuteTool).not.toHaveBeenCalled()
+    expect(outcome.detail.providers.map((p) => p.status)).toEqual(['not_run', 'not_run'])
+  })
+
   it('does not error when some providers no-match and only some error', async () => {
     mockExecuteTool.mockImplementation((toolId: string) => {
       if (toolId === 'tool_a') return { success: false, output: { status: 500 } }
