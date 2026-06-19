@@ -76,6 +76,7 @@ vi.mock('@/lib/core/security/deployment', () => ({
   validateAuthToken: mockValidateAuthToken,
   setDeploymentAuthCookie: mockSetDeploymentAuthCookie,
   isEmailAllowed: mockIsEmailAllowed,
+  deploymentAuthCookieName: (prefix: string, id: string) => `${prefix}_auth_${id}`,
 }))
 
 vi.mock('@/lib/core/config/env-flags', () => ({

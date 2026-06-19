@@ -72,19 +72,27 @@ export function validateAuthToken(
   }
 }
 
+/** The kind of deployed resource an auth cookie/token belongs to. */
+export type DeploymentAuthKind = 'chat' | 'file'
+
+/** Canonical auth cookie name for a deployed resource (`{kind}_auth_{id}`). */
+export function deploymentAuthCookieName(cookiePrefix: DeploymentAuthKind, id: string): string {
+  return `${cookiePrefix}_auth_${id}`
+}
+
 /**
  * Sets an authentication cookie for a deployment
  */
 export function setDeploymentAuthCookie(
   response: NextResponse,
-  cookiePrefix: 'chat',
+  cookiePrefix: DeploymentAuthKind,
   deploymentId: string,
   authType: string,
   encryptedPassword?: string | null
 ): void {
   const token = generateAuthToken(deploymentId, authType, encryptedPassword)
   response.cookies.set({
-    name: `${cookiePrefix}_auth_${deploymentId}`,
+    name: deploymentAuthCookieName(cookiePrefix, deploymentId),
     value: token,
     httpOnly: true,
     secure: !isDev,

@@ -81,7 +81,7 @@ export const PUT = withRouteHandler(
       const parsed = await parseRequest(upsertFileShareContract, request, context)
       if (!parsed.success) return parsed.response
       const { id: workspaceId, fileId } = parsed.data.params
-      const { isActive } = parsed.data.body
+      const { isActive, authType, password, allowedEmails, token } = parsed.data.body
 
       const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
       if (permission !== 'admin' && permission !== 'write') {
@@ -115,6 +115,10 @@ export const PUT = withRouteHandler(
         fileId,
         userId: session.user.id,
         isActive,
+        authType,
+        password,
+        allowedEmails,
+        token,
       })
 
       logger.info(`[${requestId}] ${isActive ? 'Enabled' : 'Disabled'} share for file ${fileId}`)

@@ -1408,6 +1408,12 @@ export const publicShare = pgTable(
     createdBy: text('created_by').references(() => user.id, { onDelete: 'set null' }),
     token: text('token').notNull(),
     isActive: boolean('is_active').notNull().default(true),
+    // 'public' (anyone with the link) | 'password' | 'email' (OTP) | 'sso'.
+    authType: text('auth_type').notNull().default('public'),
+    // AES-256-GCM encrypted share password; null unless authType is 'password'.
+    password: text('password'),
+    // Allowed emails/domains (e.g. '@acme.com') when authType is 'email' or 'sso'.
+    allowedEmails: json('allowed_emails').default('[]'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },

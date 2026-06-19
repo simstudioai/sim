@@ -4,7 +4,12 @@ import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { z } from 'zod'
-import type { ShareRecord, shareResourceTypeSchema } from '@/lib/api/contracts/public-shares'
+import type {
+  ShareAuthType,
+  ShareRecord,
+  shareResourceTypeSchema,
+} from '@/lib/api/contracts/public-shares'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('PublicShareManager')
@@ -26,6 +31,9 @@ function mapShareRecord(row: PublicShareRow): ShareRecord {
     isActive: row.isActive,
     resourceType: row.resourceType as ShareResourceType,
     resourceId: row.resourceId,
+    authType: row.authType as ShareAuthType,
+    hasPassword: Boolean(row.password),
+    allowedEmails: Array.isArray(row.allowedEmails) ? (row.allowedEmails as string[]) : [],
   }
 }
 
@@ -71,19 +79,64 @@ interface UpsertFileShareInput {
   fileId: string
   userId: string
   isActive: boolean
+  /** Defaults to the existing share's authType (or `'public'` for a new share). */
+  authType?: ShareAuthType
+  /** Plaintext password to set; encrypted at rest. Required to first enable a password share. */
+  password?: string
+  /** Allowed emails/domains; required to enable an `email`/`sso` share without an existing list. */
+  allowedEmails?: string[]
+  /** Client-reserved token to persist on first insert; ignored when the share already exists. */
+  token?: string
 }
 
 /**
  * Enable or disable the public share for a file. First enable inserts a row with
- * a fresh unguessable token; subsequent calls flip `isActive` and keep the token
- * stable (so an existing link resolves again after re-enable).
+ * a fresh unguessable token; subsequent calls flip `isActive`/`authType` and keep
+ * the token stable (so an existing link resolves again after re-enable).
+ *
+ * Auth handling (fail-fast): `password` requires a plaintext `password` unless the
+ * share already has one (encrypted at rest via {@link encryptSecret}); `email`/`sso`
+ * require a non-empty `allowedEmails` (provided or already stored); any other type
+ * clears both the password and the allow-list.
  */
 export async function upsertFileShare({
   workspaceId,
   fileId,
   userId,
   isActive,
+  authType,
+  password,
+  allowedEmails,
+  token,
 }: UpsertFileShareInput): Promise<ShareRecord> {
+  const [existing] = await db
+    .select()
+    .from(publicShare)
+    .where(and(eq(publicShare.resourceType, 'file'), eq(publicShare.resourceId, fileId)))
+    .limit(1)
+
+  const finalAuthType: ShareAuthType =
+    authType ?? (existing?.authType as ShareAuthType | undefined) ?? 'public'
+
+  let finalPassword: string | null = null
+  let finalAllowedEmails: string[] = []
+  if (finalAuthType === 'password') {
+    if (password) {
+      finalPassword = (await encryptSecret(password)).encrypted
+    } else if (existing?.password) {
+      finalPassword = existing.password
+    } else {
+      throw new Error('Password is required for password-protected shares')
+    }
+  } else if (finalAuthType === 'email' || finalAuthType === 'sso') {
+    finalAllowedEmails =
+      allowedEmails ??
+      (Array.isArray(existing?.allowedEmails) ? (existing.allowedEmails as string[]) : [])
+    if (finalAllowedEmails.length === 0) {
+      throw new Error('At least one allowed email is required for email/SSO shares')
+    }
+  }
+
   const [row] = await db
     .insert(publicShare)
     .values({
@@ -92,16 +145,31 @@ export async function upsertFileShare({
       resourceId: fileId,
       workspaceId,
       createdBy: userId,
-      token: generateShortId(),
+      token: token ?? generateShortId(),
       isActive,
+      authType: finalAuthType,
+      password: finalPassword,
+      allowedEmails: finalAllowedEmails,
     })
     .onConflictDoUpdate({
       target: [publicShare.resourceType, publicShare.resourceId],
-      set: { isActive, updatedAt: new Date() },
+      set: {
+        isActive,
+        authType: finalAuthType,
+        password: finalPassword,
+        allowedEmails: finalAllowedEmails,
+        updatedAt: new Date(),
+      },
     })
     .returning()
 
-  logger.info('Upserted file share', { fileId, workspaceId, isActive, token: row.token })
+  logger.info('Upserted file share', {
+    fileId,
+    workspaceId,
+    isActive,
+    authType: finalAuthType,
+    token: row.token,
+  })
   return mapShareRecord(row)
 }
 
