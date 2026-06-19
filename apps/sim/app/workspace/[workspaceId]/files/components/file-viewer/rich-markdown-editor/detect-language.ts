@@ -16,6 +16,18 @@ const DETECTORS: ReadonlyArray<{ language: string; test: RegExp }> = [
     test: /^#!.*\b(ba)?sh\b|^\s*(sudo|apt|brew|npm|yarn|bun|git|cd|echo|export|chmod|mkdir)\s|\$\(/m,
   },
   {
+    language: 'go',
+    test: /^\s*package\s+\w+|\bfunc\s+(\(\w[^)]*\)\s+)?\w+\s*\(|\bfmt\.\w|:=/m,
+  },
+  {
+    language: 'rust',
+    test: /\bfn\s+\w+\s*[(<]|\blet\s+mut\b|\bimpl\b|\bpub\s+(fn|struct|enum|mod)\b|println!/,
+  },
+  {
+    language: 'java',
+    test: /\b(public|private|protected)\s+(static\s+)?(final\s+)?(class|void|int|String|boolean)\b|System\.out\.print/,
+  },
+  {
     language: 'typescript',
     test: /\b(interface|type)\s+\w+\s*[={]|:\s*(string|number|boolean)\b|\bimport\s+type\b|\bas\s+\w+\s*;/,
   },

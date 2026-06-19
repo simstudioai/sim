@@ -7,7 +7,6 @@ import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
-import { PreviewPanel } from '../preview-panel'
 import { PreviewLoadingFrame } from '../preview-shared'
 import type { StreamingMode } from '../text-editor-state'
 import { useEditableFileContent } from '../use-editable-file-content'
@@ -96,29 +95,17 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     )
   }
 
-  if (isStreamInteractionLocked) {
-    return (
-      <PreviewPanel
-        key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
-        content={content}
-        mimeType={file.type}
-        filename={file.name}
-        workspaceId={workspaceId}
-        fileKey={file.key}
-        isStreaming
-        disableAutoScroll={disableStreamingAutoScroll}
-      />
-    )
-  }
-
   return (
     <LoadedRichMarkdownEditor
-      key={file.id}
+      // Remount on a new streaming context so the stream/settle state is re-established fresh.
+      key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
       file={file}
       workspaceId={workspaceId}
-      initialContent={content}
+      content={content}
+      streaming={isStreamInteractionLocked}
       canEdit={canEdit}
       autoFocus={autoFocus}
+      disableStreamingAutoScroll={disableStreamingAutoScroll}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
     />
@@ -128,54 +115,66 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
 interface LoadedRichMarkdownEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
-  initialContent: string
+  /** The live content from the engine — grows as the agent streams, then settles to the saved doc. */
+  content: string
+  /** True while agent output is streaming in: the editor renders it read-only and syncs each chunk. */
+  streaming: boolean
   canEdit: boolean
   autoFocus?: boolean
+  disableStreamingAutoScroll?: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
 }
 
 /**
- * The mounted TipTap editor. Receives the file's loaded markdown as {@link initialContent} and hands
- * it to {@link useEditor} as the initial document (parsed at create time by the markdown extension),
- * so there is no imperative content sync. Frontmatter is held aside and re-applied on every change,
- * so the editor only ever round-trips the body.
+ * The single TipTap editor for a markdown file — the only surface the user ever sees. While agent
+ * output streams in ({@link streaming}) it renders that content read-only and re-syncs each chunk;
+ * when the stream settles it locks the round-trip verdict + frontmatter on the final content and
+ * hands control to the user. A file opened outside a stream skips straight to that editable state via
+ * the initial-content model (no imperative sync). Frontmatter is held aside and re-applied on every
+ * change, so the editor only ever round-trips the body.
  */
-function LoadedRichMarkdownEditor({
+export function LoadedRichMarkdownEditor({
   file,
   workspaceId,
-  initialContent,
+  content,
+  streaming,
   canEdit,
   autoFocus,
+  disableStreamingAutoScroll,
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
-  // Whether the opened content round-trips losslessly through the editor — computed once, on the
-  // exact content the editor opens with (keyed by file id, so it remounts per file), and locked for
-  // the editor's lifetime. A round-trip-unsafe document (raw HTML, footnotes, >128KB, …) opens
-  // read-only so an edit can't corrupt it; a safe one stays editable. It is never re-derived: a
-  // dirty document is round-trip-safe by construction (the editor only emits safe markdown), so
-  // flipping editability off mid-edit would only strand unsaved edits (autosave, ⌘S, the toolbar
-  // Save, and the unmount flush all gate on it).
-  const roundTripSafeRef = useRef<boolean | null>(null)
-  if (roundTripSafeRef.current === null) {
-    roundTripSafeRef.current = isRoundTripSafe(initialContent)
-  }
-  const isEditable = canEdit && roundTripSafeRef.current
+  // Whether this editor mounted mid-stream. If so it starts empty + read-only and syncs the streamed
+  // content until the stream settles; otherwise it uses the plain create-time initial-content model.
+  const streamingAtMountRef = useRef(streaming)
 
-  // Split frontmatter off once, on the opened content (stable for the editor's lifetime, like the
-  // verdict above): the body seeds the editor's initial document, and the frontmatter is re-attached
-  // on every change so the editor only ever round-trips the body.
-  const splitRef = useRef<{ frontmatter: string; body: string } | null>(null)
-  if (splitRef.current === null) {
-    splitRef.current = splitFrontmatter(initialContent)
+  // The round-trip verdict + frontmatter, locked once on the content the editor "opens" with — at
+  // mount for a settled file, or at the moment the stream settles for a streamed one. A round-trip-
+  // unsafe document (raw HTML, footnotes, >128KB, …) opens read-only so an edit can't corrupt it; a
+  // safe one is editable. Once locked it is never re-derived: a dirty document is safe by construction
+  // (the editor only emits safe markdown), so flipping editability off mid-edit would strand edits.
+  const settledRef = useRef<{ frontmatter: string; verdict: boolean } | null>(null)
+  if (!streamingAtMountRef.current && settledRef.current === null) {
+    settledRef.current = {
+      frontmatter: splitFrontmatter(content).frontmatter,
+      verdict: isRoundTripSafe(content),
+    }
   }
-  const { frontmatter, body } = splitRef.current
+  const isEditable = canEdit && !streaming && (settledRef.current?.verdict ?? false)
+
+  // The body that seeds the editor at create time — empty when streaming (filled by the sync effect).
+  const initialBodyRef = useRef(streamingAtMountRef.current ? '' : splitFrontmatter(content).body)
+  // The frontmatter re-attached on every change. Empty until the content settles (the editor never
+  // displays frontmatter, so a streamed doc simply shows its body).
+  const frontmatterRef = useRef('')
+  frontmatterRef.current = settledRef.current?.frontmatter ?? ''
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
 
+  const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
 
@@ -215,10 +214,10 @@ function LoadedRichMarkdownEditor({
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: isEditable,
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    content: body,
+    content: initialBodyRef.current,
     contentType: 'markdown',
     editorProps: {
       attributes: { class: 'rich-markdown-prose' },
@@ -258,17 +257,45 @@ function LoadedRichMarkdownEditor({
     },
     onUpdate: ({ editor }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
-      onChangeRef.current(applyFrontmatter(frontmatter, md))
+      onChangeRef.current(applyFrontmatter(frontmatterRef.current, md))
     },
   })
   editorInstanceRef.current = editor
 
+  // Stream content into the editor (read-only) until it settles, then lock the verdict + frontmatter
+  // and hand control to the user. After the hand-off, only `canEdit` changes touch the editor — the
+  // editor owns the content, so there is no sync that could clobber a user edit.
+  const lastSyncedBodyRef = useRef<string | null>(null)
   useEffect(() => {
-    editor?.setEditable(isEditable)
-  }, [editor, isEditable])
+    if (!editor) return
+    if (streaming) {
+      const body = splitFrontmatter(content).body
+      if (body === lastSyncedBodyRef.current) return
+      lastSyncedBodyRef.current = body
+      const el = containerRef.current
+      const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
+      editor.setEditable(false)
+      editor.commands.setContent(body, { contentType: 'markdown', emitUpdate: false })
+      if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
+      return
+    }
+    if (settledRef.current === null) {
+      const { frontmatter, body } = splitFrontmatter(content)
+      settledRef.current = { frontmatter, verdict: isRoundTripSafe(content) }
+      lastSyncedBodyRef.current = body
+      editor.commands.setContent(body, { contentType: 'markdown', emitUpdate: false })
+      editor.setEditable(canEdit && settledRef.current.verdict)
+      if (autoFocus) editor.commands.focus('end')
+      return
+    }
+    editor.setEditable(canEdit && settledRef.current.verdict)
+  }, [editor, content, streaming, canEdit, autoFocus, disableStreamingAutoScroll])
 
   return (
-    <div className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}>
+    <div
+      ref={containerRef}
+      className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
+    >
       {editor && <EditorBubbleMenu editor={editor} />}
       <EditorContent
         editor={editor}
