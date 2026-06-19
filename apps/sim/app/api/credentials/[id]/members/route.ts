@@ -12,6 +12,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { deriveCredentialAdmin, isSharedCredentialType } from '@/lib/credentials/access'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getUserEntityPermissions,
@@ -36,8 +37,6 @@ async function requireCredentialAdmin(credentialId: string, userId: string) {
   const perm = await getUserEntityPermissions(userId, 'workspace', cred.workspaceId)
   if (perm === null) return null
 
-  const isWorkspaceAdmin = cred.type !== 'env_personal' && perm === 'admin'
-
   const [membership] = await db
     .select({ role: credentialMember.role, status: credentialMember.status })
     .from(credentialMember)
@@ -46,9 +45,13 @@ async function requireCredentialAdmin(credentialId: string, userId: string) {
     )
     .limit(1)
 
-  const isCredentialAdmin = membership?.status === 'active' && membership?.role === 'admin'
+  const isAdmin = deriveCredentialAdmin({
+    credentialType: cred.type,
+    memberRole: membership?.status === 'active' ? membership.role : null,
+    workspaceCanAdmin: perm === 'admin',
+  })
 
-  if (!isWorkspaceAdmin && !isCredentialAdmin) {
+  if (!isAdmin) {
     return null
   }
   return { credentialType: cred.type, workspaceId: cred.workspaceId }
@@ -112,7 +115,7 @@ export const GET = withRouteHandler(async (_request: NextRequest, context: Route
       ])
     )
 
-    if (cred.type !== 'env_personal') {
+    if (isSharedCredentialType(cred.type)) {
       const workspaceMembers = await getUsersWithPermissions(cred.workspaceId)
       for (const wsMember of workspaceMembers) {
         if (wsMember.permissionType !== 'admin') continue
@@ -163,7 +166,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
       })
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
-    if (admin.credentialType === 'env_personal') {
+    if (!isSharedCredentialType(admin.credentialType)) {
       logger.warn('Credential member share denied', {
         credentialId,
         actorId: session.user.id,
@@ -327,7 +330,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
       return NextResponse.json({ error: 'Member not found' }, { status: 404 })
     }
 
-    if (admin.credentialType !== 'env_personal') {
+    if (isSharedCredentialType(admin.credentialType)) {
       const targetWorkspacePerm = await getUserEntityPermissions(
         targetUserId,
         'workspace',

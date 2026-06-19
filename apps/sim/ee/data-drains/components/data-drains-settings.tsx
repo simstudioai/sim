@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { toError } from '@sim/utils/errors'
 import { ChevronDown, Plus } from 'lucide-react'
 import {
@@ -91,7 +92,7 @@ export function DataDrainsSettings() {
 
   const userEmail = session?.user?.email
   const userRole = getUserRole(activeOrganization, userEmail)
-  const canManage = userRole === 'owner' || userRole === 'admin'
+  const canManage = isOrgAdminRole(userRole)
 
   const { data: drains, isLoading: drainsLoading, error: drainsError } = useDataDrains(orgId)
 

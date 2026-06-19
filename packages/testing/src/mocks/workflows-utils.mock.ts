@@ -40,7 +40,7 @@ export const workflowsUtilsMockFns = {
  * - `validateWorkflowPermissions` resolves to an authorized result
  * - Other functions resolve to sensible empty/success defaults
  *
- * `authorizeWorkflowByWorkspacePermission` moved to `@sim/workflow-authz`;
+ * `authorizeWorkflowByWorkspacePermission` moved to `@sim/platform-authz/workflow`;
  * use `workflowAuthzMock` / `workflowAuthzMockFns` for that surface.
  *
  * @example

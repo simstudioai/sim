@@ -18,6 +18,9 @@ vi.mock('@sim/db', () => ({
 }))
 
 vi.mock('@sim/db/schema', () => ({
+  credentialTypeEnum: {
+    enumValues: ['oauth', 'env_workspace', 'env_personal', 'service_account'],
+  },
   credential: {
     id: 'credential.id',
     workspaceId: 'credential.workspaceId',

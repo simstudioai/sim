@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ChipDropdown,
@@ -310,7 +311,7 @@ export function OrganizationMemberLists({
     workspaceId: string,
     access: RosterWorkspaceAccess
   ) => {
-    const rowUserIsOrgAdmin = member.role === 'owner' || member.role === 'admin'
+    const rowUserIsOrgAdmin = isOrgAdminRole(member.role)
     const isSelf = member.userId === currentUserId
     const wouldDemoteSelf = isSelf && access.permission === 'admin'
     const disabled = rowUserIsOrgAdmin || wouldDemoteSelf || updatePermissions.isPending

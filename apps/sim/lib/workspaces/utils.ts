@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { member, permissions, workflow, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import type { PermissionType } from '@sim/platform-authz/workspace'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, count, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { DbOrTx } from '@/lib/db/types'
-import type { PermissionType } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceUtils')
 
@@ -61,7 +62,7 @@ export async function getOrgAdminWorkspaceRows(
     .where(eq(member.userId, userId))
     .limit(1)
 
-  if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+  if (!membership || !isOrgAdminRole(membership.role)) {
     return []
   }
 

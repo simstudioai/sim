@@ -11,7 +11,7 @@ import {
   getAccessibleEnvCredentials,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('EnvironmentUtils')
 const EFFECTIVE_DECRYPTED_ENV_CACHE_TTL_MS = 2_000
@@ -92,7 +92,8 @@ export async function getEnvironmentVariableKeys(userId: string): Promise<{
 
 export async function getPersonalAndWorkspaceEnv(
   userId: string,
-  workspaceId?: string
+  workspaceId?: string,
+  options?: { workspaceAccess?: WorkspaceAccess }
 ): Promise<{
   personalEncrypted: Record<string, string>
   workspaceEncrypted: Record<string, string>
@@ -103,7 +104,7 @@ export async function getPersonalAndWorkspaceEnv(
 }> {
   let workspaceCanAdmin = false
   if (workspaceId) {
-    const access = await checkWorkspaceAccess(workspaceId, userId)
+    const access = options?.workspaceAccess ?? (await checkWorkspaceAccess(workspaceId, userId))
     if (!access.hasAccess) {
       throw new Error(`Access denied to workspace ${workspaceId}`)
     }
@@ -169,7 +170,7 @@ export async function getPersonalAndWorkspaceEnv(
   let workspaceEncrypted: Record<string, string> = allWorkspaceEncrypted
 
   if (hasCredentialFiltering) {
-    personalEncrypted = {}
+    personalEncrypted = { ...ownPersonalEncrypted }
     for (const [envKey, ownerUserId] of selectedPersonalOwners.entries()) {
       const ownerVariables = ownerVariablesByUserId.get(ownerUserId)
       const encryptedValue = ownerVariables?.[envKey]

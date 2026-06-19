@@ -1,13 +1,12 @@
-import {
-  db,
-  member,
-  permissions,
-  type permissionTypeEnum,
-  workflow,
-  workflowFolder,
-  workspace,
-} from '@sim/db'
+import { db, workflow, workflowFolder, workspace } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import {
+  type PermissionType,
+  permissionSatisfies,
+  resolveEffectiveWorkspacePermission,
+} from './workspace'
+
+export type { PermissionType }
 
 export type ActiveWorkflowRecord = typeof workflow.$inferSelect
 
@@ -63,8 +62,6 @@ export async function assertActiveWorkflowContext(
   }
   return context
 }
-
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 type WorkflowRecord = typeof workflow.$inferSelect
 
@@ -252,51 +249,6 @@ export interface WorkflowWorkspaceAuthorizationResult {
   workspacePermission: PermissionType | null
 }
 
-/**
- * Resolves the effective workspace permission under the governance inheritance
- * model: the workspace owner and the owners/admins of the organization that
- * owns the workspace are workspace admins. Mirrors
- * `getEffectiveWorkspacePermission` in `apps/sim` (duplicated here because this
- * package may not import app code).
- */
-async function resolveEffectiveWorkspacePermission(
-  userId: string,
-  workspaceId: string,
-  workspaceOwnerId: string,
-  workspaceOrganizationId: string | null
-): Promise<PermissionType | null> {
-  if (workspaceOwnerId === userId) {
-    return 'admin'
-  }
-
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId)
-      )
-    )
-    .limit(1)
-
-  const explicit = (permissionRow?.permissionType as PermissionType | undefined) ?? null
-
-  if (workspaceOrganizationId && explicit !== 'admin') {
-    const [memberRow] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceOrganizationId)))
-      .limit(1)
-    if (memberRow?.role === 'owner' || memberRow?.role === 'admin') {
-      return 'admin'
-    }
-  }
-
-  return explicit
-}
-
 export async function authorizeWorkflowByWorkspacePermission(params: {
   workflowId: string
   userId: string
@@ -335,24 +287,7 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
     activeContext.workspaceOrganizationId
   )
 
-  if (workspacePermission === null) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow: wf,
-      workspacePermission,
-    }
-  }
-
-  const permissionSatisfied =
-    action === 'read'
-      ? true
-      : action === 'write'
-        ? workspacePermission === 'write' || workspacePermission === 'admin'
-        : workspacePermission === 'admin'
-
-  if (!permissionSatisfied) {
+  if (!permissionSatisfies(workspacePermission, action)) {
     return {
       allowed: false,
       status: 403,

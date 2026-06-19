@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, type WorkspaceMode, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
@@ -249,7 +250,7 @@ export async function getWorkspaceCreationPolicy({
     if (organizationId && orgRole) {
       const billedAccountUserId = await requireOrganizationOwnerId(organizationId)
 
-      if (!['owner', 'admin'].includes(orgRole)) {
+      if (!isOrgAdminRole(orgRole)) {
         return {
           canCreate: false,
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,
@@ -298,7 +299,7 @@ export async function getWorkspaceCreationPolicy({
     ) {
       const billedAccountUserId = await requireOrganizationOwnerId(organizationId)
 
-      if (!['owner', 'admin'].includes(orgRole)) {
+      if (!isOrgAdminRole(orgRole)) {
         return {
           canCreate: false,
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,

@@ -7,7 +7,6 @@ import {
   getUsersWithPermissions,
   getWorkspaceById,
   getWorkspaceWithOwner,
-  hasAdminPermission,
   hasWorkspaceAdminAccess,
   workspaceExists,
 } from '@/lib/workspaces/permissions/utils'
@@ -134,62 +133,6 @@ describe('Permission Utils', () => {
       const result = await getUserEntityPermissions('user123', 'custom_entity', 'entity123')
 
       expect(result).toBe('write')
-    })
-  })
-
-  describe('hasAdminPermission', () => {
-    it('should return true when user has admin permission for workspace', async () => {
-      const chain = createMockChain([{ id: 'perm1' }])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('admin-user', 'workspace123')
-
-      expect(result).toBe(true)
-    })
-
-    it('should return false when user has no admin permission for workspace', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('regular-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should return false when user has write permission but not admin', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('write-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should return false when user has read permission but not admin', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('read-user', 'workspace123')
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle non-existent workspace', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('user123', 'non-existent-workspace')
-
-      expect(result).toBe(false)
-    })
-
-    it('should handle empty user ID', async () => {
-      const chain = createMockChain([])
-      mockDb.select.mockReturnValue(chain)
-
-      const result = await hasAdminPermission('', 'workspace123')
-
-      expect(result).toBe(false)
     })
   })
 

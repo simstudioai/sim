@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import {
@@ -183,7 +184,7 @@ export async function getOrganizationIdForSubscriptionReference(
     .where(eq(member.userId, referenceId))
     .limit(1)
 
-  if (memberRecord && (memberRecord.role === 'owner' || memberRecord.role === 'admin')) {
+  if (memberRecord && isOrgAdminRole(memberRecord.role)) {
     return memberRecord.organizationId
   }
 

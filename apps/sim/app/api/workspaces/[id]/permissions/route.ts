@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace, workspaceEnvironment } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -136,7 +137,7 @@ export const PATCH = withRouteHandler(
             and(
               eq(member.organizationId, organizationId),
               inArray(member.userId, targetUserIds),
-              inArray(member.role, ['owner', 'admin'])
+              inArray(member.role, [...ORG_ADMIN_ROLES])
             )
           )
         if (orgAdminTargets.length > 0) {

@@ -1,17 +1,18 @@
 import { db } from '@sim/db'
+import { member, permissions, user, type WorkspaceMode, workspace } from '@sim/db/schema'
 import {
-  member,
-  permissions,
-  type permissionTypeEnum,
-  user,
-  type WorkspaceMode,
-  workspace,
-} from '@sim/db/schema'
+  isOrgAdminRole,
+  ORG_ADMIN_ROLES,
+  PERMISSION_RANK,
+  type PermissionType,
+  permissionSatisfies,
+  resolveEffectiveWorkspacePermission,
+} from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { getOrgAdminWorkspaceRows } from '@/lib/workspaces/utils'
 
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
+export type { PermissionType }
 export interface WorkspaceBasic {
   id: string
 }
@@ -104,13 +105,14 @@ export async function getWorkspaceWithOwner(
   return ws || null
 }
 
-const PERMISSION_RANK: Record<PermissionType, number> = { admin: 3, write: 2, read: 1 }
-
 /**
  * Resolve the effective workspace permission for a user under the governance
  * inheritance model: the workspace owner and the owners/admins of the
  * organization that owns the workspace are workspace admins. Returns the higher
  * of any explicit grant and any derived admin.
+ *
+ * Delegates to the shared resolver in `@sim/platform-authz/workspace` so the
+ * rule has a single source of truth shared with the realtime server.
  *
  * @param userId - The user to resolve the permission for
  * @param ws - The workspace (owner + organization already loaded)
@@ -119,31 +121,7 @@ export async function getEffectiveWorkspacePermission(
   userId: string,
   ws: Pick<WorkspaceWithOwner, 'id' | 'ownerId' | 'organizationId'>
 ): Promise<PermissionType | null> {
-  if (ws.ownerId === userId) {
-    return 'admin'
-  }
-
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, ws.id)
-      )
-    )
-    .limit(1)
-
-  const explicit = permissionRow?.permissionType ?? null
-
-  if (ws.organizationId && explicit !== 'admin') {
-    if (await isOrganizationAdminOrOwner(userId, ws.organizationId)) {
-      return 'admin'
-    }
-  }
-
-  return explicit
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.ownerId, ws.organizationId)
 }
 
 /**
@@ -169,8 +147,8 @@ export async function checkWorkspaceAccess(
 
   const permission = await getEffectiveWorkspacePermission(userId, ws)
   const hasAccess = permission !== null
-  const canWrite = permission === 'write' || permission === 'admin'
-  const canAdmin = permission === 'admin'
+  const canWrite = permissionSatisfies(permission, 'write')
+  const canAdmin = permissionSatisfies(permission, 'admin')
 
   return { exists: true, hasAccess, canWrite, canAdmin, workspace: ws }
 }
@@ -253,30 +231,6 @@ export async function getUserEntityPermissions(
 }
 
 /**
- * Check if a user has admin permission for a specific workspace
- *
- * @param userId - The ID of the user to check
- * @param workspaceId - The ID of the workspace to check
- * @returns Promise<boolean> - True if the user has admin permission for the workspace, false otherwise
- */
-export async function hasAdminPermission(userId: string, workspaceId: string): Promise<boolean> {
-  const result = await db
-    .select({ id: permissions.id })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, workspaceId),
-        eq(permissions.permissionType, 'admin')
-      )
-    )
-    .limit(1)
-
-  return result.length > 0
-}
-
-/**
  * Retrieves a list of users with their associated permissions for a given workspace.
  *
  * A member is `isExternal` when they hold workspace access but belong to a
@@ -354,7 +308,10 @@ export async function getUsersWithPermissions(
       .from(member)
       .innerJoin(user, eq(member.userId, user.id))
       .where(
-        and(eq(member.organizationId, ws.organizationId), inArray(member.role, ['owner', 'admin']))
+        and(
+          eq(member.organizationId, ws.organizationId),
+          inArray(member.role, [...ORG_ADMIN_ROLES])
+        )
       )
 
     for (const row of orgAdmins) {
@@ -454,7 +411,7 @@ export async function isOrganizationAdminOrOwner(
     .from(member)
     .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
     .limit(1)
-  return row?.role === 'owner' || row?.role === 'admin'
+  return isOrgAdminRole(row?.role)
 }
 
 /**

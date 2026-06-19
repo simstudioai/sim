@@ -1,6 +1,6 @@
 import type { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowRecord } from '@sim/workflow-authz'
+import { getActiveWorkflowRecord } from '@sim/platform-authz/workflow'
 import { getActivelyBannedUserIds } from '@/lib/auth/ban'
 import {
   checkOrgMemberUsageLimit,
