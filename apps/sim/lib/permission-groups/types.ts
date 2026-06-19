@@ -31,6 +31,7 @@ export const permissionGroupConfigSchema = z.object({
   disableSkills: z.boolean().optional(),
   disableInvitations: z.boolean().optional(),
   disablePublicApi: z.boolean().optional(),
+  disablePublicFileSharing: z.boolean().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployA2a: z.boolean().optional(),
@@ -60,6 +61,7 @@ export interface PermissionGroupConfig {
   disableSkills: boolean
   disableInvitations: boolean
   disablePublicApi: boolean
+  disablePublicFileSharing: boolean
   hideDeployApi: boolean
   hideDeployMcp: boolean
   hideDeployA2a: boolean
@@ -85,6 +87,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   disableSkills: false,
   disableInvitations: false,
   disablePublicApi: false,
+  disablePublicFileSharing: false,
   hideDeployApi: false,
   hideDeployMcp: false,
   hideDeployA2a: false,
@@ -120,6 +123,8 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     disableSkills: typeof c.disableSkills === 'boolean' ? c.disableSkills : false,
     disableInvitations: typeof c.disableInvitations === 'boolean' ? c.disableInvitations : false,
     disablePublicApi: typeof c.disablePublicApi === 'boolean' ? c.disablePublicApi : false,
+    disablePublicFileSharing:
+      typeof c.disablePublicFileSharing === 'boolean' ? c.disablePublicFileSharing : false,
     hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,
     hideDeployMcp: typeof c.hideDeployMcp === 'boolean' ? c.hideDeployMcp : false,
     hideDeployA2a: typeof c.hideDeployA2a === 'boolean' ? c.hideDeployA2a : false,

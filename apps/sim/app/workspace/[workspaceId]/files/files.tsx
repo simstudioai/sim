@@ -22,7 +22,7 @@ import {
   toast,
   Upload,
 } from '@/components/emcn'
-import { Download } from '@/components/emcn/icons'
+import { Download, Link } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
@@ -70,6 +70,7 @@ import {
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
+import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/files/move-options'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -269,6 +270,7 @@ export function Files() {
     folderIds: string[]
     name: string
   } | null>(null)
+  const [shareFileId, setShareFileId] = useState<string | null>(null)
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
@@ -295,6 +297,18 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  const shareFile = shareFileId ? (files.find((f) => f.id === shareFileId) ?? null) : null
+  const shareModal = shareFile ? (
+    <ShareModal
+      open
+      onOpenChange={(open) => !open && setShareFileId(null)}
+      workspaceId={workspaceId}
+      fileId={shareFile.id}
+      fileName={shareFile.name}
+      initialShare={shareFile.share ?? null}
+    />
+  ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
@@ -978,6 +992,11 @@ export function Files() {
     }
   }, [])
 
+  const handleShareSelected = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) setShareFileId(file.id)
+  }, [])
+
   const handleBulkDelete = useCallback(() => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
     setDeleteTarget({
@@ -1055,6 +1074,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                { label: 'Share', icon: Link, onClick: handleShareSelected },
                 { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
@@ -1071,6 +1091,7 @@ export function Files() {
     headerRename.editValue,
     handleStartHeaderRename,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1219,6 +1240,12 @@ export function Files() {
       listRename.startRename(folderRowId(item.folder.id), item.folder.name)
     closeContextMenu()
   }, [listRename.startRename, closeContextMenu])
+
+  const handleContextMenuShare = useCallback(() => {
+    const item = contextMenuItemRef.current
+    if (item?.kind === 'file') setShareFileId(item.file.id)
+    closeContextMenu()
+  }, [closeContextMenu])
 
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current
@@ -1449,6 +1476,11 @@ export function Files() {
       ...(canEdit
         ? [
             {
+              text: 'Share',
+              icon: Link,
+              onSelect: handleShareSelected,
+            },
+            {
               text: 'Delete',
               icon: Trash,
               onSelect: handleDeleteSelected,
@@ -1466,6 +1498,7 @@ export function Files() {
     handleTogglePreview,
     handleSave,
     handleDownloadSelected,
+    handleShareSelected,
     handleDeleteSelected,
   ])
 
@@ -1875,6 +1908,8 @@ export function Files() {
           onDelete={handleDelete}
           isPending={deleteFile.isPending || bulkArchiveItems.isPending}
         />
+
+        {shareModal}
       </>
     )
   }
@@ -1956,6 +1991,7 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
+        onShare={canEdit ? handleContextMenuShare : undefined}
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
@@ -1970,6 +2006,8 @@ export function Files() {
         onDelete={handleDelete}
         isPending={deleteFile.isPending || bulkArchiveItems.isPending}
       />
+
+      {shareModal}
 
       <input
         ref={fileInputRef}
