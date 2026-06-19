@@ -210,7 +210,12 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Route
           .where(eq(credentialMember.id, existing.id))
           .limit(1)
           .for('update')
-        if (current?.role === 'admin' && current?.status === 'active' && role !== 'admin') {
+        if (
+          !isSharedCredentialType(admin.credentialType) &&
+          current?.role === 'admin' &&
+          current?.status === 'active' &&
+          role !== 'admin'
+        ) {
           const activeAdmins = await tx
             .select({ id: credentialMember.id })
             .from(credentialMember)
@@ -345,7 +350,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Rou
     }
 
     const revoked = await db.transaction(async (tx) => {
-      if (target.role === 'admin') {
+      if (!isSharedCredentialType(admin.credentialType) && target.role === 'admin') {
         const activeAdmins = await tx
           .select({ id: credentialMember.id })
           .from(credentialMember)
