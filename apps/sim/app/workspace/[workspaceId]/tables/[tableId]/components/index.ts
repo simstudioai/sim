@@ -1,5 +1,6 @@
 export * from './column-config-sidebar'
 export * from './context-menu'
+export * from './enrichment-details'
 export * from './enrichments-sidebar'
 export * from './new-column-dropdown'
 export * from './row-modal'

@@ -38,6 +38,7 @@ import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
   type ColumnConfig,
   ColumnConfigSidebar,
+  EnrichmentDetails,
   EnrichmentsSidebar,
   NewColumnDropdown,
   RowModal,
@@ -78,12 +79,14 @@ type SlideoutState =
   | { kind: 'enrichments'; editGroup?: WorkflowGroup }
   | { kind: 'workflow'; config: WorkflowConfig }
   | { kind: 'execution'; executionId: string }
+  | { kind: 'enrichment-details'; rowId: string; groupId: string }
 
 type SlideoutAction =
   | { type: 'OPEN_COLUMN'; config: ColumnConfig }
   | { type: 'OPEN_ENRICHMENTS'; editGroup?: WorkflowGroup }
   | { type: 'OPEN_WORKFLOW'; config: WorkflowConfig }
   | { type: 'OPEN_EXECUTION'; executionId: string }
+  | { type: 'OPEN_ENRICHMENT_DETAILS'; rowId: string; groupId: string }
   | { type: 'CLOSE' }
 
 function slideoutReducer(_state: SlideoutState, action: SlideoutAction): SlideoutState {
@@ -96,6 +99,8 @@ function slideoutReducer(_state: SlideoutState, action: SlideoutAction): Slideou
       return { kind: 'workflow', config: action.config }
     case 'OPEN_EXECUTION':
       return { kind: 'execution', executionId: action.executionId }
+    case 'OPEN_ENRICHMENT_DETAILS':
+      return { kind: 'enrichment-details', rowId: action.rowId, groupId: action.groupId }
     case 'CLOSE':
       return { kind: 'none' }
   }
@@ -175,6 +180,9 @@ export function Table({
   }, [])
   const onOpenExecutionDetails = useCallback((executionId: string) => {
     dispatch({ type: 'OPEN_EXECUTION', executionId })
+  }, [])
+  const onOpenEnrichmentDetails = useCallback((rowId: string, groupId: string) => {
+    dispatch({ type: 'OPEN_ENRICHMENT_DETAILS', rowId, groupId })
   }, [])
   const onCloseSlideout = () => dispatch({ type: 'CLOSE' })
   const onOpenRowModal = (row: TableRowType) => setEditingRow(row)
@@ -565,7 +573,7 @@ export function Table({
   const sidebarReservedPx =
     slideout.kind === 'column' || slideout.kind === 'workflow' || slideout.kind === 'enrichments'
       ? COLUMN_SIDEBAR_WIDTH
-      : slideout.kind === 'execution'
+      : slideout.kind === 'execution' || slideout.kind === 'enrichment-details'
         ? logPanelWidth
         : 0
 
@@ -592,6 +600,10 @@ export function Table({
   const columnConfig = slideout.kind === 'column' ? slideout.config : null
   const workflowConfig = slideout.kind === 'workflow' ? slideout.config : null
   const executionId = slideout.kind === 'execution' ? slideout.executionId : null
+  const enrichmentDetailsTarget = slideout.kind === 'enrichment-details' ? slideout : null
+  const enrichmentDetailsGroupName =
+    enrichmentDetailsTarget &&
+    tableWorkflowGroups.find((g) => g.id === enrichmentDetailsTarget.groupId)?.name
   // Fetch the workflow log when the execution-details slideout is open. Reuses
   // the logs page's <LogDetails> directly — no intermediate wrapper needed for
   // a one-line query forward.
@@ -674,6 +686,7 @@ export function Table({
         onOpenEnrichments={onOpenEnrichments}
         onOpenEnrichmentConfig={onOpenEnrichmentConfig}
         onOpenExecutionDetails={onOpenExecutionDetails}
+        onOpenEnrichmentDetails={onOpenEnrichmentDetails}
         onOpenRowModal={onOpenRowModal}
         onRequestDeleteRows={onRequestDeleteRows}
         onRequestDeleteAllByFilter={onRequestDeleteAllByFilter}
@@ -746,7 +759,12 @@ export function Table({
                   const id = selection.singleWorkflowCell?.executionId
                   if (id) onOpenExecutionDetails(id)
                 }
-              : undefined
+              : selection.singleWorkflowCell?.canViewEnrichment
+                ? () => {
+                    const cell = selection.singleWorkflowCell
+                    if (cell) onOpenEnrichmentDetails(cell.rowId, cell.groupId)
+                  }
+                : undefined
           }
         />
       )}
@@ -783,6 +801,14 @@ export function Table({
       <LogDetails
         log={executionLog ?? null}
         isOpen={Boolean(executionId)}
+        onClose={onCloseSlideout}
+      />
+      <EnrichmentDetails
+        tableId={tableId}
+        rowId={enrichmentDetailsTarget?.rowId ?? null}
+        groupId={enrichmentDetailsTarget?.groupId ?? null}
+        groupName={enrichmentDetailsGroupName ?? undefined}
+        isOpen={Boolean(enrichmentDetailsTarget)}
         onClose={onCloseSlideout}
       />
       {tableData && (

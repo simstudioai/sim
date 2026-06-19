@@ -81,6 +81,31 @@ export function getBlockIconAndColor(
   return { icon: null, bgColor: DEFAULT_BLOCK_COLOR }
 }
 
+/** Returns 'text-white' for dark backgrounds, dark text for light ones. */
+export function iconColorClass(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return 'text-white'
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  return r * 299 + g * 587 + b * 114 > 160_000 ? 'text-[#111111]' : 'text-white'
+}
+
+/**
+ * Near-black bgColors disappear against the dark-mode surface (--bg: #1b1b1b).
+ * Below the luminance threshold we fall back to the neutral block color used
+ * for blocks with no distinct identity; everything brighter passes through.
+ */
+export function adjustBgForContrast(bgColor: string): string {
+  const hex = bgColor.replace('#', '')
+  if (hex.length !== 6) return bgColor
+  const r = Number.parseInt(hex.slice(0, 2), 16)
+  const g = Number.parseInt(hex.slice(2, 4), 16)
+  const b = Number.parseInt(hex.slice(4, 6), 16)
+  if (r * 299 + g * 587 + b * 114 < 30_000) return DEFAULT_BLOCK_COLOR
+  return bgColor
+}
+
 export function parseTime(value?: string | number | null): number {
   if (!value) return 0
   const ms = typeof value === 'number' ? value : new Date(value).getTime()
