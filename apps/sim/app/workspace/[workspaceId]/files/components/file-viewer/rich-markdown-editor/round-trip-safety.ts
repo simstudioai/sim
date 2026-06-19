@@ -60,10 +60,12 @@ function stripCode(content: string): string {
 function serialize(content: string): string {
   const { frontmatter, body } = splitFrontmatter(content)
   const editor = new Editor({ extensions: createMarkdownContentExtensions() })
-  editor.commands.setContent(body, { contentType: 'markdown' })
-  const out = applyFrontmatter(frontmatter, postProcessSerializedMarkdown(editor.getMarkdown()))
-  editor.destroy()
-  return out
+  try {
+    editor.commands.setContent(body, { contentType: 'markdown' })
+    return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(editor.getMarkdown()))
+  } finally {
+    editor.destroy()
+  }
 }
 
 /**

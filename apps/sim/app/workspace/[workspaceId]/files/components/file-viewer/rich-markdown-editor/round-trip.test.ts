@@ -206,6 +206,17 @@ describe('editor markdown round-trip', () => {
     expect(out).toContain('| --- |')
   })
 
+  it('escapes only interior cell pipes, not the structural delimiters', () => {
+    const out = roundTrip('| a | b |\n| --- | --- |\n| one \\| two | three |')
+    expect(out).toContain('one \\| two')
+    expect(out).toContain('| three |')
+    // Every row keeps exactly its two structural columns (3 pipes per line).
+    for (const line of out.trim().split('\n')) {
+      expect((line.match(/(?<!\\)\|/g) ?? []).length).toBe(3)
+    }
+    expect(roundTrip(out)).toBe(out)
+  })
+
   it('combines strikethrough with inline code (relaxed code mark)', () => {
     expect(roundTrip('~~`x`~~')).toContain('~~`x`~~')
     expect(roundTrip('# ~~`x`~~')).toContain('# ~~`x`~~')
