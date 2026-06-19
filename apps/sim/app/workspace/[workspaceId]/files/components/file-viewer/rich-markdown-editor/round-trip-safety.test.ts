@@ -90,9 +90,9 @@ describe('isRoundTripSafe', () => {
   })
 
   it('probes documents up to the size cap but falls back (read-only) above it', () => {
-    // ~20KB of simple safe prose is under the 24KB cap → probed and editable.
-    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(4000)}`)).toBe(true)
-    // ~30KB is over the cap → not probed, opens read-only (the synchronous probe is too slow).
-    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(6000)}`)).toBe(false)
+    // ~100KB of simple safe prose is under the 256KB cap → probed and editable.
+    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(20000)}`)).toBe(true)
+    // ~300KB is over the cap → opens read-only (too many DOM nodes to edit comfortably).
+    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(60000)}`)).toBe(false)
   })
 })

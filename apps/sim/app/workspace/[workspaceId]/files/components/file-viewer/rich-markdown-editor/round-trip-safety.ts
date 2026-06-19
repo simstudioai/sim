@@ -1,21 +1,18 @@
-import { Editor } from '@tiptap/core'
-import { createMarkdownContentExtensions } from './extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
   splitFrontmatter,
 } from './markdown-fidelity'
+import { serializeMarkdownBody } from './markdown-parse'
 
 /**
- * Above this size we don't run the (synchronous) round-trip probe, and the file opens read-only.
- * The probe builds throwaway editors and parses the markdown, and `@tiptap/markdown`'s parse is
- * superlinear (~O(n²)) in document size — measured ~170ms at 11KB, ~875ms at 23KB, multiple seconds
- * past ~35KB — so a high cap means a multi-second main-thread freeze at mount. 24KB keeps the
- * worst-case probe near a second while still covering the vast majority of real markdown files; a
- * very large markdown file is also heavier to edit richly anyway. The editor's own markdown parse
- * shares this cost, so the cap protects mount render too.
+ * Above this size the file opens read-only. Parsing is chunked and linear now (see
+ * {@link serializeMarkdownBody}), so this is no longer about parse cost — it guards ProseMirror's
+ * whole-document-in-DOM rendering, which has no virtualization and gets sluggish to edit for very
+ * large documents. 256KB sits past the p99 of real markdown files while keeping a giant outlier from
+ * mounting thousands of editable DOM nodes.
  */
-const PROBE_SIZE_LIMIT = 24 * 1024
+const PROBE_SIZE_LIMIT = 256 * 1024
 
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
@@ -72,16 +69,11 @@ function linkedImageCount(content: string): number {
   return content.match(LINKED_IMAGE_PATTERN)?.length ?? 0
 }
 
-/** Serialize markdown through the exact editor pipeline (frontmatter held aside). */
+/** Serialize markdown through the exact editor pipeline (frontmatter held aside), chunked so the
+ * probe stays linear in document size. */
 function serialize(content: string): string {
   const { frontmatter, body } = splitFrontmatter(content)
-  const editor = new Editor({ extensions: createMarkdownContentExtensions() })
-  try {
-    editor.commands.setContent(body, { contentType: 'markdown' })
-    return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(editor.getMarkdown()))
-  } finally {
-    editor.destroy()
-  }
+  return applyFrontmatter(frontmatter, postProcessSerializedMarkdown(serializeMarkdownBody(body)))
 }
 
 /**

@@ -1,6 +1,7 @@
 'use client'
 
 import { memo, useEffect, useRef } from 'react'
+import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { cn } from '@/lib/core/utils/cn'
@@ -17,6 +18,7 @@ import {
   postProcessSerializedMarkdown,
   splitFrontmatter,
 } from './markdown-fidelity'
+import { parseMarkdownToDoc } from './markdown-parse'
 import { EditorBubbleMenu } from './menus/bubble-menu'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
@@ -168,9 +170,12 @@ export function LoadedRichMarkdownEditor({
   }
   const isEditable = canEdit && !isStreaming && (settledRef.current?.verdict ?? false)
 
-  // The body that seeds the editor at create time. Empty when streaming — the sync effect pushes the
-  // streamed body in via setContent (this ref is never written again).
-  const initialBodyRef = useRef(streamingAtMountRef.current ? '' : splitFrontmatter(content).body)
+  // The parsed doc that seeds the editor at create time — chunked-parsed (linear) rather than handed
+  // to the editor as a raw markdown string (whose parse is ~O(n²)). Empty when streaming: the sync
+  // effect pushes the streamed body in via setContent (this ref is never written again).
+  const initialContentRef = useRef<JSONContent | string>(
+    streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
+  )
   // The frontmatter re-attached on every change. Empty until the content settles (the editor never
   // displays frontmatter, so a streamed doc simply shows its body). Re-derived in the settle effect
   // on each stream→settle, so a repeat stream re-attaches the settled doc's frontmatter, never a
@@ -224,8 +229,7 @@ export function LoadedRichMarkdownEditor({
     autofocus: streamingAtMountRef.current ? false : autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
-    content: initialBodyRef.current,
-    contentType: 'markdown',
+    content: initialContentRef.current,
     editorProps: {
       attributes: { class: 'rich-markdown-prose' },
       handleKeyDown: (_view, event) => {
@@ -300,7 +304,10 @@ export function LoadedRichMarkdownEditor({
         const el = containerRef.current
         const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
         editor.setEditable(false)
-        editor.commands.setContent(pending, { contentType: 'markdown', emitUpdate: false })
+        editor.commands.setContent(parseMarkdownToDoc(pending), {
+          contentType: 'json',
+          emitUpdate: false,
+        })
         if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
       })
       return
@@ -325,7 +332,10 @@ export function LoadedRichMarkdownEditor({
       const body = splitFrontmatter(content).body
       if (body !== lastSyncedBodyRef.current) {
         lastSyncedBodyRef.current = body
-        editor.commands.setContent(body, { contentType: 'markdown', emitUpdate: false })
+        editor.commands.setContent(parseMarkdownToDoc(body), {
+          contentType: 'json',
+          emitUpdate: false,
+        })
       }
       editor.setEditable(canEdit && settledRef.current.verdict)
       if (isInitialSettle && autoFocus) editor.commands.focus('end')
