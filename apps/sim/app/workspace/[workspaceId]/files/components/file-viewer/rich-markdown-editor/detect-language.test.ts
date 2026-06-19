@@ -22,4 +22,17 @@ describe('detectLanguage', () => {
   it('does not misclassify a JS object as JSON', () => {
     expect(detectLanguage('const x = { a: 1 }')).toBe('javascript')
   })
+
+  it('detects Go, Rust, Java', () => {
+    expect(detectLanguage('package main\n\nfunc main() {\n\tfmt.Println("hi")\n}')).toBe('go')
+    expect(detectLanguage('type User struct {\n\tName string\n}')).toBe('go')
+    expect(detectLanguage('fn main() {\n  let mut x = 1;\n  println!("{}", x);\n}')).toBe('rust')
+    expect(detectLanguage('public class Box {\n  private int n;\n}')).toBe('java')
+  })
+
+  it('does not misread generics as HTML markup', () => {
+    expect(detectLanguage('public class Box { private List<String> items; }')).toBe('java')
+    expect(detectLanguage('let v: Vec<String> = Vec::new();\nfn f() {}')).toBe('rust')
+    expect(detectLanguage('func Map[T any](s []T) {}\npackage x')).toBe('go')
+  })
 })

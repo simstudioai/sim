@@ -5,7 +5,9 @@
  * {@link CodeBlockHighlight} actually registers with Prism; returns `null` when unsure.
  */
 const DETECTORS: ReadonlyArray<{ language: string; test: RegExp }> = [
-  { language: 'markup', test: /<\/?[a-z][\w-]*(\s[^>]*)?\/?>/i },
+  // Real HTML: a closing tag, an opening tag with an attribute, or a doctype/comment. Deliberately
+  // NOT a bare `<Word>` so generics (`List<String>`, `Vec<T>`) aren't misread as markup.
+  { language: 'markup', test: /<\/[a-z][\w-]*\s*>|<[a-z][\w-]*\s+[\w:-]+=|<!(?:doctype\b|--)/i },
   {
     language: 'sql',
     test: /\b(?:select\s+[\w*]|insert\s+into|update\s+\w+\s+set|delete\s+from|create\s+table)/i,
@@ -17,7 +19,7 @@ const DETECTORS: ReadonlyArray<{ language: string; test: RegExp }> = [
   },
   {
     language: 'go',
-    test: /^\s*package\s+\w+|\bfunc\s+(\(\w[^)]*\)\s+)?\w+\s*\(|\bfmt\.\w|:=/m,
+    test: /^\s*package\s+\w+|\bfunc\s+(\(\w[^)]*\)\s+)?\w+\s*\(|\btype\s+\w+\s+(struct|interface)\b|\bfmt\.\w|:=/m,
   },
   {
     language: 'rust',
