@@ -152,9 +152,7 @@ function EntityCheckboxGrid({ selected, onChange }: EntityCheckboxGridProps) {
       <div className='flex flex-col gap-3'>
         {groups.map((group) => (
           <div key={group.label} className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-              {group.label}
-            </span>
+            <span className='font-medium text-[var(--text-muted)] text-small'>{group.label}</span>
             <div className='grid grid-cols-2 gap-x-2 gap-y-0.5'>
               {group.entities.map((entity) => {
                 const checkboxId = `pii-${entity.value}`
@@ -388,10 +386,10 @@ export function DataRetentionSettings() {
   async function removeRule(id: string) {
     try {
       await persistRules(rules.filter((r) => r.id !== id))
-      toast.success('Workspace override removed.')
+      toast.success('PII redaction updated.')
     } catch (error) {
       const msg = toError(error).message
-      logger.error('Failed to remove workspace override', { error: msg })
+      logger.error('Failed to update PII redaction', { error: msg })
       toast.error(msg)
     }
   }
@@ -494,70 +492,84 @@ export function DataRetentionSettings() {
           <SettingsSection label='PII Redaction'>
             <div className='flex flex-col gap-6'>
               <div className='flex flex-col gap-2'>
-                <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                  Default · all workspaces
-                </span>
-                <div className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'>
-                  <span className='truncate text-[var(--text-body)] text-small'>
-                    {entitySummary(defaultRule?.entityTypes ?? [])}
-                  </span>
-                  <Chip onClick={openEditDefault}>Edit</Chip>
-                </div>
-              </div>
-              <div className='flex flex-col gap-2'>
                 <div className='flex items-center justify-between gap-3'>
-                  <div className='flex flex-col'>
-                    <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                      Workspace overrides
-                    </span>
-                    <span className='text-[var(--text-muted)] text-caption'>
-                      An override replaces the default for that workspace.
-                    </span>
-                  </div>
-                  <Chip
-                    leftIcon={Plus}
-                    onClick={openAddOverride}
-                    disabled={freeWorkspaces.length === 0}
-                  >
-                    Add override
-                  </Chip>
+                  <span className='font-medium text-[var(--text-muted)] text-small'>
+                    Default · all workspaces
+                  </span>
+                  {!defaultRule && (
+                    <Chip leftIcon={Plus} onClick={openEditDefault}>
+                      Add redaction
+                    </Chip>
+                  )}
                 </div>
-                {overrideRules.length === 0 ? (
-                  <p className='text-[var(--text-muted)] text-caption'>
-                    No overrides — every workspace uses the default.
-                  </p>
-                ) : (
-                  <div className='flex flex-col gap-2'>
-                    {overrideRules.map((rule) => (
-                      <div
-                        key={rule.id}
-                        className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'
-                      >
-                        <div className='flex min-w-0 flex-col'>
-                          <span className='truncate text-[var(--text-body)] text-small'>
-                            {workspaceName(rule.workspaceId as string)}
-                          </span>
-                          <span className='truncate text-[var(--text-muted)] text-caption'>
-                            {entitySummary(rule.entityTypes)}
-                          </span>
-                        </div>
-                        <div className='flex flex-shrink-0 items-center gap-2'>
-                          <Chip onClick={() => openEditOverride(rule)}>Edit</Chip>
-                          <Chip
-                            onClick={() => removeRule(rule.id)}
-                            disabled={updateMutation.isPending}
-                          >
-                            Remove
-                          </Chip>
-                        </div>
-                      </div>
-                    ))}
-                    <span className='text-[var(--text-muted)] text-caption'>
-                      Workspaces not listed use the default.
+                {defaultRule && (
+                  <div className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'>
+                    <span className='truncate text-[var(--text-body)] text-small'>
+                      {entitySummary(defaultRule.entityTypes)}
                     </span>
+                    <div className='flex flex-shrink-0 items-center gap-2'>
+                      <Chip onClick={openEditDefault}>Edit</Chip>
+                      <Chip
+                        onClick={() => removeRule(defaultRule.id)}
+                        disabled={updateMutation.isPending}
+                      >
+                        Delete
+                      </Chip>
+                    </div>
                   </div>
                 )}
               </div>
+              {defaultRule && (
+                <div className='flex flex-col gap-2'>
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='font-medium text-[var(--text-muted)] text-small'>
+                      Workspace overrides
+                    </span>
+                    <Chip
+                      leftIcon={Plus}
+                      onClick={openAddOverride}
+                      disabled={freeWorkspaces.length === 0}
+                    >
+                      Add override
+                    </Chip>
+                  </div>
+                  {overrideRules.length === 0 ? (
+                    <p className='text-[var(--text-muted)] text-caption'>
+                      No overrides — every workspace uses the default.
+                    </p>
+                  ) : (
+                    <div className='flex flex-col gap-2'>
+                      {overrideRules.map((rule) => (
+                        <div
+                          key={rule.id}
+                          className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'
+                        >
+                          <div className='flex min-w-0 flex-col'>
+                            <span className='truncate text-[var(--text-body)] text-small'>
+                              {workspaceName(rule.workspaceId as string)}
+                            </span>
+                            <span className='truncate text-[var(--text-muted)] text-caption'>
+                              {entitySummary(rule.entityTypes)}
+                            </span>
+                          </div>
+                          <div className='flex flex-shrink-0 items-center gap-2'>
+                            <Chip onClick={() => openEditOverride(rule)}>Edit</Chip>
+                            <Chip
+                              onClick={() => removeRule(rule.id)}
+                              disabled={updateMutation.isPending}
+                            >
+                              Delete
+                            </Chip>
+                          </div>
+                        </div>
+                      ))}
+                      <span className='text-[var(--text-muted)] text-caption'>
+                        Workspaces not listed use the default.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </SettingsSection>
         </div>
