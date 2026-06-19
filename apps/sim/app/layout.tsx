@@ -79,15 +79,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 var defaultSidebarWidth = 248;
                 try {
                   // Collapse is owned by the sidebar_collapsed cookie (the same
-                  // source the server renders structure from); width is read from
-                  // localStorage so the two never disagree on the first paint.
-                  var stored = localStorage.getItem('sidebar-state');
-                  var state = stored ? JSON.parse(stored).state : null;
+                  // source the server renders structure from) and must never depend
+                  // on localStorage parsing succeeding. Read it first, then read the
+                  // persisted width defensively in its own try.
+                  var hasCookie = document.cookie.indexOf('sidebar_collapsed=') !== -1;
                   var collapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
+
+                  var state = null;
+                  try {
+                    var stored = localStorage.getItem('sidebar-state');
+                    state = stored ? JSON.parse(stored).state : null;
+                  } catch (e) {}
 
                   // One-time migration: seed the cookie from the legacy localStorage
                   // flag for users who collapsed before the cookie existed.
-                  if (document.cookie.indexOf('sidebar_collapsed=') === -1 && state && typeof state.isCollapsed === 'boolean') {
+                  if (!hasCookie && state && typeof state.isCollapsed === 'boolean') {
                     collapsed = state.isCollapsed;
                     document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
                   }
