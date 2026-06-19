@@ -1,18 +1,19 @@
-import {
-  db,
-  permissions,
-  type permissionTypeEnum,
-  workflow,
-  workflowFolder,
-  workspace,
-} from '@sim/db'
+import { db, workflow, workflowFolder, workspace } from '@sim/db'
 import { and, eq, isNull } from 'drizzle-orm'
+import {
+  type PermissionType,
+  permissionSatisfies,
+  resolveEffectiveWorkspacePermission,
+} from './workspace'
+
+export type { PermissionType }
 
 export type ActiveWorkflowRecord = typeof workflow.$inferSelect
 
 export interface ActiveWorkflowContext {
   workflow: ActiveWorkflowRecord
   workspaceId: string
+  workspaceOrganizationId: string | null
 }
 
 export async function getActiveWorkflowContext(
@@ -22,6 +23,7 @@ export async function getActiveWorkflowContext(
     .select({
       workflow,
       workspaceId: workspace.id,
+      workspaceOrganizationId: workspace.organizationId,
     })
     .from(workflow)
     .innerJoin(workspace, eq(workflow.workspaceId, workspace.id))
@@ -37,6 +39,7 @@ export async function getActiveWorkflowContext(
   return {
     workflow: rows[0].workflow,
     workspaceId: rows[0].workspaceId,
+    workspaceOrganizationId: rows[0].workspaceOrganizationId,
   }
 }
 
@@ -56,8 +59,6 @@ export async function assertActiveWorkflowContext(
   }
   return context
 }
-
-export type PermissionType = (typeof permissionTypeEnum.enumValues)[number]
 
 type WorkflowRecord = typeof workflow.$inferSelect
 
@@ -276,38 +277,13 @@ export async function authorizeWorkflowByWorkspacePermission(params: {
     }
   }
 
-  const [permissionRow] = await db
-    .select({ permissionType: permissions.permissionType })
-    .from(permissions)
-    .where(
-      and(
-        eq(permissions.userId, userId),
-        eq(permissions.entityType, 'workspace'),
-        eq(permissions.entityId, wf.workspaceId)
-      )
-    )
-    .limit(1)
+  const workspacePermission = await resolveEffectiveWorkspacePermission(
+    userId,
+    wf.workspaceId,
+    activeContext.workspaceOrganizationId
+  )
 
-  const workspacePermission = (permissionRow?.permissionType as PermissionType | undefined) ?? null
-
-  if (workspacePermission === null) {
-    return {
-      allowed: false,
-      status: 403,
-      message: `Unauthorized: Access denied to ${action} this workflow`,
-      workflow: wf,
-      workspacePermission,
-    }
-  }
-
-  const permissionSatisfied =
-    action === 'read'
-      ? true
-      : action === 'write'
-        ? workspacePermission === 'write' || workspacePermission === 'admin'
-        : workspacePermission === 'admin'
-
-  if (!permissionSatisfied) {
+  if (!permissionSatisfies(workspacePermission, action)) {
     return {
       allowed: false,
       status: 403,

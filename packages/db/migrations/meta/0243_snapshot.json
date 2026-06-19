@@ -1,5 +1,5 @@
 {
-  "id": "8fb763cf-1d69-4c39-81bf-a53b8ccf8dd2",
+  "id": "dca0a2e7-f031-462f-bda2-d6f52ab4a9ff",
   "prevId": "78b8f3d4-c24c-4303-89ec-8ae29d2ea5c8",
   "version": "7",
   "dialect": "postgresql",
@@ -7168,7 +7168,7 @@
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -10004,19 +10004,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "auth_type": {
-          "name": "auth_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'public'"
-        },
-        "password": {
-          "name": "password",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",

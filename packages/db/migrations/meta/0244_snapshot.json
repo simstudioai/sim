@@ -1,6 +1,6 @@
 {
-  "id": "4ec837f2-8d2c-43f2-9b97-6182e6c82d0a",
-  "prevId": "8fb763cf-1d69-4c39-81bf-a53b8ccf8dd2",
+  "id": "cbed6dd1-0fe0-4b1e-adde-aec16ad672c1",
+  "prevId": "dca0a2e7-f031-462f-bda2-d6f52ab4a9ff",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7168,7 +7168,7 @@
           "tableTo": "workspace",
           "columnsFrom": ["workspace_id"],
           "columnsTo": ["id"],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },

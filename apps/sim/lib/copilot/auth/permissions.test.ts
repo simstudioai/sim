@@ -1,147 +1,112 @@
 /**
  * @vitest-environment node
  */
-import { permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetActiveWorkflowContext } = vi.hoisted(() => ({
-  mockGetActiveWorkflowContext: vi.fn(),
+const { mockAuthorizeWorkflowByWorkspacePermission } = vi.hoisted(() => ({
+  mockAuthorizeWorkflowByWorkspacePermission: vi.fn(),
 }))
 
-const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
-
-vi.mock('@sim/workflow-authz', () => ({
-  getActiveWorkflowContext: mockGetActiveWorkflowContext,
+vi.mock('@sim/platform-authz/workflow', () => ({
+  authorizeWorkflowByWorkspacePermission: mockAuthorizeWorkflowByWorkspacePermission,
 }))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { createPermissionError, verifyWorkflowAccess } from '@/lib/copilot/auth/permissions'
 
 describe('Copilot Auth Permissions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-
-    mockGetActiveWorkflowContext.mockResolvedValue(null)
   })
 
   describe('verifyWorkflowAccess', () => {
     it('should return no access for non-existent workflow', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce(null)
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: false,
+        status: 404,
+        workflow: null,
+        workspacePermission: null,
+      })
 
       const result = await verifyWorkflowAccess('user-123', 'non-existent-workflow')
 
-      expect(result).toEqual({
-        hasAccess: false,
-        userPermission: null,
+      expect(result).toEqual({ hasAccess: false, userPermission: null })
+    })
+
+    it('should delegate to the shared workflow authorizer with a read action', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: true,
+        status: 200,
+        workflow: { workspaceId: 'workspace-456' },
+        workspacePermission: 'write',
+      })
+
+      await verifyWorkflowAccess('user-123', 'workflow-789')
+
+      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+        workflowId: 'workflow-789',
+        userId: 'user-123',
+        action: 'read',
       })
     })
 
-    it('should check workspace permissions for workflow with workspace', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce({
-        workflow: {},
-        workspaceId: 'workspace-456',
+    it.each(['read', 'write', 'admin'] as const)(
+      'should grant access with %s permission through the workspace',
+      async (permission) => {
+        mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+          allowed: true,
+          status: 200,
+          workflow: { workspaceId: 'workspace-456' },
+          workspacePermission: permission,
+        })
+
+        const result = await verifyWorkflowAccess('user-123', 'workflow-789')
+
+        expect(result).toEqual({
+          hasAccess: true,
+          userPermission: permission,
+          workspaceId: 'workspace-456',
+        })
+      }
+    )
+
+    it('should report the workspaceId even when permission is denied for an existing workflow', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: false,
+        status: 403,
+        workflow: { workspaceId: 'workspace-456' },
+        workspacePermission: null,
       })
-      mockGetUserEntityPermissions.mockResolvedValueOnce('write')
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
 
       expect(result).toEqual({
-        hasAccess: true,
-        userPermission: 'write',
+        hasAccess: false,
+        userPermission: null,
         workspaceId: 'workspace-456',
       })
+    })
 
-      expect(mockGetUserEntityPermissions).toHaveBeenCalledWith(
-        'user-123',
-        'workspace',
-        'workspace-456'
+    it('should return no access for a workflow without a workspace', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
+        allowed: false,
+        status: 403,
+        workflow: { workspaceId: null },
+        workspacePermission: null,
+      })
+
+      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
+
+      expect(result).toEqual({ hasAccess: false, userPermission: null })
+    })
+
+    it('should handle errors gracefully', async () => {
+      mockAuthorizeWorkflowByWorkspacePermission.mockRejectedValueOnce(
+        new Error('Database connection failed')
       )
-    })
-
-    it('should return read permission through workspace', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce({
-        workflow: {},
-        workspaceId: 'workspace-456',
-      })
-      mockGetUserEntityPermissions.mockResolvedValueOnce('read')
 
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
 
-      expect(result).toEqual({
-        hasAccess: true,
-        userPermission: 'read',
-        workspaceId: 'workspace-456',
-      })
-    })
-
-    it('should return admin permission through workspace', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce({
-        workflow: {},
-        workspaceId: 'workspace-456',
-      })
-      mockGetUserEntityPermissions.mockResolvedValueOnce('admin')
-
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: true,
-        userPermission: 'admin',
-        workspaceId: 'workspace-456',
-      })
-    })
-
-    it('should return no access without workspace permissions', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce({
-        workflow: {},
-        workspaceId: 'workspace-456',
-      })
-      mockGetUserEntityPermissions.mockResolvedValueOnce(null)
-
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: false,
-        userPermission: null,
-        workspaceId: 'workspace-456',
-      })
-    })
-
-    it('should return no access for workflow without workspace', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce(null)
-
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: false,
-        userPermission: null,
-      })
-    })
-
-    it('should handle database errors gracefully', async () => {
-      mockGetActiveWorkflowContext.mockRejectedValueOnce(new Error('Database connection failed'))
-
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: false,
-        userPermission: null,
-      })
-    })
-
-    it('should handle permission check errors gracefully', async () => {
-      mockGetActiveWorkflowContext.mockResolvedValueOnce({
-        workflow: {},
-        workspaceId: 'workspace-456',
-      })
-      mockGetUserEntityPermissions.mockRejectedValueOnce(new Error('Permission check failed'))
-
-      const result = await verifyWorkflowAccess('user-123', 'workflow-789')
-
-      expect(result).toEqual({
-        hasAccess: false,
-        userPermission: null,
-      })
+      expect(result).toEqual({ hasAccess: false, userPermission: null })
     })
   })
 

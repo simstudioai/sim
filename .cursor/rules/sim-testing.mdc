@@ -22,7 +22,7 @@ These modules are mocked globally — do NOT re-mock them in test files unless y
 - `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
 - `@/blocks/registry`
 - `@trigger.dev/sdk`
-- `@sim/workflow-authz` → `workflowAuthzMock`
+- `@sim/platform-authz/workflow` → `workflowAuthzMock`
 
 ## Structure
 

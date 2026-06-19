@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { type PermissionType, permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import type { NextRequest, NextResponse } from 'next/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
@@ -213,16 +214,7 @@ async function validateMcpAuth(
  * Check if user has required permission level
  */
 function checkPermissionLevel(userPermission: string, requiredLevel: McpPermissionLevel): boolean {
-  switch (requiredLevel) {
-    case 'read':
-      return ['read', 'write', 'admin'].includes(userPermission)
-    case 'write':
-      return ['write', 'admin'].includes(userPermission)
-    case 'admin':
-      return userPermission === 'admin'
-    default:
-      return false
-  }
+  return permissionSatisfies(userPermission as PermissionType, requiredLevel)
 }
 
 /**

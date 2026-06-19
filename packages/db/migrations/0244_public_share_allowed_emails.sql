@@ -1,1 +1,0 @@
-ALTER TABLE "public_share" ADD COLUMN "allowed_emails" json DEFAULT '[]';
