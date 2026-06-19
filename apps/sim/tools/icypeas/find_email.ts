@@ -116,8 +116,10 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
     // it rejects the input up front (missing/invalid name or domain). There is no item
     // to poll — this is a BAD_INPUT verdict, not a transport error. Surface it as a
     // successful run with a null email so the enrichment cascade records the verdict
-    // instead of inflating the runner's error count.
-    if (json.success === false || Array.isArray(json.validationErrors)) {
+    // instead of inflating the runner's error count. Key on a non-empty validationErrors
+    // array specifically: a bare { success: false } is an unexpected failure shape that
+    // should fall through and throw, not be masked as BAD_INPUT.
+    if (Array.isArray(json.validationErrors) && json.validationErrors.length > 0) {
       return {
         success: true,
         output: {
@@ -145,14 +147,15 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
   postProcess: async (result, params) => {
     if (!result.success) return result
 
+    // If already terminal, return immediately — a BAD_INPUT verdict has no searchId
+    // to poll, so this must run before the searchId guard.
+    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
+      return result
+    }
+
     const searchId = result.output.searchId
     if (!searchId) {
       throw new Error('Icypeas find-email result is missing a searchId')
-    }
-
-    // If already terminal (unlikely on submit but defensive), return immediately.
-    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
-      return result
     }
 
     let elapsed = 0

@@ -109,8 +109,10 @@ export const icypeasVerifyEmailTool: ToolConfig<
     // it rejects the input up front (bad format, role-based address, etc.). There is
     // no item to poll — this is a BAD_INPUT verdict, not a transport error. Surface it
     // as a successful run with valid=false so the enrichment cascade records the
-    // verdict instead of inflating the runner's error count.
-    if (json.success === false || Array.isArray(json.validationErrors)) {
+    // verdict instead of inflating the runner's error count. Key on a non-empty
+    // validationErrors array specifically: a bare { success: false } is an unexpected
+    // failure shape that should fall through and throw, not be masked as BAD_INPUT.
+    if (Array.isArray(json.validationErrors) && json.validationErrors.length > 0) {
       return {
         success: true,
         output: {
@@ -137,14 +139,15 @@ export const icypeasVerifyEmailTool: ToolConfig<
   postProcess: async (result, params) => {
     if (!result.success) return result
 
+    // If already terminal, return immediately — a BAD_INPUT verdict has no searchId
+    // to poll, so this must run before the searchId guard.
+    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
+      return result
+    }
+
     const searchId = result.output.searchId
     if (!searchId) {
       throw new Error('Icypeas verify-email result is missing a searchId')
-    }
-
-    // If already terminal, return immediately.
-    if (result.output.status && TERMINAL_STATUSES.has(result.output.status)) {
-      return result
     }
 
     let elapsed = 0

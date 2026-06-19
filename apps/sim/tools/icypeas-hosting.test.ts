@@ -147,6 +147,71 @@ describe('Icypeas transformResponse validation errors', () => {
       } as any)
     ).rejects.toThrow(/item _id/)
   })
+
+  it('verify-email throws on a bare success:false body without validationErrors', async () => {
+    const response = new Response(JSON.stringify({ success: false }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    await expect(
+      icypeasVerifyEmailTool.transformResponse!(response, {
+        apiKey: 'test-key',
+        email: 'jane@example.com',
+      } as any)
+    ).rejects.toThrow(/item _id/)
+  })
+})
+
+describe('Icypeas postProcess on BAD_INPUT', () => {
+  it('verify-email returns the BAD_INPUT verdict without polling or throwing', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await icypeasVerifyEmailTool.postProcess!(
+      {
+        success: true as const,
+        output: {
+          searchId: null,
+          status: 'BAD_INPUT',
+          email: 'support@stripe.com',
+          valid: false,
+          item: {},
+        },
+      } as any,
+      { apiKey: 'test-key', email: 'support@stripe.com' } as any,
+      vi.fn()
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect((result.output as any).status).toBe('BAD_INPUT')
+  })
+
+  it('find-email returns the BAD_INPUT verdict without polling or throwing', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await icypeasFindEmailTool.postProcess!(
+      {
+        success: true as const,
+        output: {
+          searchId: null,
+          status: 'BAD_INPUT',
+          email: null,
+          firstname: null,
+          lastname: null,
+          item: {},
+        },
+      } as any,
+      { apiKey: 'test-key', domainOrCompany: 'stripe.com' } as any,
+      vi.fn()
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.success).toBe(true)
+    expect((result.output as any).status).toBe('BAD_INPUT')
+  })
 })
 
 describe('Icypeas find-email postProcess poll', () => {
