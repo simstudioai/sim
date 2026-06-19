@@ -239,6 +239,7 @@ function LoadedRichMarkdownEditor({
         return true
       },
       handlePaste: (view, event) => {
+        if (!view.editable) return false
         const images = extractImageFiles(event.clipboardData)
         if (images.length === 0) return false
         event.preventDefault()
@@ -246,6 +247,7 @@ function LoadedRichMarkdownEditor({
         return true
       },
       handleDrop: (view, event) => {
+        if (!view.editable) return false
         const images = extractImageFiles(event.dataTransfer)
         if (images.length === 0) return false
         event.preventDefault()
