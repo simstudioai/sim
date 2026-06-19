@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { cn } from '@/lib/core/utils/cn'
@@ -163,9 +163,14 @@ function LoadedRichMarkdownEditor({
   }
   const isEditable = canEdit && roundTripSafeRef.current
 
-  const { frontmatter, body } = useMemo(() => splitFrontmatter(initialContent), [initialContent])
-  const frontmatterRef = useRef(frontmatter)
-  frontmatterRef.current = frontmatter
+  // Split frontmatter off once, on the opened content (stable for the editor's lifetime, like the
+  // verdict above): the body seeds the editor's initial document, and the frontmatter is re-attached
+  // on every change so the editor only ever round-trips the body.
+  const splitRef = useRef<{ frontmatter: string; body: string } | null>(null)
+  if (splitRef.current === null) {
+    splitRef.current = splitFrontmatter(initialContent)
+  }
+  const { frontmatter, body } = splitRef.current
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
@@ -251,7 +256,7 @@ function LoadedRichMarkdownEditor({
     },
     onUpdate: ({ editor }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
-      onChangeRef.current(applyFrontmatter(frontmatterRef.current, md))
+      onChangeRef.current(applyFrontmatter(frontmatter, md))
     },
   })
   editorInstanceRef.current = editor

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { CodeBlock } from '@tiptap/extension-code-block'
 import type { ReactNodeViewProps } from '@tiptap/react'
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
+import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { detectLanguage } from './detect-language'
 
 const PLAIN = 'plain'
@@ -35,28 +36,14 @@ const CONTROL_CLASS =
 
 function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const [wrap, setWrap] = useState(false)
-  const [copied, setCopied] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const explicitLanguage = node.attrs.language as string | null
   const language = explicitLanguage ?? detectLanguage(node.textContent) ?? PLAIN
   const label =
     LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ??
     explicitLanguage ??
     'Plain text'
-
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 1500)
-    return () => clearTimeout(timer)
-  }, [copied])
-
-  const copy = async () => {
-    const ok = await navigator.clipboard
-      ?.writeText(node.textContent)
-      .then(() => true)
-      .catch(() => false)
-    if (ok) setCopied(true)
-  }
 
   return (
     <NodeViewWrapper className='group relative'>
@@ -111,7 +98,7 @@ function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           type='button'
           aria-label='Copy code'
           onMouseDown={(event) => event.preventDefault()}
-          onClick={copy}
+          onClick={() => copy(node.textContent)}
           className={CONTROL_CLASS}
         >
           {copied ? <Check /> : <Copy />}

@@ -9,7 +9,7 @@ import {
 /**
  * Above this size we don't run the (synchronous) round-trip probe — building two editors to
  * serialize a large document blocks the main thread for too long, and a very large markdown file
- * is heavier to edit richly anyway, so it opens in the raw editor.
+ * is heavier to edit richly anyway, so it opens read-only.
  */
 const PROBE_SIZE_LIMIT = 128 * 1024
 
@@ -48,7 +48,7 @@ const STABLE_LOSS_PATTERNS: ReadonlyArray<RegExp> = [
  * or tilde, length-matched on the closer so nested fences strip as one unit) and inline code.
  * Indented (4-space) code is deliberately NOT stripped — list/paragraph continuation lines are
  * also indented, and over-stripping would risk missing a real unsafe construct (a false negative,
- * which is worse than the rare false positive of an indented code block opening in the raw editor).
+ * which is worse than the rare false positive of an indented code block opening read-only).
  */
 function stripCode(content: string): string {
   return content
@@ -70,8 +70,8 @@ function serialize(content: string): string {
 
 /**
  * Whether `content` survives the editor's markdown round-trip without data loss or autosave
- * churn. Callers fall back to the raw text editor when this is false, so the gate is
- * deliberately conservative: it rejects on any doubt rather than risk silently corrupting a file.
+ * churn. The editor opens the content read-only when this is false, so the probe is deliberately
+ * conservative: it rejects on any doubt rather than risk an edit silently corrupting a file.
  *
  * Two complementary checks: known stable-loss constructs are matched directly (the idempotency
  * probe is blind to them), and everything else must reach a fixpoint — `serialize(x)` twice in a
