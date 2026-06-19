@@ -266,3 +266,39 @@ describe('editor markdown round-trip', () => {
     expect(roundTrip(out)).toBe(out)
   })
 })
+
+/**
+ * Links come from arbitrary file content (a README the editor opens, agent-written markdown), not
+ * just user-typed text — so the rendered anchor must never carry a dangerous scheme. This locks the
+ * guarantee in our own test rather than trusting a transitive TipTap default to keep neutralizing
+ * `javascript:`/`data:`/`vbscript:` across version bumps.
+ */
+describe('link href sanitization — dangerous schemes from file content are neutralized', () => {
+  function renderedHrefs(markdown: string): Array<string | null> {
+    editor = new Editor({ extensions: createMarkdownContentExtensions() })
+    editor.commands.setContent(markdown, { contentType: 'markdown' })
+    const html = editor.getHTML()
+    editor.destroy()
+    editor = null
+    const doc = new DOMParser().parseFromString(html, 'text/html')
+    return Array.from(doc.querySelectorAll('a')).map((a) => a.getAttribute('href'))
+  }
+
+  it.each([
+    'javascript:alert(document.cookie)',
+    'JaVaScRiPt:alert(1)',
+    '  javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+  ])('does not render %s as a clickable href', (scheme) => {
+    for (const href of renderedHrefs(`[click me](${scheme})`)) {
+      expect((href ?? '').replace(/\s/g, '')).not.toMatch(/^(javascript|data|vbscript):/i)
+    }
+  })
+
+  it('preserves safe http/https/mailto links', () => {
+    const hrefs = renderedHrefs('[a](https://ok.example.com)\n\n[b](mailto:x@y.com)')
+    expect(hrefs).toContain('https://ok.example.com')
+    expect(hrefs).toContain('mailto:x@y.com')
+  })
+})
