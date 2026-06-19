@@ -101,12 +101,6 @@ interface FileViewerProps {
   streamingMode?: StreamingMode
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
-  /**
-   * Render idle markdown in the inline rich editor. Off by default so preview surfaces (e.g. the
-   * Chat resource view, which streams content and persists via the raw editor) keep the
-   * mode-toggleable raw/preview editor; the files view opts in.
-   */
-  inlineMarkdownEditor?: boolean
 }
 
 export function FileViewer({
@@ -123,7 +117,6 @@ export function FileViewer({
   streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
-  inlineMarkdownEditor = false,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -135,6 +128,14 @@ export function FileViewer({
       if (isCsvStreamOnly(file)) {
         return <UnsupportedPreview file={file} />
       }
+      // Markdown renders through the inline rich editor (non-editable) so the public share
+      // surface matches the in-app reading experience; canEdit={false} disables autosave,
+      // the bubble menu, and every other editing affordance.
+      if (isMarkdownFile(file)) {
+        return (
+          <MarkdownFileEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+        )
+      }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
     }
     // A large CSV can't be loaded whole into the editor (the browser OOMs on the full text).
@@ -143,7 +144,7 @@ export function FileViewer({
       return <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
     }
 
-    if (inlineMarkdownEditor && isMarkdownFile(file) && streamingContent === undefined) {
+    if (isMarkdownFile(file)) {
       return (
         <MarkdownFileEditor
           key={file.id}
@@ -154,6 +155,10 @@ export function FileViewer({
           onDirtyChange={onDirtyChange}
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
+          streamingContent={streamingContent}
+          streamingMode={streamingMode}
+          disableStreamingAutoScroll={disableStreamingAutoScroll}
+          previewContextKey={previewContextKey}
         />
       )
     }

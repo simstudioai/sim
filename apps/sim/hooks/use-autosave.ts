@@ -97,6 +97,10 @@ export function useAutosave({
   }, [content, enabled, isDirty, delay, save])
 
   useEffect(() => {
+    // Reset on every (re)mount, not only set on unmount: React strict mode runs effects
+    // mount → cleanup → mount, so without this the flag would stay `true` after the dev
+    // double-invoke and permanently suppress the "saving"/"saved" status updates below.
+    unmountedRef.current = false
     return () => {
       unmountedRef.current = true
       clearTimeout(timerRef.current)

@@ -1,12 +1,15 @@
 'use client'
 
-import { memo, useEffect, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
 import type { SaveStatus } from '@/hooks/use-autosave'
+import { PreviewPanel } from '../preview-panel'
 import { PreviewLoadingFrame } from '../preview-shared'
+import type { StreamingMode } from '../text-editor-state'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './extensions'
 import { extractImageFiles } from './image-paste'
@@ -32,14 +35,24 @@ interface RichMarkdownEditorProps {
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
+  streamingContent?: string
+  streamingMode?: StreamingMode
+  disableStreamingAutoScroll?: boolean
+  previewContextKey?: string
 }
 
 /**
- * Inline WYSIWYG markdown editor (TipTap/ProseMirror) for markdown files. Renders a
- * single editing surface — markdown is transformed inline as you type — with no raw/preview
- * split. Content loading and autosave are delegated to
- * {@link useEditableFileContent}; this component only renders the editor and bridges
- * markdown in and out of it.
+ * Inline WYSIWYG markdown editor (TipTap/ProseMirror) for markdown files — a single editing surface
+ * (markdown transformed inline as you type), no raw/preview split. Owns the file lifecycle through a
+ * single {@link useEditableFileContent} engine: while agent output streams in (and during the
+ * post-stream reconcile) it shows the read-only {@link PreviewPanel} with autosave disabled, so the
+ * editor never races the agent's server-side write. Once content is loaded and settled it mounts the
+ * actual editor.
+ *
+ * The editor is mounted only once content is ready, and is keyed by file id — so the loaded markdown
+ * is the editor's *initial* `content` (parsed at create time), not pushed in by a sync effect. That
+ * keeps it robust to TipTap's strict-mode/SSR instance lifecycle: there is no content-sync effect to
+ * race, so a freshly created (or strict-mode-recreated) editor is always born with the right document.
  */
 export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   file,
@@ -49,6 +62,10 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
+  streamingContent,
+  streamingMode,
+  disableStreamingAutoScroll = false,
+  previewContextKey,
 }: RichMarkdownEditorProps) {
   const {
     content,
@@ -61,31 +78,93 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     file,
     workspaceId,
     canEdit,
+    streamingContent,
+    streamingMode,
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
   })
 
-  const isEditable = canEdit && !isStreamInteractionLocked
+  if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
 
-  const syncedMarkdownRef = useRef<string | null>(null)
-  const frontmatterRef = useRef('')
-  const frontmatterSourceRef = useRef<string | null>(null)
-  const hasAutoFocusedRef = useRef(false)
-  const setDraftContentRef = useRef(setDraftContent)
-  setDraftContentRef.current = setDraftContent
-  const saveImmediatelyRef = useRef(saveImmediately)
-  saveImmediatelyRef.current = saveImmediately
+  if (hasContentError) {
+    return (
+      <div className='flex flex-1 items-center justify-center'>
+        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
+      </div>
+    )
+  }
+
+  if (isStreamInteractionLocked) {
+    return (
+      <PreviewPanel
+        key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}
+        content={content}
+        mimeType={file.type}
+        filename={file.name}
+        workspaceId={workspaceId}
+        fileKey={file.key}
+        isStreaming
+        disableAutoScroll={disableStreamingAutoScroll}
+      />
+    )
+  }
+
+  return (
+    <LoadedRichMarkdownEditor
+      key={file.id}
+      file={file}
+      workspaceId={workspaceId}
+      initialContent={content}
+      isEditable={canEdit}
+      autoFocus={autoFocus}
+      onChange={setDraftContent}
+      onSaveShortcut={saveImmediately}
+    />
+  )
+})
+
+interface LoadedRichMarkdownEditorProps {
+  file: WorkspaceFileRecord
+  workspaceId: string
+  initialContent: string
+  isEditable: boolean
+  autoFocus?: boolean
+  onChange: (markdown: string) => void
+  onSaveShortcut: () => Promise<void>
+}
+
+/**
+ * The mounted TipTap editor. Receives the file's loaded markdown as {@link initialContent} and hands
+ * it to {@link useEditor} as the initial document (parsed at create time by the markdown extension),
+ * so there is no imperative content sync. Frontmatter is held aside and re-applied on every change,
+ * so the editor only ever round-trips the body.
+ */
+function LoadedRichMarkdownEditor({
+  file,
+  workspaceId,
+  initialContent,
+  isEditable,
+  autoFocus,
+  onChange,
+  onSaveShortcut,
+}: LoadedRichMarkdownEditorProps) {
+  const { frontmatter, body } = useMemo(() => splitFrontmatter(initialContent), [initialContent])
+  const frontmatterRef = useRef(frontmatter)
+  frontmatterRef.current = frontmatter
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  const onSaveShortcutRef = useRef(onSaveShortcut)
+  onSaveShortcutRef.current = onSaveShortcut
 
   const uploadFile = useUploadWorkspaceFile()
   const editorInstanceRef = useRef<Editor | null>(null)
 
   /**
-   * Upload each image to the workspace, then insert it at `at` (paste = caret, drop = cursor
-   * under the pointer). Sequential so multiple images stack in order; the upload hook surfaces
-   * its own success/error toasts, so a failed upload is skipped without interrupting the rest.
-   * Held in a ref (reassigned each render) so the once-built `editorProps` handlers always reach
-   * the latest workspace/file values.
+   * Upload each image to the workspace, then insert it at `at` (paste = caret, drop = cursor under
+   * the pointer). Sequential so multiple images stack in order; the upload hook surfaces its own
+   * success/error toasts, so a failed upload is skipped without interrupting the rest. Held in a ref
+   * (reassigned each render) so the once-built `editorProps` handlers always reach the latest values.
    */
   const insertImagesRef = useRef<(images: File[], at: number) => Promise<void>>(() =>
     Promise.resolve()
@@ -114,24 +193,21 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     }
   }
 
-  if (content !== frontmatterSourceRef.current) {
-    frontmatterSourceRef.current = content
-    frontmatterRef.current = splitFrontmatter(content).frontmatter
-  }
-
   const editor = useEditor({
     extensions: EXTENSIONS,
     editable: isEditable,
     autofocus: autoFocus ? 'end' : false,
     immediatelyRender: false,
     shouldRerenderOnTransaction: false,
+    content: body,
+    contentType: 'markdown',
     editorProps: {
       attributes: { class: 'rich-markdown-prose' },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'
         if (!isSaveShortcut) return false
         event.preventDefault()
-        void saveImmediatelyRef.current()
+        void onSaveShortcutRef.current()
         return true
       },
       handleClick: (_view, _pos, event) => {
@@ -160,47 +236,18 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      const body = postProcessSerializedMarkdown(editor.getMarkdown())
-      const full = applyFrontmatter(frontmatterRef.current, body)
-      syncedMarkdownRef.current = full
-      setDraftContentRef.current(full)
+      const md = postProcessSerializedMarkdown(editor.getMarkdown())
+      onChangeRef.current(applyFrontmatter(frontmatterRef.current, md))
     },
   })
-
-  useEffect(() => {
-    editorInstanceRef.current = editor
-  }, [editor])
+  editorInstanceRef.current = editor
 
   useEffect(() => {
     editor?.setEditable(isEditable)
   }, [editor, isEditable])
 
-  useEffect(() => {
-    if (!editor || content === syncedMarkdownRef.current) return
-    syncedMarkdownRef.current = content
-    editor
-      .chain()
-      .setMeta('addToHistory', false)
-      .setContent(splitFrontmatter(content).body, { contentType: 'markdown', emitUpdate: false })
-      .run()
-    if (autoFocus && !hasAutoFocusedRef.current) {
-      hasAutoFocusedRef.current = true
-      editor.commands.focus('end')
-    }
-  }, [editor, content, autoFocus])
-
-  if (isContentLoading) return <PreviewLoadingFrame className='flex flex-1 flex-col' />
-
-  if (hasContentError) {
-    return (
-      <div className='flex flex-1 items-center justify-center'>
-        <p className='text-[var(--text-muted)] text-small'>Failed to load file content</p>
-      </div>
-    )
-  }
-
   return (
-    <div className='flex flex-1 cursor-text flex-col overflow-y-auto'>
+    <div className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}>
       {editor && <EditorBubbleMenu editor={editor} />}
       <EditorContent
         editor={editor}
@@ -208,4 +255,4 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       />
     </div>
   )
-})
+}

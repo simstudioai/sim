@@ -22,7 +22,7 @@ import {
   toast,
   Upload,
 } from '@/components/emcn'
-import { Download, Link } from '@/components/emcn/icons'
+import { Download, Send } from '@/components/emcn/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { captureEvent } from '@/lib/posthog/client'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
@@ -1075,7 +1075,7 @@ export function Files() {
           ...(canEdit
             ? [
                 { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
-                { label: 'Share', icon: Link, onClick: handleShareSelected },
+                { label: 'Share', icon: Send, onClick: handleShareSelected },
                 { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
               ]
             : []),
@@ -1482,7 +1482,7 @@ export function Files() {
         ? [
             {
               text: 'Share',
-              icon: Link,
+              icon: Send,
               onSelect: handleShareSelected,
             },
             {
@@ -1891,7 +1891,6 @@ export function Files() {
             onDirtyChange={setIsDirty}
             onSaveStatusChange={setSaveStatus}
             saveRef={saveRef}
-            inlineMarkdownEditor
           />
 
           <ChipConfirmModal

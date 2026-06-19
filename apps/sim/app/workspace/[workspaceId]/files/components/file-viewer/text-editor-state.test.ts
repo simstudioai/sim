@@ -441,3 +441,59 @@ describe('syncTextEditorContentState — inter-session content shrink (replace m
     expect(next.lastStreamedContent).toBeNull()
   })
 })
+
+/**
+ * The chat resource view (mothership) streams agent output into an existing, initially-empty file
+ * (the agent's `create_file` writes an empty buffer, then `edit_content` persists the real content
+ * server-side). The editor must never autosave during this handoff — a save would race the agent's
+ * server write and could clobber it with empty/stale content. The engine guarantees this by staying
+ * stream-locked (phase `streaming`/`reconciling`, where autosave is disabled) from the first chunk
+ * until fetched content reconciles to the agent's saved write — at which point `content` and
+ * `savedContent` both equal that write, so the now-enabled autosave sees a clean doc and never fires.
+ */
+describe('syncTextEditorContentState — mothership streamed-file lifecycle (replace mode)', () => {
+  const isStreamLocked = (s: TextEditorContentState) =>
+    s.phase === 'streaming' || s.phase === 'reconciling'
+
+  it('stays locked through streaming + reconcile, then finalizes to the agent write with no empty save', () => {
+    const opts = (fetchedContent: string | undefined, streamingContent: string | undefined) => ({
+      canReconcileToFetchedContent: true,
+      fetchedContent,
+      streamingContent,
+      streamingMode: 'replace' as const,
+    })
+
+    // 1. Empty file (create_file wrote an empty buffer); first streamed chunk arrives.
+    let state = syncTextEditorContentState(
+      INITIAL_TEXT_EDITOR_CONTENT_STATE,
+      opts('', '# Story\n\nOnce')
+    )
+    expect(state.phase).toBe('streaming')
+    expect(isStreamLocked(state)).toBe(true)
+
+    // 2. More chunks stream in (replace mode → content tracks the latest snapshot).
+    state = syncTextEditorContentState(state, opts('', '# Story\n\nOnce upon a time'))
+    expect(state.content).toBe('# Story\n\nOnce upon a time')
+    expect(isStreamLocked(state)).toBe(true)
+
+    // 3. Stream completes (streamingContent cleared) but the agent's server write hasn't been
+    //    refetched yet — must hold in reconciling (still locked, autosave still disabled).
+    state = syncTextEditorContentState(state, opts('', undefined))
+    expect(state.phase).toBe('reconciling')
+    expect(isStreamLocked(state)).toBe(true)
+    expect(state.savedContent).toBe('')
+
+    // 4. The agent's `edit_content` write lands in the refetched content → finalize to ready with
+    //    content === savedContent === the agent write. Never an empty savedContent.
+    const agentWrite = '# Story\n\nOnce upon a time, the end.'
+    state = syncTextEditorContentState(state, opts(agentWrite, undefined))
+    expect(state.phase).toBe('ready')
+    expect(isStreamLocked(state)).toBe(false)
+    expect(state.content).toBe(agentWrite)
+    expect(state.savedContent).toBe(agentWrite)
+    expect(state.lastStreamedContent).toBeNull()
+
+    // 5. Now-enabled autosave compares content vs savedContent: equal → it never fires a save.
+    expect(state.content).toBe(state.savedContent)
+  })
+})

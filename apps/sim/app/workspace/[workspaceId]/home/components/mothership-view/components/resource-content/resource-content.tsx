@@ -123,8 +123,12 @@ export const ResourceContent = memo(function ResourceContent({
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const isTextPreview =
     !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
+  // Feed streamed content only while actively streaming. On completion the session keeps
+  // `previewText` for history, but clearing it here lets the editor reconcile to the agent's
+  // server-side write and hand off to the editable surface (the agent persists, not the editor).
   const textStreamingContent =
     isTextPreview &&
+    previewSession?.status === 'streaming' &&
     typeof previewSession?.previewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)
       ? previewSession.previewText
