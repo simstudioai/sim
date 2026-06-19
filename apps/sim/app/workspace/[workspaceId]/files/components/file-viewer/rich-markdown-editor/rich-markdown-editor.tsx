@@ -9,6 +9,7 @@ import type { SaveStatus } from '@/hooks/use-autosave'
 import { PreviewLoadingFrame } from '../preview-shared'
 import { useEditableFileContent } from '../use-editable-file-content'
 import { createMarkdownEditorExtensions } from './extensions'
+import { extractImageFiles } from './image-paste'
 import {
   applyFrontmatter,
   normalizeLinkHref,
@@ -22,12 +23,6 @@ import './rich-markdown-editor.css'
 const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
 })
-
-/** Image files from a paste/drop payload (screenshots, dragged files, copied images). */
-function extractImageFiles(transfer: DataTransfer | null): File[] {
-  if (!transfer) return []
-  return Array.from(transfer.files).filter((file) => file.type.startsWith('image/'))
-}
 
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
