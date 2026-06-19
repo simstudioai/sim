@@ -1702,6 +1702,13 @@
       "when": 1781895339512,
       "tag": "0243_kb_workspace_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 244,
+      "version": "7",
+      "when": 1781899910981,
+      "tag": "0244_table_row_executions_enrichment_details",
+      "breakpoints": true
     }
   ]
 }
