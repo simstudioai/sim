@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  type PiiRedactionSettings,
+  piiRedactionSettingsSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { organizationBillingDataSchema } from '@/lib/api/contracts/subscription'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { workspacePermissionSchema } from '@/lib/api/contracts/workspaces'
@@ -98,16 +102,24 @@ const organizationDataRetentionHoursSchema = z
   .nullable()
   .optional()
 
+export type { PiiRedactionSettings }
+
 export const updateOrganizationDataRetentionBodySchema = z.object({
   logRetentionHours: organizationDataRetentionHoursSchema,
   softDeleteRetentionHours: organizationDataRetentionHoursSchema,
   taskCleanupHours: organizationDataRetentionHoursSchema,
+  piiRedaction: piiRedactionSettingsSchema.optional(),
 })
+
+export type UpdateOrganizationDataRetentionBody = z.input<
+  typeof updateOrganizationDataRetentionBodySchema
+>
 
 const organizationRetentionValuesSchema = z.object({
   logRetentionHours: z.number().int().nullable(),
   softDeleteRetentionHours: z.number().int().nullable(),
   taskCleanupHours: z.number().int().nullable(),
+  piiRedaction: piiRedactionSettingsSchema.nullable(),
 })
 
 export type OrganizationRetentionValues = z.output<typeof organizationRetentionValuesSchema>
