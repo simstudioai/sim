@@ -16,9 +16,9 @@ const PROBE_SIZE_LIMIT = 128 * 1024
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
  * unchanged — so the idempotency probe below can't see the loss. Each must be matched directly.
+ * (Linked images `[![alt](img)](href)` are handled by the image node and verified separately by
+ * the link-count check in {@link isRoundTripSafe}, not here.)
  *
- * - **Linked image** `[![alt](img)](href)` — the schema can't nest an image in a link, so the
- *   wrapping href is dropped.
  * - **Footnote** `[^id]` — not in the schema; the reference and definition serialize to escaped
  *   literal text, breaking the footnote.
  * - **HTML comment** `<!-- … -->` — dropped entirely.
@@ -34,7 +34,6 @@ const PROBE_SIZE_LIMIT = 128 * 1024
  *   `&` with no `;` is left alone (it re-renders identically, so it's harmless churn).
  */
 const STABLE_LOSS_PATTERNS: ReadonlyArray<RegExp> = [
-  /\[\s*!\[[^\]]*]\([^)]*\)\s*]\([^)]*\)/,
   /\[\^[^\]]+]/,
   /<!--/,
   /<\/?(?!(?:br|img)\b)[a-z][a-z0-9-]*(\s[^>]*)?\/?>/i,
@@ -54,6 +53,19 @@ function stripCode(content: string): string {
   return content
     .replace(/^([`~]{3,})[^\n]*\n[\s\S]*?^\1[`~]*[ \t]*$/gm, '')
     .replace(/`+[^`\n]*`+/g, '')
+}
+
+/**
+ * Linked images `[![alt](src)](href)`. The image node round-trips the common forms (clean URLs,
+ * optional titles) via its `href` attribute, but an exotic one it can't tokenize falls back to the
+ * stock parser, which drops the wrapping link — an invisible, stable loss. So instead of matching a
+ * fixed pattern, {@link isRoundTripSafe} counts these before and after one serialization and rejects
+ * if any disappeared.
+ */
+const LINKED_IMAGE_PATTERN = /\[\s*!\[[^\]]*]\([^)]*\)\s*]\([^)]*\)/g
+
+function linkedImageCount(content: string): number {
+  return content.match(LINKED_IMAGE_PATTERN)?.length ?? 0
 }
 
 /** Serialize markdown through the exact editor pipeline (frontmatter held aside). */
@@ -81,9 +93,11 @@ function serialize(content: string): string {
  */
 export function isRoundTripSafe(content: string): boolean {
   if (content.length > PROBE_SIZE_LIMIT) return false
-  if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripCode(content)))) return false
+  const stripped = stripCode(content)
+  if (STABLE_LOSS_PATTERNS.some((pattern) => pattern.test(stripped))) return false
   try {
     const once = serialize(content)
+    if (linkedImageCount(stripped) !== linkedImageCount(stripCode(once))) return false
     return serialize(once) === once
   } catch {
     return false

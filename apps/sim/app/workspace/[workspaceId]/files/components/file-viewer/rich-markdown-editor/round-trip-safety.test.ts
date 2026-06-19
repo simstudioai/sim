@@ -17,6 +17,14 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('')).toBe(true)
   })
 
+  it('passes a linked image / badge (round-trips through the image node href)', () => {
+    expect(isRoundTripSafe('[![alt](https://e.com/i.png)](https://e.com)')).toBe(true)
+    expect(
+      isRoundTripSafe('[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)')
+    ).toBe(true)
+    expect(isRoundTripSafe('[![alt](https://e.com/i.png "t")](https://e.com "h")')).toBe(true)
+  })
+
   it('passes inline code without an interior backtick', () => {
     expect(isRoundTripSafe('use `npm install` here')).toBe(true)
   })
@@ -30,7 +38,6 @@ describe('isRoundTripSafe', () => {
   })
 
   it('rejects stable-loss constructs the idempotency probe cannot see', () => {
-    expect(isRoundTripSafe('[![alt](https://e.com/i.png)](https://e.com)')).toBe(false)
     expect(isRoundTripSafe('text[^1]\n\n[^1]: the note')).toBe(false)
     expect(isRoundTripSafe('<!-- a note -->\n\ntext')).toBe(false)
     expect(isRoundTripSafe('<details><summary>x</summary>body</details>')).toBe(false)

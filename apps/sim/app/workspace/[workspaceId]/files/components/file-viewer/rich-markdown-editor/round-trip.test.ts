@@ -168,6 +168,22 @@ describe('editor markdown round-trip', () => {
     expect(out).toContain('![alt](https://example.com/i.png)')
   })
 
+  it('round-trips a linked image / badge (keeps the wrapping link)', () => {
+    const out = roundTrip(
+      '[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)'
+    )
+    expect(out).toContain(
+      '[![build](https://img.shields.io/badge/x-green)](https://ci.example.com)'
+    )
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('keeps a plain image plain (no spurious link wrapper)', () => {
+    const out = roundTrip('![alt](https://example.com/i.png)')
+    expect(out).not.toContain('](https://example.com/i.png)](')
+    expect(out.trim()).toBe('![alt](https://example.com/i.png)')
+  })
+
   it('round-trips a sized image as an HTML <img>, plain images as markdown', () => {
     const sized = roundTrip('<img src="https://e.com/i.png" alt="d" width="320">')
     expect(sized).toContain('<img src="https://e.com/i.png" alt="d" width="320">')
@@ -225,5 +241,25 @@ describe('editor markdown round-trip', () => {
   it('escapes interior pipes in table cells (no phantom column split)', () => {
     const out = roundTrip('| x \\| y | 2 |\n| --- | --- |\n| a | b |')
     expect(out).toContain('x \\| y')
+  })
+
+  it('does not churn blank lines around an interior table', () => {
+    const out = roundTrip('before\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\nafter')
+    expect(out).not.toContain('\n\n\n')
+    expect(out).toContain('before')
+    expect(out).toContain('after')
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('does not churn blank lines between two adjacent tables', () => {
+    const out = roundTrip('| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |')
+    expect(out).not.toContain('\n\n\n')
+    expect(roundTrip(out)).toBe(out)
+  })
+
+  it('preserves blank lines inside a fenced code block (table trim must not touch code)', () => {
+    const out = roundTrip('```js\na\n\n\nb\n```')
+    expect(out).toContain('a\n\n\nb')
+    expect(roundTrip(out)).toBe(out)
   })
 })

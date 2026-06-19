@@ -15,6 +15,8 @@ import { CodeBlockWithLanguage, MarkdownCodeBlock } from './code-block'
 import { CodeBlockHighlight } from './code-highlight'
 import { MarkdownImage, ResizableImage } from './image'
 import { EditorKeymap } from './keymap'
+import { MarkdownLinkInputRule } from './link-input-rule'
+import { MarkdownPaste } from './markdown-paste'
 import { SlashCommand } from './slash-command/slash-command'
 
 /**
@@ -29,6 +31,12 @@ const InlineCode = Code.extend({ excludes: '' })
  * joins cells with `|` without escaping, so a cell containing a literal pipe silently splits
  * into phantom columns on round-trip (data loss). Escaping must happen on the `table` node —
  * `tableCell`/`tableHeader` have no markdown renderer; the table renders cell children directly.
+ *
+ * The upstream serializer also wraps the table in its own leading/trailing blank lines; left in,
+ * the block joiner adds another, so an interior table churns its surrounding whitespace to
+ * `\n\n\n` on the first edit. Trimming the table's own output lets the joiner own the single
+ * blank-line separator — without touching blank lines inside fenced code (those live in the code
+ * node's text, not here).
  */
 const PipeSafeTable = Table.extend({
   renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
@@ -36,7 +44,9 @@ const PipeSafeTable = Table.extend({
       ...h,
       renderChildren: (nodes, separator) =>
         h.renderChildren(nodes, separator).replace(/\|/g, '\\|'),
-    }),
+    })
+      .replace(/^\n+/, '')
+      .replace(/\n+$/, ''),
 })
 
 interface MarkdownEditorExtensionOptions {
@@ -79,6 +89,7 @@ export function createMarkdownContentExtensions({
     TableRow,
     TableHeader,
     TableCell,
+    MarkdownLinkInputRule,
     Markdown,
   ]
 }
@@ -96,6 +107,7 @@ export function createMarkdownEditorExtensions({
     CodeBlockHighlight,
     SlashCommand,
     EditorKeymap,
+    MarkdownPaste,
     Placeholder.configure({ placeholder }),
   ]
 }

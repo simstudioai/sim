@@ -25,6 +25,17 @@
   border-radius: 4px;
 }
 
+/* An image is its own framed element; ring the image itself so the indicator hugs the picture
+   rather than the node's bounding box, which can be far wider/taller than a small image. */
+.rich-markdown-prose .ProseMirror-selectednode:has(img) {
+  outline: none;
+}
+
+.rich-markdown-prose .ProseMirror-selectednode img {
+  outline: 2px solid var(--brand-secondary);
+  outline-offset: 2px;
+}
+
 .rich-markdown-prose > * + * {
   margin-top: 0.6em;
 }
@@ -170,10 +181,14 @@
 
 /* Override ProseMirror's built-in `.ProseMirror pre { white-space: pre-wrap }` (the
    `.code-editor-theme` class raises specificity so this wins): code blocks scroll by default and
-   only wrap when the line-wrap toggle sets data-wrap, breaking long unbroken tokens too. */
+   only wrap when the line-wrap toggle sets data-wrap, breaking long unbroken tokens too. The
+   `overflow-wrap`/`word-break` resets undo the editor-wide `overflow-wrap: anywhere`, which would
+   otherwise still break a long unbroken token even under `white-space: pre`. */
 .rich-markdown-prose pre.code-editor-theme,
 .rich-markdown-prose pre.code-editor-theme code {
   white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 .rich-markdown-prose pre.code-editor-theme[data-wrap="true"],

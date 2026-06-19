@@ -6,6 +6,16 @@ import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 
 const MIN_WIDTH = 64
 
+/**
+ * A markdown linked image `[![alt](src "t")](href "t2")` — an image wrapped in a link, the canonical
+ * form of a README badge. `@tiptap/markdown` parses this as a link mark over an image node, but an
+ * image node can't carry inline marks, so the wrapping link is silently dropped. We instead tokenize
+ * the whole construct ourselves and hang the link target on the image node's `href` attribute, so it
+ * round-trips losslessly (and the file stays editable rather than opening read-only).
+ */
+const LINKED_IMAGE_RE =
+  /^\[!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/
+
 /** Escape a value for safe interpolation into a double-quoted HTML attribute. */
 function escapeAttr(value: string): string {
   return value
@@ -18,25 +28,68 @@ function escapeAttr(value: string): string {
 /**
  * Serialize an image to markdown when it has no explicit size, and to an HTML `<img>` tag when
  * it does — standard markdown has no width syntax, so a resized image must round-trip as HTML to
- * preserve its dimensions. Unsized images stay clean `![alt](src)`.
+ * preserve its dimensions. Unsized images stay clean `![alt](src)`. An image with an `href` is
+ * wrapped in a markdown link so a linked badge round-trips as `[![alt](src)](href)`.
  */
 function imageMarkdown(node: JSONContent): string {
   const attrs = node.attrs ?? {}
   const src = typeof attrs.src === 'string' ? attrs.src : ''
   const alt = typeof attrs.alt === 'string' ? attrs.alt : ''
   const title = typeof attrs.title === 'string' ? attrs.title : ''
+  const href = typeof attrs.href === 'string' ? attrs.href : ''
+  const hrefTitle = typeof attrs.hrefTitle === 'string' ? attrs.hrefTitle : ''
   const width = attrs.width
   const height = attrs.height
+  let image: string
   if (width || height) {
     const parts = [`src="${escapeAttr(src)}"`]
     if (alt) parts.push(`alt="${escapeAttr(alt)}"`)
     if (title) parts.push(`title="${escapeAttr(title)}"`)
     if (width) parts.push(`width="${escapeAttr(String(width))}"`)
     if (height) parts.push(`height="${escapeAttr(String(height))}"`)
-    return `<img ${parts.join(' ')}>`
+    image = `<img ${parts.join(' ')}>`
+  } else {
+    const titlePart = title ? ` "${title}"` : ''
+    image = `![${alt}](${src}${titlePart})`
   }
-  const titlePart = title ? ` "${title}"` : ''
-  return `![${alt}](${src}${titlePart})`
+  if (!href) return image
+  const hrefTitlePart = hrefTitle ? ` "${hrefTitle}"` : ''
+  return `[${image}](${href}${hrefTitlePart})`
+}
+
+interface MarkdownImageToken {
+  /** Set only by our linked-image tokenizer; absent on the built-in `![](src)` token. */
+  src?: string
+  alt?: string
+  title?: string | null
+  /** Built-in image token holds the source URL here; our linked token holds the link target. */
+  href?: string
+  hrefTitle?: string | null
+  /** Built-in image token holds the alt text here. */
+  text?: string
+}
+
+/** Map both the built-in image token and our linked-image token onto the image node's attributes. */
+function parseImageToken(token: MarkdownImageToken): JSONContent {
+  const isLinked = typeof token.src === 'string'
+  return {
+    type: 'image',
+    attrs: isLinked
+      ? {
+          src: token.src,
+          alt: token.alt ?? '',
+          title: token.title ?? null,
+          href: token.href ?? null,
+          hrefTitle: token.hrefTitle ?? null,
+        }
+      : {
+          src: token.href ?? '',
+          alt: token.text ?? '',
+          title: token.title ?? null,
+          href: null,
+          hrefTitle: null,
+        },
+  }
 }
 
 const widthAttr = {
@@ -53,14 +106,44 @@ const heightAttr = {
     attributes.height ? { height: String(attributes.height) } : {},
 }
 
+/** Link target of a linked image — markdown-only state, never emitted as an HTML `<img>` attribute. */
+const hrefAttr = { default: null, rendered: false }
+const hrefTitleAttr = { default: null, rendered: false }
+
 /**
- * Image node that carries optional `width`/`height` and serializes them as an HTML `<img>` tag.
- * Shared by the headless round-trip path (no node view) and the live {@link ResizableImage}.
+ * Image node that carries optional `width`/`height` (serialized as an HTML `<img>` tag) and an
+ * optional `href`/`hrefTitle` (a wrapping markdown link, for badges). Shared by the headless
+ * round-trip path (no node view) and the live {@link ResizableImage}.
  */
 export const MarkdownImage = Image.extend({
   addAttributes() {
-    return { ...this.parent?.(), width: widthAttr, height: heightAttr }
+    return {
+      ...this.parent?.(),
+      width: widthAttr,
+      height: heightAttr,
+      href: hrefAttr,
+      hrefTitle: hrefTitleAttr,
+    }
   },
+  markdownTokenizer: {
+    name: 'image',
+    level: 'inline',
+    start: (src: string) => src.indexOf('[!['),
+    tokenize: (src: string): (MarkdownImageToken & { type: string; raw: string }) | undefined => {
+      const match = LINKED_IMAGE_RE.exec(src)
+      if (!match) return undefined
+      return {
+        type: 'image',
+        raw: match[0],
+        alt: match[1] ?? '',
+        src: match[2],
+        title: match[3] ?? null,
+        href: match[4],
+        hrefTitle: match[5] ?? null,
+      }
+    },
+  },
+  parseMarkdown: parseImageToken,
   renderMarkdown: imageMarkdown,
 })
 
@@ -72,7 +155,13 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
   const imageRef = useRef<HTMLImageElement>(null)
   const dragAbortRef = useRef<AbortController | null>(null)
   const [dragging, setDragging] = useState(false)
-  const attrs = node.attrs as { src?: string; alt?: string; title?: string; width?: string | null }
+  const attrs = node.attrs as {
+    src?: string
+    alt?: string
+    title?: string
+    width?: string | null
+    href?: string | null
+  }
 
   useEffect(() => () => dragAbortRef.current?.abort(), [])
 
@@ -110,17 +199,31 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
     ? { width: /^\d+$/.test(attrs.width) ? `${attrs.width}px` : attrs.width }
     : undefined
 
+  const image = (
+    <img
+      ref={imageRef}
+      src={attrs.src}
+      alt={attrs.alt ?? ''}
+      title={attrs.title ?? undefined}
+      // The image itself is the drag handle — grab anywhere on it to reorder. (The node view's
+      // wrapper is forced `draggable=false` by the React renderer, so the handle must be a child;
+      // the resize button sits outside this element, so it keeps its own pointer behavior.)
+      draggable
+      data-drag-handle
+      style={widthStyle}
+      className='block max-w-full cursor-grab rounded-lg border border-[var(--border)]'
+    />
+  )
+
   return (
     <NodeViewWrapper className='relative my-4 inline-block leading-none'>
-      <img
-        ref={imageRef}
-        src={attrs.src}
-        alt={attrs.alt ?? ''}
-        title={attrs.title ?? undefined}
-        draggable={false}
-        style={widthStyle}
-        className='block max-w-full rounded-lg border border-[var(--border)]'
-      />
+      {attrs.href ? (
+        <a href={attrs.href} rel='noopener noreferrer' className='block'>
+          {image}
+        </a>
+      ) : (
+        image
+      )}
       {(selected || dragging) && (
         <button
           type='button'
