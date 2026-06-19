@@ -7951,3 +7951,18 @@ export function EnrowIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   )
 }
+
+export function DataForB2BIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox='0 0 36 36' fill='none' xmlns='http://www.w3.org/2000/svg'>
+      <image
+        href='https://api.dataforb2b.ai/DataForB2B_logo.png'
+        x='0'
+        y='0'
+        width='36'
+        height='36'
+        preserveAspectRatio='xMidYMid meet'
+      />
+    </svg>
+  )
+}

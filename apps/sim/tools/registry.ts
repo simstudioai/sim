@@ -636,6 +636,14 @@ import {
   datadogSubmitMetricsTool,
 } from '@/tools/datadog'
 import {
+  dataforb2bEnrichCompanyTool,
+  dataforb2bEnrichProfileTool,
+  dataforb2bReasoningSearchTool,
+  dataforb2bSearchCompaniesTool,
+  dataforb2bSearchPeopleTool,
+  dataforb2bTypeaheadTool,
+} from '@/tools/dataforb2b'
+import {
   datagmaEnrichCompanyTool,
   datagmaEnrichPersonTool,
   datagmaFindEmailTool,
@@ -5932,6 +5940,12 @@ export const tools: Record<string, ToolConfig> = {
   apollo_task_create: apolloTaskCreateTool,
   apollo_task_search: apolloTaskSearchTool,
   apollo_email_accounts: apolloEmailAccountsTool,
+  dataforb2b_search_people: dataforb2bSearchPeopleTool,
+  dataforb2b_search_companies: dataforb2bSearchCompaniesTool,
+  dataforb2b_reasoning_search: dataforb2bReasoningSearchTool,
+  dataforb2b_typeahead: dataforb2bTypeaheadTool,
+  dataforb2b_enrich_profile: dataforb2bEnrichProfileTool,
+  dataforb2b_enrich_company: dataforb2bEnrichCompanyTool,
   mistral_parser: mistralParserTool,
   mistral_parser_v2: mistralParserV2Tool,
   mistral_parser_v3: mistralParserV3Tool,

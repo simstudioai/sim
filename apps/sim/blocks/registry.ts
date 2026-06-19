@@ -46,6 +46,7 @@ import { CursorBlock, CursorBlockMeta, CursorV2Block } from '@/blocks/blocks/cur
 import { DagsterBlock, DagsterBlockMeta } from '@/blocks/blocks/dagster'
 import { DatabricksBlock, DatabricksBlockMeta } from '@/blocks/blocks/databricks'
 import { DatadogBlock, DatadogBlockMeta } from '@/blocks/blocks/datadog'
+import { DataForB2BBlock, DataForB2BBlockMeta } from '@/blocks/blocks/dataforb2b'
 import { DatagmaBlock, DatagmaBlockMeta } from '@/blocks/blocks/datagma'
 import { DaytonaBlock, DaytonaBlockMeta } from '@/blocks/blocks/daytona'
 import { DeploymentsBlock } from '@/blocks/blocks/deployments'
@@ -350,6 +351,7 @@ const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   apify: ApifyBlock,
   appconfig: AppConfigBlock,
   apollo: ApolloBlock,
+  dataforb2b: DataForB2BBlock,
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
@@ -659,6 +661,7 @@ const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   apify: ApifyBlockMeta,
   appconfig: AppConfigBlockMeta,
   apollo: ApolloBlockMeta,
+  dataforb2b: DataForB2BBlockMeta,
   arxiv: ArxivBlockMeta,
   asana: AsanaBlockMeta,
   ashby: AshbyBlockMeta,

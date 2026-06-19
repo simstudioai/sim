@@ -3818,6 +3818,49 @@
       "tags": ["monitoring", "incident-management", "error-tracking"]
     },
     {
+      "type": "dataforb2b",
+      "slug": "dataforb2b",
+      "name": "DataForB2B",
+      "description": "Search LinkedIn profiles & companies and find B2B emails",
+      "longDescription": "Integrates DataForB2B into the workflow — a B2B data, LinkedIn enrichment and email-finder source for lead generation, sales prospecting, recruitment / candidate sourcing and CRM enrichment. Search people and companies on LinkedIn with structured filters (job title, company, industry, location, headcount, funding, skills, school, degree, years of experience), run a natural-language (reasoning) search from an ICP or candidate persona, resolve filter values with typeahead, and enrich a LinkedIn profile or company URL to get the full profile plus verified work email, personal email, phone and GitHub.",
+      "bgColor": "#0B0F1A",
+      "iconName": "DataForB2BIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/dataforb2b",
+      "operations": [
+        {
+          "name": "Search People",
+          "description": "Search people and B2B leads by structured filters (job title, current company, location, industry, seniority, skills, school, funding and LinkedIn data) with DataForB2B. Find employees at a company, decision-makers and key contacts for sales prospecting."
+        },
+        {
+          "name": "Search Companies",
+          "description": "Search companies and accounts by structured filters (industry, headcount/size, location, founded year, funding stage/amount, growth, keywords and LinkedIn data) with DataForB2B. Build target account lists for B2B sales and account-based marketing."
+        },
+        {
+          "name": "Reasoning Search (natural language)",
+          "description": "Natural-language search for people, leads or companies with DataForB2B. Describe your ideal lead or ICP in plain English (e.g. \\"
+        },
+        {
+          "name": "Typeahead (resolve filter value)",
+          "description": "Resolve the exact stored value for a free-text filter (company, industry, job title, skill, school, location, investor, category) before a people or company search on DataForB2B. Use it to normalize free text, or when a search returns few or no results."
+        },
+        {
+          "name": "Enrich LinkedIn Profile",
+          "description": "Look up and enrich a professional profile from a LinkedIn URL with DataForB2B. Returns the full profile (current role, experience, skills) plus work email, personal email, phone and GitHub. An email finder for lead enrichment. At least one enrich_* flag is used (defaults to the full profile)."
+        },
+        {
+          "name": "Enrich Company",
+          "description": "Look up and enrich a company with DataForB2B from a company domain, name, slug or LinkedIn URL. Returns firmographics, headcount/size, industry, domain and social profiles. Account enrichment for B2B sales and CRM."
+        }
+      ],
+      "operationCount": 6,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "sales",
+      "tags": ["enrichment", "sales-engagement", "hiring"]
+    },
+    {
       "type": "datagma",
       "slug": "datagma",
       "name": "Datagma",
