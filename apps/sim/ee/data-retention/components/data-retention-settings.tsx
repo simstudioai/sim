@@ -123,7 +123,7 @@ function EntityCheckboxGrid({ selected, onChange }: EntityCheckboxGridProps) {
       : group.entities,
   })).filter((group) => group.entities.length > 0)
 
-  const visibleValues = groups.flatMap((g) => g.entities.map((e) => e.value))
+  const visibleValues: string[] = groups.flatMap((g) => g.entities.map((e) => e.value))
   const allVisibleSelected =
     visibleValues.length > 0 && visibleValues.every((v) => selected.includes(v))
 
