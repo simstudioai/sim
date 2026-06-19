@@ -20,7 +20,7 @@ import {
 } from '@/components/emcn'
 import { useSession } from '@/lib/auth/auth-client'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { PII_ENTITY_GROUPS } from '@/lib/guardrails/pii-entities'
+import { PII_ENTITY_GROUPS, SUPPORTED_PII_ENTITIES } from '@/lib/guardrails/pii-entities'
 import { getUserRole } from '@/lib/workspaces/organization/utils'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { InfoNote } from '@/ee/components/info-note'
@@ -34,8 +34,7 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 
 const logger = createLogger('DataRetentionSettings')
 
-/** Sentinel ChipSelect value representing the all-workspaces scope (`workspaceId: null`). */
-const ALL_WORKSPACES = '__all__'
+const ENTITY_LABELS = SUPPORTED_PII_ENTITIES as Record<string, string>
 
 const DAY_OPTIONS = [
   { value: '1', label: '1 day' },
@@ -51,12 +50,13 @@ const DAY_OPTIONS = [
   { value: 'never', label: 'Forever' },
 ] as const
 
-/** Local editable shape of a PII redaction rule. */
+/**
+ * Local editable shape of a PII redaction rule. `workspaceId: null` is the
+ * all-workspaces default; a non-null id is a per-workspace override of it.
+ */
 interface RuleDraft {
   id: string
-  name: string
   entityTypes: string[]
-  /** null = all workspaces; otherwise the single targeted workspace. */
   workspaceId: string | null
 }
 
@@ -72,15 +72,16 @@ function daysToHours(days: string): number | null {
 
 function normalizeRule(rule: RuleDraft): string {
   return JSON.stringify({
-    name: rule.name.trim(),
     entityTypes: [...rule.entityTypes].sort(),
     workspaceId: rule.workspaceId,
   })
 }
 
-function entitySummary(rule: RuleDraft): string {
-  if (rule.entityTypes.length === 0) return 'None'
-  return `${rule.entityTypes.length} entity type${rule.entityTypes.length === 1 ? '' : 's'}`
+function entitySummary(entityTypes: string[]): string {
+  if (entityTypes.length === 0) return 'Not redacted'
+  const labels = entityTypes.map((t) => ENTITY_LABELS[t] ?? t)
+  if (labels.length <= 3) return labels.join(', ')
+  return `${labels.slice(0, 3).join(', ')} +${labels.length - 3} more`
 }
 
 interface RetentionSelectProps {
@@ -184,8 +185,8 @@ interface RuleModalProps {
   draft: RuleDraft
   isNew: boolean
   isSaving: boolean
-  /** Selectable scopes for this rule (excludes scopes taken by other rules). */
-  scopeOptions: { value: string; label: string }[]
+  /** Workspaces selectable for an override (excludes those taken by other overrides). */
+  workspaceOptions: { value: string; label: string }[]
   onChange: (draft: RuleDraft) => void
   onClose: () => void
   onSave: () => void
@@ -195,34 +196,32 @@ function RuleModal({
   draft,
   isNew,
   isSaving,
-  scopeOptions,
+  workspaceOptions,
   onChange,
   onClose,
   onSave,
 }: RuleModalProps) {
+  const isDefault = draft.workspaceId === null
   return (
-    <ChipModal open onOpenChange={onClose} size='xl' srTitle='PII redaction rule'>
+    <ChipModal open onOpenChange={onClose} size='xl' srTitle='PII redaction'>
       <ChipModalHeader onClose={onClose}>
-        {isNew ? 'Add PII redaction rule' : 'Edit PII redaction rule'}
+        {isDefault
+          ? 'Default redaction · all workspaces'
+          : isNew
+            ? 'Add workspace override'
+            : 'Edit workspace override'}
       </ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField
-          type='input'
-          title='Name (optional)'
-          value={draft.name}
-          onChange={(value) => onChange({ ...draft, name: value })}
-          placeholder='e.g., Mask customer contact info'
-        />
-        <ChipModalField type='custom' title='Applies to'>
-          <ChipSelect
-            value={draft.workspaceId ?? ALL_WORKSPACES}
-            onChange={(value) =>
-              onChange({ ...draft, workspaceId: value === ALL_WORKSPACES ? null : value })
-            }
-            options={scopeOptions}
-            align='start'
-          />
-        </ChipModalField>
+        {!isDefault && (
+          <ChipModalField type='custom' title='Workspace'>
+            <ChipSelect
+              value={draft.workspaceId ?? ''}
+              onChange={(value) => onChange({ ...draft, workspaceId: value })}
+              options={workspaceOptions}
+              align='start'
+            />
+          </ChipModalField>
+        )}
         <ChipModalField type='custom' title='Redact'>
           <EntityCheckboxGrid
             selected={draft.entityTypes}
@@ -233,7 +232,7 @@ function RuleModal({
       <ChipModalFooter
         onCancel={onClose}
         primaryAction={{
-          label: isSaving ? 'Saving...' : isNew ? 'Add rule' : 'Save',
+          label: isSaving ? 'Saving...' : 'Save',
           onClick: onSave,
           disabled: isSaving,
         }}
@@ -289,7 +288,6 @@ export function DataRetentionSettings() {
     setRules(
       (data.configured.piiRedaction?.rules ?? []).map((r) => ({
         id: r.id,
-        name: r.name ?? '',
         entityTypes: r.entityTypes,
         workspaceId: r.workspaceId,
       }))
@@ -303,25 +301,19 @@ export function DataRetentionSettings() {
     modalOriginal !== null &&
     normalizeRule(modalDraft) !== normalizeRule(modalOriginal)
 
-  // Scope availability: at most one all-workspaces rule and one rule per workspace.
-  const allScopeTaken = rules.some((r) => r.workspaceId === null)
-  const takenWorkspaceIds = new Set(
-    rules.flatMap((r) => (r.workspaceId === null ? [] : [r.workspaceId]))
-  )
+  const defaultRule = rules.find((r) => r.workspaceId === null) ?? null
+  const overrideRules = rules.filter((r) => r.workspaceId !== null)
+  const takenWorkspaceIds = new Set(overrideRules.map((r) => r.workspaceId as string))
   const freeWorkspaces = workspaceOptions.filter((w) => !takenWorkspaceIds.has(w.value))
-  const hasAvailableScope = !allScopeTaken || freeWorkspaces.length > 0
 
-  /** Scopes selectable for `draft` — excludes scopes taken by OTHER rules. */
-  function scopeOptionsForDraft(draft: RuleDraft): { value: string; label: string }[] {
-    const others = rules.filter((r) => r.id !== draft.id)
-    const otherAll = others.some((r) => r.workspaceId === null)
-    const otherWs = new Set(others.flatMap((r) => (r.workspaceId === null ? [] : [r.workspaceId])))
-    const options: { value: string; label: string }[] = []
-    if (!otherAll) options.push({ value: ALL_WORKSPACES, label: 'All workspaces' })
-    for (const w of workspaceOptions) {
-      if (!otherWs.has(w.value)) options.push(w)
-    }
-    return options
+  /** Workspaces selectable for `draft` — excludes workspaces taken by OTHER overrides. */
+  function overrideOptionsForDraft(draft: RuleDraft): { value: string; label: string }[] {
+    const otherTaken = new Set(
+      rules
+        .filter((r) => r.id !== draft.id && r.workspaceId !== null)
+        .map((r) => r.workspaceId as string)
+    )
+    return workspaceOptions.filter((w) => !otherTaken.has(w.value))
   }
 
   async function persistRules(nextRules: RuleDraft[]) {
@@ -332,7 +324,6 @@ export function DataRetentionSettings() {
         piiRedaction: {
           rules: nextRules.map((r) => ({
             id: r.id,
-            name: r.name.trim() || undefined,
             entityTypes: r.entityTypes,
             workspaceId: r.workspaceId,
           })),
@@ -342,19 +333,23 @@ export function DataRetentionSettings() {
     setRules(nextRules)
   }
 
-  function openAddRule() {
-    const blank: RuleDraft = {
-      id: generateId(),
-      name: '',
-      entityTypes: [],
-      workspaceId: allScopeTaken ? (freeWorkspaces[0]?.value ?? null) : null,
-    }
+  function openEditDefault() {
+    const rule: RuleDraft = defaultRule ?? { id: generateId(), entityTypes: [], workspaceId: null }
+    setModalIsNew(defaultRule === null)
+    setModalOriginal(rule)
+    setModalDraft({ ...rule })
+  }
+
+  function openAddOverride() {
+    const workspaceId = freeWorkspaces[0]?.value
+    if (!workspaceId) return
+    const blank: RuleDraft = { id: generateId(), entityTypes: [], workspaceId }
     setModalIsNew(true)
     setModalOriginal(blank)
     setModalDraft(blank)
   }
 
-  function openEditRule(rule: RuleDraft) {
+  function openEditOverride(rule: RuleDraft) {
     setModalIsNew(false)
     setModalOriginal(rule)
     setModalDraft({ ...rule })
@@ -382,10 +377,10 @@ export function DataRetentionSettings() {
     try {
       await persistRules(next)
       clearModal()
-      toast.success('PII redaction rule saved.')
+      toast.success('PII redaction saved.')
     } catch (error) {
       const msg = toError(error).message
-      logger.error('Failed to save PII redaction rule', { error: msg })
+      logger.error('Failed to save PII redaction', { error: msg })
       toast.error(msg)
     }
   }
@@ -393,10 +388,10 @@ export function DataRetentionSettings() {
   async function removeRule(id: string) {
     try {
       await persistRules(rules.filter((r) => r.id !== id))
-      toast.success('PII redaction rule removed.')
+      toast.success('Workspace override removed.')
     } catch (error) {
       const msg = toError(error).message
-      logger.error('Failed to remove PII redaction rule', { error: msg })
+      logger.error('Failed to remove workspace override', { error: msg })
       toast.error(msg)
     }
   }
@@ -497,42 +492,71 @@ export function DataRetentionSettings() {
             </div>
           </SettingsSection>
           <SettingsSection label='PII Redaction'>
-            <div className='flex flex-col gap-3'>
-              {rules.length > 0 && (
-                <div className='flex flex-col gap-2'>
-                  {rules.map((rule) => (
-                    <div
-                      key={rule.id}
-                      className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'
-                    >
-                      <div className='flex min-w-0 flex-col'>
-                        <span className='truncate text-[var(--text-body)] text-small'>
-                          {rule.name.trim() || 'Untitled rule'}
-                        </span>
-                        <span className='truncate text-[var(--text-muted)] text-caption'>
-                          {rule.workspaceId === null
-                            ? 'All workspaces'
-                            : workspaceName(rule.workspaceId)}{' '}
-                          · {entitySummary(rule)}
-                        </span>
-                      </div>
-                      <div className='flex flex-shrink-0 items-center gap-2'>
-                        <Chip onClick={() => openEditRule(rule)}>Edit</Chip>
-                        <Chip
-                          onClick={() => removeRule(rule.id)}
-                          disabled={updateMutation.isPending}
-                        >
-                          Remove
-                        </Chip>
-                      </div>
-                    </div>
-                  ))}
+            <div className='flex flex-col gap-6'>
+              <div className='flex flex-col gap-2'>
+                <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                  Default · all workspaces
+                </span>
+                <div className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'>
+                  <span className='truncate text-[var(--text-body)] text-small'>
+                    {entitySummary(defaultRule?.entityTypes ?? [])}
+                  </span>
+                  <Chip onClick={openEditDefault}>Edit</Chip>
                 </div>
-              )}
-              <div>
-                <Chip leftIcon={Plus} onClick={openAddRule} disabled={!hasAvailableScope}>
-                  Add rule
-                </Chip>
+              </div>
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex flex-col'>
+                    <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                      Workspace overrides
+                    </span>
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      An override replaces the default for that workspace.
+                    </span>
+                  </div>
+                  <Chip
+                    leftIcon={Plus}
+                    onClick={openAddOverride}
+                    disabled={freeWorkspaces.length === 0}
+                  >
+                    Add override
+                  </Chip>
+                </div>
+                {overrideRules.length === 0 ? (
+                  <p className='text-[var(--text-muted)] text-caption'>
+                    No overrides — every workspace uses the default.
+                  </p>
+                ) : (
+                  <div className='flex flex-col gap-2'>
+                    {overrideRules.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className='flex items-center justify-between gap-3 rounded-lg border border-[var(--border-1)] px-3 py-2'
+                      >
+                        <div className='flex min-w-0 flex-col'>
+                          <span className='truncate text-[var(--text-body)] text-small'>
+                            {workspaceName(rule.workspaceId as string)}
+                          </span>
+                          <span className='truncate text-[var(--text-muted)] text-caption'>
+                            {entitySummary(rule.entityTypes)}
+                          </span>
+                        </div>
+                        <div className='flex flex-shrink-0 items-center gap-2'>
+                          <Chip onClick={() => openEditOverride(rule)}>Edit</Chip>
+                          <Chip
+                            onClick={() => removeRule(rule.id)}
+                            disabled={updateMutation.isPending}
+                          >
+                            Remove
+                          </Chip>
+                        </div>
+                      </div>
+                    ))}
+                    <span className='text-[var(--text-muted)] text-caption'>
+                      Workspaces not listed use the default.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </SettingsSection>
@@ -543,7 +567,7 @@ export function DataRetentionSettings() {
           draft={modalDraft}
           isNew={modalIsNew}
           isSaving={updateMutation.isPending}
-          scopeOptions={scopeOptionsForDraft(modalDraft)}
+          workspaceOptions={overrideOptionsForDraft(modalDraft)}
           onChange={setModalDraft}
           onClose={requestCloseModal}
           onSave={saveModalRule}
@@ -558,7 +582,7 @@ export function DataRetentionSettings() {
         <ChipModalHeader onClose={() => setShowUnsaved(false)}>Unsaved changes</ChipModalHeader>
         <ChipModalBody>
           <p className='px-2 text-[var(--text-muted)] text-small'>
-            You have unsaved changes to this rule. Save them before closing?
+            You have unsaved changes. Save them before closing?
           </p>
         </ChipModalBody>
         <ChipModalFooter
