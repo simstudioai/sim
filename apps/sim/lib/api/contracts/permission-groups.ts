@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { organizationIdSchema } from '@/lib/api/contracts/primitives'
+import { shareAuthTypeSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { permissionGroupConfigSchema } from '@/lib/permission-groups/types'
 
@@ -22,6 +23,7 @@ export const permissionGroupFullConfigSchema = z.object({
   disableInvitations: z.boolean(),
   disablePublicApi: z.boolean(),
   disablePublicFileSharing: z.boolean(),
+  allowedFileShareAuthTypes: z.array(shareAuthTypeSchema).nullable(),
   hideDeployApi: z.boolean(),
   hideDeployMcp: z.boolean(),
   hideDeployA2a: z.boolean(),

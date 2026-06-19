@@ -35,6 +35,7 @@ import {
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { cn } from '@/lib/core/utils/cn'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
@@ -68,6 +69,15 @@ import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
 
 const logger = createLogger('AccessControl')
+
+/** Public-file-share auth modes an admin can allow/disallow. `null` config = all allowed. */
+const FILE_SHARE_AUTH_TYPE_OPTIONS: { value: ShareAuthType; label: string }[] = [
+  { value: 'public', label: 'Anyone with link' },
+  { value: 'password', label: 'Password' },
+  { value: 'email', label: 'Email' },
+  { value: 'sso', label: 'SSO' },
+]
+const ALL_FILE_SHARE_AUTH_TYPES: ShareAuthType[] = FILE_SHARE_AUTH_TYPE_OPTIONS.map((o) => o.value)
 
 interface OrganizationMemberOption {
   userId: string
@@ -1070,6 +1080,36 @@ export function AccessControl() {
     [editingConfig, allProviderIds]
   )
 
+  const isFileShareAuthAllowed = useCallback(
+    (authType: ShareAuthType) => {
+      if (!editingConfig) return true
+      return (
+        editingConfig.allowedFileShareAuthTypes === null ||
+        editingConfig.allowedFileShareAuthTypes.includes(authType)
+      )
+    },
+    [editingConfig]
+  )
+
+  const toggleFileShareAuthType = useCallback(
+    (authType: ShareAuthType) => {
+      if (!editingConfig) return
+      const current = editingConfig.allowedFileShareAuthTypes
+      const next =
+        current === null
+          ? ALL_FILE_SHARE_AUTH_TYPES.filter((t) => t !== authType)
+          : current.includes(authType)
+            ? current.filter((t) => t !== authType)
+            : [...current, authType]
+      // A full list collapses back to `null` ("all allowed").
+      setEditingConfig({
+        ...editingConfig,
+        allowedFileShareAuthTypes: next.length === ALL_FILE_SHARE_AUTH_TYPES.length ? null : next,
+      })
+    },
+    [editingConfig]
+  )
+
   const isIntegrationAllowed = useCallback(
     (blockType: string) => {
       if (!editingConfig) return true
@@ -1602,6 +1642,30 @@ export function AccessControl() {
                       ))}
                     </div>
                   ))}
+                </div>
+                <div className='mt-8 flex flex-col gap-1.5'>
+                  <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
+                    File Sharing Methods
+                  </span>
+                  <p className='text-[var(--text-secondary)] text-xs'>
+                    Auth modes that public file-share links may use.
+                  </p>
+                  <div className='flex max-w-md flex-col gap-0.5 pt-1'>
+                    {FILE_SHARE_AUTH_TYPE_OPTIONS.map(({ value, label }) => (
+                      <label
+                        key={value}
+                        htmlFor={`fsauth-${value}`}
+                        className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                      >
+                        <Checkbox
+                          id={`fsauth-${value}`}
+                          checked={isFileShareAuthAllowed(value)}
+                          onCheckedChange={() => toggleFileShareAuthType(value)}
+                        />
+                        <span className='font-normal text-sm'>{label}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}

@@ -7,7 +7,11 @@ import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getShareForResource, upsertFileShare } from '@/lib/public-shares/share-manager'
+import {
+  getShareForResource,
+  ShareValidationError,
+  upsertFileShare,
+} from '@/lib/public-shares/share-manager'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import {
@@ -81,7 +85,7 @@ export const PUT = withRouteHandler(
       const parsed = await parseRequest(upsertFileShareContract, request, context)
       if (!parsed.success) return parsed.response
       const { id: workspaceId, fileId } = parsed.data.params
-      const { isActive } = parsed.data.body
+      const { isActive, authType, password, allowedEmails, token } = parsed.data.body
 
       const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
       if (permission !== 'admin' && permission !== 'write') {
@@ -96,11 +100,12 @@ export const PUT = withRouteHandler(
         return NextResponse.json({ error: 'File not found' }, { status: 404 })
       }
 
-      // Enabling a public link is gated by the org's access-control policy; disabling
-      // is always allowed so users can still un-share after the policy is turned on.
+      // Enabling a share is gated by the org's access-control policy (both the
+      // master on/off and the per-auth-type allow-list); disabling is always
+      // allowed so users can still un-share after the policy is turned on.
       if (isActive) {
         try {
-          await validatePublicFileSharing(session.user.id, workspaceId)
+          await validatePublicFileSharing(session.user.id, workspaceId, authType ?? 'public')
         } catch (error) {
           if (error instanceof PublicFileSharingNotAllowedError) {
             logger.warn(`[${requestId}] Public file sharing disabled for workspace ${workspaceId}`)
@@ -115,6 +120,10 @@ export const PUT = withRouteHandler(
         fileId,
         userId: session.user.id,
         isActive,
+        authType,
+        password,
+        allowedEmails,
+        token,
       })
 
       logger.info(`[${requestId}] ${isActive ? 'Enabled' : 'Disabled'} share for file ${fileId}`)
@@ -134,6 +143,9 @@ export const PUT = withRouteHandler(
 
       return NextResponse.json({ share })
     } catch (error) {
+      if (error instanceof ShareValidationError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
       logger.error(`[${requestId}] Error updating file share:`, error)
       return NextResponse.json(
         { error: getErrorMessage(error, 'Failed to update share') },

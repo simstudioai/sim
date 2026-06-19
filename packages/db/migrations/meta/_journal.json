@@ -1709,6 +1709,13 @@
       "when": 1781899910981,
       "tag": "0244_table_row_executions_enrichment_details",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1781904859472,
+      "tag": "0245_public_share_auth",
+      "breakpoints": true
     }
   ]
 }

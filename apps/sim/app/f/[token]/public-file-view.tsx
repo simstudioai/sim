@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Chip } from '@/components/emcn'
 import { Download } from '@/components/emcn/icons'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { buildProvenance } from '@/app/f/[token]/utils'
 import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useBrandConfig } from '@/ee/whitelabeling'
 import { type FileContentSource, FileContentSourceProvider } from '@/hooks/use-file-content-source'
@@ -32,9 +33,7 @@ export function PublicFileView({
 }: PublicFileViewProps) {
   const contentUrl = `/api/files/public/${token}/content`
   const brand = useBrandConfig()
-  const provenance = [workspaceName, ownerName ? `Shared by ${ownerName}` : null]
-    .filter(Boolean)
-    .join(' · ')
+  const provenance = buildProvenance(workspaceName, ownerName)
 
   // The public viewer reuses the in-app FileViewer; the content source seam swaps
   // the auth-gated workspace serve URL for the token-scoped public endpoint, and a

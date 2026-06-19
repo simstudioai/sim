@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember, permissionGroupWorkspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq } from 'drizzle-orm'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
 import {
   getAllowedIntegrationsFromEnv,
@@ -293,15 +294,33 @@ export async function getUserPermissionConfig(
 
 /**
  * Throws {@link PublicFileSharingNotAllowedError} if the user's effective permission
- * group for the workspace disables public file sharing. No-op when access control
- * doesn't apply (non-enterprise / disabled), so non-governed orgs are unaffected.
+ * group for the workspace disables public file sharing, or — when `authType` is
+ * given — if that auth mode isn't in the group's `allowedFileShareAuthTypes`
+ * allow-list (`null` allows all). No-op when access control doesn't apply
+ * (non-enterprise / disabled), so non-governed orgs are unaffected.
  */
 export async function validatePublicFileSharing(
   userId: string,
-  workspaceId: string
+  workspaceId: string,
+  authType?: ShareAuthType
 ): Promise<void> {
   const config = await getUserPermissionConfig(userId, workspaceId)
-  if (config?.disablePublicFileSharing) {
+  if (!config) {
+    return
+  }
+  if (config.disablePublicFileSharing) {
+    throw new PublicFileSharingNotAllowedError()
+  }
+  if (
+    authType &&
+    config.allowedFileShareAuthTypes !== null &&
+    !config.allowedFileShareAuthTypes.includes(authType)
+  ) {
+    logger.warn('File share auth type blocked by permission group', {
+      userId,
+      workspaceId,
+      authType,
+    })
     throw new PublicFileSharingNotAllowedError()
   }
 }

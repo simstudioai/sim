@@ -33,6 +33,7 @@ const {
     disableInvitations: false,
     disablePublicApi: false,
     disablePublicFileSharing: false,
+    allowedFileShareAuthTypes: null,
     hideDeployApi: false,
     hideDeployMcp: false,
     hideDeployA2a: false,
@@ -149,10 +150,12 @@ import {
   McpToolsNotAllowedError,
   ModelNotAllowedError,
   ProviderNotAllowedError,
+  PublicFileSharingNotAllowedError,
   SkillsNotAllowedError,
   validateBlockType,
   validateMcpToolsAllowed,
   validateModelProvider,
+  validatePublicFileSharing,
 } from './permission-check'
 
 /** Default an org-backed, enterprise-entitled workspace so resolution reaches the group queries. */
@@ -529,6 +532,46 @@ describe('validateMcpToolsAllowed', () => {
     mockExplicitGroup.value = [{ config: {} }]
 
     await validateMcpToolsAllowed('user-123', 'workspace-1')
+  })
+})
+
+describe('validatePublicFileSharing', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExplicitGroup.value = []
+    mockAllWorkspacesGroup.value = []
+    mockDefaultGroup.value = []
+    mockGetAllowedIntegrationsFromEnv.mockReturnValue(null)
+    setEnterpriseOrgWorkspace()
+  })
+
+  it('throws when public file sharing is fully disabled', async () => {
+    mockExplicitGroup.value = [{ config: { disablePublicFileSharing: true } }]
+    await expect(
+      validatePublicFileSharing('user-123', 'workspace-1', 'password')
+    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+  })
+
+  it('throws when the auth type is not in the allow-list', async () => {
+    mockExplicitGroup.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    await expect(
+      validatePublicFileSharing('user-123', 'workspace-1', 'public')
+    ).rejects.toBeInstanceOf(PublicFileSharingNotAllowedError)
+  })
+
+  it('allows an auth type that is in the allow-list', async () => {
+    mockExplicitGroup.value = [{ config: { allowedFileShareAuthTypes: ['password', 'sso'] } }]
+    await validatePublicFileSharing('user-123', 'workspace-1', 'password')
+  })
+
+  it('allows any auth type when the allow-list is null', async () => {
+    mockExplicitGroup.value = [{ config: { allowedFileShareAuthTypes: null } }]
+    await validatePublicFileSharing('user-123', 'workspace-1', 'email')
+  })
+
+  it('no-ops when no auth type is provided (master switch only)', async () => {
+    mockExplicitGroup.value = [{ config: { allowedFileShareAuthTypes: ['password'] } }]
+    await validatePublicFileSharing('user-123', 'workspace-1')
   })
 })
 

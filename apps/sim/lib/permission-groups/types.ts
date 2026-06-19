@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+
+/** Auth modes a public file share can use; admins may restrict the allowed subset. */
+export const FILE_SHARE_AUTH_TYPES = ['public', 'password', 'email', 'sso'] as const
 
 export const PERMISSION_GROUP_CONSTRAINTS = {
   organizationName: 'permission_group_organization_name_unique',
@@ -32,6 +36,7 @@ export const permissionGroupConfigSchema = z.object({
   disableInvitations: z.boolean().optional(),
   disablePublicApi: z.boolean().optional(),
   disablePublicFileSharing: z.boolean().optional(),
+  allowedFileShareAuthTypes: z.array(z.enum(FILE_SHARE_AUTH_TYPES)).nullable().optional(),
   hideDeployApi: z.boolean().optional(),
   hideDeployMcp: z.boolean().optional(),
   hideDeployA2a: z.boolean().optional(),
@@ -62,6 +67,8 @@ export interface PermissionGroupConfig {
   disableInvitations: boolean
   disablePublicApi: boolean
   disablePublicFileSharing: boolean
+  /** Allowed public-file-share auth modes; `null` means all are allowed. */
+  allowedFileShareAuthTypes: ShareAuthType[] | null
   hideDeployApi: boolean
   hideDeployMcp: boolean
   hideDeployA2a: boolean
@@ -88,6 +95,7 @@ export const DEFAULT_PERMISSION_GROUP_CONFIG: PermissionGroupConfig = {
   disableInvitations: false,
   disablePublicApi: false,
   disablePublicFileSharing: false,
+  allowedFileShareAuthTypes: null,
   hideDeployApi: false,
   hideDeployMcp: false,
   hideDeployA2a: false,
@@ -125,6 +133,11 @@ export function parsePermissionGroupConfig(config: unknown): PermissionGroupConf
     disablePublicApi: typeof c.disablePublicApi === 'boolean' ? c.disablePublicApi : false,
     disablePublicFileSharing:
       typeof c.disablePublicFileSharing === 'boolean' ? c.disablePublicFileSharing : false,
+    allowedFileShareAuthTypes: Array.isArray(c.allowedFileShareAuthTypes)
+      ? c.allowedFileShareAuthTypes.filter((t): t is ShareAuthType =>
+          (FILE_SHARE_AUTH_TYPES as readonly string[]).includes(t as string)
+        )
+      : null,
     hideDeployApi: typeof c.hideDeployApi === 'boolean' ? c.hideDeployApi : false,
     hideDeployMcp: typeof c.hideDeployMcp === 'boolean' ? c.hideDeployMcp : false,
     hideDeployA2a: typeof c.hideDeployA2a === 'boolean' ? c.hideDeployA2a : false,
