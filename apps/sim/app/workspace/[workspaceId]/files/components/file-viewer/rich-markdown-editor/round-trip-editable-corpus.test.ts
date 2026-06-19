@@ -161,8 +161,8 @@ describe('editability gate — realistic documents stay editable', () => {
   }
 
   it('a large-but-ordinary document (just under the probe limit) stays editable', () => {
-    const big = `# Big Doc\n\n${'A paragraph of perfectly ordinary prose. '.repeat(2000)}`
-    expect(big.length).toBeLessThan(128 * 1024)
+    const big = `# Big Doc\n\n${'A paragraph of perfectly ordinary prose. '.repeat(500)}`
+    expect(big.length).toBeLessThan(24 * 1024)
     expect(isRoundTripSafe(big)).toBe(true)
   })
 

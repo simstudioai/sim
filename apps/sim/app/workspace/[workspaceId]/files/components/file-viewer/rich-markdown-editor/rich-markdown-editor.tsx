@@ -278,19 +278,38 @@ export function LoadedRichMarkdownEditor({
   // `previewContextKey` (the chat id) keeps this instance mounted across those edits — so the verdict
   // + frontmatter must be re-derived per stream, not frozen on the first settled snapshot.
   const wasStreamingRef = useRef(streamingAtMountRef.current)
+  // Coalesce streaming chunk-syncs to one re-parse per animation frame. A fast-streaming agent emits
+  // many chunks per frame; without this each one re-parses the whole accumulating markdown
+  // (`@tiptap/markdown`'s parse is superlinear), saturating the main thread. The editor is read-only
+  // while streaming, so only the latest frame's content needs to render.
+  const pendingStreamBodyRef = useRef<string | null>(null)
+  const streamRafRef = useRef<number | null>(null)
   useEffect(() => {
     if (!editor) return
     if (isStreaming) {
       wasStreamingRef.current = true
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
-      lastSyncedBodyRef.current = body
-      const el = containerRef.current
-      const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
-      editor.setEditable(false)
-      editor.commands.setContent(body, { contentType: 'markdown', emitUpdate: false })
-      if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
+      pendingStreamBodyRef.current = body
+      if (streamRafRef.current !== null) return
+      streamRafRef.current = requestAnimationFrame(() => {
+        streamRafRef.current = null
+        const pending = pendingStreamBodyRef.current
+        if (pending === null || pending === lastSyncedBodyRef.current) return
+        lastSyncedBodyRef.current = pending
+        const el = containerRef.current
+        const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
+        editor.setEditable(false)
+        editor.commands.setContent(pending, { contentType: 'markdown', emitUpdate: false })
+        if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
+      })
       return
+    }
+    // A streamed frame scheduled just before settle must not land afterward and clobber the final
+    // content, so drop it before settling.
+    if (streamRafRef.current !== null) {
+      cancelAnimationFrame(streamRafRef.current)
+      streamRafRef.current = null
     }
     // Settle: lock the verdict + frontmatter on the freshly-settled content. Re-lock on the initial
     // settle and on every later stream→settle, so a repeat agent edit gates editability + frontmatter
@@ -314,6 +333,13 @@ export function LoadedRichMarkdownEditor({
     }
     if (settledRef.current) editor.setEditable(canEdit && settledRef.current.verdict)
   }, [editor, content, isStreaming, canEdit, autoFocus, disableStreamingAutoScroll])
+
+  useEffect(
+    () => () => {
+      if (streamRafRef.current !== null) cancelAnimationFrame(streamRafRef.current)
+    },
+    []
+  )
 
   return (
     <div

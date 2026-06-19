@@ -89,7 +89,10 @@ describe('isRoundTripSafe', () => {
     expect(isRoundTripSafe('see <https://sim.ai> for more')).toBe(true)
   })
 
-  it('falls back for very large documents without probing', () => {
-    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(110_000)}`)).toBe(false)
+  it('probes documents up to the size cap but falls back (read-only) above it', () => {
+    // ~20KB of simple safe prose is under the 24KB cap → probed and editable.
+    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(4000)}`)).toBe(true)
+    // ~30KB is over the cap → not probed, opens read-only (the synchronous probe is too slow).
+    expect(isRoundTripSafe(`# Title\n\n${'word '.repeat(6000)}`)).toBe(false)
   })
 })

@@ -7,11 +7,15 @@ import {
 } from './markdown-fidelity'
 
 /**
- * Above this size we don't run the (synchronous) round-trip probe — building two editors to
- * serialize a large document blocks the main thread for too long, and a very large markdown file
- * is heavier to edit richly anyway, so it opens read-only.
+ * Above this size we don't run the (synchronous) round-trip probe, and the file opens read-only.
+ * The probe builds throwaway editors and parses the markdown, and `@tiptap/markdown`'s parse is
+ * superlinear (~O(n²)) in document size — measured ~170ms at 11KB, ~875ms at 23KB, multiple seconds
+ * past ~35KB — so a high cap means a multi-second main-thread freeze at mount. 24KB keeps the
+ * worst-case probe near a second while still covering the vast majority of real markdown files; a
+ * very large markdown file is also heavier to edit richly anyway. The editor's own markdown parse
+ * shares this cost, so the cap protects mount render too.
  */
-const PROBE_SIZE_LIMIT = 128 * 1024
+const PROBE_SIZE_LIMIT = 24 * 1024
 
 /**
  * Constructs the editor drops or mangles in a way that survives a second serialization
