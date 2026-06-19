@@ -112,6 +112,24 @@ export const icypeasFindEmailTool: ToolConfig<IcypeasFindEmailParams, IcypeasFin
       throw new Error(`Icypeas API error: ${response.status} - ${errorText}`)
     }
     const json = (await response.json()) as Record<string, unknown>
+    // Icypeas returns HTTP 200 with { success: false, validationErrors: [...] } when
+    // it rejects the input up front (missing/invalid name or domain). There is no item
+    // to poll — this is a BAD_INPUT verdict, not a transport error. Surface it as a
+    // successful run with a null email so the enrichment cascade records the verdict
+    // instead of inflating the runner's error count.
+    if (json.success === false || Array.isArray(json.validationErrors)) {
+      return {
+        success: true,
+        output: {
+          searchId: null,
+          status: 'BAD_INPUT',
+          email: null,
+          firstname: null,
+          lastname: null,
+          item: json,
+        },
+      }
+    }
     // Submit response: { success: true, item: { _id: '...', status: 'NONE', ... } }
     const item = (json.item as Record<string, unknown> | undefined) ?? {}
     const searchId = (item._id as string | undefined) ?? null

@@ -83,6 +83,72 @@ describe('Icypeas verify-email pricing', () => {
   })
 })
 
+describe('Icypeas transformResponse validation errors', () => {
+  it('verify-email maps a 200 validationErrors body to a BAD_INPUT verdict', async () => {
+    const response = new Response(
+      JSON.stringify({
+        success: false,
+        validationErrors: [
+          { expected: 'email', type: 'required', field: 'email', message: 'validation_required' },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+    const result = await icypeasVerifyEmailTool.transformResponse!(response, {
+      apiKey: 'test-key',
+      email: 'support@stripe.com',
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect((result.output as any).status).toBe('BAD_INPUT')
+    expect((result.output as any).valid).toBe(false)
+    expect((result.output as any).email).toBe('support@stripe.com')
+    expect((result.output as any).searchId).toBeNull()
+  })
+
+  it('find-email maps a 200 validationErrors body to a BAD_INPUT verdict', async () => {
+    const response = new Response(
+      JSON.stringify({
+        success: false,
+        validationErrors: [
+          {
+            expected: 'string',
+            type: 'required',
+            field: 'domainOrCompany',
+            message: 'validation_required',
+          },
+        ],
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+    const result = await icypeasFindEmailTool.transformResponse!(response, {
+      apiKey: 'test-key',
+      domainOrCompany: 'stripe.com',
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect((result.output as any).status).toBe('BAD_INPUT')
+    expect((result.output as any).email).toBeNull()
+    expect((result.output as any).searchId).toBeNull()
+  })
+
+  it('verify-email still throws when a success body has no item _id', async () => {
+    const response = new Response(JSON.stringify({ success: true, item: {} }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    await expect(
+      icypeasVerifyEmailTool.transformResponse!(response, {
+        apiKey: 'test-key',
+        email: 'jane@example.com',
+      } as any)
+    ).rejects.toThrow(/item _id/)
+  })
+})
+
 describe('Icypeas find-email postProcess poll', () => {
   it('polls the results endpoint until terminal status and returns the email', async () => {
     vi.useFakeTimers()

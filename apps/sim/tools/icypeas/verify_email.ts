@@ -99,12 +99,29 @@ export const icypeasVerifyEmailTool: ToolConfig<
     }),
   },
 
-  transformResponse: async (response: Response) => {
+  transformResponse: async (response: Response, params?: IcypeasVerifyEmailParams) => {
     if (!response.ok) {
       const errorText = await response.text()
       throw new Error(`Icypeas API error: ${response.status} - ${errorText}`)
     }
     const json = (await response.json()) as Record<string, unknown>
+    // Icypeas returns HTTP 200 with { success: false, validationErrors: [...] } when
+    // it rejects the input up front (bad format, role-based address, etc.). There is
+    // no item to poll — this is a BAD_INPUT verdict, not a transport error. Surface it
+    // as a successful run with valid=false so the enrichment cascade records the
+    // verdict instead of inflating the runner's error count.
+    if (json.success === false || Array.isArray(json.validationErrors)) {
+      return {
+        success: true,
+        output: {
+          searchId: null,
+          status: 'BAD_INPUT',
+          email: params?.email ?? null,
+          valid: false,
+          item: json,
+        },
+      }
+    }
     // Submit response: { success: true, item: { _id: '...', status: 'NONE', ... } }
     const item = (json.item as Record<string, unknown> | undefined) ?? {}
     const searchId = (item._id as string | undefined) ?? null
