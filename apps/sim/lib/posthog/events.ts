@@ -91,6 +91,11 @@ export interface PostHogEventMap {
     membership_intent?: string
   }
 
+  workspace_member_added: {
+    workspace_id: string
+    member_role: string
+  }
+
   workspace_member_removed: {
     workspace_id: string
     is_self_removal: boolean

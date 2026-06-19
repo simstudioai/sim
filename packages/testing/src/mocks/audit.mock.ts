@@ -99,6 +99,7 @@ export const auditMock = {
     MCP_SERVER_UPDATED: 'mcp_server.updated',
     MCP_SERVER_REMOVED: 'mcp_server.removed',
     MEMBER_INVITED: 'member.invited',
+    MEMBER_ADDED: 'member.added',
     MEMBER_REMOVED: 'member.removed',
     MEMBER_ROLE_CHANGED: 'member.role_changed',
     OAUTH_DISCONNECTED: 'oauth.disconnected',

@@ -30,6 +30,7 @@ import type {
 } from '@/lib/copilot/request/types'
 import { getToolEntry, isSimExecuted } from '@/lib/copilot/tool-executor'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
+import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
 import type { ToolScope } from './types'
 import {
@@ -50,13 +51,12 @@ import {
 
 const logger = createLogger('CopilotToolHandler')
 
-function applyToolDisplay(
-  toolCall: ToolCallState | undefined,
-  ui: { title?: string; phaseLabel?: string; hidden?: boolean }
-): void {
-  if (!toolCall) return
-  const displayTitle = ui.title || ui.phaseLabel
-  if (displayTitle) toolCall.displayTitle = displayTitle
+function applyToolDisplay(toolCall: ToolCallState | undefined): void {
+  if (!toolCall?.name) return
+  toolCall.displayTitle = getToolDisplayTitle(
+    toolCall.name,
+    toolCall.params as Record<string, unknown> | undefined
+  )
 }
 
 /**
@@ -138,8 +138,14 @@ export async function handleToolEvent(
   // block into contentBlocks BEFORE we add the tool_call block, or
   // contentBlocks will end up with tool_call before thinking — which
   // re-renders on reload in the wrong order (Mothership group above
-  // the Thinking block, even though thinking happened first).
-  flushSubagentThinkingBlock(context)
+  // the Thinking block, even though thinking happened first). A subagent
+  // tool event flushes only its OWN lane so a concurrent sibling's thinking
+  // is left intact; a main tool event flushes all subagent lanes.
+  if (isSubagent && parentToolCallId) {
+    flushSubagentThinkingBlock(context, parentToolCallId)
+  } else {
+    flushSubagentThinkingBlock(context)
+  }
   flushThinkingBlock(context)
 
   if (isToolResultStreamEvent(event)) {
@@ -256,7 +262,7 @@ async function handleCallPhase(
     if (wasToolResultSeen(toolCallId) || existing?.endTime) {
       if (existing && !existing.name && toolName) existing.name = toolName
       if (existing && !existing.params && args) existing.params = args
-      applyToolDisplay(existing, ui)
+      applyToolDisplay(existing)
       return
     }
   } else {
@@ -266,7 +272,7 @@ async function handleCallPhase(
     ) {
       if (!existing.name && toolName) existing.name = toolName
       if (!existing.params && args) existing.params = args
-      applyToolDisplay(existing, ui)
+      applyToolDisplay(existing)
       return
     }
   }
@@ -293,6 +299,11 @@ async function handleCallPhase(
 
   const toolCall = context.toolCalls.get(toolCallId)
   if (!toolCall) return
+
+  // Capture the invoking subagent's channel id so the executor can thread it
+  // into the server tool context — this is what scopes the workspace_file ->
+  // edit_content intent handoff to one file subagent under concurrency.
+  if (parentToolCallId) toolCall.parentToolCallId = parentToolCallId
 
   const readPath = typeof args?.path === 'string' ? args.path : undefined
   if (toolName === 'read' && readPath?.startsWith('internal/')) return
@@ -366,7 +377,7 @@ function registerSubagentToolCall(
   if (toolCall) {
     if (!toolCall.name && toolName) toolCall.name = toolName
     if (args && !toolCall.params) toolCall.params = args
-    applyToolDisplay(toolCall, ui)
+    applyToolDisplay(toolCall)
     if (hideFromUi) removeToolCallContentBlock(context, toolCallId)
   } else {
     toolCall = {
@@ -376,7 +387,7 @@ function registerSubagentToolCall(
       params: args,
       startTime: Date.now(),
     }
-    applyToolDisplay(toolCall, ui)
+    applyToolDisplay(toolCall)
     context.toolCalls.set(toolCallId, toolCall)
     const parentToolCall = context.toolCalls.get(parentToolCallId)
     if (!hideFromUi) {
@@ -395,7 +406,7 @@ function registerSubagentToolCall(
   if (existingSubagentToolCall) {
     if (!existingSubagentToolCall.name && toolName) existingSubagentToolCall.name = toolName
     if (args && !existingSubagentToolCall.params) existingSubagentToolCall.params = args
-    applyToolDisplay(existingSubagentToolCall, ui)
+    applyToolDisplay(existingSubagentToolCall)
   } else {
     subagentToolCalls.push(toolCall)
   }
@@ -412,7 +423,7 @@ function registerMainToolCall(
   const hideFromUi = isToolHiddenInUi(toolName) || ui.hidden === true
   if (existing) {
     if (args && !existing.params) existing.params = args
-    applyToolDisplay(existing, ui)
+    applyToolDisplay(existing)
     if (hideFromUi) {
       removeToolCallContentBlock(context, toolCallId)
       return
@@ -431,7 +442,7 @@ function registerMainToolCall(
       params: args,
       startTime: Date.now(),
     }
-    applyToolDisplay(created, ui)
+    applyToolDisplay(created)
     context.toolCalls.set(toolCallId, created)
     if (!hideFromUi) {
       addContentBlock(context, { type: 'tool_call', toolCall: created })

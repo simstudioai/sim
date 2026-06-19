@@ -43,14 +43,13 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/stream/handle-complete-event',
 }))
 
 import { dispatchStreamEvent } from './dispatch-stream-event'
+import { createTurnModel } from './turn-model'
 
 function makeCtx(): StreamLoopContext {
   return {
-    state: {} as StreamLoopContext['state'],
+    state: { model: createTurnModel() } as StreamLoopContext['state'],
     deps: {} as StreamLoopContext['deps'],
-    ops: {
-      resolveScopedSubagent: vi.fn(() => 'sub-agent'),
-    } as unknown as StreamLoopContext['ops'],
+    ops: {} as unknown as StreamLoopContext['ops'],
   }
 }
 
@@ -92,20 +91,17 @@ describe('dispatchStreamEvent', () => {
     expect(handlers.handleCompleteEvent).toHaveBeenCalledTimes(1)
   })
 
-  it('computes and passes per-event scope to scoped handlers', () => {
+  it('computes and passes per-event scope to the span handler', () => {
     const ctx = makeCtx()
     dispatchStreamEvent(
       ctx,
-      event(MothershipStreamV1EventType.text, { spanId: 'span-9', agentId: 'agent-x' })
+      event(MothershipStreamV1EventType.span, { spanId: 'span-9', agentId: 'agent-x' })
     )
-    expect(ctx.ops.resolveScopedSubagent).toHaveBeenCalledWith('agent-x', undefined, 'span-9')
-    const call = handlers.handleTextEvent.mock.calls[0]
+    const call = handlers.handleSpanEvent.mock.calls[0]
     expect(call[0]).toBe(ctx)
     const scope = call[2]
     expect(scope.scopedSpanId).toBe('span-9')
     expect(scope.scopedAgentId).toBe('agent-x')
-    expect(scope.scopedSubagent).toBe('sub-agent')
-    expect(scope.spanIdentity).toEqual({ spanId: 'span-9' })
   })
 
   it('invokes ctx-only handlers (session/run/complete) without a scope argument', () => {

@@ -99,6 +99,7 @@ export const AuditAction = {
 
   // Members
   MEMBER_INVITED: 'member.invited',
+  MEMBER_ADDED: 'member.added',
   MEMBER_REMOVED: 'member.removed',
   MEMBER_ROLE_CHANGED: 'member.role_changed',
 

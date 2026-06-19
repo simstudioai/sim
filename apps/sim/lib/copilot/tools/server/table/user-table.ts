@@ -314,7 +314,9 @@ async function batchInsertAll(
     const requestId = generateId().slice(0, 8)
     const result = await batchInsertRows(
       { tableId, rows: batch, workspaceId, userId },
-      table,
+      // Pass the running total so each batch's capacity check sees cumulative rows,
+      // not the same pre-loop snapshot (which would let a multi-batch insert overshoot).
+      { ...table, rowCount: table.rowCount + inserted },
       requestId
     )
     inserted += result.length
@@ -362,7 +364,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: args.schema,
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
@@ -1102,7 +1103,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               schema: { columns },
               workspaceId,
               userId: context.userId,
-              maxRows: planLimits.maxRowsPerTable,
               maxTables: planLimits.maxTables,
             },
             requestId
