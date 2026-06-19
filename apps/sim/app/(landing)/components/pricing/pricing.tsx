@@ -38,7 +38,7 @@ const PRICING_TIERS: PricingTier[] = [
     features: [
       '1,000 credits (trial)',
       '5GB file storage',
-      '3 tables · 1,000 rows each',
+      '5 tables · 50,000 rows each',
       '1 personal workspace',
       '5 min execution limit',
       '7-day log retention',
@@ -56,7 +56,7 @@ const PRICING_TIERS: PricingTier[] = [
     features: [
       '6,000 credits/mo · +50/day',
       '50GB file storage',
-      '25 tables · 5,000 rows each',
+      '100 tables · 100,000 rows each',
       'Up to 3 personal workspaces',
       '50 min execution · 150 runs/min',
       'Unlimited log retention',
@@ -74,7 +74,7 @@ const PRICING_TIERS: PricingTier[] = [
     features: [
       '25,000 credits/mo · +200/day',
       '500GB file storage',
-      '25 tables · 5,000 rows each',
+      '1,000 tables · 500,000 rows each',
       'Up to 10 personal workspaces',
       '50 min execution · 300 runs/min',
       'Unlimited log retention',
@@ -91,7 +91,7 @@ const PRICING_TIERS: PricingTier[] = [
     features: [
       'Custom credits & infra limits',
       'Custom file storage',
-      '10,000 tables · 1M rows each',
+      'Custom tables & rows',
       'Unlimited shared workspaces',
       'Custom execution limits',
       'Unlimited log retention',
