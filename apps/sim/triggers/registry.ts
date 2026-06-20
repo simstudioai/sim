@@ -119,6 +119,14 @@ import {
   githubWebhookTrigger,
   githubWorkflowRunTrigger,
 } from '@/triggers/github'
+import {
+  gitlabCommentTrigger,
+  gitlabIssueTrigger,
+  gitlabMergeRequestTrigger,
+  gitlabPipelineTrigger,
+  gitlabPushTrigger,
+  gitlabWebhookTrigger,
+} from '@/triggers/gitlab'
 import { gmailPollingTrigger } from '@/triggers/gmail'
 import { gongCallCompletedTrigger, gongWebhookTrigger } from '@/triggers/gong'
 import { googleCalendarPollingTrigger } from '@/triggers/google-calendar'
@@ -272,6 +280,14 @@ import {
 } from '@/triggers/notion'
 import { outlookPollingTrigger } from '@/triggers/outlook'
 import {
+  pagerdutyIncidentAcknowledgedTrigger,
+  pagerdutyIncidentEscalatedTrigger,
+  pagerdutyIncidentReassignedTrigger,
+  pagerdutyIncidentResolvedTrigger,
+  pagerdutyIncidentTriggeredTrigger,
+  pagerdutyWebhookTrigger,
+} from '@/triggers/pagerduty'
+import {
   resendEmailBouncedTrigger,
   resendEmailClickedTrigger,
   resendEmailComplainedTrigger,
@@ -326,6 +342,13 @@ import {
   webflowFormSubmissionTrigger,
 } from '@/triggers/webflow'
 import { whatsappWebhookTrigger } from '@/triggers/whatsapp'
+import {
+  zendeskTicketCommentAddedTrigger,
+  zendeskTicketCreatedTrigger,
+  zendeskTicketPriorityChangedTrigger,
+  zendeskTicketStatusChangedTrigger,
+  zendeskWebhookTrigger,
+} from '@/triggers/zendesk'
 import {
   zoomMeetingEndedTrigger,
   zoomMeetingStartedTrigger,
@@ -443,6 +466,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   github_push: githubPushTrigger,
   github_release_published: githubReleasePublishedTrigger,
   github_workflow_run: githubWorkflowRunTrigger,
+  gitlab_push: gitlabPushTrigger,
+  gitlab_merge_request: gitlabMergeRequestTrigger,
+  gitlab_issue: gitlabIssueTrigger,
+  gitlab_pipeline: gitlabPipelineTrigger,
+  gitlab_comment: gitlabCommentTrigger,
+  gitlab_webhook: gitlabWebhookTrigger,
   fireflies_transcription_complete: firefliesTranscriptionCompleteTrigger,
   fathom_new_meeting: fathomNewMeetingTrigger,
   fathom_webhook: fathomWebhookTrigger,
@@ -543,6 +572,12 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   notion_comment_created: notionCommentCreatedTrigger,
   notion_webhook: notionWebhookTrigger,
   outlook_poller: outlookPollingTrigger,
+  pagerduty_incident_triggered: pagerdutyIncidentTriggeredTrigger,
+  pagerduty_incident_acknowledged: pagerdutyIncidentAcknowledgedTrigger,
+  pagerduty_incident_resolved: pagerdutyIncidentResolvedTrigger,
+  pagerduty_incident_escalated: pagerdutyIncidentEscalatedTrigger,
+  pagerduty_incident_reassigned: pagerdutyIncidentReassignedTrigger,
+  pagerduty_webhook: pagerdutyWebhookTrigger,
   resend_email_sent: resendEmailSentTrigger,
   resend_email_delivered: resendEmailDeliveredTrigger,
   resend_email_bounced: resendEmailBouncedTrigger,
@@ -614,6 +649,11 @@ export const TRIGGER_REGISTRY: TriggerRegistry = {
   instantly_lead_no_show: instantlyLeadNoShowTrigger,
   instantly_supersearch_enrichment_completed: instantlySupersearchEnrichmentCompletedTrigger,
   zoom_meeting_started: zoomMeetingStartedTrigger,
+  zendesk_ticket_created: zendeskTicketCreatedTrigger,
+  zendesk_ticket_status_changed: zendeskTicketStatusChangedTrigger,
+  zendesk_ticket_comment_added: zendeskTicketCommentAddedTrigger,
+  zendesk_ticket_priority_changed: zendeskTicketPriorityChangedTrigger,
+  zendesk_webhook: zendeskWebhookTrigger,
   zoom_meeting_ended: zoomMeetingEndedTrigger,
   zoom_participant_joined: zoomParticipantJoinedTrigger,
   zoom_participant_left: zoomParticipantLeftTrigger,

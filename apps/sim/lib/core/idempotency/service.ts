@@ -493,6 +493,7 @@ export class IdempotencyService {
       normalizedHeaders?.['x-webhook-id'] ||
       normalizedHeaders?.['x-shopify-webhook-id'] ||
       normalizedHeaders?.['x-github-delivery'] ||
+      normalizedHeaders?.['x-gitlab-event-uuid'] ||
       normalizedHeaders?.['x-event-id'] ||
       normalizedHeaders?.['x-teams-notification-id'] ||
       normalizedHeaders?.['svix-id'] ||
