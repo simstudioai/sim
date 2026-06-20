@@ -3,6 +3,10 @@ export { Badge } from './badge/badge'
 export { Banner } from './banner/banner'
 export { Button, buttonVariants } from './button/button'
 export { ButtonGroup, ButtonGroupItem } from './button-group/button-group'
+export {
+  CalendarDayCell,
+  type CalendarDayCellProps,
+} from './calendar/calendar-day-cell'
 export { Checkbox } from './checkbox/checkbox'
 export { Chip, ChipLink, chipVariants } from './chip/chip'
 export { ChipChevronDown } from './chip/chip-chevron'
