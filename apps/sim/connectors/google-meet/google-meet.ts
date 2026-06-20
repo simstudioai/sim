@@ -154,6 +154,16 @@ function recordToStub(record: ConferenceRecord): ExternalDocument {
 }
 
 /**
+ * Returns a transcript entry's start time as epoch milliseconds for chronological
+ * sorting. Entries without a parseable start time sort last (stably).
+ */
+function entryStartMs(entry: TranscriptEntry): number {
+  if (!entry.startTime) return Number.POSITIVE_INFINITY
+  const ms = new Date(entry.startTime).getTime()
+  return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms
+}
+
+/**
  * Resolves a participant's display name across the identity oneof, falling back to a
  * stable placeholder when no name is exposed (e.g. anonymous joins).
  */
@@ -400,10 +410,22 @@ export const googleMeetConnector: ConnectorConfig = {
       const transcripts = await fetchTranscripts(accessToken, recordName)
       if (transcripts.length === 0) return null
 
+      // Only index once every transcript is fully generated. Before then the entry set
+      // is still being populated, and because the content hash is keyed on the (now
+      // fixed) conference endTime, a partial transcript stored here would never be
+      // refreshed on later syncs. Waiting for FILE_GENERATED keeps indexed content final.
+      if (transcripts.some((transcript) => transcript.state !== 'FILE_GENERATED')) {
+        logger.info('Google Meet transcript not finalized yet', { externalId })
+        return null
+      }
+
       const entryGroups = await Promise.all(
         transcripts.map((transcript) => fetchTranscriptEntries(accessToken, transcript.name))
       )
-      const entries = entryGroups.flat()
+      // The API guarantees chronological order only within a single transcript, so sort
+      // the merged entries by start time to keep speaker lines in sequence when a
+      // conference has more than one transcript.
+      const entries = entryGroups.flat().sort((a, b) => entryStartMs(a) - entryStartMs(b))
 
       const hasText = entries.some((entry) => entry.text?.trim())
       if (!hasText) {
