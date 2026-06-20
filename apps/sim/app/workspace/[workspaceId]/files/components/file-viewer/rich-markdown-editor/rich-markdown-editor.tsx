@@ -291,6 +291,12 @@ export function LoadedRichMarkdownEditor({
           streamRafRef.current = null
           return
         }
+        const shownBody = lastSyncedBodyRef.current
+        const extendsShown = shownBody === null || pending.startsWith(shownBody)
+        if (!extendsShown) {
+          streamRafRef.current = null
+          return
+        }
         if (
           pending.length > STREAM_REPARSE_THROTTLE_THRESHOLD &&
           performance.now() - lastStreamParseAtRef.current < STREAM_REPARSE_THROTTLE_MS
@@ -303,7 +309,7 @@ export function LoadedRichMarkdownEditor({
         lastStreamParseAtRef.current = performance.now()
         const el = containerRef.current
         const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
-        editor.setEditable(false)
+        if (editor.isEditable) editor.setEditable(false)
         editor.commands.setContent(parseMarkdownToDoc(pending), {
           contentType: 'json',
           emitUpdate: false,
