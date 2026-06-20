@@ -16,6 +16,20 @@ function asRecord(value: unknown): Record<string, unknown> {
   return (value as Record<string, unknown>) || {}
 }
 
+/** Maximum allowed clock skew (5 minutes) between Zendesk's signed timestamp and now, per Zendesk docs. */
+const ZENDESK_TIMESTAMP_MAX_SKEW_MS = 5 * 60 * 1000
+
+/**
+ * Verify the signed timestamp is recent to prevent replay of captured deliveries.
+ * Zendesk sends `X-Zendesk-Webhook-Signature-Timestamp` as an ISO-8601 string
+ * (e.g. `2025-01-24T15:30:00.000Z`), so it is parsed with `Date.parse`.
+ */
+function isZendeskTimestampFresh(timestamp: string): boolean {
+  const signedAt = Date.parse(timestamp)
+  if (Number.isNaN(signedAt)) return false
+  return Math.abs(Date.now() - signedAt) <= ZENDESK_TIMESTAMP_MAX_SKEW_MS
+}
+
 /**
  * Zendesk signs `timestamp + rawBody` (no separator) with HMAC-SHA256 keyed by
  * the webhook's signing secret, then base64-encodes it into
@@ -47,6 +61,13 @@ export const zendeskHandler: WebhookProviderHandler = {
     if (!signature || !timestamp) {
       logger.warn(`[${requestId}] Zendesk webhook missing signature headers`)
       return new NextResponse('Unauthorized - Missing Zendesk signature', { status: 401 })
+    }
+
+    if (!isZendeskTimestampFresh(timestamp)) {
+      logger.warn(`[${requestId}] Zendesk webhook timestamp outside the allowed window`, {
+        timestamp,
+      })
+      return new NextResponse('Unauthorized - Stale Zendesk timestamp', { status: 401 })
     }
 
     if (!validateZendeskSignature(secret, signature, timestamp, rawBody)) {

@@ -57,6 +57,7 @@ export function buildPagerDutyExtraFields(triggerId: string): SubBlockConfig[] {
       description:
         'Validates that webhook deliveries originate from PagerDuty (X-PagerDuty-Signature).',
       password: true,
+      paramVisibility: 'user-only',
       required: false,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },

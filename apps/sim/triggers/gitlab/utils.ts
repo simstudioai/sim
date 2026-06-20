@@ -59,6 +59,7 @@ export function buildGitLabExtraFields(triggerId: string): SubBlockConfig[] {
       placeholder: 'Generate or enter a strong secret token',
       description: 'Validates that webhook deliveries originate from GitLab (X-Gitlab-Token).',
       password: true,
+      paramVisibility: 'user-only',
       required: false,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },

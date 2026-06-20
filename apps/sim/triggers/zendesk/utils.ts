@@ -55,6 +55,7 @@ export function buildZendeskExtraFields(triggerId: string): SubBlockConfig[] {
       description:
         'Validates that webhook deliveries originate from Zendesk (X-Zendesk-Webhook-Signature).',
       password: true,
+      paramVisibility: 'user-only',
       required: false,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
