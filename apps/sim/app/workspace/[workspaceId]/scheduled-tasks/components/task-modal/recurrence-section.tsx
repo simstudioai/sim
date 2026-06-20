@@ -2,8 +2,9 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
-import { ChipDatePicker, ChipModalField, ChipModalSeparator, Switch } from '@/components/emcn'
+import { Chip, ChipDatePicker, ChipModalField, ChipModalSeparator, Switch } from '@/components/emcn'
 import type {
+  MonthlyMode,
   Recurrence,
   RecurrenceFrequency,
 } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/recurrence'
@@ -14,8 +15,22 @@ const DEFAULT_END_AFTER_COUNT = 10
 /** Cadence a task falls back to when the user first flips on recurrence. */
 const DEFAULT_RECURRING_FREQUENCY = 'daily'
 
+/** Sunday-first weekday order with single-letter labels and full names for a11y. */
+const WEEKDAYS = [
+  { value: 0, short: 'S', name: 'Sunday' },
+  { value: 1, short: 'M', name: 'Monday' },
+  { value: 2, short: 'T', name: 'Tuesday' },
+  { value: 3, short: 'W', name: 'Wednesday' },
+  { value: 4, short: 'T', name: 'Thursday' },
+  { value: 5, short: 'F', name: 'Friday' },
+  { value: 6, short: 'S', name: 'Saturday' },
+] as const
+
+/** Ordinal words for the 1st–5th weekday-of-month, matching a calendar app's labels. */
+const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'] as const
+
 /** The frequency presets the dropdown authors, keyed by a synthetic option value. */
-type FrequencyOption = 'daily' | 'weekly' | 'weekdays' | 'monthly' | 'custom'
+type FrequencyOption = 'daily' | 'weekly' | 'weekdays' | 'monthly' | 'yearly' | 'custom'
 
 function isWeekdayPreset(weekdays: number[]): boolean {
   return (
@@ -23,15 +38,38 @@ function isWeekdayPreset(weekdays: number[]): boolean {
   )
 }
 
-/** Collapses a recurring recurrence into the single dropdown value that represents it. */
+/**
+ * Collapses a recurring recurrence into the single dropdown value that
+ * represents it. `once` maps to the default cadence as an exhaustiveness
+ * fallback: callers gate on `isRecurring`, so it never reaches here at runtime,
+ * but the dropdown can't represent it — mapping it keeps the return type
+ * `FrequencyOption` without a cast.
+ */
 function frequencyOptionFor(recurrence: Recurrence): FrequencyOption {
   if (recurrence.frequency === 'weekly')
     return isWeekdayPreset(recurrence.weekdays) ? 'weekdays' : 'weekly'
-  // Exhaustiveness fallback: callers gate on `isRecurring`, so `once` never
-  // reaches here at runtime, but the dropdown can't represent it — mapping it to
-  // a recurring default keeps the return type `FrequencyOption` without a cast.
+  if (recurrence.frequency === 'monthly') return 'monthly'
+  if (recurrence.frequency === 'yearly') return 'yearly'
+  if (recurrence.frequency === 'custom') return 'custom'
   if (recurrence.frequency === 'once') return DEFAULT_RECURRING_FREQUENCY
   return recurrence.frequency
+}
+
+/**
+ * The monthly sub-options, derived from the launch date the same way a calendar
+ * app offers them: repeat on the day number, on the ordinal weekday of the
+ * month (e.g. the third Tuesday), or on the last weekday of the month. All three
+ * are always offered so the picked mode is always representable, even when the
+ * launch date is changed afterward via the footer date picker.
+ */
+function monthlyModeOptions(launch: Date): Array<{ value: MonthlyMode; label: string }> {
+  const weekdayName = format(launch, 'EEEE')
+  const ordinal = ORDINALS[Math.ceil(launch.getDate() / 7) - 1]
+  return [
+    { value: 'day-of-month', label: `On day ${format(launch, 'd')}` },
+    { value: 'nth-weekday', label: `On the ${ordinal} ${weekdayName}` },
+    { value: 'last-weekday', label: `On the last ${weekdayName}` },
+  ]
 }
 
 interface RecurrenceSectionProps {
@@ -44,8 +82,9 @@ interface RecurrenceSectionProps {
 /**
  * The repeat + end controls for a scheduled task, rendered as a body section
  * below the prompt: a "Recurring" {@link Switch} that toggles a one-time launch
- * into a repeat, and — once on — the frequency preset and how it ends (never, on
- * a date, or after N runs).
+ * into a repeat, and — once on — the frequency preset, its cadence detail (the
+ * weekly day toggles or the monthly anchor), and how it ends (never, on a date,
+ * or after N runs).
  *
  * Composed as a sibling between the prompt body and footer; it owns its own
  * leading separator and mirrors {@link ChipModalBody}'s spacing
@@ -66,12 +105,14 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
   const launch = new Date(`${launchDate}T00:00`)
   const isRecurring = recurrence.frequency !== 'once'
+  const selectedWeekdays = recurrence.weekdays.length > 0 ? recurrence.weekdays : [launch.getDay()]
 
   const frequencyOptions = [
     { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: `Weekly on ${format(launch, 'EEE')}` },
+    { value: 'weekly', label: 'Weekly' },
     { value: 'weekdays', label: 'Weekdays' },
-    { value: 'monthly', label: `Monthly on the ${format(launch, 'do')}` },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'yearly', label: `Yearly on ${format(launch, 'MMM d')}` },
     ...(recurrence.frequency === 'custom' ? [{ value: 'custom', label: 'Custom' }] : []),
   ]
 
@@ -109,11 +150,30 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
         })
         return
       case 'monthly':
-        onChange({ ...recurrence, frequency: 'monthly', weekdays: [], cron: undefined })
+        onChange({
+          ...recurrence,
+          frequency: 'monthly',
+          weekdays: [],
+          monthlyMode: 'day-of-month',
+          cron: undefined,
+        })
+        return
+      case 'yearly':
+        onChange({ ...recurrence, frequency: 'yearly', weekdays: [], cron: undefined })
         return
       case 'custom':
         onChange({ ...recurrence, frequency: 'custom' })
     }
+  }
+
+  /** Toggles a weekday on or off, never letting the last selected day be cleared. */
+  const handleWeekdayToggle = (day: number) => {
+    const isSelected = selectedWeekdays.includes(day)
+    if (isSelected && selectedWeekdays.length === 1) return
+    const weekdays = isSelected
+      ? selectedWeekdays.filter((d) => d !== day)
+      : [...selectedWeekdays, day].sort((a, b) => a - b)
+    onChange({ ...recurrence, weekdays })
   }
 
   const handleEndChange = (value: string) => {
@@ -143,6 +203,39 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
               options={frequencyOptions}
               onChange={handleFrequencyChange}
             />
+
+            {recurrence.frequency === 'weekly' && (
+              <ChipModalField type='custom' title='Repeat on'>
+                <div className='flex gap-1'>
+                  {WEEKDAYS.map((weekday) => {
+                    const selected = selectedWeekdays.includes(weekday.value)
+                    return (
+                      <Chip
+                        key={weekday.value}
+                        active={selected}
+                        flush
+                        className='min-w-0 flex-1 justify-center'
+                        aria-pressed={selected}
+                        aria-label={weekday.name}
+                        onClick={() => handleWeekdayToggle(weekday.value)}
+                      >
+                        {weekday.short}
+                      </Chip>
+                    )
+                  })}
+                </div>
+              </ChipModalField>
+            )}
+
+            {recurrence.frequency === 'monthly' && (
+              <ChipModalField
+                type='dropdown'
+                title='On'
+                value={recurrence.monthlyMode ?? 'day-of-month'}
+                options={monthlyModeOptions(launch)}
+                onChange={(value) => onChange({ ...recurrence, monthlyMode: value as MonthlyMode })}
+              />
+            )}
 
             <ChipModalField
               type='dropdown'

@@ -6,7 +6,18 @@ import { zonedWallClock, zonedWallClockToUtc } from '@/lib/core/utils/timezone'
  * preserves a cron expression the UI did not author (e.g. a task created
  * conversationally) so editing never silently rewrites it.
  */
-export type RecurrenceFrequency = 'once' | 'daily' | 'weekly' | 'monthly' | 'custom'
+export type RecurrenceFrequency = 'once' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
+
+/**
+ * How a monthly recurrence anchors within the month, mirroring a calendar app's
+ * monthly sub-options. `day-of-month` repeats on the launch date's day number
+ * (e.g. the 15th); `nth-weekday` on the same ordinal weekday (e.g. the third
+ * Tuesday, croner `2#3`); `last-weekday` on the final weekday of that kind (e.g.
+ * the last Tuesday, croner `2#L`). The weekday and ordinal are read from the
+ * launch date at cron-build time — on edit the launch date is an actual
+ * occurrence, so the mode round-trips to the same day.
+ */
+export type MonthlyMode = 'day-of-month' | 'nth-weekday' | 'last-weekday'
 
 /** When a recurrence stops, mirroring the three calendar-app end options. */
 export type RecurrenceEnd =
@@ -18,6 +29,8 @@ export interface Recurrence {
   frequency: RecurrenceFrequency
   /** Weekly only: weekdays 0 (Sun) – 6 (Sat). Empty falls back to the launch day's weekday. */
   weekdays: number[]
+  /** Monthly only: how it anchors within the month. Defaults to `day-of-month`. */
+  monthlyMode?: MonthlyMode
   end: RecurrenceEnd
   /** `custom` only: the raw cron expression, passed through unchanged on save. */
   cron?: string
@@ -57,8 +70,19 @@ export function recurrenceToCron(
       const days = recurrence.weekdays.length > 0 ? recurrence.weekdays : [launchDay.getUTCDay()]
       return `${minute} ${hour} * * ${[...new Set(days)].sort((a, b) => a - b).join(',')}`
     }
-    case 'monthly':
-      return `${minute} ${hour} ${launchDay.getUTCDate()} * *`
+    case 'monthly': {
+      const weekday = launchDay.getUTCDay()
+      switch (recurrence.monthlyMode ?? 'day-of-month') {
+        case 'nth-weekday':
+          return `${minute} ${hour} * * ${weekday}#${Math.ceil(launchDay.getUTCDate() / 7)}`
+        case 'last-weekday':
+          return `${minute} ${hour} * * ${weekday}#L`
+        default:
+          return `${minute} ${hour} ${launchDay.getUTCDate()} * *`
+      }
+    }
+    case 'yearly':
+      return `${minute} ${hour} ${launchDay.getUTCDate()} ${launchDay.getUTCMonth() + 1} *`
   }
 }
 
@@ -157,9 +181,28 @@ export function cronToRecurrence(params: {
       const weekdays = dayOfWeek.split(',').map(Number)
       return { recurrence: { frequency: 'weekly', weekdays, end }, launchTime }
     }
-    if (isNumeric(dayOfMonth) && dayOfWeek === '*') {
-      return { recurrence: { frequency: 'monthly', weekdays: [], end }, launchTime }
+    if (dayOfMonth === '*' && /^[0-6]#[1-5]$/.test(dayOfWeek)) {
+      return {
+        recurrence: { frequency: 'monthly', weekdays: [], monthlyMode: 'nth-weekday', end },
+        launchTime,
+      }
     }
+    if (dayOfMonth === '*' && /^[0-6]#L$/.test(dayOfWeek)) {
+      return {
+        recurrence: { frequency: 'monthly', weekdays: [], monthlyMode: 'last-weekday', end },
+        launchTime,
+      }
+    }
+    if (isNumeric(dayOfMonth) && dayOfWeek === '*') {
+      return {
+        recurrence: { frequency: 'monthly', weekdays: [], monthlyMode: 'day-of-month', end },
+        launchTime,
+      }
+    }
+  }
+
+  if (numbersAreValid && isNumeric(dayOfMonth) && isNumeric(month) && dayOfWeek === '*') {
+    return { recurrence: { frequency: 'yearly', weekdays: [], end }, launchTime }
   }
 
   return {
