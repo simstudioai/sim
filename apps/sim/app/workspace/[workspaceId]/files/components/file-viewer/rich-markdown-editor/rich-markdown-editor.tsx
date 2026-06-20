@@ -22,6 +22,7 @@ import {
 } from './markdown-fidelity'
 import { parseMarkdownToDoc } from './markdown-parse'
 import { EditorBubbleMenu } from './menus/bubble-menu'
+import { LinkHoverCard } from './menus/link-hover-card'
 import { isRoundTripSafe } from './round-trip-safety'
 import '@/components/emcn/components/code/code.css'
 import './rich-markdown-editor.css'
@@ -205,7 +206,8 @@ export function LoadedRichMarkdownEditor({
     shouldRerenderOnTransaction: false,
     content: initialContent,
     editorProps: {
-      attributes: { class: 'rich-markdown-prose' },
+      // Claim Mod+K so the global command registry yields it to the editor's link shortcut.
+      attributes: { class: 'rich-markdown-prose', 'data-owned-shortcuts': 'Mod+K' },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'
         if (!isSaveShortcut) return false
@@ -350,6 +352,7 @@ export function LoadedRichMarkdownEditor({
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && <LinkHoverCard editor={editor} />}
       <EditorContent
         editor={editor}
         className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
