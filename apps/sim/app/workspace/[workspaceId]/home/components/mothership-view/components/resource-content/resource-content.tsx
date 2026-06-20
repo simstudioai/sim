@@ -197,7 +197,6 @@ export const ResourceContent = memo(function ResourceContent({
           isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
-          showBubbleMenu={false}
         />
       </div>
     )
@@ -660,7 +659,6 @@ function EmbeddedFile({
         isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
-        showBubbleMenu={false}
       />
     </div>
   )
