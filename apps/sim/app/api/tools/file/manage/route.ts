@@ -255,6 +255,7 @@ const inflateEntryWithinCaps = (
     stream.on('error', (error) => {
       if (settled) return
       settled = true
+      stream.destroy()
       reject(error)
     })
   })
