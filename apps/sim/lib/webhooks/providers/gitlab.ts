@@ -1,18 +1,29 @@
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { generateId } from '@sim/utils/id'
 import { NextResponse } from 'next/server'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
   AuthContext,
+  DeleteSubscriptionContext,
   EventMatchContext,
   FormatInputContext,
   FormatInputResult,
+  SubscriptionContext,
+  SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 
 const logger = createLogger('WebhookProvider:GitLab')
 
+const GITLAB_API_BASE = 'https://gitlab.com/api/v4'
+
 function asRecord(value: unknown): Record<string, unknown> {
   return (value as Record<string, unknown>) || {}
+}
+
+function gitlabProjectHooksUrl(projectId: string): string {
+  return `${GITLAB_API_BASE}/projects/${encodeURIComponent(projectId)}/hooks`
 }
 
 export const gitlabHandler: WebhookProviderHandler = {
@@ -64,5 +75,81 @@ export const gitlabHandler: WebhookProviderHandler = {
     return {
       input: { ...b, event_type: eventType, branch },
     }
+  },
+
+  async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    const config = getProviderConfig(ctx.webhook)
+    const accessToken = config.accessToken as string | undefined
+    const projectId = config.projectId as string | undefined
+    const triggerId = config.triggerId as string | undefined
+
+    if (!accessToken)
+      throw new Error('GitLab Personal Access Token is required to create the webhook.')
+    if (!projectId) throw new Error('GitLab Project ID is required to create the webhook.')
+
+    const { getGitLabEventFlags } = await import('@/triggers/gitlab/utils')
+    const secretToken = generateId()
+    const res = await fetch(gitlabProjectHooksUrl(projectId), {
+      method: 'POST',
+      headers: { 'PRIVATE-TOKEN': accessToken, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: getNotificationUrl(ctx.webhook),
+        token: secretToken,
+        enable_ssl_verification: true,
+        ...getGitLabEventFlags(triggerId ?? 'gitlab_webhook'),
+      }),
+    })
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      logger.error(`[${ctx.requestId}] Failed to create GitLab webhook (${res.status})`, { detail })
+      if (res.status === 401)
+        throw new Error(
+          'GitLab authentication failed. Verify your Personal Access Token has the api scope.'
+        )
+      if (res.status === 403)
+        throw new Error(
+          'GitLab access denied. You need the Maintainer or Owner role on the project.'
+        )
+      if (res.status === 404) throw new Error('GitLab project not found. Verify the Project ID.')
+      throw new Error(`Failed to create GitLab webhook: ${res.status}`)
+    }
+
+    const created = (await res.json().catch(() => ({}))) as { id?: number | string }
+    if (created.id === undefined || created.id === null) {
+      throw new Error('GitLab webhook created but no hook ID was returned.')
+    }
+
+    logger.info(`[${ctx.requestId}] Created GitLab webhook ${created.id} for project ${projectId}`)
+    return { providerConfigUpdates: { externalId: String(created.id), webhookSecret: secretToken } }
+  },
+
+  async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
+    const config = getProviderConfig(ctx.webhook)
+    const accessToken = config.accessToken as string | undefined
+    const projectId = config.projectId as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!accessToken || !projectId || !externalId) {
+      if (ctx.strict) throw new Error('Missing GitLab credentials or hook ID for webhook deletion.')
+      logger.warn(
+        `[${ctx.requestId}] Skipping GitLab webhook cleanup — missing token, project, or hook ID`
+      )
+      return
+    }
+
+    const res = await fetch(`${gitlabProjectHooksUrl(projectId)}/${externalId}`, {
+      method: 'DELETE',
+      headers: { 'PRIVATE-TOKEN': accessToken },
+    })
+
+    if (!res.ok && res.status !== 404) {
+      if (ctx.strict) throw new Error(`Failed to delete GitLab webhook: ${res.status}`)
+      logger.warn(
+        `[${ctx.requestId}] Failed to delete GitLab webhook ${externalId} (non-fatal): ${res.status}`
+      )
+      return
+    }
+    logger.info(`[${ctx.requestId}] Deleted GitLab webhook ${externalId}`)
   },
 }

@@ -18,7 +18,7 @@ export const gitlabMergeRequestTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'gitlab_merge_request',
     triggerOptions: gitlabTriggerOptions,
-    setupInstructions: gitlabSetupInstructions('Merge Request', 'Merge request events'),
+    setupInstructions: gitlabSetupInstructions('Merge Request'),
     extraFields: buildGitLabExtraFields('gitlab_merge_request'),
   }),
   outputs: buildGitLabMergeRequestOutputs(),

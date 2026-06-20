@@ -26,18 +26,43 @@ const TRIGGER_OBJECT_KINDS: Record<string, string> = {
 }
 
 /**
- * Generate setup instructions for a specific GitLab webhook event.
- *
- * @param triggerLabel - Friendly event name shown to the user.
- * @param checkboxLabel - The exact checkbox label in the GitLab "Trigger" section.
+ * Boolean event flags sent to the GitLab project-hooks API, keyed by trigger.
+ * `gitlab_webhook` subscribes to every supported event.
  */
-export function gitlabSetupInstructions(triggerLabel: string, checkboxLabel: string): string {
+const ALL_EVENT_FLAGS = {
+  push_events: true,
+  merge_requests_events: true,
+  issues_events: true,
+  pipeline_events: true,
+  note_events: true,
+  tag_push_events: true,
+} as const
+
+const TRIGGER_EVENT_FLAGS: Record<string, Record<string, boolean>> = {
+  gitlab_push: { push_events: true },
+  gitlab_merge_request: { merge_requests_events: true },
+  gitlab_issue: { issues_events: true },
+  gitlab_pipeline: { pipeline_events: true },
+  gitlab_comment: { note_events: true },
+}
+
+/**
+ * Returns the GitLab hook event flags to enable for a given trigger.
+ */
+export function getGitLabEventFlags(triggerId: string): Record<string, boolean> {
+  return TRIGGER_EVENT_FLAGS[triggerId] ?? { ...ALL_EVENT_FLAGS }
+}
+
+/**
+ * Generate setup instructions for a specific GitLab webhook event. The webhook
+ * is created automatically on deploy, so the user only supplies credentials.
+ */
+export function gitlabSetupInstructions(eventLabel: string): string {
   const instructions = [
-    'In GitLab, go to your <strong>Project &gt; Settings &gt; Webhooks</strong> and click <strong>Add new webhook</strong>.',
-    'Paste the <strong>Webhook URL</strong> above into the <strong>URL</strong> field.',
-    'Enter the same <strong>Secret token</strong> you set above so deliveries can be verified.',
-    `Under <strong>Trigger</strong>, enable <strong>${checkboxLabel}</strong>.`,
-    'Click <strong>Add webhook</strong> to save.',
+    'Create a <strong>Personal Access Token</strong> with the <strong>api</strong> scope under <strong>GitLab &gt; Settings &gt; Access Tokens</strong>.',
+    'Enter the token and your <strong>Project ID</strong> (numeric ID or <code>group/project</code> path) above.',
+    `Deploy the workflow — Sim creates the webhook in GitLab automatically and starts listening for <strong>${eventLabel}</strong> events.`,
+    'Undeploying the workflow removes the webhook from GitLab.',
   ]
   return instructions
     .map(
@@ -48,19 +73,30 @@ export function gitlabSetupInstructions(triggerLabel: string, checkboxLabel: str
 }
 
 /**
- * Secret token field used to verify the X-Gitlab-Token header.
+ * Credentials Sim uses to create and delete the GitLab project webhook.
  */
 export function buildGitLabExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'webhookSecret',
-      title: 'Secret Token',
+      id: 'accessToken',
+      title: 'Personal Access Token',
       type: 'short-input',
-      placeholder: 'Generate or enter a strong secret token',
-      description: 'Validates that webhook deliveries originate from GitLab (X-Gitlab-Token).',
+      placeholder: 'GitLab PAT with the api scope',
+      description:
+        'Used to create the webhook in your project. Requires the Maintainer or Owner role.',
       password: true,
       paramVisibility: 'user-only',
-      required: false,
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'projectId',
+      title: 'Project ID',
+      type: 'short-input',
+      placeholder: 'Numeric ID or group/project path',
+      description: 'The GitLab project to register the webhook on.',
+      required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },

@@ -18,7 +18,7 @@ export const gitlabCommentTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'gitlab_comment',
     triggerOptions: gitlabTriggerOptions,
-    setupInstructions: gitlabSetupInstructions('Comment', 'Comments'),
+    setupInstructions: gitlabSetupInstructions('Comment'),
     extraFields: buildGitLabExtraFields('gitlab_comment'),
   }),
   outputs: buildGitLabCommentOutputs(),

@@ -18,7 +18,7 @@ export const gitlabWebhookTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'gitlab_webhook',
     triggerOptions: gitlabTriggerOptions,
-    setupInstructions: gitlabSetupInstructions('All Events', 'the events you want'),
+    setupInstructions: gitlabSetupInstructions('all'),
     extraFields: buildGitLabExtraFields('gitlab_webhook'),
   }),
   outputs: buildGitLabWebhookOutputs(),

@@ -19,7 +19,7 @@ export const gitlabPushTrigger: TriggerConfig = {
     triggerId: 'gitlab_push',
     triggerOptions: gitlabTriggerOptions,
     includeDropdown: true,
-    setupInstructions: gitlabSetupInstructions('Push', 'Push events'),
+    setupInstructions: gitlabSetupInstructions('Push'),
     extraFields: buildGitLabExtraFields('gitlab_push'),
   }),
   outputs: buildGitLabPushOutputs(),

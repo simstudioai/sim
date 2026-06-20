@@ -26,15 +26,24 @@ const TRIGGER_EVENT_TYPES: Record<string, string> = {
 }
 
 /**
- * Generate setup instructions for a specific PagerDuty incident event.
+ * Returns the V3 webhook event types to subscribe to for a given trigger.
+ * `pagerduty_webhook` subscribes to every supported incident event.
+ */
+export function getPagerDutyEvents(triggerId: string): string[] {
+  const specific = TRIGGER_EVENT_TYPES[triggerId]
+  return specific ? [specific] : Object.values(TRIGGER_EVENT_TYPES)
+}
+
+/**
+ * Generate setup instructions for a specific PagerDuty incident event. The
+ * webhook is created automatically on deploy, so the user only supplies an API key.
  */
 export function pagerdutySetupInstructions(eventLabel: string): string {
   const instructions = [
-    'In PagerDuty, go to <strong>Integrations &gt; Generic Webhooks (v3)</strong> and click <strong>New Webhook</strong>.',
-    'Paste the <strong>Webhook URL</strong> above into the <strong>Webhook URL</strong> field.',
-    'Scope the webhook to your <strong>account</strong>, <strong>service</strong>, or <strong>team</strong> as needed.',
-    `Under <strong>Event Subscription</strong>, select <strong>${eventLabel}</strong>.`,
-    'After saving, PagerDuty shows a <strong>signing secret once</strong> — copy it and paste it into the <strong>Signing Secret</strong> field above to verify deliveries.',
+    'Create a <strong>General Access REST API Key</strong> under <strong>PagerDuty &gt; Integrations &gt; API Access Keys</strong>.',
+    'Enter the API key above.',
+    `Deploy the workflow — Sim creates the account-level webhook subscription in PagerDuty automatically and listens for <strong>${eventLabel}</strong>.`,
+    'Undeploying the workflow removes the webhook subscription from PagerDuty.',
   ]
   return instructions
     .map(
@@ -45,20 +54,19 @@ export function pagerdutySetupInstructions(eventLabel: string): string {
 }
 
 /**
- * Signing secret field used to verify the X-PagerDuty-Signature HMAC.
+ * API key Sim uses to create and delete the PagerDuty webhook subscription.
  */
 export function buildPagerDutyExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'webhookSecret',
-      title: 'Signing Secret',
+      id: 'apiKey',
+      title: 'API Key',
       type: 'short-input',
-      placeholder: 'Paste the signing secret shown when you created the webhook',
-      description:
-        'Validates that webhook deliveries originate from PagerDuty (X-PagerDuty-Signature).',
+      placeholder: 'PagerDuty General Access REST API key',
+      description: 'Used to create the webhook subscription. Must be a read/write REST API key.',
       password: true,
       paramVisibility: 'user-only',
-      required: false,
+      required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },

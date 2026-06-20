@@ -18,7 +18,7 @@ export const gitlabIssueTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'gitlab_issue',
     triggerOptions: gitlabTriggerOptions,
-    setupInstructions: gitlabSetupInstructions('Issue', 'Issues events'),
+    setupInstructions: gitlabSetupInstructions('Issue'),
     extraFields: buildGitLabExtraFields('gitlab_issue'),
   }),
   outputs: buildGitLabIssueOutputs(),

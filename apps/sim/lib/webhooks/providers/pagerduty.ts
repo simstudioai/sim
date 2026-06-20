@@ -1,15 +1,30 @@
 import crypto from 'crypto'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
+import { getNotificationUrl, getProviderConfig } from '@/lib/webhooks/provider-subscription-utils'
 import type {
+  DeleteSubscriptionContext,
   EventMatchContext,
   FormatInputContext,
   FormatInputResult,
+  SubscriptionContext,
+  SubscriptionResult,
   WebhookProviderHandler,
 } from '@/lib/webhooks/providers/types'
 import { createHmacVerifier } from '@/lib/webhooks/providers/utils'
 
 const logger = createLogger('WebhookProvider:PagerDuty')
+
+const PAGERDUTY_API_BASE = 'https://api.pagerduty.com'
+
+/** Shared headers for PagerDuty REST API calls (the v2 Accept header is required). */
+function pagerdutyHeaders(apiKey: string): Record<string, string> {
+  return {
+    Authorization: `Token token=${apiKey}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/vnd.pagerduty+json;version=2',
+  }
+}
 
 /**
  * PagerDuty V3 signs the raw body with HMAC-SHA256 and sends it in the
@@ -95,5 +110,82 @@ export const pagerdutyHandler: WebhookProviderHandler = {
   extractIdempotencyId(body: unknown) {
     const event = asRecord(asRecord(body).event)
     return (event.id as string | undefined) || null
+  },
+
+  async createSubscription(ctx: SubscriptionContext): Promise<SubscriptionResult | undefined> {
+    const config = getProviderConfig(ctx.webhook)
+    const apiKey = config.apiKey as string | undefined
+    const triggerId = config.triggerId as string | undefined
+
+    if (!apiKey)
+      throw new Error('PagerDuty API Key is required to create the webhook subscription.')
+
+    const { getPagerDutyEvents } = await import('@/triggers/pagerduty/utils')
+    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+      method: 'POST',
+      headers: pagerdutyHeaders(apiKey),
+      body: JSON.stringify({
+        webhook_subscription: {
+          type: 'webhook_subscription',
+          delivery_method: { type: 'http_delivery_method', url: getNotificationUrl(ctx.webhook) },
+          events: getPagerDutyEvents(triggerId ?? 'pagerduty_webhook'),
+          filter: { type: 'account_reference' },
+        },
+      }),
+    })
+
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      logger.error(`[${ctx.requestId}] Failed to create PagerDuty webhook (${res.status})`, {
+        detail,
+      })
+      if (res.status === 401)
+        throw new Error('PagerDuty authentication failed. Verify your REST API key.')
+      if (res.status === 403)
+        throw new Error('PagerDuty access denied. The API key must have read/write access.')
+      throw new Error(`Failed to create PagerDuty webhook subscription: ${res.status}`)
+    }
+
+    const created = asRecord((await res.json().catch(() => ({}))) as unknown)
+    const subscription = asRecord(created.webhook_subscription)
+    const externalId = subscription.id as string | undefined
+    const secret = asRecord(subscription.delivery_method).secret as string | undefined
+
+    if (!externalId)
+      throw new Error('PagerDuty webhook created but no subscription ID was returned.')
+    if (!secret) {
+      throw new Error('PagerDuty webhook created but no signing secret was returned on creation.')
+    }
+
+    logger.info(`[${ctx.requestId}] Created PagerDuty webhook subscription ${externalId}`)
+    return { providerConfigUpdates: { externalId, webhookSecret: secret } }
+  },
+
+  async deleteSubscription(ctx: DeleteSubscriptionContext): Promise<void> {
+    const config = getProviderConfig(ctx.webhook)
+    const apiKey = config.apiKey as string | undefined
+    const externalId = config.externalId as string | undefined
+
+    if (!apiKey || !externalId) {
+      if (ctx.strict) throw new Error('Missing PagerDuty API key or subscription ID for deletion.')
+      logger.warn(
+        `[${ctx.requestId}] Skipping PagerDuty webhook cleanup — missing API key or subscription ID`
+      )
+      return
+    }
+
+    const res = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${externalId}`, {
+      method: 'DELETE',
+      headers: pagerdutyHeaders(apiKey),
+    })
+
+    if (!res.ok && res.status !== 404) {
+      if (ctx.strict) throw new Error(`Failed to delete PagerDuty webhook: ${res.status}`)
+      logger.warn(
+        `[${ctx.requestId}] Failed to delete PagerDuty webhook ${externalId} (non-fatal): ${res.status}`
+      )
+      return
+    }
+    logger.info(`[${ctx.requestId}] Deleted PagerDuty webhook subscription ${externalId}`)
   },
 }

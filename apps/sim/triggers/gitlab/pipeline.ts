@@ -18,7 +18,7 @@ export const gitlabPipelineTrigger: TriggerConfig = {
   subBlocks: buildTriggerSubBlocks({
     triggerId: 'gitlab_pipeline',
     triggerOptions: gitlabTriggerOptions,
-    setupInstructions: gitlabSetupInstructions('Pipeline', 'Pipeline events'),
+    setupInstructions: gitlabSetupInstructions('Pipeline'),
     extraFields: buildGitLabExtraFields('gitlab_pipeline'),
   }),
   outputs: buildGitLabPipelineOutputs(),

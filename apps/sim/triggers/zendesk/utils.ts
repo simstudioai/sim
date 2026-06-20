@@ -24,15 +24,24 @@ const TRIGGER_EVENT_TYPES: Record<string, string> = {
 }
 
 /**
- * Generate setup instructions for a specific Zendesk ticket event.
+ * Returns the native event-subscription types for a given trigger.
+ * `zendesk_webhook` subscribes to every supported ticket event.
+ */
+export function getZendeskSubscriptions(triggerId: string): string[] {
+  const specific = TRIGGER_EVENT_TYPES[triggerId]
+  return specific ? [specific] : Object.values(TRIGGER_EVENT_TYPES)
+}
+
+/**
+ * Generate setup instructions for a specific Zendesk ticket event. The webhook
+ * is created automatically on deploy, so the user only supplies API credentials.
  */
 export function zendeskSetupInstructions(eventLabel: string): string {
   const instructions = [
-    'In Zendesk Admin Center, go to <strong>Apps and integrations &gt; Webhooks &gt; Webhooks</strong> and click <strong>Create webhook</strong>.',
-    'Choose <strong>Connect with events</strong>, then select <strong>Ticket events</strong> as the source.',
-    `Subscribe to the <strong>${eventLabel}</strong> event type.`,
-    'Paste the <strong>Webhook URL</strong> above into the <strong>Endpoint URL</strong> field and save.',
-    'Open the webhook and click <strong>Reveal secret</strong>, then paste it into the <strong>Signing Secret</strong> field above to verify deliveries.',
+    'Enable token access under <strong>Zendesk Admin Center &gt; Apps and integrations &gt; APIs &gt; Zendesk API</strong> and create an <strong>API token</strong>.',
+    'Enter your <strong>subdomain</strong> (from <code>subdomain.zendesk.com</code>), the <strong>admin email</strong>, and the <strong>API token</strong> above.',
+    `Deploy the workflow — Sim creates the event-subscription webhook in Zendesk automatically and listens for <strong>${eventLabel}</strong>.`,
+    'Undeploying the workflow removes the webhook from Zendesk.',
   ]
   return instructions
     .map(
@@ -43,20 +52,39 @@ export function zendeskSetupInstructions(eventLabel: string): string {
 }
 
 /**
- * Signing secret field used to verify the X-Zendesk-Webhook-Signature HMAC.
+ * Credentials Sim uses to create and delete the Zendesk webhook (admin-scoped).
  */
 export function buildZendeskExtraFields(triggerId: string): SubBlockConfig[] {
   return [
     {
-      id: 'webhookSecret',
-      title: 'Signing Secret',
+      id: 'subdomain',
+      title: 'Subdomain',
       type: 'short-input',
-      placeholder: 'Paste the webhook signing secret from Zendesk',
-      description:
-        'Validates that webhook deliveries originate from Zendesk (X-Zendesk-Webhook-Signature).',
+      placeholder: 'yourcompany (from yourcompany.zendesk.com)',
+      description: 'Your Zendesk subdomain.',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'email',
+      title: 'Admin Email',
+      type: 'short-input',
+      placeholder: 'admin@yourcompany.com',
+      description: 'Email of a Zendesk admin used with the API token.',
+      required: true,
+      mode: 'trigger',
+      condition: { field: 'selectedTriggerId', value: triggerId },
+    },
+    {
+      id: 'apiToken',
+      title: 'API Token',
+      type: 'short-input',
+      placeholder: 'Zendesk API token',
+      description: 'Used to create the webhook. Requires admin access.',
       password: true,
       paramVisibility: 'user-only',
-      required: false,
+      required: true,
       mode: 'trigger',
       condition: { field: 'selectedTriggerId', value: triggerId },
     },
