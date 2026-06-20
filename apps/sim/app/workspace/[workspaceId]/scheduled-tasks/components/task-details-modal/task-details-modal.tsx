@@ -55,7 +55,10 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
       size='md'
       srTitle='Scheduled task'
     >
-      {task && <TaskDetailsContent task={task} onClose={onClose} />}
+      {/* Key by the occurrence id so switching tasks while the modal stays open
+          remounts the content — the editor seeds prompt + contexts on mount, so
+          without a fresh mount it would keep showing the first task's prompt. */}
+      {task && <TaskDetailsContent key={task.id} task={task} onClose={onClose} />}
     </ChipModal>
   )
 }
