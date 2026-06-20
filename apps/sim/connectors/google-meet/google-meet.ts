@@ -11,6 +11,8 @@ const MEET_API_BASE = 'https://meet.googleapis.com/v2'
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 /** Conference records list page size (Meet API max is 100). */
 const RECORDS_PAGE_SIZE = 100
+/** Transcripts list page size (Meet API max is 100). */
+const TRANSCRIPTS_PAGE_SIZE = 100
 /** Transcript entries page size (Meet API max is 100). */
 const ENTRIES_PAGE_SIZE = 100
 /** Max concurrent participant-name lookups during a single getDocument call. */
@@ -201,7 +203,7 @@ async function fetchTranscripts(accessToken: string, recordName: string): Promis
   const transcripts: Transcript[] = []
   let pageToken: string | undefined
   do {
-    const params = new URLSearchParams({ pageSize: String(RECORDS_PAGE_SIZE) })
+    const params = new URLSearchParams({ pageSize: String(TRANSCRIPTS_PAGE_SIZE) })
     if (pageToken) params.set('pageToken', pageToken)
     const response = await fetchWithRetry(
       `${MEET_API_BASE}/${recordName}/transcripts?${params.toString()}`,
