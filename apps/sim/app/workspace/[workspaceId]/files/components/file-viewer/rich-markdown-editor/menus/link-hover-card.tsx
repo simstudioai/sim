@@ -3,6 +3,7 @@ import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/d
 import { getMarkRange } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { Check, Copy, Pencil, Unlink } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { normalizeLinkHref } from '../markdown-fidelity'
 import { ToolbarButton } from './toolbar-button'
 
@@ -136,7 +137,7 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
     dismiss()
   }
 
-  return (
+  return createPortal(
     <div
       ref={floatingRef}
       style={{
@@ -144,13 +145,14 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
         top: 0,
         left: 0,
         transform: position ? `translate(${position.x}px, ${position.y}px)` : undefined,
-        visibility: position ? 'visible' : 'hidden',
+        opacity: position ? 1 : 0,
+        pointerEvents: position ? undefined : 'none',
       }}
       role='dialog'
       aria-label='Link'
       onMouseEnter={cancelHide}
       onMouseLeave={scheduleHide}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-100 motion-reduce:animate-none'
+      className='z-[var(--z-popover)] flex items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm transition-opacity duration-150 ease-out'
     >
       {isEditing ? (
         <>
@@ -197,7 +199,8 @@ export function LinkHoverCard({ editor }: LinkHoverCardProps) {
           {canEdit && <ToolbarButton icon={Unlink} label='Remove link' onClick={removeLink} />}
         </>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }
 

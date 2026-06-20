@@ -36,6 +36,10 @@ function hasFormattableSelection(editor: Editor, from: number, to: number): bool
 // a selection it stays put while the document scrolls instead of tracking the text — matching Linear.
 const FLOATING_OPTIONS = { strategy: 'fixed' } as const
 
+// Render into the body so a transformed/clipping ancestor (e.g. the mothership panels) can't reparent
+// the fixed-positioned toolbar and shift it off the selection.
+const APPEND_TO_BODY = () => document.body
+
 interface EditorBubbleMenuProps {
   editor: Editor
   /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
@@ -205,6 +209,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}
       options={FLOATING_OPTIONS}
+      appendTo={APPEND_TO_BODY}
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}
@@ -217,7 +222,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
         if (isPointerDownRef.current) return false
         return hasFormattableSelection(e, from, to)
       }}
-      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-100 motion-reduce:animate-none'
+      className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-150 ease-out motion-reduce:animate-none'
     >
       {isEditingLink ? (
         <>
