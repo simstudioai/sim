@@ -385,10 +385,17 @@ export const googleMeetConnector: ConnectorConfig = {
 
     const totalFetched = prevFetched + documents.length
     if (syncContext) syncContext.totalDocsFetched = totalFetched
-    const hitLimit = maxMeetings > 0 && totalFetched >= maxMeetings
-    if (hitLimit && syncContext) syncContext.listingCapped = true
+    const reachedCap = maxMeetings > 0 && totalFetched >= maxMeetings
 
-    const hasMore = !hitLimit && Boolean(nextPageToken)
+    // Only flag the listing as capped when the cap actually truncated a larger source —
+    // either more pages remain, or records were dropped from this page. If the source
+    // was fully listed and merely happens to equal the cap, leave it unflagged so the
+    // sync engine still reconciles deletions of meetings that disappear upstream.
+    const truncated =
+      reachedCap && (Boolean(nextPageToken) || allDocuments.length > documents.length)
+    if (truncated && syncContext) syncContext.listingCapped = true
+
+    const hasMore = !reachedCap && Boolean(nextPageToken)
 
     return {
       documents,
