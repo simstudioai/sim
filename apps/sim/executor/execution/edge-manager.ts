@@ -134,6 +134,10 @@ export class EdgeManager {
     return Array.from(this.nodesWithActivatedEdge)
   }
 
+  hasActivatedEdge(nodeId: string): boolean {
+    return this.nodesWithActivatedEdge.has(nodeId)
+  }
+
   restoreDeactivatedEdges(edgeKeys?: string[], activatedNodeIds?: string[]): void {
     this.deactivatedEdges = new Set(
       (edgeKeys ?? []).map((edgeKey) => this.normalizeSerializedEdgeKey(edgeKey))
@@ -145,17 +149,10 @@ export class EdgeManager {
     this.nodesWithActivatedEdge.add(nodeId)
   }
 
-  /**
-   * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
-   *
-   * Only clears edges whose SOURCE is in the provided set. Edges pointing INTO a node in the set
-   * whose source lives outside (e.g. an external branch whose path was cascade-deactivated) must
-   * remain deactivated — otherwise `countActiveIncomingEdges` would count a source that will never
-   * fire again, stalling the loop on its next iteration.
-   *
-   * Deactivated edge keys encode the source separately so node IDs with shared prefixes
-   * cannot clear each other's deactivated edges.
-   */
+  deactivateResumedEdge(sourceId: string, targetId: string, sourceHandle?: string): void {
+    this.deactivateEdgeAndDescendants(sourceId, targetId, sourceHandle)
+  }
+
   clearDeactivatedEdgesForNodes(nodeIds: Set<string>): void {
     const edgesToRemove: string[] = []
     for (const edgeKey of this.deactivatedEdges) {
@@ -182,11 +179,6 @@ export class EdgeManager {
     return targetNode ? this.isNodeReady(targetNode) : false
   }
 
-  /**
-   * Checks if the cascade target sentinel belongs to the same subflow as the source node.
-   * A condition inside a loop that hits a dead-end should still allow the enclosing
-   * loop's sentinel to fire so the loop can continue or exit.
-   */
   private isEnclosingSentinel(sourceNode: DAGNode, sentinelId: string): boolean {
     const sentinel = this.dag.nodes.get(sentinelId)
     if (!sentinel?.metadata.isSentinel) return false
@@ -321,9 +313,6 @@ export class EdgeManager {
     }
   }
 
-  /**
-   * Checks if a node has any active incoming edges besides the one being excluded.
-   */
   private hasActiveIncomingEdges(node: DAGNode, excludeEdgeKey: string): boolean {
     for (const incomingSourceId of node.incomingEdges) {
       const incomingNode = this.dag.nodes.get(incomingSourceId)
