@@ -280,6 +280,7 @@ export function LoadedRichMarkdownEditor({
     if (!editor) return
     if (isStreaming) {
       wasStreamingRef.current = true
+      if (editor.isEditable) editor.setEditable(false)
       const body = splitFrontmatter(content).body
       if (body === lastSyncedBodyRef.current) return
       pendingStreamBodyRef.current = body
