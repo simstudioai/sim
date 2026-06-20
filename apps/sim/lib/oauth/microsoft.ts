@@ -36,7 +36,10 @@ export function deriveMicrosoftEmailVerified(
   if (claims.email_verified !== undefined) {
     return Boolean(claims.email_verified)
   }
-  const verifiedPrimaryEmail = claims.verified_primary_email as string[] | undefined
-  const verifiedSecondaryEmail = claims.verified_secondary_email as string[] | undefined
-  return Boolean(verifiedPrimaryEmail?.includes(email) || verifiedSecondaryEmail?.includes(email))
+  const { verified_primary_email: verifiedPrimary, verified_secondary_email: verifiedSecondary } =
+    claims
+  return (
+    (Array.isArray(verifiedPrimary) && verifiedPrimary.includes(email)) ||
+    (Array.isArray(verifiedSecondary) && verifiedSecondary.includes(email))
+  )
 }
