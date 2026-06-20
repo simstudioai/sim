@@ -54,10 +54,15 @@ describe('deriveMicrosoftEmailVerified', () => {
     expect(deriveMicrosoftEmailVerified({ email_verified: 'true' }, EMAIL)).toBe(true)
   })
 
-  it('treats a malformed verified-email claim as unverified', () => {
+  it('treats malformed (non-array) verified-email claims as unverified without throwing', () => {
     expect(deriveMicrosoftEmailVerified({ verified_primary_email: 'not-an-array' }, EMAIL)).toBe(
       false
     )
+    expect(deriveMicrosoftEmailVerified({ verified_primary_email: 123 }, EMAIL)).toBe(false)
+    expect(deriveMicrosoftEmailVerified({ verified_secondary_email: { foo: 'bar' } }, EMAIL)).toBe(
+      false
+    )
+    expect(deriveMicrosoftEmailVerified({ verified_primary_email: null }, EMAIL)).toBe(false)
   })
 })
 
