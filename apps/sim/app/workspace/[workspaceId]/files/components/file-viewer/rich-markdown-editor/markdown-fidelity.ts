@@ -52,6 +52,8 @@ export function normalizeLinkHref(href: string): string {
   if (/^[#?]/.test(trimmed)) return trimmed
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
+  // Relative paths (`./other.md`, `../doc.md`) stay relative — never prefixed into `https://./…`.
+  if (trimmed.startsWith('./') || trimmed.startsWith('../')) return trimmed
   if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
   const schemed = trimmed.match(SCHEME_URL)
   if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed

@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/core/utils/cn'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'
@@ -182,6 +183,9 @@ export function LoadedRichMarkdownEditor({
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
   onSaveShortcutRef.current = onSaveShortcut
+  const router = useRouter()
+  const routerRef = useRef(router)
+  routerRef.current = router
 
   const containerRef = useRef<HTMLDivElement>(null)
   const uploadFile = useUploadWorkspaceFile()
@@ -255,6 +259,16 @@ export function LoadedRichMarkdownEditor({
         }
         const normalized = normalizeLinkHref(href)
         if (!normalized) return false
+        // A same-origin in-app path navigates within the SPA (same tab) — unless the reader
+        // modifier-clicked for a new tab. External URLs always open a new tab.
+        if (
+          !(event.metaKey || event.ctrlKey) &&
+          normalized.startsWith('/') &&
+          !normalized.startsWith('//')
+        ) {
+          routerRef.current.push(normalized)
+          return true
+        }
         window.open(normalized, '_blank', 'noopener,noreferrer')
         return true
       },

@@ -107,6 +107,9 @@ describe('markdown-fidelity utils', () => {
     expect(normalizeLinkHref('mailto:a@b.com')).toBe('mailto:a@b.com')
     expect(normalizeLinkHref('#anchor')).toBe('#anchor')
     expect(normalizeLinkHref('/relative')).toBe('/relative')
+    // Relative paths stay relative (not prefixed into `https://./…`).
+    expect(normalizeLinkHref('./other.md')).toBe('./other.md')
+    expect(normalizeLinkHref('../doc.md')).toBe('../doc.md')
     expect(normalizeLinkHref('  https://x.com  ')).toBe('https://x.com')
     expect(normalizeLinkHref('javascript:alert(1)')).toBe('')
     expect(normalizeLinkHref('data:text/html,<script>')).toBe('')
