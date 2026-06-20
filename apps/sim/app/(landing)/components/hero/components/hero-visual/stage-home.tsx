@@ -286,6 +286,13 @@ export function StageHome({
                 className={cn(
                   'ml-auto w-fit max-w-[82%] rounded-2xl bg-[var(--surface-6)] px-3.5 py-2 font-body text-[15px] text-[var(--text-primary)] leading-[22px] tracking-[-0.015em]',
                   ENTER_BASE,
+                  // Hold the bubble's fade-in until the card has finished growing
+                  // upward to make room for it. The bubble is already in flow (so
+                  // the card measures the right height and expands to fit), but its
+                  // opacity/translate/blur reveal waits out the parent-driven grow
+                  // (GROW_MS) plus a short beat — so the card settles fully before
+                  // the bubble appears, instead of racing the expanding edge.
+                  mode === 'sending' && 'delay-[700ms]',
                   showBubble
                     ? enterState(true)
                     : cn('pointer-events-none absolute top-0 right-0', enterState(false))
