@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
 import { guardrailsMaskBatchContract } from '@/lib/api/contracts'
 import { parseRequest } from '@/lib/api/server'
@@ -25,7 +26,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
   const { texts, entityTypes, language } = parsed.data.body
 
-  const masked = await maskPIIBatch(texts, entityTypes, language)
-  logger.info('Masked PII batch', { count: texts.length })
-  return NextResponse.json({ masked })
+  try {
+    const masked = await maskPIIBatch(texts, entityTypes, language)
+    logger.info('Masked PII batch', { count: texts.length })
+    return NextResponse.json({ masked })
+  } catch (error) {
+    // A broken/absent venv makes maskPIIBatch throw; fail loudly here (the
+    // caller scrubs to REDACTION_FAILED, so PII is never leaked).
+    logger.error('PII batch masking failed', {
+      error: getErrorMessage(error),
+      count: texts.length,
+    })
+    return NextResponse.json(
+      { error: getErrorMessage(error, 'PII masking failed') },
+      { status: 500 }
+    )
+  }
 })
