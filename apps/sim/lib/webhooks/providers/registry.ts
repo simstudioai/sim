@@ -13,6 +13,7 @@ import { fathomHandler } from '@/lib/webhooks/providers/fathom'
 import { firefliesHandler } from '@/lib/webhooks/providers/fireflies'
 import { genericHandler } from '@/lib/webhooks/providers/generic'
 import { githubHandler } from '@/lib/webhooks/providers/github'
+import { gitlabHandler } from '@/lib/webhooks/providers/gitlab'
 import { gmailHandler } from '@/lib/webhooks/providers/gmail'
 import { gongHandler } from '@/lib/webhooks/providers/gong'
 import { googleFormsHandler } from '@/lib/webhooks/providers/google-forms'
@@ -29,6 +30,7 @@ import { microsoftTeamsHandler } from '@/lib/webhooks/providers/microsoft-teams'
 import { mondayHandler } from '@/lib/webhooks/providers/monday'
 import { notionHandler } from '@/lib/webhooks/providers/notion'
 import { outlookHandler } from '@/lib/webhooks/providers/outlook'
+import { pagerdutyHandler } from '@/lib/webhooks/providers/pagerduty'
 import { resendHandler } from '@/lib/webhooks/providers/resend'
 import { rssHandler } from '@/lib/webhooks/providers/rss'
 import { salesforceHandler } from '@/lib/webhooks/providers/salesforce'
@@ -46,6 +48,7 @@ import { verifyTokenAuth } from '@/lib/webhooks/providers/utils'
 import { vercelHandler } from '@/lib/webhooks/providers/vercel'
 import { webflowHandler } from '@/lib/webhooks/providers/webflow'
 import { whatsappHandler } from '@/lib/webhooks/providers/whatsapp'
+import { zendeskHandler } from '@/lib/webhooks/providers/zendesk'
 import { zoomHandler } from '@/lib/webhooks/providers/zoom'
 
 const logger = createLogger('WebhookProviderRegistry')
@@ -64,6 +67,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   generic: genericHandler,
   gmail: gmailHandler,
   github: githubHandler,
+  gitlab: gitlabHandler,
   gong: gongHandler,
   google_forms: googleFormsHandler,
   fathom: fathomHandler,
@@ -81,6 +85,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   'microsoft-teams': microsoftTeamsHandler,
   notion: notionHandler,
   outlook: outlookHandler,
+  pagerduty: pagerdutyHandler,
   rss: rssHandler,
   salesforce: salesforceHandler,
   sendblue: sendblueHandler,
@@ -95,6 +100,7 @@ const PROVIDER_HANDLERS: Record<string, WebhookProviderHandler> = {
   vercel: vercelHandler,
   webflow: webflowHandler,
   whatsapp: whatsappHandler,
+  zendesk: zendeskHandler,
   zoom: zoomHandler,
 }
 
