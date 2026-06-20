@@ -461,6 +461,7 @@ export function Home({ chatId, userName, userId, initialResourceId = null }: Hom
           activeResourceId={activeResourceId}
           isCollapsed={isResourceCollapsed}
           previewSession={previewSession}
+          isAgentResponding={isSending}
           genericResourceData={genericResourceData ?? undefined}
           className={skipResourceTransition ? '!transition-none' : undefined}
         />

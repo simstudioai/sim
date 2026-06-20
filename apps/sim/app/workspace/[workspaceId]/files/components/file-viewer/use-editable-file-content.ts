@@ -31,6 +31,7 @@ interface UseEditableFileContentOptions {
   workspaceId: string
   canEdit: boolean
   streamingContent?: string
+  isAgentEditing?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -102,6 +103,7 @@ export function useEditableFileContent({
   workspaceId,
   canEdit,
   streamingContent,
+  isAgentEditing,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -130,7 +132,7 @@ export function useEditableFileContent({
     content,
     savedContent,
     isInitialized,
-    isStreamInteractionLocked,
+    isStreamInteractionLocked: isStreamPhaseLocked,
     setDraftContent,
     markSavedContent,
   } = useFileContentState({
@@ -138,6 +140,8 @@ export function useEditableFileContent({
     fetchedContent,
     streamingContent,
   })
+
+  const isStreamInteractionLocked = isStreamPhaseLocked || Boolean(isAgentEditing)
 
   const contentRef = useRef(content)
   contentRef.current = content

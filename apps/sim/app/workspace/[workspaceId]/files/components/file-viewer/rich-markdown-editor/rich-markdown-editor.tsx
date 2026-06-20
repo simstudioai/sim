@@ -39,6 +39,7 @@ interface RichMarkdownEditorProps {
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
+  isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -64,6 +65,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   onSaveStatusChange,
   saveRef,
   streamingContent,
+  isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: RichMarkdownEditorProps) {
@@ -79,6 +81,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     workspaceId,
     canEdit,
     streamingContent,
+    isAgentEditing,
     onDirtyChange,
     onSaveStatusChange,
     saveRef,

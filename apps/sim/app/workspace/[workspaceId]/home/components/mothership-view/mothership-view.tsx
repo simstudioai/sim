@@ -52,6 +52,7 @@ interface MothershipViewProps {
   isCollapsed: boolean
   className?: string
   previewSession?: FilePreviewSession | null
+  isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
 }
 
@@ -65,6 +66,7 @@ export const MothershipView = memo(
       isCollapsed,
       className,
       previewSession,
+      isAgentResponding,
       genericResourceData,
     }: MothershipViewProps,
     ref
@@ -136,6 +138,7 @@ export const MothershipView = memo(
                 resource={active}
                 previewMode={isActivePreviewable ? previewMode : undefined}
                 previewSession={previewForActive}
+                isAgentResponding={isAgentResponding}
                 genericResourceData={active.type === 'generic' ? genericResourceData : undefined}
                 previewContextKey={chatId}
                 onNotFound={(resourceId) => removeResource('log', resourceId)}

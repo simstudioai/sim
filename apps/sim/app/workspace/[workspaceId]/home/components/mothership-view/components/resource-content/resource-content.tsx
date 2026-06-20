@@ -76,6 +76,7 @@ interface ResourceContentProps {
   resource: MothershipResource
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
+  isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
@@ -93,6 +94,7 @@ export const ResourceContent = memo(function ResourceContent({
   resource,
   previewMode,
   previewSession,
+  isAgentResponding,
   genericResourceData,
   previewContextKey,
   onNotFound,
@@ -134,6 +136,8 @@ export const ResourceContent = memo(function ResourceContent({
       ? previewSession.previewText
       : undefined
 
+  const isAgentEditing = Boolean(isAgentResponding && previewSession)
+
   if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
@@ -143,6 +147,7 @@ export const ResourceContent = memo(function ResourceContent({
           canEdit={false}
           previewMode={previewMode ?? 'preview'}
           streamingContent={textStreamingContent}
+          isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -165,6 +170,7 @@ export const ResourceContent = memo(function ResourceContent({
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
+          isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -550,6 +556,7 @@ interface EmbeddedFileProps {
   filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
+  isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -560,6 +567,7 @@ function EmbeddedFile({
   filePath,
   previewMode,
   streamingContent,
+  isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -601,6 +609,7 @@ function EmbeddedFile({
         canEdit={canEdit}
         previewMode={previewMode}
         streamingContent={streamingContent}
+        isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />
