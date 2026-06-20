@@ -7,6 +7,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type SyncTextEditorContentStateOptions,
@@ -31,6 +32,7 @@ interface UseEditableFileContentOptions {
   workspaceId: string
   canEdit: boolean
   streamingContent?: string
+  isAgentEditing?: boolean
   onDirtyChange?: (isDirty: boolean) => void
   onSaveStatusChange?: (status: SaveStatus) => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
@@ -102,6 +104,7 @@ export function useEditableFileContent({
   workspaceId,
   canEdit,
   streamingContent,
+  isAgentEditing,
   onDirtyChange,
   onSaveStatusChange,
   saveRef,
@@ -130,7 +133,7 @@ export function useEditableFileContent({
     content,
     savedContent,
     isInitialized,
-    isStreamInteractionLocked,
+    isStreamInteractionLocked: isStreamPhaseLocked,
     setDraftContent,
     markSavedContent,
   } = useFileContentState({
@@ -138,6 +141,17 @@ export function useEditableFileContent({
     fetchedContent,
     streamingContent,
   })
+
+  const isStreamInteractionLocked = isStreamPhaseLocked || Boolean(isAgentEditing)
+
+  // Pace the streamed reveal for DISPLAY only. The reducer above keeps the true content so
+  // reconciliation, dirty tracking, and saves are never thrown off by the paced prefix. Pacing is
+  // gated on the stream phase (not the agent-edit lock) and fed '' off-stream, so a user's own typing
+  // is never throttled; snapOnNonAppend shows in-place rewrites/patches in full, not re-revealed.
+  const pacedReveal = useSmoothText(isStreamPhaseLocked ? content : '', isStreamPhaseLocked, {
+    snapOnNonAppend: true,
+  })
+  const displayContent = isStreamPhaseLocked ? pacedReveal : content
 
   const contentRef = useRef(content)
   contentRef.current = content
@@ -174,11 +188,16 @@ export function useEditableFileContent({
   }, [saveImmediately, saveRef])
 
   return {
-    content,
+    content: displayContent,
     setDraftContent,
     isInitialized,
     isStreamInteractionLocked,
-    isContentLoading: streamingContent === undefined && isLoading,
+    // `!isInitialized` mirrors `hasContentError`: once any content (fetched OR streamed) has
+    // initialized the editor, never fall back to the loading frame. A stream that finishes before the
+    // initial file fetch resolves flips `streamingContent` to undefined while `isLoading` is still
+    // true — without this guard that would unmount the settled editor (losing the read-only→editable
+    // hand-off, scroll, and parsed doc) until the fetch lands.
+    isContentLoading: streamingContent === undefined && isLoading && !isInitialized,
     hasContentError: streamingContent === undefined && Boolean(error) && !isInitialized,
     saveStatus,
     saveImmediately,

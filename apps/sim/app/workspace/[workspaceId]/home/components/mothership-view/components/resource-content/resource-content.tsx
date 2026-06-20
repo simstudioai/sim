@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useRef } from 'react'
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { format } from 'date-fns'
 import { useRouter } from 'next/navigation'
@@ -76,6 +76,7 @@ interface ResourceContentProps {
   resource: MothershipResource
   previewMode?: PreviewMode
   previewSession?: FilePreviewSession | null
+  isAgentResponding?: boolean
   genericResourceData?: GenericResourceData
   previewContextKey?: string
   onNotFound?: (resourceId: string) => void
@@ -88,11 +89,56 @@ interface ResourceContentProps {
  */
 const STREAMING_EPOCH = new Date(0)
 
+/**
+ * Grace window kept locked after the agent stops streaming into the file, so the lock bridges the
+ * gaps between the file subagent's sequential edit sections instead of flickering open between them.
+ */
+const AGENT_EDIT_LOCK_GRACE_MS = 1500
+
+/**
+ * Holds the editor read-only while the agent is actively writing to the file, plus a short grace so
+ * brief gaps between edit sections don't unlock it. Releases as soon as the turn ends
+ * (`isAgentResponding` false) so the file becomes editable the moment the agent is done, even when
+ * the surrounding turn keeps running — the completed preview session otherwise lingers all turn.
+ */
+function useAgentFileEditLock(isStreamingToFile: boolean, isAgentResponding: boolean): boolean {
+  const [locked, setLocked] = useState(isStreamingToFile)
+  const graceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (graceTimerRef.current !== null) {
+      clearTimeout(graceTimerRef.current)
+      graceTimerRef.current = null
+    }
+    if (isStreamingToFile) {
+      setLocked(true)
+      return
+    }
+    if (!isAgentResponding) {
+      setLocked(false)
+      return
+    }
+    graceTimerRef.current = setTimeout(() => {
+      graceTimerRef.current = null
+      setLocked(false)
+    }, AGENT_EDIT_LOCK_GRACE_MS)
+    return () => {
+      if (graceTimerRef.current !== null) {
+        clearTimeout(graceTimerRef.current)
+        graceTimerRef.current = null
+      }
+    }
+  }, [isStreamingToFile, isAgentResponding])
+
+  return locked
+}
+
 export const ResourceContent = memo(function ResourceContent({
   workspaceId,
   resource,
   previewMode,
   previewSession,
+  isAgentResponding,
   genericResourceData,
   previewContextKey,
   onNotFound,
@@ -134,6 +180,11 @@ export const ResourceContent = memo(function ResourceContent({
       ? previewSession.previewText
       : undefined
 
+  const isAgentEditing = useAgentFileEditLock(
+    previewSession?.status === 'streaming',
+    Boolean(isAgentResponding)
+  )
+
   if (resource.id === 'streaming-file') {
     return (
       <div className='flex h-full flex-col overflow-hidden'>
@@ -143,6 +194,7 @@ export const ResourceContent = memo(function ResourceContent({
           canEdit={false}
           previewMode={previewMode ?? 'preview'}
           streamingContent={textStreamingContent}
+          isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -165,6 +217,7 @@ export const ResourceContent = memo(function ResourceContent({
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
+          isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -550,6 +603,7 @@ interface EmbeddedFileProps {
   filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
+  isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -560,6 +614,7 @@ function EmbeddedFile({
   filePath,
   previewMode,
   streamingContent,
+  isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -601,6 +656,7 @@ function EmbeddedFile({
         canEdit={canEdit}
         previewMode={previewMode}
         streamingContent={streamingContent}
+        isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />

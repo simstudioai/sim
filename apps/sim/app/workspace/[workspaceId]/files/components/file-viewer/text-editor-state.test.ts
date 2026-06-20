@@ -10,19 +10,24 @@ import {
 } from './text-editor-state'
 
 function ready(content: string, savedContent = content): TextEditorContentState {
-  return { phase: 'ready', content, savedContent, lastStreamedContent: null }
+  return { phase: 'ready', content, savedContent, lastStreamedContent: null, hasBaseline: true }
 }
 
 function streaming(
   content: string,
   lastStreamedContent: string,
-  savedContent = ''
+  savedContent = '',
+  hasBaseline = true
 ): TextEditorContentState {
-  return { phase: 'streaming', content, savedContent, lastStreamedContent }
+  return { phase: 'streaming', content, savedContent, lastStreamedContent, hasBaseline }
 }
 
-function reconciling(content: string, savedContent = ''): TextEditorContentState {
-  return { phase: 'reconciling', content, savedContent, lastStreamedContent: null }
+function reconciling(
+  content: string,
+  savedContent = '',
+  hasBaseline = true
+): TextEditorContentState {
+  return { phase: 'reconciling', content, savedContent, lastStreamedContent: null, hasBaseline }
 }
 
 describe("reducer 'edit' action", () => {
@@ -144,6 +149,7 @@ describe('syncTextEditorContentState — static fetch updates', () => {
       content: 'user edit',
       savedContent: 'v1',
       lastStreamedContent: null,
+      hasBaseline: true,
     }
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: true,
@@ -241,6 +247,7 @@ describe('syncTextEditorContentState — reconciling', () => {
       content: 'streamed',
       savedContent: 'v1',
       lastStreamedContent: null,
+      hasBaseline: true,
     }
     const next = syncTextEditorContentState(state, {
       canReconcileToFetchedContent: true,
@@ -429,5 +436,71 @@ describe('syncTextEditorContentState — mothership streamed-file lifecycle (rep
 
     // 5. Now-enabled autosave compares content vs savedContent: equal → it never fires a save.
     expect(state.content).toBe(state.savedContent)
+  })
+})
+
+/**
+ * When the user opens an existing, non-empty file's tab while the agent is already mid-stream on it,
+ * streaming begins from `uninitialized` before the content fetch resolves — so `savedContent` is the
+ * placeholder `''`. The first fetched value to arrive is the file's PRE-EDIT content, not the agent's
+ * write; it must be adopted as the baseline, never finalized to (which would flash stale content and,
+ * if the agent had stopped, let the user edit over the agent's write).
+ */
+describe('syncTextEditorContentState — stream begins before fetch on an existing file', () => {
+  it('adopts the first fetched content as the baseline instead of finalizing to it mid-stream', () => {
+    const preEdit = '# Original\n\nold content'
+    const agentWrite = '# Original\n\nold content, plus a new section.'
+
+    // 1. Editor mounts mid-stream: chunk arrives before the fetch resolves.
+    let state = syncTextEditorContentState(INITIAL_TEXT_EDITOR_CONTENT_STATE, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: undefined,
+      streamingContent: '# Original\n\nold',
+    })
+    expect(state.phase).toBe('streaming')
+    expect(state.savedContent).toBe('')
+    expect(state.hasBaseline).toBe(false)
+
+    // 2. The fetch resolves to the file's pre-edit content WHILE streaming. Adopt it as the baseline;
+    //    do NOT finalize (the agent hasn't persisted its write yet).
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: preEdit,
+      streamingContent: '# Original\n\nold content, plus',
+    })
+    expect(state.phase).toBe('streaming')
+    expect(state.content).toBe('# Original\n\nold content, plus')
+    expect(state.savedContent).toBe(preEdit)
+    expect(state.hasBaseline).toBe(true)
+
+    // 3. Stream ends; the refetch is still the pre-edit content → hold in reconciling, never finalize
+    //    to stale (savedContent === fetched, so it has not "advanced").
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: preEdit,
+      streamingContent: undefined,
+    })
+    expect(state.phase).toBe('reconciling')
+
+    // 4. The agent's write lands (advanced past the adopted baseline) → finalize to it.
+    state = syncTextEditorContentState(state, {
+      canReconcileToFetchedContent: true,
+      fetchedContent: agentWrite,
+      streamingContent: undefined,
+    })
+    expect(state.phase).toBe('ready')
+    expect(state.content).toBe(agentWrite)
+    expect(state.savedContent).toBe(agentWrite)
+  })
+
+  it('still finalizes mid-stream once a real baseline is established (no regression)', () => {
+    // With hasBaseline=true, an advancing fetch finalizes immediately — the established-baseline path.
+    const next = syncTextEditorContentState(streaming('v1 chunk', 'v1 chunk', 'v1'), {
+      canReconcileToFetchedContent: true,
+      fetchedContent: 'v2',
+      streamingContent: 'chunk',
+    })
+    expect(next.phase).toBe('ready')
+    expect(next.content).toBe('v2')
   })
 })

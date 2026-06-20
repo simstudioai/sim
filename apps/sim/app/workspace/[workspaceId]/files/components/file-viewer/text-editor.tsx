@@ -331,6 +331,7 @@ interface TextEditorProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
+  isAgentEditing?: boolean
   disableStreamingAutoScroll: boolean
   previewContextKey?: string
 }
@@ -345,6 +346,7 @@ export const TextEditor = memo(function TextEditor({
   onSaveStatusChange,
   saveRef,
   streamingContent,
+  isAgentEditing,
   disableStreamingAutoScroll,
   previewContextKey,
 }: TextEditorProps) {
@@ -379,6 +381,7 @@ export const TextEditor = memo(function TextEditor({
     workspaceId,
     canEdit,
     streamingContent,
+    isAgentEditing,
     onDirtyChange,
     onSaveStatusChange,
     saveRef,
