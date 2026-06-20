@@ -123,8 +123,12 @@ export const ResourceContent = memo(function ResourceContent({
   const disableStreamingAutoScroll = previewSession?.operation === 'patch'
   const isTextPreview =
     !!previewSession && resolveFileCategory(null, previewSession.fileName) === 'text-editable'
+  // Feed streamed content only while actively streaming. On completion the session keeps
+  // `previewText` for history, but clearing it here lets the editor reconcile to the agent's
+  // server-side write and hand off to the editable surface (the agent persists, not the editor).
   const textStreamingContent =
     isTextPreview &&
+    previewSession?.status === 'streaming' &&
     typeof previewSession?.previewText === 'string' &&
     hasRenderableFilePreviewContent(previewSession)
       ? previewSession.previewText
@@ -139,7 +143,6 @@ export const ResourceContent = memo(function ResourceContent({
           canEdit={false}
           previewMode={previewMode ?? 'preview'}
           streamingContent={textStreamingContent}
-          streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -162,7 +165,6 @@ export const ResourceContent = memo(function ResourceContent({
           streamingContent={
             previewSession?.fileId === resource.id ? textStreamingContent : undefined
           }
-          streamingMode='replace'
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -262,7 +264,6 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
-  const router = useRouter()
   const { navigateToSettings } = useSettingsNavigation()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
@@ -549,7 +550,6 @@ interface EmbeddedFileProps {
   filePath?: string
   previewMode?: PreviewMode
   streamingContent?: string
-  streamingMode?: 'append' | 'replace'
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -560,7 +560,6 @@ function EmbeddedFile({
   filePath,
   previewMode,
   streamingContent,
-  streamingMode,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: EmbeddedFileProps) {
@@ -600,7 +599,6 @@ function EmbeddedFile({
         file={file}
         workspaceId={workspaceId}
         canEdit={canEdit}
-        streamingMode={streamingMode}
         previewMode={previewMode}
         streamingContent={streamingContent}
         disableStreamingAutoScroll={disableStreamingAutoScroll}

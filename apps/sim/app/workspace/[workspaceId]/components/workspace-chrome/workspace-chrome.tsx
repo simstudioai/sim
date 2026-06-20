@@ -15,6 +15,8 @@ const SLIDE_TRANSITION =
 
 interface WorkspaceChromeProps {
   children: React.ReactNode
+  /** Cookie-derived collapse state from the server layout; seeds the sidebar's first render. */
+  initialSidebarCollapsed?: boolean
 }
 
 function isFullscreenPath(pathname: string | null): boolean {
@@ -41,7 +43,7 @@ function isFullscreenPath(pathname: string | null): boolean {
  * On a direct load of a fullscreen route the wrapper mounts already collapsed,
  * so no slide plays (CSS transitions don't run on mount).
  */
-export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
+export function WorkspaceChrome({ children, initialSidebarCollapsed }: WorkspaceChromeProps) {
   const pathname = usePathname()
   const isFullscreen = isFullscreenPath(pathname)
 
@@ -103,7 +105,7 @@ export function WorkspaceChrome({ children }: WorkspaceChromeProps) {
             isFullscreen && '-translate-x-full'
           )}
         >
-          <Sidebar />
+          <Sidebar initialCollapsed={initialSidebarCollapsed} />
         </div>
       </div>
       <div

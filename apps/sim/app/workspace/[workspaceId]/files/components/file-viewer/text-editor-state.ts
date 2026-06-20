@@ -1,5 +1,3 @@
-export type StreamingMode = 'append' | 'replace'
-
 export type TextEditorContentPhase = 'uninitialized' | 'ready' | 'streaming' | 'reconciling'
 
 export interface TextEditorContentState {
@@ -13,7 +11,6 @@ export interface SyncTextEditorContentStateOptions {
   canReconcileToFetchedContent: boolean
   fetchedContent?: string
   streamingContent?: string
-  streamingMode: StreamingMode
 }
 
 export type TextEditorContentAction =
@@ -26,25 +23,6 @@ export const INITIAL_TEXT_EDITOR_CONTENT_STATE: TextEditorContentState = {
   content: '',
   savedContent: '',
   lastStreamedContent: null,
-}
-
-export function resolveStreamingEditorContent(
-  fetchedContent: string | undefined,
-  streamingContent: string,
-  streamingMode: StreamingMode
-): string {
-  if (streamingMode === 'replace' || fetchedContent === undefined) {
-    return streamingContent
-  }
-
-  if (
-    fetchedContent.endsWith(streamingContent) ||
-    fetchedContent.endsWith(`\n${streamingContent}`)
-  ) {
-    return fetchedContent
-  }
-
-  return `${fetchedContent}\n${streamingContent}`
 }
 
 function finalizeTextEditorContentState(
@@ -105,14 +83,10 @@ export function syncTextEditorContentState(
   state: TextEditorContentState,
   options: SyncTextEditorContentStateOptions
 ): TextEditorContentState {
-  const { canReconcileToFetchedContent, fetchedContent, streamingContent, streamingMode } = options
+  const { canReconcileToFetchedContent, fetchedContent, streamingContent } = options
 
   if (streamingContent !== undefined) {
-    const nextContent = resolveStreamingEditorContent(
-      fetchedContent,
-      streamingContent,
-      streamingMode
-    )
+    const nextContent = streamingContent
     const fetchedMatchesNextContent = fetchedContent !== undefined && fetchedContent === nextContent
     const fetchedMatchesLastStreamedContent =
       fetchedContent !== undefined &&
@@ -192,9 +166,12 @@ export function textEditorContentReducer(
         content: action.content,
       }
     case 'save-success':
+      // Advance only the saved baseline. Never roll `content` back to the saved snapshot: a
+      // keystroke landing while the save was in flight makes `content` newer than `action.content`,
+      // and overwriting it would silently drop that edit (and leave the doc looking clean so it's
+      // never re-saved). Leaving `content` ahead keeps the doc dirty so the trailing edit autosaves.
       if (
         state.phase === 'ready' &&
-        state.content === action.content &&
         state.savedContent === action.content &&
         state.lastStreamedContent === null
       ) {
@@ -203,7 +180,6 @@ export function textEditorContentReducer(
       return {
         ...state,
         phase: 'ready',
-        content: action.content,
         savedContent: action.content,
         lastStreamedContent: null,
       }
