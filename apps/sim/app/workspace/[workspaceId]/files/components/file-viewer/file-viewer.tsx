@@ -91,6 +91,7 @@ interface FileViewerProps {
   onSaveStatusChange?: (status: 'idle' | 'saving' | 'saved' | 'error') => void
   saveRef?: React.MutableRefObject<(() => Promise<void>) | null>
   streamingContent?: string
+  isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
 }
@@ -106,6 +107,7 @@ export function FileViewer({
   onSaveStatusChange,
   saveRef,
   streamingContent,
+  isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
 }: FileViewerProps) {
@@ -147,6 +149,7 @@ export function FileViewer({
           onSaveStatusChange={onSaveStatusChange}
           saveRef={saveRef}
           streamingContent={streamingContent}
+          isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
         />
@@ -164,6 +167,7 @@ export function FileViewer({
         onSaveStatusChange={onSaveStatusChange}
         saveRef={saveRef}
         streamingContent={streamingContent}
+        isAgentEditing={isAgentEditing}
         disableStreamingAutoScroll={disableStreamingAutoScroll}
         previewContextKey={previewContextKey}
       />

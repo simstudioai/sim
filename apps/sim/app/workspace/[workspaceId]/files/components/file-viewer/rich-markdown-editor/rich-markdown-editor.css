@@ -153,8 +153,11 @@
   gap: 0.5em;
 }
 
+/* One line tall with the box centered, so it aligns with the item's first line. */
 .rich-markdown-prose ul[data-type="taskList"] li > label {
-  margin-top: 0.28em;
+  display: flex;
+  align-items: center;
+  height: 1.6667em; /* = the prose 25px line-height at 15px font */
   flex-shrink: 0;
   user-select: none;
 }
@@ -164,9 +167,37 @@
   min-width: 0;
 }
 
+/* TaskItem nests content as li > div > p, which the `li > p` reset misses, leaving UA margins. */
+.rich-markdown-prose ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+/* Match the design-system Checkbox (emcn) rather than the platform-native control. */
 .rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"] {
-  accent-color: var(--text-primary);
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--border-1);
+  border-radius: 3px;
+  background: transparent;
   cursor: pointer;
+}
+
+.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.rich-markdown-prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background-color: var(--surface-2);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
 }
 
 .rich-markdown-prose blockquote {
