@@ -1991,7 +1991,11 @@ export function Files() {
         onRename={handleContextMenuRename}
         onDelete={handleContextMenuDelete}
         onMove={handleContextMenuMove}
-        onShare={canEdit ? handleContextMenuShare : undefined}
+        onShare={
+          canEdit && contextMenuItemRef.current?.kind === 'file'
+            ? handleContextMenuShare
+            : undefined
+        }
         moveOptions={contextMenuMoveOptions}
         canEdit={canEdit}
         selectedCount={selectedRowIds.size}
