@@ -35,10 +35,11 @@ function applyCollapsedCookie(collapsed: boolean) {
   document.cookie = `sidebar_collapsed=${collapsed ? '1' : '0'}; path=/; max-age=31536000; samesite=lax`
 }
 
-/** Reads the collapse state the server saw, so the client store seeds identically. */
-function readCollapsedCookie(): boolean {
+/** Reads the collapse state the server saw, so the client store seeds identically. Matches the
+ * cookie value strictly (`=1`) so `sidebar_collapsed=10` and the like aren't read as collapsed. */
+export function readCollapsedCookie(): boolean {
   if (typeof document === 'undefined') return false
-  return document.cookie.includes('sidebar_collapsed=1')
+  return document.cookie.match(/(?:^|;\s*)sidebar_collapsed=([^;]*)/)?.[1] === '1'
 }
 
 export const useSidebarStore = create<SidebarState>()(

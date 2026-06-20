@@ -79,9 +79,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 var defaultSidebarWidth = 248;
                 try {
                   // Collapse comes from the cookie (independent of localStorage
-                  // parsing); the persisted width is read defensively below.
-                  var hasCookie = document.cookie.indexOf('sidebar_collapsed=') !== -1;
-                  var collapsed = document.cookie.indexOf('sidebar_collapsed=1') !== -1;
+                  // parsing); the persisted width is read defensively below. Match the
+                  // value strictly so 'sidebar_collapsed=10' isn't read as collapsed.
+                  var cookieMatch = document.cookie.match(/(?:^|;\s*)sidebar_collapsed=([^;]*)/);
+                  var hasCookie = cookieMatch !== null;
+                  var collapsed = cookieMatch !== null && cookieMatch[1] === '1';
 
                   var state = null;
                   try {
