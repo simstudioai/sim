@@ -29,6 +29,7 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import {
@@ -600,6 +601,8 @@ export class ExecutionLogger implements IExecutionLoggerService {
     payload: RedactablePayload
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
+
+    if (!(await isFeatureEnabled('pii-redaction'))) return payload
 
     const [row] = await db
       .select({ orgSettings: organization.dataRetentionSettings })
