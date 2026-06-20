@@ -2,7 +2,13 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
-import { Chip, ChipDatePicker, ChipModalField, ChipModalSeparator, Switch } from '@/components/emcn'
+import {
+  CalendarDayCell,
+  ChipDatePicker,
+  ChipModalField,
+  ChipModalSeparator,
+  Switch,
+} from '@/components/emcn'
 import type {
   MonthlyMode,
   Recurrence,
@@ -219,21 +225,24 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
             {recurrence.frequency === 'weekly' && (
               <ChipModalField type='custom' title='Repeat on'>
-                <div className='flex gap-1'>
+                {/* A one-row extract of the calendar: seven equal day cells built
+                    from the same {@link CalendarDayCell} the date picker uses, so
+                    the weekday toggles read as a sibling of the calendar rather than
+                    a separate segmented bar. */}
+                <div className='grid grid-cols-7 gap-1'>
                   {WEEKDAYS.map((weekday) => {
                     const selected = selectedWeekdays.includes(weekday.value)
                     return (
-                      <Chip
+                      <CalendarDayCell
                         key={weekday.value}
-                        active={selected}
-                        flush
-                        className='min-w-0 flex-1 justify-center'
+                        selected={selected}
+                        fullWidth
                         aria-pressed={selected}
                         aria-label={weekday.name}
                         onClick={() => handleWeekdayToggle(weekday.value)}
                       >
                         {weekday.short}
-                      </Chip>
+                      </CalendarDayCell>
                     )
                   })}
                 </div>
