@@ -703,7 +703,11 @@ export function AccessControl() {
     ]
 
     const assignedCategories = new Set(categoryGroups.flat())
-    const unassigned = Object.keys(platformCategories).filter((c) => !assignedCategories.has(c))
+    // Files has its own section below (with the file-sharing auth modes), so it
+    // stays out of the feature-toggle grid.
+    const unassigned = Object.keys(platformCategories).filter(
+      (c) => c !== 'Files' && !assignedCategories.has(c)
+    )
     const groups = unassigned.length > 0 ? [...categoryGroups, unassigned] : categoryGroups
 
     return groups
@@ -1689,26 +1693,49 @@ export function AccessControl() {
                 </div>
                 <div className='mt-8 flex flex-col gap-1.5'>
                   <span className='font-medium text-[var(--text-tertiary)] text-xs uppercase tracking-wide'>
-                    File Sharing Methods
+                    Files
                   </span>
-                  <p className='text-[var(--text-secondary)] text-xs'>
-                    Auth modes that public file-share links may use.
-                  </p>
-                  <div className='flex max-w-md flex-col gap-0.5 pt-1'>
-                    {FILE_SHARE_AUTH_TYPE_OPTIONS.map(({ value, label }) => (
-                      <label
-                        key={value}
-                        htmlFor={`fsauth-${value}`}
-                        className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
-                      >
-                        <Checkbox
-                          id={`fsauth-${value}`}
-                          checked={isFileShareAuthAllowed(value)}
-                          onCheckedChange={() => toggleFileShareAuthType(value)}
-                        />
-                        <span className='font-normal text-sm'>{label}</span>
-                      </label>
-                    ))}
+                  <label
+                    htmlFor='disable-public-file-sharing'
+                    className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                  >
+                    <Checkbox
+                      id='disable-public-file-sharing'
+                      checked={!editingConfig?.disablePublicFileSharing}
+                      onCheckedChange={(checked) =>
+                        setEditingConfig((prev) =>
+                          prev ? { ...prev, disablePublicFileSharing: checked !== true } : prev
+                        )
+                      }
+                    />
+                    <span className='font-normal text-sm'>Public Sharing</span>
+                  </label>
+                  <div
+                    className={cn(
+                      'flex flex-col gap-1 pt-1',
+                      editingConfig?.disablePublicFileSharing && 'opacity-50'
+                    )}
+                  >
+                    <span className='px-2 text-[var(--text-secondary)] text-xs'>
+                      Auth modes public file-share links may use
+                    </span>
+                    <div className='flex flex-wrap gap-x-4'>
+                      {FILE_SHARE_AUTH_TYPE_OPTIONS.map(({ value, label }) => (
+                        <label
+                          key={value}
+                          htmlFor={`fsauth-${value}`}
+                          className='flex cursor-pointer items-center gap-2 rounded-md px-2 py-[5px] transition-colors hover-hover:bg-[var(--surface-active)]'
+                        >
+                          <Checkbox
+                            id={`fsauth-${value}`}
+                            checked={isFileShareAuthAllowed(value)}
+                            onCheckedChange={() => toggleFileShareAuthType(value)}
+                            disabled={editingConfig?.disablePublicFileSharing}
+                          />
+                          <span className='font-normal text-sm'>{label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
