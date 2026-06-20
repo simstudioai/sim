@@ -35,3 +35,20 @@ const signInProviderIdSet: ReadonlySet<string> = new Set(SIGN_IN_PROVIDER_IDS)
 export function isSignInProviderAllowed(providerId: unknown): boolean {
   return typeof providerId === 'string' && signInProviderIdSet.has(providerId)
 }
+
+/**
+ * Resolves the provider identifier the sign-in handler will actually act on for a
+ * given auth path. Better Auth reads `provider` on `/sign-in/social` and
+ * `providerId` on `/sign-in/oauth2`, so the allowlist guard must read the same
+ * field the handler uses. Reading the wrong field would let a request pass the
+ * guard with an allowed value in one field while the handler starts OAuth for a
+ * blocked value in the other, reopening connector sign-in.
+ */
+export function getRequestedSignInProviderId(
+  path: string,
+  body: { provider?: unknown; providerId?: unknown } | null | undefined
+): unknown {
+  if (path === '/sign-in/social') return body?.provider
+  if (path === '/sign-in/oauth2') return body?.providerId
+  return undefined
+}

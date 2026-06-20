@@ -2,7 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isSignInProviderAllowed, SIGN_IN_PROVIDER_IDS } from '@/lib/auth/constants'
+import {
+  getRequestedSignInProviderId,
+  isSignInProviderAllowed,
+  SIGN_IN_PROVIDER_IDS,
+} from '@/lib/auth/constants'
 
 describe('sign-in provider allowlist', () => {
   it('permits only the first-party login providers', () => {
@@ -44,5 +48,39 @@ describe('sign-in provider allowlist', () => {
     expect(isSignInProviderAllowed('')).toBe(false)
     expect(isSignInProviderAllowed(123)).toBe(false)
     expect(isSignInProviderAllowed({ provider: 'google' })).toBe(false)
+  })
+})
+
+describe('getRequestedSignInProviderId', () => {
+  it('reads the `provider` field on /sign-in/social', () => {
+    expect(getRequestedSignInProviderId('/sign-in/social', { provider: 'microsoft' })).toBe(
+      'microsoft'
+    )
+  })
+
+  it('reads the `providerId` field on /sign-in/oauth2', () => {
+    expect(getRequestedSignInProviderId('/sign-in/oauth2', { providerId: 'salesforce' })).toBe(
+      'salesforce'
+    )
+  })
+
+  it('checks the field the /sign-in/oauth2 handler uses, ignoring a decoy `provider`', () => {
+    const body = { provider: 'google', providerId: 'salesforce' }
+    const resolved = getRequestedSignInProviderId('/sign-in/oauth2', body)
+    expect(resolved).toBe('salesforce')
+    expect(isSignInProviderAllowed(resolved)).toBe(false)
+  })
+
+  it('checks the field the /sign-in/social handler uses, ignoring a decoy `providerId`', () => {
+    const body = { provider: 'salesforce', providerId: 'google' }
+    const resolved = getRequestedSignInProviderId('/sign-in/social', body)
+    expect(resolved).toBe('salesforce')
+    expect(isSignInProviderAllowed(resolved)).toBe(false)
+  })
+
+  it('returns undefined for unrelated paths and missing bodies', () => {
+    expect(getRequestedSignInProviderId('/sign-in/email', { provider: 'google' })).toBeUndefined()
+    expect(getRequestedSignInProviderId('/sign-in/social', undefined)).toBeUndefined()
+    expect(getRequestedSignInProviderId('/sign-in/oauth2', null)).toBeUndefined()
   })
 })

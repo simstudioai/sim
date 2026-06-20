@@ -88,7 +88,7 @@ import { syncAllWebhooksForCredentialSet } from '@/lib/webhooks/utils.server'
 import { disableUserResources } from '@/lib/workflows/lifecycle'
 import { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 import { createAnonymousSession, ensureAnonymousUserExists } from './anonymous'
-import { isSignInProviderAllowed } from './constants'
+import { getRequestedSignInProviderId, isSignInProviderAllowed } from './constants'
 
 const logger = createLogger('Auth')
 
@@ -861,7 +861,7 @@ export const auth = betterAuth({
        * through the authenticated `/oauth2/link` flow, which is unaffected.
        */
       if (ctx.path === '/sign-in/social' || ctx.path === '/sign-in/oauth2') {
-        const requestedProviderId = ctx.body?.provider ?? ctx.body?.providerId
+        const requestedProviderId = getRequestedSignInProviderId(ctx.path, ctx.body)
         if (!isSignInProviderAllowed(requestedProviderId)) {
           throw new APIError('FORBIDDEN', {
             message:
