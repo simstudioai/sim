@@ -89,15 +89,17 @@ export function PromptEditor({
   /**
    * Clicking the editor's empty regions (padding, space below the last line)
    * focuses the textarea; clicks on the textarea itself keep native caret
-   * placement.
+   * placement. No-op in read-only mode: the surface is display-only, so a
+   * padding click should not pull focus onto the non-editable textarea.
    */
   const handleSurfaceClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (readOnly) return
       if (e.target === textareaRef.current) return
       if ((e.target as HTMLElement).closest('button')) return
       textareaRef.current?.focus()
     },
-    [textareaRef]
+    [readOnly, textareaRef]
   )
 
   const overlayContent = useMemo(() => {
@@ -189,7 +191,7 @@ export function PromptEditor({
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
-          className={TEXTAREA_BASE_CLASSES}
+          className={cn(TEXTAREA_BASE_CLASSES, readOnly && 'cursor-default caret-transparent')}
         />
       </div>
 
