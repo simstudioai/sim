@@ -179,7 +179,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
               {label}
             </span>
           ))}
-        {!isMermaid && (
+        {!isMermaid && editor.isEditable && (
           <button
             type='button'
             aria-label='Toggle line wrap'
