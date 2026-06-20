@@ -151,7 +151,6 @@ export function GlobalCommandsProvider({ children }: { children: ReactNode }) {
         }
 
         if (matchesShortcut(e, cmd.parsed)) {
-          // A focused rich editor that owns this shortcut (e.g. Mod+K for links) handles it itself.
           if (focusedElementOwnsShortcut(cmd.parsed, isMac)) continue
           e.preventDefault()
           e.stopPropagation()
