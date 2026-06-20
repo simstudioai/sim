@@ -92,7 +92,11 @@ import { isSignInProviderAllowed } from './constants'
 
 const logger = createLogger('Auth')
 
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  deriveMicrosoftEmailVerified,
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+} from '@/lib/oauth/microsoft'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
 /**
@@ -129,18 +133,7 @@ function getMicrosoftUserInfoFromIdToken(tokens: { accessToken?: string }, provi
     )
   }
 
-  /**
-   * Azure AD's `email`/`upn` claims are unverified and mutable on multi-tenant
-   * (`/common/`) endpoints, so trust the email only when the token explicitly
-   * proves ownership via `email_verified` or the verified-email claims, mirroring
-   * Better Auth's built-in Microsoft provider. Never hardcode verification.
-   */
-  const verifiedPrimaryEmail = payload.verified_primary_email as string[] | undefined
-  const verifiedSecondaryEmail = payload.verified_secondary_email as string[] | undefined
-  const emailVerified =
-    payload.email_verified !== undefined
-      ? Boolean(payload.email_verified)
-      : Boolean(verifiedPrimaryEmail?.includes(email) || verifiedSecondaryEmail?.includes(email))
+  const emailVerified = deriveMicrosoftEmailVerified(payload, email)
 
   const now = new Date()
   return {
