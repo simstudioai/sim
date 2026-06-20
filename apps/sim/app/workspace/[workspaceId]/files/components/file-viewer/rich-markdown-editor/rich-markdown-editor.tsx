@@ -206,7 +206,6 @@ export function LoadedRichMarkdownEditor({
     shouldRerenderOnTransaction: false,
     content: initialContent,
     editorProps: {
-      // Claim Mod+K so the global command registry yields it to the editor's link shortcut.
       attributes: { class: 'rich-markdown-prose', 'data-owned-shortcuts': 'Mod+K' },
       handleKeyDown: (_view, event) => {
         const isSaveShortcut = (event.metaKey || event.ctrlKey) && event.key?.toLowerCase() === 's'

@@ -30,7 +30,10 @@ const InlineCode = Code.extend({ excludes: '' })
  * Table that escapes interior `|` characters when serializing cells. The upstream serializer
  * joins cells with `|` without escaping, so a cell containing a literal pipe silently splits
  * into phantom columns on round-trip (data loss). Escaping must happen on the `table` node —
- * `tableCell`/`tableHeader` have no markdown renderer; the table renders cell children directly.
+ * `tableCell`/`tableHeader` have no markdown renderer; the table renders cell children directly. Only
+ * `|` is escaped — `renderChildren` already escapes backslashes, so escaping them again would
+ * double-escape and break round-trip idempotency (CodeQL's "missing backslash escape" is a false
+ * positive here; covered by the table round-trip tests).
  *
  * The upstream serializer also wraps the table in its own leading/trailing blank lines; left in,
  * the block joiner adds another, so an interior table churns its surrounding whitespace to
@@ -42,9 +45,6 @@ const PipeSafeTable = Table.extend({
   renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
     renderTableToMarkdown(node, {
       ...h,
-      // `renderChildren` already markdown-escapes backslashes; here we only add the table-specific
-      // pipe escaping on top. (CodeQL flags the missing backslash escape, but escaping it again would
-      // double-escape and break round-trip idempotency — see the table round-trip tests.)
       renderChildren: (nodes, separator) =>
         h.renderChildren(nodes, separator).replace(/\|/g, '\\|'),
     })
