@@ -14,6 +14,7 @@ import { getSession } from '@/lib/auth'
 import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
 const logger = createLogger('DataRetentionAPI')
@@ -76,6 +77,10 @@ export const GET = withRouteHandler(
     }
 
     const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction', {
+      userId: session.user.id,
+      orgId: organizationId,
+    })
     const configured = normalizeConfigured(org.dataRetentionSettings)
     const defaults = enterpriseDefaults()
 
@@ -86,6 +91,7 @@ export const GET = withRouteHandler(
         defaults,
         configured,
         effective: isEnterprise ? configured : defaults,
+        piiRedactionEnabled,
       },
     })
   }
@@ -154,6 +160,11 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction', {
+      userId: session.user.id,
+      orgId: organizationId,
+    })
+
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
     const merged: DataRetentionSettings = { ...current }
     if (body.logRetentionHours !== undefined) {
@@ -166,6 +177,12 @@ export const PUT = withRouteHandler(
       merged.taskCleanupHours = body.taskCleanupHours
     }
     if (body.piiRedaction !== undefined) {
+      if (!piiRedactionEnabled) {
+        return NextResponse.json(
+          { error: 'PII redaction is not enabled for this organization' },
+          { status: 403 }
+        )
+      }
       merged.piiRedaction = body.piiRedaction
     }
 
@@ -203,6 +220,7 @@ export const PUT = withRouteHandler(
         defaults,
         configured,
         effective: configured,
+        piiRedactionEnabled,
       },
     })
   }

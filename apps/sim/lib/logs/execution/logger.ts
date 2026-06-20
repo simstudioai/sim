@@ -29,6 +29,7 @@ import {
 import { resolveEffectivePiiRedaction } from '@/lib/billing/retention'
 import { checkAndBillOverageThreshold } from '@/lib/billing/threshold-billing'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { filterForDisplay } from '@/lib/core/utils/display-filters'
 import {
@@ -602,12 +603,14 @@ export class ExecutionLogger implements IExecutionLoggerService {
     if (!workspaceId) return payload
 
     const [row] = await db
-      .select({ orgSettings: organization.dataRetentionSettings })
+      .select({ orgId: organization.id, orgSettings: organization.dataRetentionSettings })
       .from(workspace)
       .leftJoin(organization, eq(organization.id, workspace.organizationId))
       .where(eq(workspace.id, workspaceId))
       .limit(1)
     if (!row) return payload
+
+    if (!(await isFeatureEnabled('pii-redaction', { orgId: row.orgId }))) return payload
 
     // Rules are only writable by enterprise orgs (route-gated), so an enabled
     // rule already implies entitlement. We deliberately do NOT re-check

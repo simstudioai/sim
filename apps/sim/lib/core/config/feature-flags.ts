@@ -82,6 +82,13 @@ const FEATURE_FLAGS = {
       'enabled:true for global rollout rather than per-user targeting.',
     fallback: 'TABLE_SNAPSHOT_CACHE',
   },
+  'pii-redaction': {
+    description:
+      'Redact PII from workflow logs via configurable Data Retention rules (Presidio at the ' +
+      'logger persist choke point) and expose the Data Retention config surfaces. Gate by org ' +
+      'for staged rollout.',
+    fallback: 'PII_REDACTION',
+  },
 } satisfies Record<string, FeatureFlagDefinition>
 
 /**
