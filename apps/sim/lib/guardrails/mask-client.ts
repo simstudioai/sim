@@ -32,7 +32,6 @@ export async function maskPIIBatchViaHttp(
 ): Promise<string[]> {
   if (texts.length === 0) return []
 
-  const token = await generateInternalToken()
   const url = `${getInternalApiBaseUrl()}/api/guardrails/mask-batch`
 
   const masked: string[] = []
@@ -41,7 +40,7 @@ export async function maskPIIBatchViaHttp(
 
   const flush = async () => {
     if (batch.length === 0) return
-    const out = await postChunk(url, token, batch, entityTypes, language)
+    const out = await postChunk(url, batch, entityTypes, language)
     if (out.length !== batch.length) {
       throw new Error('PII mask-batch returned an unexpected result')
     }
@@ -68,11 +67,14 @@ export async function maskPIIBatchViaHttp(
 
 async function postChunk(
   url: string,
-  token: string,
   texts: string[],
   entityTypes: string[],
   language: string | undefined
 ): Promise<string[]> {
+  // Mint per request: a single token (5min TTL) can expire mid-batch when a
+  // large execution fans out into many sequential chunk requests.
+  const token = await generateInternalToken()
+
   // boundary-raw-fetch: internal server-to-server call to the app container (internal JWT auth, configurable base URL)
   const response = await fetch(url, {
     method: 'POST',
