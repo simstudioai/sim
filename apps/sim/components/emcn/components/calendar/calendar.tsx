@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDayCell } from '@/components/emcn/components/calendar/calendar-day-cell'
 import { Chip, chipVariants } from '@/components/emcn/components/chip/chip'
 import { chipContentLabelClass } from '@/components/emcn/components/chip/chip-chrome'
 import { cn } from '@/lib/core/utils/cn'
@@ -172,20 +173,9 @@ export function Calendar({ value, onChange, className }: CalendarProps) {
 
           return (
             <div key={day} className='flex h-[34px] items-center justify-center'>
-              <button
-                type='button'
-                onClick={() => selectDay(day)}
-                className={cn(
-                  chipVariants({
-                    variant: isSelected ? 'primary' : isToday ? 'border' : undefined,
-                    flush: true,
-                  }),
-                  'size-[30px] justify-center p-0',
-                  !isSelected && 'text-[var(--text-body)]'
-                )}
-              >
+              <CalendarDayCell selected={isSelected} today={isToday} onClick={() => selectDay(day)}>
                 {day}
-              </button>
+              </CalendarDayCell>
             </div>
           )
         })}
