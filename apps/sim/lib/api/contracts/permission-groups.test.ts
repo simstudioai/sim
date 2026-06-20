@@ -90,6 +90,10 @@ describe('updatePermissionGroupBodySchema', () => {
     expect(updatePermissionGroupBodySchema.safeParse({}).success).toBe(true)
   })
 
+  it('accepts demoting the default via isDefault:false alone (the route re-scopes it)', () => {
+    expect(updatePermissionGroupBodySchema.safeParse({ isDefault: false }).success).toBe(true)
+  })
+
   it('rejects switching to specific scope with no workspaces', () => {
     const result = updatePermissionGroupBodySchema.safeParse({
       appliesToAllWorkspaces: false,

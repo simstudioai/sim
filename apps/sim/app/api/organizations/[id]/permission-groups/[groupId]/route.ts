@@ -115,16 +115,28 @@ export const PUT = withRouteHandler(
         ? { ...currentConfig, ...updates.config }
         : currentConfig
 
+      // Demoting the org default with no new scope: it becomes a non-default
+      // group with no workspaces (inert) until an admin re-scopes it. The client
+      // sends only `isDefault: false`, so this never forwards a workspace list
+      // (which a non-default group otherwise requires) against the per-group cap.
+      const demotingDefaultToInert =
+        group.isDefault &&
+        updates.isDefault === false &&
+        updates.appliesToAllWorkspaces === undefined &&
+        updates.workspaceIds === undefined
+
       // Resolve the target workspace scope. Setting the group as default forces
       // all-workspaces; otherwise an explicit `appliesToAllWorkspaces` wins, and
       // supplying `workspaceIds` alone implies a specific scope.
       const scopeProvided =
+        demotingDefaultToInert ||
         updates.appliesToAllWorkspaces !== undefined ||
         updates.workspaceIds !== undefined ||
         updates.isDefault === true
 
-      const resolvedAppliesToAll =
-        updates.isDefault === true
+      const resolvedAppliesToAll = demotingDefaultToInert
+        ? false
+        : updates.isDefault === true
           ? true
           : updates.appliesToAllWorkspaces !== undefined
             ? updates.appliesToAllWorkspaces
@@ -188,7 +200,7 @@ export const PUT = withRouteHandler(
           if (!resolvedAppliesToAll) {
             resolvedWorkspaceIds =
               providedWorkspaceIds ?? (await getGroupWorkspaces(id, tx)).map((ws) => ws.id)
-            if (resolvedWorkspaceIds.length === 0) {
+            if (resolvedWorkspaceIds.length === 0 && !demotingDefaultToInert) {
               throw new Error('NO_WORKSPACES')
             }
           }

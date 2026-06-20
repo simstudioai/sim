@@ -1027,19 +1027,14 @@ export function AccessControl() {
       if (!viewingGroup || !organizationId) return
       const seq = ++scopeWriteSeqRef.current
       try {
+        // Promoting forces all-workspaces; demoting leaves the group non-default
+        // with no workspaces (inert) until it is re-scoped from the selector — the
+        // route handles this from `isDefault: false` alone, so no workspace list
+        // (bounded by the per-group cap) is sent.
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
           isDefault: enabled,
-          // Demoting the org default to a workspace group targets every current
-          // workspace so it keeps governing the same scope; the admin can narrow
-          // it afterward. Promoting clears workspaces (the route forces all-ws).
-          ...(enabled
-            ? {}
-            : {
-                appliesToAllWorkspaces: false,
-                workspaceIds: organizationWorkspaces.map((ws) => ws.id),
-              }),
         })
 
         if (seq !== scopeWriteSeqRef.current) return
