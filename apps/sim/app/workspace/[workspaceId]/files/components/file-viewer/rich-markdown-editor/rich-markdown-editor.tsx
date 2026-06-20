@@ -30,6 +30,16 @@ const EXTENSIONS = createMarkdownEditorExtensions({
   placeholder: "Write something, or press '/' for commands…",
 })
 
+/**
+ * Each streamed re-sync re-parses the whole accumulating body and rebuilds the ProseMirror doc —
+ * ~O(n) per frame (~22ms at 60KB; see {@link parseMarkdownToDoc}). Below this size we re-sync every
+ * frame for a smooth reveal; at or above it we throttle to {@link STREAM_REPARSE_THROTTLE_MS} so a
+ * large file doesn't saturate the main thread with full re-parses the reader can't follow anyway. The
+ * settle path always re-seeds the exact final body, so throttling only affects mid-stream cadence.
+ */
+const STREAM_REPARSE_THROTTLE_THRESHOLD = 40_000
+const STREAM_REPARSE_THROTTLE_MS = 120
+
 interface RichMarkdownEditorProps {
   file: WorkspaceFileRecord
   workspaceId: string
@@ -184,9 +194,6 @@ export function LoadedRichMarkdownEditor({
   const [initialContent] = useState<JSONContent | string>(() =>
     streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
-  // Frontmatter held aside and re-attached on every change (the editor never shows it); re-derived per
-  // stream→settle in the settle effect, so a repeat stream uses the new doc's frontmatter, not a stale one.
-  const frontmatterRef = useRef(settledRef.current?.frontmatter ?? '')
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
@@ -300,22 +307,18 @@ export function LoadedRichMarkdownEditor({
     },
     onUpdate: ({ editor }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
-      onChangeRef.current(applyFrontmatter(frontmatterRef.current, md))
+      onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
     },
   })
   editorInstanceRef.current = editor
 
-  // Stream content in read-only until it settles, then lock the verdict + frontmatter and hand off; after
-  // that only `canEdit` touches the editor (it owns the content, so no sync can clobber a user edit).
   const lastSyncedBodyRef = useRef<string | null>(null)
-  // Tracks whether the previous run was streaming so the settle branch re-locks on every stream→settle:
-  // one instance can receive several agent edits in a chat (kept mounted by `previewContextKey`), so the
-  // verdict/frontmatter must follow the latest stream, not the first settled snapshot.
+
   const wasStreamingRef = useRef(streamingAtMountRef.current)
-  // Coalesce streamed chunks to one re-parse per animation frame — a fast agent emits many per frame and
-  // each would re-parse the whole accumulating body. Read-only while streaming, so only the latest renders.
+
   const pendingStreamBodyRef = useRef<string | null>(null)
   const streamRafRef = useRef<number | null>(null)
+  const lastStreamParseAtRef = useRef(0)
   useEffect(() => {
     if (!editor) return
     if (isStreaming) {
@@ -324,11 +327,26 @@ export function LoadedRichMarkdownEditor({
       if (body === lastSyncedBodyRef.current) return
       pendingStreamBodyRef.current = body
       if (streamRafRef.current !== null) return
-      streamRafRef.current = requestAnimationFrame(() => {
-        streamRafRef.current = null
+      // Self-re-arming tick: it parses the latest pending body, but for a large body that exceeds the
+      // re-parse budget it re-schedules instead (a cheap length+clock check, no parse) until enough
+      // time has passed — so newer chunks keep updating `pendingStreamBodyRef` and only the latest is
+      // ever parsed. Settle cancels any in-flight tick and re-seeds the final body.
+      const tick = () => {
         const pending = pendingStreamBodyRef.current
-        if (pending === null || pending === lastSyncedBodyRef.current) return
+        if (pending === null || pending === lastSyncedBodyRef.current) {
+          streamRafRef.current = null
+          return
+        }
+        if (
+          pending.length > STREAM_REPARSE_THROTTLE_THRESHOLD &&
+          performance.now() - lastStreamParseAtRef.current < STREAM_REPARSE_THROTTLE_MS
+        ) {
+          streamRafRef.current = requestAnimationFrame(tick)
+          return
+        }
+        streamRafRef.current = null
         lastSyncedBodyRef.current = pending
+        lastStreamParseAtRef.current = performance.now()
         const el = containerRef.current
         const pinnedToBottom = el ? el.scrollHeight - el.scrollTop - el.clientHeight < 80 : false
         editor.setEditable(false)
@@ -337,7 +355,8 @@ export function LoadedRichMarkdownEditor({
           emitUpdate: false,
         })
         if (!disableStreamingAutoScroll && el && pinnedToBottom) el.scrollTop = el.scrollHeight
-      })
+      }
+      streamRafRef.current = requestAnimationFrame(tick)
       return
     }
     // Drop a frame scheduled just before settle so it can't land afterward and clobber the final content.
@@ -352,7 +371,6 @@ export function LoadedRichMarkdownEditor({
     if (isInitialSettle || wasStreamingRef.current) {
       wasStreamingRef.current = false
       settledRef.current = lockSettled(content)
-      frontmatterRef.current = settledRef.current.frontmatter
       // Re-seed only if the settled body differs from the last streamed chunk — it usually doesn't,
       // and an extra setContent would needlessly rebuild the doc and drop selection/scroll.
       const body = splitFrontmatter(content).body

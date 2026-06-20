@@ -101,13 +101,27 @@ export function useSmoothText(
   const revealedRef = useRef(revealed)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const prevContentRef = useRef(content)
+  const prevIsStreamingRef = useRef(isStreaming)
 
   let effectiveRevealed = revealed
+
+  if (
+    isStreaming &&
+    !prevIsStreamingRef.current &&
+    content.length > RESUME_SKIP_THRESHOLD &&
+    revealed < content.length
+  ) {
+    effectiveRevealed = content.length
+    revealedRef.current = content.length
+    setRevealed(content.length)
+  }
+  prevIsStreamingRef.current = isStreaming
+
   if (
     snapOnNonAppend &&
     content !== prevContentRef.current &&
     !content.startsWith(prevContentRef.current) &&
-    revealed < content.length
+    effectiveRevealed < content.length
   ) {
     effectiveRevealed = content.length
     revealedRef.current = content.length
