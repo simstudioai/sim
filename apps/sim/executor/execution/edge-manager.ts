@@ -134,6 +134,10 @@ export class EdgeManager {
     return Array.from(this.nodesWithActivatedEdge)
   }
 
+  hasActivatedEdge(nodeId: string): boolean {
+    return this.nodesWithActivatedEdge.has(nodeId)
+  }
+
   restoreDeactivatedEdges(edgeKeys?: string[], activatedNodeIds?: string[]): void {
     this.deactivatedEdges = new Set(
       (edgeKeys ?? []).map((edgeKey) => this.normalizeSerializedEdgeKey(edgeKey))
@@ -143,6 +147,21 @@ export class EdgeManager {
 
   markNodeWithActivatedEdge(nodeId: string): void {
     this.nodesWithActivatedEdge.add(nodeId)
+  }
+
+  /**
+   * Deactivates the `error` edge of a successfully-resumed pause block instead of
+   * firing it: the block completed normally, so its error path is pruned (and any
+   * now-dead descendants cascaded), mirroring how a normally-succeeding block's
+   * error edge is handled in {@link processOutgoingEdges}.
+   *
+   * `cascadeTargets` is intentionally left undefined here (unlike the
+   * {@link processOutgoingEdges} call site, which passes an explicit Set): the
+   * resume path has no loop/parallel sentinels to queue — the pause block's
+   * `source` edge drives continuation — so cascade-target collection is omitted.
+   */
+  deactivateResumedEdge(sourceId: string, targetId: string, sourceHandle?: string): void {
+    this.deactivateEdgeAndDescendants(sourceId, targetId, sourceHandle)
   }
 
   /**
