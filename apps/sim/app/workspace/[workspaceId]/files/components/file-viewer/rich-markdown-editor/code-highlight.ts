@@ -85,7 +85,7 @@ export function buildDecorations(doc: ProseMirrorNode): DecorationSet {
  * a `setNodeMarkup` language change (whose step range covers the node). When false, the cheap
  * path just maps existing decorations instead of re-tokenizing.
  */
-function changeTouchesCodeBlock(tr: Transaction, doc: ProseMirrorNode): boolean {
+export function changeTouchesCodeBlock(tr: Transaction, doc: ProseMirrorNode): boolean {
   let touches = false
   for (const map of tr.mapping.maps) {
     map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
