@@ -32,20 +32,32 @@ export function applyFrontmatter(frontmatter: string, body: string): string {
   return frontmatter + body
 }
 
+/** A leading `scheme://` URL (network protocol). */
+const SCHEME_URL = /^([a-z][a-z0-9+.-]*):\/\//i
+/** A leading `scheme:` token (per the URL grammar). */
+const HAS_SCHEME = /^[a-z][a-z0-9+.-]*:/i
+/** A bare `host:port` (digits after the colon) — looks scheme-like but is really a domain. */
+const HOST_PORT = /^[a-z0-9.-]+:\d+(?:[/?#]|$)/i
+
 /**
  * Normalize a user-entered link target: prefix a bare domain with `https://` so it doesn't resolve
  * as an in-app relative URL, while leaving already-qualified, relative, and protocol-relative URLs
- * intact. Dangerous schemes (`javascript:`, `data:`, `vbscript:`, `file:`) are rejected outright
- * rather than mangled into a broken `https://javascript:…`.
+ * intact. Dangerous schemes are rejected outright rather than trusted or mangled: any `scheme:`
+ * without `//` other than `mailto:`/`tel:` (so `javascript:`, `data:`, `vbscript:`, `blob:`, …), and
+ * `file://` (local file access). Other network `scheme://` URLs (`http(s)`, `ftp`, …) pass through.
  */
 export function normalizeLinkHref(href: string): string {
   const trimmed = href.trim()
   if (!trimmed) return ''
-  if (/^(?:javascript|data|vbscript|file):/i.test(trimmed)) return ''
-  if (/^(?:https?:\/\/|mailto:|tel:|[#?])/i.test(trimmed)) return trimmed
+  if (/^[#?]/.test(trimmed)) return trimmed
   if (trimmed.startsWith('//')) return `https:${trimmed}`
   if (trimmed.startsWith('/')) return trimmed
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed
+  if (/^(?:mailto|tel):/i.test(trimmed)) return trimmed
+  const schemed = trimmed.match(SCHEME_URL)
+  if (schemed) return /^file$/i.test(schemed[1]) ? '' : trimmed
+  // A `scheme:` without `//` (and not mailto/tel) is a script/data scheme — reject it. A bare
+  // host:port (digits after the colon) is a domain, not a scheme, so it falls through to https.
+  if (HAS_SCHEME.test(trimmed) && !HOST_PORT.test(trimmed)) return ''
   return `https://${trimmed}`
 }
 

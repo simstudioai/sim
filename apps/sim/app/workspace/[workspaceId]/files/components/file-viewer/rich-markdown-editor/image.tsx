@@ -68,8 +68,11 @@ function imageMarkdown(node: JSONContent): string {
     if (height) parts.push(`height="${escapeAttr(String(height))}"`)
     image = `<img ${parts.join(' ')}>`
   } else {
-    const titlePart = title ? ` "${title}"` : ''
-    image = `![${alt}](${src}${titlePart})`
+    // Escape so an alt with `]`/`[` or a title with `"` can't break out of the `![…](… "…")` syntax
+    // and corrupt the round-trip; a src with spaces/parens goes in angle brackets (CommonMark).
+    const titlePart = title ? ` "${title.replace(/["\\]/g, '\\$&')}"` : ''
+    const safeSrc = /[\s()]/.test(src) ? `<${src}>` : src
+    image = `![${alt.replace(/[\\[\]]/g, '\\$&')}](${safeSrc}${titlePart})`
   }
   if (!href) return image
   const hrefTitlePart = hrefTitle ? ` "${hrefTitle}"` : ''
@@ -245,7 +248,7 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   return (
     <NodeViewWrapper className='relative my-4 inline-block leading-none'>
       {safeHref ? (
-        <a href={safeHref} rel='noopener noreferrer' className='block'>
+        <a href={safeHref} target='_blank' rel='noopener noreferrer' className='block'>
           {image}
         </a>
       ) : (

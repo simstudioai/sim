@@ -57,7 +57,10 @@ const BLOCKQUOTE = /^[ ]{0,3}>/
  * would silently shatter nested fences.
  */
 export function splitMarkdownBlocks(body: string): string[] {
-  const lines = body.split('\n')
+  // Normalize CRLF/CR first: the fence/list/blockquote line tests anchor on `$`, so a trailing `\r`
+  // would stop a closing fence matching and swallow the rest of a Windows-authored file into one
+  // block (defeating the chunker). The editor normalizes `\r` on parse anyway, so meaning is unchanged.
+  const lines = body.replace(/\r\n?/g, '\n').split('\n')
   const groups: string[] = []
   let current: string[] = []
   let fence: string | null = null

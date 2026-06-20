@@ -112,6 +112,11 @@ describe('markdown-fidelity utils', () => {
     expect(normalizeLinkHref('data:text/html,<script>')).toBe('')
     expect(normalizeLinkHref('//cdn.example.com/a.js')).toBe('https://cdn.example.com/a.js')
     expect(normalizeLinkHref('ftp://host/file')).toBe('ftp://host/file')
+    // Dangerous schemes rejected; a bare host:port is still treated as a domain.
+    expect(normalizeLinkHref('file:///etc/passwd')).toBe('')
+    expect(normalizeLinkHref('blob:https://x.com/uuid')).toBe('')
+    expect(normalizeLinkHref('vbscript:msgbox(1)')).toBe('')
+    expect(normalizeLinkHref('localhost:3000/path')).toBe('https://localhost:3000/path')
   })
 
   it('collapses trailing blank lines and preserves leading whitespace', () => {
@@ -169,6 +174,13 @@ describe('editor markdown round-trip', () => {
   it('preserves an image url (does not drop the src)', () => {
     const out = roundTrip('![alt](https://example.com/i.png)')
     expect(out).toContain('![alt](https://example.com/i.png)')
+  })
+
+  it('round-trips an image whose alt/title contain delimiter characters (idempotent)', () => {
+    const input = '![a [b] c](https://example.com/i.png "ti\\"tle")'
+    const out = roundTrip(input)
+    expect(roundTrip(out)).toBe(out)
+    expect(out).toContain('https://example.com/i.png')
   })
 
   it('round-trips a linked image / badge (keeps the wrapping link)', () => {

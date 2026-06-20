@@ -126,6 +126,12 @@ describe('parseMarkdownToDoc (chunked)', () => {
     it('a multi-paragraph list item (indented continuation) stays one block', () => {
       expect(splitMarkdownBlocks('1. first\n\n   second para\n\n2. next')).toHaveLength(1)
     })
+    it('CRLF line endings still split (a closing fence ending in \\r must close)', () => {
+      // A Windows-authored file with fenced code must not collapse to one block (which would defeat
+      // the chunker); the closer ending in `\r` has to match. Assert block COUNT, not just fidelity.
+      const crlf = '```ts\r\nx\r\n```\r\n\r\npara1\r\n\r\npara2\r\n\r\npara3'
+      expect(splitMarkdownBlocks(crlf)).toEqual(['```ts\nx\n```', 'para1', 'para2', 'para3'])
+    })
   })
 
   it('matches one-shot on a large mixed document (the case the chunker exists for)', () => {

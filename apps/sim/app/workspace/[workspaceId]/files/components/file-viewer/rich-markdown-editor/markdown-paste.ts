@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
+import { parseMarkdownToDoc } from './markdown-parse'
 
 /**
  * Markdown syntax hints. If pasted plain text matches any of these, it's parsed as markdown rather
@@ -41,9 +42,11 @@ export const MarkdownPaste = Extension.create({
             if (html) return false
             const text = event.clipboardData?.getData('text/plain')
             if (!text || !looksLikeMarkdown(text)) return false
-            const json = editor.markdown?.parse(text)
-            if (!json) return false
-            return editor.commands.insertContent(json)
+            // Parse through the chunker (linear) so pasting a large markdown blob can't freeze the
+            // main thread the way the underlying superlinear parse would.
+            const doc = parseMarkdownToDoc(text)
+            if (!doc.content?.length) return false
+            return editor.commands.insertContent(doc)
           },
         },
       }),
