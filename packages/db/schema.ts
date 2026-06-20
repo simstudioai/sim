@@ -3013,6 +3013,21 @@ export const credentialSetInvitation = pgTable(
   })
 )
 
+/**
+ * A named set of access-control restrictions (`config`) governing users within
+ * an organization.
+ *
+ * Scope invariant: the organization's single default group (`isDefault`) is
+ * org-wide (`appliesToAllWorkspaces = true`) and governs everyone not covered by
+ * another group, including external workspace members. Every non-default group
+ * targets specific workspaces (`appliesToAllWorkspaces = false` with rows in
+ * `permission_group_workspace`) — the all-workspaces scope is reserved for the
+ * default group. Enforced by the API contracts/routes, not a DB constraint.
+ *
+ * Member invariant: a non-default group with no `permission_group_member` rows
+ * governs every member of its workspaces (including external members); adding
+ * members narrows it to only those users. The default group ignores membership.
+ */
 export const permissionGroup = pgTable(
   'permission_group',
   {
@@ -3072,6 +3087,12 @@ export const permissionGroupWorkspace = pgTable(
   })
 )
 
+/**
+ * Explicit members of a `permission_group`. Membership narrows a non-default
+ * group to only these users; a non-default group with no rows here governs every
+ * member of its workspaces (including external members). The default group
+ * ignores these rows.
+ */
 export const permissionGroupMember = pgTable(
   'permission_group_member',
   {

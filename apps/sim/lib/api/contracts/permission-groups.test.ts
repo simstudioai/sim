@@ -8,9 +8,17 @@ import {
 } from '@/lib/api/contracts/permission-groups'
 
 describe('createPermissionGroupBodySchema', () => {
-  it('accepts a group that defaults to all workspaces', () => {
+  it('accepts a name-only body (scope is resolved and validated server-side)', () => {
     const result = createPermissionGroupBodySchema.safeParse({ name: 'Engineering' })
     expect(result.success).toBe(true)
+  })
+
+  it('rejects a non-default group set to all workspaces', () => {
+    const result = createPermissionGroupBodySchema.safeParse({
+      name: 'Engineering',
+      appliesToAllWorkspaces: true,
+    })
+    expect(result.success).toBe(false)
   })
 
   it('accepts a specific-scope group with at least one workspace', () => {
@@ -82,6 +90,10 @@ describe('updatePermissionGroupBodySchema', () => {
     expect(updatePermissionGroupBodySchema.safeParse({}).success).toBe(true)
   })
 
+  it('accepts demoting the default via isDefault:false alone (the route re-scopes it)', () => {
+    expect(updatePermissionGroupBodySchema.safeParse({ isDefault: false }).success).toBe(true)
+  })
+
   it('rejects switching to specific scope with no workspaces', () => {
     const result = updatePermissionGroupBodySchema.safeParse({
       appliesToAllWorkspaces: false,
@@ -119,6 +131,13 @@ describe('updatePermissionGroupBodySchema', () => {
     const result = updatePermissionGroupBodySchema.safeParse({
       appliesToAllWorkspaces: true,
       workspaceIds: ['ws-1'],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects setting a non-default group to all workspaces', () => {
+    const result = updatePermissionGroupBodySchema.safeParse({
+      appliesToAllWorkspaces: true,
     })
     expect(result.success).toBe(false)
   })
