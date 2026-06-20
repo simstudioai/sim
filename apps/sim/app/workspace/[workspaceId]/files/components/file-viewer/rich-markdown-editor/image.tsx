@@ -248,7 +248,16 @@ function ResizableImageView({ node, updateAttributes, selected, editor }: ReactN
   return (
     <NodeViewWrapper className='relative my-4 inline-block leading-none'>
       {safeHref ? (
-        <a href={safeHref} target='_blank' rel='noopener noreferrer' className='block'>
+        // The editor's handleClick is the sole navigator (gated on editable/modifier, like text links
+        // via openOnClick:false): prevent the anchor's own navigation so a plain click in edit mode
+        // places the caret / selects the node instead of opening a tab.
+        <a
+          href={safeHref}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='block'
+          onClick={(event) => event.preventDefault()}
+        >
           {image}
         </a>
       ) : (
