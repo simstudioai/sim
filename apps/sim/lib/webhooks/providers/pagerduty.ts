@@ -46,6 +46,34 @@ function asRecord(value: unknown): Record<string, unknown> {
   return (value as Record<string, unknown>) || {}
 }
 
+/**
+ * Best-effort cleanup of a webhook subscription after a failed setup. Deletes by
+ * id when known, otherwise finds the subscription pointing at `url` and deletes
+ * it, so a created subscription is never orphaned in PagerDuty.
+ */
+async function cleanupPagerDutySubscription(
+  apiKey: string,
+  url: string,
+  subscriptionId?: string
+): Promise<void> {
+  let id = subscriptionId
+  if (!id) {
+    const listRes = await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions`, {
+      headers: pagerdutyHeaders(apiKey),
+    }).catch(() => null)
+    if (!listRes || !listRes.ok) return
+    const body = (await listRes.json().catch(() => null)) as {
+      webhook_subscriptions?: Array<{ id?: string; delivery_method?: { url?: string } }>
+    } | null
+    id = body?.webhook_subscriptions?.find((sub) => sub.delivery_method?.url === url)?.id
+  }
+  if (!id) return
+  await fetch(`${PAGERDUTY_API_BASE}/webhook_subscriptions/${id}`, {
+    method: 'DELETE',
+    headers: pagerdutyHeaders(apiKey),
+  }).catch(() => null)
+}
+
 function referenceSummary(
   value: unknown
 ): { id?: unknown; summary?: unknown; html_url?: unknown } | null {
@@ -154,9 +182,13 @@ export const pagerdutyHandler: WebhookProviderHandler = {
     const externalId = subscription.id as string | undefined
     const secret = asRecord(subscription.delivery_method).secret as string | undefined
 
-    if (!externalId)
-      throw new Error('PagerDuty webhook created but no subscription ID was returned.')
-    if (!secret) {
+    // The subscription exists once PagerDuty returns success; if it is missing
+    // its id or signing secret, delete it so it is not orphaned, then fail.
+    if (!externalId || !secret) {
+      await cleanupPagerDutySubscription(apiKey, getNotificationUrl(ctx.webhook), externalId)
+      if (!externalId) {
+        throw new Error('PagerDuty webhook created but no subscription ID was returned.')
+      }
       throw new Error('PagerDuty webhook created but no signing secret was returned on creation.')
     }
 

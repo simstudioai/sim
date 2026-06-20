@@ -26,6 +26,35 @@ function gitlabProjectHooksUrl(projectId: string): string {
   return `${GITLAB_API_BASE}/projects/${encodeURIComponent(projectId)}/hooks`
 }
 
+/**
+ * Best-effort cleanup that deletes any project hook pointing at `url`. Used to
+ * avoid orphaning a hook when the create response can't be parsed for its id.
+ */
+async function cleanupGitLabHookByUrl(
+  projectId: string,
+  accessToken: string,
+  url: string
+): Promise<void> {
+  const res = await fetch(gitlabProjectHooksUrl(projectId), {
+    headers: { 'PRIVATE-TOKEN': accessToken },
+  }).catch(() => null)
+  if (!res || !res.ok) return
+
+  const hooks = (await res.json().catch(() => null)) as Array<{ id?: number; url?: string }> | null
+  if (!Array.isArray(hooks)) return
+
+  await Promise.all(
+    hooks
+      .filter((hook) => hook.url === url && hook.id != null)
+      .map((hook) =>
+        fetch(`${gitlabProjectHooksUrl(projectId)}/${hook.id}`, {
+          method: 'DELETE',
+          headers: { 'PRIVATE-TOKEN': accessToken },
+        }).catch(() => null)
+      )
+  )
+}
+
 export const gitlabHandler: WebhookProviderHandler = {
   /**
    * GitLab echoes the configured "Secret token" verbatim in the `X-Gitlab-Token`
@@ -119,6 +148,9 @@ export const gitlabHandler: WebhookProviderHandler = {
 
     const created = (await res.json().catch(() => ({}))) as { id?: number | string }
     if (created.id === undefined || created.id === null) {
+      // The hook was created but we can't read its id — delete it by URL so it
+      // is not orphaned in GitLab.
+      await cleanupGitLabHookByUrl(projectId, accessToken, getNotificationUrl(ctx.webhook))
       throw new Error('GitLab webhook created but no hook ID was returned.')
     }
 
