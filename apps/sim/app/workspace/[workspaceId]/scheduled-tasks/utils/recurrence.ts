@@ -73,8 +73,16 @@ export function recurrenceToCron(
     case 'monthly': {
       const weekday = launchDay.getUTCDay()
       switch (recurrence.monthlyMode ?? 'day-of-month') {
-        case 'nth-weekday':
-          return `${minute} ${hour} * * ${weekday}#${Math.ceil(launchDay.getUTCDate() / 7)}`
+        case 'nth-weekday': {
+          // A 5th occurrence is always the last weekday of the month; emit `#L`
+          // rather than `#5` so no month without a 5th occurrence is silently
+          // skipped (the picker only offers nth for the 1st–4th, but the launch
+          // date can still drift to a 5th via the footer date picker).
+          const nth = Math.ceil(launchDay.getUTCDate() / 7)
+          return nth >= 5
+            ? `${minute} ${hour} * * ${weekday}#L`
+            : `${minute} ${hour} * * ${weekday}#${nth}`
+        }
         case 'last-weekday':
           return `${minute} ${hour} * * ${weekday}#L`
         default:
@@ -181,13 +189,18 @@ export function cronToRecurrence(params: {
       const weekdays = dayOfWeek.split(',').map(Number)
       return { recurrence: { frequency: 'weekly', weekdays, end }, launchTime }
     }
-    if (dayOfMonth === '*' && /^[0-6]#[1-5]$/.test(dayOfWeek)) {
+    // Accept croner's alternate Sunday digit (`7`) so externally-authored
+    // `7#…` crons round-trip; the picker canonicalizes them to `0#…` on save.
+    // A 5th occurrence (`#5`) is intentionally NOT matched — it falls through to
+    // `custom` so its month-skipping behavior is preserved verbatim rather than
+    // silently rewritten to `#L`.
+    if (dayOfMonth === '*' && /^[0-7]#[1-4]$/.test(dayOfWeek)) {
       return {
         recurrence: { frequency: 'monthly', weekdays: [], monthlyMode: 'nth-weekday', end },
         launchTime,
       }
     }
-    if (dayOfMonth === '*' && /^[0-6]#L$/.test(dayOfWeek)) {
+    if (dayOfMonth === '*' && /^[0-7]#L$/.test(dayOfWeek)) {
       return {
         recurrence: { frequency: 'monthly', weekdays: [], monthlyMode: 'last-weekday', end },
         launchTime,

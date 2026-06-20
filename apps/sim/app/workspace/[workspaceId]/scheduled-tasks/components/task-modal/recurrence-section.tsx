@@ -58,18 +58,23 @@ function frequencyOptionFor(recurrence: Recurrence): FrequencyOption {
 /**
  * The monthly sub-options, derived from the launch date the same way a calendar
  * app offers them: repeat on the day number, on the ordinal weekday of the
- * month (e.g. the third Tuesday), or on the last weekday of the month. All three
- * are always offered so the picked mode is always representable, even when the
- * launch date is changed afterward via the footer date picker.
+ * month (e.g. the third Tuesday), or on the last weekday of the month.
+ *
+ * The ordinal anchor is offered only for the 1st–4th occurrence: a 5th
+ * occurrence is always the month's last weekday, so — like a calendar app — it
+ * is folded into the "last weekday" option rather than offering a "fifth" that
+ * would silently skip months without a 5th occurrence.
  */
 function monthlyModeOptions(launch: Date): Array<{ value: MonthlyMode; label: string }> {
   const weekdayName = format(launch, 'EEEE')
-  const ordinal = ORDINALS[Math.ceil(launch.getDate() / 7) - 1]
-  return [
+  const ordinal = Math.ceil(launch.getDate() / 7)
+  const options: Array<{ value: MonthlyMode; label: string }> = [
     { value: 'day-of-month', label: `On day ${format(launch, 'd')}` },
-    { value: 'nth-weekday', label: `On the ${ordinal} ${weekdayName}` },
-    { value: 'last-weekday', label: `On the last ${weekdayName}` },
   ]
+  if (ordinal <= 4)
+    options.push({ value: 'nth-weekday', label: `On the ${ORDINALS[ordinal - 1]} ${weekdayName}` })
+  options.push({ value: 'last-weekday', label: `On the last ${weekdayName}` })
+  return options
 }
 
 interface RecurrenceSectionProps {
@@ -106,6 +111,14 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
   const launch = new Date(`${launchDate}T00:00`)
   const isRecurring = recurrence.frequency !== 'once'
   const selectedWeekdays = recurrence.weekdays.length > 0 ? recurrence.weekdays : [launch.getDay()]
+
+  const monthlyOptions = monthlyModeOptions(launch)
+  const monthlyMode = recurrence.monthlyMode ?? 'day-of-month'
+  // If the launch date drifted to a 5th occurrence, the nth anchor is no longer
+  // offered; fall back to "last weekday", which is exactly what it compiles to.
+  const monthlyValue = monthlyOptions.some((option) => option.value === monthlyMode)
+    ? monthlyMode
+    : 'last-weekday'
 
   const frequencyOptions = [
     { value: 'daily', label: 'Daily' },
@@ -231,8 +244,8 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
               <ChipModalField
                 type='dropdown'
                 title='On'
-                value={recurrence.monthlyMode ?? 'day-of-month'}
-                options={monthlyModeOptions(launch)}
+                value={monthlyValue}
+                options={monthlyOptions}
                 onChange={(value) => onChange({ ...recurrence, monthlyMode: value as MonthlyMode })}
               />
             )}

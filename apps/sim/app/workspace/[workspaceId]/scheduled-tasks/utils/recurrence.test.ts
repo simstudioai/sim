@@ -64,6 +64,17 @@ describe('recurrenceToCron', () => {
     ).toBe('30 9 * * 1#L')
   })
 
+  it('clamps a 5th-occurrence nth-weekday to last-weekday so no month is skipped', () => {
+    // 2026-06-29 is the fifth Monday of June; `#5` would skip months without one.
+    expect(
+      recurrenceToCron(
+        { frequency: 'monthly', weekdays: [], monthlyMode: 'nth-weekday', end: { type: 'never' } },
+        '2026-06-29',
+        '09:30'
+      )
+    ).toBe('30 9 * * 1#L')
+  })
+
   it('builds a yearly expression from the launch month and day', () => {
     expect(
       recurrenceToCron(
@@ -195,6 +206,40 @@ describe('cronToRecurrence', () => {
         timezone: 'UTC',
       }).recurrence.frequency
     ).toBe('yearly')
+  })
+
+  it("accepts croner's alternate Sunday digit (7) for monthly weekday anchors", () => {
+    const nth = cronToRecurrence({
+      cronExpression: '30 9 * * 7#3',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(nth.frequency).toBe('monthly')
+    expect(nth.monthlyMode).toBe('nth-weekday')
+
+    const last = cronToRecurrence({
+      cronExpression: '30 9 * * 7#L',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(last.frequency).toBe('monthly')
+    expect(last.monthlyMode).toBe('last-weekday')
+  })
+
+  it('leaves a 5th-occurrence (#5) cron as custom so its month-skipping is preserved', () => {
+    const { recurrence } = cronToRecurrence({
+      cronExpression: '30 9 * * 1#5',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    })
+    expect(recurrence.frequency).toBe('custom')
+    expect(recurrence.cron).toBe('30 9 * * 1#5')
   })
 
   it('falls back to custom for an expression it did not author', () => {
