@@ -158,6 +158,14 @@ export function LoadedRichMarkdownEditor({
   const [initialContent] = useState<JSONContent | string>(() =>
     streamingAtMountRef.current ? '' : parseMarkdownToDoc(splitFrontmatter(content).body)
   )
+  /**
+   * The body currently shown in the editor: seeded from a settled mount, updated on local edits (via
+   * onUpdate) and on each streamed sync. The streaming tick reveals a chunk only when it extends this,
+   * so an agent rewrite holds the current content instead of collapsing to a partial result.
+   */
+  const lastSyncedBodyRef = useRef<string | null>(
+    streamingAtMountRef.current ? null : splitFrontmatter(content).body
+  )
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const onSaveShortcutRef = useRef(onSaveShortcut)
@@ -263,12 +271,11 @@ export function LoadedRichMarkdownEditor({
     },
     onUpdate: ({ editor }) => {
       const md = postProcessSerializedMarkdown(editor.getMarkdown())
+      lastSyncedBodyRef.current = md
       onChangeRef.current(applyFrontmatter(settledRef.current?.frontmatter ?? '', md))
     },
   })
   editorInstanceRef.current = editor
-
-  const lastSyncedBodyRef = useRef<string | null>(null)
 
   const wasStreamingRef = useRef(streamingAtMountRef.current)
 
