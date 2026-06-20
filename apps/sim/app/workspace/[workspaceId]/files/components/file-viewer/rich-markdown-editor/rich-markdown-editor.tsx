@@ -42,6 +42,7 @@ interface RichMarkdownEditorProps {
   isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  showBubbleMenu?: boolean
 }
 
 /**
@@ -68,6 +69,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  showBubbleMenu = true,
 }: RichMarkdownEditorProps) {
   const {
     content,
@@ -108,6 +110,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
       canEdit={canEdit}
       autoFocus={autoFocus}
       disableStreamingAutoScroll={disableStreamingAutoScroll}
+      showBubbleMenu={showBubbleMenu}
       onChange={setDraftContent}
       onSaveShortcut={saveImmediately}
     />
@@ -124,6 +127,7 @@ interface LoadedRichMarkdownEditorProps {
   canEdit: boolean
   autoFocus?: boolean
   disableStreamingAutoScroll?: boolean
+  showBubbleMenu: boolean
   onChange: (markdown: string) => void
   onSaveShortcut: () => Promise<void>
 }
@@ -160,6 +164,7 @@ export function LoadedRichMarkdownEditor({
   canEdit,
   autoFocus,
   disableStreamingAutoScroll,
+  showBubbleMenu,
   onChange,
   onSaveShortcut,
 }: LoadedRichMarkdownEditorProps) {
@@ -377,7 +382,7 @@ export function LoadedRichMarkdownEditor({
       ref={containerRef}
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
-      {editor && <EditorBubbleMenu editor={editor} />}
+      {showBubbleMenu && editor && <EditorBubbleMenu editor={editor} />}
       <EditorContent
         editor={editor}
         className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'

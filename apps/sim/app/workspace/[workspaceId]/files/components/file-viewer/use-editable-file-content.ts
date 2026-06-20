@@ -7,6 +7,7 @@ import {
   useWorkspaceFileContent,
 } from '@/hooks/queries/workspace-files'
 import { type SaveStatus, useAutosave } from '@/hooks/use-autosave'
+import { useSmoothText } from '@/hooks/use-smooth-text'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type SyncTextEditorContentStateOptions,
@@ -128,6 +129,19 @@ export function useEditableFileContent({
   const updateContentRef = useRef(updateContent)
   updateContentRef.current = updateContent
 
+  // Pace only the streamed text (never user edits) so the preview reveals at the same word-by-word
+  // cadence as chat. Off-stream it reverts to undefined so the engine reconciles to the agent's
+  // persisted write; snapOnNonAppend shows in-place rewrites/patches in full instead of re-revealing.
+  const pacedStreamingContent = useSmoothText(
+    streamingContent ?? '',
+    streamingContent !== undefined,
+    {
+      snapOnNonAppend: true,
+    }
+  )
+  const effectiveStreamingContent =
+    streamingContent !== undefined ? pacedStreamingContent : undefined
+
   const {
     content,
     savedContent,
@@ -138,7 +152,7 @@ export function useEditableFileContent({
   } = useFileContentState({
     canReconcileToFetchedContent: file.key.length > 0,
     fetchedContent,
-    streamingContent,
+    streamingContent: effectiveStreamingContent,
   })
 
   const isStreamInteractionLocked = isStreamPhaseLocked || Boolean(isAgentEditing)

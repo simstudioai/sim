@@ -94,6 +94,7 @@ interface FileViewerProps {
   isAgentEditing?: boolean
   disableStreamingAutoScroll?: boolean
   previewContextKey?: string
+  showBubbleMenu?: boolean
 }
 
 export function FileViewer({
@@ -110,6 +111,7 @@ export function FileViewer({
   isAgentEditing,
   disableStreamingAutoScroll = false,
   previewContextKey,
+  showBubbleMenu = true,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
 
@@ -152,6 +154,7 @@ export function FileViewer({
           isAgentEditing={isAgentEditing}
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
+          showBubbleMenu={showBubbleMenu}
         />
       )
     }
