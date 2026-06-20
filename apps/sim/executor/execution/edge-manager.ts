@@ -149,10 +149,32 @@ export class EdgeManager {
     this.nodesWithActivatedEdge.add(nodeId)
   }
 
+  /**
+   * Deactivates the `error` edge of a successfully-resumed pause block instead of
+   * firing it: the block completed normally, so its error path is pruned (and any
+   * now-dead descendants cascaded), mirroring how a normally-succeeding block's
+   * error edge is handled in {@link processOutgoingEdges}.
+   *
+   * `cascadeTargets` is intentionally left undefined here (unlike the
+   * {@link processOutgoingEdges} call site, which passes an explicit Set): the
+   * resume path has no loop/parallel sentinels to queue — the pause block's
+   * `source` edge drives continuation — so cascade-target collection is omitted.
+   */
   deactivateResumedEdge(sourceId: string, targetId: string, sourceHandle?: string): void {
     this.deactivateEdgeAndDescendants(sourceId, targetId, sourceHandle)
   }
 
+  /**
+   * Clear deactivated edges for a set of nodes (used when restoring loop state for next iteration).
+   *
+   * Only clears edges whose SOURCE is in the provided set. Edges pointing INTO a node in the set
+   * whose source lives outside (e.g. an external branch whose path was cascade-deactivated) must
+   * remain deactivated — otherwise `countActiveIncomingEdges` would count a source that will never
+   * fire again, stalling the loop on its next iteration.
+   *
+   * Deactivated edge keys encode the source separately so node IDs with shared prefixes
+   * cannot clear each other's deactivated edges.
+   */
   clearDeactivatedEdgesForNodes(nodeIds: Set<string>): void {
     const edgesToRemove: string[] = []
     for (const edgeKey of this.deactivatedEdges) {
@@ -179,6 +201,11 @@ export class EdgeManager {
     return targetNode ? this.isNodeReady(targetNode) : false
   }
 
+  /**
+   * Checks if the cascade target sentinel belongs to the same subflow as the source node.
+   * A condition inside a loop that hits a dead-end should still allow the enclosing
+   * loop's sentinel to fire so the loop can continue or exit.
+   */
   private isEnclosingSentinel(sourceNode: DAGNode, sentinelId: string): boolean {
     const sentinel = this.dag.nodes.get(sentinelId)
     if (!sentinel?.metadata.isSentinel) return false
@@ -313,6 +340,9 @@ export class EdgeManager {
     }
   }
 
+  /**
+   * Checks if a node has any active incoming edges besides the one being excluded.
+   */
   private hasActiveIncomingEdges(node: DAGNode, excludeEdgeKey: string): boolean {
     for (const incomingSourceId of node.incomingEdges) {
       const incomingNode = this.dag.nodes.get(incomingSourceId)
