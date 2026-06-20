@@ -32,6 +32,17 @@ function hasFormattableSelection(editor: Editor, from: number, to: number): bool
   return editor.state.doc.textBetween(from, to, ' ').trim().length > 0
 }
 
+/**
+ * Reveals the bubble menu for the current selection. Both calls are required and must stay in order:
+ * `show` alone leaves the bar visible but unpositioned (its internal `updatePosition` no-ops until the
+ * menu is shown), so the follow-up `updatePosition` anchors it. Both are step-free transactions, so
+ * neither marks the document dirty.
+ */
+function revealBubbleMenu(editor: Editor, key: PluginKey): void {
+  editor.commands.setMeta(key, 'show')
+  editor.commands.setMeta(key, 'updatePosition')
+}
+
 /** Pins the toolbar to the viewport so it stays put while the document scrolls instead of tracking the text. */
 const FLOATING_OPTIONS = { strategy: 'fixed' } as const
 
@@ -91,6 +102,12 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     }
   }, [editor])
 
+  /**
+   * Linear-style reveal: the toolbar stays hidden while the pointer is down (the drag gate in
+   * `shouldShow`) and surfaces on release. `mouseup`/`blur` listen on `window` so a release outside
+   * the editor — or off-screen, where no `mouseup` fires — still clears the drag flag; otherwise it
+   * could wedge `true` and suppress the toolbar for later keyboard selections.
+   */
   useEffect(() => {
     const dom = editor.view.dom
     const onPointerDown = () => {
@@ -100,10 +117,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
       if (!isPointerDownRef.current || editor.isDestroyed) return
       isPointerDownRef.current = false
       const { from, to } = editor.state.selection
-      if (hasFormattableSelection(editor, from, to)) {
-        editor.commands.setMeta(bubbleMenuKey, 'show')
-        editor.commands.setMeta(bubbleMenuKey, 'updatePosition')
-      }
+      if (hasFormattableSelection(editor, from, to)) revealBubbleMenu(editor, bubbleMenuKey)
     }
     const onWindowBlur = () => {
       isPointerDownRef.current = false
