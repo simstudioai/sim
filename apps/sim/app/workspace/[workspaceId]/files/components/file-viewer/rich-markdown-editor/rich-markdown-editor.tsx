@@ -354,7 +354,9 @@ export function LoadedRichMarkdownEditor({
       ref={containerRef}
       className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
-      {showBubbleMenu && editor && <EditorBubbleMenu editor={editor} />}
+      {showBubbleMenu && editor && (
+        <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />
+      )}
       <EditorContent
         editor={editor}
         className='mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'

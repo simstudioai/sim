@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { posToDOMRect } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
@@ -61,8 +63,20 @@ function ToolbarDivider() {
   return <div className='mx-0.5 h-[18px] w-px bg-[var(--border-1)]' />
 }
 
+/**
+ * Whether the formatting toolbar may show for the given range: the editor is editable, the range
+ * isn't inside a code block, and it covers some non-whitespace text. Single source of truth shared by
+ * `shouldShow` and the pointer-release reveal so the two can't drift apart.
+ */
+function hasFormattableSelection(editor: Editor, from: number, to: number): boolean {
+  if (!editor.isEditable || editor.isActive('codeBlock')) return false
+  return editor.state.doc.textBetween(from, to, ' ').trim().length > 0
+}
+
 interface EditorBubbleMenuProps {
   editor: Editor
+  /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
+  scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
 /**
@@ -71,11 +85,15 @@ interface EditorBubbleMenuProps {
  * live in the `/` slash menu. Active states are read through {@link useEditorState} so the bar
  * stays correct without re-rendering the editor on every transaction.
  */
-export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
+export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMenuProps) {
   const [linkValue, setLinkValue] = useState<string | null>(null)
   const linkInputRef = useRef<HTMLInputElement>(null)
   const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
   const isEditingLink = linkValue !== null
+
+  // Explicit key so `setMeta` can target this menu to reveal it after a drag-select.
+  const bubbleMenuKey = useMemo(() => new PluginKey('markdownBubbleMenu'), [])
+  const isPointerDownRef = useRef(false)
 
   const active = useEditorState({
     editor,
@@ -108,6 +126,38 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
       editor.off('selectionUpdate', exitOnCollapse)
     }
   }, [editor])
+
+  // Reveal the toolbar only once a drag-select finishes (Linear-style); `shouldShow` keeps it hidden
+  // while the pointer is down. Keyboard selection has no pointer, so it still shows live.
+  useEffect(() => {
+    const dom = editor.view.dom
+    const onPointerDown = () => {
+      isPointerDownRef.current = true
+    }
+    const onPointerUp = () => {
+      if (!isPointerDownRef.current || editor.isDestroyed) return
+      isPointerDownRef.current = false
+      const { from, to } = editor.state.selection
+      if (hasFormattableSelection(editor, from, to)) {
+        // `show` alone leaves the bar visible-but-unpositioned (its updatePosition no-ops until shown),
+        // so a second `updatePosition` anchors it. Both are step-free, so the doc isn't marked dirty.
+        editor.commands.setMeta(bubbleMenuKey, 'show')
+        editor.commands.setMeta(bubbleMenuKey, 'updatePosition')
+      }
+    }
+    // A release outside the window delivers no mouseup; clear the flag on blur so it can't stay wedged.
+    const onWindowBlur = () => {
+      isPointerDownRef.current = false
+    }
+    dom.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('mouseup', onPointerUp)
+    window.addEventListener('blur', onWindowBlur)
+    return () => {
+      dom.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('mouseup', onPointerUp)
+      window.removeEventListener('blur', onWindowBlur)
+    }
+  }, [editor, bubbleMenuKey])
 
   const openLinkEditor = () => {
     if (editor.isActive('codeBlock') || editor.isActive('code')) return
@@ -158,9 +208,26 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
     setLinkValue(null)
   }
 
+  // The default whole-selection anchor pushes the toolbar off-screen when the selection is taller than
+  // the viewport (e.g. select-all in a long doc). There, anchor to the selection's top edge clamped
+  // into the viewport so the bar settles at the top of the view; `null` keeps the default otherwise.
+  const resolveAnchor = useCallback(() => {
+    const { view, state } = editor
+    if (!view.dom.isConnected) return null
+    const viewport = scrollContainerRef.current?.getBoundingClientRect()
+    if (!viewport) return null
+    const selection = posToDOMRect(view, state.selection.from, state.selection.to)
+    if (selection.height <= viewport.height) return null
+    const top = Math.min(Math.max(selection.top, viewport.top), viewport.bottom)
+    const rect = new DOMRect(selection.left, top, selection.width, 0)
+    return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
+  }, [editor, scrollContainerRef])
+
   return (
     <BubbleMenu
       editor={editor}
+      pluginKey={bubbleMenuKey}
+      getReferencedVirtualElement={resolveAnchor}
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}
@@ -169,8 +236,9 @@ export function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
         // can't be applied to a doc that must not mutate.
         if (!e.isEditable) return false
         if (isEditingLink) return true
-        if (e.isActive('codeBlock')) return false
-        return e.state.doc.textBetween(from, to, ' ').trim().length > 0
+        // Suppressed mid-drag; the pointer-release handler forces it back open once the selection sticks.
+        if (isPointerDownRef.current) return false
+        return hasFormattableSelection(e, from, to)
       }}
       className='fade-in-0 z-[var(--z-popover)] flex animate-in items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-1 shadow-sm duration-100 motion-reduce:animate-none'
     >
