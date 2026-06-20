@@ -73,6 +73,10 @@ function hasFormattableSelection(editor: Editor, from: number, to: number): bool
   return editor.state.doc.textBetween(from, to, ' ').trim().length > 0
 }
 
+// Pin the toolbar to the viewport (fixed) and never attach a scroll listener, so once it's placed for
+// a selection it stays put while the document scrolls instead of tracking the text — matching Linear.
+const FLOATING_OPTIONS = { strategy: 'fixed' } as const
+
 interface EditorBubbleMenuProps {
   editor: Editor
   /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
@@ -228,6 +232,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}
+      options={FLOATING_OPTIONS}
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}
