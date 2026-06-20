@@ -42,6 +42,9 @@ const PipeSafeTable = Table.extend({
   renderMarkdown: (node: JSONContent, h: MarkdownRendererHelpers) =>
     renderTableToMarkdown(node, {
       ...h,
+      // `renderChildren` already markdown-escapes backslashes; here we only add the table-specific
+      // pipe escaping on top. (CodeQL flags the missing backslash escape, but escaping it again would
+      // double-escape and break round-trip idempotency — see the table round-trip tests.)
       renderChildren: (nodes, separator) =>
         h.renderChildren(nodes, separator).replace(/\|/g, '\\|'),
     })
