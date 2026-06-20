@@ -16,10 +16,13 @@ import {
   parsePermissionGroupConfig,
 } from '@/lib/permission-groups/types'
 import {
+  type AllMembersConflict,
   acquirePermissionGroupOrgLock,
   authorizeOrgAccessControl,
+  findAllMembersWorkspaceConflict,
   findScopeConflicts,
   findWorkspacesNotInOrganization,
+  formatAllMembersConflictError,
   formatScopeConflictError,
   getGroupWorkspaces,
   loadGroupInOrganization,
@@ -69,6 +72,7 @@ export const PUT = withRouteHandler(
     // Populated inside the transaction when a scope conflict is detected, so the
     // catch can format the 409 after the rollback.
     let scopeConflicts: ScopeConflict[] = []
+    let allMembersConflict: AllMembersConflict | null = null
 
     try {
       const denied = await authorizeOrgAccessControl(session.user.id, organizationId)
@@ -136,6 +140,12 @@ export const PUT = withRouteHandler(
           { status: 400 }
         )
       }
+      if (!effectiveIsDefault && resolvedAppliesToAll) {
+        return NextResponse.json(
+          { error: 'Non-default groups must target specific workspaces' },
+          { status: 400 }
+        )
+      }
 
       // Resolve and validate explicitly-provided workspaceIds before the
       // transaction. When the request omits them for a specific-scope group
@@ -191,7 +201,6 @@ export const PUT = withRouteHandler(
             {
               organizationId,
               excludeGroupId: id,
-              appliesToAllWorkspaces: resolvedAppliesToAll,
               workspaceIds: resolvedWorkspaceIds,
               candidateUserIds: members.map((m) => m.userId),
             },
@@ -201,12 +210,28 @@ export const PUT = withRouteHandler(
             scopeConflicts = conflicts
             throw new Error('SCOPE_CONFLICT')
           }
+
+          // With no explicit members the group governs all members of its
+          // workspaces; reject when another all-members group already does.
+          if (!resolvedAppliesToAll && members.length === 0) {
+            const conflict = await findAllMembersWorkspaceConflict(
+              { organizationId, excludeGroupId: id, workspaceIds: resolvedWorkspaceIds },
+              tx
+            )
+            if (conflict) {
+              allMembersConflict = conflict
+              throw new Error('ALL_MEMBERS_CONFLICT')
+            }
+          }
         }
 
         if (updates.isDefault === true) {
+          // Demote the prior default to a non-default group. It must also drop
+          // the all-workspaces scope (only the default may be org-wide); it ends
+          // up with no workspaces (inert) until an admin re-scopes it.
           await tx
             .update(permissionGroup)
-            .set({ isDefault: false, updatedAt: now })
+            .set({ isDefault: false, appliesToAllWorkspaces: false, updatedAt: now })
             .where(
               and(
                 eq(permissionGroup.organizationId, organizationId),
@@ -284,6 +309,16 @@ export const PUT = withRouteHandler(
       if (error instanceof Error && error.message === 'SCOPE_CONFLICT') {
         return NextResponse.json(
           { error: formatScopeConflictError(scopeConflicts) },
+          { status: 409 }
+        )
+      }
+      if (
+        error instanceof Error &&
+        error.message === 'ALL_MEMBERS_CONFLICT' &&
+        allMembersConflict
+      ) {
+        return NextResponse.json(
+          { error: formatAllMembersConflictError(allMembersConflict) },
           { status: 409 }
         )
       }

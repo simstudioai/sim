@@ -31,7 +31,6 @@ import {
   Search,
   Skeleton,
   Switch,
-  Tooltip,
   toast,
 } from '@/components/emcn'
 import { ArrowLeft } from '@/components/emcn/icons'
@@ -250,7 +249,6 @@ function AddMembersModal({
 }
 
 interface WorkspaceSelectProps {
-  /** Selected workspace ids; an empty array reads as "All workspaces". */
   workspaceIds: string[]
   onChange: (ids: string[]) => void
   options: { value: string; label: string }[]
@@ -258,13 +256,17 @@ interface WorkspaceSelectProps {
   isLoading?: boolean
   fullWidth?: boolean
   className?: string
+  /**
+   * When false, the "All workspaces" reset option is hidden and an empty
+   * selection reads as a prompt. Non-default groups must target ≥1 workspace.
+   */
+  allowAllWorkspaces?: boolean
 }
 
 /**
- * Workspace scope picker: a single multi-select where an empty selection means
- * "All workspaces" (via the built-in `allLabel` + reset row), so it owns the
- * all-vs-specific choice without a separate toggle. Shared by the create modal
- * and the inline scope control in a group's detail view.
+ * Workspace scope multi-select. With `allowAllWorkspaces` an empty selection
+ * reads as "All workspaces" (the default group); otherwise it prompts for a
+ * selection, since non-default groups must target specific workspaces.
  */
 function WorkspaceSelect({
   workspaceIds,
@@ -274,6 +276,7 @@ function WorkspaceSelect({
   isLoading = false,
   fullWidth = false,
   className,
+  allowAllWorkspaces = true,
 }: WorkspaceSelectProps) {
   return (
     <ChipDropdown
@@ -284,7 +287,14 @@ function WorkspaceSelect({
       value={workspaceIds}
       onChange={onChange}
       disabled={disabled || isLoading}
-      allLabel={isLoading ? 'Loading workspaces…' : 'All workspaces'}
+      showAllOption={allowAllWorkspaces}
+      allLabel={
+        isLoading
+          ? 'Loading workspaces…'
+          : allowAllWorkspaces
+            ? 'All workspaces'
+            : 'Select workspaces…'
+      }
       searchPlaceholder='Search workspaces…'
       fullWidth={fullWidth}
       className={className}
@@ -528,7 +538,9 @@ export function AccessControl() {
   const removeMember = useRemovePermissionGroupMember()
 
   const [showConfigModal, setShowConfigModal] = useState(false)
-  const [configTab, setConfigTab] = useState<'providers' | 'blocks' | 'platform'>('providers')
+  const [configTab, setConfigTab] = useState<'members' | 'providers' | 'blocks' | 'platform'>(
+    'providers'
+  )
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig | null>(null)
   const [showAddMembersModal, setShowAddMembersModal] = useState(false)
   const [addMembersError, setAddMembersError] = useState<string | null>(null)
@@ -781,9 +793,9 @@ export function AccessControl() {
   const handleCreatePermissionGroup = useCallback(async () => {
     if (!newGroupName.trim() || !organizationId) return
     setCreateError(null)
-    // An empty workspace selection means "all workspaces"; the default group is
-    // always organization-wide.
-    const appliesToAllWorkspaces = newGroupIsDefault || newGroupWorkspaceIds.length === 0
+    // Only the default group is organization-wide; every other group targets
+    // specific workspaces.
+    const appliesToAllWorkspaces = newGroupIsDefault
     try {
       await createPermissionGroup.mutateAsync({
         organizationId,
@@ -866,6 +878,9 @@ export function AccessControl() {
         })
       } catch (error) {
         logger.error('Failed to remove member', error)
+        toast.error("Couldn't remove member", {
+          description: getErrorMessage(error, 'Please try again in a moment.'),
+        })
       }
     },
     [viewingGroup, organizationId, removeMember]
@@ -874,6 +889,7 @@ export function AccessControl() {
   const handleOpenConfigModal = useCallback(() => {
     if (!viewingGroup) return
     setEditingConfig({ ...viewingGroup.config })
+    setConfigTab('providers')
     setShowConfigModal(true)
   }, [viewingGroup])
 
@@ -950,8 +966,12 @@ export function AccessControl() {
   const handleScopeChange = useCallback(
     async (workspaceIds: string[]) => {
       if (!viewingGroup || !organizationId) return
-      // An empty selection means "all workspaces".
-      const appliesToAllWorkspaces = workspaceIds.length === 0
+      if (workspaceIds.length === 0) {
+        toast.error("Can't remove the last workspace", {
+          description: 'A group must target at least one workspace. Delete the group instead.',
+        })
+        return
+      }
       const previous = viewingGroup
       const seq = ++scopeWriteSeqRef.current
 
@@ -959,10 +979,8 @@ export function AccessControl() {
         prev
           ? {
               ...prev,
-              appliesToAllWorkspaces,
-              workspaces: appliesToAllWorkspaces
-                ? []
-                : organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
+              appliesToAllWorkspaces: false,
+              workspaces: organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
             }
           : null
       )
@@ -970,8 +988,8 @@ export function AccessControl() {
         const result = await updatePermissionGroup.mutateAsync({
           id: viewingGroup.id,
           organizationId,
-          appliesToAllWorkspaces,
-          workspaceIds: appliesToAllWorkspaces ? undefined : workspaceIds,
+          appliesToAllWorkspaces: false,
+          workspaceIds,
         })
 
         if (seq !== scopeWriteSeqRef.current) return
@@ -1009,6 +1027,15 @@ export function AccessControl() {
           id: viewingGroup.id,
           organizationId,
           isDefault: enabled,
+          // Demoting the org default to a workspace group targets every current
+          // workspace so it keeps governing the same scope; the admin can narrow
+          // it afterward. Promoting clears workspaces (the route forces all-ws).
+          ...(enabled
+            ? {}
+            : {
+                appliesToAllWorkspaces: false,
+                workspaceIds: organizationWorkspaces.map((ws) => ws.id),
+              }),
         })
 
         if (seq !== scopeWriteSeqRef.current) return
@@ -1018,7 +1045,11 @@ export function AccessControl() {
                 ...prev,
                 isDefault: result.permissionGroup.isDefault,
                 appliesToAllWorkspaces: result.permissionGroup.appliesToAllWorkspaces,
-                workspaces: result.permissionGroup.appliesToAllWorkspaces ? [] : prev.workspaces,
+                workspaces: result.permissionGroup.appliesToAllWorkspaces
+                  ? []
+                  : organizationWorkspaces.filter((ws) =>
+                      result.permissionGroup.workspaceIds.includes(ws.id)
+                    ),
               }
             : null
         )
@@ -1029,7 +1060,7 @@ export function AccessControl() {
         })
       }
     },
-    [viewingGroup, organizationId, updatePermissionGroup]
+    [viewingGroup, organizationId, organizationWorkspaces, updatePermissionGroup]
   )
 
   const toggleIntegration = useCallback(
@@ -1259,6 +1290,13 @@ export function AccessControl() {
                 {viewingGroup.description && (
                   <p className='text-[var(--text-muted)] text-md'>{viewingGroup.description}</p>
                 )}
+                {!viewingGroup.isDefault && !membersLoading && (
+                  <p className='text-[var(--text-muted)] text-md'>
+                    {members.length === 0
+                      ? 'Applies to all members of its workspaces, including external members.'
+                      : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}.`}
+                  </p>
+                )}
               </div>
 
               <SettingsSection label='Default group'>
@@ -1276,108 +1314,44 @@ export function AccessControl() {
               </SettingsSection>
 
               <SettingsSection label='Workspaces'>
-                <div className='flex items-center justify-between gap-3'>
-                  <span className='min-w-0 text-[var(--text-muted)] text-small'>
-                    {viewingGroup.appliesToAllWorkspaces
-                      ? 'Governs every workspace in the organization'
-                      : viewingGroup.workspaces.length > 0
-                        ? `Governs ${viewingGroup.workspaces.length} workspace${
-                            viewingGroup.workspaces.length === 1 ? '' : 's'
-                          }: ${viewingGroup.workspaces.map((ws) => ws.name).join(', ')}`
-                        : 'No workspaces selected — this group governs nobody'}
-                  </span>
-                  {viewingGroup.isDefault ? (
-                    <Tooltip.Root>
-                      <Tooltip.Trigger asChild>
-                        <span className='inline-flex flex-shrink-0 cursor-not-allowed'>
-                          <WorkspaceSelect
-                            workspaceIds={[]}
-                            onChange={() => {}}
-                            options={workspaceOptions}
-                            disabled
-                            className='pointer-events-none'
-                          />
-                        </span>
-                      </Tooltip.Trigger>
-                      <Tooltip.Content>
-                        The default group always applies to all workspaces
-                      </Tooltip.Content>
-                    </Tooltip.Root>
-                  ) : (
-                    <WorkspaceSelect
-                      workspaceIds={
-                        viewingGroup.appliesToAllWorkspaces
-                          ? []
-                          : viewingGroup.workspaces.map((ws) => ws.id)
-                      }
-                      onChange={handleScopeChange}
-                      options={workspaceOptions}
-                      isLoading={workspacesLoading}
-                      className='flex-shrink-0'
-                    />
-                  )}
-                </div>
-              </SettingsSection>
-
-              <SettingsSection
-                label={`Members (${members.length})`}
-                headerAccessory={
-                  <Chip
-                    variant='primary'
-                    leftIcon={Plus}
-                    flush
-                    onClick={handleOpenAddMembersModal}
-                    className='ml-auto'
-                  >
-                    Add
-                  </Chip>
-                }
-              >
-                {membersLoading ? (
-                  <div className='-mx-2 flex flex-col gap-y-0.5'>
-                    {[1, 2].map((i) => (
-                      <div key={i} className='flex items-center gap-2.5 p-2'>
-                        <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
-                        <Skeleton className='h-[14px] w-[180px]' />
-                      </div>
-                    ))}
-                  </div>
-                ) : members.length === 0 ? (
-                  <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
-                    No members yet. Click "Add" to get started.
+                {viewingGroup.isDefault ? (
+                  <div className='flex items-center justify-between gap-3'>
+                    <span className='text-[var(--text-muted)] text-small'>
+                      Governs every workspace in the organization
+                    </span>
                   </div>
                 ) : (
-                  <div className='-mx-2 flex flex-col gap-y-0.5'>
-                    {members.map((member) => (
-                      <MemberRow
-                        key={member.id}
-                        name={member.userName || member.userEmail || 'Unknown'}
-                        email={member.userEmail || member.userName || 'Unknown'}
-                        image={member.userImage}
-                        status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
-                        menu={
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button
-                                type='button'
-                                aria-label='Member actions'
-                                className={chipVariants({ flush: true })}
-                              >
-                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
-                              <DropdownMenuItem
-                                className='text-[var(--text-error)]'
-                                onSelect={() => handleRemoveMember(member.id)}
-                              >
-                                Remove
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        }
+                  <div className='flex flex-col gap-3'>
+                    <div className='flex items-center justify-between gap-3'>
+                      <span className='min-w-0 text-[var(--text-muted)] text-small'>
+                        {viewingGroup.workspaces.length > 0
+                          ? `Governs ${viewingGroup.workspaces.length} workspace${
+                              viewingGroup.workspaces.length === 1 ? '' : 's'
+                            }`
+                          : 'Select the workspaces this group governs'}
+                      </span>
+                      <WorkspaceSelect
+                        workspaceIds={viewingGroup.workspaces.map((ws) => ws.id)}
+                        onChange={handleScopeChange}
+                        options={workspaceOptions}
+                        isLoading={workspacesLoading}
+                        allowAllWorkspaces={false}
+                        className='flex-shrink-0'
                       />
-                    ))}
+                    </div>
+                    {viewingGroup.workspaces.length > 0 && (
+                      <div className='-mx-2 flex flex-col gap-y-0.5'>
+                        {viewingGroup.workspaces.map((ws) => (
+                          <MemberRow
+                            key={ws.id}
+                            name={ws.name}
+                            email={ws.name}
+                            image={null}
+                            status=''
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </SettingsSection>
@@ -1422,10 +1396,80 @@ export function AccessControl() {
                 { value: 'providers', label: 'Model Providers' },
                 { value: 'blocks', label: 'Blocks' },
                 { value: 'platform', label: 'Platform' },
+                ...(viewingGroup.isDefault ? [] : [{ value: 'members', label: 'Members' }]),
               ]}
               value={configTab}
-              onChange={(value) => setConfigTab(value as 'providers' | 'blocks' | 'platform')}
+              onChange={(value) =>
+                setConfigTab(value as 'members' | 'providers' | 'blocks' | 'platform')
+              }
             />
+            {configTab === 'members' && !viewingGroup.isDefault && (
+              <div className='flex flex-col gap-3'>
+                <div className='flex items-center justify-between gap-3'>
+                  <span className='text-[var(--text-body)] text-sm'>
+                    {members.length === 0
+                      ? 'Applies to all members'
+                      : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}`}
+                  </span>
+                  <Chip
+                    variant='primary'
+                    leftIcon={Plus}
+                    onClick={handleOpenAddMembersModal}
+                    className='flex-shrink-0'
+                  >
+                    Add
+                  </Chip>
+                </div>
+                {membersLoading ? (
+                  <div className='-mx-2 flex flex-col gap-y-0.5'>
+                    {[1, 2].map((i) => (
+                      <div key={i} className='flex items-center gap-2.5 p-2'>
+                        <Skeleton className='size-[14px] flex-shrink-0 rounded-full' />
+                        <Skeleton className='h-[14px] w-[180px]' />
+                      </div>
+                    ))}
+                  </div>
+                ) : members.length === 0 ? (
+                  <div className='py-6 text-center text-[var(--text-muted)] text-sm'>
+                    This group applies to everyone in its workspaces, including external members.
+                    Add members to restrict it to specific people.
+                  </div>
+                ) : (
+                  <div className='-mx-2 flex flex-col gap-y-0.5'>
+                    {members.map((member) => (
+                      <MemberRow
+                        key={member.id}
+                        name={member.userName || member.userEmail || 'Unknown'}
+                        email={member.userEmail || member.userName || 'Unknown'}
+                        image={member.userImage}
+                        status={`Added ${new Date(member.assignedAt).toLocaleDateString()}`}
+                        menu={
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type='button'
+                                aria-label='Member actions'
+                                className={chipVariants({ flush: true })}
+                              >
+                                <MoreHorizontal className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem
+                                className='text-[var(--text-error)]'
+                                onSelect={() => handleRemoveMember(member.id)}
+                              >
+                                Remove
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {configTab === 'providers' && (
               <div>
                 <div className='flex items-center gap-2 pb-3'>
@@ -1670,14 +1714,16 @@ export function AccessControl() {
               </div>
             )}
           </ChipModalBody>
-          <ChipModalFooter
-            onCancel={handleCloseConfigModal}
-            primaryAction={{
-              label: updatePermissionGroup.isPending ? 'Saving...' : 'Save',
-              onClick: handleSaveConfig,
-              disabled: updatePermissionGroup.isPending || !hasConfigChanges,
-            }}
-          />
+          {configTab !== 'members' && (
+            <ChipModalFooter
+              onCancel={handleCloseConfigModal}
+              primaryAction={{
+                label: updatePermissionGroup.isPending ? 'Saving...' : 'Save',
+                onClick: handleSaveConfig,
+                disabled: updatePermissionGroup.isPending || !hasConfigChanges,
+              }}
+            />
+          )}
         </ChipModal>
 
         <ChipModal
@@ -1791,10 +1837,15 @@ export function AccessControl() {
                           )}
                         </div>
                         <span className='truncate text-[12px] text-[var(--text-muted)]'>
-                          {group.memberCount} member{group.memberCount !== 1 ? 's' : ''} ·{' '}
-                          {group.appliesToAllWorkspaces
-                            ? 'All workspaces'
-                            : `${group.workspaces.length} workspace${
+                          {group.isDefault
+                            ? 'Everyone in the organization'
+                            : `${
+                                group.memberCount === 0
+                                  ? 'All members'
+                                  : `${group.memberCount} member${
+                                      group.memberCount === 1 ? '' : 's'
+                                    }`
+                              } · ${group.workspaces.length} workspace${
                                 group.workspaces.length === 1 ? '' : 's'
                               }`}
                         </span>
@@ -1851,14 +1902,23 @@ export function AccessControl() {
             </div>
           </ChipModalField>
           <ChipModalField type='custom' title='Workspaces'>
-            <WorkspaceSelect
-              workspaceIds={newGroupWorkspaceIds}
-              onChange={setNewGroupWorkspaceIds}
-              options={workspaceOptions}
-              disabled={newGroupIsDefault}
-              isLoading={workspacesLoading}
-              fullWidth
-            />
+            <div className='flex flex-col gap-1.5'>
+              <WorkspaceSelect
+                workspaceIds={newGroupWorkspaceIds}
+                onChange={setNewGroupWorkspaceIds}
+                options={workspaceOptions}
+                disabled={newGroupIsDefault}
+                isLoading={workspacesLoading}
+                allowAllWorkspaces={newGroupIsDefault}
+                fullWidth
+              />
+              {!newGroupIsDefault && (
+                <p className='text-[var(--text-muted)] text-xs'>
+                  Applies to all members of the selected workspaces. Restrict to specific people
+                  later from Configure → Members.
+                </p>
+              )}
+            </div>
           </ChipModalField>
           <ChipModalError>{createError}</ChipModalError>
         </ChipModalBody>
@@ -1867,7 +1927,10 @@ export function AccessControl() {
           primaryAction={{
             label: createPermissionGroup.isPending ? 'Creating...' : 'Create',
             onClick: handleCreatePermissionGroup,
-            disabled: !newGroupName.trim() || createPermissionGroup.isPending,
+            disabled:
+              !newGroupName.trim() ||
+              createPermissionGroup.isPending ||
+              (!newGroupIsDefault && newGroupWorkspaceIds.length === 0),
           }}
         />
       </ChipModal>
