@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { JSONContent } from '@tiptap/core'
 import { CodeBlock } from '@tiptap/extension-code-block'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { Check, ChevronDown, Copy, WrapText } from 'lucide-react'
+import { Check, ChevronDown, Code, Copy, Eye, WrapText } from 'lucide-react'
 import {
   chipVariants,
   DropdownMenu,
@@ -13,9 +13,11 @@ import {
 } from '@/components/emcn'
 import { cn } from '@/lib/core/utils/cn'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
 import { detectLanguage } from './detect-language'
 
 const PLAIN = 'plain'
+const MERMAID = 'mermaid'
 
 /** Languages the Prism highlighter has registered (see {@link CodeBlockHighlight}). Every non-plain
  * value MUST have a grammar registered in {@link CodeBlockHighlight} — enforced by a unit test. */
@@ -43,16 +45,83 @@ export const LANGUAGE_OPTIONS = [
 const CONTROL_CLASS =
   'flex size-[24px] items-center justify-center rounded-lg text-[var(--text-icon)] outline-none transition-colors hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-body)] focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]'
 
-function CodeBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) {
+/**
+ * Code block view with hover controls (language picker, line-wrap, copy). When the block holds
+ * Mermaid — tagged ```mermaid or {@link looksLikeMermaid auto-detected} — it renders as a diagram
+ * whenever the cursor is outside it (and always in read-only), and as editable source while the
+ * cursor is inside, re-rendering on blur (the Linear/GitHub model). The source `<pre>` stays mounted
+ * (hidden behind the diagram) so ProseMirror keeps managing its contentDOM, and the node remains an
+ * ordinary code block, so markdown round-trips unchanged.
+ */
+function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const [wrap, setWrap] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [editingInline, setEditingInline] = useState(false)
+  const [peekSource, setPeekSource] = useState(false)
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
+
   const explicitLanguage = node.attrs.language as string | null
-  const language = explicitLanguage ?? detectLanguage(node.textContent) ?? PLAIN
+  const text = node.textContent
+  const isMermaid = explicitLanguage === MERMAID || (!explicitLanguage && looksLikeMermaid(text))
+
+  // Editable Mermaid shows source while the caret is focused inside the block and re-renders the
+  // diagram on blur (the Linear/GitHub model). The Show source / Show diagram control drives this by
+  // focusing into / blurring the block; read-only uses {@link peekSource} since there is no caret.
+  useEffect(() => {
+    if (!isMermaid || !editor.isEditable) {
+      setEditingInline(false)
+      return
+    }
+    const sync = () => {
+      const pos = typeof getPos === 'function' ? getPos() : null
+      if (typeof pos !== 'number') {
+        setEditingInline(false)
+        return
+      }
+      const size = editor.state.doc.nodeAt(pos)?.nodeSize ?? 0
+      const { from } = editor.state.selection
+      setEditingInline(editor.isFocused && from > pos && from < pos + size)
+    }
+    sync()
+    editor.on('selectionUpdate', sync)
+    editor.on('focus', sync)
+    editor.on('blur', sync)
+    return () => {
+      editor.off('selectionUpdate', sync)
+      editor.off('focus', sync)
+      editor.off('blur', sync)
+    }
+  }, [editor, getPos, isMermaid])
+
+  const showSource = editor.isEditable ? editingInline : peekSource
+  const showDiagram = isMermaid && text.trim().length > 0 && !showSource
+
+  // Skip language detection on the mermaid path — the picker/label never render there.
+  const language = explicitLanguage ?? (isMermaid ? null : detectLanguage(text)) ?? PLAIN
   const label =
     LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ??
     explicitLanguage ??
     'Plain text'
+
+  const toggleSource = () => {
+    if (!editor.isEditable) {
+      setPeekSource((value) => !value)
+      return
+    }
+    const pos = typeof getPos === 'function' ? getPos() : null
+    if (typeof pos !== 'number') return
+    if (editingInline) {
+      // Back to the diagram: select the whole node (reliable, and shows the same ring) rather than
+      // relying on a blur event to fire.
+      editor.commands.setNodeSelection(pos)
+      return
+    }
+    editor
+      .chain()
+      .focus()
+      .setTextSelection(pos + 1)
+      .run()
+  }
 
   return (
     <NodeViewWrapper className='group relative'>
@@ -63,67 +132,96 @@ function CodeBlockView({ node, updateAttributes, editor }: ReactNodeViewProps) {
         )}
         contentEditable={false}
       >
-        {editor.isEditable ? (
-          // Editable: a language picker. Read-only: a static label — selecting a language calls
-          // updateAttributes, which would mutate a doc that must not change.
-          <DropdownMenu onOpenChange={setMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <button
-                type='button'
-                aria-label='Code language'
-                className={cn(
-                  chipVariants({ variant: 'default', flush: true }),
-                  'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
-                )}
-              >
-                {label}
-                <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              {LANGUAGE_OPTIONS.map((option) => (
-                <DropdownMenuItem
-                  key={option.value}
-                  onSelect={() =>
-                    updateAttributes({ language: option.value === PLAIN ? null : option.value })
-                  }
-                >
-                  {option.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <span className='flex h-[24px] items-center px-1.5 text-[var(--text-muted)] text-caption'>
-            {label}
-          </span>
+        {isMermaid && (
+          <button
+            type='button'
+            aria-label={showSource ? 'Show diagram' : 'Show source'}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={toggleSource}
+            className={CONTROL_CLASS}
+          >
+            {showSource ? <Eye /> : <Code />}
+          </button>
         )}
-        <button
-          type='button'
-          aria-label='Toggle line wrap'
-          aria-pressed={wrap}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setWrap((value) => !value)}
-          className={cn(
-            CONTROL_CLASS,
-            wrap && 'bg-[var(--surface-active)] text-[var(--text-body)]'
-          )}
-        >
-          <WrapText />
-        </button>
+        {!isMermaid &&
+          (editor.isEditable ? (
+            // Editable: a language picker. Read-only: a static label — selecting a language calls
+            // updateAttributes, which would mutate a doc that must not change.
+            <DropdownMenu onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type='button'
+                  aria-label='Code language'
+                  className={cn(
+                    chipVariants({ variant: 'default', flush: true }),
+                    'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
+                  )}
+                >
+                  {label}
+                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                {LANGUAGE_OPTIONS.map((option) => (
+                  <DropdownMenuItem
+                    key={option.value}
+                    onSelect={() =>
+                      updateAttributes({ language: option.value === PLAIN ? null : option.value })
+                    }
+                  >
+                    {option.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <span className='flex h-[24px] items-center px-1.5 text-[var(--text-muted)] text-caption'>
+              {label}
+            </span>
+          ))}
+        {!isMermaid && (
+          <button
+            type='button'
+            aria-label='Toggle line wrap'
+            aria-pressed={wrap}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setWrap((value) => !value)}
+            className={cn(
+              CONTROL_CLASS,
+              wrap && 'bg-[var(--surface-active)] text-[var(--text-body)]'
+            )}
+          >
+            <WrapText />
+          </button>
+        )}
         <button
           type='button'
           aria-label='Copy code'
           onMouseDown={(event) => event.preventDefault()}
-          onClick={() => copy(node.textContent)}
+          onClick={() => copy(text)}
           className={CONTROL_CLASS}
         >
           {copied ? <Check /> : <Copy />}
         </button>
       </div>
-      <pre className='code-editor-theme pr-20' data-wrap={wrap}>
+      <pre className={cn('code-editor-theme pr-20', showDiagram && 'hidden')} data-wrap={wrap}>
         <NodeViewContent<'code'> as='code' />
       </pre>
+      {showDiagram && (
+        // Clicking the diagram selects the whole node (same selection ring as an image/code block)
+        // instead of dropping a caret inside — preventDefault stops ProseMirror placing the caret,
+        // which would otherwise flip to source. Editing is an explicit Show source / blur action.
+        <div
+          contentEditable={false}
+          onMouseDown={(event) => {
+            event.preventDefault()
+            const pos = typeof getPos === 'function' ? getPos() : null
+            if (typeof pos === 'number') editor.commands.setNodeSelection(pos)
+          }}
+        >
+          <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+        </div>
+      )}
     </NodeViewWrapper>
   )
 }

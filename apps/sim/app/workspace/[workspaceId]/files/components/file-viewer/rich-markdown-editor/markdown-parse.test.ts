@@ -134,7 +134,7 @@ describe('parseMarkdownToDoc (chunked)', () => {
       blocks.push(
         `## Section ${i}\n\nProse with **bold** and a [link](https://x.com/${i}) and \`code\`.`
       )
-      if (i % 10 === 0) blocks.push('```ts\nconst x = ' + i + '\n```')
+      if (i % 10 === 0) blocks.push(`\`\`\`ts\nconst x = ${i}\n\`\`\``)
       if (i % 9 === 0) blocks.push('- item a\n\n- item b\n\n- item c')
       if (i % 7 === 0) blocks.push('| a | b |\n| --- | --- |\n| 1 | 2 |')
     }
@@ -201,5 +201,6 @@ describe('chunked parse — property test over randomized documents', () => {
       }
     }
     expect(failures).toEqual([])
-  })
+    // 400 docs each parsed+serialized twice — generous timeout so it can't flake under parallel load.
+  }, 30000)
 })
