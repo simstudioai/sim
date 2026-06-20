@@ -109,7 +109,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
-import { useSidebarStore } from '@/stores/sidebar/store'
+import { readCollapsedCookie, useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
@@ -397,10 +397,20 @@ export const Sidebar = memo(function Sidebar({ initialCollapsed = false }: Sideb
   /**
    * The server renders from the `sidebar_collapsed` cookie (via `initialCollapsed`)
    * and the client store seeds from the same cookie, so both agree on the first
-   * paint. The prop is read until the store reports hydration to guarantee that
-   * match, after which the store takes over.
+   * paint. The prop is read until the store reports hydration, after which the
+   * store takes over.
+   *
+   * A legacy user whose collapse lived only in `localStorage` has no cookie at SSR
+   * (so `initialCollapsed` is false), but the pre-paint script migrates them to a
+   * cookie. Reconcile to that cookie synchronously before paint — the first render
+   * still matches the server, so there's no hydration mismatch and no narrow-rail flash.
    */
-  const isCollapsed = hasHydrated ? storeIsCollapsed : initialCollapsed
+  const [migratedCollapsed, setMigratedCollapsed] = useState<boolean | null>(null)
+  useLayoutEffect(() => {
+    const cookieCollapsed = readCollapsedCookie()
+    if (cookieCollapsed !== initialCollapsed) setMigratedCollapsed(cookieCollapsed)
+  }, [initialCollapsed])
+  const isCollapsed = hasHydrated ? storeIsCollapsed : (migratedCollapsed ?? initialCollapsed)
 
   /**
    * Hydrates the persisted width before paint (collapse already came from the
