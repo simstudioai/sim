@@ -15,53 +15,12 @@ import {
   List,
   ListChecks,
   ListOrdered,
-  type LucideIcon,
   Strikethrough,
   TextQuote,
   Unlink,
 } from 'lucide-react'
-import { Tooltip } from '@/components/emcn'
-import { cn } from '@/lib/core/utils/cn'
 import { normalizeLinkHref } from '../markdown-fidelity'
-
-interface ToolbarButtonProps {
-  icon: LucideIcon
-  label: string
-  shortcut?: string
-  isActive: boolean
-  onClick: () => void
-}
-
-function ToolbarButton({ icon: Icon, label, shortcut, isActive, onClick }: ToolbarButtonProps) {
-  return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <button
-          type='button'
-          aria-label={label}
-          aria-pressed={isActive}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={onClick}
-          className={cn(
-            'flex size-[28px] items-center justify-center rounded-md text-[var(--text-icon)] outline-none transition-colors focus-visible:bg-[var(--surface-hover)] [&_svg]:size-[14px]',
-            isActive
-              ? 'bg-[var(--surface-active)] text-[var(--text-body)]'
-              : 'hover-hover:bg-[var(--surface-hover)]'
-          )}
-        >
-          <Icon />
-        </button>
-      </Tooltip.Trigger>
-      <Tooltip.Content>
-        {shortcut ? <Tooltip.Shortcut keys={shortcut}>{label}</Tooltip.Shortcut> : label}
-      </Tooltip.Content>
-    </Tooltip.Root>
-  )
-}
-
-function ToolbarDivider() {
-  return <div className='mx-0.5 h-[18px] w-px bg-[var(--border-1)]' />
-}
+import { ToolbarButton, ToolbarDivider } from './toolbar-button'
 
 /**
  * Whether the formatting toolbar may show for the given range: the editor is editable, the range
@@ -212,18 +171,31 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     setLinkValue(null)
   }
 
-  // The default whole-selection anchor pushes the toolbar off-screen when the selection is taller than
-  // the viewport (e.g. select-all in a long doc). There, anchor to the selection's top edge clamped
-  // into the viewport so the bar settles at the top of the view; `null` keeps the default otherwise.
+  // Freeze the anchor per selection: the rect is computed once (in viewport coordinates) and reused on
+  // every scroll/resize reposition, so the toolbar stays where it first appeared instead of tracking
+  // the moving text — matching Linear. A new selection recomputes it. A selection taller than the
+  // viewport (e.g. select-all) is clamped into the visible area so the bar isn't placed off-screen.
+  const anchorCacheRef = useRef<{ key: string; rect: DOMRect } | null>(null)
   const resolveAnchor = useCallback(() => {
     const { view, state } = editor
     if (!view.dom.isConnected) return null
-    const viewport = scrollContainerRef.current?.getBoundingClientRect()
-    if (!viewport) return null
-    const selection = posToDOMRect(view, state.selection.from, state.selection.to)
-    if (selection.height <= viewport.height) return null
-    const top = Math.min(Math.max(selection.top, viewport.top), viewport.bottom)
-    const rect = new DOMRect(selection.left, top, selection.width, 0)
+    const { from, to } = state.selection
+    const key = `${from}:${to}`
+    if (anchorCacheRef.current?.key !== key) {
+      const selection = posToDOMRect(view, from, to)
+      const viewport = scrollContainerRef.current?.getBoundingClientRect()
+      const rect =
+        viewport && selection.height > viewport.height
+          ? new DOMRect(
+              selection.left,
+              Math.min(Math.max(selection.top, viewport.top), viewport.bottom),
+              selection.width,
+              0
+            )
+          : selection
+      anchorCacheRef.current = { key, rect }
+    }
+    const { rect } = anchorCacheRef.current
     return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
   }, [editor, scrollContainerRef])
 
