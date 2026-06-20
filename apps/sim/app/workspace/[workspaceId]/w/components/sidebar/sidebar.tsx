@@ -109,7 +109,7 @@ import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
-import { readCollapsedCookie, useSidebarStore } from '@/stores/sidebar/store'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 const logger = createLogger('Sidebar')
 
@@ -349,16 +349,14 @@ const HIDDEN_STYLE = { display: 'none' } as const
  */
 interface SidebarProps {
   /**
-   * Collapse state read from the `sidebar_collapsed` cookie in the server
-   * layout. Seeds the first (pre-hydration) render so the server emits the
-   * correct collapsed/expanded structure — without it the server can't read
-   * `localStorage` and always renders the expanded tree, which then paints
-   * skeletons and pinned-chat icons inside the 51px rail until React flips it.
+   * Authoritative collapse state, derived once in {@link WorkspaceChrome} from the
+   * `sidebar_collapsed` cookie (server prop → store after hydration) and passed in
+   * so the rail's structure, labels, and width all read a single source.
    */
-  initialCollapsed?: boolean
+  isCollapsed: boolean
 }
 
-export const Sidebar = memo(function Sidebar({ initialCollapsed = false }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({ isCollapsed }: SidebarProps) {
   const params = useParams()
   const workspaceId = params.workspaceId as string
   const workflowId = params.workflowId as string | undefined
@@ -389,36 +387,8 @@ export const Sidebar = memo(function Sidebar({ initialCollapsed = false }: Sideb
   }, [initializeSearchData, filterBlocks, providerModelSignature])
 
   const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
-  const storeIsCollapsed = useSidebarStore((state) => state.isCollapsed)
-  const hasHydrated = useSidebarStore((state) => state._hasHydrated)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
-
-  /**
-   * The server renders from the `sidebar_collapsed` cookie (via `initialCollapsed`)
-   * and the client store seeds from the same cookie, so both agree on the first
-   * paint. The prop is read until the store reports hydration, after which the
-   * store takes over.
-   *
-   * A legacy user whose collapse lived only in `localStorage` has no cookie at SSR
-   * (so `initialCollapsed` is false), but the pre-paint script migrates them to a
-   * cookie. Reconcile to that cookie synchronously before paint — the first render
-   * still matches the server, so there's no hydration mismatch and no narrow-rail flash.
-   */
-  const [migratedCollapsed, setMigratedCollapsed] = useState<boolean | null>(null)
-  useLayoutEffect(() => {
-    const cookieCollapsed = readCollapsedCookie()
-    if (cookieCollapsed !== initialCollapsed) setMigratedCollapsed(cookieCollapsed)
-  }, [initialCollapsed])
-  const isCollapsed = hasHydrated ? storeIsCollapsed : (migratedCollapsed ?? initialCollapsed)
-
-  /**
-   * Hydrates the persisted width before paint (collapse already came from the
-   * cookie) so any width-dependent layout settles in the same commit.
-   */
-  useLayoutEffect(() => {
-    void useSidebarStore.persist.rehydrate()
-  }, [])
 
   const isCollapsedRef = useRef(isCollapsed)
   useLayoutEffect(() => {
