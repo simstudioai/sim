@@ -118,11 +118,14 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/sandbox/bu
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/requirements.txt ./apps/sim/lib/guardrails/requirements.txt
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/guardrails/validate_pii.py ./apps/sim/lib/guardrails/validate_pii.py
 
-# Install Python dependencies with pip cache mount for faster rebuilds
+# Install Python dependencies with pip cache mount for faster rebuilds.
+# Presidio's default AnalyzerEngine loads en_core_web_lg, which is not a pip
+# dependency — download the spaCy model into the venv after installing Presidio.
 RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m venv ./apps/sim/lib/guardrails/venv && \
     ./apps/sim/lib/guardrails/venv/bin/pip install --upgrade pip && \
     ./apps/sim/lib/guardrails/venv/bin/pip install -r ./apps/sim/lib/guardrails/requirements.txt && \
+    ./apps/sim/lib/guardrails/venv/bin/python -m spacy download en_core_web_lg && \
     chown -R nextjs:nodejs /app/apps/sim/lib/guardrails
 
 # Create .next/cache directory with correct ownership

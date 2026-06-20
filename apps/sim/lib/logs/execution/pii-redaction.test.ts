@@ -7,8 +7,8 @@ const { mockMaskPIIBatch } = vi.hoisted(() => ({
   mockMaskPIIBatch: vi.fn(),
 }))
 
-vi.mock('@/lib/guardrails/validate_pii', () => ({
-  maskPIIBatch: mockMaskPIIBatch,
+vi.mock('@/lib/guardrails/mask-client', () => ({
+  maskPIIBatchViaHttp: mockMaskPIIBatch,
 }))
 
 import { REDACTION_FAILED_MARKER, redactPIIFromExecution } from '@/lib/logs/execution/pii-redaction'

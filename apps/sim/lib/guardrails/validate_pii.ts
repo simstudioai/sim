@@ -13,6 +13,33 @@ const DEFAULT_TIMEOUT = 30000 // 30 seconds
  */
 const PII_CHUNK_MAX_BYTES = 256 * 1024
 
+/**
+ * Resolve the guardrails Presidio interpreter + script path.
+ *
+ * `process.cwd()` is not stable across runtimes — the Next standalone container
+ * launches from the monorepo root while local dev and some paths run from
+ * `apps/sim` — so probe both layouts (mirrors the candidate-path resolution in
+ * `lib/execution/isolated-vm.ts`). Requires the bundled venv: throws if it is
+ * absent rather than silently falling back to the system `python3`, which has no
+ * Presidio and reports a misleading "not installed".
+ */
+function resolveGuardrailsPython(): { pythonCmd: string; scriptPath: string } {
+  const candidateDirs = [
+    path.join(process.cwd(), 'apps', 'sim', 'lib', 'guardrails'),
+    path.join(process.cwd(), 'lib', 'guardrails'),
+  ]
+  for (const dir of candidateDirs) {
+    const venvPython = path.join(dir, 'venv', 'bin', 'python3')
+    if (fs.existsSync(venvPython)) {
+      return { pythonCmd: venvPython, scriptPath: path.join(dir, 'validate_pii.py') }
+    }
+  }
+  const probed = candidateDirs.map((d) => path.join(d, 'venv', 'bin', 'python3')).join(', ')
+  throw new Error(
+    `Guardrails Presidio venv not found (looked in ${probed}). Provision it with apps/sim/lib/guardrails/setup.sh locally, or verify the image build installs it.`
+  )
+}
+
 export interface PIIValidationInput {
   text: string
   entityTypes: string[] // e.g., ["PERSON", "EMAIL_ADDRESS", "CREDIT_CARD"]
@@ -136,10 +163,7 @@ export async function maskPIIBatch(
  */
 function runPythonScript<T>(payload: Record<string, unknown>): Promise<T> {
   return new Promise((resolve, reject) => {
-    const guardrailsDir = path.join(process.cwd(), 'lib/guardrails')
-    const scriptPath = path.join(guardrailsDir, 'validate_pii.py')
-    const venvPython = path.join(guardrailsDir, 'venv/bin/python3')
-    const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3'
+    const { pythonCmd, scriptPath } = resolveGuardrailsPython()
 
     const python = spawn(pythonCmd, [scriptPath])
     let stdout = ''
@@ -208,14 +232,7 @@ async function executePythonPIIDetection(
   requestId: string
 ): Promise<PIIValidationResult> {
   return new Promise((resolve, reject) => {
-    // Use path relative to project root
-    // In Next.js, process.cwd() returns the project root
-    const guardrailsDir = path.join(process.cwd(), 'lib/guardrails')
-    const scriptPath = path.join(guardrailsDir, 'validate_pii.py')
-    const venvPython = path.join(guardrailsDir, 'venv/bin/python3')
-
-    // Use venv Python if it exists, otherwise fall back to system python3
-    const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3'
+    const { pythonCmd, scriptPath } = resolveGuardrailsPython()
 
     const python = spawn(pythonCmd, [scriptPath])
 

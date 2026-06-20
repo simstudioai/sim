@@ -30,6 +30,11 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip
 pip install -r "$SCRIPT_DIR/requirements.txt"
 
+# Presidio's default AnalyzerEngine loads the en_core_web_lg spaCy model; it is
+# not a pip dependency, so download the version compatible with the installed spaCy.
+echo "Downloading spaCy model (en_core_web_lg)..."
+python -m spacy download en_core_web_lg
+
 echo ""
 echo "✅ Setup complete! Guardrails validators are ready to use."
 echo ""
