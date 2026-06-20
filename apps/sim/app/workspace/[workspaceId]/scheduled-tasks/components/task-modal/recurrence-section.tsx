@@ -154,7 +154,7 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
           ...recurrence,
           frequency: 'monthly',
           weekdays: [],
-          monthlyMode: 'day-of-month',
+          monthlyMode: recurrence.monthlyMode ?? 'day-of-month',
           cron: undefined,
         })
         return
