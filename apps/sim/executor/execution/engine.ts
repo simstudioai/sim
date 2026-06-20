@@ -287,17 +287,33 @@ export class ExecutionEngine {
 
       for (const edge of remainingEdges) {
         const targetNode = this.dag.nodes.get(edge.target)
-        if (targetNode) {
-          const hadEdge = targetNode.incomingEdges.has(edge.source)
-          targetNode.incomingEdges.delete(edge.source)
-          if (hadEdge) {
-            this.edgeManager.markNodeWithActivatedEdge(targetNode.id)
-          }
+        if (!targetNode) continue
 
-          if (this.edgeManager.isNodeReady(targetNode)) {
-            this.execLogger.info('Node became ready after edge removal', { nodeId: targetNode.id })
+        const sourceHandle = this.resolveRemainingEdgeHandle(edge)
+        if (sourceHandle === EDGE.ERROR) {
+          this.edgeManager.deactivateResumedEdge(edge.source, targetNode.id, sourceHandle)
+
+          if (
+            this.edgeManager.hasActivatedEdge(targetNode.id) &&
+            this.edgeManager.isNodeReady(targetNode)
+          ) {
+            this.execLogger.info('Convergence node ready after pruning resumed error edge', {
+              nodeId: targetNode.id,
+            })
             this.addToQueue(targetNode.id)
           }
+          continue
+        }
+
+        const hadEdge = targetNode.incomingEdges.has(edge.source)
+        targetNode.incomingEdges.delete(edge.source)
+        if (hadEdge) {
+          this.edgeManager.markNodeWithActivatedEdge(targetNode.id)
+        }
+
+        if (this.edgeManager.isNodeReady(targetNode)) {
+          this.execLogger.info('Node became ready after edge removal', { nodeId: targetNode.id })
+          this.addToQueue(targetNode.id)
         }
       }
 
@@ -349,6 +365,35 @@ export class ExecutionEngine {
     } else {
       this.execLogger.warn('No start node found in DAG')
     }
+  }
+
+  /**
+   * Resolves the source handle for an edge released during pause/resume.
+   * Persisted `remainingEdges` may omit the handle, so fall back to the live DAG
+   * edge. When a source has both a continuation and an `error` edge to the same
+   * target, the continuation handle wins — a successful resume must not prune it.
+   */
+  private resolveRemainingEdgeHandle(edge: {
+    source: string
+    target: string
+    sourceHandle?: string
+  }): string | undefined {
+    if (edge.sourceHandle !== undefined) return edge.sourceHandle
+
+    const sourceNode = this.dag.nodes.get(edge.source)
+    if (!sourceNode) return undefined
+
+    let hasErrorEdge = false
+    for (const [, outgoing] of sourceNode.outgoingEdges) {
+      if (outgoing.target !== edge.target) continue
+      if (outgoing.sourceHandle === EDGE.ERROR) {
+        hasErrorEdge = true
+        continue
+      }
+      return outgoing.sourceHandle
+    }
+
+    return hasErrorEdge ? EDGE.ERROR : undefined
   }
 
   private async processQueue(): Promise<void> {

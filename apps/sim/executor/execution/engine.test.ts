@@ -112,6 +112,8 @@ function createMockEdgeManager(
     getDeactivatedEdges: vi.fn(() => []),
     getNodesWithActivatedEdge: vi.fn(() => []),
     markNodeWithActivatedEdge: vi.fn(),
+    deactivateResumedEdge: vi.fn(),
+    hasActivatedEdge: vi.fn(() => false),
   } as unknown as MockEdgeManager
 }
 
@@ -229,6 +231,136 @@ describe('ExecutionEngine', () => {
 
       expect(edgeManager.markNodeWithActivatedEdge).toHaveBeenCalledWith('join')
       expect(nodeOrchestrator.executeNode).not.toHaveBeenCalled()
+    })
+
+    it('deactivates a resumed pause block error edge instead of firing it', async () => {
+      // Pause block has two outgoing edges: a `source` continuation edge and an
+      // `error` edge to an error-notifier. On a successful resume the error edge
+      // must be deactivated (never marked/queued); only the continuation fires.
+      const pauseNode = createMockNode('pause-block', 'human_in_the_loop')
+      pauseNode.outgoingEdges.set('pause-block→next-source', {
+        target: 'next',
+        sourceHandle: EDGE.SOURCE,
+      })
+      pauseNode.outgoingEdges.set('pause-block→notify-error', {
+        target: 'error-notify',
+        sourceHandle: EDGE.ERROR,
+      })
+
+      const nextNode = createMockNode('next', 'function')
+      nextNode.incomingEdges.add('pause-block')
+
+      const errorNotifyNode = createMockNode('error-notify', 'gmail')
+      errorNotifyNode.incomingEdges.add('pause-block')
+
+      const dag = createMockDAG([pauseNode, nextNode, errorNotifyNode])
+      const context = createMockContext({
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: [],
+          // remainingEdges omit sourceHandle (as persisted snapshots do), forcing
+          // the engine to resolve the handle from the live DAG.
+          remainingEdges: [
+            { source: 'pause-block', target: 'next' },
+            { source: 'pause-block', target: 'error-notify' },
+          ],
+        } as any,
+      })
+      const edgeManager = createMockEdgeManager(() => [])
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run()
+
+      // Continuation edge fires; error edge is deactivated, not activated/queued.
+      expect(edgeManager.markNodeWithActivatedEdge).toHaveBeenCalledWith('next')
+      expect(edgeManager.markNodeWithActivatedEdge).not.toHaveBeenCalledWith('error-notify')
+      expect(edgeManager.deactivateResumedEdge).toHaveBeenCalledWith(
+        'pause-block',
+        'error-notify',
+        EDGE.ERROR
+      )
+      // A pure error-handler target (never activated) must not be executed.
+      expect(nodeOrchestrator.executeNode).not.toHaveBeenCalledWith(context, 'error-notify')
+    })
+
+    it('re-queues a convergence target when a resumed pause error edge is pruned', async () => {
+      // The join is fed by a succeeding block's `source` edge (activated in
+      // phase 1) AND the pause block's `error` edge. On resume the error edge is
+      // pruned, but the join must still run because it already had a genuine
+      // activation — otherwise it would be silently stranded.
+      const pauseNode = createMockNode('pause-block', 'human_in_the_loop')
+      pauseNode.outgoingEdges.set('pause-block→join-error', {
+        target: 'join',
+        sourceHandle: EDGE.ERROR,
+      })
+      const joinNode = createMockNode('join', 'function')
+      joinNode.incomingEdges.add('pause-block')
+
+      const dag = createMockDAG([pauseNode, joinNode])
+      const context = createMockContext({
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: [],
+          remainingEdges: [{ source: 'pause-block', target: 'join' }],
+        } as any,
+      })
+      const edgeManager = createMockEdgeManager(() => [])
+      // Join already received a genuine activation in phase 1 and is now ready.
+      vi.mocked(edgeManager.hasActivatedEdge).mockReturnValue(true)
+      vi.mocked(edgeManager.isNodeReady).mockReturnValue(true)
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run()
+
+      expect(edgeManager.deactivateResumedEdge).toHaveBeenCalledWith(
+        'pause-block',
+        'join',
+        EDGE.ERROR
+      )
+      // Pruning is via deactivation, never force-activation...
+      expect(edgeManager.markNodeWithActivatedEdge).not.toHaveBeenCalledWith('join')
+      // ...but the already-activated convergence node still runs.
+      expect(nodeOrchestrator.executeNode).toHaveBeenCalledWith(context, 'join')
+    })
+
+    it('prefers the continuation handle when a pause block also errors into the same target', async () => {
+      // Pause block wires BOTH source and error into the same target. The error
+      // edge is registered first, but on a successful resume the continuation
+      // (source) handle must win, so the target is activated, not pruned.
+      const pauseNode = createMockNode('pause-block', 'human_in_the_loop')
+      pauseNode.outgoingEdges.set('pause-block→both-error', {
+        target: 'both',
+        sourceHandle: EDGE.ERROR,
+      })
+      pauseNode.outgoingEdges.set('pause-block→both-source', {
+        target: 'both',
+        sourceHandle: EDGE.SOURCE,
+      })
+      const bothNode = createMockNode('both', 'function')
+      bothNode.incomingEdges.add('pause-block')
+
+      const dag = createMockDAG([pauseNode, bothNode])
+      const context = createMockContext({
+        metadata: {
+          executionId: 'test-execution',
+          startTime: new Date().toISOString(),
+          pendingBlocks: [],
+          remainingEdges: [{ source: 'pause-block', target: 'both' }],
+        } as any,
+      })
+      const edgeManager = createMockEdgeManager(() => [])
+      const nodeOrchestrator = createMockNodeOrchestrator()
+
+      const engine = new ExecutionEngine(context, dag, edgeManager, nodeOrchestrator)
+      await engine.run()
+
+      expect(edgeManager.markNodeWithActivatedEdge).toHaveBeenCalledWith('both')
+      expect(edgeManager.deactivateResumedEdge).not.toHaveBeenCalled()
+      expect(nodeOrchestrator.executeNode).toHaveBeenCalledWith(context, 'both')
     })
 
     it('should execute all nodes in a multi-node workflow', async () => {
