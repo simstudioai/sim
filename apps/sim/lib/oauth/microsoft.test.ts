@@ -64,6 +64,11 @@ describe('deriveMicrosoftEmailVerified', () => {
     )
     expect(deriveMicrosoftEmailVerified({ verified_primary_email: null }, EMAIL)).toBe(false)
   })
+
+  it('does not treat a string claim equal to the email as verified (guards the old unsafe cast)', () => {
+    expect(deriveMicrosoftEmailVerified({ verified_primary_email: EMAIL }, EMAIL)).toBe(false)
+    expect(deriveMicrosoftEmailVerified({ verified_secondary_email: EMAIL }, EMAIL)).toBe(false)
+  })
 })
 
 describe('isMicrosoftProvider', () => {
