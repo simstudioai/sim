@@ -105,6 +105,14 @@ export interface UsePromptEditorProps {
   /** Initial text. Chipified (`@`-mentions / `/`-skills converted) on mount. */
   initialValue?: string
   /**
+   * Contexts to seed the editor with — restored resource mentions (files,
+   * tables, knowledge) that cannot be recovered from the prompt text alone.
+   * Seed these rather than calling `setContexts` after mount: the mount
+   * chipify pass MERGES integration `@`-mentions and `/`-skills on top, so a
+   * post-mount `setContexts` would clobber those auto-registered contexts.
+   */
+  initialContexts?: ChatContext[]
+  /**
    * Notified when a context is added through an interactive path — a mention
    * pick, a resource drop, or a skill pick. Paste re-registration is
    * intentionally silent so pasting never auto-opens host side panels.
@@ -142,6 +150,7 @@ export type PromptEditorInstance = ReturnType<typeof usePromptEditor>
 export function usePromptEditor({
   workspaceId,
   initialValue = '',
+  initialContexts,
   onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
@@ -170,7 +179,7 @@ export function usePromptEditor({
   const slashRangeRef = useRef<{ start: number; end: number } | null>(null)
   const [slashQuery, setSlashQuery] = useState<string | null>(null)
 
-  const contextManagement = useContextManagement({ message: value })
+  const contextManagement = useContextManagement({ message: value, initialContexts })
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
 

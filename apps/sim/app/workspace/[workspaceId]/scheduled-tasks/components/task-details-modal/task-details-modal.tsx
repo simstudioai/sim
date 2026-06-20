@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect } from 'react'
 import { format } from 'date-fns'
 import { useParams } from 'next/navigation'
 import {
@@ -70,19 +69,19 @@ export function TaskDetailsModal({ task, onClose }: TaskDetailsModalProps) {
  */
 function TaskDetailsContent({ task, onClose }: { task: ScheduledTask; onClose: () => void }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const editor = usePromptEditor({ workspaceId, initialValue: task.prompt })
-  const setContexts = editor.setContexts
-
   /**
-   * Re-registers the task's stored `@`-mentions once on open so resource chips
-   * (files, tables, knowledge) render. Integration `@`-mentions and `/`-skills
-   * chipify from the seeded text alone, so they render even without stored
-   * contexts. Runs once per open since the content remounts each time it opens.
+   * Seed the stored resource mentions (files, tables, knowledge) as the editor's
+   * initial contexts — these can't be recovered from the prompt text alone. The
+   * mount chipify pass then merges integration `@`-mentions and `/`-skills on top
+   * (they DO chipify from text), so the overlay renders the full set. Seeding is
+   * deliberate over a post-mount `setContexts`, which would clobber the
+   * auto-registered integration/skill contexts.
    */
-  useEffect(() => {
-    if (task.contexts && task.contexts.length > 0) setContexts(task.contexts)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only re-register
-  }, [])
+  const editor = usePromptEditor({
+    workspaceId,
+    initialValue: task.prompt,
+    initialContexts: task.contexts,
+  })
 
   return (
     <>
