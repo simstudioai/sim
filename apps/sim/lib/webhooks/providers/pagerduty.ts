@@ -60,6 +60,9 @@ export const pagerdutyHandler: WebhookProviderHandler = {
     headerName: 'X-PagerDuty-Signature',
     validateFn: validatePagerDutySignature,
     providerLabel: 'PagerDuty',
+    // The signing secret is captured during auto-registration, so a missing
+    // secret means misconfiguration — fail closed rather than skip verification.
+    requireSecret: true,
   }),
 
   async matchEvent({ body, requestId, providerConfig }: EventMatchContext) {

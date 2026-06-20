@@ -30,6 +30,18 @@ function zendeskAuthHeader(email: string, apiToken: string): string {
   return `Basic ${Buffer.from(`${email}/token:${apiToken}`).toString('base64')}`
 }
 
+/** Best-effort delete used to avoid orphaning a webhook when post-create setup fails. */
+async function deleteZendeskWebhookQuietly(
+  apiBase: string,
+  authHeader: string,
+  webhookId: string
+): Promise<void> {
+  await fetch(`${apiBase}/webhooks/${webhookId}`, {
+    method: 'DELETE',
+    headers: { Authorization: authHeader },
+  }).catch(() => {})
+}
+
 /** Maximum allowed clock skew (5 minutes) between Zendesk's signed timestamp and now, per Zendesk docs. */
 const ZENDESK_TIMESTAMP_MAX_SKEW_MS = 5 * 60 * 1000
 
@@ -67,7 +79,10 @@ export const zendeskHandler: WebhookProviderHandler = {
   verifyAuth({ request, rawBody, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      return null
+      // The signing secret is fetched during auto-registration, so a missing
+      // secret means misconfiguration — fail closed rather than skip.
+      logger.warn(`[${requestId}] Zendesk webhook secret not configured`)
+      return new NextResponse('Unauthorized - Missing Zendesk webhook secret', { status: 401 })
     }
 
     const signature = request.headers.get('X-Zendesk-Webhook-Signature')
@@ -201,12 +216,17 @@ export const zendeskHandler: WebhookProviderHandler = {
         `[${ctx.requestId}] Created Zendesk webhook ${externalId} but failed to fetch signing secret (${secretRes.status})`,
         { detail }
       )
+      // Avoid leaving an orphaned webhook in Zendesk when secret retrieval fails.
+      await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
       throw new Error(`Failed to fetch Zendesk signing secret: ${secretRes.status}`)
     }
 
     const secretBody = asRecord((await secretRes.json().catch(() => ({}))) as unknown)
     const secret = asRecord(secretBody.signing_secret).secret as string | undefined
-    if (!secret) throw new Error('Zendesk did not return a signing secret for the webhook.')
+    if (!secret) {
+      await deleteZendeskWebhookQuietly(apiBase, authHeader, externalId)
+      throw new Error('Zendesk did not return a signing secret for the webhook.')
+    }
 
     logger.info(`[${ctx.requestId}] Created Zendesk webhook ${externalId}`)
     return { providerConfigUpdates: { externalId, webhookSecret: secret } }

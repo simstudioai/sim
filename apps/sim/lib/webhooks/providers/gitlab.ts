@@ -29,12 +29,14 @@ function gitlabProjectHooksUrl(projectId: string): string {
 export const gitlabHandler: WebhookProviderHandler = {
   /**
    * GitLab echoes the configured "Secret token" verbatim in the `X-Gitlab-Token`
-   * header (plain equality, not an HMAC). Skip verification when no token is set.
+   * header (plain equality, not an HMAC). The secret is generated during
+   * auto-registration, so a missing secret means misconfiguration — fail closed.
    */
   verifyAuth({ request, requestId, providerConfig }: AuthContext) {
     const secret = providerConfig.webhookSecret as string | undefined
     if (!secret) {
-      return null
+      logger.warn(`[${requestId}] GitLab webhook secret not configured`)
+      return new NextResponse('Unauthorized - Missing GitLab webhook secret', { status: 401 })
     }
 
     const token = request.headers.get('X-Gitlab-Token')
