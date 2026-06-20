@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { posToDOMRect } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
@@ -32,12 +32,21 @@ function hasFormattableSelection(editor: Editor, from: number, to: number): bool
   return editor.state.doc.textBetween(from, to, ' ').trim().length > 0
 }
 
-// Pin the toolbar to the viewport (fixed) and never attach a scroll listener, so once it's placed for
-// a selection it stays put while the document scrolls instead of tracking the text — matching Linear.
+/**
+ * Reveals the bubble menu for the current selection. Both calls are required and must stay in order:
+ * `show` alone leaves the bar visible but unpositioned (its internal `updatePosition` no-ops until the
+ * menu is shown), so the follow-up `updatePosition` anchors it. Both are step-free transactions, so
+ * neither marks the document dirty.
+ */
+function revealBubbleMenu(editor: Editor, key: PluginKey): void {
+  editor.commands.setMeta(key, 'show')
+  editor.commands.setMeta(key, 'updatePosition')
+}
+
+/** Pins the toolbar to the viewport so it stays put while the document scrolls instead of tracking the text. */
 const FLOATING_OPTIONS = { strategy: 'fixed' } as const
 
-// Render into the body so a transformed/clipping ancestor (e.g. the mothership panels) can't reparent
-// the fixed-positioned toolbar and shift it off the selection.
+/** Renders into the body so a transformed/clipping ancestor can't reparent the fixed toolbar and shift it. */
 const APPEND_TO_BODY = () => document.body
 
 interface EditorBubbleMenuProps {
@@ -58,8 +67,7 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
   const linkRangeRef = useRef<{ from: number; to: number } | null>(null)
   const isEditingLink = linkValue !== null
 
-  // Explicit key so `setMeta` can target this menu to reveal it after a drag-select.
-  const bubbleMenuKey = useMemo(() => new PluginKey('markdownBubbleMenu'), [])
+  const [bubbleMenuKey] = useState(() => new PluginKey('markdownBubbleMenu'))
   const isPointerDownRef = useRef(false)
 
   const active = useEditorState({
@@ -94,8 +102,12 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     }
   }, [editor])
 
-  // Reveal the toolbar only once a drag-select finishes (Linear-style); `shouldShow` keeps it hidden
-  // while the pointer is down. Keyboard selection has no pointer, so it still shows live.
+  /**
+   * Linear-style reveal: the toolbar stays hidden while the pointer is down (the drag gate in
+   * `shouldShow`) and surfaces on release. `mouseup`/`blur` listen on `window` so a release outside
+   * the editor — or off-screen, where no `mouseup` fires — still clears the drag flag; otherwise it
+   * could wedge `true` and suppress the toolbar for later keyboard selections.
+   */
   useEffect(() => {
     const dom = editor.view.dom
     const onPointerDown = () => {
@@ -105,14 +117,8 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
       if (!isPointerDownRef.current || editor.isDestroyed) return
       isPointerDownRef.current = false
       const { from, to } = editor.state.selection
-      if (hasFormattableSelection(editor, from, to)) {
-        // `show` alone leaves the bar visible-but-unpositioned (its updatePosition no-ops until shown),
-        // so a second `updatePosition` anchors it. Both are step-free, so the doc isn't marked dirty.
-        editor.commands.setMeta(bubbleMenuKey, 'show')
-        editor.commands.setMeta(bubbleMenuKey, 'updatePosition')
-      }
+      if (hasFormattableSelection(editor, from, to)) revealBubbleMenu(editor, bubbleMenuKey)
     }
-    // A release outside the window delivers no mouseup; clear the flag on blur so it can't stay wedged.
     const onWindowBlur = () => {
       isPointerDownRef.current = false
     }
@@ -175,10 +181,6 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
     setLinkValue(null)
   }
 
-  // Freeze the anchor per selection: the rect is computed once (in viewport coordinates) and reused on
-  // every scroll/resize reposition, so the toolbar stays where it first appeared instead of tracking
-  // the moving text — matching Linear. A new selection recomputes it. A selection taller than the
-  // viewport (e.g. select-all) is clamped into the visible area so the bar isn't placed off-screen.
   const anchorCacheRef = useRef<{ key: string; rect: DOMRect } | null>(null)
   const resolveAnchor = useCallback(() => {
     const { view, state } = editor
@@ -218,7 +220,6 @@ export function EditorBubbleMenu({ editor, scrollContainerRef }: EditorBubbleMen
         // can't be applied to a doc that must not mutate.
         if (!e.isEditable) return false
         if (isEditingLink) return true
-        // Suppressed mid-drag; the pointer-release handler forces it back open once the selection sticks.
         if (isPointerDownRef.current) return false
         return hasFormattableSelection(e, from, to)
       }}
