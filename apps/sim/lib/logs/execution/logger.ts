@@ -602,15 +602,15 @@ export class ExecutionLogger implements IExecutionLoggerService {
   ): Promise<RedactablePayload> {
     if (!workspaceId) return payload
 
+    if (!(await isFeatureEnabled('pii-redaction'))) return payload
+
     const [row] = await db
-      .select({ orgId: organization.id, orgSettings: organization.dataRetentionSettings })
+      .select({ orgSettings: organization.dataRetentionSettings })
       .from(workspace)
       .leftJoin(organization, eq(organization.id, workspace.organizationId))
       .where(eq(workspace.id, workspaceId))
       .limit(1)
     if (!row) return payload
-
-    if (!(await isFeatureEnabled('pii-redaction', { orgId: row.orgId }))) return payload
 
     // Rules are only writable by enterprise orgs (route-gated), so an enabled
     // rule already implies entitlement. We deliberately do NOT re-check

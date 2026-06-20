@@ -85,8 +85,9 @@ const FEATURE_FLAGS = {
   'pii-redaction': {
     description:
       'Redact PII from workflow logs via configurable Data Retention rules (Presidio at the ' +
-      'logger persist choke point) and expose the Data Retention config surfaces. Gate by org ' +
-      'for staged rollout.',
+      'logger persist choke point) and expose the Data Retention config surfaces. Global on/off ' +
+      'only — evaluated without user/org context so the persist path and config routes always ' +
+      'agree.',
     fallback: 'PII_REDACTION',
   },
 } satisfies Record<string, FeatureFlagDefinition>

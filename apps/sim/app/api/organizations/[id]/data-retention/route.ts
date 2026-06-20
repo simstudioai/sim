@@ -77,10 +77,7 @@ export const GET = withRouteHandler(
     }
 
     const isEnterprise = !isBillingEnabled || (await isOrganizationOnEnterprisePlan(organizationId))
-    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction', {
-      userId: session.user.id,
-      orgId: organizationId,
-    })
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
     const configured = normalizeConfigured(org.dataRetentionSettings)
     const defaults = enterpriseDefaults()
 
@@ -160,10 +157,7 @@ export const PUT = withRouteHandler(
       return NextResponse.json({ error: 'Organization not found' }, { status: 404 })
     }
 
-    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction', {
-      userId: session.user.id,
-      orgId: organizationId,
-    })
+    const piiRedactionEnabled = await isFeatureEnabled('pii-redaction')
 
     const current = normalizeConfigured(currentOrg.dataRetentionSettings)
     const merged: DataRetentionSettings = { ...current }
