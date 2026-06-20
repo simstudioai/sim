@@ -28,6 +28,14 @@ export interface PromptEditorProps extends PromptEditorKeyPolicy {
   /** Focuses the editor (caret at end) on mount. */
   autoFocus?: boolean
   /**
+   * Renders the editor as a non-editable display surface: the textarea becomes
+   * `readOnly` (so the chip overlay still paints `@`-mention / `/`-skill chips
+   * and the text stays selectable/copyable) and the caret-anchored resource and
+   * skill menus are not mounted. Use for read-only records — e.g. a finished
+   * scheduled task — where the prompt should render with chips but not be edited.
+   */
+  readOnly?: boolean
+  /**
    * Layout/sizing only — a height cap (`max-h-[200px]`) or fill (`flex-1`)
    * for the scroll container. The text chrome is owned by the editor.
    */
@@ -56,6 +64,7 @@ export function PromptEditor({
   editor,
   placeholder,
   autoFocus = false,
+  readOnly = false,
   className,
   'aria-label': ariaLabel,
   onSubmit,
@@ -73,7 +82,7 @@ export function PromptEditor({
   }, [value, textareaRef])
 
   useEffect(() => {
-    if (autoFocus) editor.focusAtEnd()
+    if (autoFocus && !readOnly) editor.focusAtEnd()
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only focus
   }, [])
 
@@ -167,13 +176,16 @@ export function PromptEditor({
         <textarea
           ref={textareaRef}
           value={value}
-          onChange={editor.handleInputChange}
-          onKeyDown={(e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })}
-          onPaste={editor.handlePaste}
+          readOnly={readOnly}
+          onChange={readOnly ? undefined : editor.handleInputChange}
+          onKeyDown={
+            readOnly ? undefined : (e) => editor.handleKeyDown(e, { onSubmit, onArrowUpOnEmpty })
+          }
+          onPaste={readOnly ? undefined : editor.handlePaste}
           onCopy={editor.handleCopy}
-          onCut={editor.handleCut}
-          onSelect={editor.handleSelectAdjust}
-          onMouseUp={editor.handleSelectAdjust}
+          onCut={readOnly ? undefined : editor.handleCut}
+          onSelect={readOnly ? undefined : editor.handleSelectAdjust}
+          onMouseUp={readOnly ? undefined : editor.handleSelectAdjust}
           placeholder={placeholder}
           aria-label={ariaLabel}
           rows={1}
@@ -181,24 +193,28 @@ export function PromptEditor({
         />
       </div>
 
-      <PlusMenuDropdown
-        ref={editor.plusMenuRef}
-        availableResources={editor.availableResources}
-        onResourceSelect={editor.insertResource}
-        onClose={editor.handlePlusMenuClose}
-        textareaRef={editor.textareaRef}
-        pendingCursorRef={editor.pendingCursorRef}
-        mentionQuery={editor.mentionQuery ?? undefined}
-      />
-      <SkillsMenuDropdown
-        ref={editor.skillsMenuRef}
-        skills={editor.skills}
-        onSkillSelect={editor.handleSkillSelect}
-        onClose={editor.handleSkillsMenuClose}
-        textareaRef={editor.textareaRef}
-        pendingCursorRef={editor.pendingCursorRef}
-        slashQuery={editor.slashQuery ?? undefined}
-      />
+      {!readOnly && (
+        <>
+          <PlusMenuDropdown
+            ref={editor.plusMenuRef}
+            availableResources={editor.availableResources}
+            onResourceSelect={editor.insertResource}
+            onClose={editor.handlePlusMenuClose}
+            textareaRef={editor.textareaRef}
+            pendingCursorRef={editor.pendingCursorRef}
+            mentionQuery={editor.mentionQuery ?? undefined}
+          />
+          <SkillsMenuDropdown
+            ref={editor.skillsMenuRef}
+            skills={editor.skills}
+            onSkillSelect={editor.handleSkillSelect}
+            onClose={editor.handleSkillsMenuClose}
+            textareaRef={editor.textareaRef}
+            pendingCursorRef={editor.pendingCursorRef}
+            slashQuery={editor.slashQuery ?? undefined}
+          />
+        </>
+      )}
     </div>
   )
 }

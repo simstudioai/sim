@@ -2,7 +2,14 @@
 
 import { useRef } from 'react'
 import { format } from 'date-fns'
-import { Chip, ChipDatePicker, ChipModalField, ChipModalSeparator, Switch } from '@/components/emcn'
+import {
+  ChipDatePicker,
+  ChipModalField,
+  ChipModalSeparator,
+  chipVariants,
+  Switch,
+} from '@/components/emcn'
+import { cn } from '@/lib/core/utils/cn'
 import type {
   MonthlyMode,
   Recurrence,
@@ -219,21 +226,28 @@ export function RecurrenceSection({ recurrence, onChange, launchDate }: Recurren
 
             {recurrence.frequency === 'weekly' && (
               <ChipModalField type='custom' title='Repeat on'>
-                <div className='flex gap-1'>
+                {/* A one-row extract of the calendar: seven equal day cells that
+                    reuse its exact day-cell grammar (`primary` fill when on, bare
+                    `--text-body` when off) so the weekday toggles read as a sibling
+                    of the date picker rather than a separate segmented bar. */}
+                <div className='grid grid-cols-7 gap-1'>
                   {WEEKDAYS.map((weekday) => {
                     const selected = selectedWeekdays.includes(weekday.value)
                     return (
-                      <Chip
+                      <button
                         key={weekday.value}
-                        active={selected}
-                        flush
-                        className='min-w-0 flex-1 justify-center'
+                        type='button'
                         aria-pressed={selected}
                         aria-label={weekday.name}
                         onClick={() => handleWeekdayToggle(weekday.value)}
+                        className={cn(
+                          chipVariants({ variant: selected ? 'primary' : undefined, flush: true }),
+                          'h-[30px] w-full justify-center p-0',
+                          !selected && 'text-[var(--text-body)]'
+                        )}
                       >
                         {weekday.short}
-                      </Chip>
+                      </button>
                     )
                   })}
                 </div>
