@@ -44,6 +44,47 @@ describe('recurrenceToCron', () => {
     ).toBe('5 7 15 * *')
   })
 
+  it('builds a monthly nth-weekday expression (2026-06-15 is the third Monday)', () => {
+    expect(
+      recurrenceToCron(
+        { frequency: 'monthly', weekdays: [], monthlyMode: 'nth-weekday', end: { type: 'never' } },
+        '2026-06-15',
+        '09:30'
+      )
+    ).toBe('30 9 * * 1#3')
+  })
+
+  it('builds a monthly last-weekday expression', () => {
+    expect(
+      recurrenceToCron(
+        { frequency: 'monthly', weekdays: [], monthlyMode: 'last-weekday', end: { type: 'never' } },
+        '2026-06-29',
+        '09:30'
+      )
+    ).toBe('30 9 * * 1#L')
+  })
+
+  it('clamps a 5th-occurrence nth-weekday to last-weekday so no month is skipped', () => {
+    // 2026-06-29 is the fifth Monday of June; `#5` would skip months without one.
+    expect(
+      recurrenceToCron(
+        { frequency: 'monthly', weekdays: [], monthlyMode: 'nth-weekday', end: { type: 'never' } },
+        '2026-06-29',
+        '09:30'
+      )
+    ).toBe('30 9 * * 1#L')
+  })
+
+  it('builds a yearly expression from the launch month and day', () => {
+    expect(
+      recurrenceToCron(
+        { frequency: 'yearly', weekdays: [], end: { type: 'never' } },
+        '2026-06-15',
+        '09:30'
+      )
+    ).toBe('30 9 15 6 *')
+  })
+
   it('preserves a custom expression verbatim', () => {
     expect(
       recurrenceToCron(
@@ -124,15 +165,81 @@ describe('cronToRecurrence', () => {
     expect(weekly.frequency).toBe('weekly')
     expect(weekly.weekdays).toEqual([1, 3])
 
+    const monthly = cronToRecurrence({
+      cronExpression: '5 7 15 * *',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(monthly.frequency).toBe('monthly')
+    expect(monthly.monthlyMode).toBe('day-of-month')
+  })
+
+  it('recovers monthly nth-weekday, monthly last-weekday, and yearly cadences', () => {
+    const nthWeekday = cronToRecurrence({
+      cronExpression: '30 9 * * 1#3',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(nthWeekday.frequency).toBe('monthly')
+    expect(nthWeekday.monthlyMode).toBe('nth-weekday')
+
+    const lastWeekday = cronToRecurrence({
+      cronExpression: '30 9 * * 1#L',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(lastWeekday.frequency).toBe('monthly')
+    expect(lastWeekday.monthlyMode).toBe('last-weekday')
+
     expect(
       cronToRecurrence({
-        cronExpression: '5 7 15 * *',
+        cronExpression: '30 9 15 6 *',
         maxRuns: null,
         endsAt: null,
         anchor,
         timezone: 'UTC',
       }).recurrence.frequency
-    ).toBe('monthly')
+    ).toBe('yearly')
+  })
+
+  it("accepts croner's alternate Sunday digit (7) for monthly weekday anchors", () => {
+    const nth = cronToRecurrence({
+      cronExpression: '30 9 * * 7#3',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(nth.frequency).toBe('monthly')
+    expect(nth.monthlyMode).toBe('nth-weekday')
+
+    const last = cronToRecurrence({
+      cronExpression: '30 9 * * 7#L',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    }).recurrence
+    expect(last.frequency).toBe('monthly')
+    expect(last.monthlyMode).toBe('last-weekday')
+  })
+
+  it('leaves a 5th-occurrence (#5) cron as custom so its month-skipping is preserved', () => {
+    const { recurrence } = cronToRecurrence({
+      cronExpression: '30 9 * * 1#5',
+      maxRuns: null,
+      endsAt: null,
+      anchor,
+      timezone: 'UTC',
+    })
+    expect(recurrence.frequency).toBe('custom')
+    expect(recurrence.cron).toBe('30 9 * * 1#5')
   })
 
   it('falls back to custom for an expression it did not author', () => {
@@ -207,6 +314,21 @@ describe('expandOccurrences', () => {
   it('omits occurrences that already passed relative to `from`', () => {
     const occurrences = expandOccurrences({ ...base, from: new Date('2026-06-02T13:00:00Z') })
     expect(occurrences.map((d) => d.toISOString())).toEqual(['2026-06-03T12:00:00.000Z'])
+  })
+
+  it('materializes a monthly nth-weekday cron (third Monday of each month)', () => {
+    const occurrences = expandOccurrences({
+      cronExpression: '30 9 * * 1#3',
+      timezone: 'UTC',
+      rangeStart: new Date('2026-06-01T00:00:00Z'),
+      rangeEnd: new Date('2026-08-31T23:59:59Z'),
+      from: new Date('2026-05-31T00:00:00Z'),
+    })
+    expect(occurrences.map((d) => d.toISOString())).toEqual([
+      '2026-06-15T09:30:00.000Z',
+      '2026-07-20T09:30:00.000Z',
+      '2026-08-17T09:30:00.000Z',
+    ])
   })
 
   it('returns nothing for an invalid expression instead of throwing', () => {
