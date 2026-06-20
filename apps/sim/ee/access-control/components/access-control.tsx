@@ -1291,9 +1291,11 @@ export function AccessControl() {
                 )}
                 {!viewingGroup.isDefault && !membersLoading && (
                   <p className='text-[var(--text-muted)] text-md'>
-                    {members.length === 0
-                      ? 'Applies to all members of its workspaces, including external members.'
-                      : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}.`}
+                    {viewingGroup.workspaces.length === 0
+                      ? 'Applies to no one yet — add workspaces below to choose who this group governs.'
+                      : members.length === 0
+                        ? 'Applies to all members of its workspaces, including external members.'
+                        : `Restricted to ${members.length} member${members.length === 1 ? '' : 's'}.`}
                   </p>
                 )}
               </div>
