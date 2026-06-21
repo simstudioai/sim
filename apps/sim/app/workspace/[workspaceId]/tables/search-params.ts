@@ -21,8 +21,9 @@ export const DEFAULT_TABLE_SORT_DIRECTION = 'desc'
 /**
  * Co-located, typed URL query-param definitions for the Tables list.
  *
- * - `search` is the table name filter, written debounced from the local input
- *   (logs pattern) — never on every keystroke.
+ * - `search` is the table name filter. The input is controlled directly by the
+ *   nuqs value; only its URL write is debounced via `limitUrlUpdates`
+ *   (`debounce`) on the setter — never written on every keystroke.
  * - `sort` / `dir` follow the shared sort convention (two scalar params).
  * - `rows` filters by row-count bucket; `owner` filters by creator id. Both are
  *   multi-select arrays.

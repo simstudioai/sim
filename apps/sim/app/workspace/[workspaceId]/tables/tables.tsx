@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
+import { debounce, useQueryStates } from 'nuqs'
 import type { ComboboxOption } from '@/components/emcn'
 import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
@@ -52,6 +52,9 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 const logger = createLogger('Tables')
+
+/** Debounce window for `search` URL writes; the input itself stays instant. */
+const SEARCH_DEBOUNCE_MS = 300 as const
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
@@ -107,8 +110,20 @@ export function Tables() {
     setTableFilters,
   ] = useQueryStates(tablesParsers, tablesUrlKeys)
 
-  const [searchTerm, setSearchTerm] = useState(urlSearchTerm)
-  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+  // The input is controlled directly by the instant nuqs value; only the URL
+  // write is debounced. The in-memory filter below still reads a debounced value
+  // so it doesn't recompute on every keystroke.
+  const setSearchTerm = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      setTableFilters(
+        { search: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }
+      )
+    },
+    [setTableFilters]
+  )
+  const debouncedSearchTerm = useDebounce(urlSearchTerm, 300)
 
   /**
    * The resolved sort is exposed to the sort menu only when it differs from the
@@ -134,17 +149,6 @@ export function Tables() {
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    setTableFilters({ search: debouncedSearchTerm.length > 0 ? debouncedSearchTerm : null })
-  }, [debouncedSearchTerm, setTableFilters])
-
-  const lastSyncedUrlSearchRef = useRef(urlSearchTerm)
-  useEffect(() => {
-    if (urlSearchTerm === lastSyncedUrlSearchRef.current) return
-    lastSyncedUrlSearchRef.current = urlSearchTerm
-    setSearchTerm((current) => (current === urlSearchTerm ? current : urlSearchTerm))
-  }, [urlSearchTerm])
 
   const {
     isOpen: isListContextMenuOpen,
@@ -251,12 +255,12 @@ export function Tables() {
 
   const searchConfig: SearchConfig = useMemo(
     () => ({
-      value: searchTerm,
+      value: urlSearchTerm,
       onChange: setSearchTerm,
       onClearAll: () => setSearchTerm(''),
       placeholder: 'Search tables...',
     }),
-    [searchTerm]
+    [urlSearchTerm, setSearchTerm]
   )
 
   const sortConfig: SortConfig = useMemo(

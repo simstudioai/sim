@@ -14,8 +14,9 @@ export const CONNECTED_LABEL = 'Connected'
  *   `IntegrationType` enum values with the `All`/`Featured`/`Connected`
  *   pseudo-categories and are derived from the data set, so a plain string is
  *   used; the `All` default clears from the URL.
- * - `search` is the integration search term. It is written debounced from the
- *   local input (logs pattern) — never on every keystroke.
+ * - `search` is the integration search term. The input is controlled directly by
+ *   the nuqs value; only its URL write is debounced via `limitUrlUpdates`
+ *   (`debounce`) on the setter — never written on every keystroke.
  */
 export const integrationsParsers = {
   category: parseAsString.withDefault(ALL_CATEGORY),

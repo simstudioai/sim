@@ -29,7 +29,9 @@ export const DEFAULT_RECENTLY_DELETED_SORT_DIRECTION = 'desc'
  *
  * - `tab` is the active resource-type filter.
  * - `sort` / `dir` follow the shared sort convention.
- * - `search` is the name filter, written debounced from the local input.
+ * - `search` is the name filter. The input is controlled directly by the nuqs
+ *   value; only its URL write is debounced via `limitUrlUpdates` (`debounce`) on
+ *   the setter — never written on every keystroke.
  */
 export const recentlyDeletedParsers = {
   tab: parseAsStringLiteral(RECENTLY_DELETED_TABS).withDefault('all'),

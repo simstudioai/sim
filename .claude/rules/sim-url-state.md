@@ -55,7 +55,8 @@ Conventions:
 - Navigations that belong in browser history (changing folder, opening a deep-linked entity): `{ history: 'push' }`.
 - `shallow: false` **only** when a Server Component / loader must re-read the param.
 - Short, stable, **kebab-case** URL keys. Renaming a key is a breaking change to shared links — treat it as one.
-- For an opaque/literal value use `parseAsStringLiteral([...] as const)`; for a custom wire format use `createParser`.
+- For an opaque/literal value use `parseAsStringLiteral([...] as const)`; for a custom wire format use [`createParser`](https://nuqs.dev/docs/parsers).
+- A `createParser` for a value **not** comparable with `===` (arrays, objects, `Date`) **must** define an `eq` — `clearOnDefault` uses it to detect the default, so without it an empty-array/object default never strips from the URL. Built-in `parseAsArrayOf(...)` already ships its own `eq`; only string/number/boolean custom parsers can omit it. Example (array): `eq: (a, b) => a.length === b.length && a.every((v, i) => v === b[i])`.
 
 ### Example — grouped filters (single source of truth)
 
@@ -126,7 +127,26 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 ## Debounced text inputs
 
-Keep local `useState` for snappy typing; push to the URL debounced, and reconcile from the URL with a ref-guarded effect so external URL changes (back/forward, deep link) flow back into the input without clobbering in-flight keystrokes. This is the established logs pattern — follow it rather than writing every keystroke to the URL.
+Use nuqs's built-in [`limitUrlUpdates: debounce(ms)`](https://nuqs.dev/docs/options) — never hand-roll a local `useState` mirror + `useDebounce` + a URL write-back effect + a ref-guarded URL→local reconcile effect. The hook's returned value updates instantly (so the input is controlled directly by the nuqs value and stays snappy); only the *URL write* is debounced. Back/forward and deep links flow back natively because the input reads the nuqs value — no reconcile effect needed.
+
+- **Standalone single search param** (`useQueryState`): put `limitUrlUpdates: debounce(300)` in the param's options.
+- **Search inside a grouped `useQueryStates`**: keep the group's immediate writes for the discrete filters; pass the option **per call** only on the search setter, never on the whole group:
+
+  ```typescript
+  import { debounce } from 'nuqs'
+
+  const setSearch = useCallback(
+    (value: string) => {
+      const next = value.length > 0 ? value : null
+      // Immediate update when clearing so the param drops out without lingering.
+      setFilters({ search: next }, next === null ? undefined : { limitUrlUpdates: debounce(300) })
+    },
+    [setFilters]
+  )
+  ```
+
+- **Keep fetches/filtering debounced.** Where the search value feeds a React Query key or an expensive in-memory filter, derive a debounced value off the instant nuqs value (`const debounced = useDebounce(urlSearch, 300)`) and feed *that* to the query — the instant value is only for the input box. Cheap in-memory filtering over a small static list may read the instant value directly.
+- Preserve `.trim()` handling, `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. Import `debounce` from `nuqs` (client) — not `nuqs/server`. See logs (`use-log-filters.ts` grouped, query stays debounced), integrations/recently-deleted (cheap in-memory filter, instant value), and tables (filter stays debounced).
 
 ## Sort convention (`sort` + `dir`)
 

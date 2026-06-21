@@ -233,8 +233,10 @@ export default function Logs() {
   const [executionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
   const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() => executionId)
 
-  const [searchQuery, setSearchQuery] = useState(urlSearchQuery)
-  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+  // `urlSearchQuery` is the instant nuqs value (its URL write is debounced inside
+  // `useLogFilters`); the query/filtering still debounce off it to avoid per-keystroke
+  // fetches.
+  const debouncedSearchQuery = useDebounce(urlSearchQuery, 300)
 
   const isLive = true
   const [isVisuallyRefreshing, setIsVisuallyRefreshing] = useState(false)
@@ -384,10 +386,6 @@ export default function Logs() {
     }
   }, [])
 
-  useEffect(() => {
-    setUrlSearchQuery(debouncedSearchQuery)
-  }, [debouncedSearchQuery, setUrlSearchQuery])
-
   const handleLogClick = useCallback((rowId: string) => {
     dispatch({ type: 'TOGGLE_LOG', logId: rowId })
   }, [])
@@ -462,8 +460,8 @@ export default function Logs() {
 
   const handleClearAllFilters = useCallback(() => {
     resetFilters()
-    setSearchQuery('')
-  }, [resetFilters, setSearchQuery])
+    setUrlSearchQuery('')
+  }, [resetFilters, setUrlSearchQuery])
 
   const handleOpenPreview = useCallback(() => {
     if (contextMenuLog?.id) {
@@ -613,18 +611,6 @@ export default function Logs() {
     endDate,
     debouncedSearchQuery,
   ])
-
-  /**
-   * Mirror external URL `search` changes (back/forward navigation, programmatic
-   * resets) into the local input state. nuqs keeps the filter state itself in
-   * sync with the URL; this only reconciles the debounced local input mirror.
-   */
-  const lastSyncedUrlSearchRef = useRef(urlSearchQuery)
-  useEffect(() => {
-    if (urlSearchQuery === lastSyncedUrlSearchRef.current) return
-    lastSyncedUrlSearchRef.current = urlSearchQuery
-    setSearchQuery((current) => (current.trim() === urlSearchQuery ? current : urlSearchQuery))
-  }, [urlSearchQuery])
 
   const loadMoreLogs = useCallback(() => {
     const { isFetching, hasNextPage, fetchNextPage } = logsQueryRef.current
@@ -832,13 +818,16 @@ export default function Logs() {
     [workflowsData, foldersData, triggersData]
   )
 
-  const handleFiltersChange = useCallback((filters: ParsedFilter[], textSearch: string) => {
-    const filterStrings = filters.map(
-      (f) => `${f.field}:${f.operator !== '=' ? f.operator : ''}${f.originalValue}`
-    )
-    const fullQuery = [...filterStrings, textSearch].filter(Boolean).join(' ')
-    setSearchQuery(fullQuery)
-  }, [])
+  const handleFiltersChange = useCallback(
+    (filters: ParsedFilter[], textSearch: string) => {
+      const filterStrings = filters.map(
+        (f) => `${f.field}:${f.operator !== '=' ? f.operator : ''}${f.originalValue}`
+      )
+      const fullQuery = [...filterStrings, textSearch].filter(Boolean).join(' ')
+      setUrlSearchQuery(fullQuery)
+    },
+    [setUrlSearchQuery]
+  )
 
   const getSuggestions = useCallback(
     (input: string) => suggestionEngine.getSuggestions(input),
@@ -872,14 +861,14 @@ export default function Logs() {
 
   const lastExternalSearchValue = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (searchQuery === lastExternalSearchValue.current) return
+    if (urlSearchQuery === lastExternalSearchValue.current) return
     const isMount = lastExternalSearchValue.current === undefined
-    lastExternalSearchValue.current = searchQuery
+    lastExternalSearchValue.current = urlSearchQuery
     // On mount with no initial query, skip the no-op parse
-    if (isMount && !searchQuery) return
-    const parsed = parseQuery(searchQuery)
+    if (isMount && !urlSearchQuery) return
+    const parsed = parseQuery(urlSearchQuery)
     initializeFromQuery(parsed.textSearch, parsed.filters)
-  }, [searchQuery, initializeFromQuery])
+  }, [urlSearchQuery, initializeFromQuery])
 
   useEffect(() => {
     if (!isSuggestionsOpen || highlightedIndex < 0) return
@@ -1075,7 +1064,10 @@ export default function Logs() {
           sort={sortConfig}
           filter={{
             content: (
-              <LogsFilterPanel searchQuery={searchQuery} onSearchQueryChange={setSearchQuery} />
+              <LogsFilterPanel
+                searchQuery={urlSearchQuery}
+                onSearchQueryChange={setUrlSearchQuery}
+              />
             ),
           }}
           filterTags={filterTags}
