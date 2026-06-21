@@ -11,6 +11,7 @@ import {
   type BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
 import {
+  type MothershipTab,
   mothershipParsers,
   mothershipUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
@@ -43,9 +44,7 @@ const ENTERPRISE_BYOK_PROVIDERS: BYOKManagerProvider[] = [
   },
 ]
 
-type Tab = 'overview' | 'licenses' | 'byok'
-
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: MothershipTab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'licenses', label: 'Licenses' },
   { id: 'byok', label: 'BYOK' },

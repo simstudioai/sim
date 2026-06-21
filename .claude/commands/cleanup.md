@@ -1,5 +1,5 @@
 ---
-description: Run all code quality skills in sequence — effects, memo, callbacks, state, url-state, React Query, and emcn design review
+description: Run all code quality skills in sequence — effects, memo, callbacks, state, React Query, emcn design review, and url-state
 argument-hint: [scope] [fix=true|false]
 ---
 

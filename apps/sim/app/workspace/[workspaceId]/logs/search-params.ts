@@ -1,4 +1,4 @@
-import { createParser, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { createParser, parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import {
   CORE_TRIGGER_TYPES,
   type LogLevel,
@@ -109,6 +109,34 @@ export const logFilterParsers = {
 
 /** Shared nuqs options for the logs filters: clean URLs, no back-stack churn. */
 export const logFilterUrlKeys = {
+  history: 'replace',
+  clearOnDefault: true,
+} as const
+
+/**
+ * Read-only deep link to a specific execution. Resolves to a log row and opens
+ * the details sidebar on load. Intentionally NOT stripped — the link stays
+ * shareable — so it carries no `clearOnDefault`/`history` options here.
+ */
+export const executionIdParam = {
+  key: 'executionId',
+  parser: parseAsString,
+} as const
+
+const LOG_DETAILS_TABS = ['overview', 'trace'] as const
+
+/**
+ * Active tab of the log-details sidebar (`overview` / `trace`). Deep-linkable so
+ * a shared link can land on the trace view; `replace` keeps it off the back
+ * stack and `clearOnDefault` drops it from the URL when on the default tab.
+ */
+export const logDetailsTabParam = {
+  key: 'tab',
+  parser: parseAsStringLiteral(LOG_DETAILS_TABS).withDefault('overview'),
+} as const
+
+/** Tab change is view-state, not a destination: replace, clean URL on default. */
+export const logDetailsTabUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const

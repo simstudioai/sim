@@ -12,7 +12,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
-import { parseAsString, useQueryState } from 'nuqs'
+import { useQueryState } from 'nuqs'
 import {
   Button,
   ChipCombobox,
@@ -54,6 +54,7 @@ import type {
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
+import { executionIdParam } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
@@ -229,7 +230,7 @@ export default function Logs() {
     isSidebarOpen: false,
   })
 
-  const [executionId] = useQueryState('executionId', parseAsString)
+  const [executionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
   const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() => executionId)
 
   const [searchQuery, setSearchQuery] = useState(urlSearchQuery)
