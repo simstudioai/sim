@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -987,6 +995,17 @@ export interface UseChatOptions {
   onTitleUpdate?: () => void
   onStreamEnd?: (chatId: string, messages: ChatMessage[]) => void
   initialActiveResourceId?: string | null
+  /**
+   * Controlled binding for the active resource id, supplied as a
+   * `[value, setValue]` tuple (e.g. a URL-backed nuqs `useQueryState`). When
+   * provided, it is the single source of truth for the selected resource — the
+   * hook reads and writes it directly instead of owning the state internally,
+   * so no effect-sync mirror is needed. When omitted, `useChat` owns the state
+   * via local `useState` (seeded from `initialActiveResourceId`); this is the
+   * mode used by the socket-synced workflow editor copilot, whose resource
+   * selection intentionally stays out of the URL.
+   */
+  activeResourceState?: [string | null, Dispatch<SetStateAction<string | null>>]
   /** Fired when the server's `traceparent` response header arrives, before any stream content. */
   onRequestStarted?: (info: { requestId: string; userMessageId: string }) => void
 }
@@ -1006,7 +1025,11 @@ interface StopGenerationOptions {
 export function getMothershipUseChatOptions(
   options: Pick<
     UseChatOptions,
-    'onResourceEvent' | 'onStreamEnd' | 'initialActiveResourceId' | 'onRequestStarted'
+    | 'onResourceEvent'
+    | 'onStreamEnd'
+    | 'initialActiveResourceId'
+    | 'activeResourceState'
+    | 'onRequestStarted'
   > = {}
 ): UseChatOptions {
   return {
@@ -1044,9 +1067,14 @@ export function useChat(
   const [resolvedChatId, setResolvedChatId] = useState<string | undefined>(initialChatId)
   const [queuedHandoffRecoveryEpoch, setQueuedHandoffRecoveryEpoch] = useState(0)
   const [resources, setResources] = useState<MothershipResource[]>([])
-  const [activeResourceId, setActiveResourceId] = useState<string | null>(
+  const internalActiveResourceState = useState<string | null>(
     options?.initialActiveResourceId ?? null
   )
+  // Prefer a caller-supplied controlled binding (URL-backed nuqs on the home/Chat
+  // surface) so the URL is the single source of truth; fall back to internal state
+  // for the workflow editor copilot, which keeps resource selection out of the URL.
+  const [activeResourceId, setActiveResourceId] =
+    options?.activeResourceState ?? internalActiveResourceState
   const [genericResourceData, setGenericResourceData] = useState<GenericResourceData | null>(null)
   const onResourceEventRef = useRef(options?.onResourceEvent)
   const revealedSimKeysRef = useRef<RevealedSimKeysByMessage>(new Map())
