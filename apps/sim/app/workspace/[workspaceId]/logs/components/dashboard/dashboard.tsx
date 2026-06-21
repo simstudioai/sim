@@ -2,16 +2,15 @@
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { useShallow } from 'zustand/react/shallow'
 import { Loader } from '@/components/emcn'
 import {
   DashboardSegmentsContext,
   type SegmentSelectionMode,
 } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard-segments-context'
+import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 import type { DashboardStatsResponse, WorkflowStats } from '@/hooks/queries/logs'
 import { useWorkflows } from '@/hooks/queries/workflows'
-import { useFilterStore } from '@/stores/logs/filters/store'
 import { LineChart, WorkflowsList } from './components'
 
 interface WorkflowExecution {
@@ -66,14 +65,7 @@ function DashboardInner({ stats, isLoading, error }: DashboardProps) {
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
 
-  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useFilterStore(
-    useShallow((s) => ({
-      workflowIds: s.workflowIds,
-      searchQuery: s.searchQuery,
-      toggleWorkflowId: s.toggleWorkflowId,
-      timeRange: s.timeRange,
-    }))
-  )
+  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useLogFilters()
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)
