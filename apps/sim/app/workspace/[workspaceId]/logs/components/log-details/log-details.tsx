@@ -277,12 +277,18 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
 
   const { config: permissionConfig } = usePermissionConfig()
 
+  const isInitialTabMountRef = useRef(true)
   useEffect(() => {
-    setActiveTab('overview')
+    // Honor a deep-linked tab on first mount; reset to overview only when switching to a different log.
+    if (isInitialTabMountRef.current) {
+      isInitialTabMountRef.current = false
+    } else {
+      setActiveTab('overview')
+    }
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = 0
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab on log change
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stable nuqs setter; reset tab when switching logs
   }, [log.id])
 
   const isLikelyExecution = !!log.executionId && log.trigger !== 'mothership'
