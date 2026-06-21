@@ -20,6 +20,15 @@ Pick exactly one home for each piece of state:
 
 Put state in the URL **only** when it is *all* of: shareable, deep-linkable, bookmarkable, survives reload + back/forward — **and** is discrete, low-frequency, and small. If it fails any of those, it does not go in the URL.
 
+### When to use what (decision table)
+
+| Home | Trigger | Example |
+| --- | --- | --- |
+| **URL (nuqs)** | Client view-state worth a link: tab, filter, search, sort, pagination, selected-entity id, an open "view" modal/drawer that is a destination | `?tab=licenses`, `?category=Communication`, `?page=3`, `?skillId=abc` |
+| **React Query** | Server/remote data fetched from an endpoint | `useMcpServers(workspaceId)`, `useSkills(workspaceId)` |
+| **Zustand** | Cross-component client state that must NOT be in the URL: high-frequency, large, ephemeral, socket-synced | canvas pan/zoom, live cursor, drag state, resize widths, unsaved buffers |
+| **`useState`** | Purely local single-component UI; also the snappy mirror of a debounced URL search | a hover flag, a transient dialog target, the live text of a debounced search box |
+
 ## Anti-patterns (forbidden)
 
 - Direct `useSearchParams().get(...)` or `new URLSearchParams(window.location.search)` to **read** state.
@@ -119,6 +128,38 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 Keep local `useState` for snappy typing; push to the URL debounced, and reconcile from the URL with a ref-guarded effect so external URL changes (back/forward, deep link) flow back into the input without clobbering in-flight keystrokes. This is the established logs pattern — follow it rather than writing every keystroke to the URL.
 
+## Sort convention (`sort` + `dir`)
+
+Sortable lists use **two scalar params**, never a serialized `{column,direction}` object:
+
+```typescript
+const SORT_COLUMNS = ['name', 'created', 'updated'] as const
+const SORT_DIRECTIONS = ['asc', 'desc'] as const
+
+export const thingsParsers = {
+  sort: parseAsStringLiteral(SORT_COLUMNS).withDefault('updated'),
+  dir: parseAsStringLiteral(SORT_DIRECTIONS).withDefault('desc'),
+} as const
+```
+
+Both carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). The defaults must match the list's existing default sort exactly. If a UI exposes "no active sort" as `null`, derive that in the component (`sort === DEFAULT && dir === DEFAULT ? null : { column, direction }`) — the URL still holds the resolved values. "Clear sort" writes the defaults back (which `clearOnDefault` strips from the URL); never write `null`/garbage columns.
+
+## Selected-entity deep-link (store the id, derive the object)
+
+To deep-link a row/modal/drawer to one entity, store **only its id** and look the object up in the already-loaded list — never serialize the object into the URL:
+
+```typescript
+const [skillId, setSkillId] = useQueryState(skillIdParam.key, {
+  ...skillIdParam.parser,
+  history: 'push', // opening an entity is a destination; "back" closes it
+  clearOnDefault: true,
+})
+// Derive — do not duplicate into useState or sync with an effect:
+const editingSkill = skillId ? (skills.find((s) => s.id === skillId) ?? null) : null
+```
+
+Open the panel/modal when the id resolves to a loaded entity; closing it calls `setSkillId(null)`. Because this reads `useSearchParams` it needs a **Suspense** boundary on the page (see below). A separate "create new" flow has no id and stays in local `useState`.
+
 ## Read-then-strip deep links
 
 For an ephemeral deep-link that pre-opens a modal/drawer and should not linger in the URL (e.g. integrations `?connect=oauth`, knowledge `?addConnector=`), read the param, act on it once behind a `useRef` guard, then clear it: `setParam(null, { history: 'replace', scroll: false })`. See `apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail.tsx`.
@@ -138,3 +179,9 @@ Borderline candidates that *look* shareable but currently stay in Zustand becaus
 - **`focusedBlockId`** ("look at this block") — the only genuinely shareable candidate, but it is entangled with the persisted editor store and panel-open orchestration. Adding it is a *new feature*, not a migration; ship it deliberately (with runtime verification against a live socket), not as part of a sweep.
 
 Rule of thumb for the editor: if state is socket-coupled, high-frequency, viewport-related, or a persisted resize/preference, it stays in Zustand. When in doubt, leave it and flag it — do not force fragile URL state into the canvas.
+
+## Docs
+
+- Adapters (App Router `NuqsAdapter`): https://nuqs.dev/docs/adapters
+- Parsers & options (`parseAsString`/`parseAsInteger`/`parseAsBoolean`/`parseAsStringLiteral`/`parseAsArrayOf`/`createParser`, `withDefault`, `history`, `shallow`, `clearOnDefault`): https://nuqs.dev/docs/parsers and https://nuqs.dev/docs/options
+- Server-side reads (`createSearchParamsCache`): https://nuqs.dev/docs/server-side

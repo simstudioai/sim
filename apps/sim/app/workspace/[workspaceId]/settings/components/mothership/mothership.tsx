@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { Badge, Button, Input as EmcnInput, Label, Skeleton } from '@/components/emcn'
 import { AnthropicIcon, OpenAIIcon } from '@/components/icons'
 import { cn } from '@/lib/core/utils/cn'
@@ -9,6 +10,10 @@ import {
   BYOKKeyManager,
   type BYOKManagerProvider,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
+import {
+  mothershipParsers,
+  mothershipUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
 import {
   type MothershipByokKey,
   type MothershipEnv,
@@ -85,8 +90,10 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 }
 
 export function Mothership() {
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
-  const [environment, setEnvironment] = useState<MothershipEnv>('dev')
+  const [{ tab: activeTab, env: environment }, setMothershipParams] = useQueryStates(
+    mothershipParsers,
+    mothershipUrlKeys
+  )
   const defaults = useMemo(() => defaultTimeRange(), [])
   const [start, setStart] = useState(defaults.start)
   const [end, setEnd] = useState(defaults.end)
@@ -103,7 +110,7 @@ export function Mothership() {
                 <button
                   key={opt.id}
                   type='button'
-                  onClick={() => setEnvironment(opt.id)}
+                  onClick={() => setMothershipParams({ env: opt.id })}
                   className={cn(
                     'rounded-md px-3 py-1 font-medium text-sm transition-colors',
                     environment === opt.id
@@ -123,7 +130,7 @@ export function Mothership() {
               <button
                 key={tab.id}
                 type='button'
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setMothershipParams({ tab: tab.id })}
                 className={cn(
                   'relative px-3 py-2 font-medium text-sm transition-colors',
                   activeTab === tab.id

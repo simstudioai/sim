@@ -1,3 +1,4 @@
+import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -225,7 +226,9 @@ export default function ModelsPage() {
                 All models
               </h2>
             </div>
-            <ModelDirectory />
+            <Suspense fallback={null}>
+              <ModelDirectory />
+            </Suspense>
           </section>
 
           <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />

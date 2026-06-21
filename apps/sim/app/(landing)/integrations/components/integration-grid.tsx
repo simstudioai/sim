@@ -1,9 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useQueryStates } from 'nuqs'
 import { ChipInput, Search } from '@/components/emcn'
 import { blockTypeToIconMap, formatIntegrationType, type Integration } from '@/lib/integrations'
 import { IntegrationRow } from '@/app/(landing)/integrations/components/integration-card'
+import {
+  integrationsDirectoryParsers,
+  integrationsDirectoryUrlKeys,
+} from '@/app/(landing)/integrations/search-params'
+import { useDebounce } from '@/hooks/use-debounce'
 
 const PILL_BASE =
   'rounded-[5px] border border-[var(--landing-border-strong)] px-[9px] py-0.5 text-[13.5px] text-[var(--landing-text)] transition-colors' as const
@@ -15,8 +21,29 @@ interface IntegrationGridProps {
 }
 
 export function IntegrationGrid({ integrations }: IntegrationGridProps) {
-  const [query, setQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
+  const [{ search: urlQuery, category: urlCategory }, setDirectoryFilters] = useQueryStates(
+    integrationsDirectoryParsers,
+    integrationsDirectoryUrlKeys
+  )
+
+  const [query, setQuery] = useState(urlQuery)
+  const debouncedQuery = useDebounce(query, 300)
+
+  useEffect(() => {
+    setDirectoryFilters({ search: debouncedQuery.length > 0 ? debouncedQuery : null })
+  }, [debouncedQuery, setDirectoryFilters])
+
+  const lastSyncedUrlSearchRef = useRef(urlQuery)
+  useEffect(() => {
+    if (urlQuery === lastSyncedUrlSearchRef.current) return
+    lastSyncedUrlSearchRef.current = urlQuery
+    setQuery((current) => (current === urlQuery ? current : urlQuery))
+  }, [urlQuery])
+
+  const activeCategory = urlCategory.length > 0 ? urlCategory : null
+  const setActiveCategory = (category: string | null) => {
+    setDirectoryFilters({ category })
+  }
 
   const counts = new Map<string, number>()
   for (const i of integrations) {

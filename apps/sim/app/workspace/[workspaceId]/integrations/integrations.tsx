@@ -1,8 +1,9 @@
 'use client'
 
-import { type ComponentType, useMemo, useState } from 'react'
+import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import {
   ArrowRight,
   ChevronDown,
@@ -25,11 +26,16 @@ import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/c
 import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import {
+  ALL_CATEGORY,
+  CONNECTED_LABEL,
+  FEATURED_LABEL,
+  integrationsParsers,
+  integrationsUrlKeys,
+} from '@/app/workspace/[workspaceId]/integrations/search-params'
 import { useWorkspaceCredentials, type WorkspaceCredential } from '@/hooks/queries/credentials'
+import { useDebounce } from '@/hooks/use-debounce'
 
-const ALL_CATEGORY = 'All'
-const FEATURED_LABEL = 'Featured'
-const CONNECTED_LABEL = 'Connected'
 /** Slugs surfaced in the pinned Featured section, in display order. */
 const FEATURED_SLUGS = ['slack', 'gmail', 'jira', 'github', 'google-sheets', 'hubspot'] as const
 
@@ -130,8 +136,11 @@ export function Integrations() {
   const params = useParams()
   const workspaceId = (params?.workspaceId as string) || ''
 
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>(ALL_CATEGORY)
+  const [{ category: selectedCategory, search: urlSearchTerm }, setIntegrationFilters] =
+    useQueryStates(integrationsParsers, integrationsUrlKeys)
+
+  const [searchTerm, setSearchTerm] = useState(urlSearchTerm)
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -163,6 +172,21 @@ export function Integrations() {
       ]
     })
   }, [oauthCredentials])
+
+  useEffect(() => {
+    setIntegrationFilters({ search: debouncedSearchTerm.length > 0 ? debouncedSearchTerm : null })
+  }, [debouncedSearchTerm, setIntegrationFilters])
+
+  const lastSyncedUrlSearchRef = useRef(urlSearchTerm)
+  useEffect(() => {
+    if (urlSearchTerm === lastSyncedUrlSearchRef.current) return
+    lastSyncedUrlSearchRef.current = urlSearchTerm
+    setSearchTerm((current) => (current === urlSearchTerm ? current : urlSearchTerm))
+  }, [urlSearchTerm])
+
+  const setSelectedCategory = (category: string) => {
+    setIntegrationFilters({ category })
+  }
 
   const categoryOptions = [
     ALL_CATEGORY,

@@ -2,11 +2,9 @@
 
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
-import { mcpServerIdParam } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
@@ -103,7 +101,6 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ section }: SettingsPageProps) {
-  const [mcpServerId] = useQueryState(mcpServerIdParam.key, mcpServerIdParam.parser)
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
 
@@ -144,7 +141,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
       {effectiveSection === 'whitelabeling' && <WhitelabelingSettings />}
       {effectiveSection === 'byok' && <BYOK />}
       {effectiveSection === 'copilot' && <Copilot />}
-      {effectiveSection === 'mcp' && <MCP initialServerId={mcpServerId} />}
+      {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import type { ComboboxOption } from '@/components/emcn'
 import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@/components/emcn'
 import { Columns3, Rows3, Table as TableIcon } from '@/components/emcn/icons'
@@ -25,6 +26,14 @@ import {
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
+import {
+  DEFAULT_TABLE_SORT_COLUMN,
+  DEFAULT_TABLE_SORT_DIRECTION,
+  TABLE_SORT_COLUMNS,
+  type TableSortColumn,
+  tablesParsers,
+  tablesUrlKeys,
+} from '@/app/workspace/[workspaceId]/tables/search-params'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   cancelTableJob,
@@ -86,17 +95,56 @@ export function Tables() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [activeTable, setActiveTable] = useState<TableDefinition | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+
+  const [
+    {
+      search: urlSearchTerm,
+      sort: sortColumn,
+      dir: sortDirection,
+      rows: rowCountFilter,
+      owner: ownerFilter,
+    },
+    setTableFilters,
+  ] = useQueryStates(tablesParsers, tablesUrlKeys)
+
+  const [searchTerm, setSearchTerm] = useState(urlSearchTerm)
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
-  const [rowCountFilter, setRowCountFilter] = useState<string[]>([])
-  const [ownerFilter, setOwnerFilter] = useState<string[]>([])
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_TABLE_SORT_COLUMN && sortDirection === DEFAULT_TABLE_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setRowCountFilter = useCallback(
+    (next: string[]) => setTableFilters({ rows: next }),
+    [setTableFilters]
+  )
+  const setOwnerFilter = useCallback(
+    (next: string[]) => setTableFilters({ owner: next }),
+    [setTableFilters]
+  )
+
   const [uploadProgress, setUploadProgress] = useState({ completed: 0, total: 0 })
   const uploading = uploadProgress.total > 0
   const csvInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setTableFilters({ search: debouncedSearchTerm.length > 0 ? debouncedSearchTerm : null })
+  }, [debouncedSearchTerm, setTableFilters])
+
+  const lastSyncedUrlSearchRef = useRef(urlSearchTerm)
+  useEffect(() => {
+    if (urlSearchTerm === lastSyncedUrlSearchRef.current) return
+    lastSyncedUrlSearchRef.current = urlSearchTerm
+    setSearchTerm((current) => (current === urlSearchTerm ? current : urlSearchTerm))
+  }, [urlSearchTerm])
 
   const {
     isOpen: isListContextMenuOpen,
@@ -222,10 +270,19 @@ export function Tables() {
         { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
-      onSort: (column, direction) => setActiveSort({ column, direction }),
-      onClear: () => setActiveSort(null),
+      onSort: (column, direction) => {
+        const sort = (TABLE_SORT_COLUMNS as readonly string[]).includes(column)
+          ? (column as TableSortColumn)
+          : DEFAULT_TABLE_SORT_COLUMN
+        setTableFilters({ sort, dir: direction })
+      },
+      onClear: () =>
+        setTableFilters({
+          sort: DEFAULT_TABLE_SORT_COLUMN,
+          dir: DEFAULT_TABLE_SORT_DIRECTION,
+        }),
     }),
-    [activeSort]
+    [activeSort, setTableFilters]
   )
 
   const rowCountDisplayLabel = useMemo(() => {

@@ -58,7 +58,11 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
-import { addConnectorParam } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
+import {
+  addConnectorParam,
+  pageParam,
+  pageUrlKeys,
+} from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -280,7 +284,10 @@ export function KnowledgeBase({
   const [documentToDelete, setDocumentToDelete] = useState<string | null>(null)
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false)
   const [showConnectorsModal, setShowConnectorsModal] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useQueryState(pageParam.key, {
+    ...pageParam.parser,
+    ...pageUrlKeys,
+  })
   const [activeSort, setActiveSort] = useState<{
     column: string
     direction: 'asc' | 'desc'

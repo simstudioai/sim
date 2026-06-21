@@ -23,10 +23,14 @@ const parseAsNewFlag = createParser<boolean>({
  *   navigations between folders belong in the browser history (`history: 'push'`).
  * - `new` marks a freshly-created file so the editor opens in compose mode; it is
  *   read once on mount and stripped as the route stabilizes.
+ * - `shareFileId` deep-links a file's share dialog open. The modal opens when the
+ *   id resolves to a loaded file; closing it clears the param. Opening it is a
+ *   destination, so (like folder navigation) it lands in the browser history.
  */
 export const filesParsers = {
   folderId: parseAsString,
   new: parseAsNewFlag.withDefault(false),
+  shareFileId: parseAsString,
 } as const
 
 /**

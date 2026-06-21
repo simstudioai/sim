@@ -1,14 +1,24 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
+import { useQueryStates } from 'nuqs'
 import { Button, ChipInput, ChipModalTabs } from '@/components/emcn'
 import { Folder, Search, Workflow } from '@/components/emcn/icons'
 import { type ColumnOption, SortDropdown } from '@/app/workspace/[workspaceId]/components'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
+import {
+  DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
+  DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
+  RECENTLY_DELETED_SORT_COLUMNS,
+  type RecentlyDeletedSortColumn,
+  type RecentlyDeletedTab,
+  recentlyDeletedParsers,
+  recentlyDeletedUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery, useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreTable, useTablesList } from '@/hooks/queries/tables'
@@ -18,6 +28,7 @@ import {
   useWorkspaceFileFolders,
 } from '@/hooks/queries/workspace-file-folders'
 import { useRestoreWorkspaceFile, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -139,11 +150,38 @@ export function RecentlyDeleted() {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params?.workspaceId as string
-  const [activeTab, setActiveTab] = useState<ResourceType>('all')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [activeSort, setActiveSort] = useState<SortConfig | null>(null)
+  const [
+    { tab: activeTab, sort: sortColumn, dir: sortDirection, search: urlSearchTerm },
+    setRecentlyDeletedFilters,
+  ] = useQueryStates(recentlyDeletedParsers, recentlyDeletedUrlKeys)
+
+  const [searchTerm, setSearchTerm] = useState(urlSearchTerm)
+  const debouncedSearchTerm = useDebounce(searchTerm, 300)
+
+  const activeSort = useMemo<SortConfig | null>(
+    () =>
+      sortColumn === DEFAULT_RECENTLY_DELETED_SORT_COLUMN &&
+      sortDirection === DEFAULT_RECENTLY_DELETED_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
   const [restoringIds, setRestoringIds] = useState<Set<string>>(new Set())
   const [restoredItems, setRestoredItems] = useState<Map<string, RestoredResourceEntry>>(new Map())
+
+  useEffect(() => {
+    setRecentlyDeletedFilters({
+      search: debouncedSearchTerm.length > 0 ? debouncedSearchTerm : null,
+    })
+  }, [debouncedSearchTerm, setRecentlyDeletedFilters])
+
+  const lastSyncedUrlSearchRef = useRef(urlSearchTerm)
+  useEffect(() => {
+    if (urlSearchTerm === lastSyncedUrlSearchRef.current) return
+    lastSyncedUrlSearchRef.current = urlSearchTerm
+    setSearchTerm((current) => (current === urlSearchTerm ? current : urlSearchTerm))
+  }, [urlSearchTerm])
 
   const workflowsQuery = useWorkflows(workspaceId, { scope: 'archived' })
   const foldersQuery = useFolders(workspaceId, { scope: 'archived' })
@@ -381,9 +419,17 @@ export function RecentlyDeleted() {
               config={{
                 options: SORT_OPTIONS,
                 active: activeSort,
-                onSort: (column, direction) =>
-                  setActiveSort({ column: column as SortColumn, direction }),
-                onClear: () => setActiveSort(null),
+                onSort: (column, direction) => {
+                  const sort = (RECENTLY_DELETED_SORT_COLUMNS as readonly string[]).includes(column)
+                    ? (column as RecentlyDeletedSortColumn)
+                    : DEFAULT_RECENTLY_DELETED_SORT_COLUMN
+                  setRecentlyDeletedFilters({ sort, dir: direction })
+                },
+                onClear: () =>
+                  setRecentlyDeletedFilters({
+                    sort: DEFAULT_RECENTLY_DELETED_SORT_COLUMN,
+                    dir: DEFAULT_RECENTLY_DELETED_SORT_DIRECTION,
+                  }),
               }}
             />
           </div>
@@ -391,7 +437,7 @@ export function RecentlyDeleted() {
           <ChipModalTabs
             tabs={TABS.map((tab) => ({ value: tab.id, label: tab.label }))}
             value={activeTab}
-            onChange={(v) => setActiveTab(v as ResourceType)}
+            onChange={(v) => setRecentlyDeletedFilters({ tab: v as RecentlyDeletedTab })}
           />
 
           {error ? (

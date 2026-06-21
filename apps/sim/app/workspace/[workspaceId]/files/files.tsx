@@ -173,10 +173,8 @@ export function Files() {
 
   const params = useParams()
   const router = useRouter()
-  const [{ folderId: currentFolderId, new: isNewFile }, setFilesParams] = useQueryStates(
-    filesParsers,
-    filesUrlKeys
-  )
+  const [{ folderId: currentFolderId, new: isNewFile, shareFileId }, setFilesParams] =
+    useQueryStates(filesParsers, filesUrlKeys)
   const workspaceId = params?.workspaceId as string
 
   const posthog = usePostHog()
@@ -274,7 +272,6 @@ export function Files() {
     folderIds: string[]
     name: string
   } | null>(null)
-  const [shareFileId, setShareFileId] = useState<string | null>(null)
 
   const listRename = useInlineRename({
     onSave: (rowId, name) => {
@@ -306,7 +303,7 @@ export function Files() {
   const shareModal = shareFile ? (
     <ShareModal
       open
-      onOpenChange={(open) => !open && setShareFileId(null)}
+      onOpenChange={(open) => !open && setFilesParams({ shareFileId: null })}
       workspaceId={workspaceId}
       fileId={shareFile.id}
       fileName={shareFile.name}
@@ -998,8 +995,8 @@ export function Files() {
 
   const handleShareSelected = useCallback(() => {
     const file = selectedFileRef.current
-    if (file) setShareFileId(file.id)
-  }, [])
+    if (file) setFilesParams({ shareFileId: file.id })
+  }, [setFilesParams])
 
   const handleBulkDelete = useCallback(() => {
     if (selectedFileIds.length === 0 && selectedFolderIds.length === 0) return
@@ -1247,9 +1244,9 @@ export function Files() {
 
   const handleContextMenuShare = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (item?.kind === 'file') setShareFileId(item.file.id)
+    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id })
     closeContextMenu()
-  }, [closeContextMenu])
+  }, [closeContextMenu, setFilesParams])
 
   const handleContextMenuDelete = useCallback(() => {
     const item = contextMenuItemRef.current

@@ -1,9 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useQueryStates } from 'nuqs'
 import { Input } from '@/components/emcn'
 import { ChevronArrow, ProviderIcon } from '@/app/(landing)/models/components/model-primitives'
+import { modelDirectoryParsers, modelDirectoryUrlKeys } from '@/app/(landing)/models/search-params'
 import {
   type CatalogModel,
   type CatalogProvider,
@@ -12,10 +14,32 @@ import {
   MODEL_PROVIDERS_WITH_CATALOGS,
   MODEL_PROVIDERS_WITH_DYNAMIC_CATALOGS,
 } from '@/app/(landing)/models/utils'
+import { useDebounce } from '@/hooks/use-debounce'
 
 export function ModelDirectory() {
-  const [query, setQuery] = useState('')
-  const [activeProviderId, setActiveProviderId] = useState<string | null>(null)
+  const [{ search: urlQuery, provider: urlProvider }, setModelFilters] = useQueryStates(
+    modelDirectoryParsers,
+    modelDirectoryUrlKeys
+  )
+
+  const [query, setQuery] = useState(urlQuery)
+  const debouncedQuery = useDebounce(query, 300)
+
+  useEffect(() => {
+    setModelFilters({ search: debouncedQuery.length > 0 ? debouncedQuery : null })
+  }, [debouncedQuery, setModelFilters])
+
+  const lastSyncedUrlSearchRef = useRef(urlQuery)
+  useEffect(() => {
+    if (urlQuery === lastSyncedUrlSearchRef.current) return
+    lastSyncedUrlSearchRef.current = urlQuery
+    setQuery((current) => (current === urlQuery ? current : urlQuery))
+  }, [urlQuery])
+
+  const activeProviderId = urlProvider.length > 0 ? urlProvider : null
+  const setActiveProviderId = (providerId: string | null) => {
+    setModelFilters({ provider: providerId })
+  }
 
   const providerOptions = useMemo(
     () =>
