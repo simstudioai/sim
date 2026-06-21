@@ -422,10 +422,24 @@ export default function Logs() {
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
     activeLogTabRef.current = 'overview'
-    // Strip `tab` from the URL (back to the default) so reopening another log
-    // starts on the overview tab instead of inheriting the closed log's tab.
-    setLogDetailsTab(null)
-  }, [setLogDetailsTab])
+  }, [])
+
+  /**
+   * Strip the `tab` param whenever the detail panel transitions from open to
+   * closed — by the X button, toggling the same row, or the keyboard — so
+   * reopening another log starts on overview rather than inheriting the closed
+   * log's tab. Guarded on a prior-open ref so an initial deep-linked `?tab=` is
+   * preserved (the panel isn't open yet on first mount).
+   */
+  const wasSidebarOpenRef = useRef(false)
+  useEffect(() => {
+    if (isSidebarOpen) {
+      wasSidebarOpenRef.current = true
+    } else if (wasSidebarOpenRef.current) {
+      wasSidebarOpenRef.current = false
+      setLogDetailsTab(null)
+    }
+  }, [isSidebarOpen, setLogDetailsTab])
 
   const handleActiveTabChange = useCallback((tab: string) => {
     activeLogTabRef.current = tab

@@ -298,7 +298,8 @@ export function KnowledgeBase({
   // doesn't refetch on every keystroke. Changing the search resets pagination.
   const handleSearchChange = useCallback(
     (newQuery: string) => {
-      const next = newQuery.length > 0 ? newQuery : null
+      const trimmed = newQuery.trim()
+      const next = trimmed.length > 0 ? trimmed : null
       setDocumentFilters(
         { q: next },
         next === null ? undefined : { limitUrlUpdates: debounce(300) }
