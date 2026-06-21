@@ -7,6 +7,8 @@ paths:
 
 All React Query hooks live in `hooks/queries/`. All server state must go through React Query — never use `useState` + `fetch` in components for data fetching or mutations.
 
+For *client* view-state that belongs in a shareable link (tabs, filters, search, pagination, selected entity id), use URL query params via nuqs — see `.claude/rules/sim-url-state.md`. React Query owns remote data; nuqs owns shareable client view-state.
+
 ## Query Key Factory
 
 Every query file defines a hierarchical keys factory with an `all` root key and intermediate plural keys for prefix-level invalidation:

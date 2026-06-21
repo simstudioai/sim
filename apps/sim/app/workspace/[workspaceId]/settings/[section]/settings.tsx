@@ -2,10 +2,11 @@
 
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { useSearchParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
+import { mcpServerIdParam } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
@@ -102,8 +103,7 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ section }: SettingsPageProps) {
-  const searchParams = useSearchParams()
-  const mcpServerId = searchParams.get('mcpServerId')
+  const [mcpServerId] = useQueryState(mcpServerIdParam.key, mcpServerIdParam.parser)
   const { data: session, isPending: sessionLoading } = useSession()
   const posthog = usePostHog()
 

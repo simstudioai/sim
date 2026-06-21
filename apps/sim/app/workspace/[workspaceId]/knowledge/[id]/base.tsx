@@ -6,7 +6,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
@@ -31,7 +32,6 @@ import {
 import { Database, DatabaseX } from '@/components/emcn/icons'
 import { SearchHighlight } from '@/components/ui/search-highlight'
 import { cn } from '@/lib/core/utils/cn'
-import { ADD_CONNECTOR_SEARCH_PARAM } from '@/lib/credentials/client-state'
 import { ALL_TAG_SLOTS, type AllTagSlot, getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
@@ -58,6 +58,7 @@ import {
   DocumentContextMenu,
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
+import { addConnectorParam } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -208,9 +209,10 @@ export function KnowledgeBase({
   const params = useParams()
   const workspaceId = propWorkspaceId || (params.workspaceId as string)
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const pathname = usePathname()
-  const addConnectorParam = searchParams.get(ADD_CONNECTOR_SEARCH_PARAM)
+  const [addConnectorType, setAddConnectorType] = useQueryState(
+    addConnectorParam.key,
+    addConnectorParam.parser
+  )
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -286,24 +288,12 @@ export function KnowledgeBase({
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
-  const showAddConnectorModal = addConnectorParam != null
-  const searchParamsRef = useRef(searchParams)
-  searchParamsRef.current = searchParams
+  const showAddConnectorModal = addConnectorType != null
   const updateAddConnectorParam = useCallback(
     (value: string | null) => {
-      const current = searchParamsRef.current
-      const currentValue = current.get(ADD_CONNECTOR_SEARCH_PARAM)
-      if (value === currentValue || (value === null && currentValue === null)) return
-      const next = new URLSearchParams(current.toString())
-      if (value === null) {
-        next.delete(ADD_CONNECTOR_SEARCH_PARAM)
-      } else {
-        next.set(ADD_CONNECTOR_SEARCH_PARAM, value)
-      }
-      const qs = next.toString()
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      void setAddConnectorType(value, { history: 'replace', scroll: false })
     },
-    [pathname, router]
+    [setAddConnectorType]
   )
   const setShowAddConnectorModal = useCallback(
     (open: boolean) => updateAddConnectorParam(open ? '' : null),
@@ -1284,7 +1274,7 @@ export function KnowledgeBase({
           onOpenChange={setShowAddConnectorModal}
           onConnectorTypeChange={updateAddConnectorParam}
           knowledgeBaseId={id}
-          initialConnectorType={addConnectorParam || undefined}
+          initialConnectorType={addConnectorType || undefined}
         />
       )}
 
