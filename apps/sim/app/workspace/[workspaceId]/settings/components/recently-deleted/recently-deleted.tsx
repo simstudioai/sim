@@ -162,7 +162,8 @@ export function RecentlyDeleted() {
   // it reads the instant value too.
   const setSearchTerm = useCallback(
     (value: string) => {
-      const next = value.length > 0 ? value : null
+      const trimmed = value.trim()
+      const next = trimmed.length > 0 ? trimmed : null
       setRecentlyDeletedFilters(
         { search: next },
         next === null ? undefined : { limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS) }

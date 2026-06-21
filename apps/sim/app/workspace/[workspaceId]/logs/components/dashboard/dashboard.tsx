@@ -38,6 +38,12 @@ interface DashboardProps {
   stats?: DashboardStatsResponse
   isLoading: boolean
   error?: Error | null
+  /**
+   * Debounced search term. Comes pre-debounced from the parent (same value the
+   * dashboard stats query uses) so the in-memory workflow list filtering and the
+   * stats query stay in sync while typing.
+   */
+  searchQuery: string
 }
 
 /**
@@ -60,12 +66,12 @@ function toWorkflowExecution(wf: WorkflowStats): WorkflowExecution {
   }
 }
 
-function DashboardInner({ stats, isLoading, error }: DashboardProps) {
+function DashboardInner({ stats, isLoading, error, searchQuery }: DashboardProps) {
   const [selectedSegments, setSelectedSegments] = useState<Record<string, number[]>>({})
   const [lastAnchorIndices, setLastAnchorIndices] = useState<Record<string, number>>({})
   const lastAnchorIndicesRef = useRef<Record<string, number>>({})
 
-  const { workflowIds, searchQuery, toggleWorkflowId, timeRange } = useLogFilters()
+  const { workflowIds, toggleWorkflowId, timeRange } = useLogFilters()
 
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { data: allWorkflowList = [], isPending: isWorkflowsPending } = useWorkflows(workspaceId)

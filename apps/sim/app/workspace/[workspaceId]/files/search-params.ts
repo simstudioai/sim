@@ -20,12 +20,15 @@ const parseAsNewFlag = createParser<boolean>({
  * truth.
  *
  * - `folderId` is the currently open folder; it is shareable, bookmarkable, and
- *   navigations between folders belong in the browser history (`history: 'push'`).
+ *   navigations between folders belong in the browser history (`history: 'push'`,
+ *   the group default).
  * - `new` marks a freshly-created file so the editor opens in compose mode; it is
  *   read once on mount and stripped as the route stabilizes.
  * - `shareFileId` deep-links a file's share dialog open. The modal opens when the
- *   id resolves to a loaded file; closing it clears the param. Opening it is a
- *   destination, so (like folder navigation) it lands in the browser history.
+ *   id resolves to a loaded file; closing it clears the param. Opening and
+ *   closing the modal use a per-call `{ history: 'replace' }` override so the
+ *   dialog toggle does not pollute the back/forward stack (a deep link still
+ *   opens it on load).
  */
 export const filesParsers = {
   folderId: parseAsString,
@@ -35,8 +38,10 @@ export const filesParsers = {
 
 /**
  * Shared nuqs options for files query state. Folder navigation is a destination,
- * so it lands in the browser history; defaults clear from the URL to keep links
- * clean.
+ * so the group default lands in the browser history; defaults clear from the URL
+ * to keep links clean. Non-navigation writes (the `shareFileId` modal toggle)
+ * pass a per-call `{ history: 'replace' }` override so they don't add back-stack
+ * entries.
  */
 export const filesUrlKeys = {
   history: 'push',

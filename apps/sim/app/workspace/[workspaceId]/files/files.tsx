@@ -303,7 +303,9 @@ export function Files() {
   const shareModal = shareFile ? (
     <ShareModal
       open
-      onOpenChange={(open) => !open && setFilesParams({ shareFileId: null })}
+      onOpenChange={(open) =>
+        !open && setFilesParams({ shareFileId: null }, { history: 'replace' })
+      }
       workspaceId={workspaceId}
       fileId={shareFile.id}
       fileName={shareFile.name}
@@ -995,7 +997,7 @@ export function Files() {
 
   const handleShareSelected = useCallback(() => {
     const file = selectedFileRef.current
-    if (file) setFilesParams({ shareFileId: file.id })
+    if (file) setFilesParams({ shareFileId: file.id }, { history: 'replace' })
   }, [setFilesParams])
 
   const handleBulkDelete = useCallback(() => {
@@ -1244,7 +1246,7 @@ export function Files() {
 
   const handleContextMenuShare = useCallback(() => {
     const item = contextMenuItemRef.current
-    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id })
+    if (item?.kind === 'file') setFilesParams({ shareFileId: item.file.id }, { history: 'replace' })
     closeContextMenu()
   }, [closeContextMenu, setFilesParams])
 

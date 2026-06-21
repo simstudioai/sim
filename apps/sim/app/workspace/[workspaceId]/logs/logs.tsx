@@ -54,7 +54,11 @@ import type {
 import { Resource } from '@/app/workspace/[workspaceId]/components'
 import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
-import { executionIdParam } from '@/app/workspace/[workspaceId]/logs/search-params'
+import {
+  executionIdParam,
+  logDetailsTabParam,
+  logDetailsTabUrlKeys,
+} from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
@@ -233,6 +237,14 @@ export default function Logs() {
   const [executionId] = useQueryState(executionIdParam.key, executionIdParam.parser)
   const [pendingExecutionId, setPendingExecutionId] = useState<string | null>(() => executionId)
 
+  // The log-details `tab` param is owned/written by the details panel, but the
+  // orchestrator must clear it when the panel closes so a lingering `?tab=trace`
+  // never carries over to the next log opened from the list.
+  const [, setLogDetailsTab] = useQueryState(logDetailsTabParam.key, {
+    ...logDetailsTabParam.parser,
+    ...logDetailsTabUrlKeys,
+  })
+
   // `urlSearchQuery` is the instant nuqs value (its URL write is debounced inside
   // `useLogFilters`); the query/filtering still debounce off it to avoid per-keystroke
   // fetches.
@@ -410,7 +422,10 @@ export default function Logs() {
   const handleCloseSidebar = useCallback(() => {
     dispatch({ type: 'CLOSE_SIDEBAR' })
     activeLogTabRef.current = 'overview'
-  }, [])
+    // Strip `tab` from the URL (back to the default) so reopening another log
+    // starts on the overview tab instead of inheriting the closed log's tab.
+    setLogDetailsTab(null)
+  }, [setLogDetailsTab])
 
   const handleActiveTabChange = useCallback((tab: string) => {
     activeLogTabRef.current = tab
@@ -459,9 +474,10 @@ export default function Logs() {
   }, [contextMenuLog, workflowIds, setWorkflowIds])
 
   const handleClearAllFilters = useCallback(() => {
+    // `resetFilters()` already clears `search` (sets it to null), so no separate
+    // search reset is needed here.
     resetFilters()
-    setUrlSearchQuery('')
-  }, [resetFilters, setUrlSearchQuery])
+  }, [resetFilters])
 
   const handleOpenPreview = useCallback(() => {
     if (contextMenuLog?.id) {
@@ -1079,6 +1095,7 @@ export default function Logs() {
                 stats={dashboardStatsQuery.data}
                 isLoading={dashboardStatsQuery.isLoading}
                 error={dashboardStatsQuery.error}
+                searchQuery={debouncedSearchQuery}
               />
             </div>
             {sidebarOverlay}
