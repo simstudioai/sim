@@ -7,7 +7,7 @@ import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
 import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { debounce, useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import {
   Badge,
@@ -60,6 +60,11 @@ import {
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   addConnectorParam,
+  DEFAULT_KB_SORT_COLUMN,
+  DEFAULT_KB_SORT_DIRECTION,
+  documentFiltersParsers,
+  documentFiltersUrlKeys,
+  type KbSortColumn,
   pageParam,
   pageUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
@@ -85,6 +90,7 @@ import {
   useUpdateDocument,
   useUpdateKnowledgeBase,
 } from '@/hooks/queries/kb/knowledge'
+import { useDebounce } from '@/hooks/use-debounce'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
 
@@ -242,9 +248,7 @@ export function KnowledgeBase({
   })
   const { mutate: bulkDocumentMutation, isPending: isBulkOperating } = useBulkDocumentOperation()
 
-  const [searchQuery, setSearchQuery] = useState('')
   const [showTagsModal, setShowTagsModal] = useState(false)
-  const [enabledFilter, setEnabledFilter] = useState<'all' | 'enabled' | 'disabled'>('all')
   const [tagFilterEntries, setTagFilterEntries] = useState<
     {
       id: string
@@ -271,11 +275,6 @@ export function KnowledgeBase({
     [tagFilterEntries]
   )
 
-  const handleSearchChange = useCallback((newQuery: string) => {
-    setSearchQuery(newQuery)
-    setCurrentPage(1)
-  }, [])
-
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(() => new Set())
   const [isSelectAllMode, setIsSelectAllMode] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -288,10 +287,48 @@ export function KnowledgeBase({
     ...pageParam.parser,
     ...pageUrlKeys,
   })
-  const [activeSort, setActiveSort] = useState<{
-    column: string
-    direction: 'asc' | 'desc'
-  } | null>(null)
+
+  const [
+    { q: searchQuery, enabled: enabledFilter, sort: sortColumn, dir: sortDirection },
+    setDocumentFilters,
+  ] = useQueryStates(documentFiltersParsers, documentFiltersUrlKeys)
+
+  // The input is controlled directly by the instant nuqs value; only the URL
+  // write is debounced. The document query below reads a debounced value so it
+  // doesn't refetch on every keystroke. Changing the search resets pagination.
+  const handleSearchChange = useCallback(
+    (newQuery: string) => {
+      const next = newQuery.length > 0 ? newQuery : null
+      setDocumentFilters(
+        { q: next },
+        next === null ? undefined : { limitUrlUpdates: debounce(300) }
+      )
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+  const debouncedSearchQuery = useDebounce(searchQuery, 300)
+
+  /**
+   * The resolved sort is exposed to the sort menu only when it differs from the
+   * default, mirroring the prior `null`-means-default semantics.
+   */
+  const activeSort = useMemo(
+    () =>
+      sortColumn === DEFAULT_KB_SORT_COLUMN && sortDirection === DEFAULT_KB_SORT_DIRECTION
+        ? null
+        : { column: sortColumn, direction: sortDirection },
+    [sortColumn, sortDirection]
+  )
+
+  const setEnabledFilter = useCallback(
+    (value: 'all' | 'enabled' | 'disabled') => {
+      setDocumentFilters({ enabled: value })
+      setCurrentPage(1)
+    },
+    [setDocumentFilters, setCurrentPage]
+  )
+
   const [contextMenuDocument, setContextMenuDocument] = useState<DocumentData | null>(null)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const [documentToRename, setDocumentToRename] = useState<DocumentData | null>(null)
@@ -335,11 +372,11 @@ export function KnowledgeBase({
     updateDocument,
     refreshDocuments,
   } = useKnowledgeBaseDocuments(id, {
-    search: searchQuery || undefined,
+    search: debouncedSearchQuery || undefined,
     limit: DOCUMENTS_PER_PAGE,
     offset: (currentPage - 1) * DOCUMENTS_PER_PAGE,
-    sortBy: (activeSort?.column ?? 'uploadedAt') as DocumentSortField,
-    sortOrder: (activeSort?.direction ?? 'desc') as SortOrder,
+    sortBy: sortColumn as DocumentSortField,
+    sortOrder: sortDirection as SortOrder,
     refetchInterval: (data) => {
       if (isDeleting) return false
       const hasPending = data?.documents?.some(
@@ -857,15 +894,17 @@ export function KnowledgeBase({
       ],
       active: activeSort,
       onSort: (column, direction) => {
-        setActiveSort({ column, direction })
+        setDocumentFilters({ sort: column as KbSortColumn, dir: direction })
         setCurrentPage(1)
       },
+      // Clearing writes the defaults back (stripped by clearOnDefault), so the
+      // sort menu reads "no active sort" again and the URL stays clean.
       onClear: () => {
-        setActiveSort(null)
+        setDocumentFilters({ sort: DEFAULT_KB_SORT_COLUMN, dir: DEFAULT_KB_SORT_DIRECTION })
         setCurrentPage(1)
       },
     }),
-    [activeSort]
+    [activeSort, setDocumentFilters, setCurrentPage]
   )
 
   const filterContent = useMemo(
@@ -879,7 +918,6 @@ export function KnowledgeBase({
                 variant='ghost'
                 onClick={() => {
                   setEnabledFilter('all')
-                  setCurrentPage(1)
                   setSelectedDocuments(new Set())
                   setIsSelectAllMode(false)
                 }}
@@ -895,7 +933,6 @@ export function KnowledgeBase({
             onChange={(value) => {
               if (value !== 'all' && value !== 'enabled' && value !== 'disabled') return
               setEnabledFilter(value)
-              setCurrentPage(1)
               setSelectedDocuments(new Set())
               setIsSelectAllMode(false)
             }}
@@ -968,7 +1005,6 @@ export function KnowledgeBase({
               label: `Status: ${enabledFilter === 'enabled' ? 'Enabled' : 'Disabled'}`,
               onRemove: () => {
                 setEnabledFilter('all')
-                setCurrentPage(1)
                 setSelectedDocuments(new Set())
                 setIsSelectAllMode(false)
               },

@@ -164,6 +164,10 @@ export const thingsParsers = {
 
 Both carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). The defaults must match the list's existing default sort exactly. If a UI exposes "no active sort" as `null`, derive that in the component (`sort === DEFAULT && dir === DEFAULT ? null : { column, direction }`) — the URL still holds the resolved values. "Clear sort" writes the defaults back (which `clearOnDefault` strips from the URL); never write `null`/garbage columns.
 
+## Dates in the URL (`parseAsIsoDate`)
+
+A date-only param (a calendar anchor, a date filter) uses the built-in `parseAsIsoDate` (`yyyy-MM-dd`) — never serialize a full `Date`/timestamp when only the day matters. When the default is **dynamic** (e.g. "today"), make the param **nullable** (omit `.withDefault`) and derive the fallback in the hook (`const anchor = param ?? today`), so a clean URL means the dynamic default and navigating back to it writes `null` (clears the param). See `scheduled-tasks/search-params.ts` + `hooks/use-calendar.ts`.
+
 ## Selected-entity deep-link (store the id, derive the object)
 
 To deep-link a row/modal/drawer to one entity, store **only its id** and look the object up in the already-loaded list — never serialize the object into the URL:
