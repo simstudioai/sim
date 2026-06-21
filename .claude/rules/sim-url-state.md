@@ -164,9 +164,13 @@ export const thingsParsers = {
 
 Both carry the shared filter options (`{ history: 'replace', clearOnDefault: true }`). The defaults must match the list's existing default sort exactly. If a UI exposes "no active sort" as `null`, derive that in the component (`sort === DEFAULT && dir === DEFAULT ? null : { column, direction }`) — the URL still holds the resolved values. "Clear sort" writes the defaults back (which `clearOnDefault` strips from the URL); never write `null`/garbage columns.
 
-## Dates in the URL (`parseAsIsoDate`)
+## Dates in the URL (date-only params)
 
-A date-only param (a calendar anchor, a date filter) uses the built-in `parseAsIsoDate` (`yyyy-MM-dd`) — never serialize a full `Date`/timestamp when only the day matters. When the default is **dynamic** (e.g. "today"), make the param **nullable** (omit `.withDefault`) and derive the fallback in the hook (`const anchor = param ?? today`), so a clean URL means the dynamic default and navigating back to it writes `null` (clears the param). See `scheduled-tasks/search-params.ts` + `hooks/use-calendar.ts`.
+A date-only param (a calendar anchor, a date filter) is stored as `yyyy-MM-dd` — never serialize a full `Date`/timestamp when only the day matters.
+
+**Local vs UTC — pick the parser that matches your date math.** nuqs's built-in `parseAsIsoDate` is **UTC-based** (`serialize` via `toISOString()`, `parse` to UTC midnight). If your `Date` is local-time (e.g. produced by local-time helpers and read by `date-fns` `startOfWeek`/`isSameDay`, which are all local), `parseAsIsoDate` will shift the day by ±1 in any non-UTC timezone on reload/deep-link/back-forward. For local-time date math, use a small local-date `createParser` that serializes/parses on local calendar fields (`getFullYear`/`getMonth`/`getDate` ↔ `new Date(y, m-1, d)`) with an `eq` comparing y/m/d. Only use `parseAsIsoDate` when the value is genuinely UTC/midnight-UTC. See `scheduled-tasks/search-params.ts` (`parseAsLocalDate`).
+
+When the default is **dynamic** (e.g. "today"), make the param **nullable** (omit `.withDefault`) and derive the fallback in the hook (`const anchor = param ?? today`), so a clean URL means the dynamic default and navigating back to it writes `null` (clears the param). See `scheduled-tasks/hooks/use-calendar.ts`.
 
 ## Selected-entity deep-link (store the id, derive the object)
 
