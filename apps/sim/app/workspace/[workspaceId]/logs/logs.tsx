@@ -52,6 +52,7 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { Resource } from '@/app/workspace/[workspaceId]/components'
+import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -74,7 +75,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 import { Dashboard, ExecutionSnapshot, LogDetails, LogRowContextMenu } from './components'
-import { useLogFilters } from './hooks/use-log-filters'
 import {
   DELETED_WORKFLOW_LABEL,
   extractRetryInput,

@@ -121,13 +121,13 @@ export function Skills() {
 
   const showNoResults = searchTerm.trim() && filteredSkills.length === 0
 
+  const handleOpenAddForm = () => {
+    setEditingSkillId(null)
+    setShowAddForm(true)
+  }
+
   const addButton = (
-    <Chip
-      variant='primary'
-      onClick={() => setShowAddForm(true)}
-      disabled={isLoading}
-      leftIcon={Plus}
-    >
+    <Chip variant='primary' onClick={handleOpenAddForm} disabled={isLoading} leftIcon={Plus}>
       Add to Sim
     </Chip>
   )

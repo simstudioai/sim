@@ -7,9 +7,9 @@ import {
 } from '@/stores/logs/filters/types'
 
 /**
- * Co-located, typed URL query-param definitions for the logs feature. Both the
- * client (`useLogFilters`) and any server component that needs to read these
- * params consume this single source of truth.
+ * Co-located, typed URL query-param definitions for the logs feature. The
+ * client hook (`useLogFilters`) consumes this typed param definition as the
+ * single source of truth.
  *
  * The encoding here intentionally preserves the exact wire format the logs page
  * shipped before nuqs: `timeRange` uses kebab tokens, `level` / `workflowIds` /

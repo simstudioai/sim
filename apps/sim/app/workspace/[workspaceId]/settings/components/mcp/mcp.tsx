@@ -26,7 +26,10 @@ import {
   type McpToolIssue,
 } from '@/lib/mcp/tool-validation'
 import type { McpTransport } from '@/lib/mcp/types'
-import { mcpServerIdParam } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import {
+  mcpServerIdParam,
+  mcpServerIdUrlKeys,
+} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 import {
@@ -184,18 +187,18 @@ export function MCP() {
 
   const [selectedServerId, setSelectedServerId] = useQueryState(mcpServerIdParam.key, {
     ...mcpServerIdParam.parser,
-    history: 'push',
-    clearOnDefault: true,
+    ...mcpServerIdUrlKeys,
   })
 
+  const initialServerIdRef = useRef(selectedServerId)
   const didDeepLinkRefreshRef = useRef(false)
   useEffect(() => {
     if (didDeepLinkRefreshRef.current) return
-    if (!selectedServerId) return
+    if (!initialServerIdRef.current) return
     didDeepLinkRefreshRef.current = true
     forceRefreshTools(workspaceId)
     refetchStoredTools()
-  }, [selectedServerId, workspaceId, forceRefreshTools, refetchStoredTools])
+  }, [workspaceId, forceRefreshTools, refetchStoredTools])
 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => new Set())
 

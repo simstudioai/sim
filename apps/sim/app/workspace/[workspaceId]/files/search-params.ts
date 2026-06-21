@@ -15,9 +15,9 @@ const parseAsNewFlag = createParser<boolean>({
 })
 
 /**
- * Co-located, typed URL query-param definitions for the Files feature. Both the
- * client (`Files`) and any server component that reads these params consume this
- * single source of truth.
+ * Co-located, typed URL query-param definitions for the Files feature. The
+ * client (`Files`) consumes this typed param definition as the single source of
+ * truth.
  *
  * - `folderId` is the currently open folder; it is shareable, bookmarkable, and
  *   navigations between folders belong in the browser history (`history: 'push'`).

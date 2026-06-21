@@ -1,4 +1,3 @@
-import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { Badge } from '@/components/emcn'
 import { SITE_URL } from '@/lib/core/utils/urls'
@@ -206,9 +205,7 @@ export default function IntegrationsPage() {
               All Integrations
             </h2>
           </div>
-          <Suspense fallback={null}>
-            <IntegrationGrid integrations={allIntegrations} />
-          </Suspense>
+          <IntegrationGrid integrations={allIntegrations} />
         </section>
 
         <div className='h-px w-full bg-[var(--landing-bg-elevated)]' />

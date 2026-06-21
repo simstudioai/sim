@@ -2,8 +2,8 @@ import { parseAsString } from 'nuqs/server'
 
 /**
  * Co-located, typed URL query-param definitions for the settings section pages.
- * Both the client (`SettingsPage`) and any server component that needs to read
- * these params consume this single source of truth.
+ * The client hook consumes this typed param definition as the single source of
+ * truth.
  *
  * `mcpServerId` deep-links the MCP settings tab to a specific server so the row
  * can be focused/opened from a shared link.
@@ -11,4 +11,10 @@ import { parseAsString } from 'nuqs/server'
 export const mcpServerIdParam = {
   key: 'mcpServerId',
   parser: parseAsString,
+} as const
+
+/** Opening a server is a destination → push to history; clear on close. */
+export const mcpServerIdUrlKeys = {
+  history: 'push',
+  clearOnDefault: true,
 } as const

@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import TablesLoading from './loading'
+import TablesLoading from '@/app/workspace/[workspaceId]/tables/loading'
 import { Tables } from './tables'
 
 export const metadata: Metadata = {

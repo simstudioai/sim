@@ -2,8 +2,8 @@ import { parseAsInteger, parseAsString } from 'nuqs/server'
 
 /**
  * Co-located, typed URL query-param definitions for the knowledge document
- * (chunk list + inline chunk editor) page. Both the client (`Document`) and any
- * server component that reads these params consume this single source of truth.
+ * (chunk list + inline chunk editor) page. The client (`Document`) consumes this
+ * typed param definition as the single source of truth.
  *
  * - `page` is the chunk pagination page, shareable and bookmarkable. It defaults
  *   to 1 and clears from the URL at the default to keep links clean.

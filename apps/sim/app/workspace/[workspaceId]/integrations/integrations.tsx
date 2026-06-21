@@ -1,6 +1,6 @@
 'use client'
 
-import { type ComponentType, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentType, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -184,9 +184,12 @@ export function Integrations() {
     setSearchTerm((current) => (current === urlSearchTerm ? current : urlSearchTerm))
   }, [urlSearchTerm])
 
-  const setSelectedCategory = (category: string) => {
-    setIntegrationFilters({ category })
-  }
+  const setSelectedCategory = useCallback(
+    (category: string) => {
+      setIntegrationFilters({ category })
+    },
+    [setIntegrationFilters]
+  )
 
   const categoryOptions = [
     ALL_CATEGORY,
