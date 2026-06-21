@@ -85,6 +85,9 @@ export function Home({ chatId, userName, userId }: HomeProps) {
   // mutates a query param via the History API.
   const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
     (action) => {
+      // Order matters: strip the fragment synchronously BEFORE the nuqs write.
+      // nuqs re-appends `location.hash` on its (deferred) flush, so clearing the
+      // hash first ensures the param write doesn't carry the stale fragment back.
       if (typeof window !== 'undefined' && window.location.hash) {
         const { pathname, search } = window.location
         window.history.replaceState(window.history.state, '', `${pathname}${search}`)
